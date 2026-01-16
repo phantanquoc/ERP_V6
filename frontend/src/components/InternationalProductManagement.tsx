@@ -1,0 +1,446 @@
+import React, { useState, useEffect } from 'react';
+import { Plus, Search, Edit, Trash2, Eye, X } from 'lucide-react';
+import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
+
+const InternationalProductManagement: React.FC = () => {
+  const [products, setProducts] = useState<InternationalProduct[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [showModal, setShowModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<InternationalProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<InternationalProduct | null>(null);
+  const [formData, setFormData] = useState({
+    maSanPham: '',
+    tenSanPham: '',
+    moTaSanPham: '',
+    loaiSanPham: '',
+  });
+
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    fetchProducts();
+  }, [currentPage, searchTerm]);
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await internationalProductService.getAllProducts(
+        currentPage,
+        itemsPerPage,
+        searchTerm || undefined
+      );
+      setProducts(response.data);
+      setTotalPages(response.pagination.totalPages);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      alert('Lỗi khi tải danh sách sản phẩm');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    try {
+      await internationalProductService.createProduct(formData);
+      alert('Tạo sản phẩm thành công!');
+      setShowModal(false);
+      resetForm();
+      fetchProducts();
+    } catch (error: any) {
+      console.error('Error creating product:', error);
+      alert(error.response?.data?.message || 'Lỗi khi tạo sản phẩm');
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingProduct) return;
+
+    try {
+      await internationalProductService.updateProduct(editingProduct.id, {
+        tenSanPham: formData.tenSanPham,
+        moTaSanPham: formData.moTaSanPham,
+        loaiSanPham: formData.loaiSanPham,
+      });
+      alert('Cập nhật sản phẩm thành công!');
+      setShowModal(false);
+      resetForm();
+      fetchProducts();
+    } catch (error: any) {
+      console.error('Error updating product:', error);
+      alert(error.response?.data?.message || 'Lỗi khi cập nhật sản phẩm');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) return;
+
+    try {
+      await internationalProductService.deleteProduct(id);
+      alert('Xóa sản phẩm thành công!');
+      fetchProducts();
+    } catch (error: any) {
+      console.error('Error deleting product:', error);
+
+      // Extract error message from different possible locations
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        'Lỗi khi xóa sản phẩm';
+
+      // Show detailed error message
+      alert(`❌ Không thể xóa sản phẩm!\n\n${errorMessage}`);
+    }
+  };
+
+  const openCreateModal = async () => {
+    try {
+      const response = await internationalProductService.generateProductCode();
+      setFormData({
+        maSanPham: response.data.code,
+        tenSanPham: '',
+        moTaSanPham: '',
+        loaiSanPham: '',
+      });
+      setEditingProduct(null);
+      setShowModal(true);
+    } catch (error) {
+      console.error('Error generating product code:', error);
+      alert('Lỗi khi tạo mã sản phẩm');
+    }
+  };
+
+  const openEditModal = (product: InternationalProduct) => {
+    setEditingProduct(product);
+    setFormData({
+      maSanPham: product.maSanPham,
+      tenSanPham: product.tenSanPham,
+      moTaSanPham: product.moTaSanPham || '',
+      loaiSanPham: product.loaiSanPham || '',
+    });
+    setShowModal(true);
+  };
+
+  const openDetailModal = (product: InternationalProduct) => {
+    setSelectedProduct(product);
+    setShowDetailModal(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      maSanPham: '',
+      tenSanPham: '',
+      moTaSanPham: '',
+      loaiSanPham: '',
+    });
+    setEditingProduct(null);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Danh sách sản phẩm</h2>
+        <button
+          onClick={openCreateModal}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Plus className="w-4 h-4" />
+          Thêm sản phẩm
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            type="text"
+            placeholder="Tìm kiếm theo mã, tên hoặc mô tả sản phẩm..."
+            value={searchTerm}
+            onChange={handleSearch}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Mã sản phẩm
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Tên sản phẩm
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Loại sản phẩm
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Mô tả
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Hành động
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {loading ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                  Đang tải...
+                </td>
+              </tr>
+            ) : products.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                  Không có dữ liệu
+                </td>
+              </tr>
+            ) : (
+              products.map((product) => (
+                <tr key={product.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                    {product.maSanPham}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {product.tenSanPham}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {product.loaiSanPham || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {product.moTaSanPham || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openDetailModal(product)}
+                        className="text-blue-600 hover:text-blue-800"
+                        title="Xem chi tiết"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => openEditModal(product)}
+                        className="text-green-600 hover:text-green-800"
+                        title="Chỉnh sửa"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(product.id)}
+                        className="text-red-600 hover:text-red-800"
+                        title="Xóa"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-gray-700">
+          Trang {currentPage} / {totalPages}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Trước
+          </button>
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Sau
+          </button>
+        </div>
+      </div>
+
+      {/* Create/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">
+                  {editingProduct ? 'Chỉnh sửa sản phẩm' : 'Thêm sản phẩm mới'}
+                </h2>
+                <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mã sản phẩm
+                  </label>
+                  <input
+                    type="text"
+                    name="maSanPham"
+                    value={formData.maSanPham}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tên sản phẩm <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="tenSanPham"
+                    value={formData.tenSanPham}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Loại sản phẩm
+                  </label>
+                  <select
+                    name="loaiSanPham"
+                    value={formData.loaiSanPham}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Chọn loại sản phẩm --</option>
+                    <option value="Nguyên liệu tươi">Nguyên liệu tươi</option>
+                    <option value="Nguyên liệu đông">Nguyên liệu đông</option>
+                    <option value="Phụ liệu">Phụ liệu</option>
+                    <option value="Sản phẩm khô">Sản phẩm khô</option>
+                    <option value="Sản phẩm đông">Sản phẩm đông</option>
+                    <option value="Hệ thống">Hệ thống</option>
+                    <option value="Thiết bị">Thiết bị</option>
+                    <option value="Vật tư">Vật tư</option>
+                    <option value="Khác">Khác</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mô tả sản phẩm
+                  </label>
+                  <textarea
+                    name="moTaSanPham"
+                    value={formData.moTaSanPham}
+                    onChange={handleInputChange}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={editingProduct ? handleUpdate : handleCreate}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    {editingProduct ? 'Cập nhật' : 'Tạo mới'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {showDetailModal && selectedProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Chi tiết sản phẩm</h2>
+                <button onClick={() => setShowDetailModal(false)} className="text-gray-500 hover:text-gray-700">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Mã sản phẩm</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedProduct.maSanPham}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Tên sản phẩm</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedProduct.tenSanPham}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Loại sản phẩm</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedProduct.loaiSanPham || '-'}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Mô tả sản phẩm</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedProduct.moTaSanPham || '-'}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Ngày tạo</label>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {new Date(selectedProduct.createdAt).toLocaleString('vi-VN')}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Ngày cập nhật</label>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {new Date(selectedProduct.updatedAt).toLocaleString('vi-VN')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default InternationalProductManagement;
+

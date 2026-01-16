@@ -1,0 +1,422 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Plus,
+  Search,
+  Edit,
+  Eye,
+  Trash2,
+  AlertCircle,
+  CheckCircle,
+  X
+} from 'lucide-react';
+import positionService, { Position } from '@services/positionService';
+import positionResponsibilityService, { PositionResponsibility } from '@services/positionResponsibilityService';
+
+interface FormData {
+  title: string;
+  description: string;
+  weight: number;
+}
+
+const ResponsibilityManagement = () => {
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
+  const [responsibilities, setResponsibilities] = useState<PositionResponsibility[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedResponsibility, setSelectedResponsibility] = useState<PositionResponsibility | null>(null);
+  const [formData, setFormData] = useState<FormData>({
+    title: '',
+    description: '',
+    weight: 0,
+  });
+
+  useEffect(() => {
+    loadPositions();
+  }, []);
+
+  useEffect(() => {
+    if (selectedPosition) {
+      loadResponsibilities();
+    }
+  }, [selectedPosition]);
+
+  const loadPositions = async () => {
+    try {
+      setLoading(true);
+      const positionList = await positionService.getAllPositions();
+      setPositions(positionList || []);
+      if (positionList && positionList.length > 0 && !selectedPosition) {
+        setSelectedPosition(positionList[0]);
+      }
+      setError('');
+    } catch (err) {
+      setError('Lỗi tải danh sách vị trí');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadResponsibilities = async () => {
+    if (!selectedPosition) return;
+    try {
+      setLoading(true);
+      const data = await positionResponsibilityService.getAllResponsibilities(selectedPosition.id);
+      setResponsibilities(data || []);
+      setError('');
+    } catch (err) {
+      setError('Lỗi tải danh sách trách nhiệm');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!selectedPosition) {
+      setError('Vui lòng chọn vị trí');
+      return;
+    }
+
+    try {
+      if (isEditMode && selectedResponsibility) {
+        await positionResponsibilityService.updateResponsibility(selectedResponsibility.id, formData);
+        setSuccess('Cập nhật trách nhiệm thành công');
+      } else {
+        await positionResponsibilityService.createResponsibility(selectedPosition.id, formData);
+        setSuccess('Tạo trách nhiệm thành công');
+      }
+      setIsFormModalOpen(false);
+      loadResponsibilities();
+    } catch (err: any) {
+      setError(err.message || 'Lỗi khi lưu trách nhiệm');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa trách nhiệm này?')) return;
+
+    try {
+      await positionResponsibilityService.deleteResponsibility(id);
+      setSuccess('Xóa trách nhiệm thành công');
+      loadResponsibilities();
+    } catch (err: any) {
+      setError(err.message || 'Lỗi khi xóa trách nhiệm');
+    }
+  };
+
+  const openCreateModal = () => {
+    setIsEditMode(false);
+    setFormData({ title: '', description: '', weight: 0 });
+    setIsFormModalOpen(true);
+  };
+
+  const openEditModal = (responsibility: PositionResponsibility) => {
+    setIsEditMode(true);
+    setSelectedResponsibility(responsibility);
+    setFormData({
+      title: responsibility.title,
+      description: responsibility.description,
+      weight: responsibility.weight,
+    });
+    setIsFormModalOpen(true);
+  };
+
+  const openDetailModal = (responsibility: PositionResponsibility) => {
+    setSelectedResponsibility(responsibility);
+    setIsDetailModalOpen(true);
+  };
+
+  const closeModals = () => {
+    setIsFormModalOpen(false);
+    setIsDetailModalOpen(false);
+    setSelectedResponsibility(null);
+  };
+
+  const filteredResponsibilities = responsibilities.filter(resp =>
+    resp.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    resp.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-800">Quản lý trách nhiệm theo vị trí</h2>
+      </div>
+
+      {/* Messages */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md flex items-center gap-2">
+          <AlertCircle className="h-5 w-5 text-red-600" />
+          <span className="text-red-700">{error}</span>
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md flex items-center gap-2">
+          <CheckCircle className="h-5 w-5 text-green-600" />
+          <span className="text-green-700">{success}</span>
+        </div>
+      )}
+
+      {/* Position Selector */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Chọn vị trí</label>
+        <select
+          value={selectedPosition?.id || ''}
+          onChange={(e) => {
+            const pos = positions.find(p => p.id === e.target.value);
+            setSelectedPosition(pos || null);
+          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">-- Chọn vị trí --</option>
+          {positions.map(pos => (
+            <option key={pos.id} value={pos.id}>
+              {pos.code} - {pos.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {selectedPosition && (
+        <>
+          {/* Position Info */}
+          <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h3 className="font-semibold text-gray-800 mb-2">Thông tin vị trí</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="text-sm text-gray-600">Mã vị trí:</span>
+                <p className="font-medium text-gray-900">{selectedPosition.code}</p>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">Tên vị trí:</span>
+                <p className="font-medium text-gray-900">{selectedPosition.name}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Add Button */}
+          <div className="mb-6 flex justify-end">
+            <button
+              onClick={openCreateModal}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              Thêm trách nhiệm
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Tìm kiếm trách nhiệm..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tên trách nhiệm</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Mô tả</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Trọng số (%)</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Hành động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                      Đang tải...
+                    </td>
+                  </tr>
+                ) : filteredResponsibilities.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                      Không có dữ liệu
+                    </td>
+                  </tr>
+                ) : (
+                  filteredResponsibilities.map((resp) => (
+                    <tr key={resp.id} className="border-b border-gray-200 hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{resp.title}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{resp.description}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{resp.weight}%</td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => openDetailModal(resp)}
+                            className="text-blue-600 hover:text-blue-800"
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openEditModal(resp)}
+                            className="text-green-600 hover:text-green-800"
+                            title="Chỉnh sửa"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(resp.id)}
+                            className="text-red-600 hover:text-red-800"
+                            title="Xóa"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Form Modal */}
+          {isFormModalOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-800">
+                      {isEditMode ? 'Chỉnh sửa trách nhiệm' : 'Thêm trách nhiệm mới'}
+                    </h3>
+                    <button onClick={closeModals} className="text-gray-400 hover:text-gray-600">
+                      <X className="w-6 h-6" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Tên trách nhiệm *</label>
+                      <input
+                        type="text"
+                        value={formData.title}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả *</label>
+                      <textarea
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={3}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Trọng số (%) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={formData.weight}
+                        onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={closeModals}
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                      >
+                        {isEditMode ? 'Cập nhật' : 'Thêm'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Detail Modal */}
+          {isDetailModalOpen && selectedResponsibility && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-800">Chi tiết trách nhiệm</h3>
+                    <button onClick={closeModals} className="text-gray-400 hover:text-gray-600">
+                      <X className="w-6 h-6" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Tên trách nhiệm</label>
+                      <p className="text-gray-900">{selectedResponsibility.title}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Mô tả</label>
+                      <p className="text-gray-900">{selectedResponsibility.description}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Trọng số</label>
+                      <p className="text-gray-900">{selectedResponsibility.weight}%</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={closeModals}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    >
+                      Đóng
+                    </button>
+                    <button
+                      onClick={() => {
+                        openEditModal(selectedResponsibility);
+                        setIsDetailModalOpen(false);
+                      }}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Chỉnh sửa
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+export default ResponsibilityManagement;
+
