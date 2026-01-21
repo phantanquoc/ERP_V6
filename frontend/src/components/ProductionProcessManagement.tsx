@@ -372,74 +372,79 @@ const ProductionProcessManagement: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
-              <tr className="bg-blue-100 border-b-2 border-blue-300">
-                <th className="px-4 py-3 text-left text-sm font-bold text-gray-800 border-r border-blue-300">STT</th>
-                <th className="px-4 py-3 text-left text-sm font-bold text-gray-800 border-r border-blue-300">MÃ QTSX</th>
-                <th className="px-4 py-3 text-left text-sm font-bold text-gray-800 border-r border-blue-300">TÊN QUY TRÌNH SẢN XUẤT</th>
-                <th className="px-4 py-3 text-left text-sm font-bold text-gray-800 border-r border-blue-300">MÃ NV</th>
-                <th className="px-4 py-3 text-left text-sm font-bold text-gray-800 border-r border-blue-300">TÊN NHÂN VIÊN</th>
-                <th className="px-4 py-3 text-left text-sm font-bold text-gray-800 border-r border-blue-300">ĐỊNH MỨC NVL</th>
-                <th className="px-4 py-3 text-left text-sm font-bold text-gray-800 border-r border-blue-300">SẢN PHẨM ĐẦU RA</th>
-                <th className="px-4 py-3 text-left text-sm font-bold text-gray-800 border-r border-blue-300">KHỐI LƯỢNG (Kg)</th>
-                <th className="px-4 py-3 text-left text-sm font-bold text-gray-800 border-r border-blue-300">THỜI GIAN (Ngày)</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800">HÀNH ĐỘNG</th>
+              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã QTSX</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên quy trình sản xuất</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nhân viên</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Định mức NVL</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm đầu ra</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (Kg)</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian (Ngày)</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                     Đang tải...
                   </td>
                 </tr>
               ) : filteredProcesses.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                     Không có dữ liệu
                   </td>
                 </tr>
               ) : (
                 filteredProcesses.map((process, index) => (
-                  <tr key={process.id} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50`}>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200 text-center">
+                  <tr
+                    key={process.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {(currentPage - 1) * 10 + index + 1}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200 text-center font-medium text-blue-600">
+                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                       {process.maQuyTrinhSanXuat}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{process.tenQuyTrinhSanXuat || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{process.maNVSanXuat || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{process.tenNVSanXuat || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{process.materialStandard?.tenDinhMuc || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{process.sanPhamDauRa || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200 text-center">{process.khoiLuong || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200 text-center">{process.thoiGian || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{process.tenQuyTrinhSanXuat || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{process.maNVSanXuat || '-'}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{process.tenNVSanXuat || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{process.materialStandard?.tenDinhMuc || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{process.sanPhamDauRa || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{process.khoiLuong || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{process.thoiGian || '-'}</td>
+                    <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-3">
                         <button
                           onClick={() => handleViewProcess(process)}
-                          className="text-blue-600 hover:text-blue-800"
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                           title="Xem chi tiết"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleEditProcess(process)}
-                          className="text-green-600 hover:text-green-800"
+                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                           title="Chỉnh sửa"
                         >
-                          <Edit className="w-4 h-4" />
+                          <Edit className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleDelete(process.id)}
-                          className="text-red-600 hover:text-red-800"
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                           title="Xóa"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       </div>
                     </td>

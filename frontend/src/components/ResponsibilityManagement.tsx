@@ -232,65 +232,70 @@ const ResponsibilityManagement = () => {
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tên trách nhiệm</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Mô tả</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Trọng số (%)</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                      Đang tải...
-                    </td>
-                  </tr>
-                ) : filteredResponsibilities.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                      Không có dữ liệu
-                    </td>
-                  </tr>
-                ) : (
-                  filteredResponsibilities.map((resp) => (
-                    <tr key={resp.id} className="border-b border-gray-200 hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900">{resp.title}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{resp.description}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{resp.weight}%</td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => openDetailModal(resp)}
-                            className="text-blue-600 hover:text-blue-800"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => openEditModal(resp)}
-                            className="text-green-600 hover:text-green-800"
-                            title="Chỉnh sửa"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(resp.id)}
-                            className="text-red-600 hover:text-red-800"
-                            title="Xóa"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            {loading ? (
+              <div className="p-8 text-center text-gray-500">Đang tải...</div>
+            ) : filteredResponsibilities.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">Không có dữ liệu</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên trách nhiệm</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mô tả</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trọng số (%)</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {filteredResponsibilities.map((resp, index) => (
+                      <tr
+                        key={resp.id}
+                        className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                        }`}
+                      >
+                        <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                          {resp.title}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                          {resp.description}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                          {resp.weight}%
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-center gap-3">
+                            <button
+                              onClick={() => openDetailModal(resp)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                              title="Xem chi tiết"
+                            >
+                              <Eye className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => openEditModal(resp)}
+                              className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                              title="Chỉnh sửa"
+                            >
+                              <Edit className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(resp.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Form Modal */}

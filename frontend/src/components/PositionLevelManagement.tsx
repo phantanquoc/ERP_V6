@@ -219,64 +219,75 @@ const PositionLevelManagement = () => {
       </div>
 
       {/* Levels Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Đang tải...</div>
         ) : filteredLevels.length === 0 ? (
           <div className="p-8 text-center text-gray-500">Không có dữ liệu</div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Cấp độ</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Lương cơ bản</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Lương KPI</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Hành động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLevels.map(level => (
-                <tr key={level.id} className="border-b hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm text-gray-900">{level.level}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {new Intl.NumberFormat('vi-VN', {
-                      style: 'currency',
-                      currency: 'VND',
-                    }).format(level.baseSalary)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {new Intl.NumberFormat('vi-VN', {
-                      style: 'currency',
-                      currency: 'VND',
-                    }).format(level.kpiSalary)}
-                  </td>
-                  <td className="px-6 py-4 text-sm space-x-2 flex">
-                    <button
-                      onClick={() => openDetailModal(level)}
-                      className="text-blue-600 hover:text-blue-800"
-                      title="Xem chi tiết"
-                    >
-                      <Eye className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => openEditModal(level)}
-                      className="text-yellow-600 hover:text-yellow-800"
-                      title="Chỉnh sửa"
-                    >
-                      <Edit className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(level.id)}
-                      className="text-red-600 hover:text-red-800"
-                      title="Xóa"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Cấp độ</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lương cơ bản</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lương KPI</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredLevels.map((level, index) => (
+                  <tr
+                    key={level.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                      {level.level}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      {new Intl.NumberFormat('vi-VN', {
+                        style: 'currency',
+                        currency: 'VND',
+                      }).format(level.baseSalary)}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      {new Intl.NumberFormat('vi-VN', {
+                        style: 'currency',
+                        currency: 'VND',
+                      }).format(level.kpiSalary)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => openDetailModal(level)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                          title="Xem chi tiết"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => openEditModal(level)}
+                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(level.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

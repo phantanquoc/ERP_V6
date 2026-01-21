@@ -182,17 +182,17 @@ const AttendanceManagement: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PRESENT':
-        return 'bg-green-100 text-green-800';
+        return 'text-green-700 font-medium';
       case 'ABSENT':
-        return 'bg-red-100 text-red-800';
+        return 'text-red-700 font-medium';
       case 'LATE':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'text-yellow-700 font-medium';
       case 'EARLY':
-        return 'bg-blue-100 text-blue-800';
+        return 'text-blue-700 font-medium';
       case 'ON_LEAVE':
-        return 'bg-purple-100 text-purple-800';
+        return 'text-purple-700 font-medium';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'text-gray-700 font-medium';
     }
   };
 
@@ -275,67 +275,90 @@ const AttendanceManagement: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Đang tải dữ liệu...</div>
         ) : filteredAttendances.length === 0 ? (
           <div className="p-8 text-center text-gray-500">Không có dữ liệu điểm danh</div>
         ) : (
-          <table className="w-full border-collapse border border-gray-300">
-            <thead>
-              <tr className="bg-blue-100">
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-300 w-12">STT</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-300 w-20">Mã NV</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-300 w-32">Tên nhân viên</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-300 w-24">Chức vụ</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-300 w-24">Ngày điểm danh</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-300 w-20">Giờ vào</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-300 w-20">Giờ ra</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-300 w-20">Số giờ</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-300 w-24">Trạng thái</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-300 w-32">Ghi chú</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 w-20">Hành động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAttendances.map((record) => (
-                <tr key={record.id} className="border-b border-gray-300 hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300 text-center">{record.stt}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300 text-center font-medium text-blue-600">{record.employeeCode}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300">{record.employeeName}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300 text-center">{record.positionName}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300 text-center">{new Date(record.attendanceDate).toLocaleDateString('vi-VN')}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300 text-center">{formatTime(record.checkInTime)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300 text-center">{formatTime(record.checkOutTime)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300 text-center">{record.workHours.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-sm text-center border-r border-gray-300">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}>
-                      {getStatusLabel(record.status)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300">{record.notes || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => handleEdit(record)}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(record.id)}
-                        className="text-red-600 hover:text-red-800"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nhân viên</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Chức vụ</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày điểm danh</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Giờ vào</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Giờ ra</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số giờ</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredAttendances.map((record, index) => (
+                  <tr
+                    key={record.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{record.stt}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                      {record.employeeCode}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      {record.employeeName}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                      {record.positionName}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      {new Date(record.attendanceDate).toLocaleDateString('vi-VN')}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      {formatTime(record.checkInTime)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      {formatTime(record.checkOutTime)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      {record.workHours.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-center border-r border-gray-200">
+                      <span className={`text-sm ${getStatusColor(record.status)}`}>
+                        {getStatusLabel(record.status)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                      {record.notes || '-'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => handleEdit(record)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit2 className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(record.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import qualityEvaluationController from '@controllers/qualityEvaluationController';
 import { authenticate } from '@middlewares/auth';
+import { createSingleUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
+
+// Upload middleware for quality evaluations
+const uploadQualityEvaluation = createSingleUploadMiddleware('quality-evaluations');
 
 // All routes require authentication
 router.use(authenticate);
@@ -14,10 +18,10 @@ router.get('/', qualityEvaluationController.getAllQualityEvaluations.bind(qualit
 router.get('/:id', qualityEvaluationController.getQualityEvaluationById.bind(qualityEvaluationController));
 
 // POST /api/quality-evaluations - Create new quality evaluation
-router.post('/', qualityEvaluationController.createQualityEvaluation.bind(qualityEvaluationController));
+router.post('/', uploadQualityEvaluation, qualityEvaluationController.createQualityEvaluation.bind(qualityEvaluationController));
 
 // PUT /api/quality-evaluations/:id - Update quality evaluation
-router.put('/:id', qualityEvaluationController.updateQualityEvaluation.bind(qualityEvaluationController));
+router.put('/:id', uploadQualityEvaluation, qualityEvaluationController.updateQualityEvaluation.bind(qualityEvaluationController));
 
 // DELETE /api/quality-evaluations/:id - Delete quality evaluation
 router.delete('/:id', qualityEvaluationController.deleteQualityEvaluation.bind(qualityEvaluationController));

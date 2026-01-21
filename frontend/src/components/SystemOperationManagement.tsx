@@ -344,95 +344,94 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       )}
 
       {/* Machine Tabs */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex flex-wrap gap-2">
-          {machines.map((machine) => (
-            <div key={machine.id} className="relative group">
+      <div className="bg-white rounded-lg shadow">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+            {machines.map((machine) => (
               <button
+                key={machine.id}
                 onClick={() => setSelectedMachine(machine.tenMay)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  selectedMachine === machine.tenMay
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
+                className={`
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  ${selectedMachine === machine.tenMay
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-900 hover:text-blue-600 hover:border-gray-300'
+                  }
+                `}
               >
                 {machine.tenMay}
                 {machine.trangThai !== 'HOAT_DONG' && (
-                  <span className="ml-2 text-xs">
+                  <span className="ml-2 text-xs text-gray-500">
                     ({machine.trangThai === 'BẢO_TRÌ' ? 'Bảo trì' : 'Ngừng'})
                   </span>
                 )}
               </button>
-              {machines.length > 1 && (
-                <button
-                  onClick={() => handleRemoveMachine(machine)}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Xóa máy"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          ))}
+            ))}
+          </nav>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã chiên</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên máy</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian chiên</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khối lượng đầu vào (kg)</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng thời gian sấy</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ghi chú</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người thực hiện</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên máy</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng đầu vào (kg)</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng thời gian sấy</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody>
               {filteredOperations.map((operation, index) => (
-                <tr key={operation.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{operation.maChien}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-purple-600">{operation.tenMay}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{formatDateTime(operation.thoiGianChien)}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{operation.khoiLuongDauVao || 0} kg</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{operation.tongThoiGianSay} phút</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTrangThaiColor(operation.trangThai)}`}>
+                <tr
+                  key={operation.id}
+                  className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  }`}
+                >
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{index + 1}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{operation.maChien}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-purple-600 border-r border-gray-200">{operation.tenMay}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{formatDateTime(operation.thoiGianChien)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{operation.khoiLuongDauVao || 0} kg</td>
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{operation.tongThoiGianSay} phút</td>
+                  <td className="px-6 py-4 border-r border-gray-200 text-center">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${getTrangThaiColor(operation.trangThai)}`}>
                       {getTrangThaiLabel(operation.trangThai)}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{operation.ghiChu}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{operation.nguoiThucHien}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center gap-2">
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{operation.ghiChu}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{operation.nguoiThucHien}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => handleViewDetail(operation)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                         title="Xem chi tiết"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleOpenModal(operation)}
-                        className="text-green-600 hover:text-green-800"
+                        className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                         title="Chỉnh sửa"
                       >
-                        <Edit className="w-4 h-4" />
+                        <Edit className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDelete(operation.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                         title="Xóa"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </td>

@@ -81,10 +81,11 @@ class OrderService {
   }
 
   // Get all orders
-  async getAllOrders(page: number = 1, limit: number = 10, search?: string) {
+  async getAllOrders(page: number = 1, limit: number = 10, search?: string, customerType?: string) {
     const token = getAuthToken();
     const params: any = { page, limit };
     if (search) params.search = search;
+    if (customerType) params.customerType = customerType;
 
     const response = await axios.get(API_URL, {
       params,

@@ -8,8 +8,12 @@ import {
   deleteTaxReport,
 } from '../controllers/taxReportController';
 import { authenticate } from '../middlewares/auth';
+import { createSingleUploadMiddleware } from '../middlewares/upload';
 
 const router = express.Router();
+
+// Upload middleware for tax reports
+const uploadTaxReport = createSingleUploadMiddleware('tax-reports');
 
 // All routes require authentication
 router.use(authenticate);
@@ -24,10 +28,10 @@ router.get('/:id', getTaxReportById);
 router.get('/order/:orderId', getTaxReportByOrderId);
 
 // Create tax report from order
-router.post('/order/:orderId', createTaxReportFromOrder);
+router.post('/order/:orderId', uploadTaxReport, createTaxReportFromOrder);
 
 // Update tax report
-router.put('/:id', updateTaxReport);
+router.put('/:id', uploadTaxReport, updateTaxReport);
 
 // Delete tax report
 router.delete('/:id', deleteTaxReport);

@@ -7,8 +7,12 @@ import {
   deleteDebt,
   getDebtSummary,
 } from '../controllers/debtController';
+import { createSingleUploadMiddleware } from '../middlewares/upload';
 
 const router = express.Router();
+
+// Upload middleware for debts
+const uploadDebt = createSingleUploadMiddleware('debts');
 
 // Get all debts
 router.get('/', getAllDebts);
@@ -20,10 +24,10 @@ router.get('/summary', getDebtSummary);
 router.get('/:id', getDebtById);
 
 // Create debt
-router.post('/', createDebt);
+router.post('/', uploadDebt, createDebt);
 
 // Update debt
-router.put('/:id', updateDebt);
+router.put('/:id', uploadDebt, updateDebt);
 
 // Delete debt
 router.delete('/:id', deleteDebt);

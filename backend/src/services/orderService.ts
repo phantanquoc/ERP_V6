@@ -21,7 +21,7 @@ class OrderService {
   }
 
   // Create order from quotation
-  async createOrderFromQuotation(quotationId: string) {
+  async createOrderFromQuotation(quotationId: string, fileDinhKem?: string) {
     // Check if quotation exists
     const quotation = await prisma.quotation.findUnique({
       where: { id: quotationId },
@@ -67,6 +67,7 @@ class OrderService {
         tenKhachHang: quotation.tenKhachHang,
         employeeId: quotation.employeeId,
         tenNhanVien: quotation.tenNhanVien,
+        fileDinhKem,
         items: {
           create: quotation.quotationRequest.items.map((item) => ({
             productId: item.productId,
@@ -113,18 +114,26 @@ class OrderService {
   }
 
   // Get all orders with pagination
-  async getAllOrders(page: number = 1, limit: number = 10, search?: string) {
+  async getAllOrders(page: number = 1, limit: number = 10, search?: string, customerType?: string) {
     const skip = (page - 1) * limit;
 
-    const where = search
-      ? {
-          OR: [
-            { maDonHang: { contains: search, mode: 'insensitive' as const } },
-            { maBaoGia: { contains: search, mode: 'insensitive' as const } },
-            { tenKhachHang: { contains: search, mode: 'insensitive' as const } },
-          ],
-        }
-      : {};
+    const where: any = {};
+
+    // Filter by customerType (Quốc tế / Nội địa)
+    if (customerType === 'Quốc tế') {
+      where.customer = { quocGia: { not: null } };
+    } else if (customerType === 'Nội địa') {
+      where.customer = { tinhThanh: { not: null } };
+    }
+
+    // Search filter
+    if (search) {
+      where.OR = [
+        { maDonHang: { contains: search, mode: 'insensitive' as const } },
+        { maBaoGia: { contains: search, mode: 'insensitive' as const } },
+        { tenKhachHang: { contains: search, mode: 'insensitive' as const } },
+      ];
+    }
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({

@@ -187,52 +187,73 @@ const EmployeeEvaluationManagement = () => {
       </div>
 
       {/* Evaluations Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Đang tải...</div>
         ) : filteredEvaluations.length === 0 ? (
           <div className="p-8 text-center text-gray-500">Không có dữ liệu</div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">MNV</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Tên NV</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Vị trí</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">% Tự đánh giá</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">% Cấp trên 1</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">% Cấp trên 2</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Hành động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEvaluations.map(evaluation => (
-                <tr key={evaluation.id} className="border-b hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm text-gray-900">{evaluation.employeeCode}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{evaluation.employeeName}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{evaluation.positionName}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{evaluation.selfScore.toFixed(1)}%</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{evaluation.supervisorScore1.toFixed(1)}%</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{evaluation.supervisorScore2.toFixed(1)}%</td>
-                  <td className="px-6 py-4 text-sm">
-                    {evaluation.evaluationId ? (
-                      <button
-                        onClick={() => openDetailModal(evaluation)}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="Xem chi tiết đánh giá"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                    ) : (
-                      <span className="text-gray-400 cursor-not-allowed" title="Chưa có đánh giá">
-                        <Eye className="w-5 h-5" />
-                      </span>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">MNV</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên NV</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vị trí</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">% Tự đánh giá</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">% Cấp trên 1</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">% Cấp trên 2</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredEvaluations.map((evaluation, index) => (
+                  <tr
+                    key={evaluation.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                      {evaluation.employeeCode}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      {evaluation.employeeName}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                      {evaluation.positionName}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      {evaluation.selfScore.toFixed(1)}%
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      {evaluation.supervisorScore1.toFixed(1)}%
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      {evaluation.supervisorScore2.toFixed(1)}%
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center">
+                        {evaluation.evaluationId ? (
+                          <button
+                            onClick={() => openDetailModal(evaluation)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                            title="Xem chi tiết đánh giá"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <span className="p-1.5 text-gray-400 cursor-not-allowed" title="Chưa có đánh giá">
+                            <Eye className="w-5 h-5" />
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

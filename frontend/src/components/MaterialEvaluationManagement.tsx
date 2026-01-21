@@ -231,66 +231,73 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
 
       {/* Table */}
       {!loading && (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã chiên</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian chiên</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên hàng hóa</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khối lượng (Kg)</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian ngâm (Phút)</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {evaluations.map((evaluation, index) => (
-              <tr key={evaluation.id} className="hover:bg-gray-50">
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{evaluation.maChien}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{formatDateTime(evaluation.thoiGianChien)}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{evaluation.tenHangHoa}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{evaluation.khoiLuong}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{evaluation.thoiGianNgam}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleViewDetail(evaluation)}
-                      className="text-blue-600 hover:text-blue-800"
-                      title="Xem chi tiết"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleOpenModal(evaluation)}
-                      className="text-green-600 hover:text-green-800"
-                      title="Chỉnh sửa"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(evaluation.id)}
-                      className="text-red-600 hover:text-red-800"
-                      title="Xóa"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    {onCreateSystemOperation && (
-                      <button
-                        onClick={() => handleCreateSystemOperation(evaluation)}
-                        className="text-purple-600 hover:text-purple-800"
-                        title="Tạo thông số vận hành"
-                      >
-                        <Settings className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (Kg)</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian ngâm (Phút)</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {evaluations.map((evaluation, index) => (
+                  <tr
+                    key={evaluation.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{index + 1}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{evaluation.maChien}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{formatDateTime(evaluation.thoiGianChien)}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{evaluation.tenHangHoa}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.khoiLuong}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.thoiGianNgam}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => handleViewDetail(evaluation)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                          title="Xem chi tiết"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenModal(evaluation)}
+                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(evaluation.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                        {onCreateSystemOperation && (
+                          <button
+                            onClick={() => handleCreateSystemOperation(evaluation)}
+                            className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
+                            title="Tạo thông số vận hành"
+                          >
+                            <Settings className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
         {evaluations.length === 0 && !loading && (
           <div className="text-center py-12 text-gray-500">

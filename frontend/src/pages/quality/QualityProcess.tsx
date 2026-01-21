@@ -627,47 +627,47 @@ const QualityProcess = () => {
         {/* Overview Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Tổng quan danh sách quy trình */}
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-5 text-white">
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center">
-                <FileText className="w-5 h-5 mr-2" />
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <FileText className="w-5 h-5 mr-2 text-blue-600" />
                 Tổng quan danh sách quy trình
               </h3>
             </div>
             <div className="space-y-3">
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 hover:bg-white/30 transition-all">
+              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium opacity-90">Tổng số quy trình</span>
-                  <span className="text-2xl font-bold">{loading ? '...' : processes.length}</span>
+                  <span className="text-xs font-medium text-gray-700">Tổng số quy trình</span>
+                  <span className="text-2xl font-bold text-blue-600">{loading ? '...' : processes.length}</span>
                 </div>
               </div>
               <div className="grid grid-cols-5 gap-2">
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 text-center hover:bg-white/30 transition-all">
-                  <div className="text-xl font-bold">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-800">
                     {loading ? '...' : processes.filter(p => p.loaiQuyTrinh === 'Sản xuất').length}
                   </div>
-                  <div className="text-xs opacity-90 mt-0.5">Sản xuất</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Sản xuất</div>
                 </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 text-center hover:bg-white/30 transition-all">
-                  <div className="text-xl font-bold">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-800">
                     {loading ? '...' : processes.filter(p => p.loaiQuyTrinh === 'Kiểm tra').length}
                   </div>
-                  <div className="text-xs opacity-90 mt-0.5">Kiểm tra</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Kiểm tra</div>
                 </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 text-center hover:bg-white/30 transition-all">
-                  <div className="text-xl font-bold">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-800">
                     {loading ? '...' : processes.filter(p => p.loaiQuyTrinh === 'Đóng gói').length}
                   </div>
-                  <div className="text-xs opacity-90 mt-0.5">Đóng gói</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Đóng gói</div>
                 </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 text-center hover:bg-white/30 transition-all">
-                  <div className="text-xl font-bold">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-800">
                     {loading ? '...' : processes.filter(p => p.loaiQuyTrinh === 'Vận chuyển').length}
                   </div>
-                  <div className="text-xs opacity-90 mt-0.5">Vận chuyển</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Vận chuyển</div>
                 </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 text-center hover:bg-white/30 transition-all">
-                  <div className="text-xl font-bold">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-800">
                     {loading ? '...' : processes.filter(p =>
                       p.loaiQuyTrinh !== 'Sản xuất' &&
                       p.loaiQuyTrinh !== 'Kiểm tra' &&
@@ -675,57 +675,57 @@ const QualityProcess = () => {
                       p.loaiQuyTrinh !== 'Vận chuyển'
                     ).length}
                   </div>
-                  <div className="text-xs opacity-90 mt-0.5">Khác</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Khác</div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Tổng quan danh sách sản phẩm */}
-          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg p-5 text-white">
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-emerald-400">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center">
-                <Package className="w-5 h-5 mr-2" />
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <Package className="w-5 h-5 mr-2 text-emerald-600" />
                 Tổng quan danh sách sản phẩm
               </h3>
             </div>
             <div className="space-y-3">
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 hover:bg-white/30 transition-all">
+              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium opacity-90">Tổng sản phẩm</span>
-                  <span className="text-2xl font-bold">{loading ? '...' : realProducts.length}</span>
+                  <span className="text-xs font-medium text-gray-700">Tổng sản phẩm</span>
+                  <span className="text-2xl font-bold text-blue-600">{loading ? '...' : realProducts.length}</span>
                 </div>
               </div>
               <div className="grid grid-cols-5 gap-2">
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 text-center hover:bg-white/30 transition-all">
-                  <div className="text-xl font-bold">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-800">
                     {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Nguyên liệu tươi').length}
                   </div>
-                  <div className="text-xs opacity-90 mt-0.5">NL tươi</div>
+                  <div className="text-xs text-gray-600 mt-0.5">NL tươi</div>
                 </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 text-center hover:bg-white/30 transition-all">
-                  <div className="text-xl font-bold">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-800">
                     {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Nguyên liệu đông').length}
                   </div>
-                  <div className="text-xs opacity-90 mt-0.5">NL đông</div>
+                  <div className="text-xs text-gray-600 mt-0.5">NL đông</div>
                 </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 text-center hover:bg-white/30 transition-all">
-                  <div className="text-xl font-bold">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-800">
                     {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Sản phẩm khô').length}
                   </div>
-                  <div className="text-xs opacity-90 mt-0.5">SP khô</div>
+                  <div className="text-xs text-gray-600 mt-0.5">SP khô</div>
                 </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 text-center hover:bg-white/30 transition-all">
-                  <div className="text-xl font-bold">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-800">
                     {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Sản phẩm đông').length}
                   </div>
-                  <div className="text-xs opacity-90 mt-0.5">SP đông</div>
+                  <div className="text-xs text-gray-600 mt-0.5">SP đông</div>
                 </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 text-center hover:bg-white/30 transition-all">
-                  <div className="text-xl font-bold">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-800">
                     {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Phụ liệu').length}
                   </div>
-                  <div className="text-xs opacity-90 mt-0.5">Phụ liệu</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Phụ liệu</div>
                 </div>
               </div>
             </div>
@@ -734,8 +734,8 @@ const QualityProcess = () => {
 
         {/* Tabs */}
         <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-6 py-3">
+            <nav className="flex space-x-8">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -743,7 +743,7 @@ const QualityProcess = () => {
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      : 'border-transparent text-gray-900 hover:text-blue-600 hover:border-gray-300'
                   }`}
                 >
                   {tab.icon}

@@ -3,7 +3,11 @@ import { Search, Filter, Download, Eye, Edit, Trash2, ShoppingCart } from 'lucid
 import { quotationService, Quotation } from '../services/quotationService';
 import { orderService } from '../services/orderService';
 
-const QuotationManagement: React.FC = () => {
+interface QuotationManagementProps {
+  customerType?: 'Quốc tế' | 'Nội địa' | 'all';
+}
+
+const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType }) => {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,15 +28,18 @@ const QuotationManagement: React.FC = () => {
 
   useEffect(() => {
     fetchQuotations();
-  }, [currentPage, searchTerm]);
+  }, [currentPage, searchTerm, customerType]);
 
   const fetchQuotations = async () => {
     try {
       setLoading(true);
+      // Nếu customerType là undefined hoặc 'all' thì không filter
+      const filterCustomerType = customerType === 'all' ? undefined : customerType;
       const response = await quotationService.getAllQuotations(
         currentPage,
         itemsPerPage,
-        searchTerm || undefined
+        searchTerm || undefined,
+        filterCustomerType
       );
       console.log('🔍 Quotations data:', response.data);
       console.log('🔍 First quotation calculator:', response.data[0]?.quotationRequest?.calculator);
@@ -162,11 +169,11 @@ const QuotationManagement: React.FC = () => {
     <div className="space-y-6">
       {/* Search and Filter Bar */}
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-        <div className="relative flex-1 w-full sm:w-auto">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <div className="relative w-80">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="Tìm kiếm theo mã báo giá, khách hàng..."
+            placeholder="Tìm kiếm..."
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
@@ -190,22 +197,22 @@ const QuotationManagement: React.FC = () => {
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gradient-to-r from-blue-600 to-blue-700">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">STT</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Ngày báo giá</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Mã báo giá</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Giá báo khách</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Thời gian giao hàng</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Hiệu lực báo giá (ngày)</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Nhân viên báo giá</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Trạng thái</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Ghi chú</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Hoạt động</th>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày báo giá</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã báo giá</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Giá báo khách</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian giao hàng</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Hiệu lực báo giá (ngày)</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên báo giá</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody>
               {loading ? (
                 <tr>
                   <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
@@ -220,19 +227,24 @@ const QuotationManagement: React.FC = () => {
                 </tr>
               ) : (
                 quotations.map((quotation, index) => (
-                  <tr key={quotation.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <tr
+                    key={quotation.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                       {formatDate(quotation.ngayBaoGia)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 border-r border-gray-200">
                       <span className="text-sm font-semibold text-blue-600">
                         {quotation.maBaoGia}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-green-600">
+                    <td className="px-6 py-4 text-sm font-semibold text-green-600 border-r border-gray-200">
                       {quotation.quotationRequest?.calculator?.products && quotation.quotationRequest.calculator.products.length > 0 ? (
                         <div className="space-y-1">
                           {quotation.quotationRequest.calculator.products.map((product: any, idx: number) => {
@@ -250,47 +262,47 @@ const QuotationManagement: React.FC = () => {
                         formatCurrency(quotation.giaBaoKhach)
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                       {quotation.thoiGianGiaoHang ? `${quotation.thoiGianGiaoHang} ngày` : '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                       {quotation.hieuLucBaoGia ? `${quotation.hieuLucBaoGia} ngày` : '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                       {quotation.tenNhanVien || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 text-center border-r border-gray-200">
                       {getStatusBadge(quotation.tinhTrang)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate border-r border-gray-200">
                       {quotation.ghiChu || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-3">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-3">
                         <button
                           onClick={() => handleView(quotation)}
-                          className="text-blue-600 hover:text-blue-900 transition-colors"
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                           title="Xem chi tiết"
                         >
                           <Eye className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleEdit(quotation)}
-                          className="text-yellow-600 hover:text-yellow-900 transition-colors"
+                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                           title="Chỉnh sửa"
                         >
                           <Edit className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleCreateOrder(quotation.id)}
-                          className="text-green-600 hover:text-green-900 transition-colors"
+                          className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
                           title="Tạo đơn hàng"
                         >
                           <ShoppingCart className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleDelete(quotation.id)}
-                          className="text-red-600 hover:text-red-900 transition-colors"
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                           title="Xóa"
                         >
                           <Trash2 className="w-5 h-5" />

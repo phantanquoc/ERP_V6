@@ -15,10 +15,17 @@ export class QuotationService {
   /**
    * Get all quotations with pagination
    */
-  async getAllQuotations(page: number, limit: number, search?: string): Promise<any> {
+  async getAllQuotations(page: number, limit: number, search?: string, customerType?: string): Promise<any> {
     const { skip } = getPaginationParams(page, limit);
 
     const where: any = {};
+
+    // Filter by customerType (Quốc tế / Nội địa)
+    if (customerType === 'Quốc tế') {
+      where.customer = { quocGia: { not: null } };
+    } else if (customerType === 'Nội địa') {
+      where.customer = { tinhThanh: { not: null } };
+    }
 
     if (search) {
       where.OR = [

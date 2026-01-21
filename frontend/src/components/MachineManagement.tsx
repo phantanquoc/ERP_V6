@@ -128,13 +128,13 @@ const MachineManagement: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      HOAT_DONG: { label: 'Hoạt động', className: 'bg-green-100 text-green-800' },
-      'BẢO_TRÌ': { label: 'Bảo trì', className: 'bg-yellow-100 text-yellow-800' },
-      'NGỪNG_HOẠT_ĐỘNG': { label: 'Ngừng hoạt động', className: 'bg-red-100 text-red-800' },
+      HOAT_DONG: { label: 'Hoạt động', className: 'bg-green-100 text-green-700 border border-green-300' },
+      'BẢO_TRÌ': { label: 'Bảo trì', className: 'bg-yellow-100 text-yellow-700 border border-yellow-300' },
+      'NGỪNG_HOẠT_ĐỘNG': { label: 'Ngừng hoạt động', className: 'bg-red-100 text-red-700 border border-red-300' },
     };
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.HOAT_DONG;
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.className}`}>
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${config.className}`}>
         {config.label}
       </span>
     );
@@ -176,74 +176,66 @@ const MachineManagement: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-2 text-gray-600">Đang tải...</p>
-          </div>
+          <div className="p-8 text-center text-gray-500">Đang tải...</div>
         ) : filteredMachines.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             {searchTerm ? 'Không tìm thấy máy nào' : 'Chưa có máy nào'}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Mã máy
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tên máy
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Mô tả
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Trạng thái
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ghi chú
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Thao tác
-                  </th>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã máy</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên máy</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mô tả</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredMachines.map((machine) => (
-                  <tr key={machine.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              <tbody>
+                {filteredMachines.map((machine, index) => (
+                  <tr
+                    key={machine.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                       {machine.maMay}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                       {machine.tenMay}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                       {machine.moTa || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-6 py-4 text-center border-r border-gray-200">
                       {getStatusBadge(machine.trangThai)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                       {machine.ghiChu || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleOpenModal(machine)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                        title="Sửa"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(machine)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => handleOpenModal(machine)}
+                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(machine)}
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

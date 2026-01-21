@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Factory,
   Calendar,
@@ -22,11 +22,78 @@ import MachineManagement from '../../components/MachineManagement';
 import FinishedProductManagement from '../../components/FinishedProductManagement';
 import QualityEvaluationManagement from '../../components/QualityEvaluationManagement';
 import ProductionReportList from '../../components/ProductionDepartment/ProductionReportList';
+import machineService from '../../services/machineService';
+import { orderService } from '../../services/orderService';
 
 const ProductionDepartment = () => {
   const [activeTab, setActiveTab] = useState<'machines' | 'processList' | 'productionOrders' | 'orderList' | 'standards' | 'materialEvaluation' | 'systemOperation' | 'finishedProduct' | 'qualityEvaluation' | 'productionReport'>('machines');
   const [selectedMaChien, setSelectedMaChien] = useState<string>('');
   const [selectedThoiGianChien, setSelectedThoiGianChien] = useState<string>('');
+
+  // Machine statistics
+  const [machineStats, setMachineStats] = useState({
+    total: 0,
+    hoatDong: 0,
+    baoTri: 0,
+    ngungHoatDong: 0
+  });
+
+  // Order statistics
+  const [orderStats, setOrderStats] = useState({
+    total: 0,
+    choSanXuat: 0,
+    dangSanXuat: 0,
+    vanChuyen: 0,
+    daGiao: 0
+  });
+
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadAllStats();
+  }, []);
+
+  const loadAllStats = async () => {
+    setLoading(true);
+    await Promise.all([
+      loadMachineStats(),
+      loadOrderStats()
+    ]);
+    setLoading(false);
+  };
+
+  const loadMachineStats = async () => {
+    try {
+      const result = await machineService.getAllMachines(1, 1000);
+      const machines = result.data;
+
+      setMachineStats({
+        total: machines.length,
+        hoatDong: machines.filter(m => m.trangThai === 'HOAT_DONG').length,
+        baoTri: machines.filter(m => m.trangThai === 'BẢO_TRÌ').length,
+        ngungHoatDong: machines.filter(m => m.trangThai === 'NGỪNG_HOẠT_ĐỘNG').length
+      });
+    } catch (error) {
+      console.error('Error loading machine stats:', error);
+    }
+  };
+
+  const loadOrderStats = async () => {
+    try {
+      const response = await orderService.getAllOrders(1, 10000);
+      const orders = response.data;
+
+      setOrderStats({
+        total: orders.length,
+        choSanXuat: orders.filter((o: any) => o.trangThaiSanXuat === 'CHO_SAN_XUAT').length,
+        dangSanXuat: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length,
+        vanChuyen: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_VAN_CHUYEN').length,
+        daGiao: orders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length
+      });
+    } catch (error) {
+      console.error('Error loading order stats:', error);
+    }
+  };
 
   const handleCreateSystemOperation = (maChien: string, thoiGianChien: string) => {
     setSelectedMaChien(maChien);
@@ -64,93 +131,71 @@ const ProductionDepartment = () => {
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
-          {/* Tổng quan quy trình */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <FileText className="w-5 h-5 text-blue-600 mr-2" />
-              Quy trình
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Tổng quy trình</span>
-                <span className="text-lg font-bold text-blue-600">0</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Đang hoạt động</span>
-                <span className="text-lg font-bold text-green-600">0</span>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Tổng quan máy móc */}
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <Cog className="w-5 h-5 mr-2 text-blue-600" />
+                Tổng quan máy móc
+              </h3>
             </div>
-          </div>
-
-          {/* Tổng quan quy trình sản xuất */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <ClipboardList className="w-5 h-5 text-green-600 mr-2" />
-              QT Sản xuất
-            </h3>
             <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Tổng QTSX</span>
-                <span className="text-lg font-bold text-green-600">0</span>
+              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-medium text-gray-700">Tổng số máy</span>
+                  <span className="text-2xl font-bold text-blue-600">{machineStats.total}</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Đang SX</span>
-                <span className="text-lg font-bold text-blue-600">0</span>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
+                  <div className="text-xl font-bold text-green-600">{machineStats.hoatDong}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Đang hoạt động</div>
+                </div>
+                <div className="bg-yellow-50 rounded-lg p-2 text-center hover:bg-yellow-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-yellow-300 cursor-pointer">
+                  <div className="text-xl font-bold text-yellow-600">{machineStats.baoTri}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Đang bảo trì</div>
+                </div>
+                <div className="bg-red-50 rounded-lg p-2 text-center hover:bg-red-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-red-300 cursor-pointer">
+                  <div className="text-xl font-bold text-red-600">{machineStats.ngungHoatDong}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Ngừng hoạt động</div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Tổng quan đơn hàng */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Package className="w-5 h-5 text-purple-600 mr-2" />
-              Đơn hàng
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Tổng đơn hàng</span>
-                <span className="text-lg font-bold text-purple-600">0</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Đang xử lý</span>
-                <span className="text-lg font-bold text-green-600">0</span>
-              </div>
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <Package className="w-5 h-5 mr-2 text-purple-600" />
+                Tổng quan đơn hàng
+              </h3>
             </div>
-          </div>
-
-          {/* Tổng quan định mức */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Calendar className="w-5 h-5 text-orange-600 mr-2" />
-              Định mức NVL
-            </h3>
             <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Tổng định mức</span>
-                <span className="text-lg font-bold text-orange-600">0</span>
+              <div className="bg-purple-50 rounded-lg p-3 hover:bg-purple-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-purple-300 cursor-pointer">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-medium text-gray-700">Tổng đơn hàng</span>
+                  <span className="text-2xl font-bold text-purple-600">{orderStats.total}</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Đang áp dụng</span>
-                <span className="text-lg font-bold text-green-600">0</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tổng quan đánh giá nguyên liệu */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <ClipboardCheck className="w-5 h-5 text-indigo-600 mr-2" />
-              Đánh giá NVL
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Tổng đánh giá</span>
-                <span className="text-lg font-bold text-indigo-600">0</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Hôm nay</span>
-                <span className="text-lg font-bold text-green-600">0</span>
+              <div className="grid grid-cols-4 gap-2">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-600">{orderStats.choSanXuat}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Chờ SX</div>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-2 text-center hover:bg-blue-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+                  <div className="text-xl font-bold text-blue-600">{orderStats.dangSanXuat}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Đang SX</div>
+                </div>
+                <div className="bg-orange-50 rounded-lg p-2 text-center hover:bg-orange-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-orange-300 cursor-pointer">
+                  <div className="text-xl font-bold text-orange-600">{orderStats.vanChuyen}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Vận chuyển</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
+                  <div className="text-xl font-bold text-green-600">{orderStats.daGiao}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Đã giao</div>
+                </div>
               </div>
             </div>
           </div>
@@ -167,7 +212,7 @@ const ProductionDepartment = () => {
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      : 'border-transparent text-gray-900 hover:text-blue-600 hover:border-gray-300'
                   }`}
                 >
                   {tab.icon}

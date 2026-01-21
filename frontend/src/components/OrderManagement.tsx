@@ -6,9 +6,10 @@ import QuotationCalculatorModal from './QuotationCalculatorModal';
 
 interface OrderManagementProps {
   hideHeader?: boolean;
+  customerType?: 'Quốc tế' | 'Nội địa' | 'all';
 }
 
-const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false }) => {
+const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, customerType }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,10 +27,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false })
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
+      // Nếu customerType là undefined hoặc 'all' thì không filter
+      const filterCustomerType = customerType === 'all' ? undefined : customerType;
       const response = await orderService.getAllOrders(
         currentPage,
         itemsPerPage,
-        searchTerm || undefined
+        searchTerm || undefined,
+        filterCustomerType
       );
       setOrders(response.data);
       setTotalPages(response.pagination.totalPages);
@@ -39,7 +43,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false })
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm]);
+  }, [currentPage, searchTerm, customerType]);
 
   useEffect(() => {
     fetchOrders();
@@ -152,131 +156,129 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false })
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      {!hideHeader && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Package className="w-8 h-8 text-blue-600" />
-            <h2 className="text-2xl font-bold text-gray-800">Danh Sách Đơn Hàng</h2>
+    <div>
+      {/* Table Container */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        {/* Action Bar */}
+        <div className="bg-white px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <div className="relative w-80">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <input
+              type="text"
+              placeholder="Tìm kiếm..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+            />
           </div>
         </div>
-      )}
 
-      {/* Search and Filter */}
-      <div className="flex items-center space-x-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo mã đơn hàng, mã báo giá, tên khách hàng..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gradient-to-r from-blue-600 to-blue-700">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">STT</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Ngày đặt hàng</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Mã đơn hàng</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Mã báo giá</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Khách hàng</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Số lượng SP</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Trạng thái SX</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Trạng thái TT</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Hành động</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? (
-                <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
-                    Đang tải...
-                  </td>
+        {/* Table */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày đặt hàng</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã đơn hàng</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã báo giá</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng SP</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái SX</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái TT</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
                 </tr>
-              ) : orders.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
-                    Không có dữ liệu
-                  </td>
-                </tr>
-              ) : (
-                orders.map((order, index) => (
-                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {(currentPage - 1) * itemsPerPage + index + 1}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(order.ngayDatHang)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-semibold text-blue-600">
-                        {order.maDonHang}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.maBaoGia}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.tenKhachHang}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.items?.length || 0}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getProductionStatusColor(order.trangThaiSanXuat)}`}>
-                        {getProductionStatusLabel(order.trangThaiSanXuat)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(order.trangThaiThanhToan)}`}>
-                        {getPaymentStatusLabel(order.trangThaiThanhToan)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-3">
-                        <button
-                          onClick={() => handleView(order)}
-                          className="text-blue-600 hover:text-blue-900 transition-colors"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleViewCosting(order)}
-                          className="text-green-600 hover:text-green-900 transition-colors"
-                          title="Xem bảng tính"
-                        >
-                          <Calculator className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(order)}
-                          className="text-yellow-600 hover:text-yellow-900 transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(order.id)}
-                          className="text-red-600 hover:text-red-900 transition-colors"
-                          title="Xóa"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                      Đang tải...
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                      Không có dữ liệu
+                    </td>
+                  </tr>
+                ) : (
+                  orders.map((order, index) => (
+                    <tr
+                      key={order.id}
+                      className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                        {(currentPage - 1) * itemsPerPage + index + 1}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                        {formatDate(order.ngayDatHang)}
+                      </td>
+                      <td className="px-6 py-4 border-r border-gray-200">
+                        <span className="text-sm font-semibold text-blue-600">
+                          {order.maDonHang}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                        {order.maBaoGia}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                        {order.tenKhachHang}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                        {order.items?.length || 0}
+                      </td>
+                      <td className="px-6 py-4 text-center border-r border-gray-200">
+                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getProductionStatusColor(order.trangThaiSanXuat)}`}>
+                          {getProductionStatusLabel(order.trangThaiSanXuat)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center border-r border-gray-200">
+                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(order.trangThaiThanhToan)}`}>
+                          {getPaymentStatusLabel(order.trangThaiThanhToan)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-3">
+                          <button
+                            onClick={() => handleView(order)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleViewCosting(order)}
+                            className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
+                            title="Xem bảng tính"
+                          >
+                            <Calculator className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(order)}
+                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                            title="Chỉnh sửa"
+                          >
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(order.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                            title="Xóa"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

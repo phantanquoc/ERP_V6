@@ -365,115 +365,119 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
 
   return (
     <div>
-      {/* Search and Action Bar */}
-      <div className="mb-6 flex justify-between items-center">
-        <form onSubmit={handleSearch} className="flex items-center gap-4">
-          <div className="relative">
+      {/* Table Container */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        {/* Action Bar */}
+        <div className="bg-white px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <input
               type="text"
-              placeholder="Tìm kiếm quy trình..."
+              placeholder="Tìm kiếm theo mã quy trình, tên quy trình..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
             />
           </div>
-        </form>
-        {mode === 'full' && (
-          <button
-            onClick={handleOpenModal}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Tạo quy trình mới
-          </button>
-        )}
-      </div>
+          {mode === 'full' && (
+            <button
+              onClick={handleOpenModal}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Tạo quy trình mới
+            </button>
+          )}
+        </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse border border-gray-400">
+          <table className="w-full border-collapse">
             <thead>
-              <tr className="bg-blue-200 border-b-2 border-gray-400">
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-12">STT</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Mã quy trình</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">MSNV</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Tên nhân viên</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Tên quy trình</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Loại quy trình</th>
-                <th className="px-4 py-3 text-center text-sm font-bold text-gray-800">HÀNH ĐỘNG</th>
+              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã quy trình</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">MSNV</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nhân viên</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên quy trình</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại quy trình</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     Đang tải...
                   </td>
                 </tr>
               ) : processes.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     Không có dữ liệu
                   </td>
                 </tr>
               ) : (
                 processes.map((process, index) => (
-                  <tr key={process.id} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50`}>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200 text-center">
+                  <tr
+                    key={process.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {(currentPage - 1) * 10 + index + 1}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200 text-center font-medium text-blue-600">
+                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                       {process.maQuyTrinh}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{process.msnv}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{process.tenNhanVien}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{process.tenQuyTrinh}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">{process.loaiQuyTrinh}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{process.msnv}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{process.tenNhanVien}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{process.tenQuyTrinh}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{process.loaiQuyTrinh}</td>
+                    <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-3">
                         <button
                           onClick={() => handleViewProcess(process)}
-                          className="text-blue-600 hover:text-blue-800"
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                           title="Xem chi tiết"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-5 h-5" />
                         </button>
                         {mode === 'full' && (
                           <>
                             <button
                               onClick={() => handleEditProcess(process)}
-                              className="text-green-600 hover:text-green-800"
+                              className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                               title="Chỉnh sửa"
                             >
-                              <Edit className="w-4 h-4" />
+                              <Edit className="w-5 h-5" />
                             </button>
                             <button
                               onClick={() => handleDelete(process.id)}
-                              className="text-red-600 hover:text-red-800"
+                              className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                               title="Xóa"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-5 h-5" />
                             </button>
                           </>
                         )}
                         {mode === 'standard-only' && (
                           <button
                             onClick={() => handleCreateStandard(process)}
-                            className="text-green-600 hover:text-green-800"
+                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                             title="Tạo định mức"
                           >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-5 h-5" />
                           </button>
                         )}
                         {mode === 'production' && (
                           <button
                             onClick={() => handleCreateStandard(process)}
-                            className="text-green-600 hover:text-green-800"
+                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                             title="Nhập dữ liệu sản xuất"
                           >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-5 h-5" />
                           </button>
                         )}
                       </div>
@@ -852,15 +856,15 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                   <h4 className="text-md font-semibold text-gray-900 mb-4">Lưu đồ quy trình</h4>
 
                   <div className="overflow-x-auto">
-                    <table className="min-w-full border-collapse border border-gray-400">
+                    <table className="w-full border-collapse border border-gray-400">
                       <thead>
-                        <tr className="bg-blue-100">
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">STT</th>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">PHÂN ĐOẠN</th>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">NỘI DUNG CÔNG VIỆC</th>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">LOẠI CHI PHÍ</th>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">TÊN CHI PHÍ</th>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐVT</th>
+                        <tr className="bg-blue-200 border-b-2 border-gray-400">
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-12">STT</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">PHÂN ĐOẠN</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">NỘI DUNG CÔNG VIỆC</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">LOẠI CHI PHÍ</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-40">TÊN CHI PHÍ</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-20">ĐVT</th>
                           {(mode === 'standard-only' || mode === 'production') && (
                             <>
                               <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐỊNH MỨC LAO ĐỘNG</th>
@@ -1090,17 +1094,17 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse border border-gray-400">
+                <table className="w-full border-collapse border border-gray-400">
                   <thead>
-                    <tr className="bg-blue-100">
-                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">STT</th>
-                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">PHÂN ĐOẠN</th>
-                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">NỘI DUNG CÔNG VIỆC</th>
-                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">LOẠI CHI PHÍ</th>
-                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">TÊN CHI PHÍ</th>
-                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐVT</th>
-                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100">ĐỊNH MỨC LAO ĐỘNG</th>
-                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100">ĐƠN VỊ</th>
+                    <tr className="bg-blue-200 border-b-2 border-gray-400">
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-12">STT</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">PHÂN ĐOẠN</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">NỘI DUNG CÔNG VIỆC</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">LOẠI CHI PHÍ</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-40">TÊN CHI PHÍ</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-20">ĐVT</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 bg-green-100 w-32">ĐỊNH MỨC LAO ĐỘNG</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 bg-green-100 w-24">ĐƠN VỊ</th>
                       {mode === 'production' && (
                         <>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100">SỐ LƯỢNG NGUYÊN LIỆU (Kg)</th>

@@ -7,9 +7,10 @@ import QuotationCalculatorModal from './QuotationCalculatorModal';
 
 interface QuotationRequestManagementProps {
   mode?: 'business' | 'pricing';
+  customerType?: 'Quốc tế' | 'Nội địa' | 'all';
 }
 
-const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({ mode = 'business' }) => {
+const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({ mode = 'business', customerType }) => {
   const [requests, setRequests] = useState<QuotationRequest[]>([]);
   const [customers, setCustomers] = useState<InternationalCustomer[]>([]);
   const [products, setProducts] = useState<InternationalProduct[]>([]);
@@ -49,15 +50,18 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     fetchRequests();
     fetchCustomers();
     fetchProducts();
-  }, [currentPage, searchTerm]);
+  }, [currentPage, searchTerm, customerType]);
 
   const fetchRequests = async () => {
     try {
       setLoading(true);
+      // Nếu customerType là undefined hoặc 'all' thì không filter
+      const filterCustomerType = customerType === 'all' ? undefined : customerType;
       const response = await quotationRequestService.getAllQuotationRequests(
         currentPage,
         itemsPerPage,
-        searchTerm || undefined
+        searchTerm || undefined,
+        filterCustomerType
       );
       setRequests(response.data);
       setTotalPages(response.pagination.totalPages);
@@ -71,7 +75,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
 
   const fetchCustomers = async () => {
     try {
-      const response = await internationalCustomerService.getAllCustomers(1, 1000);
+      const response = await internationalCustomerService.getAllCustomers(1, 1000, '', customerType);
       setCustomers(response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -390,11 +394,11 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
 
       {/* Search */}
       <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <div className="relative w-80">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="Tìm kiếm theo mã, nhân viên, khách hàng, sản phẩm..."
+            placeholder="Tìm kiếm..."
             value={searchTerm}
             onChange={handleSearch}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -403,117 +407,124 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày yêu cầu</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã YC</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhân viên</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khách hàng</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sản phẩm</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {loading ? (
-              <tr>
-                <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
-                  Đang tải...
-                </td>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày yêu cầu</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã YC</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
               </tr>
-            ) : requests.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
-                  Không có dữ liệu
-                </td>
-              </tr>
-            ) : (
-              requests.map((request, index) => (
-                <tr key={request.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {(currentPage - 1) * itemsPerPage + index + 1}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatDate(request.ngayYeuCau)}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                    {request.maYeuCauBaoGia}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div>{request.tenNhanVien}</div>
-                    <div className="text-xs text-gray-500">{request.maNhanVien}</div>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div>{request.tenKhachHang}</div>
-                    <div className="text-xs text-gray-500">{request.maKhachHang}</div>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">
-                    {(request as any).items && (request as any).items.length > 0 ? (
-                      <div>
-                        <div className="font-medium">{(request as any).items.length} sản phẩm</div>
-                        <div className="text-xs text-gray-500">
-                          {(request as any).items[0].tenSanPham}
-                          {(request as any).items.length > 1 && ` +${(request as any).items.length - 1}`}
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">Chưa có sản phẩm</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {(request as any).items && (request as any).items.length > 0 ? (
-                      <div>
-                        {(request as any).items.reduce((sum: number, item: any) => sum + item.soLuong, 0)} {(request as any).items[0].donViTinh}
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openDetailModal(request)}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      {mode === 'business' ? (
-                        <>
-                          <button
-                            onClick={() => openEditModal(request)}
-                            className="text-green-600 hover:text-green-800"
-                            title="Chỉnh sửa"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(request.id)}
-                            className="text-red-600 hover:text-red-800"
-                            title="Xóa"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => handleCreateQuotation(request)}
-                          className="text-green-600 hover:text-green-800"
-                          title="Tạo báo giá"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    Đang tải...
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : requests.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    Không có dữ liệu
+                  </td>
+                </tr>
+              ) : (
+                requests.map((request, index) => (
+                  <tr
+                    key={request.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      {(currentPage - 1) * itemsPerPage + index + 1}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                      {formatDate(request.ngayYeuCau)}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                      {request.maYeuCauBaoGia}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      <div className="font-medium">{request.tenNhanVien}</div>
+                      <div className="text-xs text-gray-500">{request.maNhanVien}</div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      <div className="font-medium">{request.tenKhachHang}</div>
+                      <div className="text-xs text-gray-500">{request.maKhachHang}</div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      {(request as any).items && (request as any).items.length > 0 ? (
+                        <div>
+                          <div className="font-medium">{(request as any).items.length} sản phẩm</div>
+                          <div className="text-xs text-gray-500">
+                            {(request as any).items[0].tenSanPham}
+                            {(request as any).items.length > 1 && ` +${(request as any).items.length - 1}`}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">Chưa có sản phẩm</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      {(request as any).items && (request as any).items.length > 0 ? (
+                        <div>
+                          {(request as any).items.reduce((sum: number, item: any) => sum + item.soLuong, 0)} {(request as any).items[0].donViTinh}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => openDetailModal(request)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                          title="Xem chi tiết"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        {mode === 'business' ? (
+                          <>
+                            <button
+                              onClick={() => openEditModal(request)}
+                              className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                              title="Chỉnh sửa"
+                            >
+                              <Edit className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(request.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => handleCreateQuotation(request)}
+                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                            title="Tạo báo giá"
+                          >
+                            <FileText className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Pagination */}
@@ -733,57 +744,104 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Hình thức vận chuyển
                     </label>
-                    <input
-                      type="text"
-                      name="hinhThucVanChuyen"
-                      value={formData.hinhThucVanChuyen}
-                      onChange={handleInputChange}
-                      placeholder="VD: FOB, CIF, CFR..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
+                    {customerType === 'Nội địa' ? (
+                      <select
+                        name="hinhThucVanChuyen"
+                        value={formData.hinhThucVanChuyen}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- Chọn hình thức --</option>
+                        <option value="Giao hàng tận nơi">Giao hàng tận nơi</option>
+                        <option value="Khách tự đến lấy">Khách tự đến lấy</option>
+                        <option value="Vận chuyển đường bộ">Vận chuyển đường bộ</option>
+                        <option value="Vận chuyển đường thủy">Vận chuyển đường thủy</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        name="hinhThucVanChuyen"
+                        value={formData.hinhThucVanChuyen}
+                        onChange={handleInputChange}
+                        placeholder="VD: FOB, CIF, CFR..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Hình thức thanh toán
                     </label>
-                    <input
-                      type="text"
-                      name="hinhThucThanhToan"
-                      value={formData.hinhThucThanhToan}
-                      onChange={handleInputChange}
-                      placeholder="VD: T/T, L/C..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
+                    {customerType === 'Nội địa' ? (
+                      <select
+                        name="hinhThucThanhToan"
+                        value={formData.hinhThucThanhToan}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- Chọn hình thức --</option>
+                        <option value="Tiền mặt">Tiền mặt</option>
+                        <option value="Chuyển khoản">Chuyển khoản</option>
+                        <option value="Công nợ 15 ngày">Công nợ 15 ngày</option>
+                        <option value="Công nợ 30 ngày">Công nợ 30 ngày</option>
+                        <option value="Công nợ 45 ngày">Công nợ 45 ngày</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        name="hinhThucThanhToan"
+                        value={formData.hinhThucThanhToan}
+                        onChange={handleInputChange}
+                        placeholder="VD: T/T, L/C..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    )}
                   </div>
                 </div>
 
-                {/* Quốc gia & Cảng đến */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* Quốc gia & Cảng đến (Quốc tế) hoặc Địa chỉ giao hàng (Nội địa) */}
+                {customerType === 'Nội địa' ? (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Quốc gia
-                    </label>
-                    <input
-                      type="text"
-                      name="quocGia"
-                      value={formData.quocGia}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Cảng đến
+                      Địa chỉ giao hàng
                     </label>
                     <input
                       type="text"
                       name="cangDen"
                       value={formData.cangDen}
                       onChange={handleInputChange}
+                      placeholder="Nhập địa chỉ giao hàng..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Quốc gia
+                      </label>
+                      <input
+                        type="text"
+                        name="quocGia"
+                        value={formData.quocGia}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Cảng đến
+                      </label>
+                      <input
+                        type="text"
+                        name="cangDen"
+                        value={formData.cangDen}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Ghi chú */}
                 <div>
@@ -924,16 +982,23 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                {customerType === 'Nội địa' ? (
                   <div>
-                    <label className="block text-sm font-medium text-gray-500">Quốc gia</label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedRequest.quocGia || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Cảng đến</label>
+                    <label className="block text-sm font-medium text-gray-500">Địa chỉ giao hàng</label>
                     <p className="mt-1 text-sm text-gray-900">{selectedRequest.cangDen || '-'}</p>
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">Quốc gia</label>
+                      <p className="mt-1 text-sm text-gray-900">{selectedRequest.quocGia || '-'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">Cảng đến</label>
+                      <p className="mt-1 text-sm text-gray-900">{selectedRequest.cangDen || '-'}</p>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-500">Ghi chú</label>

@@ -3,13 +3,6 @@ import {
   Calculator,
   FileText,
   ShoppingCart,
-  Plus,
-  Search,
-  Filter,
-  Download,
-  Edit,
-  Eye,
-  Trash2,
   DollarSign,
   Plane
 } from 'lucide-react';
@@ -24,30 +17,74 @@ import { orderService } from '../../services/orderService';
 
 const GeneralPricing = () => {
   const [activeTab, setActiveTab] = useState<'requests' | 'quotes' | 'orders' | 'general-cost' | 'export-cost'>('requests');
-  const [quotationCount, setQuotationCount] = useState(0);
-  const [requestCount, setRequestCount] = useState(0);
-  const [orderCount, setOrderCount] = useState(0);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [quotations, setQuotations] = useState<any[]>([]);
+
+  // Stats overview
+  const [requestStats, setRequestStats] = useState({
+    total: 0,
+    quocTe: 0,
+    noiDia: 0
+  });
+
+  const [quotationStats, setQuotationStats] = useState({
+    total: 0,
+    quocTe: 0,
+    noiDia: 0
+  });
+
+  const [orderStats, setOrderStats] = useState({
+    total: 0,
+    quocTe: 0,
+    noiDia: 0
+  });
 
   useEffect(() => {
-    fetchCounts();
+    fetchAllStats();
   }, []);
 
-  const fetchCounts = async () => {
+  const fetchAllStats = async () => {
     try {
-      const [quotationsRes, requestsRes, ordersRes] = await Promise.all([
-        quotationService.getAllQuotations(1, 1000), // Lấy nhiều để đếm theo trạng thái
+      // Fetch all data for both customer types
+      const [
+        requestsAllRes,
+        requestsQuocTeRes,
+        requestsNoiDiaRes,
+        quotationsAllRes,
+        quotationsQuocTeRes,
+        quotationsNoiDiaRes,
+        ordersAllRes,
+        ordersQuocTeRes,
+        ordersNoiDiaRes
+      ] = await Promise.all([
         quotationRequestService.getAllQuotationRequests(1, 1),
-        orderService.getAllOrders(1, 1000), // Lấy nhiều để đếm theo trạng thái
+        quotationRequestService.getAllQuotationRequests(1, 1, undefined, 'Quốc tế'),
+        quotationRequestService.getAllQuotationRequests(1, 1, undefined, 'Nội địa'),
+        quotationService.getAllQuotations(1, 1),
+        quotationService.getAllQuotations(1, 1, undefined, 'Quốc tế'),
+        quotationService.getAllQuotations(1, 1, undefined, 'Nội địa'),
+        orderService.getAllOrders(1, 1),
+        orderService.getAllOrders(1, 1, undefined, 'Quốc tế'),
+        orderService.getAllOrders(1, 1, undefined, 'Nội địa')
       ]);
-      setQuotationCount(quotationsRes.pagination.total);
-      setRequestCount(requestsRes.pagination.total);
-      setOrderCount(ordersRes.pagination.total);
-      setQuotations(quotationsRes.data);
-      setOrders(ordersRes.data);
+
+      setRequestStats({
+        total: requestsAllRes.pagination.total,
+        quocTe: requestsQuocTeRes.pagination.total,
+        noiDia: requestsNoiDiaRes.pagination.total
+      });
+
+      setQuotationStats({
+        total: quotationsAllRes.pagination.total,
+        quocTe: quotationsQuocTeRes.pagination.total,
+        noiDia: quotationsNoiDiaRes.pagination.total
+      });
+
+      setOrderStats({
+        total: ordersAllRes.pagination.total,
+        quocTe: ordersQuocTeRes.pagination.total,
+        noiDia: ordersNoiDiaRes.pagination.total
+      });
     } catch (error) {
-      console.error('Error fetching counts:', error);
+      console.error('Error fetching stats:', error);
     }
   };
 
@@ -73,86 +110,86 @@ const GeneralPricing = () => {
 
         {/* Overview Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Flexbox 1: Tổng quan đơn hàng */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-lg border border-blue-200 p-6 hover:shadow-xl transition-all duration-300">
-            <h3 className="text-xl font-bold text-blue-800 mb-6 flex items-center">
-              <div className="p-2 bg-blue-600 rounded-lg mr-3">
-                <FileText className="w-5 h-5 text-white" />
+          {/* Card 1: Tổng quan yêu cầu báo giá */}
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <FileText className="w-5 h-5 mr-2 text-blue-600" />
+                Tổng quan yêu cầu BG
+              </h3>
+            </div>
+            <div className="space-y-3">
+              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-medium text-gray-700">Tổng yêu cầu BG</span>
+                  <span className="text-2xl font-bold text-blue-600">{requestStats.total}</span>
+                </div>
               </div>
-              Tổng quan đơn hàng
-            </h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-white rounded-xl shadow-sm border-l-4 border-blue-500 hover:shadow-md transition-shadow">
-                <span className="text-sm font-semibold text-gray-700">Danh sách YCBG</span>
-                <span className="text-2xl font-bold text-blue-600">{requestCount}</span>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-white rounded-xl shadow-sm border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
-                <span className="text-sm font-semibold text-gray-700">Danh sách báo giá</span>
-                <span className="text-2xl font-bold text-emerald-600">{quotationCount}</span>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-white rounded-xl shadow-sm border-l-4 border-violet-500 hover:shadow-md transition-shadow">
-                <span className="text-sm font-semibold text-gray-700">Danh sách đơn hàng</span>
-                <span className="text-2xl font-bold text-violet-600">{orderCount}</span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-blue-600">{requestStats.quocTe}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Quốc tế</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-green-600">{requestStats.noiDia}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Nội địa</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Flexbox 2: Tổng DS báo giá */}
-          <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl shadow-lg border border-emerald-200 p-6 hover:shadow-xl transition-all duration-300">
-            <h3 className="text-xl font-bold text-emerald-800 mb-6 flex items-center">
-              <div className="p-2 bg-emerald-600 rounded-lg mr-3">
-                <Calculator className="w-5 h-5 text-white" />
+          {/* Card 2: Tổng quan báo giá */}
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <Calculator className="w-5 h-5 mr-2 text-green-600" />
+                Tổng quan báo giá
+              </h3>
+            </div>
+            <div className="space-y-3">
+              <div className="bg-green-50 rounded-lg p-3 hover:bg-green-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-green-300 cursor-pointer">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-medium text-gray-700">Tổng báo giá</span>
+                  <span className="text-2xl font-bold text-green-600">{quotationStats.total}</span>
+                </div>
               </div>
-              Tổng DS báo giá
-            </h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-white rounded-xl shadow-sm border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
-                <span className="text-sm font-semibold text-gray-700">DS báo giá đã gửi</span>
-                <span className="text-2xl font-bold text-emerald-600">
-                  {quotations.filter(item => item.tinhTrang === 'Đã gửi').length}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-white rounded-xl shadow-sm border-l-4 border-amber-500 hover:shadow-md transition-shadow">
-                <span className="text-sm font-semibold text-gray-700">DS báo giá chờ phản hồi</span>
-                <span className="text-2xl font-bold text-amber-600">
-                  {quotations.filter(item => item.tinhTrang === 'Chờ phản hồi').length}
-                </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-blue-600">{quotationStats.quocTe}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Quốc tế</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-green-600">{quotationStats.noiDia}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Nội địa</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Flexbox 3: Tổng DS đơn hàng */}
-          <div className="bg-gradient-to-br from-violet-50 to-violet-100 rounded-xl shadow-lg border border-violet-200 p-6 hover:shadow-xl transition-all duration-300">
-            <h3 className="text-xl font-bold text-violet-800 mb-6 flex items-center">
-              <div className="p-2 bg-violet-600 rounded-lg mr-3">
-                <ShoppingCart className="w-5 h-5 text-white" />
+          {/* Card 3: Tổng quan đơn hàng */}
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <ShoppingCart className="w-5 h-5 mr-2 text-purple-600" />
+                Tổng quan đơn hàng
+              </h3>
+            </div>
+            <div className="space-y-3">
+              <div className="bg-purple-50 rounded-lg p-3 hover:bg-purple-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-purple-300 cursor-pointer">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-medium text-gray-700">Tổng đơn hàng</span>
+                  <span className="text-2xl font-bold text-purple-600">{orderStats.total}</span>
+                </div>
               </div>
-              Tổng DS đơn hàng
-            </h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-white rounded-xl shadow-sm border-l-4 border-slate-500 hover:shadow-md transition-shadow">
-                <span className="text-sm font-semibold text-gray-700">ĐH chờ sản xuất</span>
-                <span className="text-2xl font-bold text-slate-600">
-                  {orders.filter(item => item.trangThai === 'Chờ sản xuất').length}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-white rounded-xl shadow-sm border-l-4 border-blue-500 hover:shadow-md transition-shadow">
-                <span className="text-sm font-semibold text-gray-700">ĐH đang sản xuất</span>
-                <span className="text-2xl font-bold text-blue-600">
-                  {orders.filter(item => item.trangThai === 'Đang sản xuất').length}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-white rounded-xl shadow-sm border-l-4 border-emerald-500 hover:shadow-md transition-shadow">
-                <span className="text-sm font-semibold text-gray-700">ĐH đã sản xuất</span>
-                <span className="text-2xl font-bold text-emerald-600">
-                  {orders.filter(item => item.trangThai === 'Hoàn thành').length}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-white rounded-xl shadow-sm border-l-4 border-red-500 hover:shadow-md transition-shadow">
-                <span className="text-sm font-semibold text-gray-700">ĐH đã hủy</span>
-                <span className="text-2xl font-bold text-red-600">
-                  {orders.filter(item => item.trangThai === 'Đã hủy').length}
-                </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-blue-600">{orderStats.quocTe}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Quốc tế</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-green-600">{orderStats.noiDia}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Nội địa</div>
+                </div>
               </div>
             </div>
           </div>
@@ -177,36 +214,6 @@ const GeneralPricing = () => {
                 </button>
               ))}
             </nav>
-          </div>
-        </div>
-
-        {/* Action Bar */}
-        <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
-          <div className="flex flex-wrap gap-4 items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm..."
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-                />
-              </div>
-              <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
-                <Filter className="h-4 w-4" />
-                Lọc
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
-                <Download className="h-4 w-4" />
-                Xuất Excel
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                <Plus className="h-4 w-4" />
-                Thêm mới
-              </button>
-            </div>
           </div>
         </div>
 

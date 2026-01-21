@@ -1,5 +1,10 @@
 import { Request, Response } from 'express';
 import taxReportService from '../services/taxReportService';
+import { getFileUrl } from '../middlewares/upload';
+
+interface RequestWithFile extends Request {
+  file?: Express.Multer.File;
+}
 
 // Get all tax reports
 export const getAllTaxReports = async (req: Request, res: Response) => {
@@ -83,10 +88,15 @@ export const getTaxReportByOrderId = async (req: Request, res: Response) => {
 };
 
 // Create tax report from order
-export const createTaxReportFromOrder = async (req: Request, res: Response) => {
+export const createTaxReportFromOrder = async (req: RequestWithFile, res: Response) => {
   try {
     const { orderId } = req.params;
     const input = req.body;
+
+    // Handle file upload
+    if (req.file) {
+      input.fileDinhKem = getFileUrl('tax-reports', req.file.filename);
+    }
 
     const taxReport = await taxReportService.createTaxReportFromOrder(orderId, input);
 
@@ -106,10 +116,15 @@ export const createTaxReportFromOrder = async (req: Request, res: Response) => {
 };
 
 // Update tax report
-export const updateTaxReport = async (req: Request, res: Response) => {
+export const updateTaxReport = async (req: RequestWithFile, res: Response) => {
   try {
     const { id } = req.params;
     const input = req.body;
+
+    // Handle file upload
+    if (req.file) {
+      input.fileDinhKem = getFileUrl('tax-reports', req.file.filename);
+    }
 
     const taxReport = await taxReportService.updateTaxReport(id, input);
 

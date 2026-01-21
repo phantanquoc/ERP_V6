@@ -100,14 +100,18 @@ const getAuthHeader = () => {
 };
 
 export const quotationRequestService = {
-  async getAllQuotationRequests(page: number = 1, limit: number = 10, search?: string): Promise<PaginatedResponse> {
+  async getAllQuotationRequests(page: number = 1, limit: number = 10, search?: string, customerType?: string): Promise<PaginatedResponse> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
     });
-    
+
     if (search) {
       params.append('search', search);
+    }
+
+    if (customerType) {
+      params.append('customerType', customerType);
     }
 
     const response = await axios.get(`${API_URL}?${params.toString()}`, getAuthHeader());

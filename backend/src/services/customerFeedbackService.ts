@@ -33,6 +33,7 @@ interface GetAllFilters {
   loaiPhanHoi?: string;
   mucDoNghiemTrong?: string;
   search?: string;
+  customerType?: string; // "Quốc tế" hoặc "Nội địa"
 }
 
 export const customerFeedbackService = {
@@ -58,6 +59,13 @@ export const customerFeedbackService = {
   async getAllFeedbacks(filters: GetAllFilters) {
     try {
       const where: any = {};
+
+      // Filter by customerType (Quốc tế / Nội địa)
+      if (filters.customerType === 'Quốc tế') {
+        where.customer = { quocGia: { not: null } };
+      } else if (filters.customerType === 'Nội địa') {
+        where.customer = { tinhThanh: { not: null } };
+      }
 
       if (filters.trangThaiXuLy) {
         where.trangThaiXuLy = filters.trangThaiXuLy;

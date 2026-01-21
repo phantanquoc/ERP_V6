@@ -8,8 +8,9 @@ export class QuotationRequestController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
+      const customerType = req.query.customerType as string;
 
-      const result = await quotationRequestService.getAllQuotationRequests(page, limit, search);
+      const result = await quotationRequestService.getAllQuotationRequests(page, limit, search, customerType);
 
       const response: ApiResponse<any> = {
         success: true,

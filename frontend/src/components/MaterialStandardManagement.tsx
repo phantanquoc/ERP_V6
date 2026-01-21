@@ -223,68 +223,79 @@ const MaterialStandardManagement: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center">Đang tải...</div>
+          <div className="p-8 text-center text-gray-500">Đang tải...</div>
+        ) : filteredStandards.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">Không có định mức nào</div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã định mức</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên định mức</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại định mức</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tỉ lệ thu hồi (%)</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredStandards.map((standard) => (
-                <tr key={standard.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-4 text-sm font-medium text-gray-900">{standard.maDinhMuc}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{standard.tenDinhMuc}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      standard.loaiDinhMuc === 'RAW_MATERIAL' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                    }`}>
-                      {getLoaiDinhMucLabel(standard.loaiDinhMuc)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">
-                    {standard.tiLeThuHoi ? `${standard.tiLeThuHoi}%` : '-'}
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">
-                    {new Date(standard.createdAt).toLocaleDateString('vi-VN')}
-                  </td>
-                  <td className="px-4 py-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openDetailModal(standard)}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => openEditModal(standard)}
-                        className="text-green-600 hover:text-green-800"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(standard.id)}
-                        className="text-red-600 hover:text-red-800"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã định mức</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên định mức</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Loại định mức</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tỉ lệ thu hồi (%)</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày tạo</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredStandards.map((standard, index) => (
+                  <tr
+                    key={standard.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{standard.maDinhMuc}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{standard.tenDinhMuc}</td>
+                    <td className="px-6 py-4 text-center border-r border-gray-200">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                        standard.loaiDinhMuc === 'RAW_MATERIAL'
+                          ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                          : 'bg-purple-100 text-purple-700 border border-purple-300'
+                      }`}>
+                        {getLoaiDinhMucLabel(standard.loaiDinhMuc)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                      {standard.tiLeThuHoi ? `${standard.tiLeThuHoi}%` : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200 text-center">
+                      {new Date(standard.createdAt).toLocaleDateString('vi-VN')}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => openDetailModal(standard)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                          title="Xem chi tiết"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => openEditModal(standard)}
+                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(standard.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

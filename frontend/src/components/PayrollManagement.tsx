@@ -241,57 +241,72 @@ const PayrollManagement: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-300">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border border-gray-300 px-4 py-2 text-left">STT</th>
-              <th className="border border-gray-300 px-4 py-2 text-left">Mã NV</th>
-              <th className="border border-gray-300 px-4 py-2 text-left">Tên NV</th>
-              <th className="border border-gray-300 px-4 py-2 text-left">Vị trí</th>
-              <th className="border border-gray-300 px-4 py-2 text-right">Lương cơ bản</th>
-              <th className="border border-gray-300 px-4 py-2 text-right">Lương KPI</th>
-              <th className="border border-gray-300 px-4 py-2 text-right">Phụ cấp khác</th>
-              <th className="border border-gray-300 px-4 py-2 text-right">Tổng khấu trừ</th>
-              <th className="border border-gray-300 px-4 py-2 text-right">Thực lĩnh</th>
-              <th className="border border-gray-300 px-4 py-2 text-center">Hành động</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredPayrolls.map((payroll, index) => (
-              <tr key={payroll.employeeId} className="hover:bg-gray-50">
-                <td className="border border-gray-300 px-4 py-2">{index + 1}</td>
-                <td className="border border-gray-300 px-4 py-2">{payroll.employeeCode}</td>
-                <td className="border border-gray-300 px-4 py-2">{payroll.employeeName}</td>
-                <td className="border border-gray-300 px-4 py-2">{payroll.positionName}</td>
-                <td className="border border-gray-300 px-4 py-2 text-right">
-                  {payroll.baseSalary.toLocaleString('vi-VN')} ₫
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right">
-                  {payroll.kpiBonus.toLocaleString('vi-VN')} ₫
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right">
-                  {(payroll.positionAllowance + payroll.otherAllowances).toLocaleString('vi-VN')} ₫
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right">
-                  {payroll.totalDeductions.toLocaleString('vi-VN')} ₫
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right font-bold">
-                  {payroll.netSalary.toLocaleString('vi-VN')} ₫
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center">
-                  <button
-                    onClick={() => handleViewDetail(payroll)}
-                    className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                  >
-                    <Eye size={16} />
-                    Chi tiết
-                  </button>
-                </td>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên NV</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vị trí</th>
+                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Lương cơ bản</th>
+                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Lương KPI</th>
+                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Phụ cấp khác</th>
+                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng khấu trừ</th>
+                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Thực lĩnh</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredPayrolls.map((payroll, index) => (
+                <tr
+                  key={payroll.employeeId}
+                  className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  }`}
+                >
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{index + 1}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                    {payroll.employeeCode}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                    {payroll.employeeName}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                    {payroll.positionName}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
+                    {payroll.baseSalary.toLocaleString('vi-VN')} ₫
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
+                    {payroll.kpiBonus.toLocaleString('vi-VN')} ₫
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
+                    {(payroll.positionAllowance + payroll.otherAllowances).toLocaleString('vi-VN')} ₫
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
+                    {payroll.totalDeductions.toLocaleString('vi-VN')} ₫
+                  </td>
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right border-r border-gray-200">
+                    {payroll.netSalary.toLocaleString('vi-VN')} ₫
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-center">
+                      <button
+                        onClick={() => handleViewDetail(payroll)}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        <Eye size={16} />
+                        Chi tiết
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Detail Modal */}

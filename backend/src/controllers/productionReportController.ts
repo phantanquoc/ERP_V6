@@ -1,6 +1,11 @@
 import { Response, NextFunction } from 'express';
 import productionReportService from '@services/productionReportService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
+import { getFileUrl } from '@middlewares/upload';
+
+interface RequestWithFile extends AuthenticatedRequest {
+  file?: Express.Multer.File;
+}
 
 export class ProductionReportController {
   async getAllProductionReports(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -33,10 +38,17 @@ export class ProductionReportController {
     }
   }
 
-  async createProductionReport(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async createProductionReport(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.id;
-      const report = await productionReportService.createProductionReport(req.body, userId);
+      const data = req.body;
+
+      // Handle file upload
+      if (req.file) {
+        data.fileDinhKem = getFileUrl('production-reports', req.file.filename);
+      }
+
+      const report = await productionReportService.createProductionReport(data, userId);
 
       res.status(201).json({
         success: true,
@@ -48,11 +60,18 @@ export class ProductionReportController {
     }
   }
 
-  async updateProductionReport(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async updateProductionReport(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
       const userId = req.user?.id;
-      const report = await productionReportService.updateProductionReport(id, req.body, userId);
+      const data = req.body;
+
+      // Handle file upload
+      if (req.file) {
+        data.fileDinhKem = getFileUrl('production-reports', req.file.filename);
+      }
+
+      const report = await productionReportService.updateProductionReport(id, data, userId);
 
       res.json({
         success: true,

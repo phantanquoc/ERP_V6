@@ -105,92 +105,97 @@ const ProductionReportList: React.FC = () => {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">
                   Ngày tháng
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">
                   Tổng số tua SX
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">
                   Số mẻ thực tế
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
                   Mã định mức
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">
                   Chênh lệch KL (kg)
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
                   Người thực hiện
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">
                   Hoạt động
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     Đang tải...
                   </td>
                 </tr>
               ) : reports.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     Chưa có báo cáo sản lượng nào
                   </td>
                 </tr>
               ) : (
-                reports.map((report) => (
-                  <tr key={report.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                reports.map((report, index) => (
+                  <tr
+                    key={report.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {new Date(report.ngayThang).toLocaleDateString('vi-VN')}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {report.tongSoTuaSanXuat}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {report.soMeThucTe}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                       {report.maDinhMuc || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-6 py-4 text-sm font-semibold border-r border-gray-200 text-center">
                       <span className={report.chenhLechKhoiLuong >= 0 ? 'text-green-600' : 'text-red-600'}>
                         {report.chenhLechKhoiLuong >= 0 ? '+' : ''}{report.chenhLechKhoiLuong.toFixed(2)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                       {report.nguoiThucHien || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end gap-2">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-3">
                         <button
                           onClick={() => handleView(report)}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                           title="Xem chi tiết"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleEdit(report)}
-                          className="text-yellow-600 hover:text-yellow-900"
+                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                           title="Chỉnh sửa"
                         >
-                          <Edit className="w-4 h-4" />
+                          <Edit className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleDelete(report.id)}
-                          className="text-red-600 hover:text-red-900"
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                           title="Xóa"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       </div>
                     </td>

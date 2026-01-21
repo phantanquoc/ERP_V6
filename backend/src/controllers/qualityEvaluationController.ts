@@ -1,6 +1,11 @@
 import { Response, NextFunction } from 'express';
 import qualityEvaluationService from '@services/qualityEvaluationService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
+import { getFileUrl } from '@middlewares/upload';
+
+interface RequestWithFile extends AuthenticatedRequest {
+  file?: Express.Multer.File;
+}
 
 export class QualityEvaluationController {
   async getAllQualityEvaluations(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -34,10 +39,17 @@ export class QualityEvaluationController {
     }
   }
 
-  async createQualityEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async createQualityEvaluation(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.id;
-      const evaluation = await qualityEvaluationService.createQualityEvaluation(req.body, userId);
+      const data = req.body;
+
+      // Handle file upload
+      if (req.file) {
+        data.fileDinhKem = getFileUrl('quality-evaluations', req.file.filename);
+      }
+
+      const evaluation = await qualityEvaluationService.createQualityEvaluation(data, userId);
 
       res.status(201).json({
         success: true,
@@ -49,11 +61,18 @@ export class QualityEvaluationController {
     }
   }
 
-  async updateQualityEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async updateQualityEvaluation(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
       const userId = req.user?.id;
-      const evaluation = await qualityEvaluationService.updateQualityEvaluation(id, req.body, userId);
+      const data = req.body;
+
+      // Handle file upload
+      if (req.file) {
+        data.fileDinhKem = getFileUrl('quality-evaluations', req.file.filename);
+      }
+
+      const evaluation = await qualityEvaluationService.updateQualityEvaluation(id, data, userId);
 
       res.json({
         success: true,

@@ -2,8 +2,12 @@ import { Router } from 'express';
 import orderController from '@controllers/orderController';
 import { authenticate, authorize } from '@middlewares/auth';
 import { UserRole } from '@types';
+import { createSingleUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
+
+// Upload middleware for orders
+const uploadOrder = createSingleUploadMiddleware('orders');
 
 // All routes require authentication
 router.use(authenticate);
@@ -17,6 +21,7 @@ router.get('/:id', orderController.getOrderById);
 router.post(
   '/from-quotation',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  uploadOrder,
   orderController.createOrderFromQuotation
 );
 
@@ -24,6 +29,7 @@ router.post(
 router.patch(
   '/:id',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  uploadOrder,
   orderController.updateOrder
 );
 

@@ -190,95 +190,104 @@ const LeaveRequestManagement = () => {
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto bg-white rounded-lg shadow">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Mã đơn</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Nhân viên</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Loại nghỉ</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Thời gian</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Trạng thái</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Ngày tạo</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {leaveRequests.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                      Không có đơn nghỉ phép nào
-                    </td>
-                  </tr>
-                ) : (
-                  leaveRequests.map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{request.code}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <div>
-                          <div className="font-medium">
-                            {request.employee?.user.firstName} {request.employee?.user.lastName}
-                          </div>
-                          <div className="text-xs text-gray-500">{request.employee?.employeeCode}</div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        {getLeaveTypeLabel(request.leaveType)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          <span>{formatDate(request.startDate)} - {formatDate(request.endDate)}</span>
-                        </div>
-                        {request.isHalfDay && (
-                          <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{request.halfDayPeriod === 'MORNING' ? 'Buổi sáng' : 'Buổi chiều'}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm">{getStatusBadge(request.status)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{formatDate(request.createdAt)}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => {
-                              setSelectedRequest(request);
-                              setIsDetailModalOpen(true);
-                            }}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          {request.status === 'PENDING' && (
-                            <>
-                              <button
-                                onClick={() => handleApprove(request)}
-                                className="p-1 text-green-600 hover:bg-green-50 rounded"
-                                title="Phê duyệt"
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setSelectedRequest(request);
-                                  setIsRejectModalOpen(true);
-                                }}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                title="Từ chối"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            {leaveRequests.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">Không có đơn nghỉ phép nào</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã đơn</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại nghỉ</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày tạo</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Thao tác</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {leaveRequests.map((request, index) => (
+                      <tr
+                        key={request.id}
+                        className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                        }`}
+                      >
+                        <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                          {request.code}
+                        </td>
+                        <td className="px-6 py-4 text-sm border-r border-gray-200">
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {request.employee?.user.firstName} {request.employee?.user.lastName}
+                            </div>
+                            <div className="text-xs text-gray-500">{request.employee?.employeeCode}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                          {getLeaveTypeLabel(request.leaveType)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            <span>{formatDate(request.startDate)} - {formatDate(request.endDate)}</span>
+                          </div>
+                          {request.isHalfDay && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                              <Clock className="w-3 h-3" />
+                              <span>{request.halfDayPeriod === 'MORNING' ? 'Buổi sáng' : 'Buổi chiều'}</span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-center border-r border-gray-200">
+                          {getStatusBadge(request.status)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                          {formatDate(request.createdAt)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-center gap-3">
+                            <button
+                              onClick={() => {
+                                setSelectedRequest(request);
+                                setIsDetailModalOpen(true);
+                              }}
+                              className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                              title="Xem chi tiết"
+                            >
+                              <Eye className="w-5 h-5" />
+                            </button>
+                            {request.status === 'PENDING' && (
+                              <>
+                                <button
+                                  onClick={() => handleApprove(request)}
+                                  className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                                  title="Phê duyệt"
+                                >
+                                  <CheckCircle className="w-5 h-5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedRequest(request);
+                                    setIsRejectModalOpen(true);
+                                  }}
+                                  className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                                  title="Từ chối"
+                                >
+                                  <XCircle className="w-5 h-5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Pagination */}

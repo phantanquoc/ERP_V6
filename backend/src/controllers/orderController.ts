@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import orderService from '../services/orderService';
 import { ApiResponse } from '@types';
+import { getFileUrl } from '@middlewares/upload';
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -8,6 +9,7 @@ interface AuthenticatedRequest extends Request {
     email: string;
     role: string;
   };
+  file?: Express.Multer.File;
 }
 
 class OrderController {
@@ -32,7 +34,13 @@ class OrderController {
     try {
       const { quotationId } = req.body;
 
-      const order = await orderService.createOrderFromQuotation(quotationId);
+      // Handle file upload
+      let fileDinhKem: string | undefined;
+      if (req.file) {
+        fileDinhKem = getFileUrl('orders', req.file.filename);
+      }
+
+      const order = await orderService.createOrderFromQuotation(quotationId, fileDinhKem);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -52,8 +60,9 @@ class OrderController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
+      const customerType = req.query.customerType as string;
 
-      const result = await orderService.getAllOrders(page, limit, search);
+      const result = await orderService.getAllOrders(page, limit, search, customerType);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -90,6 +99,11 @@ class OrderController {
     try {
       const { id } = req.params;
       const data = req.body;
+
+      // Handle file upload
+      if (req.file) {
+        data.fileDinhKem = getFileUrl('orders', req.file.filename);
+      }
 
       const order = await orderService.updateOrder(id, data);
 

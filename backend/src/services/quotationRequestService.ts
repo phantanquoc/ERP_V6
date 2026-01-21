@@ -36,21 +36,30 @@ export class QuotationRequestService {
   async getAllQuotationRequests(
     page: number = 1,
     limit: number = 10,
-    search?: string
+    search?: string,
+    customerType?: string // "Quốc tế" hoặc "Nội địa"
   ): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
-    const where = search
-      ? {
-          OR: [
-            { maYeuCauBaoGia: { contains: search, mode: 'insensitive' as const } },
-            { maNhanVien: { contains: search, mode: 'insensitive' as const } },
-            { tenNhanVien: { contains: search, mode: 'insensitive' as const } },
-            { maKhachHang: { contains: search, mode: 'insensitive' as const } },
-            { tenKhachHang: { contains: search, mode: 'insensitive' as const } },
-          ],
-        }
-      : {};
+    const where: any = {};
+
+    // Filter by customerType (Quốc tế / Nội địa)
+    if (customerType === 'Quốc tế') {
+      where.customer = { quocGia: { not: null } };
+    } else if (customerType === 'Nội địa') {
+      where.customer = { tinhThanh: { not: null } };
+    }
+
+    // Search filter
+    if (search) {
+      where.OR = [
+        { maYeuCauBaoGia: { contains: search, mode: 'insensitive' as const } },
+        { maNhanVien: { contains: search, mode: 'insensitive' as const } },
+        { tenNhanVien: { contains: search, mode: 'insensitive' as const } },
+        { maKhachHang: { contains: search, mode: 'insensitive' as const } },
+        { tenKhachHang: { contains: search, mode: 'insensitive' as const } },
+      ];
+    }
 
     const [requests, total] = await Promise.all([
       prisma.quotationRequest.findMany({

@@ -31,12 +31,14 @@ class CustomerFeedbackService {
     loaiPhanHoi?: string;
     mucDoNghiemTrong?: string;
     search?: string;
+    customerType?: string;
   }): Promise<CustomerFeedback[]> {
     const params = new URLSearchParams();
     if (filters?.trangThaiXuLy) params.append('trangThaiXuLy', filters.trangThaiXuLy);
     if (filters?.loaiPhanHoi) params.append('loaiPhanHoi', filters.loaiPhanHoi);
     if (filters?.mucDoNghiemTrong) params.append('mucDoNghiemTrong', filters.mucDoNghiemTrong);
     if (filters?.search) params.append('search', filters.search);
+    if (filters?.customerType) params.append('customerType', filters.customerType);
 
     const response = await api.get<CustomerFeedback[]>(`/customer-feedbacks?${params.toString()}`);
     return response.data || [];

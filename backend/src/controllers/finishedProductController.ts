@@ -1,6 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import finishedProductService from '@services/finishedProductService';
 import type { AuthenticatedRequest } from '@types';
+import { getFileUrl } from '@middlewares/upload';
+
+interface RequestWithFile extends AuthenticatedRequest {
+  file?: Express.Multer.File;
+}
 
 export class FinishedProductController {
   async getAllFinishedProducts(req: Request, res: Response, next: NextFunction) {
@@ -34,10 +39,17 @@ export class FinishedProductController {
     }
   }
 
-  async createFinishedProduct(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async createFinishedProduct(req: RequestWithFile, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
-      const product = await finishedProductService.createFinishedProduct(req.body, userId);
+      const data = req.body;
+
+      // Handle file upload
+      if (req.file) {
+        data.fileDinhKem = getFileUrl('finished-products', req.file.filename);
+      }
+
+      const product = await finishedProductService.createFinishedProduct(data, userId);
 
       res.status(201).json({
         success: true,
@@ -49,11 +61,18 @@ export class FinishedProductController {
     }
   }
 
-  async updateFinishedProduct(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async updateFinishedProduct(req: RequestWithFile, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const userId = req.user?.id;
-      const product = await finishedProductService.updateFinishedProduct(id, req.body, userId);
+      const data = req.body;
+
+      // Handle file upload
+      if (req.file) {
+        data.fileDinhKem = getFileUrl('finished-products', req.file.filename);
+      }
+
+      const product = await finishedProductService.updateFinishedProduct(id, data, userId);
 
       res.json({
         success: true,

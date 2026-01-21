@@ -15,7 +15,11 @@ import {
 import customerFeedbackService, { CustomerFeedback } from '../services/customerFeedbackService';
 import internationalCustomerService, { InternationalCustomer } from '../services/internationalCustomerService';
 
-const CustomerFeedbackManagement = () => {
+interface CustomerFeedbackManagementProps {
+  customerType?: 'Quốc tế' | 'Nội địa';
+}
+
+const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({ customerType = 'Quốc tế' }) => {
   const [feedbacks, setFeedbacks] = useState<CustomerFeedback[]>([]);
   const [customers, setCustomers] = useState<InternationalCustomer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,11 +41,11 @@ const CustomerFeedbackManagement = () => {
   useEffect(() => {
     fetchFeedbacks();
     fetchCustomers();
-  }, [filterStatus, filterType, filterPriority]);
+  }, [filterStatus, filterType, filterPriority, customerType]);
 
   const fetchCustomers = async () => {
     try {
-      const response = await internationalCustomerService.getAllCustomers(1, 1000, '', 'Quốc tế');
+      const response = await internationalCustomerService.getAllCustomers(1, 1000, '', customerType);
       setCustomers(response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -56,12 +60,14 @@ const CustomerFeedbackManagement = () => {
         loaiPhanHoi: filterType,
         mucDoNghiemTrong: filterPriority,
         search: searchTerm,
+        customerType: customerType,
       });
       const data = await customerFeedbackService.getAllFeedbacks({
         trangThaiXuLy: filterStatus,
         loaiPhanHoi: filterType,
         mucDoNghiemTrong: filterPriority,
         search: searchTerm,
+        customerType: customerType,
       });
       console.log('Received feedbacks:', data);
       setFeedbacks(data || []);
@@ -178,8 +184,8 @@ const CustomerFeedbackManagement = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
+        <div className="flex gap-4">
+          <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
@@ -234,66 +240,73 @@ const CustomerFeedbackManagement = () => {
         ) : !feedbacks || feedbacks.length === 0 ? (
           <div className="p-8 text-center text-gray-500">Không có dữ liệu</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Khách hàng</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loại</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nội dung</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mức độ</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {feedbacks.map((feedback) => (
-                  <tr key={feedback.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {feedback.customer?.tenCongTy || 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {feedback.customer?.quocGia || ''}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{feedback.loaiPhanHoi}</td>
-                    <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">{feedback.noiDungPhanHoi}</td>
-                    <td className="px-4 py-4 whitespace-nowrap">{getPriorityBadge(feedback.mucDoNghiemTrong)}</td>
-                    <td className="px-4 py-4 whitespace-nowrap">{getStatusBadge(feedback.trangThaiXuLy)}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(feedback.ngayPhanHoi).toLocaleDateString('vi-VN')}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleView(feedback)}
-                          className="text-blue-600 hover:text-blue-800"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(feedback)}
-                          className="text-green-600 hover:text-green-800"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(feedback.id)}
-                          className="text-red-600 hover:text-red-800"
-                          title="Xóa"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nội dung</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Mức độ</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Thao tác</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {feedbacks.map((feedback, index) => (
+                    <tr
+                      key={feedback.id}
+                      className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-6 py-4 border-r border-gray-200">
+                        <div className="text-sm font-medium text-gray-900">
+                          {feedback.customer?.tenCongTy || 'N/A'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {feedback.customer?.quocGia || ''}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{feedback.loaiPhanHoi}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate border-r border-gray-200">{feedback.noiDungPhanHoi}</td>
+                      <td className="px-6 py-4 text-center border-r border-gray-200">{getPriorityBadge(feedback.mucDoNghiemTrong)}</td>
+                      <td className="px-6 py-4 text-center border-r border-gray-200">{getStatusBadge(feedback.trangThaiXuLy)}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                        {new Date(feedback.ngayPhanHoi).toLocaleDateString('vi-VN')}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-3">
+                          <button
+                            onClick={() => handleView(feedback)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(feedback)}
+                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                            title="Chỉnh sửa"
+                          >
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(feedback.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                            title="Xóa"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

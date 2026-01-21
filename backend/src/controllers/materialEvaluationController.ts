@@ -1,6 +1,11 @@
 import { Response, NextFunction } from 'express';
 import materialEvaluationService from '@services/materialEvaluationService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
+import { getFileUrl } from '@middlewares/upload';
+
+interface RequestWithFile extends AuthenticatedRequest {
+  file?: Express.Multer.File;
+}
 
 export class MaterialEvaluationController {
   async getAllMaterialEvaluations(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -61,9 +66,16 @@ export class MaterialEvaluationController {
     }
   }
 
-  async createMaterialEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async createMaterialEvaluation(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
-      const evaluation = await materialEvaluationService.createMaterialEvaluation(req.body);
+      const data = req.body;
+
+      // Handle file upload
+      if (req.file) {
+        data.fileDinhKem = getFileUrl('material-evaluations', req.file.filename);
+      }
+
+      const evaluation = await materialEvaluationService.createMaterialEvaluation(data);
 
       res.status(201).json({
         success: true,
@@ -75,10 +87,17 @@ export class MaterialEvaluationController {
     }
   }
 
-  async updateMaterialEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async updateMaterialEvaluation(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      const evaluation = await materialEvaluationService.updateMaterialEvaluation(id, req.body);
+      const data = req.body;
+
+      // Handle file upload
+      if (req.file) {
+        data.fileDinhKem = getFileUrl('material-evaluations', req.file.filename);
+      }
+
+      const evaluation = await materialEvaluationService.updateMaterialEvaluation(id, data);
 
       res.json({
         success: true,

@@ -1,7 +1,12 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { getFileUrl } from '../middlewares/upload';
 
 const prisma = new PrismaClient();
+
+interface RequestWithFile extends Request {
+  file?: Express.Multer.File;
+}
 
 // Get all debts
 export const getAllDebts = async (_req: Request, res: Response): Promise<void> => {
@@ -56,7 +61,7 @@ export const getDebtById = async (req: Request, res: Response): Promise<void> =>
 };
 
 // Create debt
-export const createDebt = async (req: Request, res: Response): Promise<void> => {
+export const createDebt = async (req: RequestWithFile, res: Response): Promise<void> => {
   try {
     const {
       ngayPhatSinh,
@@ -73,7 +78,6 @@ export const createDebt = async (req: Request, res: Response): Promise<void> => 
       ngayDenHan,
       soTaiKhoan,
       ghiChu,
-      fileDinhKem,
     } = req.body;
 
     if (!maNhaCungCap || !tenNhaCungCap || !ngayPhatSinh) {
@@ -82,6 +86,12 @@ export const createDebt = async (req: Request, res: Response): Promise<void> => 
         message: 'Mã nhà cung cấp, tên nhà cung cấp và ngày phát sinh là bắt buộc',
       });
       return;
+    }
+
+    // Handle file upload
+    let fileDinhKem: string | undefined;
+    if (req.file) {
+      fileDinhKem = getFileUrl('debts', req.file.filename);
     }
 
     const debt = await prisma.debt.create({
@@ -120,10 +130,15 @@ export const createDebt = async (req: Request, res: Response): Promise<void> => 
 };
 
 // Update debt
-export const updateDebt = async (req: Request, res: Response): Promise<void> => {
+export const updateDebt = async (req: RequestWithFile, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const updateData = req.body;
+
+    // Handle file upload
+    if (req.file) {
+      updateData.fileDinhKem = getFileUrl('debts', req.file.filename);
+    }
 
     // Convert date strings to Date objects
     if (updateData.ngayPhatSinh) {

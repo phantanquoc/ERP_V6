@@ -12,6 +12,7 @@ router.get('/', authenticate, async (req, res) => {
       loaiPhanHoi: req.query.loaiPhanHoi as string,
       mucDoNghiemTrong: req.query.mucDoNghiemTrong as string,
       search: req.query.search as string,
+      customerType: req.query.customerType as string,
     };
 
     const feedbacks = await customerFeedbackService.getAllFeedbacks(filters);
