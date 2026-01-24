@@ -60,7 +60,7 @@ router.get('/', (_req: Request, res: Response) => {
 
 // GET single report
 router.get('/:id', (req: Request, res: Response): void => {
-  const report = reports.find(r => r.id === parseInt(req.params.id));
+  const report = reports.find(r => r.id === parseInt(req.params.id as string));
   if (!report) {
     res.status(404).json({ message: 'Không tìm thấy báo cáo' });
     return;
@@ -96,7 +96,7 @@ router.post('/', upload.single('file'), (req: Request, res: Response) => {
 // PUT update report
 router.put('/:id', upload.single('file'), (req: Request, res: Response): void => {
   try {
-    const reportIndex = reports.findIndex(r => r.id === parseInt(req.params.id));
+    const reportIndex = reports.findIndex(r => r.id === parseInt(req.params.id as string));
     if (reportIndex === -1) {
       res.status(404).json({ message: 'Không tìm thấy báo cáo' });
       return;
@@ -126,7 +126,7 @@ router.put('/:id', upload.single('file'), (req: Request, res: Response): void =>
 // DELETE report
 router.delete('/:id', (req: Request, res: Response): void => {
   try {
-    const reportIndex = reports.findIndex(r => r.id === parseInt(req.params.id));
+    const reportIndex = reports.findIndex(r => r.id === parseInt(req.params.id as string));
     if (reportIndex === -1) {
       res.status(404).json({ message: 'Không tìm thấy báo cáo' });
       return;
