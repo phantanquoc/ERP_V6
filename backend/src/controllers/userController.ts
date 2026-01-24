@@ -33,7 +33,7 @@ export class UserController {
   async getUserById(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const user = await userService.getUserById(id);
+      const user = await userService.getUserById(id as string);
 
       res.status(200).json({
         success: true,
@@ -60,7 +60,7 @@ export class UserController {
       const { id } = req.params;
       const { firstName, lastName, role, isActive, departmentId, subDepartmentId } = req.body;
 
-      const user = await userService.updateUser(id, {
+      const user = await userService.updateUser(id as string, {
         firstName,
         lastName,
         role,
@@ -92,7 +92,7 @@ export class UserController {
   async deleteUser(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      await userService.deleteUser(id);
+      await userService.deleteUser(id as string);
 
       res.status(200).json({
         success: true,
