@@ -128,24 +128,87 @@ export const moveProductBetweenLots = async (req: Request, res: Response): Promi
       return;
     }
 
-    const lotProduct = await prisma.lotProduct.update({
+    // Lấy thông tin sản phẩm đang di chuyển
+    const sourceProduct = await prisma.lotProduct.findUnique({
       where: { id: lotProductId },
-      data: { lotId: targetLotId },
       include: {
         internationalProduct: true,
-        lot: {
-          include: {
-            warehouse: true,
-          },
-        },
       },
     });
 
-    res.json({
-      success: true,
-      data: lotProduct,
-      message: 'Di chuyển sản phẩm thành công',
+    if (!sourceProduct) {
+      res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy sản phẩm',
+      });
+      return;
+    }
+
+    // Kiểm tra xem sản phẩm đã tồn tại trong lô đích chưa
+    const existingProductInTargetLot = await prisma.lotProduct.findFirst({
+      where: {
+        lotId: targetLotId,
+        internationalProductId: sourceProduct.internationalProductId,
+      },
     });
+
+    let resultProduct;
+
+    if (existingProductInTargetLot) {
+      // Nếu sản phẩm đã tồn tại trong lô đích -> cộng số lượng và xóa bản ghi nguồn
+      await prisma.$transaction([
+        // Cộng số lượng vào sản phẩm đã tồn tại
+        prisma.lotProduct.update({
+          where: { id: existingProductInTargetLot.id },
+          data: {
+            soLuong: existingProductInTargetLot.soLuong + sourceProduct.soLuong,
+          },
+        }),
+        // Xóa sản phẩm nguồn
+        prisma.lotProduct.delete({
+          where: { id: lotProductId },
+        }),
+      ]);
+
+      // Lấy thông tin sản phẩm đã được gộp
+      resultProduct = await prisma.lotProduct.findUnique({
+        where: { id: existingProductInTargetLot.id },
+        include: {
+          internationalProduct: true,
+          lot: {
+            include: {
+              warehouse: true,
+            },
+          },
+        },
+      });
+
+      res.json({
+        success: true,
+        data: resultProduct,
+        message: `Đã gộp ${sourceProduct.soLuong} ${sourceProduct.donViTinh} vào sản phẩm cùng loại trong lô đích`,
+      });
+    } else {
+      // Nếu sản phẩm chưa tồn tại -> di chuyển như bình thường
+      resultProduct = await prisma.lotProduct.update({
+        where: { id: lotProductId },
+        data: { lotId: targetLotId },
+        include: {
+          internationalProduct: true,
+          lot: {
+            include: {
+              warehouse: true,
+            },
+          },
+        },
+      });
+
+      res.json({
+        success: true,
+        data: resultProduct,
+        message: 'Di chuyển sản phẩm thành công',
+      });
+    }
   } catch (error: any) {
     console.error('Error moving product:', error);
     res.status(500).json({

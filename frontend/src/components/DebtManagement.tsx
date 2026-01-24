@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Download, Edit, Eye, Trash2, Calendar, FileText, Upload } from 'lucide-react';
 import debtService, { Debt, DebtSummary } from '../services/debtService';
+import DatePicker from './DatePicker';
 
 const DebtManagement: React.FC = () => {
   const [debtData, setDebtData] = useState<Debt[]>([]);
@@ -33,6 +34,13 @@ const DebtManagement: React.FC = () => {
     soTaiKhoan: '',
     ghiChu: '',
   });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
 
   useEffect(() => {
     fetchDebts();
@@ -197,36 +205,22 @@ const DebtManagement: React.FC = () => {
   return (
     <div>
       {/* Action Bar */}
-      <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm công nợ..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 w-64"
-              />
-            </div>
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
-              <Filter className="h-4 w-4" />
-              Lọc
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
-              <Download className="h-4 w-4" />
-              Xuất Excel
-            </button>
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
-            >
-              <Plus className="h-4 w-4" />
-              Thêm mới
-            </button>
-          </div>
+      <div className="mb-4 flex flex-wrap gap-4 items-center justify-between">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <input
+            type="text"
+            placeholder="Tìm kiếm công nợ..."
+            className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
+          />
         </div>
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 border-2 border-blue-600 hover:border-blue-700 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          Thêm mới
+        </button>
       </div>
 
       {/* Table */}
@@ -237,109 +231,46 @@ const DebtManagement: React.FC = () => {
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày phát sinh</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại chi phí</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã nhà cung cấp</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên nhà cung cấp</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại cung cấp</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cung cấp</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nội dung chi cho</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại hình</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số tiền phải trả</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số tiền đã thanh toán</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày hoạch toán</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày đến hạn</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số tài khoản</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ghi chú</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File đính kèm</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">STT</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Ngày phát sinh</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Loại chi phí</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Số tiền phải trả</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Số tiền đã thanh toán</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-blue-600">Hoạt động</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200">
               {debtData.map((item, index) => (
                 <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 text-gray-400 mr-1" />
-                      {formatDate(item.ngayPhatSinh)}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.loaiChiPhi || '-'}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{item.maNhaCungCap}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.tenNhaCungCap}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.loaiCungCap || '-'}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.cungCap || '-'}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.noiDungChiCho || '-'}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      item.loaiHinh === 'Hóa đơn' ? 'bg-blue-100 text-blue-800' :
-                      item.loaiHinh === 'Có nhận' ? 'bg-green-100 text-green-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {item.loaiHinh || '-'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className="font-medium text-red-600">
-                      {formatCurrency(item.soTienPhaiTra)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className="font-medium text-green-600">
-                      {formatCurrency(item.soTienDaThanhToan)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 text-gray-400 mr-1" />
-                      {formatDate(item.ngayHoachToan)}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 text-gray-400 mr-1" />
-                      {formatDate(item.ngayDenHan)}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.soTaiKhoan || '-'}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">{item.ghiChu || '-'}</td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {item.fileDinhKem ? (
-                      <button className="text-blue-600 hover:text-blue-800" title="Xem file">
-                        <FileText className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <button className="text-gray-400 hover:text-gray-600" title="Upload file">
-                        <Upload className="w-4 h-4" />
-                      </button>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center gap-2">
+                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">{index + 1}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{formatDate(item.ngayPhatSinh)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{item.loaiChiPhi || '-'}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-red-600">{formatCurrency(item.soTienPhaiTra)}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-green-600">{formatCurrency(item.soTienDaThanhToan)}</td>
+                  <td className="px-4 py-3 text-sm">
+                    <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => handleView(item)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="text-gray-500 hover:text-blue-600"
                         title="Xem chi tiết"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleEdit(item)}
-                        className="text-green-600 hover:text-green-800"
+                        className="text-gray-500 hover:text-green-600"
                         title="Chỉnh sửa"
                       >
-                        <Edit className="w-4 h-4" />
+                        <Edit className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-gray-500 hover:text-red-600"
                         title="Xóa"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </td>
@@ -348,31 +279,6 @@ const DebtManagement: React.FC = () => {
             </tbody>
           </table>
         )}
-      </div>
-
-      {/* Summary */}
-      <div className="mt-6 bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Tổng hợp công nợ</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-red-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">Tổng phải trả</p>
-            <p className="text-2xl font-bold text-red-600">
-              {formatCurrency(summary.tongPhaiTra)}
-            </p>
-          </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">Đã thanh toán</p>
-            <p className="text-2xl font-bold text-green-600">
-              {formatCurrency(summary.daThanhToan)}
-            </p>
-          </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">Còn nợ</p>
-            <p className="text-2xl font-bold text-orange-600">
-              {formatCurrency(summary.conNo)}
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Add Modal */}
@@ -393,15 +299,13 @@ const DebtManagement: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Ngày phát sinh */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày phát sinh <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
+                  <DatePicker
+                    label="Ngày phát sinh"
                     value={formData.ngayPhatSinh}
-                    onChange={(e) => setFormData({ ...formData, ngayPhatSinh: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(date) => setFormData({ ...formData, ngayPhatSinh: date })}
+                    required
+                    placeholder="Chọn ngày phát sinh"
+                    allowClear
                   />
                 </div>
 
@@ -410,13 +314,18 @@ const DebtManagement: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Loại chi phí
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.loaiChiPhi}
                     onChange={(e) => setFormData({ ...formData, loaiChiPhi: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="VD: BB-001"
-                  />
+                  >
+                    <option value="">-- Chọn loại chi phí --</option>
+                    <option value="Đơn hàng">Đơn hàng</option>
+                    <option value="Sửa chữa">Sửa chữa</option>
+                    <option value="Đầu tư">Đầu tư</option>
+                    <option value="Văn phòng phẩm">Văn phòng phẩm</option>
+                    <option value="Khác">Khác</option>
+                  </select>
                 </div>
 
                 {/* Mã nhà cung cấp */}
@@ -505,9 +414,9 @@ const DebtManagement: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">-- Chọn loại hình --</option>
-                    <option value="Hóa đơn">Hóa đơn</option>
-                    <option value="Có nhận">Có nhận</option>
-                    <option value="Chưa có">Chưa có</option>
+                    <option value="Tổ chức">Tổ chức</option>
+                    <option value="Hộ gia đình">Hộ gia đình</option>
+                    <option value="Cá nhân">Cá nhân</option>
                   </select>
                 </div>
 
@@ -541,27 +450,23 @@ const DebtManagement: React.FC = () => {
 
                 {/* Ngày hoạch toán */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày hoạch toán
-                  </label>
-                  <input
-                    type="date"
+                  <DatePicker
+                    label="Ngày hoạch toán"
                     value={formData.ngayHoachToan}
-                    onChange={(e) => setFormData({ ...formData, ngayHoachToan: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(date) => setFormData({ ...formData, ngayHoachToan: date })}
+                    placeholder="Chọn ngày hoạch toán"
+                    allowClear
                   />
                 </div>
 
                 {/* Ngày đến hạn */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày đến hạn
-                  </label>
-                  <input
-                    type="date"
+                  <DatePicker
+                    label="Ngày đến hạn"
                     value={formData.ngayDenHan}
-                    onChange={(e) => setFormData({ ...formData, ngayDenHan: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(date) => setFormData({ ...formData, ngayDenHan: date })}
+                    placeholder="Chọn ngày đến hạn"
+                    allowClear
                   />
                 </div>
 
@@ -589,6 +494,23 @@ const DebtManagement: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                     rows={3}
                   />
+                </div>
+
+                {/* File đính kèm */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    File đính kèm
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                    />
+                    {selectedFile && (
+                      <span className="text-sm text-gray-600">{selectedFile.name}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -634,15 +556,13 @@ const DebtManagement: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Same form fields as Add Modal */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày phát sinh <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
+                  <DatePicker
+                    label="Ngày phát sinh"
                     value={formData.ngayPhatSinh}
-                    onChange={(e) => setFormData({ ...formData, ngayPhatSinh: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(date) => setFormData({ ...formData, ngayPhatSinh: date })}
+                    required
+                    placeholder="Chọn ngày phát sinh"
+                    allowClear
                   />
                 </div>
 
@@ -650,12 +570,18 @@ const DebtManagement: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Loại chi phí
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.loaiChiPhi}
                     onChange={(e) => setFormData({ ...formData, loaiChiPhi: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
+                  >
+                    <option value="">-- Chọn loại chi phí --</option>
+                    <option value="Đơn hàng">Đơn hàng</option>
+                    <option value="Sửa chữa">Sửa chữa</option>
+                    <option value="Đầu tư">Đầu tư</option>
+                    <option value="Văn phòng phẩm">Văn phòng phẩm</option>
+                    <option value="Khác">Khác</option>
+                  </select>
                 </div>
 
                 <div>
@@ -735,9 +661,9 @@ const DebtManagement: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">-- Chọn loại hình --</option>
-                    <option value="Hóa đơn">Hóa đơn</option>
-                    <option value="Có nhận">Có nhận</option>
-                    <option value="Chưa có">Chưa có</option>
+                    <option value="Tổ chức">Tổ chức</option>
+                    <option value="Hộ gia đình">Hộ gia đình</option>
+                    <option value="Cá nhân">Cá nhân</option>
                   </select>
                 </div>
 
@@ -766,26 +692,22 @@ const DebtManagement: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày hoạch toán
-                  </label>
-                  <input
-                    type="date"
+                  <DatePicker
+                    label="Ngày hoạch toán"
                     value={formData.ngayHoachToan}
-                    onChange={(e) => setFormData({ ...formData, ngayHoachToan: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(date) => setFormData({ ...formData, ngayHoachToan: date })}
+                    placeholder="Chọn ngày hoạch toán"
+                    allowClear
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày đến hạn
-                  </label>
-                  <input
-                    type="date"
+                  <DatePicker
+                    label="Ngày đến hạn"
                     value={formData.ngayDenHan}
-                    onChange={(e) => setFormData({ ...formData, ngayDenHan: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(date) => setFormData({ ...formData, ngayDenHan: date })}
+                    placeholder="Chọn ngày đến hạn"
+                    allowClear
                   />
                 </div>
 
@@ -811,6 +733,23 @@ const DebtManagement: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                     rows={3}
                   />
+                </div>
+
+                {/* File đính kèm */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    File đính kèm
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                    />
+                    {selectedFile && (
+                      <span className="text-sm text-gray-600">{selectedFile.name}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -896,8 +835,9 @@ const DebtManagement: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-500 mb-1">Loại hình</label>
                   <p>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      selectedDebt.loaiHinh === 'Hóa đơn' ? 'bg-blue-100 text-blue-800' :
-                      selectedDebt.loaiHinh === 'Có nhận' ? 'bg-green-100 text-green-800' :
+                      selectedDebt.loaiHinh === 'Tổ chức' ? 'bg-blue-100 text-blue-800' :
+                      selectedDebt.loaiHinh === 'Hộ gia đình' ? 'bg-green-100 text-green-800' :
+                      selectedDebt.loaiHinh === 'Cá nhân' ? 'bg-purple-100 text-purple-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
                       {selectedDebt.loaiHinh || '-'}

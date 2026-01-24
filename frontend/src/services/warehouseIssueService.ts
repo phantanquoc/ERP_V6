@@ -15,7 +15,9 @@ export interface WarehouseIssue {
   tenLo: string;
   lotProductId: string;
   tenSanPham: string;
+  soLuongTruoc: number; // Số lượng tồn kho trước khi xuất
   soLuongXuat: number;
+  soLuongSau: number;   // Số lượng tồn kho sau khi xuất
   donViTinh: string;
   ghiChu?: string;
   createdAt: string;

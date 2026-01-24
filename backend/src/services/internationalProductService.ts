@@ -149,17 +149,6 @@ export class InternationalProductService {
       throw new ValidationError(errorMsg);
     }
 
-    // Check if product is being used in warehouse inventory
-    const warehouseInventory = await prisma.warehouseInventory.count({
-      where: { productId: id },
-    });
-
-    if (warehouseInventory > 0) {
-      throw new ValidationError(
-        `Không thể xóa sản phẩm này vì đang có trong kho (${warehouseInventory} bản ghi)`
-      );
-    }
-
     // Check if product is being used in order items
     const orderItems = await prisma.orderItem.count({
       where: { productId: id },

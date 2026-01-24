@@ -1,0 +1,21 @@
+import { Router } from 'express';
+import purchaseRequestController from '@controllers/purchaseRequestController';
+import { authenticate, authorize } from '@middlewares/auth';
+import { UserRole } from '@types';
+
+const router = Router();
+
+router.use(authenticate);
+
+router.get('/', purchaseRequestController.getAllPurchaseRequests);
+router.get('/generate-code', purchaseRequestController.generatePurchaseRequestCode);
+router.get('/:id', purchaseRequestController.getPurchaseRequestById);
+router.post('/', purchaseRequestController.createPurchaseRequest);
+router.put('/:id', purchaseRequestController.updatePurchaseRequest);
+router.delete(
+  '/:id',
+  authorize([UserRole.ADMIN, UserRole.DEPARTMENT_HEAD]),
+  purchaseRequestController.deletePurchaseRequest
+);
+
+export default router;

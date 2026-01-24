@@ -1,148 +1,68 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Package,
   ArrowUp,
   ArrowDown,
-  ClipboardCheck,
-  TrendingUp,
-  Plus,
-  Search,
-  Filter,
-  Download,
-  Edit,
-  Eye,
-  Trash2,
-  Calendar,
-  AlertTriangle,
-  CheckCircle,
-  BarChart3,
-  Truck,
-  FileText
+  FileText,
+  ClipboardList
 } from 'lucide-react';
-import WarehouseInventoryManagement from '../../components/WarehouseInventoryManagement';
 import SupplyRequestManagement from '../../components/SupplyRequestManagement';
 import WarehouseManagement from '../../components/WarehouseManagement';
 import WarehouseReceiptTab from '../../components/WarehouseReceiptTab';
 import WarehouseIssueTab from '../../components/WarehouseIssueTab';
+import warehouseService, { Warehouse as WarehouseType } from '../../services/warehouseService';
+import warehouseReceiptService from '../../services/warehouseReceiptService';
+import warehouseIssueService from '../../services/warehouseIssueService';
+import supplyRequestService from '../../services/supplyRequestService';
 
 const ProductionWarehouse = () => {
-  const [activeTab, setActiveTab] = useState<'inventory' | 'inbound' | 'outbound' | 'audit' | 'reports' | 'supplyRequest' | 'warehouseManagement'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement'>('warehouseManagement');
 
-  // Dữ liệu mẫu cho TỒN KHO
-  const inventoryData = [
-    {
-      id: 1,
-      maSanPham: 'SP-001',
-      tenSanPham: 'Tôm sú đông lạnh size 20-30',
-      loaiSanPham: 'Thủy sản đông lạnh',
-      soLuongTon: 15000,
-      donVi: 'kg',
-      giaTriTon: 1500000000,
-      viTriKho: 'Kho lạnh A1-01',
-      ngayNhapGanNhat: '2024-03-18',
-      hanSuDung: '2024-09-18',
-      trangThai: 'Bình thường',
-      mucCanhBao: 5000,
-      nhaCungCap: 'Công ty TNHH Thủy sản Miền Nam',
-      ghiChu: 'Sản phẩm xuất khẩu'
-    },
-    {
-      id: 2,
-      maSanPham: 'SP-002',
-      tenSanPham: 'Cá tra phi lê đông lạnh',
-      loaiSanPham: 'Thủy sản đông lạnh',
-      soLuongTon: 3000,
-      donVi: 'kg',
-      giaTriTon: 240000000,
-      viTriKho: 'Kho lạnh B2-05',
-      ngayNhapGanNhat: '2024-03-15',
-      hanSuDung: '2024-09-15',
-      trangThai: 'Cảnh báo',
-      mucCanhBao: 5000,
-      nhaCungCap: 'Trang trại cá tra An Giang',
-      ghiChu: 'Sắp hết hàng, cần nhập thêm'
-    }
-  ];
+  // Overview data states
+  const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
+  const [receipts, setReceipts] = useState<any[]>([]);
+  const [issues, setIssues] = useState<any[]>([]);
+  const [supplyRequests, setSupplyRequests] = useState<any[]>([]);
+  const [loadingOverview, setLoadingOverview] = useState(true);
 
-  // CLEARED - Dữ liệu mẫu cho NHẬP KHO đã được xóa
-  const inboundData: any[] = [];
+  // Fetch overview data
+  useEffect(() => {
+    const fetchOverviewData = async () => {
+      setLoadingOverview(true);
+      try {
+        const [warehouseRes, receiptRes, issueRes, supplyRes] = await Promise.all([
+          warehouseService.getAllWarehouses(),
+          warehouseReceiptService.getAllWarehouseReceipts(),
+          warehouseIssueService.getAllWarehouseIssues(),
+          supplyRequestService.getAllSupplyRequests(1, 1000)
+        ]);
+        setWarehouses(warehouseRes.data.data || []);
+        setReceipts(receiptRes.data || []);
+        setIssues(issueRes.data || []);
+        setSupplyRequests(supplyRes.data || []);
+      } catch (error) {
+        console.error('Error fetching overview data:', error);
+      } finally {
+        setLoadingOverview(false);
+      }
+    };
+    fetchOverviewData();
+  }, []);
 
-  // CLEARED - Dữ liệu mẫu cho XUẤT KHO đã được xóa
-  const outboundData: any[] = [];
+  // Calculate overview stats
+  const totalWarehouses = warehouses.length;
+  const emptyWarehouses = warehouses.filter(w => !w.lots || w.lots.length === 0).length;
+  const emptyLots = warehouses.reduce((acc, w) => {
+    if (!w.lots) return acc;
+    return acc + w.lots.filter(lot => !lot.lotProducts || lot.lotProducts.length === 0).length;
+  }, 0);
 
-  // Dữ liệu mẫu cho KIỂM KÊ KHO
-  const auditData = [
-    {
-      id: 1,
-      maKiemKe: 'KK-001/2024',
-      ngayKiemKe: '2024-03-15',
-      nguoiKiemKe: 'Nguyễn Văn An, Trần Thị Bình',
-      khuVucKiemKe: 'Kho lạnh A1',
-      tongSanPham: 25,
-      sanPhamKhopSo: 23,
-      sanPhamLech: 2,
-      tyLeChinhXac: 92,
-      giaTriLech: 15000000,
-      trangThai: 'Hoàn thành',
-      ketQua: 'Có sai lệch nhỏ',
-      nguyenNhanLech: 'Sai sót trong ghi chép',
-      bienPhapXuLy: 'Điều chỉnh số liệu, tăng cường kiểm soát',
-      ghiChu: 'Kiểm kê định kỳ tháng 3'
-    },
-    {
-      id: 2,
-      maKiemKe: 'KK-002/2024',
-      ngayKiemKe: '2024-03-10',
-      nguoiKiemKe: 'Lê Văn Cường, Phạm Thị Dung',
-      khuVucKiemKe: 'Kho lạnh B2',
-      tongSanPham: 18,
-      sanPhamKhopSo: 18,
-      sanPhamLech: 0,
-      tyLeChinhXac: 100,
-      giaTriLech: 0,
-      trangThai: 'Hoàn thành',
-      ketQua: 'Chính xác 100%',
-      nguyenNhanLech: 'Không có',
-      bienPhapXuLy: 'Không cần',
-      ghiChu: 'Kiểm kê xuất sắc'
-    }
-  ];
+  const totalReceipts = receipts.length;
+  const totalIssues = issues.length;
 
-  // Dữ liệu mẫu cho BÁO CÁO KHO
-  const reportData = [
-    {
-      id: 1,
-      thang: 'Tháng 3/2024',
-      tongGiaTriTon: 2500000000,
-      soLuongNhap: 45000,
-      giaTriNhap: 1800000000,
-      soLuongXuat: 38000,
-      giaTriXuat: 2200000000,
-      vongQuayKho: 12.5,
-      hieuSuatKho: 85.2,
-      tyLeHaoHut: 1.2,
-      chiPhiLuuKho: 125000000,
-      soLanKiemKe: 2,
-      tyLeChinhXacKiemKe: 96,
-      ghiChu: 'Hoạt động kho ổn định'
-    },
-    {
-      id: 2,
-      thang: 'Tháng 2/2024',
-      tongGiaTriTon: 2200000000,
-      soLuongNhap: 42000,
-      giaTriNhap: 1650000000,
-      soLuongXuat: 40000,
-      giaTriXuat: 2100000000,
-      vongQuayKho: 11.8,
-      hieuSuatKho: 82.7,
-      tyLeHaoHut: 1.5,
-      chiPhiLuuKho: 118000000,
-      soLanKiemKe: 2,
-      tyLeChinhXacKiemKe: 94,
-      ghiChu: 'Tăng cường kiểm soát chất lượng'
-    }
-  ];
+  const totalSupplyRequests = supplyRequests.length;
+  const suppliedRequests = supplyRequests.filter(r => r.trangThai === 'Đã cung cấp').length;
+  const pendingRequests = supplyRequests.filter(r => r.trangThai === 'Chưa cung cấp').length;
 
   // State for modals
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -160,11 +80,8 @@ const ProductionWarehouse = () => {
 
   const tabs = [
     { id: 'warehouseManagement', name: 'Quản lý kho', icon: <Package className="w-4 h-4" /> },
-    { id: 'inventory', name: 'Tồn kho', icon: <Package className="w-4 h-4" /> },
     { id: 'inbound', name: 'Nhập kho', icon: <ArrowDown className="w-4 h-4" /> },
     { id: 'outbound', name: 'Xuất kho', icon: <ArrowUp className="w-4 h-4" /> },
-    { id: 'audit', name: 'Kiểm kê kho', icon: <ClipboardCheck className="w-4 h-4" /> },
-    { id: 'reports', name: 'Báo cáo kho', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'supplyRequest', name: 'Yêu cầu cung cấp', icon: <FileText className="w-4 h-4" /> }
   ];
 
@@ -177,109 +94,91 @@ const ProductionWarehouse = () => {
             <Package className="w-8 h-8 text-indigo-600 mr-3" />
             Quản lý kho
           </h1>
-          <p className="text-gray-600">Quản lý tồn kho, nhập xuất kho, kiểm kê và báo cáo kho</p>
+          <p className="text-gray-600">Quản lý kho, nhập xuất kho và yêu cầu cung cấp</p>
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
-          {/* Tổng quan tồn kho */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Package className="w-5 h-5 text-blue-600 mr-2" />
-              Tồn kho
-            </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Card 1: Tổng quan tồn kho */}
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <Package className="w-5 h-5 mr-2 text-blue-600" />
+                Tổng quan tồn kho
+              </h3>
+            </div>
             <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Tổng SP</span>
-                <span className="text-lg font-bold text-blue-600">{inventoryData.length}</span>
+              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-medium text-gray-700">Số lượng kho</span>
+                  <span className="text-2xl font-bold text-blue-600">{loadingOverview ? '...' : totalWarehouses}</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Cảnh báo</span>
-                <span className="text-lg font-bold text-red-600">
-                  {inventoryData.filter(item => item.trangThai === 'Cảnh báo').length}
-                </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-yellow-50 rounded-lg p-2 text-center hover:bg-yellow-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-yellow-300 cursor-pointer">
+                  <div className="text-xl font-bold text-yellow-600">{loadingOverview ? '...' : emptyWarehouses}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Kho trống</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="text-xl font-bold text-gray-600">{loadingOverview ? '...' : emptyLots}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Lô trống</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Tổng quan nhập kho */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <ArrowDown className="w-5 h-5 text-green-600 mr-2" />
-              Nhập kho
-            </h3>
+          {/* Card 2: Tổng quan nhập xuất kho */}
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <ArrowDown className="w-5 h-5 mr-2 text-green-600" />
+                Tổng quan nhập xuất kho
+              </h3>
+            </div>
             <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Tổng phiếu</span>
-                <span className="text-lg font-bold text-green-600">{inboundData.length}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Đã nhập</span>
-                <span className="text-lg font-bold text-blue-600">
-                  {inboundData.filter(item => item.trangThai === 'Đã nhập').length}
-                </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-green-50 rounded-lg p-3 hover:bg-green-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-green-300 cursor-pointer">
+                  <div className="flex flex-col items-center">
+                    <ArrowDown className="w-5 h-5 text-green-600 mb-1" />
+                    <span className="text-2xl font-bold text-green-600">{loadingOverview ? '...' : totalReceipts}</span>
+                    <span className="text-xs text-gray-600 mt-0.5">Phiếu nhập</span>
+                  </div>
+                </div>
+                <div className="bg-red-50 rounded-lg p-3 hover:bg-red-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-red-300 cursor-pointer">
+                  <div className="flex flex-col items-center">
+                    <ArrowUp className="w-5 h-5 text-red-600 mb-1" />
+                    <span className="text-2xl font-bold text-red-600">{loadingOverview ? '...' : totalIssues}</span>
+                    <span className="text-xs text-gray-600 mt-0.5">Phiếu xuất</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Tổng quan xuất kho */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <ArrowUp className="w-5 h-5 text-purple-600 mr-2" />
-              Xuất kho
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Tổng phiếu</span>
-                <span className="text-lg font-bold text-purple-600">{outboundData.length}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Đã xuất</span>
-                <span className="text-lg font-bold text-green-600">
-                  {outboundData.filter(item => item.trangThai === 'Đã xuất').length}
-                </span>
-              </div>
+          {/* Card 3: Tổng quan yêu cầu cung cấp */}
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <ClipboardList className="w-5 h-5 mr-2 text-purple-600" />
+                Tổng quan yêu cầu cung cấp
+              </h3>
             </div>
-          </div>
-
-          {/* Tổng quan kiểm kê */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <ClipboardCheck className="w-5 h-5 text-orange-600 mr-2" />
-              Kiểm kê
-            </h3>
             <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Lần kiểm kê</span>
-                <span className="text-lg font-bold text-orange-600">{auditData.length}</span>
+              <div className="bg-purple-50 rounded-lg p-3 hover:bg-purple-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-purple-300 cursor-pointer">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-medium text-gray-700">Tổng yêu cầu</span>
+                  <span className="text-2xl font-bold text-purple-600">{loadingOverview ? '...' : totalSupplyRequests}</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Độ chính xác</span>
-                <span className="text-lg font-bold text-green-600">
-                  {auditData.length > 0 ? `${Math.round(auditData.reduce((acc, item) => acc + item.tyLeChinhXac, 0) / auditData.length)}%` : '0%'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tổng quan giá trị */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <TrendingUp className="w-5 h-5 text-cyan-600 mr-2" />
-              Giá trị kho
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-cyan-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Tổng giá trị</span>
-                <span className="text-lg font-bold text-cyan-600">
-                  {reportData.length > 0 ? `${(reportData[0].tongGiaTriTon / 1000000000).toFixed(1)}B` : '0'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Vòng quay</span>
-                <span className="text-lg font-bold text-green-600">
-                  {reportData.length > 0 ? `${reportData[0].vongQuayKho}` : '0'}
-                </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
+                  <div className="text-xl font-bold text-green-600">{loadingOverview ? '...' : suppliedRequests}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Đã cung cấp</div>
+                </div>
+                <div className="bg-orange-50 rounded-lg p-2 text-center hover:bg-orange-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-orange-300 cursor-pointer">
+                  <div className="text-xl font-bold text-orange-600">{loadingOverview ? '...' : pendingRequests}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Chưa cung cấp</div>
+                </div>
               </div>
             </div>
           </div>
@@ -307,46 +206,11 @@ const ProductionWarehouse = () => {
           </div>
         </div>
 
-        {/* Action Bar */}
-        <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
-          <div className="flex flex-wrap gap-4 items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm..."
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
-                />
-              </div>
-              <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
-                <Filter className="h-4 w-4" />
-                Lọc
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
-                <Download className="h-4 w-4" />
-                Xuất Excel
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
-                <Plus className="h-4 w-4" />
-                Thêm mới
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* Content */}
         <div className="bg-white rounded-lg shadow-sm">
           {/* QUẢN LÝ KHO */}
           {activeTab === 'warehouseManagement' && (
             <WarehouseManagement />
-          )}
-
-          {/* TỒN KHO */}
-          {activeTab === 'inventory' && (
-            <WarehouseInventoryManagement />
           )}
 
           {/* NHẬP KHO */}
@@ -498,157 +362,6 @@ const ProductionWarehouse = () => {
                             <Edit className="w-4 h-4" />
                           </button>
                           <button className="text-purple-600 hover:text-purple-800" title="In phiếu">
-                            <Download className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* KIỂM KÊ KHO */}
-          {activeTab === 'audit' && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã kiểm kê</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày kiểm kê</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khu vực</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng SP</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khớp số</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Độ chính xác</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giá trị lệch</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {auditData.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{item.maKiemKe}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center">
-                          <Calendar className="w-4 h-4 text-gray-400 mr-1" />
-                          {item.ngayKiemKe}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.khuVucKiemKe}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="font-medium">{item.tongSanPham}</span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div>
-                          <div className="font-medium text-green-600">{item.sanPhamKhopSo}</div>
-                          <div className="text-xs text-red-500">Lệch: {item.sanPhamLech}</div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`font-bold ${item.tyLeChinhXac >= 95 ? 'text-green-600' : 'text-red-600'}`}>
-                          {item.tyLeChinhXac}%
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`font-medium ${item.giaTriLech === 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {item.giaTriLech === 0 ? '0' : `${(item.giaTriLech / 1000000).toFixed(0)}M`} VNĐ
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          item.trangThai === 'Hoàn thành' ? 'bg-green-100 text-green-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {item.trangThai}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openDetailModal(item)}
-                            className="text-blue-600 hover:text-blue-800"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button className="text-green-600 hover:text-green-800" title="Xuất báo cáo">
-                            <Download className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* BÁO CÁO KHO */}
-          {activeTab === 'reports' && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giá trị tồn</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhập kho</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Xuất kho</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vòng quay</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hiệu suất</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tỷ lệ hao hụt</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chi phí</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {reportData.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{item.thang}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="font-bold text-green-600">
-                          {(item.tongGiaTriTon / 1000000000).toFixed(1)}B VNĐ
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div>
-                          <div className="font-medium">{(item.soLuongNhap / 1000).toFixed(0)}K kg</div>
-                          <div className="text-xs text-gray-500">{(item.giaTriNhap / 1000000000).toFixed(1)}B VNĐ</div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div>
-                          <div className="font-medium">{(item.soLuongXuat / 1000).toFixed(0)}K kg</div>
-                          <div className="text-xs text-gray-500">{(item.giaTriXuat / 1000000000).toFixed(1)}B VNĐ</div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="font-medium text-blue-600">{item.vongQuayKho}</span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="font-medium text-purple-600">{item.hieuSuatKho}%</span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`font-medium ${item.tyLeHaoHut <= 1.5 ? 'text-green-600' : 'text-red-600'}`}>
-                          {item.tyLeHaoHut}%
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="font-medium text-orange-600">
-                          {(item.chiPhiLuuKho / 1000000).toFixed(0)}M VNĐ
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openDetailModal(item)}
-                            className="text-blue-600 hover:text-blue-800"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button className="text-green-600 hover:text-green-800" title="Xuất báo cáo">
                             <Download className="w-4 h-4" />
                           </button>
                         </div>

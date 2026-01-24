@@ -24,6 +24,7 @@ const WarehouseManagement: React.FC = () => {
   const [productQuantity, setProductQuantity] = useState('');
   const [productUnit, setProductUnit] = useState('');
   const [movingProduct, setMovingProduct] = useState<LotProduct | null>(null);
+  const [targetWarehouseId, setTargetWarehouseId] = useState('');
   const [targetLotId, setTargetLotId] = useState('');
 
   useEffect(() => {
@@ -31,21 +32,34 @@ const WarehouseManagement: React.FC = () => {
     fetchProducts();
   }, []);
 
+  // Sort warehouses by name (extract number and sort)
+  const sortWarehouses = (warehousesList: Warehouse[]) => {
+    return [...warehousesList].sort((a, b) => {
+      // Extract numbers from warehouse names
+      const numA = parseInt(a.tenKho.replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.tenKho.replace(/\D/g, '')) || 0;
+      if (numA !== numB) return numA - numB;
+      // If no numbers or same numbers, sort alphabetically
+      return a.tenKho.localeCompare(b.tenKho);
+    });
+  };
+
   const fetchWarehouses = async () => {
     try {
       setLoading(true);
       const response = await warehouseService.getAllWarehouses();
       const warehousesData = response.data.data;
-      setWarehouses(warehousesData);
+      const sortedWarehouses = sortWarehouses(warehousesData);
+      setWarehouses(sortedWarehouses);
 
       // Update selected warehouse if it exists
       if (selectedWarehouse) {
-        const updatedWarehouse = warehousesData.find((w: Warehouse) => w.id === selectedWarehouse.id);
+        const updatedWarehouse = sortedWarehouses.find((w: Warehouse) => w.id === selectedWarehouse.id);
         if (updatedWarehouse) {
           setSelectedWarehouse(updatedWarehouse);
         }
-      } else if (warehousesData.length > 0) {
-        setSelectedWarehouse(warehousesData[0]);
+      } else if (sortedWarehouses.length > 0) {
+        setSelectedWarehouse(sortedWarehouses[0]);
       }
     } catch (error) {
       console.error('Error fetching warehouses:', error);
@@ -210,6 +224,7 @@ const WarehouseManagement: React.FC = () => {
       alert('Di chuyển sản phẩm thành công!');
       setShowMoveModal(false);
       setMovingProduct(null);
+      setTargetWarehouseId('');
       setTargetLotId('');
       fetchWarehouses();
     } catch (error: any) {
@@ -220,6 +235,8 @@ const WarehouseManagement: React.FC = () => {
 
   const openMoveModal = (product: LotProduct) => {
     setMovingProduct(product);
+    setTargetWarehouseId('');
+    setTargetLotId('');
     setShowMoveModal(true);
   };
 
@@ -227,34 +244,37 @@ const WarehouseManagement: React.FC = () => {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Quản lý kho</h1>
 
-      {/* Warehouse Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto">
-        {warehouses.map((warehouse) => (
-          <button
-            key={warehouse.id}
-            onClick={() => setSelectedWarehouse(warehouse)}
-            className={`px-6 py-3 rounded-t-lg font-medium whitespace-nowrap ${
-              selectedWarehouse?.id === warehouse.id
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            {warehouse.tenKho}
-          </button>
-        ))}
-        <button
-          onClick={() => setShowWarehouseModal(true)}
-          className="px-6 py-3 rounded-t-lg font-medium bg-green-600 text-white hover:bg-green-700 whitespace-nowrap"
-        >
-          + Thêm kho
-        </button>
+      {/* Warehouse Tabs - Machine style */}
+      <div className="bg-white rounded-lg shadow mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6 overflow-x-auto" aria-label="Warehouse Tabs">
+            {warehouses.map((warehouse) => (
+              <button
+                key={warehouse.id}
+                onClick={() => setSelectedWarehouse(warehouse)}
+                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  selectedWarehouse?.id === warehouse.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {warehouse.tenKho}
+              </button>
+            ))}
+            <button
+              onClick={() => setShowWarehouseModal(true)}
+              className="whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm text-green-600 hover:text-green-700 hover:border-green-300 transition-colors"
+            >
+              + Thêm kho
+            </button>
+          </nav>
+        </div>
       </div>
 
       {/* Warehouse Content */}
       {selectedWarehouse && (
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">{selectedWarehouse.tenKho}</h2>
+          <div className="flex justify-end items-center mb-4">
             <div className="flex gap-2">
               <button
                 onClick={() => setShowLotModal(true)}
@@ -277,25 +297,28 @@ const WarehouseManagement: React.FC = () => {
           {loading ? (
             <p className="text-center text-gray-500">Đang tải...</p>
           ) : selectedWarehouse?.lots && selectedWarehouse.lots.length > 0 ? (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {selectedWarehouse.lots.map((lot) => (
-                <div key={lot.id} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-lg font-semibold">{lot.tenLo}</h3>
+                <div key={lot.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                  {/* Lot Header */}
+                  <div className="flex justify-between items-center px-4 py-3 bg-gray-50 border-b border-gray-200">
+                    <h3 className="text-base font-semibold text-gray-800">{lot.tenLo}</h3>
                     <div className="flex gap-2">
                       <button
                         onClick={() => {
                           setSelectedLotId(lot.id);
                           setShowProductModal(true);
                         }}
-                        className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                        className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium flex items-center gap-1"
                       >
-                        + Thêm sản phẩm
+                        <Plus className="w-3.5 h-3.5" />
+                        Thêm sản phẩm
                       </button>
                       <button
                         onClick={() => handleDeleteLot(lot.id)}
-                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                        className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium flex items-center gap-1"
                       >
+                        <Trash2 className="w-3.5 h-3.5" />
                         Xóa lô
                       </button>
                     </div>
@@ -303,45 +326,57 @@ const WarehouseManagement: React.FC = () => {
 
                   {/* Products in Lot */}
                   {lot?.lotProducts && lot.lotProducts.length > 0 ? (
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Tên hàng hóa</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Số lượng</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {lot.lotProducts.map((product) => (
-                          <tr key={product.id}>
-                            <td className="px-4 py-2 text-sm">{product.internationalProduct?.tenSanPham || '-'}</td>
-                            <td className="px-4 py-2 text-sm">
-                              {product.soLuong} {product.donViTinh}
-                            </td>
-                            <td className="px-4 py-2 text-sm">
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => openMoveModal(product)}
-                                  className="text-blue-600 hover:text-blue-800"
-                                  title="Di chuyển"
-                                >
-                                  <MoveRight className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleRemoveProduct(product.id)}
-                                  className="text-red-600 hover:text-red-800"
-                                  title="Xóa"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
+                    <div className="overflow-x-auto">
+                      <table className="w-full table-fixed">
+                        <thead className="bg-gray-100">
+                          <tr>
+                            <th className="w-[50%] px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              Tên hàng hóa
+                            </th>
+                            <th className="w-[30%] px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              Số lượng
+                            </th>
+                            <th className="w-[20%] px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              Hành động
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {lot.lotProducts.map((product) => (
+                            <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-3 text-sm text-gray-900">
+                                {product.internationalProduct?.tenSanPham || '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900 font-medium">
+                                {product.soLuong} {product.donViTinh}
+                              </td>
+                              <td className="px-4 py-3 text-sm">
+                                <div className="flex justify-center gap-3">
+                                  <button
+                                    onClick={() => openMoveModal(product)}
+                                    className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                                    title="Di chuyển"
+                                  >
+                                    <MoveRight className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemoveProduct(product.id)}
+                                    className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                                    title="Xóa"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   ) : (
-                    <p className="text-gray-500 text-sm">Chưa có sản phẩm</p>
+                    <div className="px-4 py-6 text-center text-gray-500 text-sm bg-white">
+                      Chưa có sản phẩm trong lô này
+                    </div>
                   )}
                 </div>
               ))}
@@ -527,6 +562,30 @@ const WarehouseManagement: React.FC = () => {
             <p className="text-sm text-gray-600 mb-4">
               Sản phẩm: <strong>{movingProduct.internationalProduct?.tenSanPham}</strong>
             </p>
+
+            {/* Select Warehouse */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Chọn kho đích <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={targetWarehouseId}
+                onChange={(e) => {
+                  setTargetWarehouseId(e.target.value);
+                  setTargetLotId(''); // Reset lot when warehouse changes
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Chọn kho --</option>
+                {warehouses.map((warehouse) => (
+                  <option key={warehouse.id} value={warehouse.id}>
+                    {warehouse.tenKho}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Select Lot */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Chọn lô đích <span className="text-red-500">*</span>
@@ -535,22 +594,26 @@ const WarehouseManagement: React.FC = () => {
                 value={targetLotId}
                 onChange={(e) => setTargetLotId(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                disabled={!targetWarehouseId}
               >
                 <option value="">-- Chọn lô --</option>
-                {warehouses.flatMap((warehouse) =>
-                  (warehouse.lots || []).map((lot) => (
+                {targetWarehouseId && warehouses
+                  .find(w => w.id === targetWarehouseId)
+                  ?.lots?.map((lot) => (
                     <option key={lot.id} value={lot.id}>
-                      {warehouse.tenKho} - {lot.tenLo}
+                      {lot.tenLo}
                     </option>
                   ))
-                )}
+                }
               </select>
             </div>
+
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => {
                   setShowMoveModal(false);
                   setMovingProduct(null);
+                  setTargetWarehouseId('');
                   setTargetLotId('');
                 }}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -559,7 +622,12 @@ const WarehouseManagement: React.FC = () => {
               </button>
               <button
                 onClick={handleMoveProduct}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                disabled={!targetLotId}
+                className={`px-4 py-2 rounded-lg ${
+                  targetLotId
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
               >
                 Di chuyển
               </button>

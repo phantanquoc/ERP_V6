@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { Edit, Eye, X } from 'lucide-react';
 import warehouseService, { Warehouse, LotProduct } from '../services/warehouseService';
 
 interface AssetManagementProps {
@@ -9,15 +9,23 @@ interface AssetManagementProps {
 const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false }) => {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [expandedWarehouses, setExpandedWarehouses] = useState<Set<string>>(new Set());
-  const [expandedLots, setExpandedLots] = useState<Set<string>>(new Set());
+  const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
 
   // Modal states
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<LotProduct | null>(null);
   const [editGiaThanh, setEditGiaThanh] = useState<number>(0);
+
+  // Sort warehouses by name (extract number and sort)
+  const sortWarehouses = (warehousesList: Warehouse[]) => {
+    return [...warehousesList].sort((a, b) => {
+      const numA = parseInt(a.tenKho.replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.tenKho.replace(/\D/g, '')) || 0;
+      if (numA !== numB) return numA - numB;
+      return a.tenKho.localeCompare(b.tenKho);
+    });
+  };
 
   useEffect(() => {
     fetchWarehouses();
@@ -29,13 +37,22 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
       const response = await warehouseService.getAllWarehouses();
       console.log('Warehouses response:', response);
 
+      let warehouseData: Warehouse[] = [];
       if (response.data && Array.isArray(response.data.data)) {
-        setWarehouses(response.data.data);
+        warehouseData = response.data.data;
       } else if (Array.isArray(response.data)) {
-        setWarehouses(response.data);
+        warehouseData = response.data;
       } else {
         console.error('Unexpected warehouses response format:', response.data);
-        setWarehouses([]);
+        warehouseData = [];
+      }
+
+      const sortedWarehouses = sortWarehouses(warehouseData);
+      setWarehouses(sortedWarehouses);
+
+      // Auto-select first warehouse
+      if (sortedWarehouses.length > 0 && !selectedWarehouse) {
+        setSelectedWarehouse(sortedWarehouses[0]);
       }
     } catch (error: any) {
       console.error('Error fetching warehouses:', error);
@@ -43,26 +60,6 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
     } finally {
       setLoading(false);
     }
-  };
-
-  const toggleWarehouse = (warehouseId: string) => {
-    const newExpanded = new Set(expandedWarehouses);
-    if (newExpanded.has(warehouseId)) {
-      newExpanded.delete(warehouseId);
-    } else {
-      newExpanded.add(warehouseId);
-    }
-    setExpandedWarehouses(newExpanded);
-  };
-
-  const toggleLot = (lotId: string) => {
-    const newExpanded = new Set(expandedLots);
-    if (newExpanded.has(lotId)) {
-      newExpanded.delete(lotId);
-    } else {
-      newExpanded.add(lotId);
-    }
-    setExpandedLots(newExpanded);
   };
 
   const handleViewProduct = (product: LotProduct) => {
@@ -94,47 +91,12 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
     }
   };
 
-  // Filter warehouses based on search term
-  const filteredWarehouses = warehouses.filter(warehouse =>
-    warehouse.tenKho?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    warehouse.maKho?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    warehouse.lots?.some(lot =>
-      lot.tenLo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lot.lotProducts?.some(product =>
-        product.internationalProduct?.tenSanPham?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.internationalProduct?.maSanPham?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    )
-  );
-
   const formatCurrency = (value: number): string => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND'
     }).format(value);
   };
-
-  // Calculate total values
-  const calculateTotals = () => {
-    let totalProducts = 0;
-    let totalQuantity = 0;
-    let totalValue = 0;
-
-    warehouses.forEach(warehouse => {
-      warehouse.lots?.forEach(lot => {
-        lot.lotProducts?.forEach(product => {
-          totalProducts++;
-          totalQuantity += product.soLuong;
-          const giaThanh = product.giaThanh || 100000;
-          totalValue += product.soLuong * giaThanh;
-        });
-      });
-    });
-
-    return { totalProducts, totalQuantity, totalValue };
-  };
-
-  const totals = calculateTotals();
 
   return (
     <div className="space-y-6">
@@ -144,181 +106,164 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="flex gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo kho, lô, sản phẩm..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-          />
+      {/* Warehouse Tabs - Machine style */}
+      <div className="bg-white rounded-lg shadow mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6 overflow-x-auto" aria-label="Warehouse Tabs">
+            {warehouses.map((warehouse) => (
+              <button
+                key={warehouse.id}
+                onClick={() => setSelectedWarehouse(warehouse)}
+                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  selectedWarehouse?.id === warehouse.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {warehouse.tenKho}
+              </button>
+            ))}
+          </nav>
         </div>
       </div>
 
-      {/* Warehouses Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-500">Đang tải dữ liệu...</div>
-        ) : filteredWarehouses.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            {searchTerm ? 'Không tìm thấy kho nào' : 'Chưa có kho nào'}
+      {/* Warehouse Content */}
+      {loading ? (
+        <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">Đang tải dữ liệu...</div>
+      ) : warehouses.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">Chưa có kho nào</div>
+      ) : selectedWarehouse && (
+        <div className="bg-white rounded-lg shadow p-6">
+          {/* Warehouse Summary */}
+          <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Tổng số lô:</span>
+              <span className="text-lg font-bold text-blue-600">{selectedWarehouse.lots?.length || 0}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Tổng thành tiền:</span>
+              <span className="text-lg font-bold text-green-600">
+                {formatCurrency(
+                  selectedWarehouse.lots?.reduce((warehouseSum, lot) => {
+                    const lotTotal = lot.lotProducts?.reduce((lotSum, product) => {
+                      const giaThanh = product.giaThanh || 100000;
+                      return lotSum + (product.soLuong * giaThanh);
+                    }, 0) || 0;
+                    return warehouseSum + lotTotal;
+                  }, 0) || 0
+                )}
+              </span>
+            </div>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8"></th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kho / Lô / Hàng hóa</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đơn vị</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đơn giá</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thành tiền</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredWarehouses.map((warehouse) => (
-                  <React.Fragment key={warehouse.id}>
-                    {/* Warehouse Row */}
-                    <tr className="bg-blue-50 hover:bg-blue-100">
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => toggleWarehouse(warehouse.id)}
-                          className="text-gray-600 hover:text-gray-900"
-                        >
-                          {expandedWarehouses.has(warehouse.id) ? (
-                            <ChevronDown className="w-5 h-5" />
-                          ) : (
-                            <ChevronRight className="w-5 h-5" />
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-blue-900">
-                          🏢 {warehouse.tenKho} ({warehouse.maKho})
-                        </div>
-                      </td>
-                      <td colSpan={5} className="px-4 py-3 text-sm text-gray-600">
-                        {warehouse.lots?.length || 0} lô
-                      </td>
-                    </tr>
 
-                    {/* Lots */}
-                    {expandedWarehouses.has(warehouse.id) && warehouse.lots?.map((lot) => (
-                      <React.Fragment key={lot.id}>
-                        {/* Lot Row */}
-                        <tr className="bg-green-50 hover:bg-green-100">
-                          <td className="px-4 py-3"></td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => toggleLot(lot.id)}
-                              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-                            >
-                              {expandedLots.has(lot.id) ? (
-                                <ChevronDown className="w-4 h-4" />
-                              ) : (
-                                <ChevronRight className="w-4 h-4" />
-                              )}
-                              <span className="font-semibold text-green-900">
-                                📦 Lô: {lot.tenLo}
-                              </span>
-                            </button>
-                          </td>
-                          <td colSpan={5} className="px-4 py-3 text-sm text-gray-600">
-                            {lot.lotProducts?.length || 0} sản phẩm
-                          </td>
-                        </tr>
+          {/* Lots Table */}
+          {selectedWarehouse?.lots && selectedWarehouse.lots.length > 0 ? (
+            <div className="space-y-4">
+              {selectedWarehouse.lots.map((lot) => (
+                <div key={lot.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                  {/* Lot Header */}
+                  <div className="flex justify-between items-center px-4 py-3 bg-gray-50 border-b border-gray-200">
+                    <h3 className="text-base font-semibold text-blue-600">{lot.tenLo}</h3>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-gray-500">{lot.lotProducts?.length || 0} sản phẩm</span>
+                      <span className="text-sm font-semibold text-green-600">
+                        Tổng thành tiền: {formatCurrency(
+                          lot.lotProducts?.reduce((sum, product) => {
+                            const giaThanh = product.giaThanh || 100000;
+                            return sum + (product.soLuong * giaThanh);
+                          }, 0) || 0
+                        )}
+                      </span>
+                    </div>
+                  </div>
 
-                        {/* Products */}
-                        {expandedLots.has(lot.id) && lot.lotProducts?.map((product) => {
-                          const giaThanh = product.giaThanh || 100000;
-                          const thanhTien = product.soLuong * giaThanh;
-
-                          return (
-                            <tr key={product.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3"></td>
-                              <td className="px-4 py-3">
-                                <div className="pl-8 flex items-center gap-2">
-                                  <span className="text-orange-500">📦</span>
+                  {/* Products in Lot */}
+                  {lot?.lotProducts && lot.lotProducts.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b-2 border-gray-200">
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">
+                              Tên hàng hóa
+                            </th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">
+                              Số lượng
+                            </th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">
+                              Đơn vị
+                            </th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">
+                              Đơn giá
+                            </th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">
+                              Thành tiền
+                            </th>
+                            <th className="px-4 py-3 text-center text-sm font-semibold text-blue-600">
+                              Hành động
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {lot.lotProducts.map((product) => {
+                            const giaThanh = product.giaThanh || 100000;
+                            const thanhTien = product.soLuong * giaThanh;
+                            return (
+                              <tr key={product.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 text-sm text-gray-700">
                                   <div>
-                                    <div className="font-medium text-gray-900">
-                                      {product.internationalProduct?.tenSanPham || 'N/A'}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      Mã: {product.internationalProduct?.maSanPham || 'N/A'}
-                                    </div>
+                                    <div className="font-medium">{product.internationalProduct?.tenSanPham || '-'}</div>
+                                    <div className="text-xs text-gray-500">Mã: {product.internationalProduct?.maSanPham || '-'}</div>
                                   </div>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {product.soLuong.toLocaleString('vi-VN')}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {product.donViTinh}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {formatCurrency(giaThanh)}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-green-600">
-                                {formatCurrency(thanhTien)}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => handleViewProduct(product)}
-                                    className="text-blue-600 hover:text-blue-800"
-                                    title="Xem chi tiết"
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleEditProduct(product)}
-                                    className="text-green-600 hover:text-green-800"
-                                    title="Chỉnh sửa giá"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </React.Fragment>
-                    ))}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Summary */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">Tổng quan tài sản</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Tổng số loại sản phẩm</p>
-            <p className="text-2xl font-bold text-blue-600">{totals.totalProducts}</p>
-          </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Tổng số lượng</p>
-            <p className="text-2xl font-bold text-green-600">
-              {totals.totalQuantity.toLocaleString('vi-VN')}
-            </p>
-          </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Tổng giá trị</p>
-            <p className="text-2xl font-bold text-orange-600">
-              {formatCurrency(totals.totalValue)}
-            </p>
-          </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-700 font-medium">
+                                  {product.soLuong.toLocaleString('vi-VN')}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-700">
+                                  {product.donViTinh}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-700">
+                                  {formatCurrency(giaThanh)}
+                                </td>
+                                <td className="px-4 py-3 text-sm font-semibold text-green-600">
+                                  {formatCurrency(thanhTien)}
+                                </td>
+                                <td className="px-4 py-3 text-sm">
+                                  <div className="flex justify-center gap-3">
+                                    <button
+                                      onClick={() => handleViewProduct(product)}
+                                      className="text-gray-500 hover:text-blue-600"
+                                      title="Xem chi tiết"
+                                    >
+                                      <Eye className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleEditProduct(product)}
+                                      className="text-gray-500 hover:text-green-600"
+                                      title="Chỉnh sửa giá"
+                                    >
+                                      <Edit className="w-5 h-5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-6 text-center text-gray-500 text-sm bg-white">
+                      Chưa có sản phẩm trong lô này
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-gray-500">Chưa có lô nào trong kho này</p>
+          )}
         </div>
-      </div>
+      )}
 
       {/* View Product Modal */}
       {viewModalOpen && selectedProduct && (

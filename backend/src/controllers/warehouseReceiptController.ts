@@ -72,7 +72,16 @@ export const createWarehouseReceipt = async (req: Request, res: Response): Promi
       return;
     }
 
-    // Create warehouse receipt
+    // Lấy số lượng hiện tại trước khi nhập
+    const lotProduct = await prisma.lotProduct.findUnique({
+      where: { id: lotProductId },
+    });
+
+    const soLuongTruoc = lotProduct?.soLuong || 0;
+    const soLuongNhapFloat = parseFloat(soLuongNhap.toString());
+    const soLuongSau = soLuongTruoc + soLuongNhapFloat;
+
+    // Create warehouse receipt với lịch sử biến động
     const receipt = await prisma.warehouseReceipt.create({
       data: {
         maPhieuNhap,
@@ -85,22 +94,20 @@ export const createWarehouseReceipt = async (req: Request, res: Response): Promi
         tenLo,
         lotProductId,
         tenSanPham,
-        soLuongNhap: parseFloat(soLuongNhap.toString()),
+        soLuongTruoc,
+        soLuongNhap: soLuongNhapFloat,
+        soLuongSau,
         donViTinh,
         ghiChu,
       },
     });
 
     // Update lot product quantity
-    const lotProduct = await prisma.lotProduct.findUnique({
-      where: { id: lotProductId },
-    });
-
     if (lotProduct) {
       await prisma.lotProduct.update({
         where: { id: lotProductId },
         data: {
-          soLuong: lotProduct.soLuong + parseFloat(soLuongNhap.toString()),
+          soLuong: soLuongSau,
         },
       });
     }

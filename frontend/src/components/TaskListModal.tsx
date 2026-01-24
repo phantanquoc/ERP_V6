@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Target, Users, Calendar, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { X, Target, Users, Calendar, AlertCircle, CheckCircle, Clock, FileText, Download } from 'lucide-react';
 import { taskService, Task, TaskPriority } from '../services/taskService';
 
 interface TaskListModalProps {
@@ -69,7 +69,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+        <div className="p-6 overflow-x-auto max-h-[calc(90vh-200px)]">
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -81,64 +81,89 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
               <p className="text-gray-500 text-lg">Không có nhiệm vụ nào</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {tasks.map((task) => {
-                const priorityBadge = getPriorityBadge(task.mucDoUuTien);
-
-                return (
-                  <div
-                    key={task.id}
-                    className="border border-gray-200 rounded-lg p-5 hover:shadow-lg transition-shadow bg-white"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className={`px-3 py-1 text-xs font-medium rounded-full ${priorityBadge.class}`}>
-                            {priorityBadge.label}
-                          </span>
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{task.noiDung}</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-blue-600" />
-                            <span>
-                              <strong>Người giao:</strong> {task.nguoiGiao ? `${task.nguoiGiao.firstName} ${task.nguoiGiao.lastName}` : 'N/A'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-green-600" />
-                            <span>
-                              <strong>Hạn:</strong> {new Date(task.thoiHanHoanThanh).toLocaleDateString('vi-VN')}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-purple-600" />
-                            <span>
-                              <strong>Ngày giao:</strong> {new Date(task.ngayGiao).toLocaleDateString('vi-VN')}
-                            </span>
-                          </div>
-                          {task.nguoiNhan && task.nguoiNhan.length > 0 && (
-                            <div className="flex items-center gap-2">
-                              <Users className="w-4 h-4 text-orange-600" />
-                              <span>
-                                <strong>Người nhận:</strong> {task.nguoiNhan.length} người
-                              </span>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nội dung</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người giao</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người nhận</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày giao</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạn hoàn thành</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ưu tiên</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ghi chú</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File đính kèm</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {tasks.map((task, index) => {
+                  const priorityBadge = getPriorityBadge(task.mucDoUuTien);
+                  return (
+                    <tr key={task.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {(currentPage - 1) * 10 + index + 1}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-gray-900 max-w-[200px]">
+                        <div className="line-clamp-2" title={task.noiDung}>{task.noiDung}</div>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {task.nguoiGiao ? `${task.nguoiGiao.firstName} ${task.nguoiGiao.lastName}` : 'N/A'}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-gray-900">
+                        {task.nguoiNhan && task.nguoiNhan.length > 0 ? (
+                          <div className="max-w-[120px]">
+                            <span className="text-blue-600 font-medium">{task.nguoiNhan.length} người</span>
+                            <div className="text-xs text-gray-500 truncate" title={task.nguoiNhan.map(n => `${n.firstName} ${n.lastName}`).join(', ')}>
+                              {task.nguoiNhan.map(n => `${n.firstName} ${n.lastName}`).join(', ')}
                             </div>
-                          )}
-                        </div>
-                        {task.ghiChu && (
-                          <div className="mt-3 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
-                            <p className="text-sm text-gray-700">
-                              <strong className="text-yellow-700">Ghi chú:</strong> {task.ghiChu}
-                            </p>
                           </div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(task.ngayGiao).toLocaleDateString('vi-VN')}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(task.thoiHanHoanThanh).toLocaleDateString('vi-VN')}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${priorityBadge.class}`}>
+                          {priorityBadge.label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-sm text-gray-500 max-w-[120px]">
+                        <div className="truncate" title={task.ghiChu || ''}>
+                          {task.ghiChu || '-'}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-sm">
+                        {task.files && task.files.length > 0 ? (
+                          <div className="space-y-1">
+                            {task.files.map((file, fileIndex) => {
+                              const fileName = file.split('/').pop() || file;
+                              return (
+                                <a
+                                  key={fileIndex}
+                                  href={`http://localhost:5000${file}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-xs"
+                                  title={fileName}
+                                >
+                                  <FileText className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate max-w-[100px]">{fileName}</span>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
                         )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
 

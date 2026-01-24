@@ -3,7 +3,7 @@ import { X, Plus, Trash2, DollarSign } from 'lucide-react';
 import { quotationService, CreateQuotationRequest, QuotationItem } from '../services/quotationService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
 import { QuotationRequest } from '../services/quotationRequestService';
-import warehouseInventoryService from '../services/warehouseInventoryService';
+// warehouseInventoryService đã được xóa - tồn kho sẽ được nhập thủ công
 import productionProcessService, { ProductionProcess } from '../services/productionProcessService';
 import generalCostService, { GeneralCost } from '../services/generalCostService';
 import exportCostService, { ExportCost } from '../services/exportCostService';

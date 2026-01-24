@@ -83,6 +83,10 @@ export const createWarehouseIssue = async (req: Request, res: Response): Promise
       return;
     }
 
+    // Tính số lượng trước và sau khi xuất
+    const soLuongTruoc = lotProduct.soLuong;
+    const soLuongSau = soLuongTruoc - soLuongXuat;
+
     // Tạo phiếu xuất và TRỪ số lượng trong transaction
     const [warehouseIssue] = await prisma.$transaction([
       prisma.warehouseIssue.create({
@@ -97,7 +101,9 @@ export const createWarehouseIssue = async (req: Request, res: Response): Promise
           tenLo,
           lotProductId,
           tenSanPham,
+          soLuongTruoc,
           soLuongXuat,
+          soLuongSau,
           donViTinh,
           ghiChu,
         },
@@ -106,9 +112,7 @@ export const createWarehouseIssue = async (req: Request, res: Response): Promise
       prisma.lotProduct.update({
         where: { id: lotProductId },
         data: {
-          soLuong: {
-            decrement: soLuongXuat,
-          },
+          soLuong: soLuongSau,
         },
       }),
     ]);

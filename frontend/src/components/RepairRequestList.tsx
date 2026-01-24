@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Edit, Eye, Trash2, X, Upload } from 'lucide-react';
+import { Edit, Eye, Trash2, X, Upload, CheckCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import AcceptanceHandoverForm from './AcceptanceHandoverForm';
 
 interface RepairRequest {
   id: number;
@@ -24,6 +25,8 @@ const RepairRequestList = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingRequest, setEditingRequest] = useState<RepairRequest | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isAcceptanceFormOpen, setIsAcceptanceFormOpen] = useState(false);
+  const [selectedRequestForAcceptance, setSelectedRequestForAcceptance] = useState<RepairRequest | null>(null);
   
   const [formData, setFormData] = useState({
     ngayThang: new Date().toISOString().split('T')[0],
@@ -44,11 +47,18 @@ const RepairRequestList = () => {
 
   const fetchRequests = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/repair-requests');
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch('http://localhost:5000/api/repair-requests', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const data = await response.json();
+      const result = await response.json();
+      // Handle new API response format with success and data
+      const data = result.success ? result.data : result;
       setRequests(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching requests:', error);
@@ -69,6 +79,7 @@ const RepairRequestList = () => {
     }
 
     try {
+      const token = localStorage.getItem('accessToken');
       const url = editingRequest
         ? `http://localhost:5000/api/repair-requests/${editingRequest.id}`
         : 'http://localhost:5000/api/repair-requests';
@@ -77,6 +88,9 @@ const RepairRequestList = () => {
 
       const response = await fetch(url, {
         method,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         body: formDataToSend,
       });
 
@@ -93,8 +107,12 @@ const RepairRequestList = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa yêu cầu này?')) return;
 
     try {
+      const token = localStorage.getItem('accessToken');
       const response = await fetch(`http://localhost:5000/api/repair-requests/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
 
       if (response.ok) {
@@ -139,6 +157,80 @@ const RepairRequestList = () => {
     setIsModalOpen(true);
   };
 
+  const handleOpenCreateModal = async () => {
+    try {
+      // Generate new code from API
+      const token = localStorage.getItem('accessToken');
+
+      if (!token) {
+        // No token, use timestamp-based code
+        setFormData({
+          ngayThang: new Date().toISOString().split('T')[0],
+          maYeuCau: `YC-${Date.now()}`,
+          tenHeThong: '',
+          tinhTrangThietBi: '',
+          loaiLoi: '',
+          mucDoUuTien: 'Thấp',
+          noiDungLoi: '',
+          ghiChu: '',
+          trangThai: 'Chờ xử lý',
+        });
+        setIsModalOpen(true);
+        return;
+      }
+
+      const response = await fetch('http://localhost:5000/api/repair-requests/generate-code', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const code = result.success ? result.data.code : `YC-${Date.now()}`;
+        setFormData({
+          ngayThang: new Date().toISOString().split('T')[0],
+          maYeuCau: code,
+          tenHeThong: '',
+          tinhTrangThietBi: '',
+          loaiLoi: '',
+          mucDoUuTien: 'Thấp',
+          noiDungLoi: '',
+          ghiChu: '',
+          trangThai: 'Chờ xử lý',
+        });
+      } else {
+        // API error, fallback to timestamp
+        setFormData({
+          ngayThang: new Date().toISOString().split('T')[0],
+          maYeuCau: `YC-${Date.now()}`,
+          tenHeThong: '',
+          tinhTrangThietBi: '',
+          loaiLoi: '',
+          mucDoUuTien: 'Thấp',
+          noiDungLoi: '',
+          ghiChu: '',
+          trangThai: 'Chờ xử lý',
+        });
+      }
+    } catch (error) {
+      console.error('Error generating code:', error);
+      // Fallback to timestamp-based code
+      setFormData({
+        ngayThang: new Date().toISOString().split('T')[0],
+        maYeuCau: `YC-${Date.now()}`,
+        tenHeThong: '',
+        tinhTrangThietBi: '',
+        loaiLoi: '',
+        mucDoUuTien: 'Thấp',
+        noiDungLoi: '',
+        ghiChu: '',
+        trangThai: 'Chờ xử lý',
+      });
+    }
+    setIsModalOpen(true);
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setIsViewMode(false);
@@ -163,20 +255,20 @@ const RepairRequestList = () => {
     }
   };
 
-  const handleAddNew = () => {
+  const handleAcceptance = (request: RepairRequest) => {
+    setSelectedRequestForAcceptance(request);
+    setIsAcceptanceFormOpen(true);
+  };
+
+  const handleAcceptanceSuccess = () => {
+    // Refresh the list or show success message
+    fetchRequests();
+  };
+
+  const handleAddNew = async () => {
     setEditingRequest(null);
     setIsViewMode(false);
-    setFormData({
-      ngayThang: new Date().toISOString().split('T')[0],
-      maYeuCau: '',
-      tenHeThong: '',
-      tinhTrangThietBi: '',
-      loaiLoi: '',
-      mucDoUuTien: 'Thấp',
-      ghiChu: '',
-      trangThai: 'Chờ xử lý',
-    });
-    setIsModalOpen(true);
+    await handleOpenCreateModal();
   };
 
   const getPriorityColor = (priority: string) => {
@@ -213,13 +305,8 @@ const RepairRequestList = () => {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Ngày tháng</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Mã yêu cầu</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Tên hệ thống/thiết bị</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Tình trạng thiết bị</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Loại lỗi</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Mức độ ưu tiên</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Nội dung lỗi</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Ghi chú</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Trạng thái</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">File đính kèm</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Hoạt động</th>
             </tr>
           </thead>
@@ -232,26 +319,15 @@ const RepairRequestList = () => {
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600">{request.maYeuCau}</td>
                 <td className="px-4 py-3 text-sm text-gray-900">{request.tenHeThong}</td>
-                <td className="px-4 py-3 text-sm text-gray-900">{request.tinhTrangThietBi}</td>
-                <td className="px-4 py-3 text-sm text-gray-900">{request.loaiLoi}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(request.mucDoUuTien)}`}>
                     {request.mucDoUuTien}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">{request.noiDungLoi || '-'}</td>
-                <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">{request.ghiChu || '-'}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.trangThai)}`}>
                     {request.trangThai}
                   </span>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                  {request.fileDinhKem ? (
-                    <a href={`http://localhost:5000${request.fileDinhKem}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                      Xem file
-                    </a>
-                  ) : '-'}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm">
                   <div className="flex items-center gap-2">
@@ -260,6 +336,9 @@ const RepairRequestList = () => {
                     </button>
                     <button onClick={() => handleEdit(request)} className="text-green-600 hover:text-green-800" title="Sửa">
                       <Edit className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleAcceptance(request)} className="text-purple-600 hover:text-purple-800" title="Nghiệm thu bàn giao">
+                      <CheckCircle className="w-4 h-4" />
                     </button>
                     <button onClick={() => handleDelete(request.id)} className="text-red-600 hover:text-red-800" title="Xóa">
                       <Trash2 className="w-4 h-4" />
@@ -512,6 +591,18 @@ const RepairRequestList = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Acceptance Handover Form */}
+      {isAcceptanceFormOpen && selectedRequestForAcceptance && (
+        <AcceptanceHandoverForm
+          repairRequest={selectedRequestForAcceptance}
+          onClose={() => {
+            setIsAcceptanceFormOpen(false);
+            setSelectedRequestForAcceptance(null);
+          }}
+          onSuccess={handleAcceptanceSuccess}
+        />
       )}
     </div>
   );

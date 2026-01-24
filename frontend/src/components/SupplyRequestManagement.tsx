@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Trash2, Eye, FileText, Edit, Package, ShoppingCart } from 'lucide-react';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
+import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
+import CreatePurchaseRequestModal from './CreatePurchaseRequestModal';
 
 interface SupplyRequestManagementProps {
   onClose?: () => void;
@@ -15,6 +17,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<'edit' | 'view'>('view');
   const [selectedRequest, setSelectedRequest] = useState<SupplyRequest | null>(null);
+  const [showWarehouseIssueModal, setShowWarehouseIssueModal] = useState(false);
+  const [showPurchaseRequestModal, setShowPurchaseRequestModal] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -429,8 +433,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          alert('Tính năng tạo xuất kho đang được phát triển');
-                          // TODO: Implement warehouse export functionality
+                          setShowModal(false);
+                          setShowWarehouseIssueModal(true);
                         }}
                         className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
                       >
@@ -440,8 +444,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          alert('Tính năng tạo yêu cầu mua hàng đang được phát triển');
-                          // TODO: Implement purchase request functionality
+                          setShowModal(false);
+                          setShowPurchaseRequestModal(true);
                         }}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
                       >
@@ -476,6 +480,26 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
           </div>
         </div>
       )}
+
+      {/* Warehouse Issue Modal */}
+      <CreateWarehouseIssueModal
+        isOpen={showWarehouseIssueModal}
+        onClose={() => setShowWarehouseIssueModal(false)}
+        supplyRequest={selectedRequest}
+        onSuccess={() => {
+          fetchRequests();
+        }}
+      />
+
+      {/* Purchase Request Modal */}
+      <CreatePurchaseRequestModal
+        isOpen={showPurchaseRequestModal}
+        onClose={() => setShowPurchaseRequestModal(false)}
+        supplyRequest={selectedRequest}
+        onSuccess={() => {
+          fetchRequests();
+        }}
+      />
     </div>
   );
 };

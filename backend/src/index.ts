@@ -19,7 +19,6 @@ import internationalProductRoutes from '@routes/internationalProductRoutes';
 import quotationRequestRoutes from '@routes/quotationRequestRoutes';
 import quotationRoutes from '@routes/quotationRoutes';
 import materialStandardRoutes from '@routes/materialStandardRoutes';
-import warehouseInventoryRoutes from '@routes/warehouseInventoryRoutes';
 import processRoutes from '@routes/processRoutes';
 import productionProcessRoutes from '@routes/productionProcessRoutes';
 import generalCostRoutes from '@routes/generalCostRoutes';
@@ -47,6 +46,10 @@ import taskRoutes from '@routes/taskRoutes';
 import privateFeedbackRoutes from '@routes/privateFeedbackRoutes';
 import leaveRequestRoutes from '@routes/leaveRequestRoutes';
 import customerFeedbackRoutes from '@routes/customerFeedbackRoutes';
+import invoiceRoutes from '@routes/invoiceRoutes';
+import purchaseRequestRoutes from '@routes/purchaseRequestRoutes';
+import supplierRoutes from '@routes/supplierRoutes';
+import acceptanceHandoverRoutes from '@routes/acceptanceHandoverRoutes';
 
 const app: Express = express();
 
@@ -86,7 +89,6 @@ app.use('/api/international-products', internationalProductRoutes);
 app.use('/api/quotation-requests', quotationRequestRoutes);
 app.use('/api/quotations', quotationRoutes);
 app.use('/api/material-standards', materialStandardRoutes);
-app.use('/api/warehouse-inventory', warehouseInventoryRoutes);
 app.use('/api/processes', processRoutes);
 app.use('/api/production-processes', productionProcessRoutes);
 app.use('/api/general-costs', generalCostRoutes);
@@ -114,6 +116,10 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/private-feedbacks', privateFeedbackRoutes);
 app.use('/api/leave-requests', leaveRequestRoutes);
 app.use('/api/customer-feedbacks', customerFeedbackRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/purchase-requests', purchaseRequestRoutes);
+app.use('/api/suppliers', supplierRoutes);
+app.use('/api/acceptance-handovers', acceptanceHandoverRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

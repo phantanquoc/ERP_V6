@@ -236,6 +236,8 @@ model Employee {
   responsibilities   Responsibility[]
   dailyWorkReports   DailyWorkReport[]
   leaveRequests      LeaveRequest[]
+  purchaseRequests   PurchaseRequest[]
+  suppliers          Supplier[]          @relation("SupplierCreatedBy")
 
   @@map("employees")
   @@schema("common")
@@ -615,30 +617,7 @@ model InternationalProduct {
   orderItems            OrderItem[]
   product_batches       product_batches[]
   quotationRequestItems QuotationRequestItem[]
-  warehouseInventory    WarehouseInventory[]
-
   @@map("international_products")
-  @@schema("business")
-}
-
-model WarehouseInventory {
-  id              String               @id @default(cuid())
-  productId       String
-  soLuongTon      Float                @default(0)
-  donVi           String               @default("kg")
-  giaTriTon       Float                @default(0)
-  viTriKho        String?
-  ngayNhapGanNhat DateTime?
-  hanSuDung       DateTime?
-  trangThai       String               @default("Bình thường")
-  mucCanhBao      Float                @default(0)
-  nhaCungCap      String?
-  ghiChu          String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  product         InternationalProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@map("warehouse_inventory")
   @@schema("business")
 }
 
@@ -1041,11 +1020,65 @@ model SupplyRequest {
   ghiChu        String?
   trangThai     String   @default("Chưa cung cấp")
   fileKemTheo   String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  employee      Employee @relation(fields: [employeeId], references: [id])
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  employee         Employee          @relation(fields: [employeeId], references: [id])
+  purchaseRequests PurchaseRequest[]
 
   @@map("supply_requests")
+  @@schema("business")
+}
+
+model PurchaseRequest {
+  id              String         @id @default(cuid())
+  stt             Int            @default(autoincrement())
+  ngayYeuCau      DateTime       @default(now())
+  maYeuCau        String         @unique
+  employeeId      String
+  maNhanVien      String
+  tenNhanVien     String
+  phanLoai        String
+  tenHangHoa      String
+  soLuong         Float
+  donViTinh       String
+  mucDichYeuCau   String
+  mucDoUuTien     String
+  ghiChu          String?
+  fileKemTheo     String?
+  trangThai       String         @default("Chờ duyệt")
+  nguoiDuyet      String?
+  ngayDuyet       DateTime?
+  supplyRequestId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  employee        Employee       @relation(fields: [employeeId], references: [id])
+  supplyRequest   SupplyRequest? @relation(fields: [supplyRequestId], references: [id])
+
+  @@map("purchase_requests")
+  @@schema("business")
+}
+
+model Supplier {
+  id              String    @id @default(cuid())
+  maNhaCungCap    String    @unique
+  tenNhaCungCap   String
+  loaiCungCap     String    // Loại cung cấp (VD: Thủy sản, Rau củ, Gia vị...)
+  quocGia         String
+  website         String?
+  nguoiLienHe     String
+  soDienThoai     String
+  emailLienHe     String
+  diaChi          String
+  khaNang         String?   // Khả năng cung cấp
+  loaiHinh        String    // Sản xuất, Thương mại
+  trangThai       String    @default("Đang cung cấp") // Đang cung cấp, Ngừng cung cấp
+  doanhChi        Float?    // Doanh chi
+  employeeId      String
+  employee        Employee  @relation("SupplierCreatedBy", fields: [employeeId], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("suppliers")
   @@schema("business")
 }
 
@@ -1159,7 +1192,9 @@ model WarehouseReceipt {
   tenLo        String
   lotProductId String
   tenSanPham   String
+  soLuongTruoc Float    @default(0) // Số lượng tồn kho trước khi nhập
   soLuongNhap  Float
+  soLuongSau   Float    @default(0) // Số lượng tồn kho sau khi nhập
   donViTinh    String
   ghiChu       String?
   createdAt    DateTime @default(now())
@@ -1182,7 +1217,9 @@ model WarehouseIssue {
   tenLo        String
   lotProductId String
   tenSanPham   String
+  soLuongTruoc Float    @default(0) // Số lượng tồn kho trước khi xuất
   soLuongXuat  Float
+  soLuongSau   Float    @default(0) // Số lượng tồn kho sau khi xuất
   donViTinh    String
   ghiChu       String?
   createdAt    DateTime @default(now())
@@ -1228,6 +1265,29 @@ model InternationalCustomer {
   quotations        Quotation[]
 
   @@map("customers")
+  @@schema("business")
+}
+
+model Invoice {
+  id                    String    @id @default(cuid())
+  soHoaDon              String    @unique
+  ngayLap               DateTime
+  khachHang             String
+  maSoThue              String?
+  loaiHoaDon            String?   // "Bán hàng", "Mua hàng", "Dịch vụ"
+  tongTien              Float     @default(0)
+  thue                  Float     @default(0)
+  thanhTien             Float     @default(0)
+  trangThai             String    @default("Chưa thanh toán") // "Chưa thanh toán", "Đã thanh toán", "Quá hạn"
+  nhanVienLap           String?
+  phuongThucThanhToan   String?   // "Tiền mặt", "Chuyển khoản", "Thẻ tín dụng"
+  ngayThanhToan         DateTime?
+  ghiChu                String?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("invoices")
   @@schema("business")
 }
 
@@ -1821,5 +1881,50 @@ enum HalfDayPeriod {
   MORNING       // Buổi sáng
   AFTERNOON     // Buổi chiều
 
+  @@schema("common")
+}
+
+// Yêu cầu sửa chữa
+model RepairRequest {
+  id                 Int                   @id @default(autoincrement())
+  ngayThang          DateTime              @default(now())
+  maYeuCau           String                @unique
+  tenHeThong         String                // Tên hệ thống/thiết bị
+  tinhTrangThietBi   String                // Tình trạng thiết bị
+  loaiLoi            String                // Loại lỗi
+  mucDoUuTien        String                // Mức độ ưu tiên
+  noiDungLoi         String                @db.Text // Nội dung lỗi
+  ghiChu             String?               @db.Text
+  trangThai          String                @default("Chờ xử lý") // Trạng thái
+  fileDinhKem        String?               // File đính kèm
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  acceptanceHandovers AcceptanceHandover[]
+
+  @@map("repair_requests")
+  @@schema("common")
+}
+
+// Nghiệm thu bàn giao (từ yêu cầu sửa chữa)
+model AcceptanceHandover {
+  id                      String         @id @default(cuid())
+  maNghiemThu             String         @unique
+  ngayNghiemThu           DateTime       @default(now())
+  repairRequestId         Int            // ID của yêu cầu sửa chữa
+  maYeuCauSuaChua         String         // Mã yêu cầu sửa chữa
+  tenHeThongThietBi       String         // Tên hệ thống/thiết bị
+  tinhTrangTruocSuaChua   String         @db.Text // Tình trạng trước khi sửa chữa
+  tinhTrangSauSuaChua     String         @db.Text // Tình trạng sau khi sửa chữa
+  nguoiBanGiao            String         // Người bàn giao (người sửa chữa)
+  nguoiNhan               String         // Người nhận (người yêu cầu)
+  fileDinhKem             String?        // File đính kèm
+  ghiChu                  String?        @db.Text
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  repairRequest           RepairRequest  @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+
+  @@map("acceptance_handovers")
   @@schema("common")
 }

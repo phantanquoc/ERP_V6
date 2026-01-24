@@ -103,55 +103,57 @@ const TaxReportTab: React.FC = () => {
   }
 
   return (
-    <div>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày đặt hàng</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã Đơn Hàng</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên hàng hoá</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đơn vị</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giá trị đơn hàng</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số tiền đóng thuế</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ghi chí</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File đính kèm</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày đặt hàng</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã Đơn Hàng</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hoá</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Đơn vị</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Giá trị đơn hàng</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số tiền đóng thuế</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">File đính kèm</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody>
             {taxReports.map((report, index) => (
-              <tr key={report.id} className="hover:bg-gray-50">
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+              <tr
+                key={report.id}
+                className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                  index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                }`}
+              >
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{index + 1}</td>
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                   <div className="flex items-center">
                     <Calendar className="w-4 h-4 text-gray-400 mr-1" />
                     {formatDate(report.ngayDatHang)}
                   </div>
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{report.maDonHang}</td>
-                <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">{report.tenHangHoa}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{report.soLuong.toLocaleString()}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{report.donVi}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <div className="flex items-center">
-                    <DollarSign className="w-4 h-4 text-green-600 mr-1" />
-                    {formatCurrency(report.giaTriDonHang)}
-                  </div>
+                <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{report.maDonHang}</td>
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{report.tenHangHoa}</td>
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{report.soLuong.toLocaleString()}</td>
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{report.donVi}</td>
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                  {formatCurrency(report.giaTriDonHang)}
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                   {report.soTienDongThue ? formatCurrency(report.soTienDongThue) : '-'}
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap">
-                  <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(report.trangThai)}`}>
+                <td className="px-6 py-4 text-center border-r border-gray-200">
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(report.trangThai)}`}>
                     {getStatusLabel(report.trangThai)}
                   </span>
                 </td>
-                <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">{report.ghiChi || '-'}</td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{report.ghiChi || '-'}</td>
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                   {report.fileDinhKem ? (
                     <a href={report.fileDinhKem} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 flex items-center">
                       <FileText className="w-4 h-4 mr-1" />
@@ -159,21 +161,21 @@ const TaxReportTab: React.FC = () => {
                     </a>
                   ) : '-'}
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <div className="flex items-center gap-2">
+                <td className="px-6 py-4">
+                  <div className="flex items-center justify-center gap-3">
                     <button
                       onClick={() => handleEdit(report)}
-                      className="text-green-600 hover:text-green-800"
+                      className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                       title="Chỉnh sửa"
                     >
-                      <Edit className="w-4 h-4" />
+                      <Edit className="w-5 h-5" />
                     </button>
                     <button
                       onClick={() => handleDelete(report.id)}
-                      className="text-red-600 hover:text-red-800"
+                      className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                       title="Xóa"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
                 </td>

@@ -235,8 +235,12 @@ const CommonManagement = () => {
         formDataToSend.append('file', data.files[0]);
       }
 
+      const token = localStorage.getItem('accessToken');
       const response = await fetch('http://localhost:5000/api/repair-requests', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         body: formDataToSend,
       });
 
