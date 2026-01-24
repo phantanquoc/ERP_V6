@@ -28,7 +28,7 @@ export class EmployeeController {
   async getEmployeeById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      const employee = await employeeService.getEmployeeById(id);
+      const employee = await employeeService.getEmployeeById(id as string);
 
       res.json({
         success: true,
@@ -42,7 +42,7 @@ export class EmployeeController {
   async getEmployeeByCode(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { code } = req.params;
-      const employee = await employeeService.getEmployeeByCode(code);
+      const employee = await employeeService.getEmployeeByCode(code as string);
 
       res.json({
         success: true,
@@ -70,7 +70,7 @@ export class EmployeeController {
   async updateEmployee(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      const employee = await employeeService.updateEmployee(id, req.body);
+      const employee = await employeeService.updateEmployee(id as string, req.body);
 
       res.json({
         success: true,
@@ -85,7 +85,7 @@ export class EmployeeController {
   async deleteEmployee(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      await employeeService.deleteEmployee(id);
+      await employeeService.deleteEmployee(id as string);
 
       res.json({
         success: true,
