@@ -61,7 +61,7 @@ router.get('/', (_req: Request, res: Response) => {
 
 // GET single machine system
 router.get('/:id', (req: Request, res: Response): void => {
-  const system = machineSystems.find(s => s.id === parseInt(req.params.id));
+  const system = machineSystems.find(s => s.id === parseInt(req.params.id as string));
   if (!system) {
     res.status(404).json({ message: 'Không tìm thấy hệ thống' });
     return;
@@ -92,7 +92,7 @@ router.post('/', upload.single('file'), (req: Request, res: Response) => {
 
 // PUT update machine system
 router.put('/:id', upload.single('file'), (req: Request, res: Response): void => {
-  const index = machineSystems.findIndex(s => s.id === parseInt(req.params.id));
+  const index = machineSystems.findIndex(s => s.id === parseInt(req.params.id as string));
   if (index === -1) {
     res.status(404).json({ message: 'Không tìm thấy hệ thống' });
     return;
@@ -118,7 +118,7 @@ router.put('/:id', upload.single('file'), (req: Request, res: Response): void =>
 
 // DELETE machine system
 router.delete('/:id', (req: Request, res: Response): void => {
-  const index = machineSystems.findIndex(s => s.id === parseInt(req.params.id));
+  const index = machineSystems.findIndex(s => s.id === parseInt(req.params.id as string));
   if (index === -1) {
     res.status(404).json({ message: 'Không tìm thấy hệ thống' });
     return;

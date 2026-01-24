@@ -41,7 +41,7 @@ router.get('/statistics/summary', authenticate, async (_req, res) => {
 // Get feedback by ID
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const feedback = await customerFeedbackService.getFeedbackById(req.params.id);
+    const feedback = await customerFeedbackService.getFeedbackById(req.params.id as string);
     res.json({
       success: true,
       data: feedback,
@@ -67,7 +67,7 @@ router.post('/', authenticate, async (req, res) => {
 // Update feedback
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const feedback = await customerFeedbackService.updateFeedback(req.params.id, req.body);
+    const feedback = await customerFeedbackService.updateFeedback(req.params.id as string, req.body);
     res.json({
       success: true,
       data: feedback,
@@ -80,7 +80,7 @@ router.put('/:id', authenticate, async (req, res) => {
 // Delete feedback
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const result = await customerFeedbackService.deleteFeedback(req.params.id);
+    const result = await customerFeedbackService.deleteFeedback(req.params.id as string);
     res.json({
       success: true,
       data: result,

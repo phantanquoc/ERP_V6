@@ -24,7 +24,7 @@ class RepairRequestController {
 
   async getRepairRequestById(req: Request, res: Response) {
     try {
-      const id = parseInt(req.params.id, 10);
+      const id = parseInt(req.params.id as string, 10);
       const request = await repairRequestService.getRepairRequestById(id);
 
       return res.json({
@@ -71,7 +71,7 @@ class RepairRequestController {
 
   async updateRepairRequest(req: Request, res: Response) {
     try {
-      const id = parseInt(req.params.id, 10);
+      const id = parseInt(req.params.id as string, 10);
       const data: any = {
         tenHeThong: req.body.tenHeThong,
         tinhTrangThietBi: req.body.tinhTrangThietBi,
@@ -107,7 +107,7 @@ class RepairRequestController {
 
   async deleteRepairRequest(req: Request, res: Response) {
     try {
-      const id = parseInt(req.params.id, 10);
+      const id = parseInt(req.params.id as string, 10);
       await repairRequestService.deleteRepairRequest(id);
 
       return res.json({
