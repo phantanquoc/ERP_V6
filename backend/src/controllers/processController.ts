@@ -110,7 +110,7 @@ export class ProcessController {
 
   async getFlowchart(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { processId } = req.params;
+      const processId = req.params.processId as string;
       const flowchart = await processService.getFlowchartByProcessId(processId);
 
       if (!flowchart) {
@@ -134,7 +134,7 @@ export class ProcessController {
 
   async createFlowchart(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { processId } = req.params;
+      const processId = req.params.processId as string;
       const { sections } = req.body;
 
       const flowchart = await processService.createFlowchart(processId, sections);
@@ -153,7 +153,7 @@ export class ProcessController {
 
   async updateFlowchart(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { processId } = req.params;
+      const processId = req.params.processId as string;
       const { sections } = req.body;
 
       const flowchart = await processService.updateFlowchart(processId, sections);
@@ -172,7 +172,7 @@ export class ProcessController {
 
   async deleteFlowchart(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { processId } = req.params;
+      const processId = req.params.processId as string;
       await processService.deleteFlowchart(processId);
 
       const response: ApiResponse<any> = {

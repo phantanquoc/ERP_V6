@@ -41,7 +41,7 @@ export class MaterialEvaluationController {
 
   async getMaterialEvaluationByMaChien(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { maChien } = req.params;
+      const maChien = req.params.maChien as string;
       const evaluation = await materialEvaluationService.getMaterialEvaluationByMaChien(maChien);
 
       res.json({

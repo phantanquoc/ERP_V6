@@ -122,7 +122,7 @@ class OrderController {
   // Update order item
   async updateOrderItem(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { itemId } = req.params;
+      const itemId = req.params.itemId as string;
       const data = req.body;
 
       const item = await orderService.updateOrderItem(itemId, data);

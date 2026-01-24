@@ -52,7 +52,7 @@ export class SystemOperationController {
 
   async getSystemOperationsByMaChien(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { maChien } = req.params;
+      const maChien = req.params.maChien as string;
       const operations = await systemOperationService.getSystemOperationsByMaChien(maChien);
 
       res.json({

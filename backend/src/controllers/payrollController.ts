@@ -33,7 +33,7 @@ export class PayrollController {
 
   async getPayrollDetail(req: Request, res: Response): Promise<void> {
     try {
-      const { payrollId } = req.params;
+      const payrollId = req.params.payrollId as string;
 
       const payroll = await payrollService.getPayrollDetail(payrollId);
 
@@ -88,7 +88,7 @@ export class PayrollController {
 
   async updatePayroll(req: Request, res: Response): Promise<void> {
     try {
-      const { payrollId } = req.params;
+      const payrollId = req.params.payrollId as string;
       const payrollData = req.body;
 
       const payroll = await payrollService.updatePayroll(payrollId, payrollData);

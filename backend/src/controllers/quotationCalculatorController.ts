@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 // Get calculator by quotation request ID
 export const getCalculatorByQuotationRequestId = async (req: Request, res: Response) => {
   try {
-    const { quotationRequestId } = req.params;
+    const quotationRequestId = req.params.quotationRequestId as string;
 
     const calculator = await quotationCalculatorService.getByQuotationRequestId(quotationRequestId);
 
@@ -49,7 +49,7 @@ export const upsertCalculator = async (req: Request, res: Response) => {
 // Delete calculator
 export const deleteCalculator = async (req: Request, res: Response) => {
   try {
-    const { quotationRequestId } = req.params;
+    const quotationRequestId = req.params.quotationRequestId as string;
 
     await quotationCalculatorService.deleteCalculator(quotationRequestId);
 
@@ -69,7 +69,7 @@ export const deleteCalculator = async (req: Request, res: Response) => {
 // Create quotation from calculator
 export const createQuotationFromCalculator = async (req: Request, res: Response) => {
   try {
-    const { quotationRequestId } = req.params;
+    const quotationRequestId = req.params.quotationRequestId as string;
     const { hieuLucBaoGia, tinhTrang, ghiChu, employeeId, tenNhanVien } = req.body;
 
     // Get calculator data

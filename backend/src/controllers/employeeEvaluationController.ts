@@ -37,7 +37,7 @@ export class EmployeeEvaluationController {
 
   async getEvaluationDetails(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { evaluationId } = req.params;
+      const evaluationId = req.params.evaluationId as string;
       const userId = req.user?.id;
 
       const details = await employeeEvaluationService.getEvaluationDetails(evaluationId, userId);
@@ -95,7 +95,7 @@ export class EmployeeEvaluationController {
 
   async updateEvaluationDetail(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { detailId } = req.params;
+      const detailId = req.params.detailId as string;
       const { selfScore, supervisorScore1, supervisorScore2 } = req.body;
       const userId = req.user?.id;
 
@@ -125,7 +125,7 @@ export class EmployeeEvaluationController {
 
   async getEvaluationHistory(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { evaluationId } = req.params;
+      const evaluationId = req.params.evaluationId as string;
       const userId = req.user?.id;
 
       const history = await employeeEvaluationService.getEvaluationHistory(evaluationId, userId);
@@ -150,7 +150,7 @@ export class EmployeeEvaluationController {
 
   async finalizeEvaluation(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { evaluationId } = req.params;
+      const evaluationId = req.params.evaluationId as string;
 
       const evaluation = await employeeEvaluationService.finalizeEvaluation(evaluationId);
 

@@ -62,7 +62,7 @@ export const getTaxReportById = async (req: Request, res: Response) => {
 // Get tax report by order ID
 export const getTaxReportByOrderId = async (req: Request, res: Response) => {
   try {
-    const { orderId } = req.params;
+    const orderId = req.params.orderId as string;
     const taxReport = await taxReportService.getTaxReportByOrderId(orderId);
 
     if (!taxReport) {
@@ -90,7 +90,7 @@ export const getTaxReportByOrderId = async (req: Request, res: Response) => {
 // Create tax report from order
 export const createTaxReportFromOrder = async (req: RequestWithFile, res: Response) => {
   try {
-    const { orderId } = req.params;
+    const orderId = req.params.orderId as string;
     const input = req.body;
 
     // Handle file upload

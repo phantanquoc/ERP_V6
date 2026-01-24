@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 // Get lots by warehouse
 export const getLotsByWarehouse = async (req: Request, res: Response) => {
   try {
-    const { warehouseId } = req.params;
+    const warehouseId = req.params.warehouseId as string;
 
     const lots = await prisma.lot.findMany({
       where: { warehouseId },

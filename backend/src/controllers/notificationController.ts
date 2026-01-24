@@ -92,7 +92,7 @@ export class NotificationController {
 
   async markAsRead(req: Request, res: Response): Promise<void> {
     try {
-      const { notificationId } = req.params;
+      const notificationId = req.params.notificationId as string;
 
       const notification = await notificationService.markAsRead(notificationId);
 
@@ -152,7 +152,7 @@ export class NotificationController {
 
   async deleteNotification(req: Request, res: Response): Promise<void> {
     try {
-      const { notificationId } = req.params;
+      const notificationId = req.params.notificationId as string;
 
       await notificationService.deleteNotification(notificationId);
 
