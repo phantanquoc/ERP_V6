@@ -42,7 +42,7 @@ export class DailyWorkReportController {
    */
   async getReportById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const report = await dailyWorkReportService.getReportById(id);
 
       res.json({
@@ -178,7 +178,7 @@ export class DailyWorkReportController {
    */
   async updateReport(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const report = await dailyWorkReportService.updateReport(id, req.body);
 
       res.json({
@@ -196,7 +196,7 @@ export class DailyWorkReportController {
    */
   async addSupervisorComment(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { comment, status } = req.body;
       const supervisorId = req.user?.id;
 
@@ -225,7 +225,7 @@ export class DailyWorkReportController {
    */
   async deleteReport(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await dailyWorkReportService.deleteReport(id);
 
       res.json({

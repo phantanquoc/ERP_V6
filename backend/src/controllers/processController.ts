@@ -28,7 +28,7 @@ export class ProcessController {
 
   async getProcessById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const process = await processService.getProcessById(id);
 
       const response: ApiResponse<any> = {
@@ -60,7 +60,7 @@ export class ProcessController {
 
   async updateProcess(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const process = await processService.updateProcess(id, req.body);
 
       const response: ApiResponse<any> = {
@@ -77,7 +77,7 @@ export class ProcessController {
 
   async deleteProcess(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await processService.deleteProcess(id);
 
       const response: ApiResponse<any> = {

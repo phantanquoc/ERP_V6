@@ -30,7 +30,7 @@ class PurchaseRequestController {
 
   async getPurchaseRequestById(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const request = await purchaseRequestService.getPurchaseRequestById(id);
 
       return res.json({
@@ -87,7 +87,7 @@ class PurchaseRequestController {
 
   async updatePurchaseRequest(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const data = req.body;
 
       // Handle file upload
@@ -112,7 +112,7 @@ class PurchaseRequestController {
 
   async deletePurchaseRequest(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await purchaseRequestService.deletePurchaseRequest(id);
 
       return res.json({

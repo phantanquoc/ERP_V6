@@ -25,7 +25,7 @@ class ExportCostController {
   // Get export cost by ID
   async getExportCostById(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const exportCost = await exportCostService.getExportCostById(id);
 
       if (!exportCost) {
@@ -53,7 +53,7 @@ class ExportCostController {
   // Update export cost
   async updateExportCost(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const exportCost = await exportCostService.updateExportCost(id, req.body);
       res.json(exportCost);
     } catch (error: any) {
@@ -65,7 +65,7 @@ class ExportCostController {
   // Delete export cost
   async deleteExportCost(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await exportCostService.deleteExportCost(id);
       res.json({ message: 'Xóa chi phí xuất khẩu thành công' });
     } catch (error: any) {

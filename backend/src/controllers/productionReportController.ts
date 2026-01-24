@@ -26,7 +26,7 @@ export class ProductionReportController {
 
   async getProductionReportById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const report = await productionReportService.getProductionReportById(id);
 
       res.json({
@@ -62,7 +62,7 @@ export class ProductionReportController {
 
   async updateProductionReport(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const userId = req.user?.id;
       const data = req.body;
 
@@ -85,7 +85,7 @@ export class ProductionReportController {
 
   async deleteProductionReport(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const result = await productionReportService.deleteProductionReport(id);
 
       res.json({

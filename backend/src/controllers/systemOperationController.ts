@@ -23,7 +23,7 @@ export class SystemOperationController {
 
   async getSystemOperationById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const operation = await systemOperationService.getSystemOperationById(id);
 
       res.json({
@@ -80,7 +80,7 @@ export class SystemOperationController {
 
   async updateSystemOperation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const operation = await systemOperationService.updateSystemOperation(id, req.body);
 
       res.json({
@@ -95,7 +95,7 @@ export class SystemOperationController {
 
   async deleteSystemOperation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await systemOperationService.deleteSystemOperation(id);
 
       res.json({

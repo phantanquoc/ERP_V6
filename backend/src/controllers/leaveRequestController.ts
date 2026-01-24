@@ -61,7 +61,7 @@ export class LeaveRequestController {
    */
   async getLeaveRequestById(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const leaveRequest = await leaveRequestService.getLeaveRequestById(id);
 
       res.json({
@@ -79,7 +79,7 @@ export class LeaveRequestController {
    */
   async approveLeaveRequest(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { approvedBy } = req.body;
 
       const leaveRequest = await leaveRequestService.approveLeaveRequest(id, approvedBy);
@@ -99,7 +99,7 @@ export class LeaveRequestController {
    */
   async rejectLeaveRequest(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { approvedBy, rejectionReason } = req.body;
 
       const leaveRequest = await leaveRequestService.rejectLeaveRequest(id, approvedBy, rejectionReason);

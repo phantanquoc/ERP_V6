@@ -23,7 +23,7 @@ class MachineController {
 
   async getMachineById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const machine = await machineService.getMachineById(id);
 
       res.json({
@@ -64,7 +64,7 @@ class MachineController {
 
   async updateMachine(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const machine = await machineService.updateMachine(id, req.body);
 
       res.json({
@@ -79,7 +79,7 @@ class MachineController {
 
   async deleteMachine(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const result = await machineService.deleteMachine(id);
 
       res.json({

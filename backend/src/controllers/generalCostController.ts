@@ -25,7 +25,7 @@ class GeneralCostController {
   // Get general cost by ID
   async getGeneralCostById(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const generalCost = await generalCostService.getGeneralCostById(id);
 
       if (!generalCost) {
@@ -53,7 +53,7 @@ class GeneralCostController {
   // Update general cost
   async updateGeneralCost(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const generalCost = await generalCostService.updateGeneralCost(id, req.body);
       res.json(generalCost);
     } catch (error: any) {
@@ -65,7 +65,7 @@ class GeneralCostController {
   // Delete general cost
   async deleteGeneralCost(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await generalCostService.deleteGeneralCost(id);
       res.json({ message: 'Xóa chi phí chung thành công' });
     } catch (error: any) {

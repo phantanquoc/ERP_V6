@@ -20,7 +20,7 @@ export class PositionResponsibilityController {
 
   async getResponsibilityById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const responsibility = await positionResponsibilityService.getResponsibilityById(id);
 
       res.json({
@@ -49,7 +49,7 @@ export class PositionResponsibilityController {
 
   async updateResponsibility(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const responsibility = await positionResponsibilityService.updateResponsibility(id, req.body);
 
       res.json({
@@ -64,7 +64,7 @@ export class PositionResponsibilityController {
 
   async deleteResponsibility(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await positionResponsibilityService.deleteResponsibility(id);
 
       res.json({

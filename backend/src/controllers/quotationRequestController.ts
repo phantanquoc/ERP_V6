@@ -31,7 +31,7 @@ export class QuotationRequestController {
 
   async getQuotationRequestById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const request = await quotationRequestService.getQuotationRequestById(id);
 
       const response: ApiResponse<any> = {
@@ -47,7 +47,7 @@ export class QuotationRequestController {
 
   async getQuotationRequestByCode(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { code } = req.params;
+      const code = req.params.code as string;
       const request = await quotationRequestService.getQuotationRequestByCode(code);
 
       const response: ApiResponse<any> = {
@@ -79,7 +79,7 @@ export class QuotationRequestController {
 
   async updateQuotationRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const request = await quotationRequestService.updateQuotationRequest(id, req.body);
 
       const response: ApiResponse<any> = {
@@ -96,7 +96,7 @@ export class QuotationRequestController {
 
   async deleteQuotationRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await quotationRequestService.deleteQuotationRequest(id);
 
       const response: ApiResponse<any> = {

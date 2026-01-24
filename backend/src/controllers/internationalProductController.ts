@@ -30,7 +30,7 @@ export class InternationalProductController {
 
   async getProductById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const product = await internationalProductService.getProductById(id);
 
       const response: ApiResponse<any> = {
@@ -46,7 +46,7 @@ export class InternationalProductController {
 
   async getProductByCode(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { code } = req.params;
+      const code = req.params.code as string;
       const product = await internationalProductService.getProductByCode(code);
 
       const response: ApiResponse<any> = {
@@ -78,7 +78,7 @@ export class InternationalProductController {
 
   async updateProduct(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const product = await internationalProductService.updateProduct(id, req.body);
 
       const response: ApiResponse<any> = {
@@ -95,7 +95,7 @@ export class InternationalProductController {
 
   async deleteProduct(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await internationalProductService.deleteProduct(id);
 
       const response: ApiResponse<any> = {

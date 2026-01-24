@@ -18,7 +18,7 @@ export class PositionController {
 
   async getPositionById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const position = await positionService.getPositionById(id);
 
       res.json({
@@ -46,7 +46,7 @@ export class PositionController {
 
   async updatePosition(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const position = await positionService.updatePosition(id, req.body);
 
       res.json({
@@ -61,7 +61,7 @@ export class PositionController {
 
   async deletePosition(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await positionService.deletePosition(id);
 
       res.json({

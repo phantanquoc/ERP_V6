@@ -32,7 +32,7 @@ export const getAllDebts = async (_req: Request, res: Response): Promise<void> =
 // Get debt by ID
 export const getDebtById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const debt = await prisma.debt.findUnique({
       where: { id },
@@ -132,7 +132,7 @@ export const createDebt = async (req: RequestWithFile, res: Response): Promise<v
 // Update debt
 export const updateDebt = async (req: RequestWithFile, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const updateData = req.body;
 
     // Handle file upload
@@ -180,7 +180,7 @@ export const updateDebt = async (req: RequestWithFile, res: Response): Promise<v
 // Delete debt
 export const deleteDebt = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     await prisma.debt.delete({
       where: { id },

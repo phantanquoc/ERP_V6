@@ -18,8 +18,8 @@ export class DepartmentController {
 
   async getDepartmentById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
-      const department = await departmentService.getDepartmentById(id);
+      const id = req.params.id as string;
+      const department = await departmentService.getDepartmentById(id as string);
 
       res.json({
         success: true,
@@ -46,8 +46,8 @@ export class DepartmentController {
 
   async updateDepartment(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
-      const department = await departmentService.updateDepartment(id, req.body);
+      const id = req.params.id as string;
+      const department = await departmentService.updateDepartment(id as string, req.body);
 
       res.json({
         success: true,
@@ -61,8 +61,8 @@ export class DepartmentController {
 
   async deleteDepartment(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
-      await departmentService.deleteDepartment(id);
+      const id = req.params.id as string;
+      await departmentService.deleteDepartment(id as string);
 
       res.json({
         success: true,

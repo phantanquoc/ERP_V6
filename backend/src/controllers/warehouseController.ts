@@ -114,7 +114,7 @@ export const createWarehouse = async (req: Request, res: Response): Promise<void
 // Delete warehouse
 export const deleteWarehouse = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     await prisma.warehouses.delete({
       where: { id },

@@ -137,7 +137,7 @@ export class AttendanceController {
 
   async updateAttendance(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { checkInTime, checkOutTime, workHours, status, notes } = req.body;
 
       const attendance = await attendanceService.updateAttendance(id, {
@@ -163,7 +163,7 @@ export class AttendanceController {
 
   async deleteAttendance(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       await attendanceService.deleteAttendance(id);
       res.json({

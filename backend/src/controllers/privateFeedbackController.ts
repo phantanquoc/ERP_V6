@@ -42,7 +42,7 @@ export const privateFeedbackController = {
   // GET /api/private-feedbacks/:id - Lấy feedback theo ID
   async getById(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const feedback = await privateFeedbackService.getById(id);
 
       res.json({
@@ -61,7 +61,7 @@ export const privateFeedbackController = {
   // GET /api/private-feedbacks/code/:code - Lấy feedback theo code
   async getByCode(req: Request, res: Response) {
     try {
-      const { code } = req.params;
+      const code = req.params.code as string;
       const feedback = await privateFeedbackService.getByCode(code);
 
       res.json({
@@ -160,7 +160,7 @@ export const privateFeedbackController = {
   // PATCH /api/private-feedbacks/:id - Cập nhật feedback
   async update(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { content, notes, purpose, solution, attachments, status, response, respondedBy } = req.body;
 
       const updateData: any = {
@@ -198,7 +198,7 @@ export const privateFeedbackController = {
   // DELETE /api/private-feedbacks/:id - Xóa feedback
   async delete(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await privateFeedbackService.delete(id);
 
       res.json({

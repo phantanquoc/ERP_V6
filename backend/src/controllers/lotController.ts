@@ -79,7 +79,7 @@ export const createLot = async (req: Request, res: Response): Promise<void> => {
 // Delete lot
 export const deleteLot = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     await prisma.lot.delete({
       where: { id },

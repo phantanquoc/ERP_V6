@@ -19,7 +19,7 @@ export const supplierController = {
   // Get supplier by ID
   async getSupplierById(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const supplier = await supplierService.getSupplierById(id);
       res.json(supplier);
     } catch (error) {
@@ -41,7 +41,7 @@ export const supplierController = {
   // Update supplier
   async updateSupplier(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const data = req.body;
       const supplier = await supplierService.updateSupplier(id, data);
       res.json(supplier);
@@ -53,7 +53,7 @@ export const supplierController = {
   // Delete supplier
   async deleteSupplier(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const result = await supplierService.deleteSupplier(id);
       res.json(result);
     } catch (error) {

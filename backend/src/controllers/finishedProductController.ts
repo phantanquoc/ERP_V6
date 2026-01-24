@@ -27,7 +27,7 @@ export class FinishedProductController {
 
   async getFinishedProductById(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const product = await finishedProductService.getFinishedProductById(id);
 
       res.json({
@@ -63,7 +63,7 @@ export class FinishedProductController {
 
   async updateFinishedProduct(req: RequestWithFile, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const userId = req.user?.id;
       const data = req.body;
 
@@ -86,7 +86,7 @@ export class FinishedProductController {
 
   async deleteFinishedProduct(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const result = await finishedProductService.deleteFinishedProduct(id);
 
       res.json({

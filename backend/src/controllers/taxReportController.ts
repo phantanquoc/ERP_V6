@@ -34,7 +34,7 @@ export const getAllTaxReports = async (req: Request, res: Response) => {
 // Get tax report by ID
 export const getTaxReportById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const taxReport = await taxReportService.getTaxReportById(id);
 
     if (!taxReport) {
@@ -118,7 +118,7 @@ export const createTaxReportFromOrder = async (req: RequestWithFile, res: Respon
 // Update tax report
 export const updateTaxReport = async (req: RequestWithFile, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const input = req.body;
 
     // Handle file upload
@@ -146,7 +146,7 @@ export const updateTaxReport = async (req: RequestWithFile, res: Response) => {
 // Delete tax report
 export const deleteTaxReport = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     await taxReportService.deleteTaxReport(id);
 

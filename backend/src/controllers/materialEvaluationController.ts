@@ -27,7 +27,7 @@ export class MaterialEvaluationController {
 
   async getMaterialEvaluationById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const evaluation = await materialEvaluationService.getMaterialEvaluationById(id);
 
       res.json({
@@ -89,7 +89,7 @@ export class MaterialEvaluationController {
 
   async updateMaterialEvaluation(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const data = req.body;
 
       // Handle file upload
@@ -111,7 +111,7 @@ export class MaterialEvaluationController {
 
   async deleteMaterialEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await materialEvaluationService.deleteMaterialEvaluation(id);
 
       res.json({

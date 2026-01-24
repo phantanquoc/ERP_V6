@@ -25,7 +25,7 @@ class SupplyRequestController {
 
   async getSupplyRequestById(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const supplyRequest = await supplyRequestService.getSupplyRequestById(id);
 
       return res.json({
@@ -59,7 +59,7 @@ class SupplyRequestController {
 
   async updateSupplyRequest(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const supplyRequest = await supplyRequestService.updateSupplyRequest(id, req.body);
 
       return res.json({
@@ -77,7 +77,7 @@ class SupplyRequestController {
 
   async deleteSupplyRequest(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await supplyRequestService.deleteSupplyRequest(id);
 
       return res.json({

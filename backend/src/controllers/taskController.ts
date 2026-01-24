@@ -61,7 +61,7 @@ class TaskController {
 
   async getTaskById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const task = await taskService.getTaskById(id);
 
       res.json({
@@ -84,7 +84,7 @@ class TaskController {
         return;
       }
 
-      const { id } = req.params;
+      const id = req.params.id as string;
       const data: UpdateTaskRequest = req.body;
       const files = req.files as Express.Multer.File[] | undefined;
       const filePaths = files?.map(file => file.path) || [];
@@ -112,7 +112,7 @@ class TaskController {
         return;
       }
 
-      const { id } = req.params;
+      const id = req.params.id as string;
       await taskService.deleteTask(id, userId);
 
       res.json({

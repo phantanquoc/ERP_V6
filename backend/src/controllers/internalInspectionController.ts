@@ -33,7 +33,7 @@ export class InternalInspectionController {
 
   async getInspectionById(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       const inspection = await internalInspectionService.getInspectionById(id);
 
@@ -76,7 +76,7 @@ export class InternalInspectionController {
 
   async updateInspection(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const data = req.body;
 
       const inspection = await internalInspectionService.updateInspection(id, data);
@@ -99,7 +99,7 @@ export class InternalInspectionController {
 
   async deleteInspection(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       await internalInspectionService.deleteInspection(id);
 

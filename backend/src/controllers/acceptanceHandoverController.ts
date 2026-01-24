@@ -25,7 +25,7 @@ class AcceptanceHandoverController {
 
   async getAcceptanceHandoverById(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const handover = await acceptanceHandoverService.getAcceptanceHandoverById(id);
 
       return res.json({
@@ -81,7 +81,7 @@ class AcceptanceHandoverController {
 
   async updateAcceptanceHandover(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       // Parse repairRequestId to number if it exists
       const data = {
@@ -108,7 +108,7 @@ class AcceptanceHandoverController {
 
   async deleteAcceptanceHandover(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const result = await acceptanceHandoverService.deleteAcceptanceHandover(id);
 
       return res.json({

@@ -27,7 +27,7 @@ export class QualityEvaluationController {
 
   async getQualityEvaluationById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const evaluation = await qualityEvaluationService.getQualityEvaluationById(id);
 
       res.json({
@@ -63,7 +63,7 @@ export class QualityEvaluationController {
 
   async updateQualityEvaluation(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const userId = req.user?.id;
       const data = req.body;
 
@@ -86,7 +86,7 @@ export class QualityEvaluationController {
 
   async deleteQualityEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const result = await qualityEvaluationService.deleteQualityEvaluation(id);
 
       res.json({

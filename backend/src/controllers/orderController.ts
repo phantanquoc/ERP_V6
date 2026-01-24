@@ -79,7 +79,7 @@ class OrderController {
   // Get order by ID
   async getOrderById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       const order = await orderService.getOrderById(id);
 
@@ -97,7 +97,7 @@ class OrderController {
   // Update order
   async updateOrder(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const data = req.body;
 
       // Handle file upload
@@ -142,7 +142,7 @@ class OrderController {
   // Delete order
   async deleteOrder(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       await orderService.deleteOrder(id);
 

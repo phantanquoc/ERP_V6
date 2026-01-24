@@ -28,7 +28,7 @@ export class InvoiceController {
 
   async getInvoiceById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const invoice = await invoiceService.getInvoiceById(id);
 
       res.json({
@@ -56,7 +56,7 @@ export class InvoiceController {
 
   async updateInvoice(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const invoice = await invoiceService.updateInvoice(id, req.body);
 
       res.json({
@@ -71,7 +71,7 @@ export class InvoiceController {
 
   async deleteInvoice(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await invoiceService.deleteInvoice(id);
 
       res.json({

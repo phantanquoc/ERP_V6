@@ -95,7 +95,7 @@ export const addProductToLot = async (req: Request, res: Response): Promise<void
 // Remove product from lot
 export const removeProductFromLot = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     await prisma.lotProduct.delete({
       where: { id },
@@ -222,7 +222,7 @@ export const moveProductBetweenLots = async (req: Request, res: Response): Promi
 // Update product quantity
 export const updateProductQuantity = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { soLuong, donViTinh, giaThanh } = req.body;
 
     const lotProduct = await prisma.lotProduct.update({

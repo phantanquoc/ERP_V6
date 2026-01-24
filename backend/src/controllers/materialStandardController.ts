@@ -27,7 +27,7 @@ export class MaterialStandardController {
 
   async getMaterialStandardById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const standard = await materialStandardService.getMaterialStandardById(id);
 
       res.json({
@@ -55,7 +55,7 @@ export class MaterialStandardController {
 
   async updateMaterialStandard(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const standard = await materialStandardService.updateMaterialStandard(id, req.body);
 
       res.json({
@@ -70,7 +70,7 @@ export class MaterialStandardController {
 
   async deleteMaterialStandard(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await materialStandardService.deleteMaterialStandard(id);
 
       res.json({

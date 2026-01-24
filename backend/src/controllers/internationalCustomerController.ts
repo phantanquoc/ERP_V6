@@ -29,7 +29,7 @@ export class InternationalCustomerController {
 
   async getCustomerById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const customer = await internationalCustomerService.getCustomerById(id);
 
       res.json({
@@ -43,7 +43,7 @@ export class InternationalCustomerController {
 
   async getCustomerByCode(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { code } = req.params;
+      const code = req.params.code as string;
       const customer = await internationalCustomerService.getCustomerByCode(code);
 
       res.json({
@@ -72,7 +72,7 @@ export class InternationalCustomerController {
 
   async updateCustomer(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const customer = await internationalCustomerService.updateCustomer(id, req.body);
 
       res.json({
@@ -87,7 +87,7 @@ export class InternationalCustomerController {
 
   async deleteCustomer(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await internationalCustomerService.deleteCustomer(id);
 
       res.json({

@@ -32,7 +32,7 @@ export class PositionLevelController {
 
   async getLevelById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const level = await positionLevelService.getLevelById(id);
 
       res.json({
@@ -61,7 +61,7 @@ export class PositionLevelController {
 
   async updateLevel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const level = await positionLevelService.updateLevel(id, req.body);
 
       res.json({
@@ -76,7 +76,7 @@ export class PositionLevelController {
 
   async deleteLevel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await positionLevelService.deleteLevel(id);
 
       res.json({
