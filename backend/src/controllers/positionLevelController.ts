@@ -18,7 +18,7 @@ export class PositionLevelController {
 
   async getAllLevelsByPosition(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { positionId } = req.params;
+      const positionId = req.params.positionId as string;
       const levels = await positionLevelService.getAllLevelsByPosition(positionId);
 
       res.json({
@@ -46,7 +46,7 @@ export class PositionLevelController {
 
   async createLevel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { positionId } = req.params;
+      const positionId = req.params.positionId as string;
       const level = await positionLevelService.createLevel(positionId, req.body);
 
       res.status(201).json({

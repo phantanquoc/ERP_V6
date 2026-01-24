@@ -59,7 +59,7 @@ export class DailyWorkReportController {
    */
   async getReportsByEmployeeId(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { employeeId } = req.params;
+      const employeeId = req.params.employeeId as string;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
 

@@ -33,7 +33,7 @@ export class AttendanceController {
 
   async getEmployeeAttendance(req: Request, res: Response) {
     try {
-      const { employeeId } = req.params;
+      const employeeId = req.params.employeeId as string;
       const { startDate, endDate } = req.query;
 
       if (!startDate || !endDate) {

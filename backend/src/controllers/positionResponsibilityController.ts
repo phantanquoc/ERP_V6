@@ -6,7 +6,7 @@ import { ApiResponse } from '@types';
 export class PositionResponsibilityController {
   async getAllResponsibilities(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { positionId } = req.params;
+      const positionId = req.params.positionId as string;
       const responsibilities = await positionResponsibilityService.getAllResponsibilities(positionId);
 
       res.json({
@@ -34,7 +34,7 @@ export class PositionResponsibilityController {
 
   async createResponsibility(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { positionId } = req.params;
+      const positionId = req.params.positionId as string;
       const responsibility = await positionResponsibilityService.createResponsibility(positionId, req.body);
 
       res.status(201).json({
