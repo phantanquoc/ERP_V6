@@ -143,7 +143,7 @@ const UserManagement: React.FC = () => {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/departments/public/all');
+      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/departments/public/all');
       if (!response.ok) throw new Error('Failed to fetch departments');
       const data = await response.json();
       setDepartments(data.data || []);

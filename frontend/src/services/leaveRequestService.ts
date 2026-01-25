@@ -118,7 +118,7 @@ class LeaveRequestService {
     if (filters?.employeeId) params.append('employeeId', filters.employeeId);
     if (filters?.leaveType) params.append('leaveType', filters.leaveType);
 
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
     const url = `${API_URL}${this.baseURL}/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
 
     console.log('📤 Exporting to:', url);

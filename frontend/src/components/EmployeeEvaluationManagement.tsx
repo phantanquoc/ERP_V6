@@ -69,7 +69,7 @@ const EmployeeEvaluationManagement = () => {
       setError('');
 
       // Get all employees first
-      const response = await fetch('http://localhost:5000/api/employees?page=1&limit=1000', {
+      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/employees?page=1&limit=1000', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
         },

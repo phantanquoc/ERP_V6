@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -16,10 +16,10 @@ import customerFeedbackService, { CustomerFeedback } from '../services/customerF
 import internationalCustomerService, { InternationalCustomer } from '../services/internationalCustomerService';
 
 interface CustomerFeedbackManagementProps {
-  customerType?: 'Quốc tế' | 'Nội địa';
+  customerType?: 'Qu?c t?' | 'N?i d?a';
 }
 
-const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({ customerType = 'Quốc tế' }) => {
+const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({ customerType = 'Qu?c t?' }) => {
   const [feedbacks, setFeedbacks] = useState<CustomerFeedback[]>([]);
   const [customers, setCustomers] = useState<InternationalCustomer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,10 +32,10 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
   const [selectedFeedback, setSelectedFeedback] = useState<CustomerFeedback | null>(null);
   const [formData, setFormData] = useState<Partial<CustomerFeedback>>({
     customerId: '',
-    loaiPhanHoi: 'Góp ý',
+    loaiPhanHoi: 'G�p �',
     noiDungPhanHoi: '',
-    mucDoNghiemTrong: 'Trung bình',
-    trangThaiXuLy: 'Chưa xử lý',
+    mucDoNghiemTrong: 'Trung b�nh',
+    trangThaiXuLy: 'Chua x? l�',
   });
 
   useEffect(() => {
@@ -87,10 +87,10 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
     setSelectedFeedback(null);
     setFormData({
       customerId: '',
-      loaiPhanHoi: 'Góp ý',
+      loaiPhanHoi: 'G�p �',
       noiDungPhanHoi: '',
-      mucDoNghiemTrong: 'Trung bình',
-      trangThaiXuLy: 'Chưa xử lý',
+      mucDoNghiemTrong: 'Trung b�nh',
+      trangThaiXuLy: 'Chua x? l�',
     });
     setIsModalOpen(true);
   };
@@ -107,13 +107,13 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa phản hồi này?')) {
+    if (window.confirm('B?n c� ch?c ch?n mu?n x�a ph?n h?i n�y?')) {
       try {
         await customerFeedbackService.deleteFeedback(id);
         fetchFeedbacks();
       } catch (error) {
         console.error('Error deleting feedback:', error);
-        alert('Có lỗi xảy ra khi xóa phản hồi');
+        alert('C� l?i x?y ra khi x�a ph?n h?i');
       }
     }
   };
@@ -130,18 +130,18 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
       fetchFeedbacks();
     } catch (error) {
       console.error('Error saving feedback:', error);
-      alert('Có lỗi xảy ra khi lưu phản hồi');
+      alert('C� l?i x?y ra khi luu ph?n h?i');
     }
   };
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { bg: string; text: string; icon: any }> = {
-      'Chưa xử lý': { bg: 'bg-blue-100', text: 'text-blue-800', icon: Clock },
-      'Đang xử lý': { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: AlertCircle },
-      'Đã xử lý': { bg: 'bg-green-100', text: 'text-green-800', icon: CheckCircle },
-      'Đã đóng': { bg: 'bg-gray-100', text: 'text-gray-800', icon: X },
+      'Chua x? l�': { bg: 'bg-blue-100', text: 'text-blue-800', icon: Clock },
+      '�ang x? l�': { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: AlertCircle },
+      '�� x? l�': { bg: 'bg-green-100', text: 'text-green-800', icon: CheckCircle },
+      '�� d�ng': { bg: 'bg-gray-100', text: 'text-gray-800', icon: X },
     };
-    const badge = badges[status] || badges['Chưa xử lý'];
+    const badge = badges[status] || badges['Chua x? l�'];
     const Icon = badge.icon;
     return (
       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${badge.bg} ${badge.text}`}>
@@ -153,13 +153,13 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
 
   const getPriorityBadge = (priority: string) => {
     const colors: Record<string, string> = {
-      'Thấp': 'bg-gray-100 text-gray-800',
-      'Trung bình': 'bg-blue-100 text-blue-800',
+      'Th?p': 'bg-gray-100 text-gray-800',
+      'Trung b�nh': 'bg-blue-100 text-blue-800',
       'Cao': 'bg-orange-100 text-orange-800',
-      'Khẩn cấp': 'bg-red-100 text-red-800',
+      'Kh?n c?p': 'bg-red-100 text-red-800',
     };
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[priority] || colors['Trung bình']}`}>
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[priority] || colors['Trung b�nh']}`}>
         {priority}
       </span>
     );
@@ -171,14 +171,14 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
           <MessageCircle className="w-6 h-6 text-blue-600" />
-          Quản lý phản hồi từ khách hàng quốc tế
+          Qu?n l� ph?n h?i t? kh�ch h�ng qu?c t?
         </h2>
         <button
           onClick={handleCreate}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Thêm phản hồi
+          Th�m ph?n h?i
         </button>
       </div>
 
@@ -189,7 +189,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
-              placeholder="Tìm kiếm..."
+              placeholder="T�m ki?m..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -201,34 +201,34 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
             onChange={(e) => setFilterStatus(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="">Tất cả trạng thái</option>
-            <option value="Chưa xử lý">Chưa xử lý</option>
-            <option value="Đang xử lý">Đang xử lý</option>
-            <option value="Đã xử lý">Đã xử lý</option>
-            <option value="Đã đóng">Đã đóng</option>
+            <option value="">T?t c? tr?ng th�i</option>
+            <option value="Chua x? l�">Chua x? l�</option>
+            <option value="�ang x? l�">�ang x? l�</option>
+            <option value="�� x? l�">�� x? l�</option>
+            <option value="�� d�ng">�� d�ng</option>
           </select>
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="">Tất cả loại</option>
-            <option value="Khiếu nại">Khiếu nại</option>
-            <option value="Góp ý">Góp ý</option>
-            <option value="Khen ngợi">Khen ngợi</option>
-            <option value="Yêu cầu hỗ trợ">Yêu cầu hỗ trợ</option>
-            <option value="Khác">Khác</option>
+            <option value="">T?t c? lo?i</option>
+            <option value="Khi?u n?i">Khi?u n?i</option>
+            <option value="G�p �">G�p �</option>
+            <option value="Khen ng?i">Khen ng?i</option>
+            <option value="Y�u c?u h? tr?">Y�u c?u h? tr?</option>
+            <option value="Kh�c">Kh�c</option>
           </select>
           <select
             value={filterPriority}
             onChange={(e) => setFilterPriority(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="">Tất cả mức độ</option>
-            <option value="Thấp">Thấp</option>
-            <option value="Trung bình">Trung bình</option>
+            <option value="">T?t c? m?c d?</option>
+            <option value="Th?p">Th?p</option>
+            <option value="Trung b�nh">Trung b�nh</option>
             <option value="Cao">Cao</option>
-            <option value="Khẩn cấp">Khẩn cấp</option>
+            <option value="Kh?n c?p">Kh?n c?p</option>
           </select>
         </div>
       </div>
@@ -236,22 +236,22 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-gray-500">Đang tải...</div>
+          <div className="p-8 text-center text-gray-500">�ang t?i...</div>
         ) : !feedbacks || feedbacks.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">Không có dữ liệu</div>
+          <div className="p-8 text-center text-gray-500">Kh�ng c� d? li?u</div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nội dung</th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Mức độ</th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày</th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Thao tác</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kh�ch h�ng</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lo?i</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">N?i dung</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">M?c d?</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tr?ng th�i</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ng�y</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Thao t�c</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -282,21 +282,21 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                           <button
                             onClick={() => handleView(feedback)}
                             className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                            title="Xem chi tiết"
+                            title="Xem chi ti?t"
                           >
                             <Eye className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => handleEdit(feedback)}
                             className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                            title="Chỉnh sửa"
+                            title="Ch?nh s?a"
                           >
                             <Edit className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => handleDelete(feedback.id)}
                             className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                            title="Xóa"
+                            title="X�a"
                           >
                             <Trash2 className="w-5 h-5" />
                           </button>
@@ -318,7 +318,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-900">
-                {selectedFeedback ? 'Cập nhật phản hồi' : 'Thêm phản hồi mới'}
+                {selectedFeedback ? 'C?p nh?t ph?n h?i' : 'Th�m ph?n h?i m?i'}
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
@@ -328,7 +328,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Khách hàng <span className="text-red-500">*</span>
+                  Kh�ch h�ng <span className="text-red-500">*</span>
                 </label>
                 <select
                   required
@@ -336,7 +336,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                   onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="">-- Chọn khách hàng --</option>
+                  <option value="">-- Ch?n kh�ch h�ng --</option>
                   {customers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
                       {customer.tenCongTy} ({customer.maKhachHang}) - {customer.quocGia}
@@ -348,7 +348,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Loại phản hồi <span className="text-red-500">*</span>
+                    Lo?i ph?n h?i <span className="text-red-500">*</span>
                   </label>
                   <select
                     required
@@ -356,16 +356,16 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                     onChange={(e) => setFormData({ ...formData, loaiPhanHoi: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="Khiếu nại">Khiếu nại</option>
-                    <option value="Góp ý">Góp ý</option>
-                    <option value="Khen ngợi">Khen ngợi</option>
-                    <option value="Yêu cầu hỗ trợ">Yêu cầu hỗ trợ</option>
-                    <option value="Khác">Khác</option>
+                    <option value="Khi?u n?i">Khi?u n?i</option>
+                    <option value="G�p �">G�p �</option>
+                    <option value="Khen ng?i">Khen ng?i</option>
+                    <option value="Y�u c?u h? tr?">Y�u c?u h? tr?</option>
+                    <option value="Kh�c">Kh�c</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mức độ nghiêm trọng <span className="text-red-500">*</span>
+                    M?c d? nghi�m tr?ng <span className="text-red-500">*</span>
                   </label>
                   <select
                     required
@@ -373,17 +373,17 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                     onChange={(e) => setFormData({ ...formData, mucDoNghiemTrong: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="Thấp">Thấp</option>
-                    <option value="Trung bình">Trung bình</option>
+                    <option value="Th?p">Th?p</option>
+                    <option value="Trung b�nh">Trung b�nh</option>
                     <option value="Cao">Cao</option>
-                    <option value="Khẩn cấp">Khẩn cấp</option>
+                    <option value="Kh?n c?p">Kh?n c?p</option>
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nội dung phản hồi <span className="text-red-500">*</span>
+                  N?i dung ph?n h?i <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   required
@@ -396,7 +396,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sản phẩm liên quan</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">S?n ph?m li�n quan</label>
                   <input
                     type="text"
                     value={formData.sanPhamLienQuan || ''}
@@ -405,7 +405,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Đơn hàng liên quan</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">�on h�ng li�n quan</label>
                   <input
                     type="text"
                     value={formData.donHangLienQuan || ''}
@@ -417,7 +417,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Người tiếp nhận</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ngu?i ti?p nh?n</label>
                   <input
                     type="text"
                     value={formData.nguoiTiepNhan || ''}
@@ -427,7 +427,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Trạng thái xử lý <span className="text-red-500">*</span>
+                    Tr?ng th�i x? l� <span className="text-red-500">*</span>
                   </label>
                   <select
                     required
@@ -435,16 +435,16 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                     onChange={(e) => setFormData({ ...formData, trangThaiXuLy: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="Chưa xử lý">Chưa xử lý</option>
-                    <option value="Đang xử lý">Đang xử lý</option>
-                    <option value="Đã xử lý">Đã xử lý</option>
-                    <option value="Đã đóng">Đã đóng</option>
+                    <option value="Chua x? l�">Chua x? l�</option>
+                    <option value="�ang x? l�">�ang x? l�</option>
+                    <option value="�� x? l�">�� x? l�</option>
+                    <option value="�� d�ng">�� d�ng</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Biện pháp xử lý</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bi?n ph�p x? l�</label>
                 <textarea
                   rows={3}
                   value={formData.bienPhapXuLy || ''}
@@ -454,7 +454,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Kết quả xử lý</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">K?t qu? x? l�</label>
                 <textarea
                   rows={3}
                   value={formData.ketQuaXuLy || ''}
@@ -465,24 +465,24 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mức độ hài lòng</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">M?c d? h�i l�ng</label>
                   <select
                     value={formData.mucDoHaiLong || ''}
                     onChange={(e) => setFormData({ ...formData, mucDoHaiLong: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Chưa đánh giá</option>
-                    <option value="Rất không hài lòng">Rất không hài lòng</option>
-                    <option value="Không hài lòng">Không hài lòng</option>
-                    <option value="Trung bình">Trung bình</option>
-                    <option value="Hài lòng">Hài lòng</option>
-                    <option value="Rất hài lòng">Rất hài lòng</option>
+                    <option value="">Chua d�nh gi�</option>
+                    <option value="R?t kh�ng h�i l�ng">R?t kh�ng h�i l�ng</option>
+                    <option value="Kh�ng h�i l�ng">Kh�ng h�i l�ng</option>
+                    <option value="Trung b�nh">Trung b�nh</option>
+                    <option value="H�i l�ng">H�i l�ng</option>
+                    <option value="R?t h�i l�ng">R?t h�i l�ng</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi ch�</label>
                 <textarea
                   rows={2}
                   value={formData.ghiChu || ''}
@@ -497,13 +497,13 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                   onClick={() => setIsModalOpen(false)}
                   className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
-                  Hủy
+                  H?y
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  {selectedFeedback ? 'Cập nhật' : 'Thêm mới'}
+                  {selectedFeedback ? 'C?p nh?t' : 'Th�m m?i'}
                 </button>
               </div>
             </form>
@@ -516,7 +516,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-900">Chi tiết phản hồi</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Chi ti?t ph?n h?i</h3>
               <button onClick={() => setIsViewModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
@@ -525,81 +525,81 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Khách hàng</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Kh�ch h�ng</label>
                   <p className="text-gray-900 font-medium">{selectedFeedback.customer?.tenCongTy || 'N/A'}</p>
                   <p className="text-sm text-gray-500">{selectedFeedback.customer?.quocGia || ''}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Loại phản hồi</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Lo?i ph?n h?i</label>
                   <p className="text-gray-900">{selectedFeedback.loaiPhanHoi}</p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">Nội dung phản hồi</label>
+                <label className="block text-sm font-medium text-gray-500 mb-1">N?i dung ph?n h?i</label>
                 <p className="text-gray-900 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg">{selectedFeedback.noiDungPhanHoi}</p>
               </div>
 
               <div className="grid grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Mức độ nghiêm trọng</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">M?c d? nghi�m tr?ng</label>
                   <div>{getPriorityBadge(selectedFeedback.mucDoNghiemTrong)}</div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Trạng thái</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Tr?ng th�i</label>
                   <div>{getStatusBadge(selectedFeedback.trangThaiXuLy)}</div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Ngày phản hồi</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Ng�y ph?n h?i</label>
                   <p className="text-gray-900">{new Date(selectedFeedback.ngayPhanHoi).toLocaleDateString('vi-VN')}</p>
                 </div>
               </div>
 
               {selectedFeedback.sanPhamLienQuan && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Sản phẩm liên quan</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">S?n ph?m li�n quan</label>
                   <p className="text-gray-900">{selectedFeedback.sanPhamLienQuan}</p>
                 </div>
               )}
 
               {selectedFeedback.donHangLienQuan && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Đơn hàng liên quan</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">�on h�ng li�n quan</label>
                   <p className="text-gray-900">{selectedFeedback.donHangLienQuan}</p>
                 </div>
               )}
 
               {selectedFeedback.nguoiTiepNhan && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Người tiếp nhận</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Ngu?i ti?p nh?n</label>
                   <p className="text-gray-900">{selectedFeedback.nguoiTiepNhan}</p>
                 </div>
               )}
 
               {selectedFeedback.bienPhapXuLy && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Biện pháp xử lý</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Bi?n ph�p x? l�</label>
                   <p className="text-gray-900 whitespace-pre-wrap bg-blue-50 p-4 rounded-lg">{selectedFeedback.bienPhapXuLy}</p>
                 </div>
               )}
 
               {selectedFeedback.ketQuaXuLy && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Kết quả xử lý</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">K?t qu? x? l�</label>
                   <p className="text-gray-900 whitespace-pre-wrap bg-green-50 p-4 rounded-lg">{selectedFeedback.ketQuaXuLy}</p>
                 </div>
               )}
 
               {selectedFeedback.mucDoHaiLong && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Mức độ hài lòng</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">M?c d? h�i l�ng</label>
                   <p className="text-gray-900">{selectedFeedback.mucDoHaiLong}</p>
                 </div>
               )}
 
               {selectedFeedback.ghiChu && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Ghi chú</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Ghi ch�</label>
                   <p className="text-gray-900 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg">{selectedFeedback.ghiChu}</p>
                 </div>
               )}
@@ -609,7 +609,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                   onClick={() => setIsViewModalOpen(false)}
                   className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
-                  Đóng
+                  ��ng
                 </button>
                 <button
                   onClick={() => {
@@ -618,7 +618,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  Chỉnh sửa
+                  Ch?nh s?a
                 </button>
               </div>
             </div>

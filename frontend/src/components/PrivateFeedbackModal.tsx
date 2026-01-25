@@ -90,7 +90,7 @@ const PrivateFeedbackModal: React.FC<PrivateFeedbackModalProps> = ({
         throw new Error('Vui lòng đăng nhập lại');
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/private-feedbacks`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + ''}/private-feedbacks`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

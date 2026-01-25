@@ -43,7 +43,7 @@ const MachineSystemList = () => {
 
   const fetchSystems = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/machine-systems');
+      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/machine-systems');
       if (response.ok) {
         const data = await response.json();
         setSystems(data);
@@ -66,7 +66,7 @@ const MachineSystemList = () => {
     try {
       const url = editingSystem 
         ? `http://localhost:5000/api/machine-systems/${editingSystem.id}`
-        : 'http://localhost:5000/api/machine-systems';
+        : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/machine-systems';
       const method = editingSystem ? 'PUT' : 'POST';
       
       const response = await fetch(url, { method, body: formDataToSend });

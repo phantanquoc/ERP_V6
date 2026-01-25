@@ -48,7 +48,7 @@ const RepairRequestList = () => {
   const fetchRequests = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:5000/api/repair-requests', {
+      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/repair-requests', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -82,7 +82,7 @@ const RepairRequestList = () => {
       const token = localStorage.getItem('accessToken');
       const url = editingRequest
         ? `http://localhost:5000/api/repair-requests/${editingRequest.id}`
-        : 'http://localhost:5000/api/repair-requests';
+        : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/repair-requests';
 
       const method = editingRequest ? 'PUT' : 'POST';
 
@@ -179,7 +179,7 @@ const RepairRequestList = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:5000/api/repair-requests/generate-code', {
+      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/repair-requests/generate-code', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

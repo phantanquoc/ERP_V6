@@ -58,7 +58,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSu
     setError('');
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await axios.get('http://localhost:5000/api/employees/for-assignment?limit=1000', {
+      const response = await axios.get((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/employees/for-assignment?limit=1000', {
         headers: { Authorization: `Bearer ${token}` },
       });
 

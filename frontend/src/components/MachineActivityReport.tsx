@@ -56,7 +56,7 @@ const MachineActivityReport = () => {
 
   const fetchReports = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/machine-activity-reports');
+      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/machine-activity-reports');
       const data = await response.json();
       setReports(data);
     } catch (error) {
@@ -79,7 +79,7 @@ const MachineActivityReport = () => {
     try {
       const url = editingReport
         ? `http://localhost:5000/api/machine-activity-reports/${editingReport.id}`
-        : 'http://localhost:5000/api/machine-activity-reports';
+        : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/machine-activity-reports';
 
       const method = editingReport ? 'PUT' : 'POST';
 
