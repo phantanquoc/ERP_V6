@@ -34,10 +34,10 @@ interface AttendanceModalProps {
 const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, showBackdrop = false }) => {
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [location, setLocation] = useState<string>('Đang lấy vị trí...');
+  const [location, setLocation] = useState<string>('Tại công ty'); // Tạm thời bỏ GPS
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
-  const [isWithinRange, setIsWithinRange] = useState<boolean>(false);
+  const [isWithinRange, setIsWithinRange] = useState<boolean>(true); // Tạm thời cho phép chấm công
   const [locationError, setLocationError] = useState<string | null>(null);
   const [attendanceType, setAttendanceType] = useState<'checkin' | 'checkout'>('checkin');
   const [note, setNote] = useState('');
@@ -81,74 +81,75 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
     checkTodayAttendance();
   }, [isOpen, user?.employeeId]);
 
+  // TODO: Bật lại GPS khi có HTTPS
   // Get user location and calculate distance to company
-  useEffect(() => {
-    if (!isOpen) return;
+  // useEffect(() => {
+  //   if (!isOpen) return;
 
-    // Reset states when modal opens
-    setLocationError(null);
-    setUserCoords(null);
-    setDistance(null);
-    setIsWithinRange(false);
-    setLocation('Đang lấy vị trí...');
+  //   // Reset states when modal opens
+  //   setLocationError(null);
+  //   setUserCoords(null);
+  //   setDistance(null);
+  //   setIsWithinRange(false);
+  //   setLocation('Đang lấy vị trí...');
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setUserCoords({ latitude, longitude });
+  //   if (navigator.geolocation) {
+  //     navigator.geolocation.getCurrentPosition(
+  //       (position) => {
+  //         const { latitude, longitude } = position.coords;
+  //         setUserCoords({ latitude, longitude });
 
-          // Calculate distance to company
-          const dist = calculateDistance(
-            latitude,
-            longitude,
-            COMPANY_LOCATION.latitude,
-            COMPANY_LOCATION.longitude
-          );
-          setDistance(dist);
+  //         // Calculate distance to company
+  //         const dist = calculateDistance(
+  //           latitude,
+  //           longitude,
+  //           COMPANY_LOCATION.latitude,
+  //           COMPANY_LOCATION.longitude
+  //         );
+  //         setDistance(dist);
 
-          // Check if within allowed radius
-          const withinRange = dist <= COMPANY_LOCATION.radius;
-          setIsWithinRange(withinRange);
+  //         // Check if within allowed radius
+  //         const withinRange = dist <= COMPANY_LOCATION.radius;
+  //         setIsWithinRange(withinRange);
 
-          // Set location display
-          if (withinRange) {
-            setLocation(`Tại công ty (${Math.round(dist)}m)`);
-          } else {
-            setLocation(`Cách công ty ${Math.round(dist)}m`);
-          }
-        },
-        (error) => {
-          console.error('Geolocation error:', error);
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              setLocationError('Bạn đã từ chối quyền truy cập vị trí. Vui lòng cho phép trong cài đặt trình duyệt.');
-              setLocation('Không có quyền truy cập vị trí');
-              break;
-            case error.POSITION_UNAVAILABLE:
-              setLocationError('Không thể xác định vị trí. Vui lòng kiểm tra GPS.');
-              setLocation('Không thể xác định vị trí');
-              break;
-            case error.TIMEOUT:
-              setLocationError('Hết thời gian chờ lấy vị trí. Vui lòng thử lại.');
-              setLocation('Hết thời gian chờ');
-              break;
-            default:
-              setLocationError('Không thể lấy vị trí');
-              setLocation('Không thể lấy vị trí');
-          }
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
-      );
-    } else {
-      setLocationError('Trình duyệt không hỗ trợ định vị');
-      setLocation('Trình duyệt không hỗ trợ định vị');
-    }
-  }, [isOpen]);
+  //         // Set location display
+  //         if (withinRange) {
+  //           setLocation(`Tại công ty (${Math.round(dist)}m)`);
+  //         } else {
+  //           setLocation(`Cách công ty ${Math.round(dist)}m`);
+  //         }
+  //       },
+  //       (error) => {
+  //         console.error('Geolocation error:', error);
+  //         switch (error.code) {
+  //           case error.PERMISSION_DENIED:
+  //             setLocationError('Bạn đã từ chối quyền truy cập vị trí. Vui lòng cho phép trong cài đặt trình duyệt.');
+  //             setLocation('Không có quyền truy cập vị trí');
+  //             break;
+  //           case error.POSITION_UNAVAILABLE:
+  //             setLocationError('Không thể xác định vị trí. Vui lòng kiểm tra GPS.');
+  //             setLocation('Không thể xác định vị trí');
+  //             break;
+  //           case error.TIMEOUT:
+  //             setLocationError('Hết thời gian chờ lấy vị trí. Vui lòng thử lại.');
+  //             setLocation('Hết thời gian chờ');
+  //             break;
+  //           default:
+  //             setLocationError('Không thể lấy vị trí');
+  //             setLocation('Không thể lấy vị trí');
+  //         }
+  //       },
+  //       {
+  //         enableHighAccuracy: true,
+  //         timeout: 10000,
+  //         maximumAge: 0
+  //       }
+  //     );
+  //   } else {
+  //     setLocationError('Trình duyệt không hỗ trợ định vị');
+  //     setLocation('Trình duyệt không hỗ trợ định vị');
+  //   }
+  // }, [isOpen]);
 
   // This is now handled by the Modal component
 
