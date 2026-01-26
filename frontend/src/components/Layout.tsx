@@ -36,10 +36,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
 
             {/* Centered text */}
-            <h1 className="text-xl font-semibold text-gray-800 text-center">
-              NẾU CÓ NGÔI NHÀ THỨ 2 ĐÓ CHÍNH LÀ NƠI LÀM VIỆC CỦA MÌNH,
-              <br />NƠI CÓ NHỮNG NGƯỜI ĐỒNG NGHIỆP TUYỆT VỜI, SẺ CHIA VÀ TRI KỶ.
-            </h1>
+            <p className="text-lg font-medium text-gray-900 text-center italic">
+              Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.
+            </p>
 
             {/* Notification Bell and User dropdown - positioned absolutely to the right */}
             <div className="absolute right-0 flex items-center gap-2">

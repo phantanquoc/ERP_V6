@@ -24,6 +24,7 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
     phoneNumber: '',
     bankAccount: '',
     lockerNumber: '',
+    gender: '',
     weight: '',
     height: '',
     shirtSize: '',
@@ -34,6 +35,28 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  // Helper function to convert gender from API format to form value
+  const getGenderValue = (gender?: string): string => {
+    if (!gender) return '';
+    switch (gender.toUpperCase()) {
+      case 'MALE': return 'MALE';
+      case 'FEMALE': return 'FEMALE';
+      case 'OTHER': return 'OTHER';
+      default: return gender;
+    }
+  };
+
+  // Helper function to display gender in Vietnamese
+  const getGenderDisplay = (gender?: string): string => {
+    if (!gender) return 'Chưa cập nhật';
+    switch (gender.toUpperCase()) {
+      case 'MALE': return 'Nam';
+      case 'FEMALE': return 'Nữ';
+      case 'OTHER': return 'Khác';
+      default: return gender;
+    }
+  };
+
   useEffect(() => {
     if (user && isOpen) {
       setFormData({
@@ -43,6 +66,7 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
         phoneNumber: user.phoneNumber || '',
         bankAccount: user.bankAccount || '',
         lockerNumber: user.lockerNumber || '',
+        gender: getGenderValue(user.gender),
         weight: user.weight?.toString() || '',
         height: user.height?.toString() || '',
         shirtSize: user.shirtSize || '',
@@ -117,6 +141,11 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
         lockerNumber: formData.lockerNumber,
       };
 
+      // Add gender if present
+      if (formData.gender) {
+        updateData.gender = formData.gender;
+      }
+
       // Add physical data if present
       if (formData.weight) {
         updateData.weight = Number(formData.weight);
@@ -144,6 +173,7 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
         phoneNumber: formData.phoneNumber,
         bankAccount: formData.bankAccount,
         lockerNumber: formData.lockerNumber,
+        gender: formData.gender as 'Nam' | 'Nữ' | 'Khác' | undefined,
         weight: formData.weight ? Number(formData.weight) : undefined,
         height: formData.height ? Number(formData.height) : undefined,
         shirtSize: formData.shirtSize || undefined,
@@ -264,7 +294,7 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
                       <User className="w-5 h-5 text-gray-400" />
                       <div>
                         <p className="text-sm font-medium text-gray-900">Giới tính</p>
-                        <p className="text-sm text-gray-600">{user.gender || 'Chưa cập nhật'}</p>
+                        <p className="text-sm text-gray-600">{getGenderDisplay(user.gender)}</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
@@ -401,6 +431,26 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
                     {errors.email}
                   </p>
                 )}
+              </div>
+
+              {/* Gender */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Giới tính
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent appearance-none bg-white"
+                  >
+                    <option value="">Chọn giới tính</option>
+                    <option value="MALE">Nam</option>
+                    <option value="FEMALE">Nữ</option>
+                    <option value="OTHER">Khác</option>
+                  </select>
+                </div>
               </div>
 
               {/* Phone */}

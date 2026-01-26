@@ -3,6 +3,7 @@ import { NotFoundError, AuthenticationError, ValidationError } from '@utils/erro
 import { getPaginationParams, calculateTotalPages, hashPassword, comparePassword } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
 import { UserRole } from '@types';
+import { Gender } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 export class UserService {
@@ -664,6 +665,7 @@ export class UserService {
       phoneNumber?: string;
       bankAccount?: string;
       lockerNumber?: string;
+      gender?: string;
       weight?: number;
       height?: number;
       shirtSize?: string;
@@ -722,6 +724,7 @@ export class UserService {
           ...(data.phoneNumber !== undefined && { phoneNumber: data.phoneNumber }),
           ...(data.bankAccount !== undefined && { bankAccount: data.bankAccount }),
           ...(data.lockerNumber !== undefined && { lockerNumber: data.lockerNumber }),
+          ...(data.gender !== undefined && { gender: data.gender as Gender }),
           ...(data.weight !== undefined && { weight: data.weight }),
           ...(data.height !== undefined && { height: data.height }),
           ...(data.shirtSize !== undefined && { shirtSize: data.shirtSize }),
@@ -732,6 +735,7 @@ export class UserService {
           phoneNumber: true,
           bankAccount: true,
           lockerNumber: true,
+          gender: true,
           weight: true,
           height: true,
           shirtSize: true,
@@ -747,6 +751,7 @@ export class UserService {
       phoneNumber: updatedEmployee?.phoneNumber || null,
       bankAccount: updatedEmployee?.bankAccount || null,
       lockerNumber: updatedEmployee?.lockerNumber || null,
+      gender: updatedEmployee?.gender || null,
       weight: updatedEmployee?.weight || null,
       height: updatedEmployee?.height || null,
       shirtSize: updatedEmployee?.shirtSize || null,

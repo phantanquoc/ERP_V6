@@ -1,8 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, MapPin, Camera, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Clock, MapPin, Camera, CheckCircle, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from './Modal';
 import attendanceService from '@services/attendanceService';
+
+// Vị trí công ty AN BINH INTERNATIONAL FOOD COMPANY LIMITED
+const COMPANY_LOCATION = {
+  latitude: 11.1425125,
+  longitude: 107.499625,
+  radius: 50, // Bán kính cho phép (mét)
+  name: 'AN BINH INTERNATIONAL FOOD COMPANY LIMITED'
+};
+
+// Hàm tính khoảng cách giữa 2 điểm (Haversine formula)
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371000; // Bán kính trái đất (mét)
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Khoảng cách (mét)
+};
 
 interface AttendanceModalProps {
   isOpen: boolean;
@@ -14,6 +35,10 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [location, setLocation] = useState<string>('Đang lấy vị trí...');
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [distance, setDistance] = useState<number | null>(null);
+  const [isWithinRange, setIsWithinRange] = useState<boolean>(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [attendanceType, setAttendanceType] = useState<'checkin' | 'checkout'>('checkin');
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,21 +81,71 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
     checkTodayAttendance();
   }, [isOpen, user?.employeeId]);
 
-  // Get user location
+  // Get user location and calculate distance to company
   useEffect(() => {
     if (!isOpen) return;
+
+    // Reset states when modal opens
+    setLocationError(null);
+    setUserCoords(null);
+    setDistance(null);
+    setIsWithinRange(false);
+    setLocation('Đang lấy vị trí...');
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          // In a real app, you would reverse geocode this
-          setLocation(`${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`);
+          const { latitude, longitude } = position.coords;
+          setUserCoords({ latitude, longitude });
+
+          // Calculate distance to company
+          const dist = calculateDistance(
+            latitude,
+            longitude,
+            COMPANY_LOCATION.latitude,
+            COMPANY_LOCATION.longitude
+          );
+          setDistance(dist);
+
+          // Check if within allowed radius
+          const withinRange = dist <= COMPANY_LOCATION.radius;
+          setIsWithinRange(withinRange);
+
+          // Set location display
+          if (withinRange) {
+            setLocation(`Tại công ty (${Math.round(dist)}m)`);
+          } else {
+            setLocation(`Cách công ty ${Math.round(dist)}m`);
+          }
         },
-        () => {
-          setLocation('Không thể lấy vị trí');
+        (error) => {
+          console.error('Geolocation error:', error);
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              setLocationError('Bạn đã từ chối quyền truy cập vị trí. Vui lòng cho phép trong cài đặt trình duyệt.');
+              setLocation('Không có quyền truy cập vị trí');
+              break;
+            case error.POSITION_UNAVAILABLE:
+              setLocationError('Không thể xác định vị trí. Vui lòng kiểm tra GPS.');
+              setLocation('Không thể xác định vị trí');
+              break;
+            case error.TIMEOUT:
+              setLocationError('Hết thời gian chờ lấy vị trí. Vui lòng thử lại.');
+              setLocation('Hết thời gian chờ');
+              break;
+            default:
+              setLocationError('Không thể lấy vị trí');
+              setLocation('Không thể lấy vị trí');
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         }
       );
     } else {
+      setLocationError('Trình duyệt không hỗ trợ định vị');
       setLocation('Trình duyệt không hỗ trợ định vị');
     }
   }, [isOpen]);
@@ -227,10 +302,51 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Vị trí
                   </label>
-                  <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                    <MapPin className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-700">{location}</span>
+                  <div className={`p-3 rounded-lg border-2 ${
+                    isWithinRange
+                      ? 'bg-green-50 border-green-300'
+                      : locationError
+                        ? 'bg-red-50 border-red-300'
+                        : userCoords
+                          ? 'bg-yellow-50 border-yellow-300'
+                          : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className="flex items-center space-x-2">
+                      {isWithinRange ? (
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      ) : locationError ? (
+                        <XCircle className="w-5 h-5 text-red-600" />
+                      ) : userCoords ? (
+                        <AlertCircle className="w-5 h-5 text-yellow-600" />
+                      ) : (
+                        <MapPin className="w-5 h-5 text-gray-500 animate-pulse" />
+                      )}
+                      <div className="flex-1">
+                        <span className={`text-sm font-medium ${
+                          isWithinRange
+                            ? 'text-green-700'
+                            : locationError
+                              ? 'text-red-700'
+                              : userCoords
+                                ? 'text-yellow-700'
+                                : 'text-gray-700'
+                        }`}>
+                          {location}
+                        </span>
+                        {distance !== null && !isWithinRange && !locationError && (
+                          <p className="text-xs text-yellow-600 mt-1">
+                            Bạn cần ở trong phạm vi {COMPANY_LOCATION.radius}m từ công ty để chấm công
+                          </p>
+                        )}
+                        {locationError && (
+                          <p className="text-xs text-red-600 mt-1">{locationError}</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    📍 {COMPANY_LOCATION.name}
+                  </p>
                 </div>
 
                 {/* Note */}
@@ -250,17 +366,24 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !isWithinRange}
                   className={`w-full py-3 px-4 rounded-lg font-semibold transition-all ${
-                    attendanceType === 'checkin'
-                      ? 'bg-green-600 hover:bg-green-700 text-white'
-                      : 'bg-red-600 hover:bg-red-700 text-white'
+                    !isWithinRange
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      : attendanceType === 'checkin'
+                        ? 'bg-green-600 hover:bg-green-700 text-white'
+                        : 'bg-red-600 hover:bg-red-700 text-white'
                   } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {isSubmitting ? (
                     <div className="flex items-center justify-center space-x-2">
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                       <span>Đang xử lý...</span>
+                    </div>
+                  ) : !isWithinRange ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <MapPin className="w-4 h-4" />
+                      <span>Vui lòng đến công ty để chấm công</span>
                     </div>
                   ) : (
                     `${attendanceType === 'checkin' ? 'Chấm công vào' : 'Chấm công ra'}`

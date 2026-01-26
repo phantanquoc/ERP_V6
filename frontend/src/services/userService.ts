@@ -42,6 +42,7 @@ interface UpdateProfileRequest {
   phoneNumber?: string;
   bankAccount?: string;
   lockerNumber?: string;
+  gender?: string;
   weight?: number;
   height?: number;
   shirtSize?: string;
