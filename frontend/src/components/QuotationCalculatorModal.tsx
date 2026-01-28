@@ -468,6 +468,25 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           ...newTabs[activeTab],
           selectedProcess: processData,
         };
+
+        // Recalculate planned production cost and update form field so UI reflects change
+        try {
+          let chiPhiSanXuatPerDay = 0;
+          if (processData.flowchart?.sections) {
+            chiPhiSanXuatPerDay = processData.flowchart.sections.reduce((sum: number, section: any) => {
+              return sum + (section.costs || []).reduce((costSum: number, cost: any) => {
+                const gia = cost.giaKeHoach || 0;
+                const soLuong = cost.soLuongKeHoach || 0;
+                return costSum + (gia * soLuong);
+              }, 0);
+            }, 0);
+          }
+          const maxDays = parseInt(newTabs[activeTab].formData.thoiGianChoPhepToiDa) || 1;
+          newTabs[activeTab].formData.chiPhiSanXuatKeHoach = (chiPhiSanXuatPerDay * maxDays).toString();
+        } catch (e) {
+          // ignore
+        }
+
         console.log('✅ Updated tab with selectedProcess:', newTabs[activeTab]);
         return newTabs;
       });
@@ -823,7 +842,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseInt(tab.formData.thoiGianChoPhepToiDa) : undefined,
               ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
               ngayHoanThanhThucTe: tab.formData.ngayHoanThanhThucTe || undefined,
-              chiPhiSanXuatKeHoach: tab.formData.chiPhiSanXuatKeHoach ? parseFloat(tab.formData.chiPhiSanXuatKeHoach) : undefined,
+              chiPhiSanXuatKeHoach: (() => { const v = calculateChiPhiSanXuatKeHoach(index); return v ? v : undefined; })(),
               chiPhiSanXuatThucTe: tab.formData.chiPhiSanXuatThucTe ? parseFloat(tab.formData.chiPhiSanXuatThucTe) : undefined,
               chiPhiChungKeHoach: tab.formData.chiPhiChungKeHoach ? parseFloat(tab.formData.chiPhiChungKeHoach) : undefined,
               chiPhiChungThucTe: tab.formData.chiPhiChungThucTe ? parseFloat(tab.formData.chiPhiChungThucTe) : undefined,
@@ -925,7 +944,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseInt(tab.formData.thoiGianChoPhepToiDa) : undefined,
             ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
             ngayHoanThanhThucTe: tab.formData.ngayHoanThanhThucTe || undefined,
-            chiPhiSanXuatKeHoach: tab.formData.chiPhiSanXuatKeHoach ? parseFloat(tab.formData.chiPhiSanXuatKeHoach) : undefined,
+            chiPhiSanXuatKeHoach: (() => { const v = calculateChiPhiSanXuatKeHoach(index); return v ? v : undefined; })(),
             chiPhiSanXuatThucTe: tab.formData.chiPhiSanXuatThucTe ? parseFloat(tab.formData.chiPhiSanXuatThucTe) : undefined,
             chiPhiChungKeHoach: tab.formData.chiPhiChungKeHoach ? parseFloat(tab.formData.chiPhiChungKeHoach) : undefined,
             chiPhiChungThucTe: tab.formData.chiPhiChungThucTe ? parseFloat(tab.formData.chiPhiChungThucTe) : undefined,
@@ -1195,10 +1214,10 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     const items = getItems();
     const currentItem = items[tabIndex];
 
-    // 1. Tính tổng chi phí sản xuất (kế hoạch)
-    let chiPhiSanXuat = 0;
+    // 1. Tính tổng chi phí sản xuất (kế hoạch) - per-day from flowchart
+    let chiPhiSanXuatPerDay = 0;
     if (tab.selectedProcess?.flowchart?.sections) {
-      chiPhiSanXuat = tab.selectedProcess.flowchart.sections.reduce((sum, section) => {
+      chiPhiSanXuatPerDay = tab.selectedProcess.flowchart.sections.reduce((sum, section) => {
         return sum + section.costs.reduce((costSum, cost) => {
           const gia = cost.giaKeHoach || 0;
           const soLuong = cost.soLuongKeHoach || 0;
@@ -1206,6 +1225,10 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
         }, 0);
       }, 0);
     }
+
+    // Multiply per-day cost by allowed max days (thoiGianChoPhepToiDa)
+    const maxDays = parseInt(tab.formData.thoiGianChoPhepToiDa) || 1;
+    const chiPhiSanXuat = chiPhiSanXuatPerDay * maxDays;
 
     // 2. Tính chi phí chung (phân bổ theo khối lượng)
     const totalGeneralCostKeHoach = selectedGeneralCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
@@ -1245,6 +1268,24 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     // 6. Giá hòa vốn sản phẩm chính = (Tổng chi phí - Tổng giá trị sản phẩm phụ) / Số kg sản phẩm chính
     const giaHoaVonChinhPham = (tongChiPhi - tongGiaTriSanPhamPhu) / soKgChinhPham;
     return giaHoaVonChinhPham;
+  };
+
+  // Helper: compute planned production cost (keHoach) = maxDays * per-day flowchart cost
+  const calculateChiPhiSanXuatKeHoach = (tabIndex: number) => {
+    const tab = tabsData[tabIndex];
+    if (!tab) return 0;
+    let chiPhiSanXuatPerDay = 0;
+    if (tab.selectedProcess?.flowchart?.sections) {
+      chiPhiSanXuatPerDay = tab.selectedProcess.flowchart.sections.reduce((sum, section) => {
+        return sum + section.costs.reduce((costSum, cost) => {
+          const gia = cost.giaKeHoach || 0;
+          const soLuong = cost.soLuongKeHoach || 0;
+          return costSum + (gia * soLuong);
+        }, 0);
+      }, 0);
+    }
+    const maxDays = parseInt(tab.formData.thoiGianChoPhepToiDa) || 1;
+    return chiPhiSanXuatPerDay * maxDays;
   };
 
   const items = getItems();
@@ -1343,19 +1384,19 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         });
                       }
 
-                      return (
-                        <tr key={index} className="bg-white hover:bg-gray-50">
-                          <td className="border border-gray-400 px-4 py-2">
-                            Chi phí sản phẩm {index + 1}: {item.tenSanPham}
-                          </td>
-                          <td className="border border-gray-400 px-4 py-2 text-right">
-                            {totalKeHoach.toLocaleString('vi-VN')}
-                          </td>
-                          <td className="border border-gray-400 px-4 py-2 text-right">
-                            {totalThucTe.toLocaleString('vi-VN')}
-                          </td>
-                        </tr>
-                      );
+                              return (
+                                <tr key={index} className="bg-white hover:bg-gray-50">
+                                  <td className="border border-gray-400 px-4 py-2">
+                                    Chi phí sản phẩm {index + 1}: {item.tenSanPham}
+                                  </td>
+                                  <td className="border border-gray-400 px-4 py-2 text-right">
+                                    {(totalKeHoach * (parseInt(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1)).toLocaleString('vi-VN')}
+                                  </td>
+                                  <td className="border border-gray-400 px-4 py-2 text-right">
+                                    {totalThucTe.toLocaleString('vi-VN')}
+                                  </td>
+                                </tr>
+                              );
                     })}
                   </tbody>
                 </table>
@@ -1974,6 +2015,26 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                     setTabsData(prev => {
                       const newTabs = [...prev];
                       newTabs[activeTab].formData.thoiGianChoPhepToiDa = e.target.value;
+
+                      // Recalculate planned production cost using updated days and existing flowchart
+                      try {
+                        let chiPhiSanXuatPerDay = 0;
+                        const proc = newTabs[activeTab].selectedProcess;
+                        if (proc?.flowchart?.sections) {
+                          chiPhiSanXuatPerDay = proc.flowchart.sections.reduce((sum: number, section: any) => {
+                            return sum + (section.costs || []).reduce((costSum: number, cost: any) => {
+                              const gia = cost.giaKeHoach || 0;
+                              const soLuong = cost.soLuongKeHoach || 0;
+                              return costSum + (gia * soLuong);
+                            }, 0);
+                          }, 0);
+                        }
+                        const maxDays = parseInt(newTabs[activeTab].formData.thoiGianChoPhepToiDa) || 1;
+                        newTabs[activeTab].formData.chiPhiSanXuatKeHoach = (chiPhiSanXuatPerDay * maxDays).toString();
+                      } catch (e) {
+                        // ignore
+                      }
+
                       return newTabs;
                     });
                   }}
@@ -2042,7 +2103,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             return costSum + (gia * soLuong);
                           }, 0);
                         }, 0);
-                        return total.toLocaleString('vi-VN');
+                        const days = parseInt(currentTab.formData.thoiGianChoPhepToiDa) || 1;
+                        return (total * days).toLocaleString('vi-VN');
                       })()}
                       disabled
                       className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
@@ -2195,16 +2257,18 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                     <input
                       type="text"
                       value={(() => {
-                        // 1. Chi phí sản xuất kế hoạch
+                        // 1. Chi phí sản xuất kế hoạch (per-day * allowed days)
                         let chiPhiSanXuat = 0;
                         if (currentTab.selectedProcess?.flowchart?.sections) {
-                          chiPhiSanXuat = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
+                          const perDay = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
                             return sum + section.costs.reduce((costSum, cost) => {
                               const gia = cost.giaKeHoach || 0;
                               const soLuong = cost.soLuongKeHoach || 0;
                               return costSum + (gia * soLuong);
                             }, 0);
                           }, 0);
+                          const maxDays = parseInt(currentTab.formData.thoiGianChoPhepToiDa) || 1;
+                          chiPhiSanXuat = perDay * maxDays;
                         }
 
                         // 2. Chi phí chung kế hoạch
