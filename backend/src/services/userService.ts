@@ -242,88 +242,10 @@ export class UserService {
       },
     });
 
-    // If department changed, update employee code
-    if (departmentChanged && data.departmentId) {
-      await this.updateEmployeeCodeForDepartmentChange(id, data.departmentId);
-    }
+    // Employee code is NOT changed when department changes
+    // Employee code format: NV001, NV002, NV003... (assigned once, never changes)
 
     return updated;
-  }
-
-  /**
-   * Update employee code when department changes
-   */
-  private async updateEmployeeCodeForDepartmentChange(userId: string, newDepartmentId: string): Promise<void> {
-    try {
-      // Find employee for this user
-      const employee = await prisma.employee.findUnique({
-        where: { userId },
-      });
-
-      if (!employee) {
-        return; // No employee record, skip
-      }
-
-      // Get new department info
-      const department = await prisma.department.findUnique({
-        where: { id: newDepartmentId },
-      });
-
-      if (!department) {
-        return;
-      }
-
-      // Department code mapping
-      const DEPARTMENT_CODE_MAP: Record<string, string> = {
-        'DEPT_GENERAL': 'NVTH',
-        'DEPT_QUALITY': 'NVQL',
-        'DEPT_BUSINESS': 'NVKD',
-        'DEPT_ACCOUNTING': 'NVKT',
-        'DEPT_PURCHASING': 'NVTM',
-        'DEPT_PRODUCTION': 'NVSX',
-        'DEPT_TECHNICAL': 'NVKY',
-      };
-
-      const prefix = DEPARTMENT_CODE_MAP[department.code];
-      if (!prefix) {
-        return; // Unknown department code
-      }
-
-      // Get highest sequence for new department
-      const lastEmployee = await prisma.employee.findFirst({
-        where: {
-          employeeCode: {
-            startsWith: `${prefix}-`,
-          },
-        },
-        orderBy: {
-          employeeCode: 'desc',
-        },
-      });
-
-      let sequence = 1;
-      if (lastEmployee) {
-        const lastCode = lastEmployee.employeeCode;
-        const sequenceStr = lastCode.split('-')[1];
-        if (sequenceStr) {
-          sequence = parseInt(sequenceStr, 10) + 1;
-        }
-      }
-
-      // Generate new employee code
-      const newEmployeeCode = `${prefix}-${String(sequence).padStart(3, '0')}`;
-
-      // Update employee code
-      await prisma.employee.update({
-        where: { id: employee.id },
-        data: {
-          employeeCode: newEmployeeCode,
-        },
-      });
-    } catch (error) {
-      console.error('Error updating employee code for department change:', error);
-      // Don't throw error, just log it
-    }
   }
 
   async deleteUser(id: string): Promise<void> {
