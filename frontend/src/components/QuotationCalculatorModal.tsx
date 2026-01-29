@@ -1577,14 +1577,18 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <td className="py-2 w-1/4 text-right">
                         {(() => {
                           let total = 0;
-                          // Chi phí sản phẩm
+                          // Chi phí sản phẩm (giống cách tính ở bảng chi phí sản phẩm)
                           tabsData.forEach(tab => {
                             if (tab?.selectedProcess?.flowchart?.sections) {
+                              let productTotal = 0;
                               tab.selectedProcess.flowchart.sections.forEach(section => {
                                 section.costs?.forEach(cost => {
-                                  total += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
+                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
                                 });
                               });
+                              // Nhân với thời gian cho phép tối đa (giống như hiển thị ở bảng chi phí sản phẩm)
+                              const multiplier = parseInt(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
+                              total += productTotal * multiplier;
                             }
                           });
                           // Chi phí chung
@@ -1597,7 +1601,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <td className="py-2 w-1/4 text-right">
                         {(() => {
                           let total = 0;
-                          // Chi phí sản phẩm
+                          // Chi phí sản phẩm thực tế
                           tabsData.forEach(tab => {
                             if (tab?.selectedProcess?.flowchart?.sections) {
                               tab.selectedProcess.flowchart.sections.forEach(section => {
