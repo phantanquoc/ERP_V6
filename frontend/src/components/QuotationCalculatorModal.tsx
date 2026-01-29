@@ -1896,6 +1896,25 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   placeholder="Nhập tỉ lệ thu hồi"
                 />
               </div>
+
+              {/* Tổng khối lượng thành phẩm đầu ra */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tổng khối lượng thành phẩm đầu ra (kg)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={
+                    currentTab.formData.tongNguyenLieuCanSanXuat && currentTab.formData.tiLeThuHoi
+                      ? (parseFloat(currentTab.formData.tongNguyenLieuCanSanXuat) * parseFloat(currentTab.formData.tiLeThuHoi) / 100).toFixed(2)
+                      : '0'
+                  }
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-green-600 font-medium"
+                  placeholder="Tự động tính"
+                />
+              </div>
             </div> {/* End Left Column */}
 
             {/* Right Column */}
@@ -2373,6 +2392,30 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             }`}
                           >
                             <span className="font-medium">{item.tiLe} %</span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+
+                    {/* Tổng khối lượng thành phẩm đầu ra */}
+                    <tr>
+                      <td className="px-4 py-2 bg-gray-100 border border-gray-300 text-sm text-gray-700">
+                        tổng khối lượng thành phẩm đầu ra
+                      </td>
+                      {currentTab.selectedStandard.items.map((item, index) => {
+                        const isSelected = currentTab.formData.sanPhamDauRa === item.tenThanhPham;
+                        // Tổng khối lượng thành phẩm đầu ra = Tổng nguyên liệu cần sản xuất × Tỉ lệ thu hồi thành phẩm K3 / 100
+                        const tongKhoiLuongDauRa = currentTab.formData.tongNguyenLieuCanSanXuat && currentTab.formData.tiLeThuHoi
+                          ? (parseFloat(currentTab.formData.tongNguyenLieuCanSanXuat) * parseFloat(currentTab.formData.tiLeThuHoi) / 100).toFixed(2)
+                          : '0';
+                        return (
+                          <td
+                            key={index}
+                            className={`px-4 py-2 border border-gray-300 text-center ${
+                              isSelected ? 'bg-blue-50' : 'bg-gray-50'
+                            }`}
+                          >
+                            <span className="font-medium text-green-600">{tongKhoiLuongDauRa} kg</span>
                           </td>
                         );
                       })}

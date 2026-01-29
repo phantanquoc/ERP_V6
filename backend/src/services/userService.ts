@@ -188,9 +188,6 @@ export class UserService {
       }
     }
 
-    // Check if departmentId is being changed
-    const departmentChanged = data.departmentId !== undefined && data.departmentId !== user.departmentId;
-
     // Check if role, department, or subDepartment is being changed
     const roleChanged = data.role !== undefined && data.role !== user.role;
     const deptChanged = data.departmentId !== undefined && data.departmentId !== user.departmentId;
