@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Eye, X, Upload, Settings } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, Upload, Settings, Save } from 'lucide-react';
 import materialEvaluationService, { MaterialEvaluation } from '../services/materialEvaluationService';
+import materialEvaluationCriteriaService, { MaterialEvaluationCriteria } from '../services/materialEvaluationCriteriaService';
 import systemOperationService from '../services/systemOperationService';
 import DateTimePicker from './DateTimePicker';
 
@@ -12,10 +13,19 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   const [evaluations, setEvaluations] = useState<MaterialEvaluation[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [selectedEvaluation, setSelectedEvaluation] = useState<MaterialEvaluation | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Criteria states
+  const [criteria, setCriteria] = useState<MaterialEvaluationCriteria[]>([]);
+  const [criteriaLoading, setCriteriaLoading] = useState(false);
+  const [editingCriteria, setEditingCriteria] = useState<MaterialEvaluationCriteria | null>(null);
+  const [newCriteriaCode, setNewCriteriaCode] = useState<number>(0);
+  const [newCriteriaDescription, setNewCriteriaDescription] = useState<string>('');
+
   const [formData, setFormData] = useState<Partial<MaterialEvaluation>>({
     maChien: '',
     thoiGianChien: '',
@@ -34,6 +44,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
 
   useEffect(() => {
     loadEvaluations();
+    loadCriteria();
   }, []);
 
   const loadEvaluations = async () => {
@@ -48,6 +59,94 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadCriteria = async () => {
+    try {
+      setCriteriaLoading(true);
+      const data = await materialEvaluationCriteriaService.getAllCriteria();
+      setCriteria(data);
+      // Set next code number
+      if (data.length > 0) {
+        const maxCode = Math.max(...data.map(c => c.code));
+        setNewCriteriaCode(maxCode + 1);
+      } else {
+        setNewCriteriaCode(1);
+      }
+    } catch (err: any) {
+      console.error('Error loading criteria:', err);
+    } finally {
+      setCriteriaLoading(false);
+    }
+  };
+
+  const handleSeedDefaultCriteria = async () => {
+    try {
+      setCriteriaLoading(true);
+      await materialEvaluationCriteriaService.seedDefaultCriteria();
+      await loadCriteria();
+      alert('Đã tạo tiêu chí mặc định thành công!');
+    } catch (err: any) {
+      alert('Lỗi: ' + (err.message || 'Không thể tạo tiêu chí mặc định'));
+    } finally {
+      setCriteriaLoading(false);
+    }
+  };
+
+  const handleAddCriteria = async () => {
+    if (!newCriteriaDescription.trim()) {
+      alert('Vui lòng nhập mô tả tiêu chí');
+      return;
+    }
+    try {
+      setCriteriaLoading(true);
+      await materialEvaluationCriteriaService.createCriteria({
+        code: newCriteriaCode,
+        description: newCriteriaDescription.trim()
+      });
+      setNewCriteriaDescription('');
+      await loadCriteria();
+    } catch (err: any) {
+      alert('Lỗi: ' + (err.message || 'Không thể thêm tiêu chí'));
+    } finally {
+      setCriteriaLoading(false);
+    }
+  };
+
+  const handleUpdateCriteria = async (id: string, description: string) => {
+    try {
+      setCriteriaLoading(true);
+      await materialEvaluationCriteriaService.updateCriteria(id, { description });
+      setEditingCriteria(null);
+      await loadCriteria();
+    } catch (err: any) {
+      alert('Lỗi: ' + (err.message || 'Không thể cập nhật tiêu chí'));
+    } finally {
+      setCriteriaLoading(false);
+    }
+  };
+
+  const handleDeleteCriteria = async (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa tiêu chí này?')) return;
+    try {
+      setCriteriaLoading(true);
+      await materialEvaluationCriteriaService.deleteCriteria(id);
+      await loadCriteria();
+    } catch (err: any) {
+      alert('Lỗi: ' + (err.message || 'Không thể xóa tiêu chí'));
+    } finally {
+      setCriteriaLoading(false);
+    }
+  };
+
+  // Convert criteria codes to text descriptions
+  const getCriteriaText = (codes: string): string => {
+    if (!codes) return '';
+    const codeArray = codes.split(',').map(c => parseInt(c.trim())).filter(c => !isNaN(c));
+    return codeArray.map(code => {
+      const criterion = criteria.find(c => c.code === code);
+      return criterion ? `${code}. ${criterion.description}` : `${code}. (Không tìm thấy)`;
+    }).join('; ');
   };
 
   const formatDateTime = (datetime: string) => {
@@ -204,14 +303,24 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Đánh giá nguyên liệu</h2>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          disabled={loading}
-        >
-          <Plus className="w-4 h-4" />
-          Thêm đánh giá
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            disabled={loading}
+          >
+            <Plus className="w-4 h-4" />
+            Thêm đánh giá
+          </button>
+          <button
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            disabled={loading}
+          >
+            <Settings className="w-4 h-4" />
+            Cài đặt đánh giá
+          </button>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -477,8 +586,17 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     value={formData.danhGiaTruocNgam}
                     onChange={handleInputChange}
                     required
+                    placeholder="Nhập mã số (VD: 1,2,3)"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
+                  {formData.danhGiaTruocNgam && (
+                    <p className="mt-1 text-sm text-green-600">
+                      {getCriteriaText(formData.danhGiaTruocNgam)}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Nhập các mã số cách nhau bởi dấu phẩy. Xem danh sách mã trong "Cài đặt đánh giá"
+                  </p>
                 </div>
 
                 <div>
@@ -491,8 +609,17 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     value={formData.danhGiaSauNgam}
                     onChange={handleInputChange}
                     required
+                    placeholder="Nhập mã số (VD: 1,2,3)"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
+                  {formData.danhGiaSauNgam && (
+                    <p className="mt-1 text-sm text-green-600">
+                      {getCriteriaText(formData.danhGiaSauNgam)}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Nhập các mã số cách nhau bởi dấu phẩy. Xem danh sách mã trong "Cài đặt đánh giá"
+                  </p>
                 </div>
 
                 <div>
@@ -599,10 +726,16 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Đánh giá trước ngâm</label>
                   <p className="text-sm text-gray-900">{selectedEvaluation.danhGiaTruocNgam}</p>
+                  {selectedEvaluation.danhGiaTruocNgam && (
+                    <p className="text-sm text-green-600 mt-1">{getCriteriaText(selectedEvaluation.danhGiaTruocNgam)}</p>
+                  )}
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Đánh giá sau ngâm</label>
                   <p className="text-sm text-gray-900">{selectedEvaluation.danhGiaSauNgam}</p>
+                  {selectedEvaluation.danhGiaSauNgam && (
+                    <p className="text-sm text-green-600 mt-1">{getCriteriaText(selectedEvaluation.danhGiaSauNgam)}</p>
+                  )}
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Người thực hiện</label>
@@ -613,6 +746,158 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
               <div className="flex justify-end mt-6">
                 <button
                   onClick={() => setIsViewModalOpen(false)}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {isSettingsModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-xl font-bold">Cài đặt tiêu chí đánh giá nguyên liệu</h2>
+              <button
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {/* Seed default button */}
+              {criteria.length === 0 && (
+                <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800 mb-3">
+                    Chưa có tiêu chí đánh giá nào. Bạn có thể tạo tiêu chí mặc định hoặc thêm tiêu chí mới.
+                  </p>
+                  <button
+                    onClick={handleSeedDefaultCriteria}
+                    disabled={criteriaLoading}
+                    className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50"
+                  >
+                    Tạo tiêu chí mặc định
+                  </button>
+                </div>
+              )}
+
+              {/* Add new criteria form */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Thêm tiêu chí mới</h3>
+                <div className="flex gap-3">
+                  <div className="w-24">
+                    <label className="block text-xs text-gray-600 mb-1">Mã số</label>
+                    <input
+                      type="number"
+                      value={newCriteriaCode}
+                      onChange={(e) => setNewCriteriaCode(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-600 mb-1">Mô tả</label>
+                    <input
+                      type="text"
+                      value={newCriteriaDescription}
+                      onChange={(e) => setNewCriteriaDescription(e.target.value)}
+                      placeholder="Nhập mô tả tiêu chí..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={handleAddCriteria}
+                      disabled={criteriaLoading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Criteria list */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Danh sách tiêu chí ({criteria.length})</h3>
+                {criteriaLoading ? (
+                  <div className="text-center py-4">
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : criteria.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">Chưa có tiêu chí nào</p>
+                ) : (
+                  <div className="space-y-2">
+                    {criteria.map((criterion) => (
+                      <div
+                        key={criterion.id}
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        <span className="w-12 text-center font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                          {criterion.code}
+                        </span>
+                        {editingCriteria?.id === criterion.id ? (
+                          <input
+                            type="text"
+                            value={editingCriteria.description}
+                            onChange={(e) => setEditingCriteria({ ...editingCriteria, description: e.target.value })}
+                            className="flex-1 px-3 py-1 border border-gray-300 rounded-md text-sm"
+                            autoFocus
+                          />
+                        ) : (
+                          <span className="flex-1 text-sm text-gray-700">{criterion.description}</span>
+                        )}
+                        <div className="flex gap-2">
+                          {editingCriteria?.id === criterion.id ? (
+                            <>
+                              <button
+                                onClick={() => handleUpdateCriteria(criterion.id, editingCriteria.description)}
+                                className="p-1.5 text-green-600 hover:bg-green-100 rounded-md"
+                                title="Lưu"
+                              >
+                                <Save className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setEditingCriteria(null)}
+                                className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-md"
+                                title="Hủy"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setEditingCriteria(criterion)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md"
+                                title="Sửa"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCriteria(criterion.id)}
+                                className="p-1.5 text-red-600 hover:bg-red-100 rounded-md"
+                                title="Xóa"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => setIsSettingsModalOpen(false)}
                   className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
                 >
                   Đóng

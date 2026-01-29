@@ -1478,6 +1478,19 @@ model MaterialEvaluation {
   @@schema("business")
 }
 
+// Material Evaluation Criteria (Tiêu chí đánh giá nguyên liệu)
+model MaterialEvaluationCriteria {
+  id          String   @id @default(cuid())
+  code        Int      @unique
+  description String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("material_evaluation_criteria")
+  @@schema("business")
+}
+
 // Machine (Máy móc)
 model Machine {
   id                String             @id @default(cuid())
