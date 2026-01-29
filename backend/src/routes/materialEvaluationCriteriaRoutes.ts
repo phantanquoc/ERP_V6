@@ -28,7 +28,7 @@ router.get(
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const criterion = await materialEvaluationCriteriaService.getCriteriaById(req.params.id);
+      const criterion = await materialEvaluationCriteriaService.getCriteriaById(req.params.id as string);
       res.json({ success: true, data: criterion });
     } catch (error) {
       next(error);
@@ -56,7 +56,7 @@ router.put(
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const criterion = await materialEvaluationCriteriaService.updateCriteria(req.params.id, req.body);
+      const criterion = await materialEvaluationCriteriaService.updateCriteria(req.params.id as string, req.body);
       res.json({ success: true, data: criterion });
     } catch (error) {
       next(error);
@@ -70,7 +70,7 @@ router.delete(
   authorize(UserRole.ADMIN),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await materialEvaluationCriteriaService.deleteCriteria(req.params.id);
+      await materialEvaluationCriteriaService.deleteCriteria(req.params.id as string);
       res.json({ success: true, message: 'Criterion deleted successfully' });
     } catch (error) {
       next(error);
