@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   ShoppingCart,
   ShieldCheck,
@@ -20,11 +20,11 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import { getDepartmentDisplayName, isAdmin } from "../utils/permissions";
 import EmployeeDashboard from "./EmployeeDashboard";
-import { taskService } from "../services/taskService";
-import { privateFeedbackService } from "../services/privateFeedbackService";
 import purchaseRequestService from "../services/purchaseRequestService";
 import TaskListModal from "../components/TaskListModal";
 import FeedbackListModal from "../components/FeedbackListModal";
+import { useTasksCount, usePrivateFeedbackStats } from "../hooks";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 // Department Statistics Data
 const departmentStats = {
@@ -195,72 +195,55 @@ interface PurchaseRequest {
 
 const Dashboard1: React.FC = () => {
   const { user } = useAuth();
-  const [tasksCount, setTasksCount] = useState<number>(0);
-  const [feedbackCount, setFeedbackCount] = useState<number>(0);
-  const [purchaseRequestCount, setPurchaseRequestCount] = useState<number>(0);
-  const [purchaseRequestPendingCount, setPurchaseRequestPendingCount] = useState<number>(0);
-  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
+  const queryClient = useQueryClient();
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
   const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
   const [isPurchaseRequestModalOpen, setIsPurchaseRequestModalOpen] = useState(false);
   const [approveLoading, setApproveLoading] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user && isAdmin(user.department)) {
-      loadAllTasksCount();
-      loadFeedbackStats();
-      loadPurchaseRequests();
-    }
-  }, [user]);
+  const userIsAdmin = user ? isAdmin(user.department) : false;
 
-  const loadAllTasksCount = async () => {
-    try {
-      const response = await taskService.getAllTasks({ page: 1, limit: 1 });
-      setTasksCount(response.total);
-    } catch (error) {
-      console.error('Error loading all tasks count:', error);
-    }
-  };
+  // Use React Query hooks for data fetching with caching
+  const { data: tasksCount = 0 } = useTasksCount();
+  const { data: feedbackStats } = usePrivateFeedbackStats();
+  const feedbackCount = feedbackStats?.data?.total || 0;
 
-  const loadFeedbackStats = async () => {
-    try {
-      const response = await privateFeedbackService.getStats();
-      setFeedbackCount(response.data.total);
-    } catch (error) {
-      console.error('Error loading feedback stats:', error);
-    }
-  };
+  // Purchase requests query
+  const { data: purchaseRequestsData } = useQuery({
+    queryKey: ['purchaseRequests', 'dashboard'],
+    queryFn: () => purchaseRequestService.getAllPurchaseRequests(1, 100),
+    enabled: userIsAdmin,
+  });
 
-  const loadPurchaseRequests = async () => {
-    try {
-      const response = await purchaseRequestService.getAllPurchaseRequests(1, 100);
-      setPurchaseRequests(response.data);
-      // Count all requests
-      setPurchaseRequestCount(response.data.length);
-      // Count pending requests
-      const pendingCount = response.data.filter((r: PurchaseRequest) => r.trangThai === 'Chờ duyệt').length;
-      setPurchaseRequestPendingCount(pendingCount);
-    } catch (error) {
-      console.error('Error loading purchase requests:', error);
-    }
-  };
+  const purchaseRequests = purchaseRequestsData?.data || [];
+  const purchaseRequestCount = purchaseRequests.length;
+  const purchaseRequestPendingCount = purchaseRequests.filter(
+    (r: PurchaseRequest) => r.trangThai === 'Chờ duyệt'
+  ).length;
 
-  const handleApprovePurchaseRequest = async (id: string, approve: boolean) => {
+  // Mutation for approving/rejecting purchase requests
+  const approveMutation = useMutation({
+    mutationFn: ({ id, approve }: { id: string; approve: boolean }) =>
+      purchaseRequestService.updatePurchaseRequest(id, {
+        trangThai: approve ? 'Đã duyệt' : 'Từ chối',
+        nguoiDuyet: user?.fullName || user?.username,
+        ngayDuyet: new Date().toISOString(),
+      }),
+    onSuccess: (_, { approve }) => {
+      alert(approve ? 'Đã duyệt yêu cầu!' : 'Đã từ chối yêu cầu!');
+      queryClient.invalidateQueries({ queryKey: ['purchaseRequests'] });
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.message || 'Lỗi khi xử lý yêu cầu');
+    },
+  });
+
+  const handleApprovePurchaseRequest = (id: string, approve: boolean) => {
     if (!user) return;
     setApproveLoading(id);
-    try {
-      await purchaseRequestService.updatePurchaseRequest(id, {
-        trangThai: approve ? 'Đã duyệt' : 'Từ chối',
-        nguoiDuyet: user.fullName || user.username,
-        ngayDuyet: new Date().toISOString(),
-      });
-      alert(approve ? 'Đã duyệt yêu cầu!' : 'Đã từ chối yêu cầu!');
-      loadPurchaseRequests();
-    } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi xử lý yêu cầu');
-    } finally {
-      setApproveLoading(null);
-    }
+    approveMutation.mutate({ id, approve }, {
+      onSettled: () => setApproveLoading(null),
+    });
   };
 
   if (!user) {
@@ -273,8 +256,6 @@ const Dashboard1: React.FC = () => {
       </div>
     );
   }
-
-  const userIsAdmin = isAdmin(user.department);
 
   // Nếu không phải admin, hiển thị Employee Dashboard
   if (!userIsAdmin) {

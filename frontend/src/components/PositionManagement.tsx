@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Plus,
   Search,
@@ -9,6 +9,8 @@ import {
   CheckCircle,
   X
 } from 'lucide-react';
+import { usePositions, positionKeys } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
 import positionService, { Position } from '@services/positionService';
 
 interface FormData {
@@ -18,8 +20,9 @@ interface FormData {
 }
 
 const PositionManagement = () => {
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: positions = [], isLoading: loading } = usePositions();
+
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,24 +35,6 @@ const PositionManagement = () => {
     name: '',
     description: '',
   });
-
-  useEffect(() => {
-    loadPositions();
-  }, []);
-
-  const loadPositions = async () => {
-    try {
-      setLoading(true);
-      const positions = await positionService.getAllPositions();
-      setPositions(positions || []);
-      setError('');
-    } catch (err) {
-      setError('Lỗi tải danh sách vị trí');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +50,7 @@ const PositionManagement = () => {
         setSuccess('Tạo vị trí thành công');
       }
       setIsFormModalOpen(false);
-      loadPositions();
+      queryClient.invalidateQueries({ queryKey: positionKeys.all });
     } catch (err: any) {
       setError(err.message || 'Lỗi khi lưu vị trí');
     }
@@ -77,7 +62,7 @@ const PositionManagement = () => {
     try {
       await positionService.deletePosition(id);
       setSuccess('Xóa vị trí thành công');
-      loadPositions();
+      queryClient.invalidateQueries({ queryKey: positionKeys.all });
     } catch (err: any) {
       setError(err.message || 'Lỗi khi xóa vị trí');
     }

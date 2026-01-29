@@ -103,11 +103,6 @@ export class QuotationService {
    * Create quotation
    */
   async createQuotation(data: any): Promise<any> {
-    // Validate required fields
-    if (!data.quotationRequestId) {
-      throw new ValidationError('Missing required fields: quotationRequestId');
-    }
-
     // Get quotation request info
     const quotationRequest = await prisma.quotationRequest.findUnique({
       where: { id: data.quotationRequestId },

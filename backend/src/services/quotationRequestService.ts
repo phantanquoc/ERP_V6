@@ -162,18 +162,6 @@ export class QuotationRequestService {
   }
 
   async createQuotationRequest(data: any): Promise<any> {
-    // Validate required fields
-    if (!data.employeeId || !data.customerId || !data.items || !Array.isArray(data.items) || data.items.length === 0) {
-      throw new ValidationError('Missing required fields: employeeId, customerId, items (must be non-empty array)');
-    }
-
-    // Validate each item
-    for (const item of data.items) {
-      if (!item.productId || item.soLuong === undefined || item.soLuong === null || !item.donViTinh || item.donViTinh.trim() === '') {
-        throw new ValidationError('Each item must have: productId, soLuong, donViTinh');
-      }
-    }
-
     // Generate quotation request code if not provided
     if (!data.maYeuCauBaoGia) {
       data.maYeuCauBaoGia = await this.generateQuotationRequestCode();

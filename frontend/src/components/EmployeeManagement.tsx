@@ -10,9 +10,9 @@ import {
   CheckCircle,
   X
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEmployees, useDepartments, usePositions, usePositionLevelsByPosition, employeeKeys } from '../hooks';
 import employeeService from '@services/employeeService';
-import positionService from '@services/positionService';
-import departmentService from '@services/departmentService';
 
 interface Employee {
   id: string;
@@ -114,12 +114,16 @@ interface User {
 }
 
 const EmployeeManagement: React.FC = () => {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [positionLevels, setPositionLevels] = useState<PositionLevel[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const queryClient = useQueryClient();
+
+  // React Query hooks
+  const { data: employeesData, isLoading: loading } = useEmployees(1, 100);
+  const employees = employeesData?.data || [];
+
+  const { data: positions = [] } = usePositions();
+  const { data: departments = [] } = useDepartments();
+
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -152,62 +156,12 @@ const EmployeeManagement: React.FC = () => {
     notes: '',
   });
 
+  // React Query hook for position levels (automatically fetches when positionId changes)
+  const { data: positionLevels = [] } = usePositionLevelsByPosition(formData.positionId);
+
   useEffect(() => {
-    loadEmployees();
-    loadPositions();
-    loadDepartments();
     loadUsers();
   }, []);
-
-  // Load position levels when position is selected
-  useEffect(() => {
-    if (formData.positionId) {
-      loadPositionLevelsByPosition(formData.positionId);
-    } else {
-      setPositionLevels([]);
-    }
-  }, [formData.positionId]);
-
-  const loadEmployees = async () => {
-    try {
-      setLoading(true);
-      const response = await employeeService.getAllEmployees(1, 100);
-      setEmployees(response.data);
-      setError('');
-    } catch (err) {
-      setError('Lỗi tải danh sách nhân viên');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPositions = async () => {
-    try {
-      const data = await positionService.getAllPositions();
-      setPositions(data);
-    } catch (err) {
-      console.error('Lỗi tải danh sách chức vụ:', err);
-    }
-  };
-
-  const loadPositionLevelsByPosition = async (positionId: string) => {
-    try {
-      const data = await positionService.getPositionLevelsByPosition(positionId);
-      setPositionLevels(data);
-    } catch (err) {
-      console.error('Lỗi tải danh sách cấp độ:', err);
-    }
-  };
-
-  const loadDepartments = async () => {
-    try {
-      const data = await departmentService.getAllDepartments();
-      setDepartments(data);
-    } catch (err) {
-      console.error('Lỗi tải danh sách phòng ban:', err);
-    }
-  };
 
   const loadUsers = async () => {
     try {
@@ -274,7 +228,7 @@ const EmployeeManagement: React.FC = () => {
         await employeeService.updateEmployee(selectedEmployee.id, formData);
         setSuccess('Cập nhật nhân viên thành công');
         setIsFormModalOpen(false);
-        loadEmployees();
+        queryClient.invalidateQueries({ queryKey: employeeKeys.lists() });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Lỗi khi cập nhật nhân viên';
@@ -288,7 +242,7 @@ const EmployeeManagement: React.FC = () => {
     try {
       await employeeService.deleteEmployee(id);
       setSuccess('Xóa nhân viên thành công');
-      loadEmployees();
+      queryClient.invalidateQueries({ queryKey: employeeKeys.lists() });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Lỗi khi xóa nhân viên';
       setError(errorMessage);

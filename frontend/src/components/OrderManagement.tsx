@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Search, Eye, Edit, Trash2, Package, Calculator } from 'lucide-react';
 import { orderService, Order } from '../services/orderService';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
+import { useOrders, orderKeys } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface OrderManagementProps {
   hideHeader?: boolean;
@@ -10,11 +12,8 @@ interface OrderManagementProps {
 }
 
 const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, customerType }) => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -24,30 +23,16 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
 
   const itemsPerPage = 10;
 
-  const fetchOrders = useCallback(async () => {
-    try {
-      setLoading(true);
-      // Nếu customerType là undefined hoặc 'all' thì không filter
-      const filterCustomerType = customerType === 'all' ? undefined : customerType;
-      const response = await orderService.getAllOrders(
-        currentPage,
-        itemsPerPage,
-        searchTerm || undefined,
-        filterCustomerType
-      );
-      setOrders(response.data);
-      setTotalPages(response.pagination.totalPages);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-      alert('Lỗi khi tải danh sách đơn hàng');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, searchTerm, customerType]);
-
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+  const queryClient = useQueryClient();
+  const filterCustomerType = customerType === 'all' ? undefined : customerType;
+  const { data: ordersData, isLoading: loading, refetch: refetchOrders } = useOrders({
+    page: currentPage,
+    limit: itemsPerPage,
+    search: searchTerm || undefined,
+    customerType: filterCustomerType,
+  });
+  const orders = ordersData?.data || [];
+  const totalPages = ordersData?.pagination?.totalPages || 1;
 
   const handleView = (order: Order) => {
     setSelectedOrder(order);
@@ -68,7 +53,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
       await orderService.updateOrder(selectedOrder.id, formData);
       alert('Cập nhật đơn hàng thành công');
       setShowEditModal(false);
-      fetchOrders();
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
     } catch (error) {
       console.error('Error updating order:', error);
       alert('Lỗi khi cập nhật đơn hàng');
@@ -83,7 +68,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
     try {
       await orderService.deleteOrder(id);
       alert('Xóa đơn hàng thành công');
-      fetchOrders();
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
     } catch (error) {
       console.error('Error deleting order:', error);
       alert('Lỗi khi xóa đơn hàng');

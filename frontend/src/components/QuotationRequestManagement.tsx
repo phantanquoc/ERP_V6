@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Edit, Trash2, Eye, X, FileText } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import internationalCustomerService, { InternationalCustomer } from '../services/internationalCustomerService';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
+import { useQuotationRequests, quotationRequestKeys } from '../hooks';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
 
 interface QuotationRequestManagementProps {
@@ -11,13 +13,11 @@ interface QuotationRequestManagementProps {
 }
 
 const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({ mode = 'business', customerType }) => {
-  const [requests, setRequests] = useState<QuotationRequest[]>([]);
+  const queryClient = useQueryClient();
   const [customers, setCustomers] = useState<InternationalCustomer[]>([]);
   const [products, setProducts] = useState<InternationalProduct[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showQuotationModal, setShowQuotationModal] = useState(false);
@@ -46,32 +46,24 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
 
   const itemsPerPage = 10;
 
+  // React Query for fetching quotation requests
+  const filterCustomerType = customerType === 'all' ? undefined : customerType;
+  const { data: requestsData, isLoading: loading } = useQuotationRequests({
+    page: currentPage,
+    limit: itemsPerPage,
+    search: searchTerm || undefined,
+    customerType: filterCustomerType,
+  });
+
+  // Derive data from query result
+  const requests = requestsData?.data ?? [];
+  const totalPages = requestsData?.pagination?.totalPages ?? 1;
+
+  // Fetch customers and products on mount and when customerType changes
   useEffect(() => {
-    fetchRequests();
     fetchCustomers();
     fetchProducts();
-  }, [currentPage, searchTerm, customerType]);
-
-  const fetchRequests = async () => {
-    try {
-      setLoading(true);
-      // Nếu customerType là undefined hoặc 'all' thì không filter
-      const filterCustomerType = customerType === 'all' ? undefined : customerType;
-      const response = await quotationRequestService.getAllQuotationRequests(
-        currentPage,
-        itemsPerPage,
-        searchTerm || undefined,
-        filterCustomerType
-      );
-      setRequests(response.data);
-      setTotalPages(response.pagination.totalPages);
-    } catch (error) {
-      console.error('Error fetching quotation requests:', error);
-      alert('Lỗi khi tải danh sách yêu cầu báo giá');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [customerType]);
 
   const fetchCustomers = async () => {
     try {
@@ -186,7 +178,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       alert('Tạo yêu cầu báo giá thành công!');
       setShowModal(false);
       resetForm();
-      fetchRequests();
+      queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
     } catch (error: any) {
       console.error('Error creating quotation request:', error);
       alert(error.response?.data?.message || 'Lỗi khi tạo yêu cầu báo giá');
@@ -241,7 +233,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       alert('Cập nhật yêu cầu báo giá thành công!');
       setShowModal(false);
       resetForm();
-      fetchRequests();
+      queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
     } catch (error: any) {
       console.error('Error updating quotation request:', error);
       alert(error.response?.data?.message || 'Lỗi khi cập nhật yêu cầu báo giá');
@@ -254,7 +246,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     try {
       await quotationRequestService.deleteQuotationRequest(id);
       alert('Xóa yêu cầu báo giá thành công!');
-      fetchRequests();
+      queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
     } catch (error: any) {
       console.error('Error deleting quotation request:', error);
       alert(error.response?.data?.message || 'Lỗi khi xóa yêu cầu báo giá');
@@ -269,7 +261,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
   const handleQuotationSuccess = () => {
     setShowQuotationModal(false);
     setQuotationRequest(null);
-    fetchRequests();
+    queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
   };
 
   const openCreateModal = async () => {

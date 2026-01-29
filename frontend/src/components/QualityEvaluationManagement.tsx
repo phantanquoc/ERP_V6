@@ -26,6 +26,7 @@ const QualityEvaluationManagement: React.FC = () => {
     maChien: '',
     thoiGianChien: '',
     tenHangHoa: '',
+    mauSac: '',
     aTiLe: 0,
     bTiLe: 0,
     bDauTiLe: 0,
@@ -119,6 +120,7 @@ const QualityEvaluationManagement: React.FC = () => {
         maChien: evaluation.maChien,
         thoiGianChien: evaluation.thoiGianChien,
         tenHangHoa: evaluation.tenHangHoa,
+        mauSac: evaluation.mauSac,
         aTiLe: evaluation.aTiLe,
         bTiLe: evaluation.bTiLe,
         bDauTiLe: evaluation.bDauTiLe,
@@ -142,6 +144,7 @@ const QualityEvaluationManagement: React.FC = () => {
         maChien: '',
         thoiGianChien: '',
         tenHangHoa: '',
+        mauSac: '',
         aTiLe: 0,
         bTiLe: 0,
         bDauTiLe: 0,
@@ -254,8 +257,9 @@ const QualityEvaluationManagement: React.FC = () => {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Màu sắc</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Mùi hương</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Hương vị</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Vị</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Độ ngọt</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Độ giòn</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
@@ -265,13 +269,13 @@ const QualityEvaluationManagement: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
                     Đang tải...
                   </td>
                 </tr>
               ) : evaluations.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
                     Không có dữ liệu
                   </td>
                 </tr>
@@ -294,6 +298,9 @@ const QualityEvaluationManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                       {evaluation.tenHangHoa}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                      {evaluation.mauSac || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {evaluation.muiHuong || '-'}

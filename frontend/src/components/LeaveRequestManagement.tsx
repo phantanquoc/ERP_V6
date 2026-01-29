@@ -1,46 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { CheckCircle, XCircle, Eye, Calendar, Clock, FileText, User, AlertCircle, RefreshCw, Download } from 'lucide-react';
 import leaveRequestService, { LeaveRequest } from '@services/leaveRequestService';
 import { useAuth } from '@contexts/AuthContext';
+import { useLeaveRequests, leaveRequestKeys } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
 
 const LeaveRequestManagement = () => {
   const { user } = useAuth();
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
   const [selectedRequest, setSelectedRequest] = useState<LeaveRequest | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
 
-  useEffect(() => {
-    fetchLeaveRequests();
-  }, [currentPage, statusFilter]);
-
-  const fetchLeaveRequests = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const result = await leaveRequestService.getAllLeaveRequests({
-        page: currentPage,
-        limit: 10,
-        status: statusFilter || undefined,
-      });
-      setLeaveRequests(result.data || []);
-      setTotalPages(result.pagination?.totalPages || 1);
-    } catch (error) {
-      console.error('Error fetching leave requests:', error);
-      setError('Không thể tải danh sách đơn nghỉ phép');
-      setLeaveRequests([]);
-      setTotalPages(1);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: leaveRequestsData, isLoading: loading } = useLeaveRequests({
+    page: currentPage,
+    limit: 10,
+    status: statusFilter || undefined,
+  });
+  const leaveRequests = leaveRequestsData?.data || [];
+  const totalPages = leaveRequestsData?.pagination?.totalPages || 1;
 
   const handleApprove = async (request: LeaveRequest) => {
     if (!user?.employeeId) {
@@ -53,7 +36,7 @@ const LeaveRequestManagement = () => {
       setSuccess('');
       await leaveRequestService.approveLeaveRequest(request.id, user.employeeId);
       setSuccess('Đã phê duyệt đơn nghỉ phép');
-      fetchLeaveRequests();
+      queryClient.invalidateQueries({ queryKey: leaveRequestKeys.lists() });
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
@@ -84,7 +67,7 @@ const LeaveRequestManagement = () => {
       setIsRejectModalOpen(false);
       setRejectionReason('');
       setSelectedRequest(null);
-      fetchLeaveRequests();
+      queryClient.invalidateQueries({ queryKey: leaveRequestKeys.lists() });
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {

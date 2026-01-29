@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Eye, Edit2, Save, X } from 'lucide-react';
 import payrollService, { PayrollItem, PayrollDetail } from '@services/payrollService';
 import evaluationService from '@services/employeeEvaluationService';
+import { usePayrollByMonthYear, payrollKeys } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
 
 const PayrollManagement: React.FC = () => {
-  const [payrolls, setPayrolls] = useState<PayrollItem[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
@@ -14,23 +14,12 @@ const PayrollManagement: React.FC = () => {
   const [editingPayroll, setEditingPayroll] = useState<PayrollDetail | null>(null);
   const [evaluations, setEvaluations] = useState<any[]>([]);
 
+  const queryClient = useQueryClient();
+  const { data: payrolls = [], isLoading: loading } = usePayrollByMonthYear(selectedMonth, selectedYear);
+
   useEffect(() => {
-    fetchPayrolls();
     fetchEvaluations();
   }, [selectedMonth, selectedYear]);
-
-  const fetchPayrolls = async () => {
-    try {
-      setLoading(true);
-      const data = await payrollService.getPayrollByMonthYear(selectedMonth, selectedYear);
-      setPayrolls(data);
-    } catch (error) {
-      console.error('Error fetching payrolls:', error);
-      alert('Lỗi khi tải dữ liệu bảng tính lương');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchEvaluations = async () => {
     try {
@@ -155,7 +144,7 @@ const PayrollManagement: React.FC = () => {
 
       alert('Cập nhật bảng tính lương thành công');
       setShowDetailModal(false);
-      fetchPayrolls();
+      queryClient.invalidateQueries({ queryKey: payrollKeys.lists() });
     } catch (error) {
       console.error('Error updating payroll:', error);
       alert('Lỗi khi cập nhật bảng tính lương');
@@ -231,7 +220,7 @@ const PayrollManagement: React.FC = () => {
 
         <div className="flex items-end">
           <button
-            onClick={fetchPayrolls}
+            onClick={() => queryClient.invalidateQueries({ queryKey: payrollKeys.lists() })}
             disabled={loading}
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
           >

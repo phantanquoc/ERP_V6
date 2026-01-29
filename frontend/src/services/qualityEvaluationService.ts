@@ -7,7 +7,8 @@ export interface QualityEvaluation {
   maChien: string;
   thoiGianChien: string;
   tenHangHoa: string;
-  
+  mauSac: string;
+
   // Machine info
   machineId?: string;
   tenMay?: string;

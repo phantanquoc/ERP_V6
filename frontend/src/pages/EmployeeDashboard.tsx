@@ -24,7 +24,7 @@ import DailyWorkReportListModal from "../components/DailyWorkReportListModal";
 import TaskListModal from "../components/TaskListModal";
 import notificationService, { Notification } from "../services/notificationService";
 import dailyWorkReportService, { DailyWorkReport } from "../services/dailyWorkReportService";
-import { taskService } from "../services/taskService";
+import { useMyTasksCount } from "../hooks";
 
 // Helper function to display gender in Vietnamese
 const getGenderDisplay = (gender?: string): string => {
@@ -252,12 +252,12 @@ const EmployeeDashboard: React.FC = () => {
   const [recentReports, setRecentReports] = useState<DailyWorkReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
-  const [tasksCount, setTasksCount] = useState(0);
+
+  const { data: tasksCount = 0 } = useMyTasksCount();
 
   useEffect(() => {
     loadLatestEvaluationNotification();
     loadRecentReports();
-    loadTasksCount();
   }, []);
 
   const loadLatestEvaluationNotification = async () => {
@@ -281,15 +281,6 @@ const EmployeeDashboard: React.FC = () => {
       console.error('Error loading recent reports:', error);
     } finally {
       setReportsLoading(false);
-    }
-  };
-
-  const loadTasksCount = async () => {
-    try {
-      const response = await taskService.getMyTasks({ page: 1, limit: 1 });
-      setTasksCount(response.total);
-    } catch (error) {
-      console.error('Error loading tasks count:', error);
     }
   };
 

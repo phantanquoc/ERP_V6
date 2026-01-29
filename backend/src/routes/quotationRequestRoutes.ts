@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import quotationRequestController from '@controllers/quotationRequestController';
 import { authenticate, authorize } from '@middlewares/auth';
+import { zodValidate } from '@middlewares/zodValidation';
+import { createQuotationRequestSchema, updateQuotationRequestSchema } from '@schemas';
 import { UserRole } from '@types';
 
 const router = Router();
@@ -18,6 +20,7 @@ router.get('/:id', quotationRequestController.getQuotationRequestById);
 router.post(
   '/',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.EMPLOYEE),
+  zodValidate(createQuotationRequestSchema),
   quotationRequestController.createQuotationRequest
 );
 
@@ -25,6 +28,7 @@ router.post(
 router.patch(
   '/:id',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.EMPLOYEE),
+  zodValidate(updateQuotationRequestSchema),
   quotationRequestController.updateQuotationRequest
 );
 

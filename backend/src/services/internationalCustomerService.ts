@@ -106,16 +106,6 @@ export class InternationalCustomerService {
   }
 
   async createCustomer(data: any): Promise<any> {
-    // Validate required fields
-    if (!data.tenCongTy || !data.nguoiLienHe || !data.loaiKhachHang) {
-      throw new ValidationError('Missing required fields: tenCongTy, nguoiLienHe, loaiKhachHang');
-    }
-
-    // Validate địa lý: phải có quocGia (quốc tế) HOẶC tinhThanh (nội địa)
-    if (!data.quocGia && !data.tinhThanh) {
-      throw new ValidationError('Missing required fields: quocGia (for international) or tinhThanh (for domestic)');
-    }
-
     // Generate customer code if not provided
     if (!data.maKhachHang) {
       data.maKhachHang = await this.generateCustomerCode();

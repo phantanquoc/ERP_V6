@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Search, Filter, Download } from 'lucide-react';
 import attendanceService from '@services/attendanceService';
-import employeeService from '@services/employeeService';
+import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
 import DatePicker from './DatePicker';
 
 interface AttendanceRecord {
@@ -19,14 +20,11 @@ interface AttendanceRecord {
 }
 
 const AttendanceManagement: React.FC = () => {
-  const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [employees, setEmployees] = useState<any[]>([]);
   const [selectedEmployeeName, setSelectedEmployeeName] = useState('');
   const [formData, setFormData] = useState({
     employeeCode: '',
@@ -37,36 +35,13 @@ const AttendanceManagement: React.FC = () => {
     notes: '',
   });
 
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
+  // Use React Query for employees
+  const { data: employeesData } = useEmployees(1, 1000);
+  const employees = employeesData?.data || [];
 
-  useEffect(() => {
-    fetchAttendances();
-  }, [startDate, endDate]);
-
-  const fetchEmployees = async () => {
-    try {
-      const response = await employeeService.getAllEmployees(1, 1000);
-      console.log('Loaded employees:', response.data);
-      setEmployees(response.data);
-    } catch (error) {
-      console.error('Error fetching employees:', error);
-    }
-  };
-
-  const fetchAttendances = async () => {
-    try {
-      setLoading(true);
-      const data = await attendanceService.getAttendanceByDateRange(startDate, endDate);
-      setAttendances(data);
-    } catch (error) {
-      console.error('Error fetching attendances:', error);
-      alert('Lỗi khi tải dữ liệu điểm danh');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use React Query for attendance data
+  const queryClient = useQueryClient();
+  const { data: attendances = [], isLoading: loading } = useAttendanceByDateRange(startDate, endDate);
 
   const handleAddNew = () => {
     setEditingId(null);
@@ -159,7 +134,7 @@ const AttendanceManagement: React.FC = () => {
       }
 
       setShowModal(false);
-      fetchAttendances();
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() });
     } catch (error) {
       console.error('Error saving attendance:', error);
       alert('Lỗi khi lưu dữ liệu điểm danh: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -172,7 +147,7 @@ const AttendanceManagement: React.FC = () => {
     try {
       await attendanceService.deleteAttendance(id);
       alert('Xóa điểm danh thành công');
-      fetchAttendances();
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() });
     } catch (error) {
       console.error('Error deleting attendance:', error);
       alert('Lỗi khi xóa dữ liệu điểm danh');

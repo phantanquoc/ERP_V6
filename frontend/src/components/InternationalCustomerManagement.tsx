@@ -1,21 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus, Search, Edit, Trash2, Eye, MapPin, X } from 'lucide-react';
 import internationalCustomerService, {
   InternationalCustomer,
   CreateInternationalCustomerRequest,
   UpdateInternationalCustomerRequest
 } from '../services/internationalCustomerService';
+import { useCustomers, customerKeys } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
 
 const InternationalCustomerManagement: React.FC = () => {
-  const [customers, setCustomers] = useState<InternationalCustomer[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<InternationalCustomer | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<InternationalCustomer | null>(null);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [formData, setFormData] = useState<CreateInternationalCustomerRequest>({
     tenCongTy: '',
     nguoiLienHe: '',
@@ -23,23 +22,15 @@ const InternationalCustomerManagement: React.FC = () => {
     loaiKhachHang: '',
   });
 
-  useEffect(() => {
-    fetchCustomers();
-  }, [page, searchTerm]);
-
-  const fetchCustomers = async () => {
-    try {
-      setLoading(true);
-      // Chỉ lấy khách hàng Quốc tế (có quocGia)
-      const response = await internationalCustomerService.getAllCustomers(page, 10, searchTerm, 'Quốc tế');
-      setCustomers(response.data);
-      setTotalPages(response.totalPages);
-    } catch (error: any) {
-      alert('Lỗi khi tải danh sách khách hàng: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const queryClient = useQueryClient();
+  const { data: customersData, isLoading: loading } = useCustomers({
+    page,
+    limit: 10,
+    search: searchTerm,
+    customerType: 'Quốc tế',
+  });
+  const customers = customersData?.data || [];
+  const totalPages = customersData?.totalPages || 1;
 
   const handleCreate = async () => {
     try {
@@ -47,7 +38,7 @@ const InternationalCustomerManagement: React.FC = () => {
       alert('Tạo khách hàng thành công!');
       setShowModal(false);
       resetForm();
-      fetchCustomers();
+      queryClient.invalidateQueries({ queryKey: customerKeys.lists() });
     } catch (error: any) {
       alert('Lỗi khi tạo khách hàng: ' + error.message);
     }
@@ -60,7 +51,7 @@ const InternationalCustomerManagement: React.FC = () => {
       alert('Cập nhật khách hàng thành công!');
       setShowModal(false);
       resetForm();
-      fetchCustomers();
+      queryClient.invalidateQueries({ queryKey: customerKeys.lists() });
     } catch (error: any) {
       alert('Lỗi khi cập nhật khách hàng: ' + error.message);
     }
@@ -71,7 +62,7 @@ const InternationalCustomerManagement: React.FC = () => {
     try {
       await internationalCustomerService.deleteCustomer(id);
       alert('Xóa khách hàng thành công!');
-      fetchCustomers();
+      queryClient.invalidateQueries({ queryKey: customerKeys.lists() });
     } catch (error: any) {
       alert('Lỗi khi xóa khách hàng: ' + error.message);
     }

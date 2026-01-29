@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import internationalCustomerController from '@controllers/internationalCustomerController';
 import { authenticate, authorize } from '@middlewares/auth';
+import { zodValidate } from '@middlewares/zodValidation';
+import { createCustomerSchema, updateCustomerSchema } from '@schemas';
 import { UserRole } from '@types';
 
 const router = Router();
@@ -32,12 +34,14 @@ router.get('/:id',
 // Create customer (Admin, Department Head only)
 router.post('/',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  zodValidate(createCustomerSchema),
   internationalCustomerController.createCustomer
 );
 
 // Update customer (Admin, Department Head only)
 router.patch('/:id',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  zodValidate(updateCustomerSchema),
   internationalCustomerController.updateCustomer
 );
 

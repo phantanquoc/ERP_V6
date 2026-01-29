@@ -38,7 +38,9 @@
       "@services/*": ["src/services/*"],
       "@config/*": ["src/config/*"],
       "@utils/*": ["src/utils/*"],
-      "@types": ["src/types"]
+      "@types": ["src/types"],
+      "@schemas": ["src/schemas"],
+      "@schemas/*": ["src/schemas/*"]
     }
   },
   "include": ["src/**/*"],

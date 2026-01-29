@@ -7,6 +7,7 @@ import {
   X,
 } from 'lucide-react';
 import employeeEvaluationService, { EmployeeEvaluation, EvaluationDetailsResponse } from '@services/employeeEvaluationService';
+import { useEmployees } from '../hooks';
 
 const EmployeeEvaluationManagement = () => {
   const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
@@ -19,6 +20,10 @@ const EmployeeEvaluationManagement = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEvaluation, setSelectedEvaluation] = useState<EvaluationDetailsResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Use React Query hook for fetching employees
+  const { data: employeesData } = useEmployees(1, 1000);
+  const employees = employeesData?.data || [];
 
   useEffect(() => {
     loadEvaluations();
@@ -68,19 +73,9 @@ const EmployeeEvaluationManagement = () => {
       setLoading(true);
       setError('');
 
-      // Get all employees first
-      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/employees?page=1&limit=1000', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Lỗi tải danh sách nhân viên');
+      if (employees.length === 0) {
+        throw new Error('Không có nhân viên nào để tạo đánh giá');
       }
-
-      const data = await response.json();
-      const employees = data.data || [];
 
       // Create evaluation for each employee
       let successCount = 0;

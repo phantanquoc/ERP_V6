@@ -1,18 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Search, Filter, Download, Eye, Edit, Trash2, ShoppingCart } from 'lucide-react';
 import { quotationService, Quotation } from '../services/quotationService';
 import { orderService } from '../services/orderService';
+import { useQuotations, quotationKeys } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface QuotationManagementProps {
   customerType?: 'Quốc tế' | 'Nội địa' | 'all';
 }
 
 const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType }) => {
-  const [quotations, setQuotations] = useState<Quotation[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -25,33 +24,17 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
   });
 
   const itemsPerPage = 10;
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetchQuotations();
-  }, [currentPage, searchTerm, customerType]);
-
-  const fetchQuotations = async () => {
-    try {
-      setLoading(true);
-      // Nếu customerType là undefined hoặc 'all' thì không filter
-      const filterCustomerType = customerType === 'all' ? undefined : customerType;
-      const response = await quotationService.getAllQuotations(
-        currentPage,
-        itemsPerPage,
-        searchTerm || undefined,
-        filterCustomerType
-      );
-      console.log('🔍 Quotations data:', response.data);
-      console.log('🔍 First quotation calculator:', response.data[0]?.quotationRequest?.calculator);
-      setQuotations(response.data);
-      setTotalPages(response.pagination.totalPages);
-    } catch (error) {
-      console.error('Error fetching quotations:', error);
-      alert('Lỗi khi tải danh sách báo giá');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const filterCustomerType = customerType === 'all' ? undefined : customerType;
+  const { data: quotationsData, isLoading: loading } = useQuotations({
+    page: currentPage,
+    limit: itemsPerPage,
+    search: searchTerm || undefined,
+    customerType: filterCustomerType,
+  });
+  const quotations = quotationsData?.data || [];
+  const totalPages = quotationsData?.pagination?.totalPages || 1;
 
   const handleView = (quotation: Quotation) => {
     setSelectedQuotation(quotation);
@@ -95,7 +78,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
       await quotationService.updateQuotation(selectedQuotation.id, updateData);
       alert('Cập nhật báo giá thành công!');
       setShowEditModal(false);
-      fetchQuotations();
+      queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
     } catch (error: any) {
       console.error('Error updating quotation:', error);
       alert(error.response?.data?.message || 'Lỗi khi cập nhật báo giá');
@@ -110,7 +93,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
     try {
       await quotationService.deleteQuotation(id);
       alert('Xóa báo giá thành công!');
-      fetchQuotations();
+      queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
     } catch (error: any) {
       console.error('Error deleting quotation:', error);
       alert(error.response?.data?.message || 'Lỗi khi xóa báo giá');
@@ -125,7 +108,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
     try {
       await orderService.createOrderFromQuotation(quotationId);
       alert('Tạo đơn hàng thành công!');
-      fetchQuotations();
+      queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
     } catch (error: any) {
       console.error('Error creating order:', error);
       alert(error.response?.data?.message || 'Lỗi khi tạo đơn hàng');

@@ -14,6 +14,8 @@ import {
   CheckCircle
 } from 'lucide-react';
 import userService from '@services/userService';
+import { useUsers, userKeys, useDepartments } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface User {
   id: string;
@@ -68,9 +70,12 @@ interface SubDepartment {
 }
 
 const UserManagement: React.FC = () => {
-  const [users, setUsers] = useState<User[]>([]);
+  const queryClient = useQueryClient();
+  const { data: usersData, isLoading: loading } = useUsers({ page: 1, limit: 100 });
+  const users = usersData?.data || [];
+  const { data: departments = [] } = useDepartments();
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -86,7 +91,6 @@ const UserManagement: React.FC = () => {
   };
 
   // Department states
-  const [departments, setDepartments] = useState<Department[]>([]);
   const [subDepartments, setSubDepartments] = useState<SubDepartment[]>([]);
   const [filteredSubDepartments, setFilteredSubDepartments] = useState<SubDepartment[]>([]);
 
@@ -108,10 +112,9 @@ const UserManagement: React.FC = () => {
     subDepartmentId: '',
   });
 
-  // Fetch users and departments on mount
+  // Fetch subDepartments on mount
   useEffect(() => {
-    fetchUsers();
-    fetchDepartments();
+    fetchSubDepartments();
   }, []);
 
   // Filter sub-departments when department changes
@@ -128,25 +131,11 @@ const UserManagement: React.FC = () => {
     }
   }, [formData.departmentId, subDepartments]);
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await userService.getAllUsers(1, 100);
-      setUsers(result.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch users');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchDepartments = async () => {
+  const fetchSubDepartments = async () => {
     try {
       const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/departments/public/all');
       if (!response.ok) throw new Error('Failed to fetch departments');
       const data = await response.json();
-      setDepartments(data.data || []);
 
       // Flatten all sub-departments
       const allSubDepts: SubDepartment[] = [];
@@ -164,7 +153,7 @@ const UserManagement: React.FC = () => {
       });
       setSubDepartments(allSubDepts);
     } catch (err) {
-      console.error('Failed to fetch departments:', err);
+      console.error('Failed to fetch sub-departments:', err);
     }
   };
 
@@ -245,7 +234,6 @@ const UserManagement: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      setLoading(true);
       setError(null);
 
       if (isEditMode && selectedUser) {
@@ -280,48 +268,40 @@ const UserManagement: React.FC = () => {
         setSuccess('Tạo người dùng và nhân viên thành công');
       }
 
-      await fetchUsers();
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() });
       closeFormModal();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save user');
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleToggleStatus = async (user: User) => {
     try {
-      setLoading(true);
       setError(null);
       await userService.updateUser(user.id, {
         isActive: !user.isActive,
       });
       setSuccess(`${user.isActive ? 'Khóa' : 'Mở khóa'} người dùng thành công`);
-      await fetchUsers();
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() });
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user status');
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleDelete = async () => {
     if (!selectedUser) return;
     try {
-      setLoading(true);
       setError(null);
       await userService.deleteUser(selectedUser.id);
       setSuccess('Xóa người dùng thành công');
-      await fetchUsers();
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() });
       setIsDeleteConfirmOpen(false);
       setSelectedUser(null);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete user');
-    } finally {
-      setLoading(false);
     }
   };
 

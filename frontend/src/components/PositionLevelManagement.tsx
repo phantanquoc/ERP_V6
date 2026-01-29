@@ -9,8 +9,10 @@ import {
   CheckCircle,
   X
 } from 'lucide-react';
-import positionService, { Position } from '@services/positionService';
 import positionLevelService, { PositionLevel } from '@services/positionLevelService';
+import { usePositions, usePositionLevelsByPosition, positionKeys } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
+import { Position } from '@services/positionService';
 
 interface FormData {
   level: string;
@@ -19,10 +21,7 @@ interface FormData {
 }
 
 const PositionLevelManagement = () => {
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [levels, setLevels] = useState<PositionLevel[]>([]);
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,47 +35,16 @@ const PositionLevelManagement = () => {
     kpiSalary: '',
   });
 
-  useEffect(() => {
-    loadPositions();
-  }, []);
+  const queryClient = useQueryClient();
+  const { data: positions = [], isLoading: positionsLoading } = usePositions();
+  const { data: levels = [], isLoading: levelsLoading } = usePositionLevelsByPosition(selectedPosition?.id || '');
+  const loading = positionsLoading || levelsLoading;
 
   useEffect(() => {
-    if (selectedPosition) {
-      loadLevels();
+    if (positions.length > 0 && !selectedPosition) {
+      setSelectedPosition(positions[0]);
     }
-  }, [selectedPosition]);
-
-  const loadPositions = async () => {
-    try {
-      setLoading(true);
-      const positions = await positionService.getAllPositions();
-      setPositions(positions || []);
-      if (positions && positions.length > 0 && !selectedPosition) {
-        setSelectedPosition(positions[0]);
-      }
-      setError('');
-    } catch (err) {
-      setError('Lỗi tải danh sách vị trí');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadLevels = async () => {
-    if (!selectedPosition) return;
-    try {
-      setLoading(true);
-      const data = await positionLevelService.getAllLevelsByPosition(selectedPosition.id);
-      setLevels(data || []);
-      setError('');
-    } catch (err) {
-      setError('Lỗi tải danh sách cấp độ');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [positions, selectedPosition]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +78,7 @@ const PositionLevelManagement = () => {
         setSuccess('Thêm cấp độ thành công');
       }
       closeModals();
-      loadLevels();
+      queryClient.invalidateQueries({ queryKey: positionKeys.levels() });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi xử lý');
     }
@@ -122,7 +90,7 @@ const PositionLevelManagement = () => {
     try {
       await positionLevelService.deleteLevel(id);
       setSuccess('Xóa cấp độ thành công');
-      loadLevels();
+      queryClient.invalidateQueries({ queryKey: positionKeys.levels() });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi xóa cấp độ');
     }

@@ -1642,6 +1642,7 @@ model QualityEvaluation {
   maChien               String
   thoiGianChien         String
   tenHangHoa            String
+  mauSac                String              @default("")
 
   // Relation to Machine
   machineId             String?

@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus, Edit, Trash2, X, Search } from 'lucide-react';
 import machineService, { Machine, CreateMachineRequest, UpdateMachineRequest } from '../services/machineService';
+import { useMachines, machineKeys } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
 
 const MachineManagement: React.FC = () => {
-  const [machines, setMachines] = useState<Machine[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: machinesData, isLoading: loading } = useMachines();
+  const machines = machinesData?.data || [];
+
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -17,24 +21,6 @@ const MachineManagement: React.FC = () => {
     trangThai: 'HOAT_DONG',
     ghiChu: '',
   });
-
-  useEffect(() => {
-    loadMachines();
-  }, []);
-
-  const loadMachines = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const result = await machineService.getAllMachines(1, 1000);
-      setMachines(result.data);
-    } catch (err: any) {
-      setError(err.message || 'Lỗi tải danh sách máy');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleOpenModal = async (machine?: Machine) => {
     if (machine) {
@@ -77,14 +63,13 @@ const MachineManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.tenMay.trim()) {
       setError('Vui lòng nhập tên máy');
       return;
     }
 
     try {
-      setLoading(true);
       setError('');
 
       if (isEditing && selectedMachine) {
@@ -93,13 +78,11 @@ const MachineManagement: React.FC = () => {
         await machineService.createMachine(formData);
       }
 
-      await loadMachines();
+      queryClient.invalidateQueries({ queryKey: machineKeys.lists() });
       handleCloseModal();
     } catch (err: any) {
       setError(err.message || 'Lỗi lưu dữ liệu');
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -109,15 +92,12 @@ const MachineManagement: React.FC = () => {
     }
 
     try {
-      setLoading(true);
       setError('');
       await machineService.deleteMachine(machine.id);
-      await loadMachines();
+      queryClient.invalidateQueries({ queryKey: machineKeys.lists() });
     } catch (err: any) {
       setError(err.message || 'Lỗi xóa máy');
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
