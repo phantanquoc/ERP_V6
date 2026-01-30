@@ -486,7 +486,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               }, 0);
             }, 0);
           }
-          const maxDays = parseInt(newTabs[activeTab].formData.thoiGianChoPhepToiDa) || 1;
+          const maxDays = parseFloat(newTabs[activeTab].formData.thoiGianChoPhepToiDa) || 1;
           newTabs[activeTab].formData.chiPhiSanXuatKeHoach = (chiPhiSanXuatPerDay * maxDays).toString();
         } catch (e) {
           // ignore
@@ -844,7 +844,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinhSanXuat,
               tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinhSanXuat,
               flowchartData: tab.selectedProcess?.flowchart || undefined, // Lưu flowchart đã chỉnh sửa
-              thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseInt(tab.formData.thoiGianChoPhepToiDa) : undefined,
+              thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
               ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
               ngayHoanThanhThucTe: tab.formData.ngayHoanThanhThucTe || undefined,
               chiPhiSanXuatKeHoach: (() => { const v = calculateChiPhiSanXuatKeHoach(index); return v ? v : undefined; })(),
@@ -946,7 +946,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinhSanXuat,
             tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinhSanXuat,
             flowchartData: tab.selectedProcess?.flowchart || undefined,
-            thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseInt(tab.formData.thoiGianChoPhepToiDa) : undefined,
+            thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
             ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
             ngayHoanThanhThucTe: tab.formData.ngayHoanThanhThucTe || undefined,
             chiPhiSanXuatKeHoach: (() => { const v = calculateChiPhiSanXuatKeHoach(index); return v ? v : undefined; })(),
@@ -1270,7 +1270,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     }
 
     // Multiply per-day cost by allowed max days (thoiGianChoPhepToiDa)
-    const maxDays = parseInt(tab.formData.thoiGianChoPhepToiDa) || 1;
+    const maxDays = parseFloat(tab.formData.thoiGianChoPhepToiDa) || 1;
     const chiPhiSanXuat = chiPhiSanXuatPerDay * maxDays;
 
     // 2. Tính chi phí chung (phân bổ theo khối lượng)
@@ -1327,7 +1327,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
         }, 0);
       }, 0);
     }
-    const maxDays = parseInt(tab.formData.thoiGianChoPhepToiDa) || 1;
+    const maxDays = parseFloat(tab.formData.thoiGianChoPhepToiDa) || 1;
     return chiPhiSanXuatPerDay * maxDays;
   };
 
@@ -1447,7 +1447,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               </div>
                             </td>
                             <td className="px-6 py-3 text-sm text-right font-medium text-gray-900">
-                              {(totalKeHoach * (parseInt(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1)).toLocaleString('vi-VN')}
+                              {(totalKeHoach * (parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1)).toLocaleString('vi-VN')}
                             </td>
                             <td className="px-6 py-3 text-sm text-right font-medium text-gray-900">
                               {totalThucTe.toLocaleString('vi-VN')}
@@ -1693,7 +1693,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                   });
                                 });
                                 // Nhân với thời gian cho phép tối đa (giống như hiển thị ở bảng chi phí sản phẩm)
-                                const multiplier = parseInt(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
+                                const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
                                 total += productTotal * multiplier;
                               }
                             });
@@ -1737,45 +1737,78 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   <h4 className="text-base font-semibold text-white uppercase tracking-wide">Tính toán doanh thu & lợi nhuận</h4>
                 </div>
 
-                <div className="p-6 space-y-4">
-                  {/* Row 1: Doanh thu trước thuế và % thuế */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Doanh thu trước thuế */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <label className="block text-xs font-medium text-gray-600 mb-2">
-                        Doanh thu trước thuế
-                      </label>
-                      <input
-                        type="text"
-                        value={(() => {
-                          // Lợi nhuận trước thuế = Tổng (giá báo khách * số lượng) của tất cả sản phẩm
-                          // Giá báo khách = Giá hòa vốn + Lợi nhuận cộng thêm
+                <div className="p-6 space-y-3">
+                  {/* Doanh thu dự kiến */}
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Doanh thu dự kiến</span>
+                      <span className="text-xl font-bold text-gray-900">
+                        {(() => {
+                          // Doanh thu dự kiến = Tổng (giá báo khách * số lượng) của tất cả sản phẩm
                           const items = getItems();
-                          let loiNhuanTruocThue = 0;
+                          let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
                             const item = items[index];
                             const soLuong = parseFloat(item?.soLuong?.toString() || '0');
-                            // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
                             const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             const giaBaoKhach = giaHoaVon + loiNhuan;
-                            loiNhuanTruocThue += giaBaoKhach * soLuong;
+                            doanhThuDuKien += giaBaoKhach * soLuong;
                           });
+                          return doanhThuDuKien.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                        })()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">= Σ (giá báo khách × số lượng)</p>
+                  </div>
+
+                  {/* Lợi nhuận trước thuế */}
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Lợi nhuận trước thuế</span>
+                      <span className="text-xl font-bold text-gray-900">
+                        {(() => {
+                          // Tính doanh thu dự kiến
+                          const items = getItems();
+                          let doanhThuDuKien = 0;
+                          tabsData.forEach((tab, index) => {
+                            const item = items[index];
+                            const soLuong = parseFloat(item?.soLuong?.toString() || '0');
+                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
+                            const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
+                            const giaBaoKhach = giaHoaVon + loiNhuan;
+                            doanhThuDuKien += giaBaoKhach * soLuong;
+                          });
+
+                          // Tính tổng chi phí đơn hàng
+                          let tongChiPhi = 0;
+                          tabsData.forEach(tab => {
+                            if (tab?.selectedProcess?.flowchart?.sections) {
+                              let productTotal = 0;
+                              tab.selectedProcess.flowchart.sections.forEach(section => {
+                                section.costs?.forEach(cost => {
+                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
+                                });
+                              });
+                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
+                              tongChiPhi += productTotal * multiplier;
+                            }
+                          });
+                          tongChiPhi += getTotalGeneralCosts().keHoach;
+                          tongChiPhi += getTotalExportCosts().keHoach;
+
+                          const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           return loiNhuanTruocThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                         })()}
-                        disabled
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-lg font-semibold text-gray-900 text-right"
-                      />
-                      <p className="text-xs text-gray-500 mt-2">
-                        = Σ (giá báo khách × số lượng)
-                      </p>
+                      </span>
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">= doanh thu dự kiến - tổng chi phí đơn hàng</p>
+                  </div>
 
-                    {/* % thuế (input) */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <label className="block text-xs font-medium text-gray-600 mb-2">
-                        Phần trăm thuế (%)
-                      </label>
+                  {/* Phần trăm thuế */}
+                  <div className="bg-white rounded-lg p-3 border border-gray-300">
+                    <div className="flex justify-between items-center">
+                      <label className="text-sm font-medium text-gray-700">Phần trăm thuế (%)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -1783,54 +1816,62 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         max="100"
                         value={phanTramThue}
                         onChange={(e) => setPhanTramThue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold text-right"
+                        className="w-32 px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base font-semibold text-right"
                         placeholder="0.00"
                       />
-                      <p className="text-xs text-gray-500 mt-2">
-                        Nhập phần trăm thuế (0-100)
-                      </p>
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">Nhập phần trăm thuế (0-100)</p>
                   </div>
 
-                  {/* Row 2: Doanh thu sau thuế và % quỹ */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Doanh thu sau thuế */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <label className="block text-xs font-medium text-gray-600 mb-2">
-                        Doanh thu sau thuế
-                      </label>
-                      <input
-                        type="text"
-                        value={(() => {
-                          // Lợi nhuận sau thuế = lợi nhuận trước thuế - (lợi nhuận trước thuế * % thuế / 100)
+                  {/* Lợi nhuận sau thuế */}
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Lợi nhuận sau thuế</span>
+                      <span className="text-xl font-bold text-gray-900">
+                        {(() => {
+                          // Tính doanh thu dự kiến
                           const items = getItems();
-                          let loiNhuanTruocThue = 0;
+                          let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
                             const item = items[index];
                             const soLuong = parseFloat(item?.soLuong?.toString() || '0');
-                            // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
                             const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             const giaBaoKhach = giaHoaVon + loiNhuan;
-                            loiNhuanTruocThue += giaBaoKhach * soLuong;
+                            doanhThuDuKien += giaBaoKhach * soLuong;
                           });
+
+                          // Tính tổng chi phí đơn hàng
+                          let tongChiPhi = 0;
+                          tabsData.forEach(tab => {
+                            if (tab?.selectedProcess?.flowchart?.sections) {
+                              let productTotal = 0;
+                              tab.selectedProcess.flowchart.sections.forEach(section => {
+                                section.costs?.forEach(cost => {
+                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
+                                });
+                              });
+                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
+                              tongChiPhi += productTotal * multiplier;
+                            }
+                          });
+                          tongChiPhi += getTotalGeneralCosts().keHoach;
+                          tongChiPhi += getTotalExportCosts().keHoach;
+
+                          const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           const thue = parseFloat(phanTramThue || '0');
                           const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
                           return loiNhuanSauThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                         })()}
-                        disabled
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-lg font-semibold text-gray-900 text-right"
-                      />
-                      <p className="text-xs text-gray-500 mt-2">
-                        = doanh thu trước thuế - (doanh thu trước thuế × % thuế)
-                      </p>
+                      </span>
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">= lợi nhuận trước thuế - (lợi nhuận trước thuế × % thuế)</p>
+                  </div>
 
-                    {/* % quỹ (input) */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <label className="block text-xs font-medium text-gray-600 mb-2">
-                        Phần trăm quỹ (%)
-                      </label>
+                  {/* Phần trăm quỹ */}
+                  <div className="bg-white rounded-lg p-3 border border-gray-300">
+                    <div className="flex justify-between items-center">
+                      <label className="text-sm font-medium text-gray-700">Phần trăm quỹ (%)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -1838,71 +1879,96 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         max="100"
                         value={phanTramQuy}
                         onChange={(e) => setPhanTramQuy(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold text-right"
+                        className="w-32 px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base font-semibold text-right"
                         placeholder="0.00"
                       />
-                      <p className="text-xs text-gray-500 mt-2">
-                        Nhập phần trăm quỹ (0-100)
-                      </p>
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">Nhập phần trăm quỹ (0-100)</p>
                   </div>
 
-                  {/* Row 3: Trích các quỹ và Doanh thu thực nhận */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Trích các quỹ */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <label className="block text-xs font-medium text-gray-600 mb-2">
-                        Trích các quỹ
-                      </label>
-                      <input
-                        type="text"
-                        value={(() => {
-                          // Trích các quỹ = lợi nhuận sau thuế * % quỹ / 100
+                  {/* Trích các quỹ */}
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Trích các quỹ</span>
+                      <span className="text-xl font-bold text-gray-900">
+                        {(() => {
+                          // Tính doanh thu dự kiến
                           const items = getItems();
-                          let loiNhuanTruocThue = 0;
+                          let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
                             const item = items[index];
                             const soLuong = parseFloat(item?.soLuong?.toString() || '0');
-                            // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
                             const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             const giaBaoKhach = giaHoaVon + loiNhuan;
-                            loiNhuanTruocThue += giaBaoKhach * soLuong;
+                            doanhThuDuKien += giaBaoKhach * soLuong;
                           });
+
+                          // Tính tổng chi phí đơn hàng
+                          let tongChiPhi = 0;
+                          tabsData.forEach(tab => {
+                            if (tab?.selectedProcess?.flowchart?.sections) {
+                              let productTotal = 0;
+                              tab.selectedProcess.flowchart.sections.forEach(section => {
+                                section.costs?.forEach(cost => {
+                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
+                                });
+                              });
+                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
+                              tongChiPhi += productTotal * multiplier;
+                            }
+                          });
+                          tongChiPhi += getTotalGeneralCosts().keHoach;
+                          tongChiPhi += getTotalExportCosts().keHoach;
+
+                          const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           const thue = parseFloat(phanTramThue || '0');
                           const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
                           const quy = parseFloat(phanTramQuy || '0');
                           const trichCacQuy = loiNhuanSauThue * quy / 100;
                           return trichCacQuy.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                         })()}
-                        disabled
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-lg font-semibold text-gray-900 text-right"
-                      />
-                      <p className="text-xs text-gray-500 mt-2">
-                        = doanh thu sau thuế × % quỹ
-                      </p>
+                      </span>
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">= lợi nhuận sau thuế × % quỹ</p>
+                  </div>
 
-                    {/* Doanh thu thực nhận */}
-                    <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-300">
-                      <label className="block text-xs font-medium text-gray-600 mb-2">
-                        Doanh thu thực nhận
-                      </label>
-                      <input
-                        type="text"
-                        value={(() => {
-                          // Lợi nhuận thực nhận = lợi nhuận sau thuế - trích các quỹ
+                  {/* Lợi nhuận thực nhận */}
+                  <div className="bg-blue-50 rounded-lg p-3 border-2 border-blue-300 hover:bg-blue-100 hover:shadow-md hover:scale-[1.02] transition-all duration-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Lợi nhuận thực nhận</span>
+                      <span className="text-2xl font-bold text-blue-700">
+                        {(() => {
+                          // Tính doanh thu dự kiến
                           const items = getItems();
-                          let loiNhuanTruocThue = 0;
+                          let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
                             const item = items[index];
                             const soLuong = parseFloat(item?.soLuong?.toString() || '0');
-                            // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
                             const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             const giaBaoKhach = giaHoaVon + loiNhuan;
-                            loiNhuanTruocThue += giaBaoKhach * soLuong;
+                            doanhThuDuKien += giaBaoKhach * soLuong;
                           });
+
+                          // Tính tổng chi phí đơn hàng
+                          let tongChiPhi = 0;
+                          tabsData.forEach(tab => {
+                            if (tab?.selectedProcess?.flowchart?.sections) {
+                              let productTotal = 0;
+                              tab.selectedProcess.flowchart.sections.forEach(section => {
+                                section.costs?.forEach(cost => {
+                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
+                                });
+                              });
+                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
+                              tongChiPhi += productTotal * multiplier;
+                            }
+                          });
+                          tongChiPhi += getTotalGeneralCosts().keHoach;
+                          tongChiPhi += getTotalExportCosts().keHoach;
+
+                          const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           const thue = parseFloat(phanTramThue || '0');
                           const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
                           const quy = parseFloat(phanTramQuy || '0');
@@ -1910,13 +1976,9 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           const loiNhuanThucNhan = loiNhuanSauThue - trichCacQuy;
                           return loiNhuanThucNhan.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                         })()}
-                        disabled
-                        className="w-full px-3 py-2 border-0 rounded-md bg-white text-xl font-bold text-blue-700 text-right"
-                      />
-                      <p className="text-xs text-gray-500 mt-2">
-                        = doanh thu sau thuế - trích các quỹ
-                      </p>
+                      </span>
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">= lợi nhuận sau thuế - trích các quỹ</p>
                   </div>
                 </div>
               </div>
@@ -2147,7 +2209,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 <input
                   type="number"
                   min="0"
-                  step="1"
+                  step="0.01"
                   value={currentTab.formData.thoiGianChoPhepToiDa}
                   onChange={(e) => {
                     setTabsData(prev => {
@@ -2167,7 +2229,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             }, 0);
                           }, 0);
                         }
-                        const maxDays = parseInt(newTabs[activeTab].formData.thoiGianChoPhepToiDa) || 1;
+                        const maxDays = parseFloat(newTabs[activeTab].formData.thoiGianChoPhepToiDa) || 1;
                         newTabs[activeTab].formData.chiPhiSanXuatKeHoach = (chiPhiSanXuatPerDay * maxDays).toString();
                       } catch (e) {
                         // ignore
@@ -2241,7 +2303,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             return costSum + (gia * soLuong);
                           }, 0);
                         }, 0);
-                        const days = parseInt(currentTab.formData.thoiGianChoPhepToiDa) || 1;
+                        const days = parseFloat(currentTab.formData.thoiGianChoPhepToiDa) || 1;
                         return (total * days).toLocaleString('vi-VN');
                       })()}
                       disabled
@@ -2405,7 +2467,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               return costSum + (gia * soLuong);
                             }, 0);
                           }, 0);
-                          const maxDays = parseInt(currentTab.formData.thoiGianChoPhepToiDa) || 1;
+                          const maxDays = parseFloat(currentTab.formData.thoiGianChoPhepToiDa) || 1;
                           chiPhiSanXuat = perDay * maxDays;
                         }
 
