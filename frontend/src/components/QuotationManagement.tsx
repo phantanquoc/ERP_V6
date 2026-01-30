@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Download, Eye, Edit, Trash2, ShoppingCart } from 'lucide-react';
+import { Search, Eye, Edit, Trash2, ShoppingCart } from 'lucide-react';
 import { quotationService, Quotation } from '../services/quotationService';
 import { orderService } from '../services/orderService';
 import { useQuotations, quotationKeys } from '../hooks';
@@ -130,7 +130,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
 
     const statusInfo = statusMap[status] || { label: status, className: 'bg-gray-100 text-gray-800' };
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusInfo.className}`}>
+      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusInfo.className}`}>
         {statusInfo.label}
       </span>
     );
@@ -149,177 +149,154 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
   };
 
   return (
-    <div className="space-y-6">
-      {/* Search and Filter Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-        <div className="relative w-80">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+    <div className="space-y-4">
+      {/* Search Bar */}
+      <div className="flex items-center justify-between">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
             type="text"
             placeholder="Tìm kiếm..."
             value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
           />
-        </div>
-        <div className="flex gap-3">
-          <button className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-            <Filter className="w-4 h-4 mr-2" />
-            Lọc
-          </button>
-          <button className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-            <Download className="w-4 h-4 mr-2" />
-            Xuất Excel
-          </button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày báo giá</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã báo giá</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Giá báo khách</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian giao hàng</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Hiệu lực báo giá (ngày)</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên báo giá</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b-2 border-gray-200">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">STT</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Ngày BG</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Mã báo giá</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Giá báo khách</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">TG giao hàng</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Hiệu lực</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Nhân viên</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Trạng thái</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Ghi chú</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-blue-600">Hành động</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {loading ? (
+              <tr>
+                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                  Đang tải...
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
-                    Đang tải...
+            ) : quotations.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                  Không có dữ liệu
+                </td>
+              </tr>
+            ) : (
+              quotations.map((quotation, index) => (
+                <tr key={quotation.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">
+                    {(currentPage - 1) * itemsPerPage + index + 1}
                   </td>
-                </tr>
-              ) : quotations.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
-                    Không có dữ liệu
+                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                    {formatDate(quotation.ngayBaoGia)}
                   </td>
-                </tr>
-              ) : (
-                quotations.map((quotation, index) => (
-                  <tr
-                    key={quotation.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {(currentPage - 1) * itemsPerPage + index + 1}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                      {formatDate(quotation.ngayBaoGia)}
-                    </td>
-                    <td className="px-6 py-4 border-r border-gray-200">
-                      <span className="text-sm font-semibold text-blue-600">
-                        {quotation.maBaoGia}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-green-600 border-r border-gray-200">
-                      {quotation.quotationRequest?.calculator?.products && quotation.quotationRequest.calculator.products.length > 0 ? (
-                        <div className="space-y-1">
-                          {quotation.quotationRequest.calculator.products.map((product: any, idx: number) => {
-                            // Giá báo khách = giaHoaVon + loiNhuanCongThem
-                            const giaBaoKhach = (product.giaHoaVon || 0) + (product.loiNhuanCongThem || 0);
-                            return (
-                              <div key={idx} className="flex items-center gap-2">
-                                <span className="text-gray-600 text-xs">{product.tenSanPham}:</span>
-                                <span className="font-semibold">{formatCurrency(giaBaoKhach)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        formatCurrency(quotation.giaBaoKhach)
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {quotation.thoiGianGiaoHang ? `${quotation.thoiGianGiaoHang} ngày` : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {quotation.hieuLucBaoGia ? `${quotation.hieuLucBaoGia} ngày` : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {quotation.tenNhanVien || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-center border-r border-gray-200">
-                      {getStatusBadge(quotation.tinhTrang)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate border-r border-gray-200">
-                      {quotation.ghiChu || '-'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          onClick={() => handleView(quotation)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(quotation)}
-                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleCreateOrder(quotation.id)}
-                          className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
-                          title="Tạo đơn hàng"
-                        >
-                          <ShoppingCart className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(quotation.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                          title="Xóa"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                  <td className="px-4 py-3 text-sm font-semibold text-blue-600">
+                    {quotation.maBaoGia}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {quotation.quotationRequest?.calculator?.products && quotation.quotationRequest.calculator.products.length > 0 ? (
+                      <div className="space-y-1">
+                        {quotation.quotationRequest.calculator.products.map((product: any, idx: number) => {
+                          const giaBaoKhach = (product.giaHoaVon || 0) + (product.loiNhuanCongThem || 0);
+                          return (
+                            <div key={idx} className="flex items-center gap-1.5">
+                              <span className="text-gray-600 text-xs">{product.tenSanPham}:</span>
+                              <span className="font-semibold text-green-600">{formatCurrency(giaBaoKhach)}</span>
+                            </div>
+                          );
+                        })}
                       </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    ) : (
+                      <span className="font-semibold text-green-600">{formatCurrency(quotation.giaBaoKhach)}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                    {quotation.thoiGianGiaoHang ? `${quotation.thoiGianGiaoHang} ngày` : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                    {quotation.hieuLucBaoGia ? `${quotation.hieuLucBaoGia} ngày` : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700">
+                    {quotation.tenNhanVien || '-'}
+                  </td>
+                  <td className="px-4 py-3">
+                    {getStatusBadge(quotation.tinhTrang)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700 max-w-xs truncate">
+                    {quotation.ghiChu || '-'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        onClick={() => handleView(quotation)}
+                        className="text-gray-500 hover:text-blue-600"
+                        title="Xem chi tiết"
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleEdit(quotation)}
+                        className="text-gray-500 hover:text-green-600"
+                        title="Chỉnh sửa"
+                      >
+                        <Edit className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleCreateOrder(quotation.id)}
+                        className="text-gray-500 hover:text-purple-600"
+                        title="Tạo đơn hàng"
+                      >
+                        <ShoppingCart className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(quotation.id)}
+                        className="text-gray-500 hover:text-red-600"
+                        title="Xóa"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white px-6 py-4 rounded-lg shadow-sm border border-gray-200">
-          <div className="text-sm text-gray-700">
-            Trang <span className="font-semibold">{currentPage}</span> / <span className="font-semibold">{totalPages}</span>
+        <div className="flex items-center justify-between bg-white px-6 py-3.5 rounded-lg shadow-md border border-gray-200">
+          <div className="text-sm text-gray-700 font-medium">
+            Trang <span className="font-bold text-blue-600">{currentPage}</span> / <span className="font-bold">{totalPages}</span>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
-              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
-              Trước
+              ← Trước
             </button>
             <button
               onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}
-              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
-              Sau
+              Sau →
             </button>
           </div>
         </div>

@@ -17,6 +17,11 @@ interface SelectedCostItem {
   donViTinh?: string;
   keHoach: number;
   thucTe: number;
+  // Thêm các trường cho USD và tỉ giá (chỉ dùng cho chi phí xuất khẩu)
+  keHoachUSD?: number;
+  thucTeUSD?: number;
+  tiGiaKeHoach?: number;
+  tiGiaThucTe?: number;
 }
 
 interface QuotationCalculatorModalProps {
@@ -1101,7 +1106,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       tenChiPhi: '',
       donViTinh: '',
       keHoach: 0,
-      thucTe: 0
+      thucTe: 0,
+      keHoachUSD: 0,
+      thucTeUSD: 0,
+      tiGiaKeHoach: 0,
+      tiGiaThucTe: 0
     };
     setSelectedExportCosts([...selectedExportCosts, newItem]);
   };
@@ -1186,6 +1195,40 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     setSelectedExportCosts(selectedExportCosts.map(item =>
       item.id === itemId ? { ...item, [field]: value } : item
     ));
+  };
+
+  // Update export cost USD value
+  const updateExportCostUSDValue = (itemId: string, field: 'keHoachUSD' | 'thucTeUSD', value: number) => {
+    setSelectedExportCosts(selectedExportCosts.map(item => {
+      if (item.id === itemId) {
+        const updatedItem = { ...item, [field]: value };
+        // Tự động tính VND khi thay đổi USD
+        if (field === 'keHoachUSD') {
+          updatedItem.keHoach = value * (item.tiGiaKeHoach || 0);
+        } else if (field === 'thucTeUSD') {
+          updatedItem.thucTe = value * (item.tiGiaThucTe || 0);
+        }
+        return updatedItem;
+      }
+      return item;
+    }));
+  };
+
+  // Update export cost exchange rate
+  const updateExportCostExchangeRate = (itemId: string, field: 'tiGiaKeHoach' | 'tiGiaThucTe', value: number) => {
+    setSelectedExportCosts(selectedExportCosts.map(item => {
+      if (item.id === itemId) {
+        const updatedItem = { ...item, [field]: value };
+        // Tự động tính VND khi thay đổi tỉ giá
+        if (field === 'tiGiaKeHoach') {
+          updatedItem.keHoach = (item.keHoachUSD || 0) * value;
+        } else if (field === 'tiGiaThucTe') {
+          updatedItem.thucTe = (item.thucTeUSD || 0) * value;
+        }
+        return updatedItem;
+      }
+      return item;
+    }));
   };
 
   // Calculate total general costs
@@ -1352,72 +1395,96 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           {/* Hiển thị tab Báo giá đơn hàng */}
           {isOrderSummaryTab ? (
             <div className="space-y-6">
-              <h4 className="text-lg font-semibold text-gray-800 border-b pb-2">
-                Chi phí đơn hàng
-              </h4>
-
-              {/* Bảng chi phí sản phẩm */}
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-gray-400">
-                  <thead>
-                    <tr className="bg-blue-100">
-                      <th className="border border-gray-400 px-4 py-3 text-left text-sm font-bold">CHI PHÍ</th>
-                      <th className="border border-gray-400 px-4 py-3 text-center text-sm font-bold w-48">KẾ HOẠCH (VND)</th>
-                      <th className="border border-gray-400 px-4 py-3 text-center text-sm font-bold w-48">THỰC TẾ (VND)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Chi phí từng sản phẩm */}
-                    {quotationRequest.items?.map((item, index) => {
-                      const tab = tabsData[index];
-                      let totalKeHoach = 0;
-                      let totalThucTe = 0;
-
-                      if (tab?.selectedProcess?.flowchart?.sections) {
-                        tab.selectedProcess.flowchart.sections.forEach(section => {
-                          section.costs?.forEach(cost => {
-                            const keHoach = (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                            const thucTe = (cost.soLuongThucTe || 0) * (cost.giaThucTe || 0);
-                            totalKeHoach += keHoach;
-                            totalThucTe += thucTe;
-                          });
-                        });
-                      }
-
-                              return (
-                                <tr key={index} className="bg-white hover:bg-gray-50">
-                                  <td className="border border-gray-400 px-4 py-2">
-                                    Chi phí sản phẩm {index + 1}: {item.tenSanPham}
-                                  </td>
-                                  <td className="border border-gray-400 px-4 py-2 text-right">
-                                    {(totalKeHoach * (parseInt(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1)).toLocaleString('vi-VN')}
-                                  </td>
-                                  <td className="border border-gray-400 px-4 py-2 text-right">
-                                    {totalThucTe.toLocaleString('vi-VN')}
-                                  </td>
-                                </tr>
-                              );
-                    })}
-                  </tbody>
-                </table>
+              {/* Header Section */}
+              <div className="border-b border-gray-200 pb-4">
+                <h4 className="text-xl font-semibold text-gray-900">Chi phí đơn hàng</h4>
               </div>
 
-              {/* Section Chi phí chung */}
-              <div className="mt-6">
-                <h5 className="text-md font-semibold text-gray-800 mb-3">Chi phí chung</h5>
+              {/* Bảng tổng hợp tất cả chi phí */}
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <tbody>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          Chi phí
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider w-48">
+                          Kế hoạch (VNĐ)
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider w-48">
+                          Thực tế (VNĐ)
+                        </th>
+                        <th className="px-6 py-3 w-12"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {/* Chi phí từng sản phẩm */}
+                      {quotationRequest.items?.map((item, index) => {
+                        const tab = tabsData[index];
+                        let totalKeHoach = 0;
+                        let totalThucTe = 0;
+
+                        if (tab?.selectedProcess?.flowchart?.sections) {
+                          tab.selectedProcess.flowchart.sections.forEach(section => {
+                            section.costs?.forEach(cost => {
+                              const keHoach = (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
+                              const thucTe = (cost.soLuongThucTe || 0) * (cost.giaThucTe || 0);
+                              totalKeHoach += keHoach;
+                              totalThucTe += thucTe;
+                            });
+                          });
+                        }
+
+                        return (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-6 py-3 text-sm text-gray-900">
+                              <div className="flex items-center gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 rounded bg-blue-100 text-blue-600 text-xs font-medium flex items-center justify-center">
+                                  {index + 1}
+                                </span>
+                                <span>{item.tenSanPham}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3 text-sm text-right font-medium text-gray-900">
+                              {(totalKeHoach * (parseInt(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1)).toLocaleString('vi-VN')}
+                            </td>
+                            <td className="px-6 py-3 text-sm text-right font-medium text-gray-900">
+                              {totalThucTe.toLocaleString('vi-VN')}
+                            </td>
+                            <td className="px-6 py-3"></td>
+                          </tr>
+                        );
+                      })}
+
+                      {/* Divider - Chi phí chung */}
+                      <tr className="bg-gray-100">
+                        <td colSpan={4} className="px-6 py-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-gray-700 uppercase">Chi phí chung</span>
+                            <button
+                              type="button"
+                              onClick={addGeneralCost}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Thêm
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Chi phí chung */}
                       {selectedGeneralCosts.map((item) => (
-                        <tr key={item.id} className="bg-gray-100">
-                          <td className="px-4 py-2 w-1/3">
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-3">
                             <select
                               value={item.costId}
                               onChange={(e) => updateGeneralCostSelection(item.id, e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             >
                               <option value="">-- Chọn chi phí --</option>
-                              <option value="ALL" className="font-bold text-blue-600">-- Tất cả --</option>
+                              <option value="ALL" className="font-semibold">-- Tất cả --</option>
                               {availableGeneralCosts.map((cost) => (
                                 <option key={cost.id} value={cost.id}>
                                   {cost.tenChiPhi}
@@ -1425,82 +1492,85 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               ))}
                             </select>
                           </td>
-                          <td className="px-4 py-2 w-1/4">
+                          <td className="px-6 py-3">
                             <input
                               type="number"
                               step="1"
                               min="0"
                               value={item.keHoach || ''}
                               onChange={(e) => updateGeneralCostValue(item.id, 'keHoach', parseFloat(e.target.value) || 0)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-right"
-                              placeholder="Kế hoạch (VND)"
+                              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="0"
                             />
                           </td>
-                          <td className="px-4 py-2 w-1/4">
+                          <td className="px-6 py-3">
                             <input
                               type="number"
                               step="1"
                               min="0"
                               value={item.thucTe || ''}
                               onChange={(e) => updateGeneralCostValue(item.id, 'thucTe', parseFloat(e.target.value) || 0)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-right"
-                              placeholder="Thực tế (VND)"
+                              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="0"
                             />
                           </td>
-                          <td className="px-4 py-2 w-16 text-center">
+                          <td className="px-6 py-3 text-center">
                             <button
                               type="button"
                               onClick={() => removeGeneralCost(item.id)}
-                              className="text-red-600 hover:text-red-800 p-1"
+                              className="text-gray-400 hover:text-red-600 p-1"
                               title="Xóa"
                             >
-                              <Trash2 className="w-5 h-5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
                         </tr>
                       ))}
-                      {/* Hàng Tổng cộng */}
+
+                      {/* Tổng chi phí chung */}
                       {selectedGeneralCosts.length > 0 && (
-                        <tr className="bg-blue-100 font-bold border-t-2 border-gray-400">
-                          <td className="px-4 py-3 text-right">Tổng cộng</td>
-                          <td className="px-4 py-3 text-right">
-                            {selectedGeneralCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0).toLocaleString('vi-VN')} VNĐ
+                        <tr className="bg-blue-50">
+                          <td className="px-6 py-2.5 text-sm font-semibold text-gray-900 text-right">
+                            Tổng chi phí chung
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            {selectedGeneralCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0).toLocaleString('vi-VN')} VNĐ
+                          <td className="px-6 py-2.5 text-sm font-bold text-gray-900 text-right">
+                            {selectedGeneralCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0).toLocaleString('vi-VN')}
                           </td>
-                          <td className="px-4 py-3"></td>
+                          <td className="px-6 py-2.5 text-sm font-bold text-gray-900 text-right">
+                            {selectedGeneralCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0).toLocaleString('vi-VN')}
+                          </td>
+                          <td className="px-6 py-2.5"></td>
                         </tr>
                       )}
-                    </tbody>
-                  </table>
-                </div>
-                <button
-                  type="button"
-                  onClick={addGeneralCost}
-                  className="mt-2 flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  <Plus className="w-4 h-4" />
-                  Thêm
-                </button>
-              </div>
 
-              {/* Section Chi phí xuất khẩu */}
-              <div className="mt-6">
-                <h5 className="text-md font-semibold text-gray-800 mb-3">Chi phí Xuất khẩu</h5>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <tbody>
+                      {/* Divider - Chi phí xuất khẩu */}
+                      <tr className="bg-gray-100">
+                        <td colSpan={4} className="px-6 py-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-gray-700 uppercase">Chi phí xuất khẩu</span>
+                            <button
+                              type="button"
+                              onClick={addExportCost}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Thêm
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Chi phí xuất khẩu */}
                       {selectedExportCosts.map((item) => (
-                        <tr key={item.id} className="bg-gray-100">
-                          <td className="px-4 py-2 w-1/3">
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-3">
                             <select
                               value={item.costId}
                               onChange={(e) => updateExportCostSelection(item.id, e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             >
                               <option value="">-- Chọn chi phí --</option>
-                              <option value="ALL" className="font-bold text-blue-600">-- Tất cả --</option>
+                              <option value="ALL" className="font-semibold">-- Tất cả --</option>
                               {availableExportCosts.map((cost) => (
                                 <option key={cost.id} value={cost.id}>
                                   {cost.tenChiPhi}
@@ -1508,300 +1578,345 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               ))}
                             </select>
                           </td>
-                          <td className="px-4 py-2 w-1/4">
-                            <input
-                              type="number"
-                              step="1"
-                              min="0"
-                              value={item.keHoach || ''}
-                              onChange={(e) => updateExportCostValue(item.id, 'keHoach', parseFloat(e.target.value) || 0)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-right"
-                              placeholder="Kế hoạch (VND)"
-                            />
+                          <td className="px-6 py-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={item.keHoachUSD || ''}
+                                  onChange={(e) => updateExportCostUSDValue(item.id, 'keHoachUSD', parseFloat(e.target.value) || 0)}
+                                  className="w-20 px-2 py-1 text-xs border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="USD"
+                                />
+                                <span className="text-xs text-gray-500">×</span>
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="0"
+                                  value={item.tiGiaKeHoach || ''}
+                                  onChange={(e) => updateExportCostExchangeRate(item.id, 'tiGiaKeHoach', parseFloat(e.target.value) || 0)}
+                                  className="w-24 px-2 py-1 text-xs border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="Tỉ giá"
+                                />
+                              </div>
+                              <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                value={item.keHoach || ''}
+                                onChange={(e) => updateExportCostValue(item.id, 'keHoach', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-1.5 text-sm border border-blue-300 rounded-md text-right font-medium text-blue-700 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="VNĐ"
+                              />
+                            </div>
                           </td>
-                          <td className="px-4 py-2 w-1/4">
-                            <input
-                              type="number"
-                              step="1"
-                              min="0"
-                              value={item.thucTe || ''}
-                              onChange={(e) => updateExportCostValue(item.id, 'thucTe', parseFloat(e.target.value) || 0)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-right"
-                              placeholder="Thực tế (VND)"
-                            />
+                          <td className="px-6 py-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={item.thucTeUSD || ''}
+                                  onChange={(e) => updateExportCostUSDValue(item.id, 'thucTeUSD', parseFloat(e.target.value) || 0)}
+                                  className="w-20 px-2 py-1 text-xs border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="USD"
+                                />
+                                <span className="text-xs text-gray-500">×</span>
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="0"
+                                  value={item.tiGiaThucTe || ''}
+                                  onChange={(e) => updateExportCostExchangeRate(item.id, 'tiGiaThucTe', parseFloat(e.target.value) || 0)}
+                                  className="w-24 px-2 py-1 text-xs border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="Tỉ giá"
+                                />
+                              </div>
+                              <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                value={item.thucTe || ''}
+                                onChange={(e) => updateExportCostValue(item.id, 'thucTe', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-1.5 text-sm border border-green-300 rounded-md text-right font-medium text-green-700 bg-green-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="VNĐ"
+                              />
+                            </div>
                           </td>
-                          <td className="px-4 py-2 w-16 text-center">
+                          <td className="px-6 py-3 text-center">
                             <button
                               type="button"
                               onClick={() => removeExportCost(item.id)}
-                              className="text-red-600 hover:text-red-800 p-1"
+                              className="text-gray-400 hover:text-red-600 p-1"
                               title="Xóa"
                             >
-                              <Trash2 className="w-5 h-5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
                         </tr>
                       ))}
-                      {/* Hàng Tổng cộng */}
+
+                      {/* Tổng chi phí xuất khẩu */}
                       {selectedExportCosts.length > 0 && (
-                        <tr className="bg-blue-100 font-bold border-t-2 border-gray-400">
-                          <td className="px-4 py-3 text-right">Tổng cộng</td>
-                          <td className="px-4 py-3 text-right">
-                            {selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0).toLocaleString('vi-VN')} VNĐ
+                        <tr className="bg-blue-50">
+                          <td className="px-6 py-2.5 text-sm font-semibold text-gray-900 text-right">
+                            Tổng chi phí xuất khẩu
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            {selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0).toLocaleString('vi-VN')} VNĐ
+                          <td className="px-6 py-2.5 text-sm font-bold text-gray-900 text-right">
+                            {selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0).toLocaleString('vi-VN')}
                           </td>
-                          <td className="px-4 py-3"></td>
+                          <td className="px-6 py-2.5 text-sm font-bold text-gray-900 text-right">
+                            {selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0).toLocaleString('vi-VN')}
+                          </td>
+                          <td className="px-6 py-2.5"></td>
                         </tr>
                       )}
+
+                      {/* TỔNG CHI PHÍ ĐƠN HÀNG */}
+                      <tr className="bg-gray-700">
+                        <td className="px-6 py-3 text-sm font-bold text-white uppercase">
+                          Tổng chi phí đơn hàng
+                        </td>
+                        <td className="px-6 py-3 text-base font-bold text-white text-right">
+                          {(() => {
+                            let total = 0;
+                            // Chi phí sản phẩm (giống cách tính ở bảng chi phí sản phẩm)
+                            tabsData.forEach(tab => {
+                              if (tab?.selectedProcess?.flowchart?.sections) {
+                                let productTotal = 0;
+                                tab.selectedProcess.flowchart.sections.forEach(section => {
+                                  section.costs?.forEach(cost => {
+                                    productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
+                                  });
+                                });
+                                // Nhân với thời gian cho phép tối đa (giống như hiển thị ở bảng chi phí sản phẩm)
+                                const multiplier = parseInt(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
+                                total += productTotal * multiplier;
+                              }
+                            });
+                            // Chi phí chung
+                            total += getTotalGeneralCosts().keHoach;
+                            // Chi phí xuất khẩu
+                            total += getTotalExportCosts().keHoach;
+                            return total.toLocaleString('vi-VN');
+                          })()} VNĐ
+                        </td>
+                        <td className="px-6 py-3 text-base font-bold text-white text-right">
+                          {(() => {
+                            let total = 0;
+                            // Chi phí sản phẩm thực tế
+                            tabsData.forEach(tab => {
+                              if (tab?.selectedProcess?.flowchart?.sections) {
+                                tab.selectedProcess.flowchart.sections.forEach(section => {
+                                  section.costs?.forEach(cost => {
+                                    total += (cost.soLuongThucTe || 0) * (cost.giaThucTe || 0);
+                                  });
+                                });
+                              }
+                            });
+                            // Chi phí chung
+                            total += getTotalGeneralCosts().thucTe;
+                            // Chi phí xuất khẩu
+                            total += getTotalExportCosts().thucTe;
+                            return total.toLocaleString('vi-VN');
+                          })()} VNĐ
+                        </td>
+                        <td className="px-6 py-3"></td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
-                <button
-                  type="button"
-                  onClick={addExportCost}
-                  className="mt-2 flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  <Plus className="w-4 h-4" />
-                  Thêm
-                </button>
-              </div>
-
-              {/* Tổng cộng */}
-              <div className="mt-6 bg-blue-50 p-4 rounded-lg">
-                <table className="w-full">
-                  <tbody>
-                    <tr className="font-bold text-lg">
-                      <td className="py-2 w-1/3">Tổng cộng</td>
-                      <td className="py-2 w-1/4 text-right">
-                        {(() => {
-                          let total = 0;
-                          // Chi phí sản phẩm (giống cách tính ở bảng chi phí sản phẩm)
-                          tabsData.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              // Nhân với thời gian cho phép tối đa (giống như hiển thị ở bảng chi phí sản phẩm)
-                              const multiplier = parseInt(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              total += productTotal * multiplier;
-                            }
-                          });
-                          // Chi phí chung
-                          total += getTotalGeneralCosts().keHoach;
-                          // Chi phí xuất khẩu
-                          total += getTotalExportCosts().keHoach;
-                          return total.toLocaleString('vi-VN') + ' VND';
-                        })()}
-                      </td>
-                      <td className="py-2 w-1/4 text-right">
-                        {(() => {
-                          let total = 0;
-                          // Chi phí sản phẩm thực tế
-                          tabsData.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  total += (cost.soLuongThucTe || 0) * (cost.giaThucTe || 0);
-                                });
-                              });
-                            }
-                          });
-                          // Chi phí chung
-                          total += getTotalGeneralCosts().thucTe;
-                          // Chi phí xuất khẩu
-                          total += getTotalExportCosts().thucTe;
-                          return total.toLocaleString('vi-VN') + ' VND';
-                        })()}
-                      </td>
-                      <td className="w-16"></td>
-                    </tr>
-                  </tbody>
-                </table>
               </div>
 
               {/* Phần tính lợi nhuận */}
-              <div className="mt-6 bg-gradient-to-br from-green-50 to-blue-50 p-6 rounded-lg border-2 border-green-300">
-                <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                  <DollarSign className="w-5 h-5 mr-2 text-green-600" />
-                  Tính toán lợi nhuận
-                </h4>
+              <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+                <div className="bg-gradient-to-r from-gray-700 to-gray-800 px-6 py-3">
+                  <h4 className="text-base font-semibold text-white uppercase tracking-wide">Tính toán doanh thu & lợi nhuận</h4>
+                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Lợi nhuận trước thuế */}
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Lợi nhuận trước thuế:
-                    </label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        // Lợi nhuận trước thuế = Tổng (giá báo khách * số lượng) của tất cả sản phẩm
-                        // Giá báo khách = Giá hòa vốn + Lợi nhuận cộng thêm
-                        const items = getItems();
-                        let loiNhuanTruocThue = 0;
-                        tabsData.forEach((tab, index) => {
-                          const item = items[index];
-                          const soLuong = parseFloat(item?.soLuong?.toString() || '0');
-                          // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
-                          const giaHoaVon = calculateGiaHoaVonChinhPham(index);
-                          const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
-                          const giaBaoKhach = giaHoaVon + loiNhuan;
-                          loiNhuanTruocThue += giaBaoKhach * soLuong;
-                        });
-                        return loiNhuanTruocThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                      })()}
-                      disabled
-                      className="w-full px-4 py-3 border-2 border-green-400 rounded-lg bg-green-50 text-lg font-bold text-green-700 text-center"
-                    />
-                    <p className="text-xs text-gray-500 mt-1 text-center">
-                      = Σ (giá báo khách × số lượng) của tất cả sản phẩm
-                    </p>
+                <div className="p-6 space-y-4">
+                  {/* Row 1: Doanh thu trước thuế và % thuế */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Doanh thu trước thuế */}
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <label className="block text-xs font-medium text-gray-600 mb-2">
+                        Doanh thu trước thuế
+                      </label>
+                      <input
+                        type="text"
+                        value={(() => {
+                          // Lợi nhuận trước thuế = Tổng (giá báo khách * số lượng) của tất cả sản phẩm
+                          // Giá báo khách = Giá hòa vốn + Lợi nhuận cộng thêm
+                          const items = getItems();
+                          let loiNhuanTruocThue = 0;
+                          tabsData.forEach((tab, index) => {
+                            const item = items[index];
+                            const soLuong = parseFloat(item?.soLuong?.toString() || '0');
+                            // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
+                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
+                            const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
+                            const giaBaoKhach = giaHoaVon + loiNhuan;
+                            loiNhuanTruocThue += giaBaoKhach * soLuong;
+                          });
+                          return loiNhuanTruocThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                        })()}
+                        disabled
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-lg font-semibold text-gray-900 text-right"
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        = Σ (giá báo khách × số lượng)
+                      </p>
+                    </div>
+
+                    {/* % thuế (input) */}
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <label className="block text-xs font-medium text-gray-600 mb-2">
+                        Phần trăm thuế (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={phanTramThue}
+                        onChange={(e) => setPhanTramThue(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold text-right"
+                        placeholder="0.00"
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        Nhập phần trăm thuế (0-100)
+                      </p>
+                    </div>
                   </div>
 
-                  {/* % thuế (input) */}
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      % thuế:
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      value={phanTramThue}
-                      onChange={(e) => setPhanTramThue(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-lg font-semibold text-center"
-                      placeholder="Nhập % thuế"
-                    />
-                    <p className="text-xs text-gray-500 mt-1 text-center">
-                      Nhập phần trăm thuế (0-100)
-                    </p>
+                  {/* Row 2: Doanh thu sau thuế và % quỹ */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Doanh thu sau thuế */}
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <label className="block text-xs font-medium text-gray-600 mb-2">
+                        Doanh thu sau thuế
+                      </label>
+                      <input
+                        type="text"
+                        value={(() => {
+                          // Lợi nhuận sau thuế = lợi nhuận trước thuế - (lợi nhuận trước thuế * % thuế / 100)
+                          const items = getItems();
+                          let loiNhuanTruocThue = 0;
+                          tabsData.forEach((tab, index) => {
+                            const item = items[index];
+                            const soLuong = parseFloat(item?.soLuong?.toString() || '0');
+                            // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
+                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
+                            const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
+                            const giaBaoKhach = giaHoaVon + loiNhuan;
+                            loiNhuanTruocThue += giaBaoKhach * soLuong;
+                          });
+                          const thue = parseFloat(phanTramThue || '0');
+                          const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
+                          return loiNhuanSauThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                        })()}
+                        disabled
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-lg font-semibold text-gray-900 text-right"
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        = doanh thu trước thuế - (doanh thu trước thuế × % thuế)
+                      </p>
+                    </div>
+
+                    {/* % quỹ (input) */}
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <label className="block text-xs font-medium text-gray-600 mb-2">
+                        Phần trăm quỹ (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={phanTramQuy}
+                        onChange={(e) => setPhanTramQuy(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold text-right"
+                        placeholder="0.00"
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        Nhập phần trăm quỹ (0-100)
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Lợi nhuận sau thuế */}
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Lợi nhuận sau thuế:
-                    </label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        // Lợi nhuận sau thuế = lợi nhuận trước thuế - (lợi nhuận trước thuế * % thuế / 100)
-                        const items = getItems();
-                        let loiNhuanTruocThue = 0;
-                        tabsData.forEach((tab, index) => {
-                          const item = items[index];
-                          const soLuong = parseFloat(item?.soLuong?.toString() || '0');
-                          // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
-                          const giaHoaVon = calculateGiaHoaVonChinhPham(index);
-                          const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
-                          const giaBaoKhach = giaHoaVon + loiNhuan;
-                          loiNhuanTruocThue += giaBaoKhach * soLuong;
-                        });
-                        const thue = parseFloat(phanTramThue || '0');
-                        const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
-                        return loiNhuanSauThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                      })()}
-                      disabled
-                      className="w-full px-4 py-3 border-2 border-blue-400 rounded-lg bg-blue-50 text-lg font-bold text-blue-700 text-center"
-                    />
-                    <p className="text-xs text-gray-500 mt-1 text-center">
-                      = lợi nhuận trước thuế - (lợi nhuận trước thuế × % thuế)
-                    </p>
-                  </div>
+                  {/* Row 3: Trích các quỹ và Doanh thu thực nhận */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Trích các quỹ */}
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <label className="block text-xs font-medium text-gray-600 mb-2">
+                        Trích các quỹ
+                      </label>
+                      <input
+                        type="text"
+                        value={(() => {
+                          // Trích các quỹ = lợi nhuận sau thuế * % quỹ / 100
+                          const items = getItems();
+                          let loiNhuanTruocThue = 0;
+                          tabsData.forEach((tab, index) => {
+                            const item = items[index];
+                            const soLuong = parseFloat(item?.soLuong?.toString() || '0');
+                            // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
+                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
+                            const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
+                            const giaBaoKhach = giaHoaVon + loiNhuan;
+                            loiNhuanTruocThue += giaBaoKhach * soLuong;
+                          });
+                          const thue = parseFloat(phanTramThue || '0');
+                          const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
+                          const quy = parseFloat(phanTramQuy || '0');
+                          const trichCacQuy = loiNhuanSauThue * quy / 100;
+                          return trichCacQuy.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                        })()}
+                        disabled
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-lg font-semibold text-gray-900 text-right"
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        = doanh thu sau thuế × % quỹ
+                      </p>
+                    </div>
 
-                  {/* % quỹ (input) */}
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      % quỹ:
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      value={phanTramQuy}
-                      onChange={(e) => setPhanTramQuy(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-lg font-semibold text-center"
-                      placeholder="Nhập % quỹ"
-                    />
-                    <p className="text-xs text-gray-500 mt-1 text-center">
-                      Nhập phần trăm quỹ (0-100)
-                    </p>
-                  </div>
-
-                  {/* Trích các quỹ */}
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Trích các quỹ:
-                    </label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        // Trích các quỹ = lợi nhuận sau thuế * % quỹ / 100
-                        const items = getItems();
-                        let loiNhuanTruocThue = 0;
-                        tabsData.forEach((tab, index) => {
-                          const item = items[index];
-                          const soLuong = parseFloat(item?.soLuong?.toString() || '0');
-                          // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
-                          const giaHoaVon = calculateGiaHoaVonChinhPham(index);
-                          const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
-                          const giaBaoKhach = giaHoaVon + loiNhuan;
-                          loiNhuanTruocThue += giaBaoKhach * soLuong;
-                        });
-                        const thue = parseFloat(phanTramThue || '0');
-                        const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
-                        const quy = parseFloat(phanTramQuy || '0');
-                        const trichCacQuy = loiNhuanSauThue * quy / 100;
-                        return trichCacQuy.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                      })()}
-                      disabled
-                      className="w-full px-4 py-3 border-2 border-purple-400 rounded-lg bg-purple-50 text-lg font-bold text-purple-700 text-center"
-                    />
-                    <p className="text-xs text-gray-500 mt-1 text-center">
-                      = lợi nhuận sau thuế × % quỹ
-                    </p>
-                  </div>
-
-                  {/* Lợi nhuận thực nhận */}
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Lợi nhuận thực nhận:
-                    </label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        // Lợi nhuận thực nhận = lợi nhuận sau thuế - trích các quỹ
-                        const items = getItems();
-                        let loiNhuanTruocThue = 0;
-                        tabsData.forEach((tab, index) => {
-                          const item = items[index];
-                          const soLuong = parseFloat(item?.soLuong?.toString() || '0');
-                          // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
-                          const giaHoaVon = calculateGiaHoaVonChinhPham(index);
-                          const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
-                          const giaBaoKhach = giaHoaVon + loiNhuan;
-                          loiNhuanTruocThue += giaBaoKhach * soLuong;
-                        });
-                        const thue = parseFloat(phanTramThue || '0');
-                        const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
-                        const quy = parseFloat(phanTramQuy || '0');
-                        const trichCacQuy = loiNhuanSauThue * quy / 100;
-                        const loiNhuanThucNhan = loiNhuanSauThue - trichCacQuy;
-                        return loiNhuanThucNhan.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                      })()}
-                      disabled
-                      className="w-full px-4 py-3 border-2 border-yellow-400 rounded-lg bg-yellow-50 text-xl font-bold text-yellow-700 text-center"
-                    />
-                    <p className="text-xs text-gray-500 mt-1 text-center">
-                      = lợi nhuận sau thuế - trích các quỹ
-                    </p>
+                    {/* Doanh thu thực nhận */}
+                    <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-300">
+                      <label className="block text-xs font-medium text-gray-600 mb-2">
+                        Doanh thu thực nhận
+                      </label>
+                      <input
+                        type="text"
+                        value={(() => {
+                          // Lợi nhuận thực nhận = lợi nhuận sau thuế - trích các quỹ
+                          const items = getItems();
+                          let loiNhuanTruocThue = 0;
+                          tabsData.forEach((tab, index) => {
+                            const item = items[index];
+                            const soLuong = parseFloat(item?.soLuong?.toString() || '0');
+                            // Tính giá báo khách = giá hòa vốn + lợi nhuận cộng thêm
+                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
+                            const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
+                            const giaBaoKhach = giaHoaVon + loiNhuan;
+                            loiNhuanTruocThue += giaBaoKhach * soLuong;
+                          });
+                          const thue = parseFloat(phanTramThue || '0');
+                          const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
+                          const quy = parseFloat(phanTramQuy || '0');
+                          const trichCacQuy = loiNhuanSauThue * quy / 100;
+                          const loiNhuanThucNhan = loiNhuanSauThue - trichCacQuy;
+                          return loiNhuanThucNhan.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                        })()}
+                        disabled
+                        className="w-full px-3 py-2 border-0 rounded-md bg-white text-xl font-bold text-blue-700 text-right"
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        = doanh thu sau thuế - trích các quỹ
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
