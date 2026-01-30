@@ -19,6 +19,10 @@ const FinishedProductViewModal: React.FC<FinishedProductViewModalProps> = ({
     if (!datetime) return '-';
     try {
       const date = new Date(datetime);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return datetime || '-';
+      }
       const day = String(date.getDate()).padStart(2, '0');
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = date.getFullYear();
@@ -26,7 +30,7 @@ const FinishedProductViewModal: React.FC<FinishedProductViewModalProps> = ({
       const minutes = String(date.getMinutes()).padStart(2, '0');
       return `${hours}:${minutes} ${day}/${month}/${year}`;
     } catch {
-      return datetime;
+      return datetime || '-';
     }
   };
 
@@ -75,9 +79,9 @@ const FinishedProductViewModal: React.FC<FinishedProductViewModalProps> = ({
             <InfoRow label="Mã chiên" value={product.maChien} />
             <InfoRow label="Thời gian chiên" value={formatDateTime(product.thoiGianChien)} />
             <InfoRow label="Tên hàng hóa" value={product.tenHangHoa} />
-            <InfoRow label="Khối lượng" value={`${product.khoiLuong} kg`} />
+            <InfoRow label="Khối lượng đầu vào" value={`${product.khoiLuong} kg`} />
             <InfoRow label="Người thực hiện" value={product.nguoiThucHien} />
-            <InfoRow label="Tổng khối lượng" value={`${product.tongKhoiLuong} kg`} />
+            <InfoRow label="Tổng khối lượng thành phẩm" value={`${product.tongKhoiLuong} kg`} />
             {product.fileDinhKem && (
               <InfoRow
                 label="File đính kèm"

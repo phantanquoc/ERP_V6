@@ -112,74 +112,53 @@ const QualityEvaluationModal: React.FC<QualityEvaluationModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Màu sắc</label>
-                <select
+                <input
+                  type="text"
                   value={formData.mauSac || ''}
                   onChange={(e) => onChange('mauSac', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Chọn màu sắc --</option>
-                  <option value="Vàng đậm">Vàng đậm</option>
-                  <option value="Vàng nhạt">Vàng nhạt</option>
-                  <option value="Nâu đậm">Nâu đậm</option>
-                  <option value="Nâu nhạt">Nâu nhạt</option>
-                  <option value="Trắng">Trắng</option>
-                </select>
+                  placeholder="Nhập màu sắc..."
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mùi hương</label>
-                <select
+                <input
+                  type="text"
                   value={formData.muiHuong || ''}
                   onChange={(e) => onChange('muiHuong', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Chọn đánh giá --</option>
-                  <option value="Rất tốt">Rất tốt</option>
-                  <option value="Tốt">Tốt</option>
-                  <option value="Trung bình">Trung bình</option>
-                  <option value="Kém">Kém</option>
-                </select>
+                  placeholder="Nhập đánh giá mùi hương..."
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Vị</label>
-                <select
+                <input
+                  type="text"
                   value={formData.huongVi || ''}
                   onChange={(e) => onChange('huongVi', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Chọn đánh giá --</option>
-                  <option value="Rất tốt">Rất tốt</option>
-                  <option value="Tốt">Tốt</option>
-                  <option value="Trung bình">Trung bình</option>
-                  <option value="Kém">Kém</option>
-                </select>
+                  placeholder="Nhập đánh giá vị..."
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Độ ngọt</label>
-                <select
+                <input
+                  type="text"
                   value={formData.doNgot || ''}
                   onChange={(e) => onChange('doNgot', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Chọn đánh giá --</option>
-                  <option value="Rất ngọt">Rất ngọt</option>
-                  <option value="Vừa phải">Vừa phải</option>
-                  <option value="Ít ngọt">Ít ngọt</option>
-                  <option value="Không ngọt">Không ngọt</option>
-                </select>
+                  placeholder="Nhập đánh giá độ ngọt..."
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Độ giòn</label>
-                <select
+                <input
+                  type="text"
                   value={formData.doGion || ''}
                   onChange={(e) => onChange('doGion', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Chọn đánh giá --</option>
-                  <option value="Rất giòn">Rất giòn</option>
-                  <option value="Giòn">Giòn</option>
-                  <option value="Trung bình">Trung bình</option>
-                  <option value="Mềm">Mềm</option>
-                </select>
+                  placeholder="Nhập đánh giá độ giòn..."
+                />
               </div>
             </div>
           </div>

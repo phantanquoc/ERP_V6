@@ -344,6 +344,51 @@ export class SystemOperationService {
       where: { id },
     });
   }
+
+  async deleteByMaChien(maChien: string) {
+    // Check if maChien exists in any related table
+    const existingOperation = await prisma.systemOperation.findFirst({
+      where: { maChien },
+    });
+
+    const existingFinishedProduct = await prisma.finishedProduct.findFirst({
+      where: { maChien },
+    });
+
+    const existingQualityEvaluation = await prisma.qualityEvaluation.findFirst({
+      where: { maChien },
+    });
+
+    if (!existingOperation && !existingFinishedProduct && !existingQualityEvaluation) {
+      throw new NotFoundError(`Không tìm thấy dữ liệu với mã chiên "${maChien}"`);
+    }
+
+    // Delete all related data in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Delete quality evaluations first (depends on finished products)
+      const deletedQualityEvaluations = await tx.qualityEvaluation.deleteMany({
+        where: { maChien },
+      });
+
+      // Delete finished products
+      const deletedFinishedProducts = await tx.finishedProduct.deleteMany({
+        where: { maChien },
+      });
+
+      // Delete system operations
+      const deletedSystemOperations = await tx.systemOperation.deleteMany({
+        where: { maChien },
+      });
+
+      return {
+        deletedSystemOperations: deletedSystemOperations.count,
+        deletedFinishedProducts: deletedFinishedProducts.count,
+        deletedQualityEvaluations: deletedQualityEvaluations.count,
+      };
+    });
+
+    return result;
+  }
 }
 
 export default new SystemOperationService();

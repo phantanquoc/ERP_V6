@@ -1,14 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Edit, Trash2, Eye, FileText } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Edit, Trash2, Eye, FileText, X } from 'lucide-react';
 import finishedProductService, { FinishedProduct } from '../services/finishedProductService';
 import machineService, { Machine } from '../services/machineService';
 import FinishedProductModal from './FinishedProductModal';
 import FinishedProductViewModal from './FinishedProductViewModal';
 import { useAuth } from '../contexts/AuthContext';
 
+// Special constant for "Tổng các máy" tab
+const TOTAL_ALL_MACHINES = '__TOTAL_ALL_MACHINES__';
+
 const FinishedProductManagement: React.FC = () => {
   const { user } = useAuth();
   const [products, setProducts] = useState<FinishedProduct[]>([]);
+  const [allProducts, setAllProducts] = useState<FinishedProduct[]>([]); // All products from all machines
   const [machines, setMachines] = useState<Machine[]>([]);
   const [selectedMachine, setSelectedMachine] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -58,6 +62,13 @@ const FinishedProductManagement: React.FC = () => {
     }
   }, [selectedMachine, currentPage]);
 
+  // Load all products when "Tổng các máy" tab is selected
+  useEffect(() => {
+    if (selectedMachine === TOTAL_ALL_MACHINES) {
+      loadAllProducts();
+    }
+  }, [selectedMachine]);
+
   const loadMachines = async () => {
     try {
       setLoading(true);
@@ -78,6 +89,9 @@ const FinishedProductManagement: React.FC = () => {
   };
 
   const loadProducts = async () => {
+    if (selectedMachine === TOTAL_ALL_MACHINES) {
+      return; // Skip loading for total tab, handled separately
+    }
     try {
       setLoading(true);
       setError('');
@@ -92,10 +106,156 @@ const FinishedProductManagement: React.FC = () => {
     }
   };
 
+  // Load all products from all machines for "Tổng các máy" tab
+  const loadAllProducts = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      // Fetch all products without machine filter
+      const result = await finishedProductService.getAllFinishedProducts(1, 10000);
+      setAllProducts(result.data);
+    } catch (err: any) {
+      setError(err.message || 'Lỗi tải dữ liệu tổng hợp');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Interface for aggregated product by maChien
+  interface AggregatedProduct {
+    maChien: string;
+    thoiGianChien: string;
+    tenHangHoa: string;
+    khoiLuong: number;
+    nguoiThucHien: string;
+    aKhoiLuong: number;
+    bKhoiLuong: number;
+    bDauKhoiLuong: number;
+    cKhoiLuong: number;
+    vunLonKhoiLuong: number;
+    vunNhoKhoiLuong: number;
+    phePhamKhoiLuong: number;
+    uotKhoiLuong: number;
+    tongKhoiLuong: number;
+    aTiLe: number;
+    bTiLe: number;
+    bDauTiLe: number;
+    cTiLe: number;
+    vunLonTiLe: number;
+    vunNhoTiLe: number;
+    phePhamTiLe: number;
+    uotTiLe: number;
+    machineCount: number;
+  }
+
+  // Aggregate products by maChien for "Tổng các máy" tab
+  const aggregatedByMaChien = useMemo((): AggregatedProduct[] => {
+    if (selectedMachine !== TOTAL_ALL_MACHINES || allProducts.length === 0) {
+      return [];
+    }
+
+    // Group products by maChien
+    const groupedMap = new Map<string, FinishedProduct[]>();
+    allProducts.forEach((product) => {
+      const existing = groupedMap.get(product.maChien) || [];
+      existing.push(product);
+      groupedMap.set(product.maChien, existing);
+    });
+
+    // Calculate aggregated values for each maChien
+    const result: AggregatedProduct[] = [];
+    groupedMap.forEach((products, maChien) => {
+      const totals = {
+        khoiLuong: 0,
+        aKhoiLuong: 0,
+        bKhoiLuong: 0,
+        bDauKhoiLuong: 0,
+        cKhoiLuong: 0,
+        vunLonKhoiLuong: 0,
+        vunNhoKhoiLuong: 0,
+        phePhamKhoiLuong: 0,
+        uotKhoiLuong: 0,
+      };
+
+      products.forEach((p) => {
+        totals.khoiLuong += p.khoiLuong || 0;
+        totals.aKhoiLuong += p.aKhoiLuong || 0;
+        totals.bKhoiLuong += p.bKhoiLuong || 0;
+        totals.bDauKhoiLuong += p.bDauKhoiLuong || 0;
+        totals.cKhoiLuong += p.cKhoiLuong || 0;
+        totals.vunLonKhoiLuong += p.vunLonKhoiLuong || 0;
+        totals.vunNhoKhoiLuong += p.vunNhoKhoiLuong || 0;
+        totals.phePhamKhoiLuong += p.phePhamKhoiLuong || 0;
+        totals.uotKhoiLuong += p.uotKhoiLuong || 0;
+      });
+
+      const tongKhoiLuong =
+        totals.aKhoiLuong +
+        totals.bKhoiLuong +
+        totals.bDauKhoiLuong +
+        totals.cKhoiLuong +
+        totals.vunLonKhoiLuong +
+        totals.vunNhoKhoiLuong +
+        totals.phePhamKhoiLuong +
+        totals.uotKhoiLuong;
+
+      const calculatePercentage = (value: number) => {
+        if (tongKhoiLuong === 0) return 0;
+        return Number(((value / tongKhoiLuong) * 100).toFixed(2));
+      };
+
+      // Use first product's info for display
+      const firstProduct = products[0];
+      result.push({
+        maChien,
+        thoiGianChien: firstProduct.thoiGianChien,
+        tenHangHoa: firstProduct.tenHangHoa,
+        nguoiThucHien: firstProduct.nguoiThucHien,
+        khoiLuong: totals.khoiLuong,
+        aKhoiLuong: totals.aKhoiLuong,
+        bKhoiLuong: totals.bKhoiLuong,
+        bDauKhoiLuong: totals.bDauKhoiLuong,
+        cKhoiLuong: totals.cKhoiLuong,
+        vunLonKhoiLuong: totals.vunLonKhoiLuong,
+        vunNhoKhoiLuong: totals.vunNhoKhoiLuong,
+        phePhamKhoiLuong: totals.phePhamKhoiLuong,
+        uotKhoiLuong: totals.uotKhoiLuong,
+        tongKhoiLuong,
+        aTiLe: calculatePercentage(totals.aKhoiLuong),
+        bTiLe: calculatePercentage(totals.bKhoiLuong),
+        bDauTiLe: calculatePercentage(totals.bDauKhoiLuong),
+        cTiLe: calculatePercentage(totals.cKhoiLuong),
+        vunLonTiLe: calculatePercentage(totals.vunLonKhoiLuong),
+        vunNhoTiLe: calculatePercentage(totals.vunNhoKhoiLuong),
+        phePhamTiLe: calculatePercentage(totals.phePhamKhoiLuong),
+        uotTiLe: calculatePercentage(totals.uotKhoiLuong),
+        machineCount: products.length,
+      });
+    });
+
+    // Sort by thoiGianChien descending
+    result.sort((a, b) => new Date(b.thoiGianChien).getTime() - new Date(a.thoiGianChien).getTime());
+    return result;
+  }, [selectedMachine, allProducts]);
+
+  // State for viewing aggregated product detail
+  const [selectedAggregatedProduct, setSelectedAggregatedProduct] = useState<AggregatedProduct | null>(null);
+  const [isAggregatedViewModalOpen, setIsAggregatedViewModalOpen] = useState(false);
+
+  const handleViewAggregated = (product: AggregatedProduct) => {
+    setSelectedAggregatedProduct(product);
+    setIsAggregatedViewModalOpen(true);
+  };
+
   const formatDateTime = (datetime: string) => {
     if (!datetime) return '';
     try {
       const date = new Date(datetime);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return datetime || '-';
+      }
       const day = String(date.getDate()).padStart(2, '0');
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = date.getFullYear();
@@ -103,7 +263,7 @@ const FinishedProductManagement: React.FC = () => {
       const minutes = String(date.getMinutes()).padStart(2, '0');
       return `${hours}:${minutes} ${day}/${month}/${year}`;
     } catch {
-      return datetime;
+      return datetime || '-';
     }
   };
 
@@ -117,14 +277,19 @@ const FinishedProductManagement: React.FC = () => {
       if (product.thoiGianChien) {
         try {
           const date = new Date(product.thoiGianChien);
-          const day = String(date.getDate()).padStart(2, '0');
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const year = date.getFullYear();
-          const hours = String(date.getHours()).padStart(2, '0');
-          const minutes = String(date.getMinutes()).padStart(2, '0');
-          thoiGianChienFormatted = `${hours}:${minutes} ${day}/${month}/${year}`;
+          // Check if date is valid
+          if (isNaN(date.getTime())) {
+            thoiGianChienFormatted = product.thoiGianChien || '-';
+          } else {
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            thoiGianChienFormatted = `${hours}:${minutes} ${day}/${month}/${year}`;
+          }
         } catch {
-          thoiGianChienFormatted = product.thoiGianChien;
+          thoiGianChienFormatted = product.thoiGianChien || '-';
         }
       }
 
@@ -262,7 +427,7 @@ const FinishedProductManagement: React.FC = () => {
       {/* Machine Tabs */}
       <div className="bg-white rounded-lg shadow">
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+          <nav className="-mb-px flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
             {machines.map((machine) => (
               <button
                 key={machine.id}
@@ -278,124 +443,223 @@ const FinishedProductManagement: React.FC = () => {
                 {machine.tenMay}
               </button>
             ))}
+            {/* Tab Tổng các máy */}
+            <button
+              onClick={() => setSelectedMachine(TOTAL_ALL_MACHINES)}
+              className={`
+                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                ${selectedMachine === TOTAL_ALL_MACHINES
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              Tổng các máy
+            </button>
           </nav>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (kg)</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <span className="ml-2">Đang tải...</span>
-                    </div>
-                  </td>
+      {/* Aggregated Table View for "Tổng các máy" tab - Display by maChien */}
+      {selectedMachine === TOTAL_ALL_MACHINES && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-green-50 to-green-100 border-b-2 border-green-300">
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng KL (kg)</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Số máy</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
-              ) : products.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    Chưa có dữ liệu
-                  </td>
-                </tr>
-              ) : (
-                products.map((product, index) => (
-                  <tr
-                    key={product.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
-                      {(currentPage - 1) * 10 + index + 1}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
-                      {product.maChien}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                      {formatDateTime(product.thoiGianChien)}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {product.tenHangHoa}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
-                      {product.khoiLuong}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {product.nguoiThucHien}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          onClick={() => handleView(product)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenModal(product)}
-                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Sửa"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(product.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                          title="Xóa"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                        <span className="ml-2">Đang tải...</span>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 sm:px-6">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              <span className="text-sm text-gray-700">
-                Trang {currentPage} / {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </div>
+                ) : aggregatedByMaChien.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                      Chưa có dữ liệu
+                    </td>
+                  </tr>
+                ) : (
+                  aggregatedByMaChien.map((product, index) => (
+                    <tr
+                      key={product.maChien}
+                      className={`border-b border-gray-200 hover:bg-green-50 transition-colors ${
+                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                        {index + 1}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-green-600 border-r border-gray-200">
+                        {product.maChien}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                        {formatDateTime(product.thoiGianChien)}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                        {product.tenHangHoa}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center font-semibold">
+                        {product.khoiLuong.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                        {product.nguoiThucHien}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {product.machineCount} máy
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-3">
+                          <button
+                            onClick={() => handleViewAggregated(product)}
+                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                            title="Xem chi tiết tổng hợp"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Table for individual machines */}
+      {selectedMachine !== TOTAL_ALL_MACHINES && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">KL đầu vào (kg)</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <span className="ml-2">Đang tải...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : products.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                      Chưa có dữ liệu
+                    </td>
+                  </tr>
+                ) : (
+                  products.map((product, index) => (
+                    <tr
+                      key={product.id}
+                      className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                        {(currentPage - 1) * 10 + index + 1}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                        {product.maChien}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                        {formatDateTime(product.thoiGianChien)}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                        {product.tenHangHoa}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                        {product.khoiLuong}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                        {product.nguoiThucHien}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-3">
+                          <button
+                            onClick={() => handleView(product)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenModal(product)}
+                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                            title="Sửa"
+                          >
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(product.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                            title="Xóa"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 sm:px-6">
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                <span className="text-sm text-gray-700">
+                  Trang {currentPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modals */}
       <FinishedProductModal
@@ -412,6 +676,128 @@ const FinishedProductManagement: React.FC = () => {
         product={selectedProduct}
         onClose={() => setIsViewModalOpen(false)}
       />
+
+      {/* Aggregated Product View Modal */}
+      {isAggregatedViewModalOpen && selectedAggregatedProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-green-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900">
+                  Chi tiết tổng hợp - Mã chiên: {selectedAggregatedProduct.maChien}
+                </h3>
+                <button
+                  onClick={() => setIsAggregatedViewModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              {/* Info Header */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-gray-500">Thời gian chiên</p>
+                  <p className="text-sm font-medium">{formatDateTime(selectedAggregatedProduct.thoiGianChien)}</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-gray-500">Tên hàng hóa</p>
+                  <p className="text-sm font-medium">{selectedAggregatedProduct.tenHangHoa}</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-gray-500">Người thực hiện</p>
+                  <p className="text-sm font-medium">{selectedAggregatedProduct.nguoiThucHien}</p>
+                </div>
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <p className="text-xs text-green-600">Số máy tổng hợp</p>
+                  <p className="text-sm font-bold text-green-700">{selectedAggregatedProduct.machineCount} máy</p>
+                </div>
+              </div>
+
+              {/* Main Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-blue-700 mb-1">Tổng khối lượng đầu vào</h4>
+                  <p className="text-2xl font-bold text-blue-900">{selectedAggregatedProduct.khoiLuong.toFixed(2)} kg</p>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-green-700 mb-1">Tổng khối lượng thành phẩm</h4>
+                  <p className="text-2xl font-bold text-green-900">{selectedAggregatedProduct.tongKhoiLuong.toFixed(2)} kg</p>
+                </div>
+              </div>
+
+              {/* Product Types Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse border border-gray-200">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border border-gray-200">Loại thành phẩm</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 border border-gray-200">Khối lượng (kg)</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 border border-gray-200">Tỉ lệ (%)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="hover:bg-blue-50">
+                      <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Thành phẩm A</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.aKhoiLuong.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.aTiLe}%</td>
+                    </tr>
+                    <tr className="bg-gray-50 hover:bg-blue-50">
+                      <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Thành phẩm B</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.bKhoiLuong.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.bTiLe}%</td>
+                    </tr>
+                    <tr className="hover:bg-blue-50">
+                      <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Thành phẩm B Dầu</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.bDauKhoiLuong.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.bDauTiLe}%</td>
+                    </tr>
+                    <tr className="bg-gray-50 hover:bg-blue-50">
+                      <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Thành phẩm C</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.cKhoiLuong.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.cTiLe}%</td>
+                    </tr>
+                    <tr className="hover:bg-blue-50">
+                      <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Vụn lớn</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.vunLonKhoiLuong.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.vunLonTiLe}%</td>
+                    </tr>
+                    <tr className="bg-gray-50 hover:bg-blue-50">
+                      <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Vụn nhỏ</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.vunNhoKhoiLuong.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.vunNhoTiLe}%</td>
+                    </tr>
+                    <tr className="hover:bg-blue-50">
+                      <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Phế phẩm</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.phePhamKhoiLuong.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.phePhamTiLe}%</td>
+                    </tr>
+                    <tr className="bg-gray-50 hover:bg-blue-50">
+                      <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Ướt</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.uotKhoiLuong.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.uotTiLe}%</td>
+                    </tr>
+                    <tr className="bg-green-100 font-bold">
+                      <td className="px-4 py-2 text-sm font-bold text-gray-900 border border-gray-200">TỔNG CỘNG</td>
+                      <td className="px-4 py-2 text-sm font-bold text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.tongKhoiLuong.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-sm font-bold text-gray-900 border border-gray-200 text-center">100%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setIsAggregatedViewModalOpen(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
