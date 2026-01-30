@@ -301,6 +301,110 @@ class ProductionProcessService {
       where: { id },
     });
   }
+
+  // Sync production process flowchart from template
+  async syncFromTemplate(id: string): Promise<any> {
+    // Get existing production process
+    const existingProcess = await prisma.productionProcess.findUnique({
+      where: { id },
+      include: {
+        flowchart: true,
+      },
+    });
+
+    if (!existingProcess) {
+      throw new NotFoundError('Production process not found');
+    }
+
+    // Get template process with flowchart
+    const templateProcess = await prisma.process.findUnique({
+      where: { id: existingProcess.processId },
+      include: {
+        flowchart: {
+          include: {
+            sections: {
+              include: {
+                costs: true,
+              },
+              orderBy: {
+                stt: 'asc',
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!templateProcess) {
+      throw new NotFoundError('Template process not found');
+    }
+
+    // Delete existing flowchart if exists
+    if (existingProcess.flowchart) {
+      await prisma.productionFlowchart.delete({
+        where: { id: existingProcess.flowchart.id },
+      });
+    }
+
+    // Create new flowchart from template
+    const sectionsData = templateProcess.flowchart?.sections || [];
+
+    const updatedProcess = await prisma.productionProcess.update({
+      where: { id },
+      data: {
+        tenQuyTrinh: templateProcess.tenQuyTrinh,
+        loaiQuyTrinh: templateProcess.loaiQuyTrinh,
+        flowchart: {
+          create: {
+            sections: {
+              create: sectionsData.map((section) => ({
+                phanDoan: section.phanDoan,
+                tenPhanDoan: section.tenPhanDoan,
+                noiDungCongViec: section.noiDungCongViec,
+                fileUrl: section.fileUrl,
+                stt: section.stt,
+                costs: {
+                  create: section.costs.map((cost) => ({
+                    loaiChiPhi: cost.loaiChiPhi,
+                    tenChiPhi: cost.tenChiPhi,
+                    donVi: cost.donVi,
+                    dinhMucLaoDong: cost.dinhMucLaoDong,
+                    donViDinhMucLaoDong: cost.donViDinhMucLaoDong,
+                    soLuongNguyenLieu: 0,
+                    soPhutThucHien: 0,
+                    soLuongKeHoach: 0,
+                    soLuongThucTe: 0,
+                  })),
+                },
+              })),
+            },
+          },
+        },
+      },
+      include: {
+        process: true,
+        materialStandard: {
+          include: {
+            items: true,
+          },
+        },
+        flowchart: {
+          include: {
+            sections: {
+              include: {
+                costs: true,
+              },
+              orderBy: {
+                stt: 'asc',
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return updatedProcess;
+  }
 }
 
 export default new ProductionProcessService();

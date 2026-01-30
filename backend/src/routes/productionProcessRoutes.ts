@@ -19,6 +19,9 @@ router.post('/', productionProcessController.createProductionProcess);
 // PUT /api/production-processes/:id - Update production process
 router.put('/:id', productionProcessController.updateProductionProcess);
 
+// POST /api/production-processes/:id/sync - Sync production process from template
+router.post('/:id/sync', productionProcessController.syncFromTemplate);
+
 // DELETE /api/production-processes/:id - Delete production process
 router.delete('/:id', productionProcessController.deleteProductionProcess);
 

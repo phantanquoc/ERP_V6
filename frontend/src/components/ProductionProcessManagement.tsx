@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, X, RefreshCw } from 'lucide-react';
 import productionProcessService, { ProductionProcess, CreateProductionProcessData, ProductionFlowchartSection } from '../services/productionProcessService';
 import processService, { Process } from '../services/processService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
@@ -325,6 +325,29 @@ const ProductionProcessManagement: React.FC = () => {
     }
   };
 
+  const handleSyncFromTemplate = async (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn đồng bộ quy trình sản xuất này từ quy trình mẫu?\n\nLưu ý: Dữ liệu flowchart hiện tại sẽ được thay thế bằng dữ liệu mới nhất từ quy trình mẫu. Các trường số lượng nguyên liệu, số phút thực hiện, số lượng kế hoạch, số lượng thực tế sẽ được reset về 0.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await productionProcessService.syncFromTemplate(id);
+      alert('Đồng bộ quy trình sản xuất từ quy trình mẫu thành công!');
+      loadProductionProcesses();
+      // Nếu đang xem chi tiết, reload lại
+      if (viewingProcess && viewingProcess.id === id) {
+        const response = await productionProcessService.getProductionProcessById(id);
+        setViewingProcess(response.data);
+      }
+    } catch (error: any) {
+      console.error('Error syncing from template:', error);
+      alert(error.response?.data?.message || 'Lỗi khi đồng bộ từ quy trình mẫu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingProcess(null);
@@ -438,6 +461,13 @@ const ProductionProcessManagement: React.FC = () => {
                           title="Chỉnh sửa"
                         >
                           <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleSyncFromTemplate(process.id)}
+                          className="p-1.5 text-orange-600 hover:bg-orange-100 rounded-md transition-colors"
+                          title="Đồng bộ từ quy trình mẫu"
+                        >
+                          <RefreshCw className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleDelete(process.id)}

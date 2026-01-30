@@ -79,6 +79,22 @@ class ProductionProcessController {
       next(error);
     }
   }
+
+  // Sync production process from template
+  async syncFromTemplate(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const productionProcess = await productionProcessService.syncFromTemplate(id);
+
+      res.json({
+        success: true,
+        data: productionProcess,
+        message: 'Production process synced from template successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new ProductionProcessController();

@@ -133,6 +133,17 @@ class ProductionProcessService {
     });
     return response.data;
   }
+
+  // Sync production process from template
+  async syncFromTemplate(id: string) {
+    const token = localStorage.getItem('accessToken');
+    const response = await axios.post(`${API_URL}/${id}/sync`, {}, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  }
 }
 
 export default new ProductionProcessService();
