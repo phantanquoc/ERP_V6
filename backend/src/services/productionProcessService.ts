@@ -304,11 +304,19 @@ class ProductionProcessService {
 
   // Sync production process flowchart from template
   async syncFromTemplate(id: string): Promise<any> {
-    // Get existing production process
+    // Get existing production process with full flowchart data
     const existingProcess = await prisma.productionProcess.findUnique({
       where: { id },
       include: {
-        flowchart: true,
+        flowchart: {
+          include: {
+            sections: {
+              include: {
+                costs: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -339,6 +347,37 @@ class ProductionProcessService {
       throw new NotFoundError('Template process not found');
     }
 
+    // Build a map of existing production data by phanDoan -> loaiChiPhi
+    // This allows us to preserve user-entered data when syncing
+    const existingDataMap: Map<string, Map<string, {
+      soLuongNguyenLieu: number | null;
+      soPhutThucHien: number | null;
+      soLuongKeHoach: number | null;
+      soLuongThucTe: number | null;
+    }>> = new Map();
+
+    if (existingProcess.flowchart?.sections) {
+      for (const section of existingProcess.flowchart.sections) {
+        const costMap = new Map<string, {
+          soLuongNguyenLieu: number | null;
+          soPhutThucHien: number | null;
+          soLuongKeHoach: number | null;
+          soLuongThucTe: number | null;
+        }>();
+
+        for (const cost of section.costs) {
+          costMap.set(cost.loaiChiPhi, {
+            soLuongNguyenLieu: cost.soLuongNguyenLieu,
+            soPhutThucHien: cost.soPhutThucHien,
+            soLuongKeHoach: cost.soLuongKeHoach,
+            soLuongThucTe: cost.soLuongThucTe,
+          });
+        }
+
+        existingDataMap.set(section.phanDoan, costMap);
+      }
+    }
+
     // Delete existing flowchart if exists
     if (existingProcess.flowchart) {
       await prisma.productionFlowchart.delete({
@@ -346,7 +385,7 @@ class ProductionProcessService {
       });
     }
 
-    // Create new flowchart from template
+    // Create new flowchart from template, preserving existing production data
     const sectionsData = templateProcess.flowchart?.sections || [];
 
     const updatedProcess = await prisma.productionProcess.update({
@@ -357,26 +396,37 @@ class ProductionProcessService {
         flowchart: {
           create: {
             sections: {
-              create: sectionsData.map((section) => ({
-                phanDoan: section.phanDoan,
-                tenPhanDoan: section.tenPhanDoan,
-                noiDungCongViec: section.noiDungCongViec,
-                fileUrl: section.fileUrl,
-                stt: section.stt,
-                costs: {
-                  create: section.costs.map((cost) => ({
-                    loaiChiPhi: cost.loaiChiPhi,
-                    tenChiPhi: cost.tenChiPhi,
-                    donVi: cost.donVi,
-                    dinhMucLaoDong: cost.dinhMucLaoDong,
-                    donViDinhMucLaoDong: cost.donViDinhMucLaoDong,
-                    soLuongNguyenLieu: 0,
-                    soPhutThucHien: 0,
-                    soLuongKeHoach: 0,
-                    soLuongThucTe: 0,
-                  })),
-                },
-              })),
+              create: sectionsData.map((section) => {
+                // Get existing data for this section if available
+                const existingSectionData = existingDataMap.get(section.phanDoan);
+
+                return {
+                  phanDoan: section.phanDoan,
+                  tenPhanDoan: section.tenPhanDoan,
+                  noiDungCongViec: section.noiDungCongViec,
+                  fileUrl: section.fileUrl,
+                  stt: section.stt,
+                  costs: {
+                    create: section.costs.map((cost) => {
+                      // Get existing cost data if available
+                      const existingCostData = existingSectionData?.get(cost.loaiChiPhi);
+
+                      return {
+                        loaiChiPhi: cost.loaiChiPhi,
+                        tenChiPhi: cost.tenChiPhi,
+                        donVi: cost.donVi,
+                        dinhMucLaoDong: cost.dinhMucLaoDong,
+                        donViDinhMucLaoDong: cost.donViDinhMucLaoDong,
+                        // Preserve existing production data or default to 0
+                        soLuongNguyenLieu: existingCostData?.soLuongNguyenLieu ?? 0,
+                        soPhutThucHien: existingCostData?.soPhutThucHien ?? 0,
+                        soLuongKeHoach: existingCostData?.soLuongKeHoach ?? 0,
+                        soLuongThucTe: existingCostData?.soLuongThucTe ?? 0,
+                      };
+                    }),
+                  },
+                };
+              }),
             },
           },
         },

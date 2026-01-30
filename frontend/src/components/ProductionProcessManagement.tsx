@@ -326,7 +326,7 @@ const ProductionProcessManagement: React.FC = () => {
   };
 
   const handleSyncFromTemplate = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn đồng bộ quy trình sản xuất này từ quy trình mẫu?\n\nLưu ý: Dữ liệu flowchart hiện tại sẽ được thay thế bằng dữ liệu mới nhất từ quy trình mẫu. Các trường số lượng nguyên liệu, số phút thực hiện, số lượng kế hoạch, số lượng thực tế sẽ được reset về 0.')) {
+    if (!window.confirm('Bạn có chắc chắn muốn đồng bộ quy trình sản xuất này từ quy trình mẫu?\n\nLưu ý:\n- Cấu trúc flowchart (phân đoạn, chi phí, định mức lao động) sẽ được cập nhật từ quy trình mẫu mới nhất.\n- Dữ liệu sản xuất đã nhập (số lượng nguyên liệu, số phút thực hiện, số lượng kế hoạch, số lượng thực tế) sẽ được GIỮ LẠI nếu phân đoạn và loại chi phí vẫn còn trong quy trình mẫu.\n- Các phân đoạn/chi phí mới sẽ có giá trị mặc định là 0.')) {
       return;
     }
 
