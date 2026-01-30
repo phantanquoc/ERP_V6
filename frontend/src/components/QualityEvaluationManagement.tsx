@@ -39,6 +39,7 @@ const QualityEvaluationManagement: React.FC = () => {
     huongVi: '',
     doNgot: '',
     doGion: '',
+    danhGiaTongQuan: '',
     deXuatDieuChinh: '',
     fileDinhKem: '',
     nguoiThucHien: '',
@@ -116,9 +117,22 @@ const QualityEvaluationManagement: React.FC = () => {
     if (evaluation) {
       setIsEditing(true);
       setSelectedEvaluation(evaluation);
+
+      // Convert datetime to datetime-local format for display
+      let thoiGianChienLocal = '';
+      if (evaluation.thoiGianChien) {
+        const date = new Date(evaluation.thoiGianChien);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        thoiGianChienLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
+      }
+
       setFormData({
         maChien: evaluation.maChien,
-        thoiGianChien: evaluation.thoiGianChien,
+        thoiGianChien: thoiGianChienLocal,
         tenHangHoa: evaluation.tenHangHoa,
         mauSac: evaluation.mauSac,
         aTiLe: evaluation.aTiLe,
@@ -133,6 +147,7 @@ const QualityEvaluationManagement: React.FC = () => {
         huongVi: evaluation.huongVi,
         doNgot: evaluation.doNgot,
         doGion: evaluation.doGion,
+        danhGiaTongQuan: evaluation.danhGiaTongQuan || '',
         deXuatDieuChinh: evaluation.deXuatDieuChinh,
         fileDinhKem: evaluation.fileDinhKem || '',
         nguoiThucHien: evaluation.nguoiThucHien || currentUserName,
@@ -157,6 +172,7 @@ const QualityEvaluationManagement: React.FC = () => {
         huongVi: '',
         doNgot: '',
         doGion: '',
+        danhGiaTongQuan: '',
         deXuatDieuChinh: '',
         fileDinhKem: '',
         nguoiThucHien: currentUserName,

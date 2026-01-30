@@ -79,16 +79,12 @@ export class MaterialEvaluationService {
       throw new ValidationError('Mã chiên đã tồn tại');
     }
 
-    // Parse datetime-local as UTC to avoid timezone conversion
-    // Frontend sends: "2026-01-17T03:30"
-    // We parse it as UTC: "2026-01-17T03:30:00.000Z"
+    // Parse datetime from frontend
+    // Frontend sends ISO string: "2026-01-17T03:30:00.000Z"
+    // This ensures consistent timezone handling
     let thoiGianChien: Date;
     if (data.thoiGianChien) {
-      // Add 'Z' to force UTC parsing, or add seconds if missing
-      const dateStr = data.thoiGianChien.includes(':00:00')
-        ? data.thoiGianChien + 'Z'
-        : data.thoiGianChien + ':00Z';
-      thoiGianChien = new Date(dateStr);
+      thoiGianChien = new Date(data.thoiGianChien);
     } else {
       thoiGianChien = new Date();
     }
@@ -124,13 +120,11 @@ export class MaterialEvaluationService {
       throw new NotFoundError('Material evaluation not found');
     }
 
-    // Parse datetime-local as UTC to avoid timezone conversion
+    // Parse datetime from frontend
+    // Frontend sends ISO string: "2026-01-17T03:30:00.000Z"
     let thoiGianChien: Date | undefined;
     if (data.thoiGianChien) {
-      const dateStr = data.thoiGianChien.includes(':00:00')
-        ? data.thoiGianChien + 'Z'
-        : data.thoiGianChien + ':00Z';
-      thoiGianChien = new Date(dateStr);
+      thoiGianChien = new Date(data.thoiGianChien);
     }
 
     const evaluation = await prisma.materialEvaluation.update({

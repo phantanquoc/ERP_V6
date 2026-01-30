@@ -89,6 +89,16 @@ export class SystemOperationService {
 
     // Create system operations and finished product in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Delete any orphaned quality evaluations with this maChien (from previous failed/deleted operations)
+      await tx.qualityEvaluation.deleteMany({
+        where: { maChien },
+      });
+
+      // Delete any orphaned finished products with this maChien
+      await tx.finishedProduct.deleteMany({
+        where: { maChien },
+      });
+
       // Create system operations for all machines
       const operations = await Promise.all(
         machines.map(machine =>

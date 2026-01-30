@@ -200,10 +200,10 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'number' ? (parseFloat(value) || 0) : value
     }));
   };
 

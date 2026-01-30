@@ -171,10 +171,17 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       setIsEditing(true);
       setSelectedEvaluation(evaluation);
 
-      // Convert ISO datetime to datetime-local format
-      const thoiGianChienLocal = evaluation.thoiGianChien
-        ? new Date(evaluation.thoiGianChien).toISOString().slice(0, 16)
-        : '';
+      // Convert datetime to datetime-local format without timezone conversion
+      let thoiGianChienLocal = '';
+      if (evaluation.thoiGianChien) {
+        const date = new Date(evaluation.thoiGianChien);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        thoiGianChienLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
+      }
 
       setFormData({
         ...evaluation,
@@ -237,12 +244,22 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       setLoading(true);
       setError('');
 
+      // Convert datetime-local to ISO string for consistent timezone handling
+      // Frontend datetime-local format: "2026-01-17T03:30"
+      // We need to send it as ISO string so backend can parse it correctly
+      const submitData = {
+        ...formData,
+        thoiGianChien: formData.thoiGianChien
+          ? new Date(formData.thoiGianChien).toISOString()
+          : '',
+      };
+
       if (isEditing && selectedEvaluation) {
         // Update existing evaluation
-        await materialEvaluationService.updateMaterialEvaluation(selectedEvaluation.id, formData);
+        await materialEvaluationService.updateMaterialEvaluation(selectedEvaluation.id, submitData);
       } else {
         // Create new evaluation
-        await materialEvaluationService.createMaterialEvaluation(formData);
+        await materialEvaluationService.createMaterialEvaluation(submitData);
       }
 
       await loadEvaluations();

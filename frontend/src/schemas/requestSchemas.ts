@@ -135,6 +135,7 @@ export const createBulkSystemOperationSchema = z.object({
 });
 
 export const updateSystemOperationSchema = z.object({
+  khoiLuongDauVao: z.number().min(0).optional(),
   giaiDoan1ThoiGian: z.number().min(0).optional(),
   giaiDoan1NhietDo: z.number().optional(),
   giaiDoan1ApSuat: z.number().optional(),

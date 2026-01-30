@@ -15,6 +15,21 @@ const FinishedProductViewModal: React.FC<FinishedProductViewModalProps> = ({
 }) => {
   if (!isOpen || !product) return null;
 
+  const formatDateTime = (datetime: string) => {
+    if (!datetime) return '-';
+    try {
+      const date = new Date(datetime);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes} ${day}/${month}/${year}`;
+    } catch {
+      return datetime;
+    }
+  };
+
   const InfoRow = ({ label, value }: { label: string; value: any }) => (
     <div className="grid grid-cols-2 gap-4 py-2 border-b border-gray-100">
       <div className="text-sm font-medium text-gray-600">{label}</div>
@@ -58,16 +73,16 @@ const FinishedProductViewModal: React.FC<FinishedProductViewModalProps> = ({
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <h4 className="text-lg font-semibold text-gray-800 mb-4">Thông tin cơ bản</h4>
             <InfoRow label="Mã chiên" value={product.maChien} />
-            <InfoRow label="Thời gian chiên" value={product.thoiGianChien} />
+            <InfoRow label="Thời gian chiên" value={formatDateTime(product.thoiGianChien)} />
             <InfoRow label="Tên hàng hóa" value={product.tenHangHoa} />
             <InfoRow label="Khối lượng" value={`${product.khoiLuong} kg`} />
             <InfoRow label="Người thực hiện" value={product.nguoiThucHien} />
             <InfoRow label="Tổng khối lượng" value={`${product.tongKhoiLuong} kg`} />
             {product.fileDinhKem && (
-              <InfoRow 
-                label="File đính kèm" 
+              <InfoRow
+                label="File đính kèm"
                 value={
-                  <a 
+                  <a
                     href={product.fileDinhKem} 
                     target="_blank" 
                     rel="noopener noreferrer"

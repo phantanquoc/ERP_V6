@@ -1673,6 +1673,9 @@ model QualityEvaluation {
   doNgot                String              @default("")
   doGion                String              @default("")
 
+  // Đánh giá tổng quan
+  danhGiaTongQuan       String              @default("")
+
   // Đề xuất điều chỉnh cải tiến
   deXuatDieuChinh       String              @default("")
 

@@ -101,7 +101,11 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
   const handleNow = () => {
     const now = new Date();
-    const date = now.toISOString().split('T')[0];
+    // Use local timezone for both date and time to ensure consistency
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const date = `${year}-${month}-${day}`;
     const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     setDateValue(date);
     setTimeValue(time);
