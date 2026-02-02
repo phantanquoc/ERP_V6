@@ -97,6 +97,29 @@ export class FinishedProductController {
       next(error);
     }
   }
+
+  async getTotalWeightByDate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const date = req.query.date as string;
+
+      if (!date) {
+        res.status(400).json({
+          success: false,
+          message: 'Ngày tháng là bắt buộc',
+        });
+        return;
+      }
+
+      const result = await finishedProductService.getTotalWeightByDate(date);
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new FinishedProductController();

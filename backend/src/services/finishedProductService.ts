@@ -201,6 +201,44 @@ export class FinishedProductService {
 
     return { message: 'Xóa thành phẩm thành công' };
   }
+
+  /**
+   * Get total tongKhoiLuong (total output weight) by date
+   * This aggregates all finished products for a specific date based on thoiGianChien
+   */
+  async getTotalWeightByDate(date: string) {
+    // Parse the input date and create start/end of day boundaries
+    const inputDate = new Date(date);
+    const startOfDay = new Date(inputDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(inputDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Find all finished products where thoiGianChien falls within the date
+    const products = await prisma.finishedProduct.findMany({
+      where: {
+        thoiGianChien: {
+          gte: startOfDay.toISOString(),
+          lte: endOfDay.toISOString(),
+        },
+      },
+      select: {
+        tongKhoiLuong: true,
+        thoiGianChien: true,
+        tenHangHoa: true,
+      },
+    });
+
+    // Calculate total weight
+    const totalWeight = products.reduce((sum, product) => sum + (product.tongKhoiLuong || 0), 0);
+
+    return {
+      date,
+      totalWeight,
+      productCount: products.length,
+      products,
+    };
+  }
 }
 
 export default new FinishedProductService();

@@ -14,6 +14,9 @@ router.use(authenticate);
 // GET /api/finished-products - Get all finished products
 router.get('/', finishedProductController.getAllFinishedProducts);
 
+// GET /api/finished-products/total-weight-by-date - Get total weight by date
+router.get('/total-weight-by-date', finishedProductController.getTotalWeightByDate);
+
 // GET /api/finished-products/:id - Get finished product by ID
 router.get('/:id', finishedProductController.getFinishedProductById);
 

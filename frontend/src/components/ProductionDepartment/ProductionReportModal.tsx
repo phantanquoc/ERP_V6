@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import productionReportService, { ProductionReport } from '../../services/productionReportService';
 import materialStandardService, { MaterialStandard } from '../../services/materialStandardService';
+import finishedProductService from '../../services/finishedProductService';
 import Modal from '../Modal';
 import DatePicker from '../DatePicker';
 
@@ -25,6 +26,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
   const [materialStandards, setMaterialStandards] = useState<MaterialStandard[]>([]);
   const [selectedMaterialStandard, setSelectedMaterialStandard] = useState<MaterialStandard | null>(null);
   const [chenhLechValue, setChenhLechValue] = useState<number>(0);
+  const [loadingWeight, setLoadingWeight] = useState(false);
   const [formData, setFormData] = useState({
     ngayThang: '',
     tongSoTuaSanXuat: 0,
@@ -111,6 +113,34 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
     }
   };
 
+  // Fetch total finished product weight by date from Thành phẩm đầu ra
+  const fetchTotalWeightByDate = async (date: string) => {
+    if (!date) return;
+
+    setLoadingWeight(true);
+    try {
+      const result = await finishedProductService.getTotalWeightByDate(date);
+      const totalWeight = result.totalWeight || 0;
+
+      // Update khoiLuongThanhPhamThucTe and recalculate auto values
+      const tiLeThuHoi = selectedMaterialStandard?.tiLeThuHoi || 0;
+      const autoValues = calculateAutoValues(formData.soMeThucTe, totalWeight, tiLeThuHoi);
+
+      setFormData(prev => ({
+        ...prev,
+        ngayThang: date,
+        khoiLuongThanhPhamThucTe: totalWeight,
+        ...autoValues,
+      }));
+    } catch (error) {
+      console.error('Error fetching total weight by date:', error);
+      // Still update the date even if fetch fails
+      setFormData(prev => ({ ...prev, ngayThang: date }));
+    } finally {
+      setLoadingWeight(false);
+    }
+  };
+
   // Hàm tính toán tự động
   const calculateAutoValues = (soMeThucTe: number, khoiLuongThanhPhamThucTe: number, tiLeThuHoi: number) => {
     const tongKL_NL = soMeThucTe * 50;
@@ -193,12 +223,15 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
             <DatePicker
               label="Ngày tháng"
               value={formData.ngayThang}
-              onChange={(date) => setFormData({ ...formData, ngayThang: date })}
+              onChange={(date) => fetchTotalWeightByDate(date)}
               required
               placeholder="Chọn ngày tháng"
               allowClear
-              disabled={viewMode}
+              disabled={viewMode || loadingWeight}
             />
+            {loadingWeight && (
+              <p className="text-xs text-blue-500 mt-1">Đang tải KL thành phẩm thực tế...</p>
+            )}
           </div>
 
           <div>
@@ -339,6 +372,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               KL thành phẩm thực tế (kg)
+              <span className="text-xs text-blue-500 ml-1">(Tự động từ Thành phẩm đầu ra)</span>
             </label>
             <input
               type="number"
@@ -356,7 +390,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
               }}
               disabled={viewMode}
               min="0"
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+              className="w-full px-3 py-2 bg-blue-50 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
             />
           </div>
 

@@ -127,23 +127,52 @@ export class MaterialEvaluationService {
       thoiGianChien = new Date(data.thoiGianChien);
     }
 
-    const evaluation = await prisma.materialEvaluation.update({
-      where: { id },
-      data: {
-        thoiGianChien,
-        tenHangHoa: data.tenHangHoa,
-        soLoKien: data.soLoKien,
-        khoiLuong: data.khoiLuong ? parseFloat(data.khoiLuong) : undefined,
-        soLanNgam: data.soLanNgam ? parseInt(data.soLanNgam) : undefined,
-        nhietDoNuocTruocNgam: data.nhietDoNuocTruocNgam ? parseFloat(data.nhietDoNuocTruocNgam) : undefined,
-        nhietDoNuocSauVot: data.nhietDoNuocSauVot ? parseFloat(data.nhietDoNuocSauVot) : undefined,
-        thoiGianNgam: data.thoiGianNgam ? parseInt(data.thoiGianNgam) : undefined,
-        brixNuocNgam: data.brixNuocNgam ? parseFloat(data.brixNuocNgam) : undefined,
-        danhGiaTruocNgam: data.danhGiaTruocNgam,
-        danhGiaSauNgam: data.danhGiaSauNgam,
-        fileDinhKem: data.fileDinhKem,
-        nguoiThucHien: data.nguoiThucHien,
-      },
+    // Use transaction to update MaterialEvaluation and sync to related tables
+    const evaluation = await prisma.$transaction(async (tx) => {
+      // Update MaterialEvaluation
+      const updatedEvaluation = await tx.materialEvaluation.update({
+        where: { id },
+        data: {
+          thoiGianChien,
+          tenHangHoa: data.tenHangHoa,
+          soLoKien: data.soLoKien,
+          khoiLuong: data.khoiLuong ? parseFloat(data.khoiLuong) : undefined,
+          soLanNgam: data.soLanNgam ? parseInt(data.soLanNgam) : undefined,
+          nhietDoNuocTruocNgam: data.nhietDoNuocTruocNgam ? parseFloat(data.nhietDoNuocTruocNgam) : undefined,
+          nhietDoNuocSauVot: data.nhietDoNuocSauVot ? parseFloat(data.nhietDoNuocSauVot) : undefined,
+          thoiGianNgam: data.thoiGianNgam ? parseInt(data.thoiGianNgam) : undefined,
+          brixNuocNgam: data.brixNuocNgam ? parseFloat(data.brixNuocNgam) : undefined,
+          danhGiaTruocNgam: data.danhGiaTruocNgam,
+          danhGiaSauNgam: data.danhGiaSauNgam,
+          fileDinhKem: data.fileDinhKem,
+          nguoiThucHien: data.nguoiThucHien,
+        },
+      });
+
+      // If thoiGianChien was updated, sync to related tables
+      if (thoiGianChien) {
+        const thoiGianChienString = thoiGianChien.toISOString();
+
+        // Sync to SystemOperation (thoiGianChien is DateTime type)
+        await tx.systemOperation.updateMany({
+          where: { materialEvaluationId: id },
+          data: { thoiGianChien: thoiGianChien },
+        });
+
+        // Sync to FinishedProduct (thoiGianChien is String type)
+        await tx.finishedProduct.updateMany({
+          where: { materialEvaluationId: id },
+          data: { thoiGianChien: thoiGianChienString },
+        });
+
+        // Sync to QualityEvaluation (thoiGianChien is String type)
+        await tx.qualityEvaluation.updateMany({
+          where: { materialEvaluationId: id },
+          data: { thoiGianChien: thoiGianChienString },
+        });
+      }
+
+      return updatedEvaluation;
     });
 
     return evaluation;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { FinishedProduct } from '../services/finishedProductService';
+import DateTimePicker from './DateTimePicker';
 
 interface FinishedProductModalProps {
   isOpen: boolean;
@@ -59,15 +60,13 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Thời gian chiên <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.thoiGianChien}
-                onChange={(e) => handleInputChange('thoiGianChien', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              <DateTimePicker
+                label="Thời gian chiên"
+                value={formData.thoiGianChien || ''}
+                onChange={(datetime) => handleInputChange('thoiGianChien', datetime)}
                 required
+                placeholder="Chọn ngày và giờ chiên"
+                allowClear
               />
             </div>
 

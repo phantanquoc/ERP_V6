@@ -136,6 +136,18 @@ class FinishedProductService {
     }
   }
 
+  async getTotalWeightByDate(date: string): Promise<{ totalWeight: number; productCount: number }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/finished-products/total-weight-by-date`, {
+        params: { date },
+        headers: this.getHeaders(),
+      });
+      return response.data.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   private handleError(error: any): Error {
     if (axios.isAxiosError(error)) {
       const message = error.response?.data?.message || error.message;

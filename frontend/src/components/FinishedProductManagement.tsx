@@ -272,24 +272,22 @@ const FinishedProductManagement: React.FC = () => {
       setIsEditing(true);
       setSelectedProduct(product);
 
-      // Convert datetime to display format for edit modal
-      let thoiGianChienFormatted = product.thoiGianChien;
+      // Convert datetime to datetime-local format (YYYY-MM-DDTHH:mm) for DateTimePicker
+      let thoiGianChienFormatted = '';
       if (product.thoiGianChien) {
         try {
           const date = new Date(product.thoiGianChien);
           // Check if date is valid
-          if (isNaN(date.getTime())) {
-            thoiGianChienFormatted = product.thoiGianChien || '-';
-          } else {
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
+          if (!isNaN(date.getTime())) {
             const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
             const hours = String(date.getHours()).padStart(2, '0');
             const minutes = String(date.getMinutes()).padStart(2, '0');
-            thoiGianChienFormatted = `${hours}:${minutes} ${day}/${month}/${year}`;
+            thoiGianChienFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
           }
         } catch {
-          thoiGianChienFormatted = product.thoiGianChien || '-';
+          thoiGianChienFormatted = '';
         }
       }
 
@@ -361,7 +359,15 @@ const FinishedProductManagement: React.FC = () => {
       setError('');
 
       // Remove nguoiThucHien from formData to let backend auto-fill from logged-in user
-      const { nguoiThucHien, ...dataToSubmit } = formData;
+      const { nguoiThucHien, ...restData } = formData;
+
+      // Convert datetime-local to ISO string for consistent storage
+      const dataToSubmit = {
+        ...restData,
+        thoiGianChien: restData.thoiGianChien
+          ? new Date(restData.thoiGianChien).toISOString()
+          : '',
+      };
 
       if (isEditing && selectedProduct) {
         await finishedProductService.updateFinishedProduct(selectedProduct.id, dataToSubmit);
