@@ -208,25 +208,18 @@ export class FinishedProductService {
    * Similar to "Tổng các máy" tab calculation - sums all component weights from all machines
    */
   async getTotalWeightByDate(date: string) {
-    // Parse the input date and create start/end of day boundaries
-    const inputDate = new Date(date);
-    const startOfDay = new Date(inputDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(inputDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Parse the input date (format: YYYY-MM-DD)
+    // thoiGianChien is stored as a String in format YYYY-MM-DDTHH:mm
+    // We need to find all products where thoiGianChien starts with the date
 
-    // Find all finished products where thoiGianChien falls within the date
-    const products = await prisma.finishedProduct.findMany({
-      where: {
-        thoiGianChien: {
-          gte: startOfDay.toISOString(),
-          lte: endOfDay.toISOString(),
-        },
-      },
+    // Get all finished products and filter by date in application code
+    // since thoiGianChien is a String field, not DateTime
+    const allProducts = await prisma.finishedProduct.findMany({
       select: {
         maChien: true,
         thoiGianChien: true,
         tenHangHoa: true,
+        tenMay: true,
         aKhoiLuong: true,
         bKhoiLuong: true,
         bDauKhoiLuong: true,
@@ -236,6 +229,18 @@ export class FinishedProductService {
         phePhamKhoiLuong: true,
         uotKhoiLuong: true,
       },
+    });
+
+    // Filter products by date (thoiGianChien format: YYYY-MM-DDTHH:mm or ISO string)
+    const products = allProducts.filter(product => {
+      if (!product.thoiGianChien) return false;
+
+      // Extract date part from thoiGianChien
+      // Handle both YYYY-MM-DDTHH:mm and ISO string formats
+      const productDate = product.thoiGianChien.split('T')[0];
+      const targetDate = date.split('T')[0]; // In case date includes time
+
+      return productDate === targetDate;
     });
 
     // Calculate total weight by summing all component weights from all machines
@@ -257,6 +262,7 @@ export class FinishedProductService {
       date,
       totalWeight,
       productCount: products.length,
+      machines: [...new Set(products.map(p => p.tenMay).filter(Boolean))], // List of unique machines
     };
   }
 }
