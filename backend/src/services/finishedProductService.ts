@@ -212,6 +212,8 @@ export class FinishedProductService {
     // thoiGianChien is stored as a String in format YYYY-MM-DDTHH:mm
     // We need to find all products where thoiGianChien starts with the date
 
+    console.log('[getTotalWeightByDate] Input date:', date);
+
     // Get all finished products and filter by date in application code
     // since thoiGianChien is a String field, not DateTime
     const allProducts = await prisma.finishedProduct.findMany({
@@ -231,17 +233,38 @@ export class FinishedProductService {
       },
     });
 
+    console.log('[getTotalWeightByDate] Total products in DB:', allProducts.length);
+    console.log('[getTotalWeightByDate] Sample thoiGianChien values:', allProducts.slice(0, 5).map(p => p.thoiGianChien));
+
     // Filter products by date (thoiGianChien format: YYYY-MM-DDTHH:mm or ISO string)
     const products = allProducts.filter(product => {
       if (!product.thoiGianChien) return false;
 
       // Extract date part from thoiGianChien
-      // Handle both YYYY-MM-DDTHH:mm and ISO string formats
-      const productDate = product.thoiGianChien.split('T')[0];
+      // Handle both YYYY-MM-DDTHH:mm and ISO string formats (with timezone)
+      // Need to convert to local date for proper comparison
+      let productDate: string;
+
+      // Check if it's an ISO string with timezone (contains 'Z' or '+' or has milliseconds)
+      if (product.thoiGianChien.includes('Z') || product.thoiGianChien.includes('+') || product.thoiGianChien.includes('.')) {
+        // Parse as Date and get local date
+        const dateObj = new Date(product.thoiGianChien);
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        productDate = `${year}-${month}-${day}`;
+      } else {
+        // Simple format like YYYY-MM-DDTHH:mm, just split by T
+        productDate = product.thoiGianChien.split('T')[0];
+      }
+
       const targetDate = date.split('T')[0]; // In case date includes time
 
       return productDate === targetDate;
     });
+
+    console.log('[getTotalWeightByDate] Filtered products count:', products.length);
+    console.log('[getTotalWeightByDate] Filtered products:', products.map(p => ({ maChien: p.maChien, tenMay: p.tenMay, thoiGianChien: p.thoiGianChien })));
 
     // Calculate total weight by summing all component weights from all machines
     // This matches the "Tổng các máy" tab calculation logic
