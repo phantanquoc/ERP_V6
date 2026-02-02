@@ -17,6 +17,8 @@ const ExportCostManagement: React.FC = () => {
     loaiChiPhi: '',
     noiDung: '',
     donViTinh: '',
+    giaThanhNgay: undefined,
+    donViTien: 'VND',
     msnv: user?.employeeCode || '',
     tenNhanVien: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : '',
   });
@@ -47,6 +49,8 @@ const ExportCostManagement: React.FC = () => {
         loaiChiPhi: cost.loaiChiPhi,
         noiDung: cost.noiDung || '',
         donViTinh: cost.donViTinh || '',
+        giaThanhNgay: cost.giaThanhNgay || 0,
+        donViTien: cost.donViTien || 'VND',
       });
     } else {
       setEditingCost(null);
@@ -55,6 +59,8 @@ const ExportCostManagement: React.FC = () => {
         loaiChiPhi: '',
         noiDung: '',
         donViTinh: '',
+        giaThanhNgay: 0,
+        donViTien: 'VND',
         msnv: user?.employeeCode || '',
         tenNhanVien: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : '',
       });
@@ -146,6 +152,7 @@ const ExportCostManagement: React.FC = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên chi phí</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loại chi phí</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Đơn vị tính</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Giá thành/ngày</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Người tạo</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thao tác</th>
             </tr>
@@ -153,13 +160,13 @@ const ExportCostManagement: React.FC = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                   Đang tải...
                 </td>
               </tr>
             ) : costs.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -177,6 +184,9 @@ const ExportCostManagement: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {cost.donViTinh || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {cost.giaThanhNgay ? cost.giaThanhNgay.toLocaleString() : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {cost.tenNhanVien || '-'}
@@ -280,6 +290,30 @@ const ExportCostManagement: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, donViTinh: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Giá thành/ngày
+                  </label>
+                  <div className="grid grid-cols-[70%_30%] gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.giaThanhNgay || ''}
+                      onChange={(e) => setFormData({ ...formData, giaThanhNgay: e.target.value ? parseFloat(e.target.value) : undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      placeholder="Nhập giá thành/ngày"
+                    />
+                    <select
+                      value={formData.donViTien || 'VND'}
+                      onChange={(e) => setFormData({ ...formData, donViTien: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="VND">VND</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="col-span-2">

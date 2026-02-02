@@ -12,6 +12,8 @@ export interface GeneralCost {
   donViTinh?: string;
   msnv?: string;
   tenNhanVien?: string;
+  giaThanhNgay?: number;
+  donViTien?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -23,6 +25,8 @@ export interface CreateGeneralCostInput {
   donViTinh?: string;
   msnv?: string;
   tenNhanVien?: string;
+  giaThanhNgay?: number;
+  donViTien?: string;
 }
 
 export interface UpdateGeneralCostInput {
@@ -32,6 +36,8 @@ export interface UpdateGeneralCostInput {
   donViTinh?: string;
   giaTri?: number;
   ghiChu?: string;
+  giaThanhNgay?: number;
+  donViTien?: string;
 }
 
 export interface GeneralCostResponse {

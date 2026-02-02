@@ -761,27 +761,31 @@ model GeneralCost {
   tenChiPhi   String
   loaiChiPhi  String
   noiDung     String?
-  donViTinh   String?
-  msnv        String?
-  tenNhanVien String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  donViTinh    String?
+  giaThanhNgay Float?
+  donViTien    String?  @default("VND")
+  msnv         String?
+  tenNhanVien  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("general_costs")
   @@schema("business")
 }
 
 model ExportCost {
-  id          String   @id @default(cuid())
-  maChiPhi    String   @unique
-  tenChiPhi   String
-  loaiChiPhi  String
-  noiDung     String?
-  donViTinh   String?
-  msnv        String?
-  tenNhanVien String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  maChiPhi     String   @unique
+  tenChiPhi    String
+  loaiChiPhi   String
+  noiDung      String?
+  donViTinh    String?
+  giaThanhNgay Float?
+  donViTien    String?  @default("VND")
+  msnv         String?
+  tenNhanVien  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("export_costs")
   @@schema("business")

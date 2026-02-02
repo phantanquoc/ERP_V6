@@ -9,6 +9,8 @@ export interface CreateExportCostInput {
   donViTinh?: string;
   msnv?: string;
   tenNhanVien?: string;
+  giaThanhNgay?: number;
+  donViTien?: string;
 }
 
 export interface UpdateExportCostInput {
@@ -16,6 +18,8 @@ export interface UpdateExportCostInput {
   loaiChiPhi?: string;
   noiDung?: string;
   donViTinh?: string;
+  giaThanhNgay?: number;
+  donViTien?: string;
 }
 
 class ExportCostService {

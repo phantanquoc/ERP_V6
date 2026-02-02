@@ -12,6 +12,8 @@ export interface ExportCost {
   donViTinh?: string;
   msnv?: string;
   tenNhanVien?: string;
+  giaThanhNgay?: number;
+  donViTien?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -23,6 +25,8 @@ export interface CreateExportCostInput {
   donViTinh?: string;
   msnv?: string;
   tenNhanVien?: string;
+  giaThanhNgay?: number;
+  donViTien?: string;
 }
 
 export interface UpdateExportCostInput {
@@ -30,10 +34,8 @@ export interface UpdateExportCostInput {
   loaiChiPhi?: string;
   noiDung?: string;
   donViTinh?: string;
-  giaTri?: number;
-  quocGia?: string;
-  cangDen?: string;
-  ghiChu?: string;
+  giaThanhNgay?: number;
+  donViTien?: string;
 }
 
 export interface ExportCostResponse {

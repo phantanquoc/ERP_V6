@@ -9,6 +9,8 @@ export interface CreateGeneralCostInput {
   donViTinh?: string;
   msnv?: string;
   tenNhanVien?: string;
+  giaThanhNgay?: number;
+  donViTien?: string;
 }
 
 export interface UpdateGeneralCostInput {
@@ -16,6 +18,8 @@ export interface UpdateGeneralCostInput {
   loaiChiPhi?: string;
   noiDung?: string;
   donViTinh?: string;
+  giaThanhNgay?: number;
+  donViTien?: string;
 }
 
 class GeneralCostService {
