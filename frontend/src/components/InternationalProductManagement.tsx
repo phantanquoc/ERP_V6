@@ -12,6 +12,8 @@ const InternationalProductManagement: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<InternationalProduct | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<InternationalProduct | null>(null);
+  const [maSanPhamError, setMaSanPhamError] = useState<string>('');
+  const [checkingCode, setCheckingCode] = useState(false);
   const [formData, setFormData] = useState({
     maSanPham: '',
     tenSanPham: '',
@@ -44,6 +46,17 @@ const InternationalProductManagement: React.FC = () => {
   };
 
   const handleCreate = async () => {
+    // Validate maSanPham is not empty
+    if (!formData.maSanPham.trim()) {
+      setMaSanPhamError('Vui lòng nhập mã sản phẩm');
+      return;
+    }
+
+    // Check if there's an existing error
+    if (maSanPhamError) {
+      return;
+    }
+
     try {
       await internationalProductService.createProduct(formData);
       alert('Tạo sản phẩm thành công!');
@@ -52,7 +65,12 @@ const InternationalProductManagement: React.FC = () => {
       fetchProducts();
     } catch (error: any) {
       console.error('Error creating product:', error);
-      alert(error.response?.data?.message || 'Lỗi khi tạo sản phẩm');
+      const errorMessage = error.response?.data?.message || 'Lỗi khi tạo sản phẩm';
+      if (errorMessage.toLowerCase().includes('already exists') || errorMessage.toLowerCase().includes('đã tồn tại')) {
+        setMaSanPhamError('Mã sản phẩm đã tồn tại. Vui lòng nhập mã khác');
+      } else {
+        alert(errorMessage);
+      }
     }
   };
 
@@ -97,21 +115,16 @@ const InternationalProductManagement: React.FC = () => {
     }
   };
 
-  const openCreateModal = async () => {
-    try {
-      const response = await internationalProductService.generateProductCode();
-      setFormData({
-        maSanPham: response.data.code,
-        tenSanPham: '',
-        moTaSanPham: '',
-        loaiSanPham: '',
-      });
-      setEditingProduct(null);
-      setShowModal(true);
-    } catch (error) {
-      console.error('Error generating product code:', error);
-      alert('Lỗi khi tạo mã sản phẩm');
-    }
+  const openCreateModal = () => {
+    setFormData({
+      maSanPham: '',
+      tenSanPham: '',
+      moTaSanPham: '',
+      loaiSanPham: '',
+    });
+    setEditingProduct(null);
+    setMaSanPhamError('');
+    setShowModal(true);
   };
 
   const openEditModal = (product: InternationalProduct) => {
@@ -122,6 +135,7 @@ const InternationalProductManagement: React.FC = () => {
       moTaSanPham: product.moTaSanPham || '',
       loaiSanPham: product.loaiSanPham || '',
     });
+    setMaSanPhamError('');
     setShowModal(true);
   };
 
@@ -138,6 +152,7 @@ const InternationalProductManagement: React.FC = () => {
       loaiSanPham: '',
     });
     setEditingProduct(null);
+    setMaSanPhamError('');
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -146,6 +161,36 @@ const InternationalProductManagement: React.FC = () => {
       ...prev,
       [name]: value,
     }));
+
+    // Clear error when user types in maSanPham field
+    if (name === 'maSanPham') {
+      setMaSanPhamError('');
+    }
+  };
+
+  // Check if product code already exists
+  const checkProductCodeExists = async (code: string) => {
+    if (!code.trim()) {
+      setMaSanPhamError('');
+      return;
+    }
+
+    setCheckingCode(true);
+    try {
+      const response = await internationalProductService.getProductByCode(code);
+      if (response.data) {
+        setMaSanPhamError('Mã sản phẩm đã tồn tại. Vui lòng nhập mã khác');
+      } else {
+        setMaSanPhamError('');
+      }
+    } catch (error: any) {
+      // If 404, the code doesn't exist (which is good)
+      if (error.response?.status === 404) {
+        setMaSanPhamError('');
+      }
+    } finally {
+      setCheckingCode(false);
+    }
   };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -299,15 +344,30 @@ const InternationalProductManagement: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mã sản phẩm
+                    Mã sản phẩm {!editingProduct && <span className="text-red-500">*</span>}
                   </label>
                   <input
                     type="text"
                     name="maSanPham"
                     value={formData.maSanPham}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                    onChange={handleInputChange}
+                    onBlur={(e) => !editingProduct && checkProductCodeExists(e.target.value)}
+                    disabled={!!editingProduct}
+                    placeholder={!editingProduct ? "Nhập mã sản phẩm" : ""}
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      editingProduct
+                        ? 'border-gray-300 bg-gray-100'
+                        : maSanPhamError
+                          ? 'border-red-500 focus:ring-2 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-2 focus:ring-blue-500'
+                    }`}
                   />
+                  {maSanPhamError && !editingProduct && (
+                    <p className="mt-1 text-sm text-red-600">{maSanPhamError}</p>
+                  )}
+                  {checkingCode && (
+                    <p className="mt-1 text-sm text-gray-500">Đang kiểm tra mã sản phẩm...</p>
+                  )}
                 </div>
 
                 <div>
