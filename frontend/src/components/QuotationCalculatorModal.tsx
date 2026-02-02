@@ -1781,21 +1781,16 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           });
 
                           // Tính tổng chi phí đơn hàng
+                          // CHÚ Ý: Chi phí chung và xuất khẩu ĐÃ được tính vào giá hòa vốn rồi
+                          // Nên ở đây KHÔNG cần cộng thêm nữa để tránh tính 2 lần
                           let tongChiPhi = 0;
-                          tabsData.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
+                          tabsData.forEach((tab, index) => {
+                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
+                            const items = getItems();
+                            const soLuong = parseFloat(items[index]?.soLuong?.toString() || '0');
+                            // Tổng chi phí = Giá hòa vốn × Số lượng (giá hòa vốn đã bao gồm tất cả chi phí)
+                            tongChiPhi += giaHoaVon * soLuong;
                           });
-                          tongChiPhi += getTotalGeneralCosts().keHoach;
-                          tongChiPhi += getTotalExportCosts().keHoach;
 
                           const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           return loiNhuanTruocThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
@@ -1842,21 +1837,14 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           });
 
                           // Tính tổng chi phí đơn hàng
+                          // CHÚ Ý: Chi phí chung và xuất khẩu ĐÃ được tính vào giá hòa vốn rồi
                           let tongChiPhi = 0;
-                          tabsData.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
+                          tabsData.forEach((tab, index) => {
+                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
+                            const items = getItems();
+                            const soLuong = parseFloat(items[index]?.soLuong?.toString() || '0');
+                            tongChiPhi += giaHoaVon * soLuong;
                           });
-                          tongChiPhi += getTotalGeneralCosts().keHoach;
-                          tongChiPhi += getTotalExportCosts().keHoach;
 
                           const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           const thue = parseFloat(phanTramThue || '0');
@@ -1905,21 +1893,14 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           });
 
                           // Tính tổng chi phí đơn hàng
+                          // CHÚ Ý: Chi phí chung và xuất khẩu ĐÃ được tính vào giá hòa vốn rồi
                           let tongChiPhi = 0;
-                          tabsData.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
+                          tabsData.forEach((tab, index) => {
+                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
+                            const items = getItems();
+                            const soLuong = parseFloat(items[index]?.soLuong?.toString() || '0');
+                            tongChiPhi += giaHoaVon * soLuong;
                           });
-                          tongChiPhi += getTotalGeneralCosts().keHoach;
-                          tongChiPhi += getTotalExportCosts().keHoach;
 
                           const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           const thue = parseFloat(phanTramThue || '0');
@@ -1952,21 +1933,14 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           });
 
                           // Tính tổng chi phí đơn hàng
+                          // CHÚ Ý: Chi phí chung và xuất khẩu ĐÃ được tính vào giá hòa vốn rồi
                           let tongChiPhi = 0;
-                          tabsData.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
+                          tabsData.forEach((tab, index) => {
+                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
+                            const items = getItems();
+                            const soLuong = parseFloat(items[index]?.soLuong?.toString() || '0');
+                            tongChiPhi += giaHoaVon * soLuong;
                           });
-                          tongChiPhi += getTotalGeneralCosts().keHoach;
-                          tongChiPhi += getTotalExportCosts().keHoach;
 
                           const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           const thue = parseFloat(phanTramThue || '0');
