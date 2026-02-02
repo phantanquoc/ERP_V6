@@ -1273,15 +1273,22 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     const maxDays = parseFloat(tab.formData.thoiGianChoPhepToiDa) || 1;
     const chiPhiSanXuat = chiPhiSanXuatPerDay * maxDays;
 
-    // 2. Tính chi phí chung (phân bổ theo khối lượng)
+    // 2. Tính chi phí chung
     const totalGeneralCostKeHoach = selectedGeneralCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
     const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
     const totalKhoiLuong = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-    const chiPhiChung = totalKhoiLuong === 0 ? 0 : (totalGeneralCostKeHoach * currentKhoiLuong) / totalKhoiLuong;
 
-    // 3. Tính chi phí xuất khẩu (phân bổ theo khối lượng)
+    // Nếu chỉ có 1 sản phẩm → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+    const chiPhiChung = items.length === 1
+      ? totalGeneralCostKeHoach
+      : (totalKhoiLuong === 0 ? 0 : (totalGeneralCostKeHoach * currentKhoiLuong) / totalKhoiLuong);
+
+    // 3. Tính chi phí xuất khẩu
     const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-    const chiPhiXuatKhau = totalKhoiLuong === 0 ? 0 : (totalExportCostKeHoach * currentKhoiLuong) / totalKhoiLuong;
+    // Nếu chỉ có 1 sản phẩm → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+    const chiPhiXuatKhau = items.length === 1
+      ? totalExportCostKeHoach
+      : (totalKhoiLuong === 0 ? 0 : (totalExportCostKeHoach * currentKhoiLuong) / totalKhoiLuong);
 
     // Tổng chi phí
     const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;
@@ -1756,20 +1763,34 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <span className="text-sm font-medium text-gray-700">Doanh thu dự kiến</span>
                       <span className="text-xl font-bold text-gray-900">
                         {(() => {
-                          // Doanh thu dự kiến = Tổng (giá báo khách * số KG sản phẩm chính) của tất cả sản phẩm
+                          // Doanh thu dự kiến = Tổng (giá báo khách * số KG sản phẩm chính) + Tổng (giá hòa vốn sản phẩm phụ * số KG sản phẩm phụ)
                           let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
+                            // Doanh thu từ sản phẩm chính
                             const soKgChinhPham = calculateSoKgChinhPham(index);
                             const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             const giaBaoKhach = giaHoaVon + loiNhuan;
                             doanhThuDuKien += giaBaoKhach * soKgChinhPham;
+
+                            // Doanh thu từ sản phẩm phụ
+                            if (tab.selectedStandard?.items) {
+                              tab.selectedStandard.items.forEach(sp => {
+                                if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
+                                  const giaHoaVonPhu = parseFloat(tab.formData.giaHoaVonSanPhamPhu[sp.tenThanhPham] || '0');
+                                  const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tab.formData.tiLeThuHoi
+                                    ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * parseFloat(tab.formData.tiLeThuHoi) / 100 * sp.tiLe / 100
+                                    : 0;
+                                  doanhThuDuKien += giaHoaVonPhu * soKgPhu;
+                                }
+                              });
+                            }
                           });
                           return doanhThuDuKien.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                         })()}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">= Σ (giá báo khách × số KG sản phẩm chính)</p>
+                    <p className="text-xs text-gray-500 mt-1">= Σ (giá báo khách × số KG sản phẩm chính) + Σ (giá hòa vốn sản phẩm phụ × số KG sản phẩm phụ)</p>
                   </div>
 
                   {/* Lợi nhuận trước thuế */}
@@ -1778,14 +1799,28 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <span className="text-sm font-medium text-gray-700">Lợi nhuận trước thuế</span>
                       <span className="text-xl font-bold text-gray-900">
                         {(() => {
-                          // Tính doanh thu dự kiến (dùng soKgChinhPham)
+                          // Tính doanh thu dự kiến (dùng soKgChinhPham + sản phẩm phụ)
                           let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
+                            // Doanh thu từ sản phẩm chính
                             const soKgChinhPham = calculateSoKgChinhPham(index);
                             const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             const giaBaoKhach = giaHoaVon + loiNhuan;
                             doanhThuDuKien += giaBaoKhach * soKgChinhPham;
+
+                            // Doanh thu từ sản phẩm phụ
+                            if (tab.selectedStandard?.items) {
+                              tab.selectedStandard.items.forEach(sp => {
+                                if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
+                                  const giaHoaVonPhu = parseFloat(tab.formData.giaHoaVonSanPhamPhu[sp.tenThanhPham] || '0');
+                                  const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tab.formData.tiLeThuHoi
+                                    ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * parseFloat(tab.formData.tiLeThuHoi) / 100 * sp.tiLe / 100
+                                    : 0;
+                                  doanhThuDuKien += giaHoaVonPhu * soKgPhu;
+                                }
+                              });
+                            }
                           });
 
                           // Tính tổng chi phí đơn hàng (GIỐNG CÁCH TÍNH Ở BẢNG HIỂN THỊ)
@@ -1840,14 +1875,28 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <span className="text-sm font-medium text-gray-700">Lợi nhuận sau thuế</span>
                       <span className="text-xl font-bold text-gray-900">
                         {(() => {
-                          // Tính doanh thu dự kiến (dùng soKgChinhPham)
+                          // Tính doanh thu dự kiến (dùng soKgChinhPham + sản phẩm phụ)
                           let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
+                            // Doanh thu từ sản phẩm chính
                             const soKgChinhPham = calculateSoKgChinhPham(index);
                             const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             const giaBaoKhach = giaHoaVon + loiNhuan;
                             doanhThuDuKien += giaBaoKhach * soKgChinhPham;
+
+                            // Doanh thu từ sản phẩm phụ
+                            if (tab.selectedStandard?.items) {
+                              tab.selectedStandard.items.forEach(sp => {
+                                if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
+                                  const giaHoaVonPhu = parseFloat(tab.formData.giaHoaVonSanPhamPhu[sp.tenThanhPham] || '0');
+                                  const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tab.formData.tiLeThuHoi
+                                    ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * parseFloat(tab.formData.tiLeThuHoi) / 100 * sp.tiLe / 100
+                                    : 0;
+                                  doanhThuDuKien += giaHoaVonPhu * soKgPhu;
+                                }
+                              });
+                            }
                           });
 
                           // Tính tổng chi phí đơn hàng (GIỐNG CÁCH TÍNH Ở BẢNG HIỂN THỊ)
@@ -1904,14 +1953,28 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <span className="text-sm font-medium text-gray-700">Trích các quỹ</span>
                       <span className="text-xl font-bold text-gray-900">
                         {(() => {
-                          // Tính doanh thu dự kiến (dùng soKgChinhPham)
+                          // Tính doanh thu dự kiến (dùng soKgChinhPham + sản phẩm phụ)
                           let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
+                            // Doanh thu từ sản phẩm chính
                             const soKgChinhPham = calculateSoKgChinhPham(index);
                             const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             const giaBaoKhach = giaHoaVon + loiNhuan;
                             doanhThuDuKien += giaBaoKhach * soKgChinhPham;
+
+                            // Doanh thu từ sản phẩm phụ
+                            if (tab.selectedStandard?.items) {
+                              tab.selectedStandard.items.forEach(sp => {
+                                if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
+                                  const giaHoaVonPhu = parseFloat(tab.formData.giaHoaVonSanPhamPhu[sp.tenThanhPham] || '0');
+                                  const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tab.formData.tiLeThuHoi
+                                    ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * parseFloat(tab.formData.tiLeThuHoi) / 100 * sp.tiLe / 100
+                                    : 0;
+                                  doanhThuDuKien += giaHoaVonPhu * soKgPhu;
+                                }
+                              });
+                            }
                           });
 
                           // Tính tổng chi phí đơn hàng (GIỐNG CÁCH TÍNH Ở BẢNG HIỂN THỊ)
@@ -1952,14 +2015,28 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <span className="text-sm font-medium text-gray-700">Lợi nhuận thực nhận</span>
                       <span className="text-2xl font-bold text-blue-700">
                         {(() => {
-                          // Tính doanh thu dự kiến (dùng soKgChinhPham)
+                          // Tính doanh thu dự kiến (dùng soKgChinhPham + sản phẩm phụ)
                           let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
+                            // Doanh thu từ sản phẩm chính
                             const soKgChinhPham = calculateSoKgChinhPham(index);
                             const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             const giaBaoKhach = giaHoaVon + loiNhuan;
                             doanhThuDuKien += giaBaoKhach * soKgChinhPham;
+
+                            // Doanh thu từ sản phẩm phụ
+                            if (tab.selectedStandard?.items) {
+                              tab.selectedStandard.items.forEach(sp => {
+                                if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
+                                  const giaHoaVonPhu = parseFloat(tab.formData.giaHoaVonSanPhamPhu[sp.tenThanhPham] || '0');
+                                  const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tab.formData.tiLeThuHoi
+                                    ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * parseFloat(tab.formData.tiLeThuHoi) / 100 * sp.tiLe / 100
+                                    : 0;
+                                  doanhThuDuKien += giaHoaVonPhu * soKgPhu;
+                                }
+                              });
+                            }
                           });
 
                           // Tính tổng chi phí đơn hàng (GIỐNG CÁCH TÍNH Ở BẢNG HIỂN THỊ)
