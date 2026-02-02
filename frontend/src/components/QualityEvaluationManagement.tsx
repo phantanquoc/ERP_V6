@@ -95,9 +95,34 @@ const QualityEvaluationManagement: React.FC = () => {
   };
 
   const formatDateTime = (datetime: string) => {
-    if (!datetime) return '';
+    if (!datetime) return '-';
     try {
-      const date = new Date(datetime);
+      // Handle different datetime formats
+      let date: Date;
+
+      // Check if it's an ISO string (contains 'T' and possibly 'Z' or timezone)
+      if (datetime.includes('T')) {
+        date = new Date(datetime);
+      } else if (datetime.includes('/')) {
+        // Handle DD/MM/YYYY or DD/MM/YYYY HH:mm format
+        const parts = datetime.split(' ');
+        const dateParts = parts[0].split('/');
+        if (dateParts.length === 3) {
+          const [day, month, year] = dateParts;
+          const timePart = parts[1] || '00:00';
+          date = new Date(`${year}-${month}-${day}T${timePart}`);
+        } else {
+          return datetime;
+        }
+      } else {
+        date = new Date(datetime);
+      }
+
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return datetime || '-';
+      }
+
       const day = String(date.getDate()).padStart(2, '0');
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = date.getFullYear();
@@ -105,7 +130,7 @@ const QualityEvaluationManagement: React.FC = () => {
       const minutes = String(date.getMinutes()).padStart(2, '0');
       return `${hours}:${minutes} ${day}/${month}/${year}`;
     } catch {
-      return datetime;
+      return datetime || '-';
     }
   };
 
