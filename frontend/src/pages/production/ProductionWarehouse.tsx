@@ -10,13 +10,14 @@ import SupplyRequestManagement from '../../components/SupplyRequestManagement';
 import WarehouseManagement from '../../components/WarehouseManagement';
 import WarehouseReceiptTab from '../../components/WarehouseReceiptTab';
 import WarehouseIssueTab from '../../components/WarehouseIssueTab';
+import InternationalProductManagement from '../../components/InternationalProductManagement';
 import warehouseService, { Warehouse as WarehouseType } from '../../services/warehouseService';
 import warehouseReceiptService from '../../services/warehouseReceiptService';
 import warehouseIssueService from '../../services/warehouseIssueService';
 import supplyRequestService from '../../services/supplyRequestService';
 
 const ProductionWarehouse = () => {
-  const [activeTab, setActiveTab] = useState<'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement'>('warehouseManagement');
+  const [activeTab, setActiveTab] = useState<'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products'>('warehouseManagement');
 
   // Overview data states
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
@@ -80,6 +81,7 @@ const ProductionWarehouse = () => {
 
   const tabs = [
     { id: 'warehouseManagement', name: 'Quản lý kho', icon: <Package className="w-4 h-4" /> },
+    { id: 'products', name: 'Danh sách sản phẩm', icon: <Package className="w-4 h-4" /> },
     { id: 'inbound', name: 'Nhập kho', icon: <ArrowDown className="w-4 h-4" /> },
     { id: 'outbound', name: 'Xuất kho', icon: <ArrowUp className="w-4 h-4" /> },
     { id: 'supplyRequest', name: 'Yêu cầu cung cấp', icon: <FileText className="w-4 h-4" /> }
@@ -211,6 +213,13 @@ const ProductionWarehouse = () => {
           {/* QUẢN LÝ KHO */}
           {activeTab === 'warehouseManagement' && (
             <WarehouseManagement />
+          )}
+
+          {/* DANH SÁCH SẢN PHẨM */}
+          {activeTab === 'products' && (
+            <div className="p-6">
+              <InternationalProductManagement />
+            </div>
           )}
 
           {/* NHẬP KHO */}

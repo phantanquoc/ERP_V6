@@ -12,10 +12,9 @@ import {
   Trash2,
   Target,
   X,
-  Package,
-  ClipboardList
+  ClipboardList,
+  Package
 } from 'lucide-react';
-import InternationalProductManagement from '../../components/InternationalProductManagement';
 import ProcessManagement from '../../components/ProcessManagement';
 import OrderManagement from '../../components/OrderManagement';
 import { processService } from '../../services/processService';
@@ -62,7 +61,7 @@ interface Process {
 }
 
 const QualityProcess = () => {
-  const [activeTab, setActiveTab] = useState<'processList' | 'products' | 'orderList'>('processList');
+  const [activeTab, setActiveTab] = useState<'processList' | 'orderList'>('processList');
 
   // Dữ liệu mẫu cho TIÊU CHUẨN CHẤT LƯỢNG
   const standardData = [
@@ -608,7 +607,6 @@ const QualityProcess = () => {
 
   const tabs = [
     { id: 'processList', name: 'Danh sách quy trình', icon: <FileText className="w-4 h-4" /> },
-    { id: 'products', name: 'Danh sách sản phẩm', icon: <Package className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> }
   ];
 
@@ -762,13 +760,6 @@ const QualityProcess = () => {
           {activeTab === 'processList' && (
             <div className="p-6">
               <ProcessManagement />
-            </div>
-          )}
-
-          {/* DANH SÁCH SẢN PHẨM */}
-          {activeTab === 'products' && (
-            <div className="p-6">
-              <InternationalProductManagement />
             </div>
           )}
 

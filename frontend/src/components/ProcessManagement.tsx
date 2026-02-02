@@ -233,6 +233,19 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
     setFlowchartSections([...flowchartSections, newSection]);
   };
 
+  // Insert section at specific position (after the given index)
+  const handleInsertSectionAfter = (afterIndex: number) => {
+    const newSections = [...flowchartSections];
+    const newSection = createEmptySection(afterIndex + 2); // Temporary stt
+    newSections.splice(afterIndex + 1, 0, newSection);
+    // Re-number all sections
+    newSections.forEach((section, i) => {
+      section.phanDoan = `Phân đoạn ${i + 1}`;
+      section.stt = i + 1;
+    });
+    setFlowchartSections(newSections);
+  };
+
   const handleRemoveSection = (index: number) => {
     if (flowchartSections.length === 1) {
       alert('Phải có ít nhất 1 phân đoạn!');
@@ -765,6 +778,18 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                             </div>
                           )}
                         </div>
+                      </div>
+
+                      {/* Insert Section After Button */}
+                      <div className="bg-gray-50 px-4 py-2 border-t border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => handleInsertSectionAfter(sectionIndex)}
+                          className="w-full py-2 border-2 border-dashed border-gray-300 rounded text-gray-500 hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Chèn phân đoạn bên dưới
+                        </button>
                       </div>
                     </div>
                   ))}
