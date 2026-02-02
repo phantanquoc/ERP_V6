@@ -204,7 +204,8 @@ export class FinishedProductService {
 
   /**
    * Get total tongKhoiLuong (total output weight) by date
-   * This aggregates all finished products for a specific date based on thoiGianChien
+   * This aggregates all finished products from ALL machines for a specific date based on thoiGianChien
+   * Similar to "Tổng các máy" tab calculation - sums all component weights from all machines
    */
   async getTotalWeightByDate(date: string) {
     // Parse the input date and create start/end of day boundaries
@@ -223,20 +224,39 @@ export class FinishedProductService {
         },
       },
       select: {
-        tongKhoiLuong: true,
+        maChien: true,
         thoiGianChien: true,
         tenHangHoa: true,
+        aKhoiLuong: true,
+        bKhoiLuong: true,
+        bDauKhoiLuong: true,
+        cKhoiLuong: true,
+        vunLonKhoiLuong: true,
+        vunNhoKhoiLuong: true,
+        phePhamKhoiLuong: true,
+        uotKhoiLuong: true,
       },
     });
 
-    // Calculate total weight
-    const totalWeight = products.reduce((sum, product) => sum + (product.tongKhoiLuong || 0), 0);
+    // Calculate total weight by summing all component weights from all machines
+    // This matches the "Tổng các máy" tab calculation logic
+    const totalWeight = products.reduce((sum, product) => {
+      const productTotal =
+        (product.aKhoiLuong || 0) +
+        (product.bKhoiLuong || 0) +
+        (product.bDauKhoiLuong || 0) +
+        (product.cKhoiLuong || 0) +
+        (product.vunLonKhoiLuong || 0) +
+        (product.vunNhoKhoiLuong || 0) +
+        (product.phePhamKhoiLuong || 0) +
+        (product.uotKhoiLuong || 0);
+      return sum + productTotal;
+    }, 0);
 
     return {
       date,
       totalWeight,
       productCount: products.length,
-      products,
     };
   }
 }
