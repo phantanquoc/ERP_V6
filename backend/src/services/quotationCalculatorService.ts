@@ -36,7 +36,7 @@ export interface QuotationCalculatorProductData {
   flowchartData?: any; // Lưu flowchart đã chỉnh sửa
   thoiGianChoPhepToiDa?: number;
   ngayBatDauSanXuat?: Date;
-  ngayHoanThanhThucTe?: Date;
+  ngayHoanThanhThucTe?: number; // Số ngày hoàn thành thực tế (có thể là số thập phân)
   chiPhiSanXuatKeHoach?: number;
   chiPhiSanXuatThucTe?: number;
   chiPhiChungKeHoach?: number;
@@ -47,6 +47,8 @@ export interface QuotationCalculatorProductData {
   loiNhuanCongThem?: number;
   ghiChu?: string;
   byProducts?: { tenSanPham: string; giaHoaVon: number }[];
+  isAdditionalCost?: boolean; // Flag để đánh dấu chi phí bổ sung
+  tenChiPhiBoSung?: string; // Tên chi phí bổ sung
 }
 
 export interface QuotationCalculatorCostData {
@@ -135,6 +137,8 @@ class QuotationCalculatorService {
             giaHoaVon: product.giaHoaVon,
             loiNhuanCongThem: product.loiNhuanCongThem,
             ghiChu: product.ghiChu,
+            isAdditionalCost: product.isAdditionalCost || false,
+            tenChiPhiBoSung: product.tenChiPhiBoSung,
             byProducts: product.byProducts ? {
               create: product.byProducts,
             } : undefined,
@@ -228,6 +232,8 @@ class QuotationCalculatorService {
             giaHoaVon: product.giaHoaVon,
             loiNhuanCongThem: product.loiNhuanCongThem,
             ghiChu: product.ghiChu,
+            isAdditionalCost: product.isAdditionalCost || false,
+            tenChiPhiBoSung: product.tenChiPhiBoSung,
             byProducts: product.byProducts ? {
               create: product.byProducts,
             } : undefined,

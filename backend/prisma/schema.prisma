@@ -831,9 +831,9 @@ model QuotationCalculatorProduct {
   maQuyTrinhSanXuat        String?
   tenQuyTrinhSanXuat       String?
   flowchartData            Json?
-  thoiGianChoPhepToiDa     Int?
+  thoiGianChoPhepToiDa     Float?
   ngayBatDauSanXuat        DateTime?
-  ngayHoanThanhThucTe      DateTime?
+  ngayHoanThanhThucTe      Float?
   chiPhiSanXuatKeHoach     Float?
   chiPhiSanXuatThucTe      Float?
   chiPhiChungKeHoach       Float?
@@ -843,6 +843,8 @@ model QuotationCalculatorProduct {
   giaHoaVon                Float?
   loiNhuanCongThem         Float?
   ghiChu                   String?
+  isAdditionalCost         Boolean                        @default(false)
+  tenChiPhiBoSung          String?
   createdAt                DateTime                       @default(now())
   updatedAt                DateTime                       @updatedAt
   byProducts               QuotationCalculatorByProduct[]
