@@ -122,6 +122,49 @@ const FinishedProductManagement: React.FC = () => {
     }
   };
 
+  // Helper function to get machine status label (for FinishedProduct saved status)
+  const getMachineStatusLabel = (status?: string): string => {
+    switch (status) {
+      case 'HOAT_DONG':
+      case 'DANG_HOAT_DONG':
+        return 'Đang hoạt động';
+      case 'BẢO_TRÌ':
+      case 'BAO_TRI':
+        return 'Bảo trì';
+      case 'NGỪNG_HOẠT_ĐỘNG':
+      case 'NGUNG_HOAT_DONG':
+        return 'Ngừng hoạt động';
+      default:
+        return 'Không xác định';
+    }
+  };
+
+  // Helper function to get machine status color (same as SystemOperationManagement)
+  const getMachineStatusColor = (status?: string): string => {
+    switch (status) {
+      case 'HOAT_DONG':
+      case 'DANG_HOAT_DONG':
+        return 'bg-green-100 text-green-800';
+      case 'BẢO_TRÌ':
+      case 'BAO_TRI':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'NGỪNG_HOẠT_ĐỘNG':
+      case 'NGUNG_HOAT_DONG':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Helper function to get machine status badge from saved trangThai
+  const getMachineStatusBadge = (trangThai?: string) => {
+    return (
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${getMachineStatusColor(trangThai)}`}>
+        {getMachineStatusLabel(trangThai)}
+      </span>
+    );
+  };
+
   // Interface for machine evaluation (min/max rate)
   interface MachineEvaluation {
     tenMay: string;
@@ -531,19 +574,6 @@ const FinishedProductManagement: React.FC = () => {
                 `}
               >
                 {machine.tenMay}
-                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full border ${
-                  machine.trangThai === 'HOAT_DONG'
-                    ? 'bg-green-100 text-green-700 border-green-300'
-                    : machine.trangThai === 'BẢO_TRÌ'
-                      ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
-                      : 'bg-red-100 text-red-700 border-red-300'
-                }`}>
-                  {machine.trangThai === 'HOAT_DONG'
-                    ? 'Hoạt động'
-                    : machine.trangThai === 'BẢO_TRÌ'
-                      ? 'Bảo trì'
-                      : 'Ngừng'}
-                </span>
               </button>
             ))}
             {/* Tab Tổng các máy */}
@@ -683,13 +713,14 @@ const FinishedProductManagement: React.FC = () => {
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">KL đầu vào (kg)</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                         <span className="ml-2">Đang tải...</span>
@@ -698,7 +729,7 @@ const FinishedProductManagement: React.FC = () => {
                   </tr>
                 ) : products.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                       Chưa có dữ liệu
                     </td>
                   </tr>
@@ -727,6 +758,9 @@ const FinishedProductManagement: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                         {product.nguoiThucHien}
+                      </td>
+                      <td className="px-6 py-4 border-r border-gray-200 text-center">
+                        {getMachineStatusBadge(product.trangThai)}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-3">

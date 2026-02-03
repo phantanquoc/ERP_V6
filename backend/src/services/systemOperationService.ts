@@ -143,6 +143,7 @@ export class SystemOperationService {
                 nguoiThucHien: '',
                 machineId: machine.id,
                 tenMay: machine.tenMay,
+                trangThai: this.mapMachineStatusToOperationStatus(machine.trangThai),
                 materialEvaluationId: materialEvaluation.id,
               },
             })
@@ -277,6 +278,9 @@ export class SystemOperationService {
             tenHangHoa: materialEvaluation.tenHangHoa,
             khoiLuong: 0, // Will be filled by user later
             nguoiThucHien: data.nguoiThucHien,
+            machineId: machine.id,
+            tenMay: machine.tenMay,
+            trangThai: this.mapMachineStatusToOperationStatus(machine.trangThai),
             materialEvaluationId: materialEvaluation.id,
           },
         });

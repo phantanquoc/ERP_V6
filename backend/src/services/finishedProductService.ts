@@ -27,6 +27,7 @@ export class FinishedProductService {
               id: true,
               tenMay: true,
               maMay: true,
+              trangThai: true,
             },
           },
         },

@@ -12,6 +12,13 @@ export interface FinishedProduct {
   // Machine info
   machineId?: string;
   tenMay?: string;
+  trangThai?: 'DANG_HOAT_DONG' | 'BAO_TRI' | 'NGUNG_HOAT_DONG';
+  machine?: {
+    id: string;
+    tenMay: string;
+    maMay: string;
+    trangThai: 'HOAT_DONG' | 'BẢO_TRÌ' | 'NGỪNG_HOẠT_ĐỘNG';
+  };
 
   // Thành phẩm A
   aKhoiLuong: number;

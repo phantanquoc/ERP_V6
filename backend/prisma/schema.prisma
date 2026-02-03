@@ -1590,6 +1590,7 @@ model FinishedProduct {
   // Relation to Machine
   machineId             String?
   tenMay                String?
+  trangThai             SystemOperationStatus @default(DANG_HOAT_DONG)
   machine               Machine?            @relation(fields: [machineId], references: [id], onDelete: SetNull)
 
   // Relation to MaterialEvaluation
