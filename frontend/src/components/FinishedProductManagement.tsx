@@ -242,7 +242,7 @@ const FinishedProductManagement: React.FC = () => {
       let maxMachine: MachineEvaluation | null = null;
 
       products.forEach((p) => {
-        const tiLe = getRateValue(p);
+        const tiLe = Number(getRateValue(p).toFixed(2)); // Round to 2 decimal places
         const tenMay = p.tenMay || 'Không xác định';
 
         if (minMachine === null || tiLe < minMachine.tiLe) {
@@ -298,16 +298,19 @@ const FinishedProductManagement: React.FC = () => {
         return Number(((value / tongKhoiLuong) * 100).toFixed(2));
       };
 
-      // Calculate evaluations for each product type
+      // Filter only active machines (DANG_HOAT_DONG) for evaluation
+      const activeProducts = products.filter((p) => p.trangThai === 'DANG_HOAT_DONG');
+
+      // Calculate evaluations for each product type (only from active machines)
       const evaluations: AllEvaluations = {
-        a: findMinMaxMachine(products, (p) => p.aTiLe || 0),
-        b: findMinMaxMachine(products, (p) => p.bTiLe || 0),
-        bDau: findMinMaxMachine(products, (p) => p.bDauTiLe || 0),
-        c: findMinMaxMachine(products, (p) => p.cTiLe || 0),
-        vunLon: findMinMaxMachine(products, (p) => p.vunLonTiLe || 0),
-        vunNho: findMinMaxMachine(products, (p) => p.vunNhoTiLe || 0),
-        phePham: findMinMaxMachine(products, (p) => p.phePhamTiLe || 0),
-        uot: findMinMaxMachine(products, (p) => p.uotTiLe || 0),
+        a: findMinMaxMachine(activeProducts, (p) => p.aTiLe || 0),
+        b: findMinMaxMachine(activeProducts, (p) => p.bTiLe || 0),
+        bDau: findMinMaxMachine(activeProducts, (p) => p.bDauTiLe || 0),
+        c: findMinMaxMachine(activeProducts, (p) => p.cTiLe || 0),
+        vunLon: findMinMaxMachine(activeProducts, (p) => p.vunLonTiLe || 0),
+        vunNho: findMinMaxMachine(activeProducts, (p) => p.vunNhoTiLe || 0),
+        phePham: findMinMaxMachine(activeProducts, (p) => p.phePhamTiLe || 0),
+        uot: findMinMaxMachine(activeProducts, (p) => p.uotTiLe || 0),
       };
 
       // Use first product's info for display

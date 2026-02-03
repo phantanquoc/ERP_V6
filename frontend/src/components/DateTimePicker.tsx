@@ -319,18 +319,47 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
               </div>
             </div>
 
-            {/* Time Input */}
+            {/* Time Input - Custom 24h format with dropdowns */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 Giờ
               </label>
-              <input
-                type="time"
-                value={timeValue}
-                onChange={(e) => handleTimeChange(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <div className="flex items-center gap-1">
+                {/* Hour selector */}
+                <select
+                  value={timeValue.split(':')[0] || '00'}
+                  onChange={(e) => {
+                    const minutes = timeValue.split(':')[1] || '00';
+                    handleTimeChange(`${e.target.value}:${minutes}`);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={String(i).padStart(2, '0')}>
+                      {String(i).padStart(2, '0')}
+                    </option>
+                  ))}
+                </select>
+
+                <span className="text-lg font-bold">:</span>
+
+                {/* Minute selector */}
+                <select
+                  value={timeValue.split(':')[1] || '00'}
+                  onChange={(e) => {
+                    const hour = timeValue.split(':')[0] || '00';
+                    handleTimeChange(`${hour}:${e.target.value}`);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {Array.from({ length: 60 }, (_, i) => (
+                    <option key={i} value={String(i).padStart(2, '0')}>
+                      {String(i).padStart(2, '0')}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Action Buttons */}
