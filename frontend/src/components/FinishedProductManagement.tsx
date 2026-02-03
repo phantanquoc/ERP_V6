@@ -122,6 +122,30 @@ const FinishedProductManagement: React.FC = () => {
     }
   };
 
+  // Interface for machine evaluation (min/max rate)
+  interface MachineEvaluation {
+    tenMay: string;
+    tiLe: number;
+  }
+
+  // Interface for product type evaluation
+  interface ProductTypeEvaluation {
+    min: MachineEvaluation | null;
+    max: MachineEvaluation | null;
+  }
+
+  // Interface for all evaluations
+  interface AllEvaluations {
+    a: ProductTypeEvaluation;
+    b: ProductTypeEvaluation;
+    bDau: ProductTypeEvaluation;
+    c: ProductTypeEvaluation;
+    vunLon: ProductTypeEvaluation;
+    vunNho: ProductTypeEvaluation;
+    phePham: ProductTypeEvaluation;
+    uot: ProductTypeEvaluation;
+  }
+
   // Interface for aggregated product by maChien
   interface AggregatedProduct {
     maChien: string;
@@ -147,6 +171,7 @@ const FinishedProductManagement: React.FC = () => {
     phePhamTiLe: number;
     uotTiLe: number;
     machineCount: number;
+    evaluations: AllEvaluations;
   }
 
   // Aggregate products by maChien for "Tổng các máy" tab
@@ -162,6 +187,31 @@ const FinishedProductManagement: React.FC = () => {
       existing.push(product);
       groupedMap.set(product.maChien, existing);
     });
+
+    // Helper function to find min/max machine for a specific rate type
+    const findMinMaxMachine = (
+      products: FinishedProduct[],
+      getRateValue: (p: FinishedProduct) => number
+    ): ProductTypeEvaluation => {
+      if (products.length === 0) return { min: null, max: null };
+
+      let minMachine: MachineEvaluation | null = null;
+      let maxMachine: MachineEvaluation | null = null;
+
+      products.forEach((p) => {
+        const tiLe = getRateValue(p);
+        const tenMay = p.tenMay || 'Không xác định';
+
+        if (minMachine === null || tiLe < minMachine.tiLe) {
+          minMachine = { tenMay, tiLe };
+        }
+        if (maxMachine === null || tiLe > maxMachine.tiLe) {
+          maxMachine = { tenMay, tiLe };
+        }
+      });
+
+      return { min: minMachine, max: maxMachine };
+    };
 
     // Calculate aggregated values for each maChien
     const result: AggregatedProduct[] = [];
@@ -205,6 +255,18 @@ const FinishedProductManagement: React.FC = () => {
         return Number(((value / tongKhoiLuong) * 100).toFixed(2));
       };
 
+      // Calculate evaluations for each product type
+      const evaluations: AllEvaluations = {
+        a: findMinMaxMachine(products, (p) => p.aTiLe || 0),
+        b: findMinMaxMachine(products, (p) => p.bTiLe || 0),
+        bDau: findMinMaxMachine(products, (p) => p.bDauTiLe || 0),
+        c: findMinMaxMachine(products, (p) => p.cTiLe || 0),
+        vunLon: findMinMaxMachine(products, (p) => p.vunLonTiLe || 0),
+        vunNho: findMinMaxMachine(products, (p) => p.vunNhoTiLe || 0),
+        phePham: findMinMaxMachine(products, (p) => p.phePhamTiLe || 0),
+        uot: findMinMaxMachine(products, (p) => p.uotTiLe || 0),
+      };
+
       // Use first product's info for display
       const firstProduct = products[0];
       result.push({
@@ -231,6 +293,7 @@ const FinishedProductManagement: React.FC = () => {
         phePhamTiLe: calculatePercentage(totals.phePhamKhoiLuong),
         uotTiLe: calculatePercentage(totals.uotKhoiLuong),
         machineCount: products.length,
+        evaluations,
       });
     });
 
@@ -501,13 +564,14 @@ const FinishedProductManagement: React.FC = () => {
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng KL (kg)</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Số máy</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Đánh giá</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
                         <span className="ml-2">Đang tải...</span>
@@ -516,7 +580,7 @@ const FinishedProductManagement: React.FC = () => {
                   </tr>
                 ) : aggregatedByMaChien.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                       Chưa có dữ liệu
                     </td>
                   </tr>
@@ -550,6 +614,28 @@ const FinishedProductManagement: React.FC = () => {
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                           {product.machineCount} máy
                         </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-900 border-r border-gray-200">
+                        {product.machineCount > 1 ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <span className="text-red-600 font-medium">▼</span>
+                              <span className="text-gray-500">Thấp nhất:</span>
+                              <span className="font-medium text-red-700">
+                                {product.evaluations.a.min?.tenMay} ({product.evaluations.a.min?.tiLe}% A)
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-green-600 font-medium">▲</span>
+                              <span className="text-gray-500">Cao nhất:</span>
+                              <span className="font-medium text-green-700">
+                                {product.evaluations.a.max?.tenMay} ({product.evaluations.a.max?.tiLe}% A)
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic">Chỉ có 1 máy</span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-3">
@@ -762,6 +848,14 @@ const FinishedProductManagement: React.FC = () => {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border border-gray-200">Loại thành phẩm</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 border border-gray-200">Khối lượng (kg)</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 border border-gray-200">Tỉ lệ (%)</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 border border-gray-200" colSpan={2}>Đánh giá</th>
+                    </tr>
+                    <tr className="bg-gray-50">
+                      <th className="border border-gray-200"></th>
+                      <th className="border border-gray-200"></th>
+                      <th className="border border-gray-200"></th>
+                      <th className="px-2 py-1 text-xs font-medium text-red-600 border border-gray-200 text-center">Thấp nhất</th>
+                      <th className="px-2 py-1 text-xs font-medium text-green-600 border border-gray-200 text-center">Cao nhất</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -769,46 +863,127 @@ const FinishedProductManagement: React.FC = () => {
                       <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Thành phẩm A</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.aKhoiLuong.toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.aTiLe}%</td>
+                      <td className="px-2 py-2 text-xs text-red-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.a.min ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.a.min.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.a.min.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-green-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.a.max ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.a.max.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.a.max.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
                     </tr>
                     <tr className="bg-gray-50 hover:bg-blue-50">
                       <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Thành phẩm B</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.bKhoiLuong.toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.bTiLe}%</td>
+                      <td className="px-2 py-2 text-xs text-red-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.b.min ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.b.min.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.b.min.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-green-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.b.max ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.b.max.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.b.max.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
                     </tr>
                     <tr className="hover:bg-blue-50">
                       <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Thành phẩm B Dầu</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.bDauKhoiLuong.toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.bDauTiLe}%</td>
+                      <td className="px-2 py-2 text-xs text-red-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.bDau.min ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.bDau.min.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.bDau.min.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-green-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.bDau.max ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.bDau.max.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.bDau.max.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
                     </tr>
                     <tr className="bg-gray-50 hover:bg-blue-50">
                       <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Thành phẩm C</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.cKhoiLuong.toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.cTiLe}%</td>
+                      <td className="px-2 py-2 text-xs text-red-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.c.min ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.c.min.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.c.min.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-green-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.c.max ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.c.max.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.c.max.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
                     </tr>
                     <tr className="hover:bg-blue-50">
                       <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Vụn lớn</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.vunLonKhoiLuong.toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.vunLonTiLe}%</td>
+                      <td className="px-2 py-2 text-xs text-red-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.vunLon.min ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.vunLon.min.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.vunLon.min.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-green-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.vunLon.max ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.vunLon.max.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.vunLon.max.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
                     </tr>
                     <tr className="bg-gray-50 hover:bg-blue-50">
                       <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Vụn nhỏ</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.vunNhoKhoiLuong.toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.vunNhoTiLe}%</td>
+                      <td className="px-2 py-2 text-xs text-red-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.vunNho.min ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.vunNho.min.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.vunNho.min.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-green-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.vunNho.max ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.vunNho.max.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.vunNho.max.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
                     </tr>
                     <tr className="hover:bg-blue-50">
                       <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Phế phẩm</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.phePhamKhoiLuong.toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.phePhamTiLe}%</td>
+                      <td className="px-2 py-2 text-xs text-red-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.phePham.min ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.phePham.min.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.phePham.min.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-green-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.phePham.max ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.phePham.max.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.phePham.max.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
                     </tr>
                     <tr className="bg-gray-50 hover:bg-blue-50">
                       <td className="px-4 py-2 text-sm font-medium text-gray-900 border border-gray-200">Ướt</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.uotKhoiLuong.toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.uotTiLe}%</td>
+                      <td className="px-2 py-2 text-xs text-red-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.uot.min ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.uot.min.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.uot.min.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-green-700 border border-gray-200 text-center">
+                        {selectedAggregatedProduct.evaluations.uot.max ? (
+                          <div><span className="font-medium">{selectedAggregatedProduct.evaluations.uot.max.tenMay}</span><br/>({selectedAggregatedProduct.evaluations.uot.max.tiLe}%)</div>
+                        ) : '-'}
+                      </td>
                     </tr>
                     <tr className="bg-green-100 font-bold">
                       <td className="px-4 py-2 text-sm font-bold text-gray-900 border border-gray-200">TỔNG CỘNG</td>
                       <td className="px-4 py-2 text-sm font-bold text-gray-900 border border-gray-200 text-center">{selectedAggregatedProduct.tongKhoiLuong.toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm font-bold text-gray-900 border border-gray-200 text-center">100%</td>
+                      <td className="px-4 py-2 border border-gray-200" colSpan={2}></td>
                     </tr>
                   </tbody>
                 </table>

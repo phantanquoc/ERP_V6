@@ -8,43 +8,47 @@ export interface FinishedProduct {
   thoiGianChien: string;
   tenHangHoa: string;
   khoiLuong: number;
-  
+
+  // Machine info
+  machineId?: string;
+  tenMay?: string;
+
   // Thành phẩm A
   aKhoiLuong: number;
   aTiLe: number;
-  
+
   // Thành phẩm B
   bKhoiLuong: number;
   bTiLe: number;
-  
+
   // Thành phẩm B Dầu
   bDauKhoiLuong: number;
   bDauTiLe: number;
-  
+
   // Thành phẩm C
   cKhoiLuong: number;
   cTiLe: number;
-  
+
   // Vụn lớn
   vunLonKhoiLuong: number;
   vunLonTiLe: number;
-  
+
   // Vụn nhỏ
   vunNhoKhoiLuong: number;
   vunNhoTiLe: number;
-  
+
   // Phế phẩm
   phePhamKhoiLuong: number;
   phePhamTiLe: number;
-  
+
   // Ướt
   uotKhoiLuong: number;
   uotTiLe: number;
-  
+
   tongKhoiLuong: number;
   fileDinhKem?: string;
   nguoiThucHien: string;
-  
+
   createdAt?: string;
   updatedAt?: string;
 }
