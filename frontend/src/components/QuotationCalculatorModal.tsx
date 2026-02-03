@@ -227,18 +227,19 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
         const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
 
         // Check if this product is selected for this group
-        const isProductSelected = group.selectedProducts.length === 0 || group.selectedProducts.includes(productId);
+        // CHỈ khi selectedProducts có phần tử mới kiểm tra
+        const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(productId);
         if (!isProductSelected) return;
 
         // Get all selected products for this group
         const selectedMainItems = items.filter((_: any, index: number) => {
           const pid = `tab-${index}`;
-          return group.selectedProducts.length === 0 || group.selectedProducts.includes(pid);
+          return group.selectedProducts.includes(pid);
         });
 
         const selectedAdditionalItems = additionalCostTabs.filter(tab => {
           const pid = `additional-${tab.id}`;
-          return group.selectedProducts.length === 0 || group.selectedProducts.includes(pid);
+          return group.selectedProducts.includes(pid);
         });
 
         const totalKhoiLuong = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
@@ -457,15 +458,26 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
         }));
 
         // Load general cost groups if saved, otherwise use default with loaded costs
-        if (calculator.generalCostGroups && calculator.generalCostGroups.length > 0) {
-          setGeneralCostGroups(calculator.generalCostGroups.map((group: any) => ({
-            id: group.id,
-            tenBangChiPhi: group.tenBangChiPhi,
-            selectedCosts: group.selectedCosts || [],
-            selectedProducts: group.selectedProducts || [],
-          })));
+        console.log('🔍 [Load] Raw generalCostGroupsData from DB:', calculator.generalCostGroupsData);
+        console.log('🔍 [Load] Type of generalCostGroupsData:', typeof calculator.generalCostGroupsData);
+        console.log('🔍 [Load] Is Array:', Array.isArray(calculator.generalCostGroupsData));
+
+        if (calculator.generalCostGroupsData && Array.isArray(calculator.generalCostGroupsData) && calculator.generalCostGroupsData.length > 0) {
+          const loadedGroups = calculator.generalCostGroupsData.map((group: any) => {
+            console.log('🔍 [Load] Processing group:', group);
+            console.log('🔍 [Load] Group selectedProducts:', group.selectedProducts);
+            return {
+              id: group.id,
+              tenBangChiPhi: group.tenBangChiPhi,
+              selectedCosts: group.selectedCosts || [],
+              selectedProducts: group.selectedProducts || [],
+            };
+          });
+          console.log('✅ [Load] Final loadedGroups:', loadedGroups);
+          setGeneralCostGroups(loadedGroups);
         } else {
           // Backward compatibility: put all costs in first group
+          console.log('⚠️ [Load] No generalCostGroupsData found, using default with loadedGeneralCosts');
           setGeneralCostGroups([{
             id: `gcg-${Date.now()}`,
             tenBangChiPhi: 'Chi phí chung 1',
@@ -519,7 +531,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             }
 
             return {
-              id: product.id || `additional-${Date.now()}-${Math.random()}`,
+              // Sử dụng originalTabId nếu có, nếu không thì dùng product.id hoặc tạo mới
+              id: product.originalTabId || product.id || `additional-${Date.now()}-${Math.random()}`,
               tenChiPhiBoSung: product.tenChiPhiBoSung || product.tenSanPham || '',
               selectedProduct: product.productId ? { id: product.productId, tenSanPham: product.tenSanPham } as any : null,
               selectedProductType: '', // Will be set when product is loaded
@@ -1550,6 +1563,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 productId: tab.selectedProduct?.id || '',
                 tenSanPham: tab.selectedProduct?.tenSanPham || tab.tenChiPhiBoSung,
                 tenChiPhiBoSung: tab.tenChiPhiBoSung,
+                originalTabId: tab.id, // Lưu ID gốc của tab để sử dụng khi load lại
                 soLuong: tab.formData.soLuong ? parseFloat(tab.formData.soLuong) : 0,
                 donViTinh: tab.formData.donViTinh || '',
                 maBaoGia: tab.formData.maBaoGia,
@@ -1607,6 +1621,9 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             thucTe: cost.thucTe,
           })),
         };
+
+        // Debug log before saving
+        console.log('💾 [Save] generalCostGroups being saved:', calculatorData.generalCostGroups);
 
         // Save to database
         await quotationCalculatorService.upsertCalculator(calculatorData);
@@ -1709,6 +1726,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               productId: tab.selectedProduct?.id || '',
               tenSanPham: tab.selectedProduct?.tenSanPham || tab.tenChiPhiBoSung,
               tenChiPhiBoSung: tab.tenChiPhiBoSung,
+              originalTabId: tab.id, // Lưu ID gốc của tab để sử dụng khi load lại
               soLuong: tab.formData.soLuong ? parseFloat(tab.formData.soLuong) : 0,
               donViTinh: tab.formData.donViTinh || '',
               maBaoGia: tab.formData.maBaoGia,
@@ -1766,6 +1784,9 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           thucTe: cost.thucTe,
         })),
       };
+
+      // Debug log before saving
+      console.log('💾 [Save OrderSummary] generalCostGroups being saved:', calculatorData.generalCostGroups);
 
       // Save to database
       await quotationCalculatorService.upsertCalculator(calculatorData);
@@ -2037,6 +2058,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
   // Update selected products for a specific general cost group
   const updateGeneralCostGroupProducts = (groupId: string, productIds: string[]) => {
+    console.log('🔄 [Update] selectedProducts for group', groupId, ':', productIds);
     setGeneralCostGroups(generalCostGroups.map(g =>
       g.id === groupId ? { ...g, selectedProducts: productIds } : g
     ));
@@ -2135,19 +2157,20 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
 
       // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng chi phí chung này không
-      const isProductSelected = group.selectedProducts.length === 0 || group.selectedProducts.includes(currentProductId);
+      // CHỈ khi selectedProducts có phần tử mới kiểm tra
+      const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
       if (!isProductSelected) return;
 
       // Lọc các sản phẩm chính được chọn cho bảng này
       const selectedMainItems = items.filter((_: any, index: number) => {
         const pid = `tab-${index}`;
-        return group.selectedProducts.length === 0 || group.selectedProducts.includes(pid);
+        return group.selectedProducts.includes(pid);
       });
 
       // Lọc các chi phí bổ sung được chọn cho bảng này
       const selectedAdditionalItems = additionalCostTabs.filter(tab => {
         const pid = `additional-${tab.id}`;
-        return group.selectedProducts.length === 0 || group.selectedProducts.includes(pid);
+        return group.selectedProducts.includes(pid);
       });
 
       // Tính tổng khối lượng của các sản phẩm được chọn
@@ -2169,15 +2192,16 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
     // 3. Tính chi phí xuất khẩu (bao gồm cả sản phẩm chính và chi phí bổ sung)
     const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-    // Tính tổng khối lượng từ cả items và additionalCostTabs
-    const totalKhoiLuongMain = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-    const totalKhoiLuongAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-    const totalKhoiLuongAll = totalKhoiLuongMain + totalKhoiLuongAdditional;
+    // Tính tổng "Tổng Thành phẩm cần sx thêm" từ cả tabsData và additionalCostTabs
+    const currentTongThanhPham = parseFloat(tab.formData.tongThanhPhamCanSxThem || '0');
+    const totalTongThanhPhamMain = tabsData.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.tongThanhPhamCanSxThem || '0'), 0);
+    const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.tongThanhPhamCanSxThem || '0'), 0);
+    const totalTongThanhPhamAll = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
     const totalProductCount = items.length + additionalCostTabs.length;
-    // Nếu chỉ có 1 sản phẩm → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+    // Nếu chỉ có 1 sản phẩm → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo "Tổng Thành phẩm cần sx thêm"
     const chiPhiXuatKhau = totalProductCount === 1
       ? totalExportCostKeHoach
-      : (totalKhoiLuongAll === 0 ? 0 : (totalExportCostKeHoach * currentKhoiLuong) / totalKhoiLuongAll);
+      : (totalTongThanhPhamAll === 0 ? 0 : (totalExportCostKeHoach * currentTongThanhPham) / totalTongThanhPhamAll);
 
     // Tổng chi phí
     const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;
@@ -3537,56 +3561,46 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         <input
                           type="text"
                           value={(() => {
-                            // Tính tổng chi phí chung kế hoạch từ tab "Báo giá đơn hàng"
-                            const totalGeneralCostKeHoach = selectedGeneralCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-
-                            // Debug log
-                            console.log('🔍 [Chi phí bổ sung - Kế hoạch] Debug:', {
-                              tabId: currentAdditionalTab.id,
-                              selectedGeneralCosts,
-                              totalGeneralCostKeHoach,
-                              selectedProductsForGeneralCosts
-                            });
-
-                            // Lấy khối lượng sản phẩm hiện tại (chi phí bổ sung)
-                            const currentAdditionalIndex = additionalCostTabs.findIndex(t => t.id === currentAdditionalTab.id);
+                            // Tính chi phí chung kế hoạch từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
+                            const currentProductId = `additional-${currentAdditionalTab.id}`;
                             const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
 
-                            // Kiểm tra xem sản phẩm hiện tại có được chọn cho chi phí chung không
-                            const currentProductId = `additional-${currentAdditionalTab.id}`;
-                            const isCurrentProductSelected = selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(currentProductId);
+                            let chiPhiChung = 0;
+                            // Duyệt qua từng bảng chi phí chung
+                            generalCostGroups.forEach(group => {
+                              const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
 
-                            if (!isCurrentProductSelected) return '0';
+                              // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
+                              const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                              if (!isProductSelected) return;
 
-                            // Lọc các sản phẩm được chọn cho chi phí chung (bao gồm cả sản phẩm chính và chi phí bổ sung)
-                            const items = getItems();
-                            const selectedItems = items.filter((_: any, index: number) => {
-                              const productId = `tab-${index}`;
-                              return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
-                            });
+                              // Lọc các sản phẩm chính được chọn cho bảng này
+                              const items = getItems();
+                              const selectedMainItems = items.filter((_: any, index: number) => {
+                                const pid = `tab-${index}`;
+                                return group.selectedProducts.includes(pid);
+                              });
 
-                            // Thêm các chi phí bổ sung được chọn
-                            const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                              const productId = `additional-${tab.id}`;
-                              return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
-                            });
+                              // Lọc các chi phí bổ sung được chọn cho bảng này
+                              const selectedAdditionalItems = additionalCostTabs.filter(tab => {
+                                const pid = `additional-${tab.id}`;
+                                return group.selectedProducts.includes(pid);
+                              });
 
-                            // Tính tổng khối lượng của các sản phẩm được chọn
-                            const totalKhoiLuong = selectedItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                              selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData.soLuong || '0'), 0);
+                              // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
+                              const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
+                              const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                              const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                              const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
 
-                            // Tính chi phí chung cho sản phẩm hiện tại
-                            if (totalKhoiLuong === 0) return '0';
-                            const totalSelectedProducts = selectedItems.length + selectedAdditionalItems.length;
-                            const chiPhiChung = totalSelectedProducts === 1
-                              ? totalGeneralCostKeHoach
-                              : (totalGeneralCostKeHoach * currentKhoiLuong) / totalKhoiLuong;
+                              if (totalKhoiLuong === 0) return;
 
-                            console.log('🔍 [Chi phí bổ sung - Kế hoạch] Result:', {
-                              currentKhoiLuong,
-                              totalKhoiLuong,
-                              totalSelectedProducts,
-                              chiPhiChung
+                              // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+                              if (totalSelectedCount === 1) {
+                                chiPhiChung += groupTotalKeHoach;
+                              } else {
+                                chiPhiChung += (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong;
+                              }
                             });
 
                             return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
@@ -3600,41 +3614,47 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         <input
                           type="text"
                           value={(() => {
-                            // Tính tổng chi phí chung thực tế từ tab "Báo giá đơn hàng"
-                            const totalGeneralCostThucTe = selectedGeneralCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-
-                            // Lấy khối lượng sản phẩm hiện tại (chi phí bổ sung)
+                            // Tính chi phí chung thực tế từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
+                            const currentProductId = `additional-${currentAdditionalTab.id}`;
                             const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
 
-                            // Kiểm tra xem sản phẩm hiện tại có được chọn cho chi phí chung không
-                            const currentProductId = `additional-${currentAdditionalTab.id}`;
-                            const isCurrentProductSelected = selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(currentProductId);
+                            let chiPhiChung = 0;
+                            // Duyệt qua từng bảng chi phí chung
+                            generalCostGroups.forEach(group => {
+                              const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
 
-                            if (!isCurrentProductSelected) return '0';
+                              // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
+                              const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                              if (!isProductSelected) return;
 
-                            // Lọc các sản phẩm được chọn cho chi phí chung (bao gồm cả sản phẩm chính và chi phí bổ sung)
-                            const items = getItems();
-                            const selectedItems = items.filter((_: any, index: number) => {
-                              const productId = `tab-${index}`;
-                              return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                              // Lọc các sản phẩm chính được chọn cho bảng này
+                              const items = getItems();
+                              const selectedMainItems = items.filter((_: any, index: number) => {
+                                const pid = `tab-${index}`;
+                                return group.selectedProducts.includes(pid);
+                              });
+
+                              // Lọc các chi phí bổ sung được chọn cho bảng này
+                              const selectedAdditionalItems = additionalCostTabs.filter(tab => {
+                                const pid = `additional-${tab.id}`;
+                                return group.selectedProducts.includes(pid);
+                              });
+
+                              // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
+                              const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
+                              const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                              const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                              const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
+
+                              if (totalKhoiLuong === 0) return;
+
+                              // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+                              if (totalSelectedCount === 1) {
+                                chiPhiChung += groupTotalThucTe;
+                              } else {
+                                chiPhiChung += (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
+                              }
                             });
-
-                            // Thêm các chi phí bổ sung được chọn
-                            const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                              const productId = `additional-${tab.id}`;
-                              return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
-                            });
-
-                            // Tính tổng khối lượng của các sản phẩm được chọn
-                            const totalKhoiLuong = selectedItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                              selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData.soLuong || '0'), 0);
-
-                            // Tính chi phí chung cho sản phẩm hiện tại
-                            if (totalKhoiLuong === 0) return '0';
-                            const totalSelectedProducts = selectedItems.length + selectedAdditionalItems.length;
-                            const chiPhiChung = totalSelectedProducts === 1
-                              ? totalGeneralCostThucTe
-                              : (totalGeneralCostThucTe * currentKhoiLuong) / totalKhoiLuong;
 
                             return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                           })()}
@@ -3658,19 +3678,19 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           value={(() => {
                             // Tính tổng chi phí xuất khẩu kế hoạch
                             const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-                            const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
+                            const currentTongThanhPham = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
 
-                            // Tính tổng khối lượng tất cả sản phẩm (cả chính và bổ sung)
+                            // Tính tổng "Tổng Thành phẩm cần sx thêm" tất cả sản phẩm (cả chính và bổ sung)
                             const mainItems = getItems();
-                            const totalKhoiLuongMain = mainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                            const totalKhoiLuongAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                            const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                            const totalTongThanhPhamMain = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                            const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                            const totalTongThanhPham = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
                             const totalProductCount = mainItems.length + additionalCostTabs.length;
 
-                            if (totalKhoiLuong === 0) return '0';
+                            if (totalTongThanhPham === 0) return '0';
                             const chiPhiXuatKhau = totalProductCount === 1
                               ? totalExportCostKeHoach
-                              : (totalExportCostKeHoach * currentKhoiLuong) / totalKhoiLuong;
+                              : (totalExportCostKeHoach * currentTongThanhPham) / totalTongThanhPham;
                             return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                           })()}
                           disabled
@@ -3684,19 +3704,19 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           value={(() => {
                             // Tính tổng chi phí xuất khẩu thực tế
                             const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-                            const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
+                            const currentTongThanhPham = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
 
-                            // Tính tổng khối lượng tất cả sản phẩm (cả chính và bổ sung)
+                            // Tính tổng "Tổng Thành phẩm cần sx thêm" tất cả sản phẩm (cả chính và bổ sung)
                             const mainItems = getItems();
-                            const totalKhoiLuongMain = mainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                            const totalKhoiLuongAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                            const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                            const totalTongThanhPhamMain = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                            const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                            const totalTongThanhPham = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
                             const totalProductCount = mainItems.length + additionalCostTabs.length;
 
-                            if (totalKhoiLuong === 0) return '0';
+                            if (totalTongThanhPham === 0) return '0';
                             const chiPhiXuatKhau = totalProductCount === 1
                               ? totalExportCostThucTe
-                              : (totalExportCostThucTe * currentKhoiLuong) / totalKhoiLuong;
+                              : (totalExportCostThucTe * currentTongThanhPham) / totalTongThanhPham;
                             return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                           })()}
                           disabled
@@ -3731,47 +3751,58 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               chiPhiSanXuat = perDay * maxDays;
                             }
 
-                            // 2. Chi phí chung kế hoạch
-                            const totalGeneralCostKeHoach = selectedGeneralCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+                            // 2. Chi phí chung kế hoạch - tính từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
                             const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
-
-                            // Kiểm tra xem sản phẩm hiện tại có được chọn cho chi phí chung không
                             const currentProductId = `additional-${currentAdditionalTab.id}`;
-                            const isCurrentProductSelected = selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(currentProductId);
 
                             let chiPhiChung = 0;
-                            if (isCurrentProductSelected) {
-                              // Lọc các sản phẩm được chọn cho chi phí chung
+                            generalCostGroups.forEach(group => {
+                              const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+
+                              // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
+                              const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                              if (!isProductSelected) return;
+
+                              // Lọc các sản phẩm chính được chọn cho bảng này
                               const items = getItems();
-                              const selectedItems = items.filter((_: any, index: number) => {
-                                const productId = `tab-${index}`;
-                                return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                              const selectedMainItems = items.filter((_: any, index: number) => {
+                                const pid = `tab-${index}`;
+                                return group.selectedProducts.includes(pid);
                               });
 
+                              // Lọc các chi phí bổ sung được chọn cho bảng này
                               const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                                const productId = `additional-${tab.id}`;
-                                return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                                const pid = `additional-${tab.id}`;
+                                return group.selectedProducts.includes(pid);
                               });
 
-                              const totalKhoiLuong = selectedItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                                selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData.soLuong || '0'), 0);
+                              // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
+                              const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
+                              const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                              const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                              const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
 
-                              const totalSelectedProducts = selectedItems.length + selectedAdditionalItems.length;
-                              chiPhiChung = totalKhoiLuong === 0 ? 0 : (totalSelectedProducts === 1
-                                ? totalGeneralCostKeHoach
-                                : (totalGeneralCostKeHoach * currentKhoiLuong) / totalKhoiLuong);
-                            }
+                              if (totalKhoiLuong === 0) return;
+
+                              // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+                              if (totalSelectedCount === 1) {
+                                chiPhiChung += groupTotalKeHoach;
+                              } else {
+                                chiPhiChung += (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong;
+                              }
+                            });
 
                             // 3. Chi phí xuất khẩu kế hoạch
                             const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
                             const mainItems = getItems();
-                            const totalKhoiLuongMainExport = mainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                            const totalKhoiLuongAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                            const totalKhoiLuongExport = totalKhoiLuongMainExport + totalKhoiLuongAdditionalExport;
+                            const currentTongThanhPhamExport = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
+                            const totalTongThanhPhamMainExport = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                            const totalTongThanhPhamAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                            const totalTongThanhPhamExport = totalTongThanhPhamMainExport + totalTongThanhPhamAdditionalExport;
                             const totalProductCountExport = mainItems.length + additionalCostTabs.length;
-                            const chiPhiXuatKhau = totalKhoiLuongExport === 0 ? 0 : (totalProductCountExport === 1
+                            const chiPhiXuatKhau = totalTongThanhPhamExport === 0 ? 0 : (totalProductCountExport === 1
                               ? totalExportCostKeHoach
-                              : (totalExportCostKeHoach * currentKhoiLuong) / totalKhoiLuongExport);
+                              : (totalExportCostKeHoach * currentTongThanhPhamExport) / totalTongThanhPhamExport);
 
                             const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;
                             return tongChiPhi.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
@@ -3800,47 +3831,58 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               chiPhiSanXuat = perDay * actualDays;
                             }
 
-                            // 2. Chi phí chung thực tế
-                            const totalGeneralCostThucTe = selectedGeneralCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+                            // 2. Chi phí chung thực tế - tính từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
                             const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
-
-                            // Kiểm tra xem sản phẩm hiện tại có được chọn cho chi phí chung không
                             const currentProductId = `additional-${currentAdditionalTab.id}`;
-                            const isCurrentProductSelected = selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(currentProductId);
 
                             let chiPhiChung = 0;
-                            if (isCurrentProductSelected) {
-                              // Lọc các sản phẩm được chọn cho chi phí chung
+                            generalCostGroups.forEach(group => {
+                              const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+
+                              // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
+                              const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                              if (!isProductSelected) return;
+
+                              // Lọc các sản phẩm chính được chọn cho bảng này
                               const items = getItems();
-                              const selectedItems = items.filter((_: any, index: number) => {
-                                const productId = `tab-${index}`;
-                                return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                              const selectedMainItems = items.filter((_: any, index: number) => {
+                                const pid = `tab-${index}`;
+                                return group.selectedProducts.includes(pid);
                               });
 
+                              // Lọc các chi phí bổ sung được chọn cho bảng này
                               const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                                const productId = `additional-${tab.id}`;
-                                return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                                const pid = `additional-${tab.id}`;
+                                return group.selectedProducts.includes(pid);
                               });
 
-                              const totalKhoiLuong = selectedItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                                selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData.soLuong || '0'), 0);
+                              // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
+                              const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
+                              const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                              const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                              const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
 
-                              const totalSelectedProducts = selectedItems.length + selectedAdditionalItems.length;
-                              chiPhiChung = totalKhoiLuong === 0 ? 0 : (totalSelectedProducts === 1
-                                ? totalGeneralCostThucTe
-                                : (totalGeneralCostThucTe * currentKhoiLuong) / totalKhoiLuong);
-                            }
+                              if (totalKhoiLuong === 0) return;
+
+                              // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+                              if (totalSelectedCount === 1) {
+                                chiPhiChung += groupTotalThucTe;
+                              } else {
+                                chiPhiChung += (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
+                              }
+                            });
 
                             // 3. Chi phí xuất khẩu thực tế
                             const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
                             const mainItems = getItems();
-                            const totalKhoiLuongMainExport = mainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                            const totalKhoiLuongAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                            const totalKhoiLuongExport = totalKhoiLuongMainExport + totalKhoiLuongAdditionalExport;
+                            const currentTongThanhPhamExport = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
+                            const totalTongThanhPhamMainExport = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                            const totalTongThanhPhamAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                            const totalTongThanhPhamExport = totalTongThanhPhamMainExport + totalTongThanhPhamAdditionalExport;
                             const totalProductCountExport = mainItems.length + additionalCostTabs.length;
-                            const chiPhiXuatKhau = totalKhoiLuongExport === 0 ? 0 : (totalProductCountExport === 1
+                            const chiPhiXuatKhau = totalTongThanhPhamExport === 0 ? 0 : (totalProductCountExport === 1
                               ? totalExportCostThucTe
-                              : (totalExportCostThucTe * currentKhoiLuong) / totalKhoiLuongExport);
+                              : (totalExportCostThucTe * currentTongThanhPhamExport) / totalTongThanhPhamExport);
 
                             const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;
                             return tongChiPhi.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
@@ -4649,41 +4691,53 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                     <input
                       type="text"
                       value={(() => {
-                        // Tính tổng chi phí chung kế hoạch từ tab "Báo giá đơn hàng"
-                        const totalGeneralCostKeHoach = selectedGeneralCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-
-                        // Lấy khối lượng sản phẩm hiện tại
+                        // Tính chi phí chung kế hoạch từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
                         const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
-
-                        // Kiểm tra xem sản phẩm hiện tại có được chọn cho chi phí chung không
                         const currentProductId = `tab-${activeTab}`;
-                        const isCurrentProductSelected = selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(currentProductId);
 
-                        if (!isCurrentProductSelected) return '0';
+                        console.log('🧮 [Calc Chi phí chung KH] currentProductId:', currentProductId);
+                        console.log('🧮 [Calc Chi phí chung KH] generalCostGroups:', JSON.stringify(generalCostGroups, null, 2));
 
-                        // Lọc các sản phẩm chính được chọn cho chi phí chung
-                        const selectedMainItems = items.filter((_: any, index: number) => {
-                          const productId = `tab-${index}`;
-                          return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                        let chiPhiChung = 0;
+                        // Duyệt qua từng bảng chi phí chung
+                        generalCostGroups.forEach((group, groupIndex) => {
+                          const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+
+                          console.log(`🧮 [Group ${groupIndex}] id: ${group.id}, selectedProducts:`, group.selectedProducts, 'length:', group.selectedProducts.length);
+
+                          // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
+                          // CHỈ khi selectedProducts có phần tử mới kiểm tra, nếu rỗng thì KHÔNG áp dụng cho sản phẩm nào
+                          const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                          console.log(`🧮 [Group ${groupIndex}] isProductSelected for ${currentProductId}:`, isProductSelected);
+                          if (!isProductSelected) return;
+
+                          // Lọc các sản phẩm chính được chọn cho bảng này
+                          const selectedMainItems = items.filter((_: any, index: number) => {
+                            const pid = `tab-${index}`;
+                            return group.selectedProducts.includes(pid);
+                          });
+
+                          // Lọc các chi phí bổ sung được chọn cho bảng này
+                          const selectedAdditionalItems = additionalCostTabs.filter(tab => {
+                            const pid = `additional-${tab.id}`;
+                            return group.selectedProducts.includes(pid);
+                          });
+
+                          // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
+                          const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
+                          const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                          const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                          const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
+
+                          if (totalKhoiLuong === 0) return;
+
+                          // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+                          if (totalSelectedCount === 1) {
+                            chiPhiChung += groupTotalKeHoach;
+                          } else {
+                            chiPhiChung += (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong;
+                          }
                         });
-
-                        // Lọc các chi phí bổ sung được chọn cho chi phí chung
-                        const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                          const productId = `additional-${tab.id}`;
-                          return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
-                        });
-
-                        // Tính tổng khối lượng của tất cả sản phẩm được chọn (cả chính và bổ sung)
-                        const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
-                        const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
-
-                        // Tính chi phí chung cho sản phẩm hiện tại
-                        if (totalKhoiLuong === 0) return '0';
-                        const chiPhiChung = totalSelectedCount === 1
-                          ? totalGeneralCostKeHoach
-                          : (totalGeneralCostKeHoach * currentKhoiLuong) / totalKhoiLuong;
 
                         return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                       })()}
@@ -4696,41 +4750,47 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                     <input
                       type="text"
                       value={(() => {
-                        // Tính tổng chi phí chung thực tế từ tab "Báo giá đơn hàng"
-                        const totalGeneralCostThucTe = selectedGeneralCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-
-                        // Lấy khối lượng sản phẩm hiện tại
+                        // Tính chi phí chung thực tế từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
                         const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
-
-                        // Kiểm tra xem sản phẩm hiện tại có được chọn cho chi phí chung không
                         const currentProductId = `tab-${activeTab}`;
-                        const isCurrentProductSelected = selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(currentProductId);
 
-                        if (!isCurrentProductSelected) return '0';
+                        let chiPhiChung = 0;
+                        // Duyệt qua từng bảng chi phí chung
+                        generalCostGroups.forEach(group => {
+                          const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
 
-                        // Lọc các sản phẩm chính được chọn cho chi phí chung
-                        const selectedMainItems = items.filter((_: any, index: number) => {
-                          const productId = `tab-${index}`;
-                          return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                          // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
+                          // CHỈ khi selectedProducts có phần tử mới kiểm tra
+                          const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                          if (!isProductSelected) return;
+
+                          // Lọc các sản phẩm chính được chọn cho bảng này
+                          const selectedMainItems = items.filter((_: any, index: number) => {
+                            const pid = `tab-${index}`;
+                            return group.selectedProducts.includes(pid);
+                          });
+
+                          // Lọc các chi phí bổ sung được chọn cho bảng này
+                          const selectedAdditionalItems = additionalCostTabs.filter(tab => {
+                            const pid = `additional-${tab.id}`;
+                            return group.selectedProducts.includes(pid);
+                          });
+
+                          // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
+                          const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
+                          const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                          const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                          const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
+
+                          if (totalKhoiLuong === 0) return;
+
+                          // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+                          if (totalSelectedCount === 1) {
+                            chiPhiChung += groupTotalThucTe;
+                          } else {
+                            chiPhiChung += (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
+                          }
                         });
-
-                        // Lọc các chi phí bổ sung được chọn cho chi phí chung
-                        const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                          const productId = `additional-${tab.id}`;
-                          return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
-                        });
-
-                        // Tính tổng khối lượng của tất cả sản phẩm được chọn (cả chính và bổ sung)
-                        const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
-                        const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
-
-                        // Tính chi phí chung cho sản phẩm hiện tại
-                        if (totalKhoiLuong === 0) return '0';
-                        const chiPhiChung = totalSelectedCount === 1
-                          ? totalGeneralCostThucTe
-                          : (totalGeneralCostThucTe * currentKhoiLuong) / totalKhoiLuong;
 
                         return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                       })()}
@@ -4755,20 +4815,20 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         // Tính tổng chi phí xuất khẩu kế hoạch từ tab "Báo giá đơn hàng"
                         const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
 
-                        // Lấy khối lượng sản phẩm hiện tại
-                        const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
+                        // Lấy "Tổng Thành phẩm cần sx thêm" của sản phẩm hiện tại
+                        const currentTongThanhPham = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
 
-                        // Tính tổng khối lượng tất cả sản phẩm (cả chính và bổ sung)
-                        const totalKhoiLuongMain = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuongAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                        // Tính tổng "Tổng Thành phẩm cần sx thêm" tất cả sản phẩm (cả chính và bổ sung)
+                        const totalTongThanhPhamMain = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                        const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                        const totalTongThanhPham = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
                         const totalProductCount = items.length + additionalCostTabs.length;
 
                         // Tính chi phí xuất khẩu cho sản phẩm hiện tại
-                        if (totalKhoiLuong === 0) return '0';
+                        if (totalTongThanhPham === 0) return '0';
                         const chiPhiXuatKhau = totalProductCount === 1
                           ? totalExportCostKeHoach
-                          : (totalExportCostKeHoach * currentKhoiLuong) / totalKhoiLuong;
+                          : (totalExportCostKeHoach * currentTongThanhPham) / totalTongThanhPham;
 
                         return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                       })()}
@@ -4784,20 +4844,20 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         // Tính tổng chi phí xuất khẩu thực tế từ tab "Báo giá đơn hàng"
                         const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
 
-                        // Lấy khối lượng sản phẩm hiện tại
-                        const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
+                        // Lấy "Tổng Thành phẩm cần sx thêm" của sản phẩm hiện tại
+                        const currentTongThanhPham = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
 
-                        // Tính tổng khối lượng tất cả sản phẩm (cả chính và bổ sung)
-                        const totalKhoiLuongMain = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuongAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                        // Tính tổng "Tổng Thành phẩm cần sx thêm" tất cả sản phẩm (cả chính và bổ sung)
+                        const totalTongThanhPhamMain = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                        const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                        const totalTongThanhPham = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
                         const totalProductCount = items.length + additionalCostTabs.length;
 
                         // Tính chi phí xuất khẩu cho sản phẩm hiện tại
-                        if (totalKhoiLuong === 0) return '0';
+                        if (totalTongThanhPham === 0) return '0';
                         const chiPhiXuatKhau = totalProductCount === 1
                           ? totalExportCostThucTe
-                          : (totalExportCostThucTe * currentKhoiLuong) / totalKhoiLuong;
+                          : (totalExportCostThucTe * currentTongThanhPham) / totalTongThanhPham;
 
                         return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                       })()}
@@ -4833,48 +4893,57 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           chiPhiSanXuat = perDay * maxDays;
                         }
 
-                        // 2. Chi phí chung kế hoạch
-                        const totalGeneralCostKeHoach = selectedGeneralCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+                        // 2. Chi phí chung kế hoạch - tính từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
                         const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
-
-                        // Kiểm tra xem sản phẩm hiện tại có được chọn cho chi phí chung không
                         const currentProductId = `tab-${activeTab}`;
-                        const isCurrentProductSelected = selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(currentProductId);
 
                         let chiPhiChung = 0;
-                        if (isCurrentProductSelected) {
-                          // Lọc các sản phẩm chính được chọn cho chi phí chung
+                        generalCostGroups.forEach(group => {
+                          const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+
+                          // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
+                          // CHỈ khi selectedProducts có phần tử mới kiểm tra
+                          const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                          if (!isProductSelected) return;
+
+                          // Lọc các sản phẩm chính được chọn cho bảng này
                           const selectedMainItems = items.filter((_: any, index: number) => {
-                            const productId = `tab-${index}`;
-                            return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                            const pid = `tab-${index}`;
+                            return group.selectedProducts.includes(pid);
                           });
 
-                          // Lọc các chi phí bổ sung được chọn cho chi phí chung
+                          // Lọc các chi phí bổ sung được chọn cho bảng này
                           const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                            const productId = `additional-${tab.id}`;
-                            return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                            const pid = `additional-${tab.id}`;
+                            return group.selectedProducts.includes(pid);
                           });
 
-                          // Tính tổng khối lượng của tất cả sản phẩm được chọn (cả chính và bổ sung)
+                          // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
                           const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
                           const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
                           const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
                           const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
 
-                          chiPhiChung = totalKhoiLuong === 0 ? 0 : (totalSelectedCount === 1
-                            ? totalGeneralCostKeHoach
-                            : (totalGeneralCostKeHoach * currentKhoiLuong) / totalKhoiLuong);
-                        }
+                          if (totalKhoiLuong === 0) return;
+
+                          // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+                          if (totalSelectedCount === 1) {
+                            chiPhiChung += groupTotalKeHoach;
+                          } else {
+                            chiPhiChung += (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong;
+                          }
+                        });
 
                         // 3. Chi phí xuất khẩu kế hoạch (bao gồm cả sản phẩm chính và bổ sung)
                         const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-                        const totalKhoiLuongMainExport = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuongAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuongExport = totalKhoiLuongMainExport + totalKhoiLuongAdditionalExport;
+                        const currentTongThanhPhamExport = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
+                        const totalTongThanhPhamMainExport = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                        const totalTongThanhPhamAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                        const totalTongThanhPhamExport = totalTongThanhPhamMainExport + totalTongThanhPhamAdditionalExport;
                         const totalProductCountExport = items.length + additionalCostTabs.length;
-                        const chiPhiXuatKhau = totalKhoiLuongExport === 0 ? 0 : (totalProductCountExport === 1
+                        const chiPhiXuatKhau = totalTongThanhPhamExport === 0 ? 0 : (totalProductCountExport === 1
                           ? totalExportCostKeHoach
-                          : (totalExportCostKeHoach * currentKhoiLuong) / totalKhoiLuongExport);
+                          : (totalExportCostKeHoach * currentTongThanhPhamExport) / totalTongThanhPhamExport);
 
                         // Tổng
                         const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;
@@ -4904,48 +4973,57 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           chiPhiSanXuat = perDay * actualDays;
                         }
 
-                        // 2. Chi phí chung thực tế
-                        const totalGeneralCostThucTe = selectedGeneralCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+                        // 2. Chi phí chung thực tế - tính từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
                         const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
-
-                        // Kiểm tra xem sản phẩm hiện tại có được chọn cho chi phí chung không
                         const currentProductId = `tab-${activeTab}`;
-                        const isCurrentProductSelected = selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(currentProductId);
 
                         let chiPhiChung = 0;
-                        if (isCurrentProductSelected) {
-                          // Lọc các sản phẩm chính được chọn cho chi phí chung
+                        generalCostGroups.forEach(group => {
+                          const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+
+                          // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
+                          // CHỈ khi selectedProducts có phần tử mới kiểm tra
+                          const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                          if (!isProductSelected) return;
+
+                          // Lọc các sản phẩm chính được chọn cho bảng này
                           const selectedMainItems = items.filter((_: any, index: number) => {
-                            const productId = `tab-${index}`;
-                            return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                            const pid = `tab-${index}`;
+                            return group.selectedProducts.includes(pid);
                           });
 
-                          // Lọc các chi phí bổ sung được chọn cho chi phí chung
+                          // Lọc các chi phí bổ sung được chọn cho bảng này
                           const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                            const productId = `additional-${tab.id}`;
-                            return selectedProductsForGeneralCosts.length === 0 || selectedProductsForGeneralCosts.includes(productId);
+                            const pid = `additional-${tab.id}`;
+                            return group.selectedProducts.includes(pid);
                           });
 
-                          // Tính tổng khối lượng của tất cả sản phẩm được chọn (cả chính và bổ sung)
+                          // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
                           const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
                           const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
                           const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
                           const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
 
-                          chiPhiChung = totalKhoiLuong === 0 ? 0 : (totalSelectedCount === 1
-                            ? totalGeneralCostThucTe
-                            : (totalGeneralCostThucTe * currentKhoiLuong) / totalKhoiLuong);
-                        }
+                          if (totalKhoiLuong === 0) return;
+
+                          // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
+                          if (totalSelectedCount === 1) {
+                            chiPhiChung += groupTotalThucTe;
+                          } else {
+                            chiPhiChung += (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
+                          }
+                        });
 
                         // 3. Chi phí xuất khẩu thực tế (bao gồm cả sản phẩm chính và bổ sung)
                         const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-                        const totalKhoiLuongMainExport = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuongAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                        const totalKhoiLuongExport = totalKhoiLuongMainExport + totalKhoiLuongAdditionalExport;
+                        const currentTongThanhPhamExport = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
+                        const totalTongThanhPhamMainExport = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                        const totalTongThanhPhamAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                        const totalTongThanhPhamExport = totalTongThanhPhamMainExport + totalTongThanhPhamAdditionalExport;
                         const totalProductCountExport = items.length + additionalCostTabs.length;
-                        const chiPhiXuatKhau = totalKhoiLuongExport === 0 ? 0 : (totalProductCountExport === 1
+                        const chiPhiXuatKhau = totalTongThanhPhamExport === 0 ? 0 : (totalProductCountExport === 1
                           ? totalExportCostThucTe
-                          : (totalExportCostThucTe * currentKhoiLuong) / totalKhoiLuongExport);
+                          : (totalExportCostThucTe * currentTongThanhPhamExport) / totalTongThanhPhamExport);
 
                         // Tổng
                         const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;

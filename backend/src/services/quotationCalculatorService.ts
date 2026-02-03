@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -11,6 +11,7 @@ export interface QuotationCalculatorData {
   products: QuotationCalculatorProductData[];
   generalCosts: QuotationCalculatorCostData[];
   exportCosts: QuotationCalculatorCostData[];
+  generalCostGroups?: any[]; // Lưu thông tin các bảng chi phí chung (Chi phí chung 1, Chi phí chung 2, ...)
 }
 
 export interface QuotationCalculatorProductData {
@@ -49,6 +50,7 @@ export interface QuotationCalculatorProductData {
   byProducts?: { tenSanPham: string; giaHoaVon: number }[];
   isAdditionalCost?: boolean; // Flag để đánh dấu chi phí bổ sung
   tenChiPhiBoSung?: string; // Tên chi phí bổ sung
+  originalTabId?: string; // ID gốc của tab để sử dụng khi load lại
 }
 
 export interface QuotationCalculatorCostData {
@@ -97,12 +99,18 @@ class QuotationCalculatorService {
 
   // Create new calculator
   private async createCalculator(data: QuotationCalculatorData) {
+    // Ensure generalCostGroups is properly formatted for JSON storage
+    const generalCostGroupsToSave = data.generalCostGroups && data.generalCostGroups.length > 0
+      ? data.generalCostGroups
+      : Prisma.JsonNull;
+
     const calculator = await prisma.quotationCalculator.create({
       data: {
         quotationRequestId: data.quotationRequestId,
         maYeuCauBaoGia: data.maYeuCauBaoGia,
         phanTramThue: data.phanTramThue,
         phanTramQuy: data.phanTramQuy,
+        generalCostGroupsData: generalCostGroupsToSave,
         products: {
           create: data.products.map(product => ({
             quotationRequestItemId: product.quotationRequestItemId,
@@ -139,6 +147,7 @@ class QuotationCalculatorService {
             ghiChu: product.ghiChu,
             isAdditionalCost: product.isAdditionalCost || false,
             tenChiPhiBoSung: product.tenChiPhiBoSung,
+            originalTabId: product.originalTabId,
             byProducts: product.byProducts ? {
               create: product.byProducts,
             } : undefined,
@@ -181,6 +190,11 @@ class QuotationCalculatorService {
 
   // Update existing calculator
   private async updateCalculator(calculatorId: string, data: QuotationCalculatorData) {
+    // Ensure generalCostGroups is properly formatted for JSON storage
+    const generalCostGroupsToSave = data.generalCostGroups && data.generalCostGroups.length > 0
+      ? data.generalCostGroups
+      : Prisma.JsonNull;
+
     // Delete existing products, costs
     await prisma.quotationCalculatorProduct.deleteMany({
       where: { calculatorId },
@@ -198,6 +212,7 @@ class QuotationCalculatorService {
       data: {
         phanTramThue: data.phanTramThue,
         phanTramQuy: data.phanTramQuy,
+        generalCostGroupsData: generalCostGroupsToSave,
         products: {
           create: data.products.map(product => ({
             quotationRequestItemId: product.quotationRequestItemId,
@@ -234,6 +249,7 @@ class QuotationCalculatorService {
             ghiChu: product.ghiChu,
             isAdditionalCost: product.isAdditionalCost || false,
             tenChiPhiBoSung: product.tenChiPhiBoSung,
+            originalTabId: product.originalTabId,
             byProducts: product.byProducts ? {
               create: product.byProducts,
             } : undefined,

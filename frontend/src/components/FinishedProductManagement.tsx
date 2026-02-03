@@ -523,7 +523,7 @@ const FinishedProductManagement: React.FC = () => {
                 key={machine.id}
                 onClick={() => setSelectedMachine(machine.tenMay)}
                 className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center
                   ${selectedMachine === machine.tenMay
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -531,6 +531,19 @@ const FinishedProductManagement: React.FC = () => {
                 `}
               >
                 {machine.tenMay}
+                <span className={`ml-2 text-xs px-2 py-0.5 rounded-full border ${
+                  machine.trangThai === 'HOAT_DONG'
+                    ? 'bg-green-100 text-green-700 border-green-300'
+                    : machine.trangThai === 'BẢO_TRÌ'
+                      ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                      : 'bg-red-100 text-red-700 border-red-300'
+                }`}>
+                  {machine.trangThai === 'HOAT_DONG'
+                    ? 'Hoạt động'
+                    : machine.trangThai === 'BẢO_TRÌ'
+                      ? 'Bảo trì'
+                      : 'Ngừng'}
+                </span>
               </button>
             ))}
             {/* Tab Tổng các máy */}

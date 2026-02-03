@@ -792,17 +792,18 @@ model ExportCost {
 }
 
 model QuotationCalculator {
-  id                 String                           @id @default(cuid())
-  quotationRequestId String                           @unique
-  maYeuCauBaoGia     String
-  phanTramThue       Float?
-  phanTramQuy        Float?
-  createdAt          DateTime                         @default(now())
-  updatedAt          DateTime                         @updatedAt
-  exportCosts        QuotationCalculatorExportCost[]
-  generalCosts       QuotationCalculatorGeneralCost[]
-  products           QuotationCalculatorProduct[]
-  quotationRequest   QuotationRequest                 @relation(fields: [quotationRequestId], references: [id], onDelete: Cascade)
+  id                      String                           @id @default(cuid())
+  quotationRequestId      String                           @unique
+  maYeuCauBaoGia          String
+  phanTramThue            Float?
+  phanTramQuy             Float?
+  generalCostGroupsData   Json?                            // Lưu thông tin các bảng chi phí chung (Chi phí chung 1, Chi phí chung 2, ...)
+  createdAt               DateTime                         @default(now())
+  updatedAt               DateTime                         @updatedAt
+  exportCosts             QuotationCalculatorExportCost[]
+  generalCosts            QuotationCalculatorGeneralCost[]
+  products                QuotationCalculatorProduct[]
+  quotationRequest        QuotationRequest                 @relation(fields: [quotationRequestId], references: [id], onDelete: Cascade)
 
   @@map("quotation_calculators")
   @@schema("business")
@@ -845,6 +846,7 @@ model QuotationCalculatorProduct {
   ghiChu                   String?
   isAdditionalCost         Boolean                        @default(false)
   tenChiPhiBoSung          String?
+  originalTabId            String?                        // ID gốc của tab để sử dụng khi load lại
   createdAt                DateTime                       @default(now())
   updatedAt                DateTime                       @updatedAt
   byProducts               QuotationCalculatorByProduct[]

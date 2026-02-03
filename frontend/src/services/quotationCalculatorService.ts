@@ -8,6 +8,14 @@ const getAuthToken = () => {
   return localStorage.getItem('accessToken');
 };
 
+// Interface for general cost group (bảng chi phí chung)
+export interface GeneralCostGroupData {
+  id: string;
+  tenBangChiPhi: string;
+  selectedCosts: QuotationCalculatorCostData[];
+  selectedProducts: string[]; // Danh sách sản phẩm được chọn cho bảng này
+}
+
 // Interface matching backend
 export interface QuotationCalculatorData {
   quotationRequestId: string;
@@ -17,6 +25,7 @@ export interface QuotationCalculatorData {
   products: QuotationCalculatorProductData[];
   generalCosts: QuotationCalculatorCostData[];
   exportCosts: QuotationCalculatorCostData[];
+  generalCostGroups?: GeneralCostGroupData[]; // Lưu thông tin các bảng chi phí chung (Chi phí chung 1, Chi phí chung 2, ...)
 }
 
 export interface QuotationCalculatorProductData {
