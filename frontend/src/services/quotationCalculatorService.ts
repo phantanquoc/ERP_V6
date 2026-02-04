@@ -60,6 +60,12 @@ export interface QuotationCalculatorProductData {
   giaHoaVon?: number;
   loiNhuanCongThem?: number;
   ghiChu?: string;
+  // Các trường thực tế mới
+  tongKhoiLuongThanhPhamThucTe?: number; // Tổng khối lượng thành phẩm đầu ra thực tế (kg)
+  thanhPhamTonKhoThucTe?: number; // Thành phẩm tồn kho thực tế
+  tongThanhPhamCanSxThemThucTe?: number; // Tổng thành phẩm cần sx thêm thực tế (auto-calculated)
+  tongNguyenLieuCanSanXuatThucTe?: number; // Tổng nguyên liệu cần sản xuất thực tế
+  loiNhuanCongThemThucTe?: number; // Lợi nhuận cộng thêm thực tế
   byProducts?: { tenSanPham: string; giaHoaVon: number }[];
 }
 

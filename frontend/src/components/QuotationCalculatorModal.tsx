@@ -105,6 +105,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       tongNguyenLieuCanSanXuat: string;
       nguyenLieuTonKho: string;
       nguyenLieuCanNhapThem: string;
+      // Các trường thực tế mới
+      tongKhoiLuongThanhPhamThucTe: string;
+      thanhPhamTonKhoThucTe: string;
+      tongThanhPhamCanSxThemThucTe: string;
+      tongNguyenLieuCanSanXuatThucTe: string;
       ghiChu: string;
       // Các trường mới
       thoiGianChoPhepToiDa: string;
@@ -118,7 +123,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       chiPhiXuatKhauThucTe: string;
       giaHoaVon: string; // Giá hòa vốn cho sản phẩm đầu ra chính (auto-calculated)
       loiNhuanCongThem: string; // Lợi nhuận cộng thêm cho sản phẩm đầu ra chính
+      loiNhuanCongThemThucTe: string; // Lợi nhuận cộng thêm thực tế
       giaHoaVonSanPhamPhu: { [tenSanPham: string]: string }; // Giá hòa vốn của các sản phẩm phụ (user input)
+      // Các trường thực tế cho thành phẩm đầu ra
+      tiLeThuHoiThucTe: { [tenSanPham: string]: string }; // Tỉ lệ thu hồi thực tế cho từng sản phẩm
+      giaHoaVonSanPhamPhuThucTe: { [tenSanPham: string]: string }; // Giá hòa vốn thực tế của các sản phẩm phụ
     };
   }[]>([]);
 
@@ -313,27 +322,38 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       if (response.success && response.data) {
         const calculator = response.data;
         console.log('📦 Loaded calculator from database:', calculator);
+        console.log('📦 All products from DB:', calculator.products);
+        console.log('📦 Number of products:', calculator.products?.length);
 
-        // Create a map of saved products by maBaoGia for quick lookup
-        const savedProductsMap = new Map();
-        calculator.products.forEach((product: any) => {
-          savedProductsMap.set(product.maBaoGia, product);
-        });
+        // Filter out additional cost products and get regular products
+        const regularProducts = calculator.products.filter((p: any) => !p.isAdditionalCost);
+        const additionalCostProducts = calculator.products.filter((p: any) => p.isAdditionalCost);
+        console.log('📦 Regular products count:', regularProducts.length);
+        console.log('📦 Additional cost products count:', additionalCostProducts.length);
 
-        // Generate base code for new products
+        // Generate base code for new products (only used if no saved data)
         const codeResponse = await quotationService.generateQuotationCode();
         const baseCode = codeResponse.data.code;
 
         // Load full MaterialStandard and ProductionProcess data for each item
-        // Merge saved data with items from quotation request
+        // Match saved products by index (order) instead of maBaoGia
         const loadedTabs = await Promise.all(items.map(async (item: any, index: number) => {
-          const maBaoGia = `${baseCode}-${index + 1}`;
-          const savedProduct = savedProductsMap.get(maBaoGia);
+          // Try to find saved product by index
+          const savedProduct = regularProducts[index];
+          const maBaoGia = savedProduct?.maBaoGia || `${baseCode}-${index + 1}`;
 
           // If this product was saved before, load its data
           if (savedProduct) {
             const product = savedProduct;
             console.log('🔍 Processing saved product:', product);
+            // Debug các trường thực tế mới từ database
+            console.log('🔍 Các trường thực tế mới từ DB:', {
+              tongKhoiLuongThanhPhamThucTe: product.tongKhoiLuongThanhPhamThucTe,
+              thanhPhamTonKhoThucTe: product.thanhPhamTonKhoThucTe,
+              tongThanhPhamCanSxThemThucTe: product.tongThanhPhamCanSxThemThucTe,
+              tongNguyenLieuCanSanXuatThucTe: product.tongNguyenLieuCanSanXuatThucTe,
+              loiNhuanCongThemThucTe: product.loiNhuanCongThemThucTe,
+            });
             let selectedStandard = null;
             let selectedProcess = null;
 
@@ -392,6 +412,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 tongNguyenLieuCanSanXuat: product.tongNguyenLieuCanSanXuat?.toString() || '',
                 nguyenLieuTonKho: product.nguyenLieuTonKho?.toString() || '',
                 nguyenLieuCanNhapThem: product.nguyenLieuCanNhapThem?.toString() || '',
+                // Các trường thực tế mới
+                tongKhoiLuongThanhPhamThucTe: product.tongKhoiLuongThanhPhamThucTe?.toString() || '',
+                thanhPhamTonKhoThucTe: product.thanhPhamTonKhoThucTe?.toString() || '',
+                tongThanhPhamCanSxThemThucTe: product.tongThanhPhamCanSxThemThucTe?.toString() || '',
+                tongNguyenLieuCanSanXuatThucTe: product.tongNguyenLieuCanSanXuatThucTe?.toString() || '',
                 ghiChu: product.ghiChu || '',
                 thoiGianChoPhepToiDa: product.thoiGianChoPhepToiDa?.toString() || '',
                 ngayBatDauSanXuat: product.ngayBatDauSanXuat ? new Date(product.ngayBatDauSanXuat).toISOString().split('T')[0] : '',
@@ -405,7 +430,21 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 giaHoaVon: product.giaHoaVon?.toString() || '',
                 loiNhuanCongThem: product.loiNhuanCongThem?.toString() || '',
                 giaHoaVonSanPhamPhu: product.byProducts?.reduce((acc: any, bp: any) => {
-                  acc[bp.tenSanPham] = bp.giaHoaVon.toString();
+                  acc[bp.tenSanPham] = bp.giaHoaVon?.toString() || '0';
+                  return acc;
+                }, {}) || {},
+                // Load các trường thực tế từ byProducts
+                tiLeThuHoiThucTe: product.byProducts?.reduce((acc: any, bp: any) => {
+                  if (bp.tiLeThuHoiThucTe !== null && bp.tiLeThuHoiThucTe !== undefined) {
+                    acc[bp.tenSanPham] = bp.tiLeThuHoiThucTe.toString();
+                  }
+                  return acc;
+                }, {}) || {},
+                loiNhuanCongThemThucTe: product.loiNhuanCongThemThucTe?.toString() || '',
+                giaHoaVonSanPhamPhuThucTe: product.byProducts?.reduce((acc: any, bp: any) => {
+                  if (bp.giaHoaVonThucTe !== null && bp.giaHoaVonThucTe !== undefined) {
+                    acc[bp.tenSanPham] = bp.giaHoaVonThucTe.toString();
+                  }
                   return acc;
                 }, {}) || {},
               },
@@ -427,6 +466,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 tongNguyenLieuCanSanXuat: '',
                 nguyenLieuTonKho: '',
                 nguyenLieuCanNhapThem: '',
+                // Các trường thực tế mới
+                tongKhoiLuongThanhPhamThucTe: '',
+                thanhPhamTonKhoThucTe: '',
+                tongThanhPhamCanSxThemThucTe: '',
+                tongNguyenLieuCanSanXuatThucTe: '',
                 ghiChu: '',
                 thoiGianChoPhepToiDa: '',
                 ngayBatDauSanXuat: '',
@@ -439,7 +483,10 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 chiPhiXuatKhauThucTe: '',
                 giaHoaVon: '',
                 loiNhuanCongThem: '',
+                loiNhuanCongThemThucTe: '',
                 giaHoaVonSanPhamPhu: {},
+                tiLeThuHoiThucTe: {},
+                giaHoaVonSanPhamPhuThucTe: {},
               },
             };
           }
@@ -562,7 +609,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 giaHoaVon: product.giaHoaVon?.toString() || '',
                 loiNhuanCongThem: product.loiNhuanCongThem?.toString() || '',
                 giaHoaVonSanPhamPhu: product.byProducts?.reduce((acc: any, bp: any) => {
-                  acc[bp.tenSanPham] = bp.giaHoaVon.toString();
+                  acc[bp.tenSanPham] = bp.giaHoaVon?.toString() || '0';
                   return acc;
                 }, {}) || {},
                 soLuong: product.soLuong?.toString() || '',
@@ -601,6 +648,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           tongNguyenLieuCanSanXuat: '',
           nguyenLieuTonKho: '',
           nguyenLieuCanNhapThem: '',
+          // Các trường thực tế mới
+          tongKhoiLuongThanhPhamThucTe: '',
+          thanhPhamTonKhoThucTe: '',
+          tongThanhPhamCanSxThemThucTe: '',
+          tongNguyenLieuCanSanXuatThucTe: '',
           ghiChu: '',
           // Các trường mới
           thoiGianChoPhepToiDa: '',
@@ -615,6 +667,10 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           giaHoaVon: '',
           loiNhuanCongThem: '',
           giaHoaVonSanPhamPhu: {},
+          // Các trường thực tế cho thành phẩm đầu ra
+          tiLeThuHoiThucTe: {},
+          loiNhuanCongThemThucTe: '',
+          giaHoaVonSanPhamPhuThucTe: {},
         },
       }));
 
@@ -638,6 +694,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           tongNguyenLieuCanSanXuat: '',
           nguyenLieuTonKho: '',
           nguyenLieuCanNhapThem: '',
+          // Các trường thực tế mới
+          tongKhoiLuongThanhPhamThucTe: '',
+          thanhPhamTonKhoThucTe: '',
+          tongThanhPhamCanSxThemThucTe: '',
+          tongNguyenLieuCanSanXuatThucTe: '',
           ghiChu: '',
           // Các trường mới
           thoiGianChoPhepToiDa: '',
@@ -652,6 +713,10 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           giaHoaVon: '',
           loiNhuanCongThem: '',
           giaHoaVonSanPhamPhu: {},
+          // Các trường thực tế cho thành phẩm đầu ra
+          tiLeThuHoiThucTe: {},
+          loiNhuanCongThemThucTe: '',
+          giaHoaVonSanPhamPhuThucTe: {},
         },
       }));
 
@@ -956,6 +1021,10 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
   };
 
   const updateFormData = (field: string, value: string) => {
+    // Debug log khi cập nhật các trường thực tế
+    if (field.includes('ThucTe')) {
+      console.log(`📝 [updateFormData] Updating field: ${field} = ${value}`);
+    }
     setTabsData(prev => {
       const newTabs = [...prev];
       newTabs[activeTab] = {
@@ -1172,6 +1241,26 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           tongThanhPhamCanSxThem: totalNeeded.toString(),
           tongNguyenLieuCanSanXuat: totalMaterialNeeded > 0 ? totalMaterialNeeded.toFixed(2) : '',
           nguyenLieuCanNhapThem: materialToImport > 0 ? materialToImport.toFixed(2) : '',
+        },
+      };
+      return newTabs;
+    });
+  };
+
+  // Handle thay đổi "Thành phẩm tồn kho Thực tế" - auto tính Tổng Thành phẩm cần sx thêm Thực tế
+  const handleInventoryThucTeChange = (value: string) => {
+    const inventoryThucTe = parseFloat(value) || 0;
+    const orderQuantity = quotationRequest.items?.[activeTab]?.soLuong || 0;
+    const tongThanhPhamCanSxThemThucTe = calculateTotalNeeded(orderQuantity, inventoryThucTe);
+
+    setTabsData(prev => {
+      const newTabs = [...prev];
+      newTabs[activeTab] = {
+        ...newTabs[activeTab],
+        formData: {
+          ...newTabs[activeTab].formData,
+          thanhPhamTonKhoThucTe: value,
+          tongThanhPhamCanSxThemThucTe: tongThanhPhamCanSxThemThucTe.toString(),
         },
       };
       return newTabs;
@@ -1502,12 +1591,32 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               console.log(`🔍 Tab ${index} - selectedProcess:`, tab.selectedProcess);
               console.log(`🔍 Tab ${index} - flowchart:`, tab.selectedProcess?.flowchart);
               const item = items[index];
-              const byProducts = tab.formData.giaHoaVonSanPhamPhu
-                ? Object.entries(tab.formData.giaHoaVonSanPhamPhu).map(([tenSanPham, giaHoaVon]) => ({
-                    tenSanPham,
-                    giaHoaVon: parseFloat(giaHoaVon as string) || 0,
-                  }))
-                : [];
+              // Tạo byProducts từ selectedStandard.items để đảm bảo tất cả sản phẩm đều được lưu
+              const byProducts = tab.selectedStandard?.items?.map(item => {
+                const tenSanPham = item.tenThanhPham;
+                const tiLe = item.tiLe || 0;
+                // Lấy giá hòa vốn kế hoạch từ formData
+                const giaHoaVon = tab.formData.giaHoaVonSanPhamPhu?.[tenSanPham]
+                  ? parseFloat(tab.formData.giaHoaVonSanPhamPhu[tenSanPham])
+                  : 0;
+                // Lấy tiLeThuHoiThucTe và giaHoaVonThucTe từ formData
+                const tiLeThuHoiThucTe = tab.formData.tiLeThuHoiThucTe?.[tenSanPham]
+                  ? parseFloat(tab.formData.tiLeThuHoiThucTe[tenSanPham])
+                  : undefined;
+                const giaHoaVonThucTe = tab.formData.giaHoaVonSanPhamPhuThucTe?.[tenSanPham]
+                  ? parseFloat(tab.formData.giaHoaVonSanPhamPhuThucTe[tenSanPham])
+                  : undefined;
+                return {
+                  tenSanPham,
+                  tiLe,
+                  tiLeThuHoiThucTe,
+                  giaHoaVon,
+                  giaHoaVonThucTe,
+                };
+              }) || [];
+
+              // Debug log byProducts
+              console.log(`💾 [Save] Tab ${index} byProducts:`, byProducts);
 
               // Tính giá hòa vốn tự động
               const giaHoaVonCalculated = calculateGiaHoaVonChinhPham(index);
@@ -1529,6 +1638,12 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 tongNguyenLieuCanSanXuat: tab.formData.tongNguyenLieuCanSanXuat ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) : undefined,
                 nguyenLieuTonKho: tab.formData.nguyenLieuTonKho ? parseFloat(tab.formData.nguyenLieuTonKho) : undefined,
                 nguyenLieuCanNhapThem: tab.formData.nguyenLieuCanNhapThem ? parseFloat(tab.formData.nguyenLieuCanNhapThem) : undefined,
+                // Các trường thực tế mới
+                tongKhoiLuongThanhPhamThucTe: tab.formData.tongKhoiLuongThanhPhamThucTe ? parseFloat(tab.formData.tongKhoiLuongThanhPhamThucTe) : undefined,
+                thanhPhamTonKhoThucTe: tab.formData.thanhPhamTonKhoThucTe ? parseFloat(tab.formData.thanhPhamTonKhoThucTe) : undefined,
+                tongThanhPhamCanSxThemThucTe: tab.formData.tongThanhPhamCanSxThemThucTe ? parseFloat(tab.formData.tongThanhPhamCanSxThemThucTe) : undefined,
+                tongNguyenLieuCanSanXuatThucTe: tab.formData.tongNguyenLieuCanSanXuatThucTe ? parseFloat(tab.formData.tongNguyenLieuCanSanXuatThucTe) : undefined,
+                loiNhuanCongThemThucTe: tab.formData.loiNhuanCongThemThucTe ? parseFloat(tab.formData.loiNhuanCongThemThucTe) : undefined,
                 productionProcessId: tab.selectedProcess?.id,
                 maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinhSanXuat,
                 tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinhSanXuat,
@@ -1551,12 +1666,29 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             }),
             // Additional cost tabs
             ...additionalCostTabs.map((tab) => {
-              const byProducts = tab.formData.giaHoaVonSanPhamPhu
-                ? Object.entries(tab.formData.giaHoaVonSanPhamPhu).map(([tenSanPham, giaHoaVon]) => ({
-                    tenSanPham,
-                    giaHoaVon: parseFloat(giaHoaVon as string) || 0,
-                  }))
-                : [];
+              // Tạo byProducts từ selectedStandard.items để đảm bảo tất cả sản phẩm đều được lưu
+              const byProducts = tab.selectedStandard?.items?.map(item => {
+                const tenSanPham = item.tenThanhPham;
+                const tiLe = item.tiLe || 0;
+                // Lấy giá hòa vốn kế hoạch từ formData
+                const giaHoaVon = tab.formData.giaHoaVonSanPhamPhu?.[tenSanPham]
+                  ? parseFloat(tab.formData.giaHoaVonSanPhamPhu[tenSanPham])
+                  : 0;
+                // Lấy tiLeThuHoiThucTe và giaHoaVonThucTe từ formData
+                const tiLeThuHoiThucTe = tab.formData.tiLeThuHoiThucTe?.[tenSanPham]
+                  ? parseFloat(tab.formData.tiLeThuHoiThucTe[tenSanPham])
+                  : undefined;
+                const giaHoaVonThucTe = tab.formData.giaHoaVonSanPhamPhuThucTe?.[tenSanPham]
+                  ? parseFloat(tab.formData.giaHoaVonSanPhamPhuThucTe[tenSanPham])
+                  : undefined;
+                return {
+                  tenSanPham,
+                  tiLe,
+                  tiLeThuHoiThucTe,
+                  giaHoaVon,
+                  giaHoaVonThucTe,
+                };
+              }) || [];
 
               return {
                 quotationRequestItemId: quotationRequest.id,
@@ -1624,6 +1756,16 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
         // Debug log before saving
         console.log('💾 [Save] generalCostGroups being saved:', calculatorData.generalCostGroups);
+        // Debug các trường thực tế trong products
+        calculatorData.products.forEach((p: any, i: number) => {
+          console.log(`💾 [Save] Product ${i} thực tế fields:`, {
+            tongKhoiLuongThanhPhamThucTe: p.tongKhoiLuongThanhPhamThucTe,
+            thanhPhamTonKhoThucTe: p.thanhPhamTonKhoThucTe,
+            tongThanhPhamCanSxThemThucTe: p.tongThanhPhamCanSxThemThucTe,
+            tongNguyenLieuCanSanXuatThucTe: p.tongNguyenLieuCanSanXuatThucTe,
+            loiNhuanCongThemThucTe: p.loiNhuanCongThemThucTe,
+          });
+        });
 
         // Save to database
         await quotationCalculatorService.upsertCalculator(calculatorData);
@@ -1653,6 +1795,16 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       // Prepare calculator data (same as in handleSubmit for product tabs)
       console.log('💾 Preparing to save order summary data...');
       console.log('📊 Tabs data:', tabsData);
+      // Debug các trường thực tế mới
+      tabsData.forEach((tab, index) => {
+        console.log(`🔍 Tab ${index} - Các trường thực tế mới:`, {
+          tongKhoiLuongThanhPhamThucTe: tab.formData.tongKhoiLuongThanhPhamThucTe,
+          thanhPhamTonKhoThucTe: tab.formData.thanhPhamTonKhoThucTe,
+          tongThanhPhamCanSxThemThucTe: tab.formData.tongThanhPhamCanSxThemThucTe,
+          tongNguyenLieuCanSanXuatThucTe: tab.formData.tongNguyenLieuCanSanXuatThucTe,
+          loiNhuanCongThemThucTe: tab.formData.loiNhuanCongThemThucTe,
+        });
+      });
 
       const calculatorData = {
         quotationRequestId: quotationRequest.id,
@@ -1665,12 +1817,29 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             console.log(`🔍 Tab ${index} - selectedProcess:`, tab.selectedProcess);
             console.log(`🔍 Tab ${index} - flowchart:`, tab.selectedProcess?.flowchart);
             const item = items[index];
-            const byProducts = tab.formData.giaHoaVonSanPhamPhu
-              ? Object.entries(tab.formData.giaHoaVonSanPhamPhu).map(([tenSanPham, giaHoaVon]) => ({
-                  tenSanPham,
-                  giaHoaVon: parseFloat(giaHoaVon as string) || 0,
-                }))
-              : [];
+            // Tạo byProducts từ selectedStandard.items để đảm bảo tất cả sản phẩm đều được lưu
+            const byProducts = tab.selectedStandard?.items?.map(item => {
+              const tenSanPham = item.tenThanhPham;
+              const tiLe = item.tiLe || 0;
+              // Lấy giá hòa vốn kế hoạch từ formData
+              const giaHoaVon = tab.formData.giaHoaVonSanPhamPhu?.[tenSanPham]
+                ? parseFloat(tab.formData.giaHoaVonSanPhamPhu[tenSanPham])
+                : 0;
+              // Lấy tiLeThuHoiThucTe và giaHoaVonThucTe từ formData
+              const tiLeThuHoiThucTe = tab.formData.tiLeThuHoiThucTe?.[tenSanPham]
+                ? parseFloat(tab.formData.tiLeThuHoiThucTe[tenSanPham])
+                : undefined;
+              const giaHoaVonThucTe = tab.formData.giaHoaVonSanPhamPhuThucTe?.[tenSanPham]
+                ? parseFloat(tab.formData.giaHoaVonSanPhamPhuThucTe[tenSanPham])
+                : undefined;
+              return {
+                tenSanPham,
+                tiLe,
+                tiLeThuHoiThucTe,
+                giaHoaVon,
+                giaHoaVonThucTe,
+              };
+            }) || [];
 
             // Tính giá hòa vốn tự động
             const giaHoaVonCalculated = calculateGiaHoaVonChinhPham(index);
@@ -1692,6 +1861,12 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               tongNguyenLieuCanSanXuat: tab.formData.tongNguyenLieuCanSanXuat ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) : undefined,
               nguyenLieuTonKho: tab.formData.nguyenLieuTonKho ? parseFloat(tab.formData.nguyenLieuTonKho) : undefined,
               nguyenLieuCanNhapThem: tab.formData.nguyenLieuCanNhapThem ? parseFloat(tab.formData.nguyenLieuCanNhapThem) : undefined,
+              // Các trường thực tế mới
+              tongKhoiLuongThanhPhamThucTe: tab.formData.tongKhoiLuongThanhPhamThucTe ? parseFloat(tab.formData.tongKhoiLuongThanhPhamThucTe) : undefined,
+              thanhPhamTonKhoThucTe: tab.formData.thanhPhamTonKhoThucTe ? parseFloat(tab.formData.thanhPhamTonKhoThucTe) : undefined,
+              tongThanhPhamCanSxThemThucTe: tab.formData.tongThanhPhamCanSxThemThucTe ? parseFloat(tab.formData.tongThanhPhamCanSxThemThucTe) : undefined,
+              tongNguyenLieuCanSanXuatThucTe: tab.formData.tongNguyenLieuCanSanXuatThucTe ? parseFloat(tab.formData.tongNguyenLieuCanSanXuatThucTe) : undefined,
+              loiNhuanCongThemThucTe: tab.formData.loiNhuanCongThemThucTe ? parseFloat(tab.formData.loiNhuanCongThemThucTe) : undefined,
               productionProcessId: tab.selectedProcess?.id,
               maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinhSanXuat,
               tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinhSanXuat,
@@ -1715,10 +1890,16 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           // Additional cost tabs
           ...additionalCostTabs.map((tab) => {
             const byProducts = tab.formData.giaHoaVonSanPhamPhu
-              ? Object.entries(tab.formData.giaHoaVonSanPhamPhu).map(([tenSanPham, giaHoaVon]) => ({
-                  tenSanPham,
-                  giaHoaVon: parseFloat(giaHoaVon as string) || 0,
-                }))
+              ? Object.entries(tab.formData.giaHoaVonSanPhamPhu).map(([tenSanPham, giaHoaVon]) => {
+                  // Tìm tiLe từ selectedStandard.items
+                  const matchedItem = tab.selectedStandard?.items?.find(item => item.tenThanhPham === tenSanPham);
+                  const tiLe = matchedItem?.tiLe || 0;
+                  return {
+                    tenSanPham,
+                    tiLe,
+                    giaHoaVon: parseFloat(giaHoaVon as string) || 0,
+                  };
+                })
               : [];
 
             return {
@@ -1787,6 +1968,17 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
       // Debug log before saving
       console.log('💾 [Save OrderSummary] generalCostGroups being saved:', calculatorData.generalCostGroups);
+      console.log('💾 [Save OrderSummary] products being saved:', calculatorData.products);
+      // Debug các trường thực tế trong products
+      calculatorData.products.forEach((p: any, i: number) => {
+        console.log(`💾 [Save] Product ${i} thực tế fields:`, {
+          tongKhoiLuongThanhPhamThucTe: p.tongKhoiLuongThanhPhamThucTe,
+          thanhPhamTonKhoThucTe: p.thanhPhamTonKhoThucTe,
+          tongThanhPhamCanSxThemThucTe: p.tongThanhPhamCanSxThemThucTe,
+          tongNguyenLieuCanSanXuatThucTe: p.tongNguyenLieuCanSanXuatThucTe,
+          loiNhuanCongThemThucTe: p.loiNhuanCongThemThucTe,
+        });
+      });
 
       // Save to database
       await quotationCalculatorService.upsertCalculator(calculatorData);
@@ -2229,6 +2421,119 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     if (soKgChinhPham === 0) return 0;
 
     // 6. Giá hòa vốn sản phẩm chính = (Tổng chi phí - Tổng giá trị sản phẩm phụ) / Số kg sản phẩm chính
+    const giaHoaVonChinhPham = (tongChiPhi - tongGiaTriSanPhamPhu) / soKgChinhPham;
+    return giaHoaVonChinhPham;
+  };
+
+  // Helper function: Tính giá hòa vốn THỰC TẾ cho sản phẩm đầu ra chính
+  const calculateGiaHoaVonChinhPhamThucTe = (tabIndex: number) => {
+    const tab = tabsData[tabIndex];
+    if (!tab || !tab.selectedStandard || !tab.formData.sanPhamDauRa) return 0;
+
+    const items = getItems();
+    const currentItem = items[tabIndex];
+
+    // 1. Tính tổng chi phí sản xuất (thực tế) - per-day from flowchart
+    let chiPhiSanXuatPerDay = 0;
+    if (tab.selectedProcess?.flowchart?.sections) {
+      chiPhiSanXuatPerDay = tab.selectedProcess.flowchart.sections.reduce((sum, section) => {
+        return sum + section.costs.reduce((costSum, cost) => {
+          const gia = cost.giaThucTe || 0;
+          const soLuong = cost.soLuongThucTe || 0;
+          return costSum + (gia * soLuong);
+        }, 0);
+      }, 0);
+    }
+
+    // Multiply per-day cost by allowed max days (thoiGianChoPhepToiDa)
+    const maxDays = parseFloat(tab.formData.thoiGianChoPhepToiDa) || 1;
+    const chiPhiSanXuat = chiPhiSanXuatPerDay * maxDays;
+
+    // 2. Tính chi phí chung THỰC TẾ từ tất cả các bảng chi phí chung (generalCostGroups)
+    const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
+    const currentProductId = `tab-${tabIndex}`;
+
+    let chiPhiChung = 0;
+    generalCostGroups.forEach(group => {
+      const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+
+      const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+      if (!isProductSelected) return;
+
+      const selectedMainItems = items.filter((_: any, index: number) => {
+        const pid = `tab-${index}`;
+        return group.selectedProducts.includes(pid);
+      });
+
+      const selectedAdditionalItems = additionalCostTabs.filter(tab => {
+        const pid = `additional-${tab.id}`;
+        return group.selectedProducts.includes(pid);
+      });
+
+      const totalKhoiLuong = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
+        selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData.soLuong || '0'), 0);
+
+      if (totalKhoiLuong === 0) return;
+
+      const totalSelectedProducts = selectedMainItems.length + selectedAdditionalItems.length;
+
+      if (totalSelectedProducts === 1) {
+        chiPhiChung += groupTotalThucTe;
+      } else {
+        chiPhiChung += (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
+      }
+    });
+
+    // 3. Tính chi phí xuất khẩu THỰC TẾ
+    const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+    const currentTongThanhPham = parseFloat(tab.formData.tongThanhPhamCanSxThem || '0');
+    const totalTongThanhPhamMain = tabsData.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.tongThanhPhamCanSxThem || '0'), 0);
+    const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.tongThanhPhamCanSxThem || '0'), 0);
+    const totalTongThanhPhamAll = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
+    const totalProductCount = items.length + additionalCostTabs.length;
+    const chiPhiXuatKhau = totalProductCount === 1
+      ? totalExportCostThucTe
+      : (totalTongThanhPhamAll === 0 ? 0 : (totalExportCostThucTe * currentTongThanhPham) / totalTongThanhPhamAll);
+
+    // Tổng chi phí thực tế
+    const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;
+
+    // 4. Tính tổng giá trị sản phẩm phụ THỰC TẾ
+    let tongGiaTriSanPhamPhu = 0;
+    // Kiểm tra an toàn tiLeThuHoiThucTe là object
+    const tiLeThuHoiThucTeObj = typeof tab.formData.tiLeThuHoiThucTe === 'object' && tab.formData.tiLeThuHoiThucTe !== null
+      ? tab.formData.tiLeThuHoiThucTe
+      : {};
+    // Lấy tỉ lệ thu hồi thành phẩm K3 (dùng giá trị kế hoạch vì tongNguyenLieuCanSanXuat được tính từ kế hoạch)
+    const tiLeThuHoiK3 = parseFloat(tab.formData.tiLeThuHoi) || 0;
+    if (tab.selectedStandard.items) {
+      tab.selectedStandard.items.forEach(sp => {
+        if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
+          const giaHoaVonPhuThucTe = parseFloat(tab.formData.giaHoaVonSanPhamPhuThucTe?.[sp.tenThanhPham] || '0');
+          // Dùng tiLeThuHoiThucTe của từng sản phẩm nếu có, nếu không dùng tiLe kế hoạch
+          const tiLeThuHoiSanPham = parseFloat(tiLeThuHoiThucTeObj[sp.tenThanhPham] || sp.tiLe.toString());
+          // Công thức đúng: tongNguyenLieuCanSanXuat × tiLeThuHoiK3 / 100 × tiLeSanPham / 100
+          const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tiLeThuHoiK3
+            ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * tiLeThuHoiK3 / 100 * tiLeThuHoiSanPham / 100
+            : 0;
+          tongGiaTriSanPhamPhu += giaHoaVonPhuThucTe * soKgPhu;
+        }
+      });
+    }
+
+    // 5. Tính số kg sản phẩm chính THỰC TẾ (dùng tiLeThuHoiThucTe của sản phẩm chính)
+    const sanPhamChinhItem = tab.selectedStandard.items?.find(sp => sp.tenThanhPham === tab.formData.sanPhamDauRa);
+    const tiLeThuHoiChinhThucTe = sanPhamChinhItem
+      ? parseFloat(tiLeThuHoiThucTeObj[sanPhamChinhItem.tenThanhPham] || sanPhamChinhItem.tiLe.toString())
+      : 0;
+    // Công thức đúng: tongNguyenLieuCanSanXuat × tiLeThuHoiK3 / 100 × tiLeSanPhamChinh / 100
+    const soKgChinhPham = tab.formData.tongNguyenLieuCanSanXuat && tiLeThuHoiK3 && sanPhamChinhItem
+      ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * tiLeThuHoiK3 / 100 * tiLeThuHoiChinhThucTe / 100
+      : 0;
+
+    if (soKgChinhPham === 0) return 0;
+
+    // 6. Giá hòa vốn thực tế sản phẩm chính = (Tổng chi phí thực tế - Tổng giá trị sản phẩm phụ thực tế) / Số kg sản phẩm chính thực tế
     const giaHoaVonChinhPham = (tongChiPhi - tongGiaTriSanPhamPhu) / soKgChinhPham;
     return giaHoaVonChinhPham;
   };
@@ -2846,7 +3151,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <span className="text-sm font-medium text-gray-700">Doanh thu dự kiến</span>
                       <span className="text-xl font-bold text-gray-900">
                         {(() => {
-                          // Doanh thu dự kiến = Tổng (giá báo khách * số KG sản phẩm chính) + Tổng (giá hòa vốn sản phẩm phụ * số KG sản phẩm phụ)
+                          // Doanh thu dự kiến = Tổng (giá báo khách * số KG sản phẩm chính)
                           let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
                             // Doanh thu từ sản phẩm chính
@@ -2855,25 +3160,12 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             const giaBaoKhach = giaHoaVon + loiNhuan;
                             doanhThuDuKien += giaBaoKhach * soKgChinhPham;
-
-                            // Doanh thu từ sản phẩm phụ
-                            if (tab.selectedStandard?.items) {
-                              tab.selectedStandard.items.forEach(sp => {
-                                if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
-                                  const giaHoaVonPhu = parseFloat(tab.formData.giaHoaVonSanPhamPhu[sp.tenThanhPham] || '0');
-                                  const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tab.formData.tiLeThuHoi
-                                    ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * parseFloat(tab.formData.tiLeThuHoi) / 100 * sp.tiLe / 100
-                                    : 0;
-                                  doanhThuDuKien += giaHoaVonPhu * soKgPhu;
-                                }
-                              });
-                            }
                           });
                           return doanhThuDuKien.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                         })()}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">= Σ (giá báo khách × số KG sản phẩm chính) + Σ (giá hòa vốn sản phẩm phụ × số KG sản phẩm phụ)</p>
+                    <p className="text-xs text-gray-500 mt-1">= Σ (giá báo khách × số KG sản phẩm chính)</p>
                   </div>
 
                   {/* Lợi nhuận trước thuế */}
@@ -2882,69 +3174,18 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <span className="text-sm font-medium text-gray-700">Lợi nhuận trước thuế</span>
                       <span className="text-xl font-bold text-gray-900">
                         {(() => {
-                          // Tính doanh thu dự kiến (dùng soKgChinhPham + sản phẩm phụ)
-                          let doanhThuDuKien = 0;
+                          // Lợi nhuận trước thuế = Σ (lợi nhuận cộng thêm × số kg thành phẩm chính)
+                          let loiNhuanTruocThue = 0;
                           tabsData.forEach((tab, index) => {
-                            // Doanh thu từ sản phẩm chính
                             const soKgChinhPham = calculateSoKgChinhPham(index);
-                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
-                            const giaBaoKhach = giaHoaVon + loiNhuan;
-                            doanhThuDuKien += giaBaoKhach * soKgChinhPham;
-
-                            // Doanh thu từ sản phẩm phụ
-                            if (tab.selectedStandard?.items) {
-                              tab.selectedStandard.items.forEach(sp => {
-                                if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
-                                  const giaHoaVonPhu = parseFloat(tab.formData.giaHoaVonSanPhamPhu[sp.tenThanhPham] || '0');
-                                  const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tab.formData.tiLeThuHoi
-                                    ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * parseFloat(tab.formData.tiLeThuHoi) / 100 * sp.tiLe / 100
-                                    : 0;
-                                  doanhThuDuKien += giaHoaVonPhu * soKgPhu;
-                                }
-                              });
-                            }
+                            loiNhuanTruocThue += loiNhuan * soKgChinhPham;
                           });
-
-                          // Tính tổng chi phí đơn hàng (GIỐNG CÁCH TÍNH Ở BẢNG HIỂN THỊ)
-                          let tongChiPhi = 0;
-                          // Chi phí sản phẩm (từ flowchart × thời gian)
-                          tabsData.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
-                          });
-                          // Chi phí bổ sung
-                          additionalCostTabs.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
-                          });
-                          // Chi phí chung
-                          tongChiPhi += getTotalGeneralCosts().keHoach;
-                          // Chi phí xuất khẩu
-                          tongChiPhi += getTotalExportCosts().keHoach;
-
-                          const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           return loiNhuanTruocThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                         })()}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">= doanh thu dự kiến - tổng chi phí đơn hàng</p>
+                    <p className="text-xs text-gray-500 mt-1">= Σ (lợi nhuận cộng thêm × số kg thành phẩm chính)</p>
                   </div>
 
                   {/* Phần trăm thuế */}
@@ -2971,64 +3212,14 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <span className="text-sm font-medium text-gray-700">Lợi nhuận sau thuế</span>
                       <span className="text-xl font-bold text-gray-900">
                         {(() => {
-                          // Tính doanh thu dự kiến (dùng soKgChinhPham + sản phẩm phụ)
-                          let doanhThuDuKien = 0;
+                          // Lợi nhuận trước thuế = Σ (lợi nhuận cộng thêm × số kg thành phẩm chính)
+                          let loiNhuanTruocThue = 0;
                           tabsData.forEach((tab, index) => {
-                            // Doanh thu từ sản phẩm chính
                             const soKgChinhPham = calculateSoKgChinhPham(index);
-                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
-                            const giaBaoKhach = giaHoaVon + loiNhuan;
-                            doanhThuDuKien += giaBaoKhach * soKgChinhPham;
-
-                            // Doanh thu từ sản phẩm phụ
-                            if (tab.selectedStandard?.items) {
-                              tab.selectedStandard.items.forEach(sp => {
-                                if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
-                                  const giaHoaVonPhu = parseFloat(tab.formData.giaHoaVonSanPhamPhu[sp.tenThanhPham] || '0');
-                                  const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tab.formData.tiLeThuHoi
-                                    ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * parseFloat(tab.formData.tiLeThuHoi) / 100 * sp.tiLe / 100
-                                    : 0;
-                                  doanhThuDuKien += giaHoaVonPhu * soKgPhu;
-                                }
-                              });
-                            }
+                            loiNhuanTruocThue += loiNhuan * soKgChinhPham;
                           });
 
-                          // Tính tổng chi phí đơn hàng (GIỐNG CÁCH TÍNH Ở BẢNG HIỂN THỊ)
-                          let tongChiPhi = 0;
-                          // Chi phí sản phẩm (từ flowchart × thời gian)
-                          tabsData.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
-                          });
-                          // Chi phí bổ sung
-                          additionalCostTabs.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
-                          });
-                          // Chi phí chung
-                          tongChiPhi += getTotalGeneralCosts().keHoach;
-                          // Chi phí xuất khẩu
-                          tongChiPhi += getTotalExportCosts().keHoach;
-
-                          const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           const thue = parseFloat(phanTramThue || '0');
                           const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
                           return loiNhuanSauThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
@@ -3062,64 +3253,14 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <span className="text-sm font-medium text-gray-700">Trích các quỹ</span>
                       <span className="text-xl font-bold text-gray-900">
                         {(() => {
-                          // Tính doanh thu dự kiến (dùng soKgChinhPham + sản phẩm phụ)
-                          let doanhThuDuKien = 0;
+                          // Lợi nhuận trước thuế = Σ (lợi nhuận cộng thêm × số kg thành phẩm chính)
+                          let loiNhuanTruocThue = 0;
                           tabsData.forEach((tab, index) => {
-                            // Doanh thu từ sản phẩm chính
                             const soKgChinhPham = calculateSoKgChinhPham(index);
-                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
-                            const giaBaoKhach = giaHoaVon + loiNhuan;
-                            doanhThuDuKien += giaBaoKhach * soKgChinhPham;
-
-                            // Doanh thu từ sản phẩm phụ
-                            if (tab.selectedStandard?.items) {
-                              tab.selectedStandard.items.forEach(sp => {
-                                if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
-                                  const giaHoaVonPhu = parseFloat(tab.formData.giaHoaVonSanPhamPhu[sp.tenThanhPham] || '0');
-                                  const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tab.formData.tiLeThuHoi
-                                    ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * parseFloat(tab.formData.tiLeThuHoi) / 100 * sp.tiLe / 100
-                                    : 0;
-                                  doanhThuDuKien += giaHoaVonPhu * soKgPhu;
-                                }
-                              });
-                            }
+                            loiNhuanTruocThue += loiNhuan * soKgChinhPham;
                           });
 
-                          // Tính tổng chi phí đơn hàng (GIỐNG CÁCH TÍNH Ở BẢNG HIỂN THỊ)
-                          let tongChiPhi = 0;
-                          // Chi phí sản phẩm (từ flowchart × thời gian)
-                          tabsData.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
-                          });
-                          // Chi phí bổ sung
-                          additionalCostTabs.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
-                          });
-                          // Chi phí chung
-                          tongChiPhi += getTotalGeneralCosts().keHoach;
-                          // Chi phí xuất khẩu
-                          tongChiPhi += getTotalExportCosts().keHoach;
-
-                          const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           const thue = parseFloat(phanTramThue || '0');
                           const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
                           const quy = parseFloat(phanTramQuy || '0');
@@ -3137,64 +3278,14 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <span className="text-sm font-medium text-gray-700">Lợi nhuận thực nhận</span>
                       <span className="text-2xl font-bold text-blue-700">
                         {(() => {
-                          // Tính doanh thu dự kiến (dùng soKgChinhPham + sản phẩm phụ)
-                          let doanhThuDuKien = 0;
+                          // Lợi nhuận trước thuế = Σ (lợi nhuận cộng thêm × số kg thành phẩm chính)
+                          let loiNhuanTruocThue = 0;
                           tabsData.forEach((tab, index) => {
-                            // Doanh thu từ sản phẩm chính
                             const soKgChinhPham = calculateSoKgChinhPham(index);
-                            const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
-                            const giaBaoKhach = giaHoaVon + loiNhuan;
-                            doanhThuDuKien += giaBaoKhach * soKgChinhPham;
-
-                            // Doanh thu từ sản phẩm phụ
-                            if (tab.selectedStandard?.items) {
-                              tab.selectedStandard.items.forEach(sp => {
-                                if (sp.tenThanhPham !== tab.formData.sanPhamDauRa) {
-                                  const giaHoaVonPhu = parseFloat(tab.formData.giaHoaVonSanPhamPhu[sp.tenThanhPham] || '0');
-                                  const soKgPhu = tab.formData.tongNguyenLieuCanSanXuat && tab.formData.tiLeThuHoi
-                                    ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * parseFloat(tab.formData.tiLeThuHoi) / 100 * sp.tiLe / 100
-                                    : 0;
-                                  doanhThuDuKien += giaHoaVonPhu * soKgPhu;
-                                }
-                              });
-                            }
+                            loiNhuanTruocThue += loiNhuan * soKgChinhPham;
                           });
 
-                          // Tính tổng chi phí đơn hàng (GIỐNG CÁCH TÍNH Ở BẢNG HIỂN THỊ)
-                          let tongChiPhi = 0;
-                          // Chi phí sản phẩm (từ flowchart × thời gian)
-                          tabsData.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
-                          });
-                          // Chi phí bổ sung
-                          additionalCostTabs.forEach(tab => {
-                            if (tab?.selectedProcess?.flowchart?.sections) {
-                              let productTotal = 0;
-                              tab.selectedProcess.flowchart.sections.forEach(section => {
-                                section.costs?.forEach(cost => {
-                                  productTotal += (cost.soLuongKeHoach || 0) * (cost.giaKeHoach || 0);
-                                });
-                              });
-                              const multiplier = parseFloat(tab?.formData?.thoiGianChoPhepToiDa || '1') || 1;
-                              tongChiPhi += productTotal * multiplier;
-                            }
-                          });
-                          // Chi phí chung
-                          tongChiPhi += getTotalGeneralCosts().keHoach;
-                          // Chi phí xuất khẩu
-                          tongChiPhi += getTotalExportCosts().keHoach;
-
-                          const loiNhuanTruocThue = doanhThuDuKien - tongChiPhi;
                           const thue = parseFloat(phanTramThue || '0');
                           const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
                           const quy = parseFloat(phanTramQuy || '0');
@@ -3945,29 +4036,6 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           })}
                         </tr>
 
-                        {/* Tổng khối lượng thành phẩm đầu ra */}
-                        <tr>
-                          <td className="px-4 py-2 bg-gray-100 border border-gray-300 text-sm text-gray-700">
-                            tổng khối lượng thành phẩm đầu ra
-                          </td>
-                          {currentAdditionalTab.selectedStandard.items.map((item, index) => {
-                            const isSelected = currentAdditionalTab.formData.sanPhamDauRa === item.tenThanhPham;
-                            const tongKhoiLuongDauRa = currentAdditionalTab.formData.tongNguyenLieuCanSanXuat && currentAdditionalTab.formData.tiLeThuHoi
-                              ? (parseFloat(currentAdditionalTab.formData.tongNguyenLieuCanSanXuat) * parseFloat(currentAdditionalTab.formData.tiLeThuHoi) / 100).toFixed(2)
-                              : '0';
-                            return (
-                              <td
-                                key={index}
-                                className={`px-4 py-2 border border-gray-300 text-center ${
-                                  isSelected ? 'bg-blue-50' : 'bg-gray-50'
-                                }`}
-                              >
-                                <span className="font-medium text-green-600">{tongKhoiLuongDauRa} kg</span>
-                              </td>
-                            );
-                          })}
-                        </tr>
-
                         {/* Số kg thành phẩm */}
                         <tr>
                           <td className="px-4 py-2 bg-gray-100 border border-gray-300 text-sm text-gray-700">
@@ -4406,19 +4474,41 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 </select>
               </div>
 
-              {/* Tỉ lệ thu hồi thành phẩm (%) */}
+              {/* Tỉ lệ thu hồi thành phẩm (%) K3 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Tỉ lệ thu hồi thành phẩm (%) K3
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={currentTab.formData.tiLeThuHoi}
-                  onChange={(e) => handleTiLeThuHoiChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập tỉ lệ thu hồi"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Kế hoạch */}
+                  <div>
+                    <span className="block text-xs text-blue-600 mb-1">Kế hoạch</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={currentTab.formData.tiLeThuHoi}
+                      onChange={(e) => handleTiLeThuHoiChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      placeholder="Nhập tỉ lệ thu hồi"
+                    />
+                  </div>
+                  {/* Thực tế - Auto calculated */}
+                  <div>
+                    <span className="block text-xs text-green-600 mb-1">Thực tế</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={
+                        currentTab.formData.tongKhoiLuongThanhPhamThucTe && currentTab.formData.tongNguyenLieuCanSanXuatThucTe
+                          ? ((parseFloat(currentTab.formData.tongKhoiLuongThanhPhamThucTe) / parseFloat(currentTab.formData.tongNguyenLieuCanSanXuatThucTe)) * 100).toFixed(2)
+                          : ''
+                      }
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-green-600 font-medium"
+                      placeholder="Tự động tính"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Tổng khối lượng thành phẩm đầu ra */}
@@ -4426,18 +4516,36 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Tổng khối lượng thành phẩm đầu ra (kg)
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={
-                    currentTab.formData.tongNguyenLieuCanSanXuat && currentTab.formData.tiLeThuHoi
-                      ? (parseFloat(currentTab.formData.tongNguyenLieuCanSanXuat) * parseFloat(currentTab.formData.tiLeThuHoi) / 100).toFixed(2)
-                      : '0'
-                  }
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-green-600 font-medium"
-                  placeholder="Tự động tính"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Kế hoạch */}
+                  <div>
+                    <span className="block text-xs text-blue-600 mb-1">Kế hoạch</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={
+                        currentTab.formData.tongNguyenLieuCanSanXuat && currentTab.formData.tiLeThuHoi
+                          ? (parseFloat(currentTab.formData.tongNguyenLieuCanSanXuat) * parseFloat(currentTab.formData.tiLeThuHoi) / 100).toFixed(2)
+                          : '0'
+                      }
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-blue-600 font-medium"
+                      placeholder="Tự động tính"
+                    />
+                  </div>
+                  {/* Thực tế */}
+                  <div>
+                    <span className="block text-xs text-green-600 mb-1">Thực tế</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={currentTab.formData.tongKhoiLuongThanhPhamThucTe || ''}
+                      onChange={(e) => updateFormData('tongKhoiLuongThanhPhamThucTe', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      placeholder="Nhập thực tế"
+                    />
+                  </div>
+                </div>
               </div>
             </div> {/* End Left Column */}
 
@@ -4468,14 +4576,32 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Thành phẩm tồn kho
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={currentTab.formData.thanhPhamTonKho}
-                  onChange={(e) => handleInventoryChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập số lượng tồn kho"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Kế hoạch */}
+                  <div>
+                    <span className="block text-xs text-blue-600 mb-1">Kế hoạch</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={currentTab.formData.thanhPhamTonKho}
+                      onChange={(e) => handleInventoryChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      placeholder="Nhập tồn kho"
+                    />
+                  </div>
+                  {/* Thực tế */}
+                  <div>
+                    <span className="block text-xs text-green-600 mb-1">Thực tế</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={currentTab.formData.thanhPhamTonKhoThucTe || ''}
+                      onChange={(e) => handleInventoryThucTeChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      placeholder="Nhập thực tế"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Tổng Thành phẩm cần sx thêm */}
@@ -4483,14 +4609,32 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Tổng Thành phẩm cần sx thêm
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={currentTab.formData.tongThanhPhamCanSxThem}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-                  placeholder="Tự động tính"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Kế hoạch */}
+                  <div>
+                    <span className="block text-xs text-blue-600 mb-1">Kế hoạch</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={currentTab.formData.tongThanhPhamCanSxThem}
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-blue-600 font-medium"
+                      placeholder="Tự động tính"
+                    />
+                  </div>
+                  {/* Thực tế */}
+                  <div>
+                    <span className="block text-xs text-green-600 mb-1">Thực tế</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={currentTab.formData.tongThanhPhamCanSxThemThucTe || ''}
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-green-600 font-medium"
+                      placeholder="Tự động tính"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Tổng nguyên liệu cần sản xuất */}
@@ -4498,14 +4642,32 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Tổng nguyên liệu cần sản xuất
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={currentTab.formData.tongNguyenLieuCanSanXuat}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-                  placeholder="Tự động tính"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Kế hoạch */}
+                  <div>
+                    <span className="block text-xs text-blue-600 mb-1">Kế hoạch</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={currentTab.formData.tongNguyenLieuCanSanXuat}
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-blue-600 font-medium"
+                      placeholder="Tự động tính"
+                    />
+                  </div>
+                  {/* Thực tế */}
+                  <div>
+                    <span className="block text-xs text-green-600 mb-1">Thực tế</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={currentTab.formData.tongNguyenLieuCanSanXuatThucTe || ''}
+                      onChange={(e) => updateFormData('tongNguyenLieuCanSanXuatThucTe', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      placeholder="Nhập thực tế"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Nguyên liệu tồn kho */}
@@ -4533,7 +4695,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   step="0.01"
                   value={currentTab.formData.nguyenLieuCanNhapThem}
                   disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-blue-600 font-medium"
                   placeholder="Tự động tính"
                 />
               </div>
@@ -5047,8 +5209,9 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
+                    {/* Main header row - Product names */}
                     <tr>
-                      <th className="px-4 py-2 bg-gray-200 border border-gray-300 text-left text-sm font-medium text-gray-700">
+                      <th rowSpan={2} className="px-4 py-2 bg-gray-200 border border-gray-300 text-left text-sm font-medium text-gray-700">
                         Thành phẩm đầu ra
                       </th>
                       {currentTab.selectedStandard.items.map((item, index) => {
@@ -5056,6 +5219,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         return (
                           <th
                             key={index}
+                            colSpan={2}
                             className={`px-4 py-2 border border-gray-300 text-center text-sm font-medium ${
                               isSelected ? 'bg-blue-400 text-white' : 'bg-gray-200 text-gray-700'
                             }`}
@@ -5065,48 +5229,75 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         );
                       })}
                     </tr>
+                    {/* Sub-header row - Kế hoạch / Thực tế */}
+                    <tr>
+                      {currentTab.selectedStandard.items.map((item, index) => {
+                        const isSelected = currentTab.formData.sanPhamDauRa === item.tenThanhPham;
+                        return (
+                          <React.Fragment key={index}>
+                            <th className={`px-3 py-1 border border-gray-300 text-center text-xs font-medium ${
+                              isSelected ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              Kế hoạch
+                            </th>
+                            <th className={`px-3 py-1 border border-gray-300 text-center text-xs font-medium ${
+                              isSelected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              Thực tế
+                            </th>
+                          </React.Fragment>
+                        );
+                      })}
+                    </tr>
                   </thead>
                   <tbody>
                     {/* Tỉ lệ thu hồi */}
                     <tr>
                       <td className="px-4 py-2 bg-gray-100 border border-gray-300 text-sm text-gray-700">
-                        tỉ lệ thu hồi
+                        tỉ lệ thu hồi (%)
                       </td>
                       {currentTab.selectedStandard.items.map((item, index) => {
                         const isSelected = currentTab.formData.sanPhamDauRa === item.tenThanhPham;
+                        // Lấy tỉ lệ thu hồi thực tế của sản phẩm này (kiểm tra an toàn nếu là object)
+                        const tiLeThuHoiThucTeObj = typeof currentTab.formData.tiLeThuHoiThucTe === 'object' && currentTab.formData.tiLeThuHoiThucTe !== null
+                          ? currentTab.formData.tiLeThuHoiThucTe
+                          : {};
+                        const tiLeThucTe = tiLeThuHoiThucTeObj[item.tenThanhPham] || '';
                         return (
-                          <td
-                            key={index}
-                            className={`px-4 py-2 border border-gray-300 text-center ${
+                          <React.Fragment key={index}>
+                            {/* Kế hoạch */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
                               isSelected ? 'bg-blue-50' : 'bg-gray-50'
-                            }`}
-                          >
-                            <span className="font-medium">{item.tiLe} %</span>
-                          </td>
-                        );
-                      })}
-                    </tr>
-
-                    {/* Tổng khối lượng thành phẩm đầu ra */}
-                    <tr>
-                      <td className="px-4 py-2 bg-gray-100 border border-gray-300 text-sm text-gray-700">
-                        tổng khối lượng thành phẩm đầu ra
-                      </td>
-                      {currentTab.selectedStandard.items.map((item, index) => {
-                        const isSelected = currentTab.formData.sanPhamDauRa === item.tenThanhPham;
-                        // Tổng khối lượng thành phẩm đầu ra = Tổng nguyên liệu cần sản xuất × Tỉ lệ thu hồi thành phẩm K3 / 100
-                        const tongKhoiLuongDauRa = currentTab.formData.tongNguyenLieuCanSanXuat && currentTab.formData.tiLeThuHoi
-                          ? (parseFloat(currentTab.formData.tongNguyenLieuCanSanXuat) * parseFloat(currentTab.formData.tiLeThuHoi) / 100).toFixed(2)
-                          : '0';
-                        return (
-                          <td
-                            key={index}
-                            className={`px-4 py-2 border border-gray-300 text-center ${
-                              isSelected ? 'bg-blue-50' : 'bg-gray-50'
-                            }`}
-                          >
-                            <span className="font-medium text-green-600">{tongKhoiLuongDauRa} kg</span>
-                          </td>
+                            }`}>
+                              <span className="font-medium">{item.tiLe} %</span>
+                            </td>
+                            {/* Thực tế - input riêng cho từng sản phẩm */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
+                              isSelected ? 'bg-green-50' : 'bg-gray-50'
+                            }`}>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={tiLeThucTe}
+                                onChange={(e) => {
+                                  setTabsData(prev => {
+                                    const newTabs = [...prev];
+                                    const currentTiLe = typeof newTabs[activeTab].formData.tiLeThuHoiThucTe === 'object' && newTabs[activeTab].formData.tiLeThuHoiThucTe !== null
+                                      ? newTabs[activeTab].formData.tiLeThuHoiThucTe
+                                      : {};
+                                    newTabs[activeTab].formData.tiLeThuHoiThucTe = {
+                                      ...currentTiLe,
+                                      [item.tenThanhPham]: e.target.value
+                                    };
+                                    return newTabs;
+                                  });
+                                }}
+                                className="w-full px-2 py-1 text-center border border-gray-300 rounded focus:ring-2 focus:ring-green-500 bg-white text-sm"
+                                placeholder={item.tiLe.toString()}
+                              />
+                            </td>
+                          </React.Fragment>
                         );
                       })}
                     </tr>
@@ -5118,18 +5309,42 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       </td>
                       {currentTab.selectedStandard.items.map((item, index) => {
                         const isSelected = currentTab.formData.sanPhamDauRa === item.tenThanhPham;
-                        const soKg = currentTab.formData.tongNguyenLieuCanSanXuat && currentTab.formData.tiLeThuHoi
-                          ? (parseFloat(currentTab.formData.tongNguyenLieuCanSanXuat) * parseFloat(currentTab.formData.tiLeThuHoi) / 100 * item.tiLe / 100).toFixed(3)
+                        // Lấy tỉ lệ thu hồi K3 (tỉ lệ thu hồi thành phẩm) - Kế hoạch
+                        const tiLeThuHoiK3 = parseFloat(currentTab.formData.tiLeThuHoi) || 0;
+                        // Kế hoạch: Số kg = Tổng nguyên liệu KH × tỉ lệ thu hồi K3 / 100 × tỉ lệ sản phẩm / 100
+                        const soKgKeHoach = currentTab.formData.tongNguyenLieuCanSanXuat && tiLeThuHoiK3
+                          ? (parseFloat(currentTab.formData.tongNguyenLieuCanSanXuat) * tiLeThuHoiK3 / 100 * item.tiLe / 100).toFixed(3)
                           : '0';
+
+                        // Thực tế: dùng tiLeThuHoiThucTe của từng sản phẩm nếu có (kiểm tra an toàn)
+                        const tiLeThuHoiThucTeObj = typeof currentTab.formData.tiLeThuHoiThucTe === 'object' && currentTab.formData.tiLeThuHoiThucTe !== null
+                          ? currentTab.formData.tiLeThuHoiThucTe
+                          : {};
+                        const tiLeThucTe = tiLeThuHoiThucTeObj[item.tenThanhPham];
+                        // Lấy Tổng nguyên liệu cần sản xuất Thực tế
+                        const tongNguyenLieuThucTe = parseFloat(currentTab.formData.tongNguyenLieuCanSanXuatThucTe || '0');
+                        // Tính Tỉ lệ thu hồi K3 Thực tế = Tổng khối lượng thành phẩm đầu ra Thực tế / Tổng nguyên liệu Thực tế * 100
+                        const tongKhoiLuongThanhPhamThucTe = parseFloat(currentTab.formData.tongKhoiLuongThanhPhamThucTe || '0');
+                        const tiLeThuHoiK3ThucTe = tongNguyenLieuThucTe > 0 ? (tongKhoiLuongThanhPhamThucTe / tongNguyenLieuThucTe * 100) : 0;
+                        // Thực tế: Số kg = Tổng nguyên liệu Thực tế × tỉ lệ thu hồi K3 Thực tế / 100 × tỉ lệ thu hồi thực tế sản phẩm / 100
+                        const soKgThucTe = tongNguyenLieuThucTe && tiLeThuHoiK3ThucTe && tiLeThucTe
+                          ? (tongNguyenLieuThucTe * tiLeThuHoiK3ThucTe / 100 * parseFloat(tiLeThucTe) / 100).toFixed(3)
+                          : '';
                         return (
-                          <td
-                            key={index}
-                            className={`px-4 py-2 border border-gray-300 text-center ${
+                          <React.Fragment key={index}>
+                            {/* Kế hoạch */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
                               isSelected ? 'bg-blue-50' : 'bg-gray-50'
-                            }`}
-                          >
-                            <span className="font-medium text-blue-600">{soKg} kg</span>
-                          </td>
+                            }`}>
+                              <span className="font-medium text-blue-600">{soKgKeHoach} kg</span>
+                            </td>
+                            {/* Thực tế */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
+                              isSelected ? 'bg-green-50' : 'bg-gray-50'
+                            }`}>
+                              <span className="font-medium text-green-600">{soKgThucTe ? `${soKgThucTe} kg` : '-'}</span>
+                            </td>
+                          </React.Fragment>
                         );
                       })}
                     </tr>
@@ -5142,43 +5357,80 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       {currentTab.selectedStandard.items.map((item, index) => {
                         const isSelected = currentTab.formData.sanPhamDauRa === item.tenThanhPham;
 
-                        // Tính giá hòa vốn cho sản phẩm đầu ra chính (auto-calculated)
-                        const giaHoaVonValue = isSelected
+                        // Tính giá hòa vốn KẾ HOẠCH cho sản phẩm đầu ra chính (auto-calculated)
+                        const giaHoaVonKeHoach = isSelected
                           ? calculateGiaHoaVonChinhPham(activeTab).toFixed(2)
                           : (currentTab.formData.giaHoaVonSanPhamPhu[item.tenThanhPham] || '');
 
+                        // Tính giá hòa vốn THỰC TẾ cho sản phẩm đầu ra chính (auto-calculated)
+                        const giaHoaVonThucTe = isSelected
+                          ? calculateGiaHoaVonChinhPhamThucTe(activeTab).toFixed(2)
+                          : (currentTab.formData.giaHoaVonSanPhamPhuThucTe?.[item.tenThanhPham] || '');
+
                         return (
-                          <td
-                            key={index}
-                            className={`px-4 py-2 border border-gray-300 text-center ${
+                          <React.Fragment key={index}>
+                            {/* Kế hoạch */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
                               isSelected ? 'bg-blue-50' : 'bg-gray-50'
-                            }`}
-                          >
-                            <input
-                              type="number"
-                              step="1"
-                              min="0"
-                              value={giaHoaVonValue}
-                              onChange={(e) => {
-                                if (!isSelected) {
-                                  // Cho phép nhập giá hòa vốn cho sản phẩm phụ
-                                  setTabsData(prev => {
-                                    const newTabs = [...prev];
-                                    newTabs[activeTab].formData.giaHoaVonSanPhamPhu = {
-                                      ...newTabs[activeTab].formData.giaHoaVonSanPhamPhu,
-                                      [item.tenThanhPham]: e.target.value,
-                                    };
-                                    return newTabs;
-                                  });
-                                }
-                              }}
-                              disabled={isSelected}
-                              className={`w-full px-2 py-1 text-center border rounded focus:ring-2 focus:ring-blue-500 ${
-                                isSelected ? 'bg-yellow-50 border-yellow-400 font-bold' : 'bg-white border-gray-300'
-                              }`}
-                              placeholder="0"
-                            />
-                          </td>
+                            }`}>
+                              <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                value={giaHoaVonKeHoach}
+                                onChange={(e) => {
+                                  if (!isSelected) {
+                                    setTabsData(prev => {
+                                      const newTabs = [...prev];
+                                      newTabs[activeTab].formData.giaHoaVonSanPhamPhu = {
+                                        ...newTabs[activeTab].formData.giaHoaVonSanPhamPhu,
+                                        [item.tenThanhPham]: e.target.value,
+                                      };
+                                      return newTabs;
+                                    });
+                                  }
+                                }}
+                                disabled={isSelected}
+                                className={`w-full px-2 py-1 text-center border rounded focus:ring-2 focus:ring-blue-500 text-sm ${
+                                  isSelected ? 'bg-yellow-50 border-yellow-400 font-bold' : 'bg-white border-gray-300'
+                                }`}
+                                placeholder="0"
+                              />
+                            </td>
+                            {/* Thực tế */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
+                              isSelected ? 'bg-green-50' : 'bg-gray-50'
+                            }`}>
+                              {isSelected ? (
+                                <input
+                                  type="text"
+                                  value={giaHoaVonThucTe}
+                                  disabled
+                                  className="w-full px-2 py-1 text-center border border-green-400 rounded bg-green-50 font-bold text-sm"
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="0"
+                                  value={currentTab.formData.giaHoaVonSanPhamPhuThucTe?.[item.tenThanhPham] || ''}
+                                  onChange={(e) => {
+                                    setTabsData(prev => {
+                                      const newTabs = [...prev];
+                                      newTabs[activeTab].formData.giaHoaVonSanPhamPhuThucTe = {
+                                        ...newTabs[activeTab].formData.giaHoaVonSanPhamPhuThucTe,
+                                        [item.tenThanhPham]: e.target.value,
+                                      };
+                                      return newTabs;
+                                    });
+                                  }}
+                                  className="w-full px-2 py-1 text-center border border-gray-300 rounded focus:ring-2 focus:ring-green-500 bg-white text-sm"
+                                  placeholder="0"
+                                />
+                              )}
+                            </td>
+                          </React.Fragment>
                         );
                       })}
                     </tr>
@@ -5191,32 +5443,56 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       {currentTab.selectedStandard.items.map((item, index) => {
                         const isSelected = currentTab.formData.sanPhamDauRa === item.tenThanhPham;
                         return (
-                          <td
-                            key={index}
-                            className={`px-4 py-2 border border-gray-300 text-center ${
+                          <React.Fragment key={index}>
+                            {/* Kế hoạch */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
                               isSelected ? 'bg-blue-50' : 'bg-gray-50'
-                            }`}
-                          >
-                            {isSelected ? (
-                              <input
-                                type="number"
-                                step="1"
-                                min="0"
-                                value={currentTab.formData.loiNhuanCongThem}
-                                onChange={(e) => {
-                                  setTabsData(prev => {
-                                    const newTabs = [...prev];
-                                    newTabs[activeTab].formData.loiNhuanCongThem = e.target.value;
-                                    return newTabs;
-                                  });
-                                }}
-                                className="w-full px-2 py-1 text-center border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white"
-                                placeholder="0"
-                              />
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </td>
+                            }`}>
+                              {isSelected ? (
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="0"
+                                  value={currentTab.formData.loiNhuanCongThem}
+                                  onChange={(e) => {
+                                    setTabsData(prev => {
+                                      const newTabs = [...prev];
+                                      newTabs[activeTab].formData.loiNhuanCongThem = e.target.value;
+                                      return newTabs;
+                                    });
+                                  }}
+                                  className="w-full px-2 py-1 text-center border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            {/* Thực tế */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
+                              isSelected ? 'bg-green-50' : 'bg-gray-50'
+                            }`}>
+                              {isSelected ? (
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="0"
+                                  value={currentTab.formData.loiNhuanCongThemThucTe || ''}
+                                  onChange={(e) => {
+                                    setTabsData(prev => {
+                                      const newTabs = [...prev];
+                                      newTabs[activeTab].formData.loiNhuanCongThemThucTe = e.target.value;
+                                      return newTabs;
+                                    });
+                                  }}
+                                  className="w-full px-2 py-1 text-center border border-gray-300 rounded focus:ring-2 focus:ring-green-500 bg-white text-sm"
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                          </React.Fragment>
                         );
                       })}
                     </tr>
@@ -5229,8 +5505,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       {currentTab.selectedStandard.items.map((item, index) => {
                         const isSelected = currentTab.formData.sanPhamDauRa === item.tenThanhPham;
 
-                        // Tính giá báo khách = Giá hòa vốn + Lợi nhuận cộng thêm
-                        const giaBaoKhachValue = isSelected
+                        // Tính giá báo khách KẾ HOẠCH = Giá hòa vốn + Lợi nhuận cộng thêm
+                        const giaBaoKhachKeHoach = isSelected
                           ? (() => {
                               const giaHoaVon = calculateGiaHoaVonChinhPham(activeTab);
                               const loiNhuan = parseFloat(currentTab.formData.loiNhuanCongThem || '0');
@@ -5238,25 +5514,50 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             })()
                           : '';
 
+                        // Tính giá báo khách THỰC TẾ = Giá hòa vốn thực tế + Lợi nhuận cộng thêm thực tế
+                        const giaBaoKhachThucTe = isSelected
+                          ? (() => {
+                              const giaHoaVon = calculateGiaHoaVonChinhPhamThucTe(activeTab);
+                              const loiNhuan = parseFloat(currentTab.formData.loiNhuanCongThemThucTe || '0');
+                              return (giaHoaVon + loiNhuan).toFixed(2);
+                            })()
+                          : '';
+
                         return (
-                          <td
-                            key={index}
-                            className={`px-4 py-2 border border-gray-300 text-center ${
+                          <React.Fragment key={index}>
+                            {/* Kế hoạch */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
                               isSelected ? 'bg-blue-50' : 'bg-gray-50'
-                            }`}
-                          >
-                            {isSelected ? (
-                              <input
-                                type="text"
-                                value={giaBaoKhachValue}
-                                disabled
-                                className="w-full px-2 py-1 text-center border border-blue-400 rounded bg-yellow-50 font-bold text-lg"
-                                placeholder="0"
-                              />
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </td>
+                            }`}>
+                              {isSelected ? (
+                                <input
+                                  type="text"
+                                  value={giaBaoKhachKeHoach}
+                                  disabled
+                                  className="w-full px-2 py-1 text-center border border-blue-400 rounded bg-yellow-50 font-bold text-sm"
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            {/* Thực tế */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
+                              isSelected ? 'bg-green-50' : 'bg-gray-50'
+                            }`}>
+                              {isSelected ? (
+                                <input
+                                  type="text"
+                                  value={giaBaoKhachThucTe}
+                                  disabled
+                                  className="w-full px-2 py-1 text-center border border-green-400 rounded bg-green-50 font-bold text-sm"
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                          </React.Fragment>
                         );
                       })}
                     </tr>

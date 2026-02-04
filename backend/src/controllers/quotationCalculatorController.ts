@@ -30,6 +30,21 @@ export const upsertCalculator = async (req: Request, res: Response) => {
   try {
     const data = req.body;
 
+    // Debug log để kiểm tra dữ liệu nhận được
+    console.log('💾 [Backend] Received upsertCalculator request');
+    console.log('💾 [Backend] Products count:', data.products?.length);
+    if (data.products && data.products.length > 0) {
+      data.products.forEach((p: any, i: number) => {
+        console.log(`💾 [Backend] Product ${i} thực tế fields:`, {
+          tongKhoiLuongThanhPhamThucTe: p.tongKhoiLuongThanhPhamThucTe,
+          thanhPhamTonKhoThucTe: p.thanhPhamTonKhoThucTe,
+          tongThanhPhamCanSxThemThucTe: p.tongThanhPhamCanSxThemThucTe,
+          tongNguyenLieuCanSanXuatThucTe: p.tongNguyenLieuCanSanXuatThucTe,
+          loiNhuanCongThemThucTe: p.loiNhuanCongThemThucTe,
+        });
+      });
+    }
+
     const calculator = await quotationCalculatorService.upsertCalculator(data);
 
     return res.json({

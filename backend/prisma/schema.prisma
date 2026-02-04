@@ -810,60 +810,69 @@ model QuotationCalculator {
 }
 
 model QuotationCalculatorProduct {
-  id                       String                         @id @default(cuid())
-  calculatorId             String
-  quotationRequestItemId   String
-  productId                String
-  tenSanPham               String
-  soLuong                  Float
-  donViTinh                String
-  maBaoGia                 String
-  materialStandardId       String?
-  maDinhMuc                String?
-  tenDinhMuc               String?
-  tiLeThuHoi               Float?
-  sanPhamDauRa             String?
-  thanhPhamTonKho          Float?
-  tongThanhPhamCanSxThem   Float?
-  tongNguyenLieuCanSanXuat Float?
-  nguyenLieuTonKho         Float?
-  nguyenLieuCanNhapThem    Float?
-  productionProcessId      String?
-  maQuyTrinhSanXuat        String?
-  tenQuyTrinhSanXuat       String?
-  flowchartData            Json?
-  thoiGianChoPhepToiDa     Float?
-  ngayBatDauSanXuat        DateTime?
-  ngayHoanThanhThucTe      Float?
-  chiPhiSanXuatKeHoach     Float?
-  chiPhiSanXuatThucTe      Float?
-  chiPhiChungKeHoach       Float?
-  chiPhiChungThucTe        Float?
-  chiPhiXuatKhauKeHoach    Float?
-  chiPhiXuatKhauThucTe     Float?
-  giaHoaVon                Float?
-  loiNhuanCongThem         Float?
-  ghiChu                   String?
-  isAdditionalCost         Boolean                        @default(false)
-  tenChiPhiBoSung          String?
-  originalTabId            String?                        // ID gốc của tab để sử dụng khi load lại
-  createdAt                DateTime                       @default(now())
-  updatedAt                DateTime                       @updatedAt
-  byProducts               QuotationCalculatorByProduct[]
-  calculator               QuotationCalculator            @relation(fields: [calculatorId], references: [id], onDelete: Cascade)
+  id                              String                         @id @default(cuid())
+  calculatorId                    String
+  quotationRequestItemId          String
+  productId                       String
+  tenSanPham                      String
+  soLuong                         Float
+  donViTinh                       String
+  maBaoGia                        String
+  materialStandardId              String?
+  maDinhMuc                       String?
+  tenDinhMuc                      String?
+  tiLeThuHoi                      Float?
+  sanPhamDauRa                    String?
+  thanhPhamTonKho                 Float?
+  tongThanhPhamCanSxThem          Float?
+  tongNguyenLieuCanSanXuat        Float?
+  nguyenLieuTonKho                Float?
+  nguyenLieuCanNhapThem           Float?
+  productionProcessId             String?
+  maQuyTrinhSanXuat               String?
+  tenQuyTrinhSanXuat              String?
+  flowchartData                   Json?
+  thoiGianChoPhepToiDa            Float?
+  ngayBatDauSanXuat               DateTime?
+  ngayHoanThanhThucTe             Float?
+  chiPhiSanXuatKeHoach            Float?
+  chiPhiSanXuatThucTe             Float?
+  chiPhiChungKeHoach              Float?
+  chiPhiChungThucTe               Float?
+  chiPhiXuatKhauKeHoach           Float?
+  chiPhiXuatKhauThucTe            Float?
+  giaHoaVon                       Float?
+  loiNhuanCongThem                Float?
+  ghiChu                          String?
+  isAdditionalCost                Boolean                        @default(false)
+  tenChiPhiBoSung                 String?
+  originalTabId                   String?                        // ID gốc của tab để sử dụng khi load lại
+  // Các trường thực tế mới
+  tongKhoiLuongThanhPhamThucTe    Float?                         // Tổng khối lượng thành phẩm đầu ra thực tế (kg)
+  thanhPhamTonKhoThucTe           Float?                         // Thành phẩm tồn kho thực tế
+  tongThanhPhamCanSxThemThucTe    Float?                         // Tổng thành phẩm cần sx thêm thực tế (auto-calculated)
+  tongNguyenLieuCanSanXuatThucTe  Float?                         // Tổng nguyên liệu cần sản xuất thực tế
+  loiNhuanCongThemThucTe          Float?                         // Lợi nhuận cộng thêm thực tế
+  createdAt                       DateTime                       @default(now())
+  updatedAt                       DateTime                       @updatedAt
+  byProducts                      QuotationCalculatorByProduct[]
+  calculator                      QuotationCalculator            @relation(fields: [calculatorId], references: [id], onDelete: Cascade)
 
   @@map("quotation_calculator_products")
   @@schema("business")
 }
 
 model QuotationCalculatorByProduct {
-  id         String                     @id @default(cuid())
-  productId  String
-  tenSanPham String
-  giaHoaVon  Float
-  createdAt  DateTime                   @default(now())
-  updatedAt  DateTime                   @updatedAt
-  product    QuotationCalculatorProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id                String                     @id @default(cuid())
+  productId         String
+  tenSanPham        String
+  tiLe              Float?                     // Tỉ lệ thu hồi kế hoạch
+  tiLeThuHoiThucTe  Float?                     // Tỉ lệ thu hồi thực tế
+  giaHoaVon         Float
+  giaHoaVonThucTe   Float?                     // Giá hòa vốn thực tế
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  product           QuotationCalculatorProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("quotation_calculator_by_products")
   @@schema("business")

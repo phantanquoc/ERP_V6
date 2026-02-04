@@ -47,7 +47,19 @@ export interface QuotationCalculatorProductData {
   giaHoaVon?: number;
   loiNhuanCongThem?: number;
   ghiChu?: string;
-  byProducts?: { tenSanPham: string; giaHoaVon: number }[];
+  // Các trường thực tế mới
+  tongKhoiLuongThanhPhamThucTe?: number; // Tổng khối lượng thành phẩm đầu ra thực tế (kg)
+  thanhPhamTonKhoThucTe?: number; // Thành phẩm tồn kho thực tế
+  tongThanhPhamCanSxThemThucTe?: number; // Tổng thành phẩm cần sx thêm thực tế (auto-calculated)
+  tongNguyenLieuCanSanXuatThucTe?: number; // Tổng nguyên liệu cần sản xuất thực tế
+  loiNhuanCongThemThucTe?: number; // Lợi nhuận cộng thêm thực tế
+  byProducts?: {
+    tenSanPham: string;
+    tiLe?: number; // Tỉ lệ thu hồi kế hoạch
+    tiLeThuHoiThucTe?: number; // Tỉ lệ thu hồi thực tế
+    giaHoaVon: number;
+    giaHoaVonThucTe?: number; // Giá hòa vốn thực tế
+  }[];
   isAdditionalCost?: boolean; // Flag để đánh dấu chi phí bổ sung
   tenChiPhiBoSung?: string; // Tên chi phí bổ sung
   originalTabId?: string; // ID gốc của tab để sử dụng khi load lại
@@ -145,11 +157,23 @@ class QuotationCalculatorService {
             giaHoaVon: product.giaHoaVon,
             loiNhuanCongThem: product.loiNhuanCongThem,
             ghiChu: product.ghiChu,
+            // Các trường thực tế mới
+            tongKhoiLuongThanhPhamThucTe: product.tongKhoiLuongThanhPhamThucTe,
+            thanhPhamTonKhoThucTe: product.thanhPhamTonKhoThucTe,
+            tongThanhPhamCanSxThemThucTe: product.tongThanhPhamCanSxThemThucTe,
+            tongNguyenLieuCanSanXuatThucTe: product.tongNguyenLieuCanSanXuatThucTe,
+            loiNhuanCongThemThucTe: product.loiNhuanCongThemThucTe,
             isAdditionalCost: product.isAdditionalCost || false,
             tenChiPhiBoSung: product.tenChiPhiBoSung,
             originalTabId: product.originalTabId,
             byProducts: product.byProducts ? {
-              create: product.byProducts,
+              create: product.byProducts.map(bp => ({
+                tenSanPham: bp.tenSanPham,
+                tiLe: bp.tiLe,
+                tiLeThuHoiThucTe: bp.tiLeThuHoiThucTe,
+                giaHoaVon: bp.giaHoaVon,
+                giaHoaVonThucTe: bp.giaHoaVonThucTe,
+              })),
             } : undefined,
           })),
         },
@@ -247,11 +271,23 @@ class QuotationCalculatorService {
             giaHoaVon: product.giaHoaVon,
             loiNhuanCongThem: product.loiNhuanCongThem,
             ghiChu: product.ghiChu,
+            // Các trường thực tế mới
+            tongKhoiLuongThanhPhamThucTe: product.tongKhoiLuongThanhPhamThucTe,
+            thanhPhamTonKhoThucTe: product.thanhPhamTonKhoThucTe,
+            tongThanhPhamCanSxThemThucTe: product.tongThanhPhamCanSxThemThucTe,
+            tongNguyenLieuCanSanXuatThucTe: product.tongNguyenLieuCanSanXuatThucTe,
+            loiNhuanCongThemThucTe: product.loiNhuanCongThemThucTe,
             isAdditionalCost: product.isAdditionalCost || false,
             tenChiPhiBoSung: product.tenChiPhiBoSung,
             originalTabId: product.originalTabId,
             byProducts: product.byProducts ? {
-              create: product.byProducts,
+              create: product.byProducts.map(bp => ({
+                tenSanPham: bp.tenSanPham,
+                tiLe: bp.tiLe,
+                tiLeThuHoiThucTe: bp.tiLeThuHoiThucTe,
+                giaHoaVon: bp.giaHoaVon,
+                giaHoaVonThucTe: bp.giaHoaVonThucTe,
+              })),
             } : undefined,
           })),
         },
