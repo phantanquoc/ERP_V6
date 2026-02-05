@@ -10,6 +10,29 @@ import exportCostService, { ExportCost } from '../services/exportCostService';
 import quotationCalculatorService from '../services/quotationCalculatorService';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 
+// Helper functions để format số với dấu chấm phân cách hàng ngàn
+const formatNumberWithDots = (value: number | string | undefined | null): string => {
+  if (value === undefined || value === null || value === '') return '';
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(num)) return '';
+  return num.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+};
+
+const parseNumberFromDots = (value: string): number => {
+  if (!value || value === '') return 0;
+  // Xóa tất cả dấu chấm (phân cách hàng ngàn) và thay dấu phẩy thành dấu chấm (phần thập phân)
+  const cleaned = value.replace(/\./g, '').replace(',', '.');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+};
+
+// Helper để xử lý input số - chỉ cho phép nhập số và dấu phân cách
+const handleNumericInput = (value: string): string => {
+  // Cho phép nhập số, dấu chấm và dấu phẩy
+  // Loại bỏ các ký tự không hợp lệ
+  return value.replace(/[^0-9.,]/g, '');
+};
+
 // Interface for selected cost item with values
 interface SelectedCostItem {
   id: string;
@@ -128,6 +151,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       // Các trường thực tế cho thành phẩm đầu ra
       tiLeThuHoiThucTe: { [tenSanPham: string]: string }; // Tỉ lệ thu hồi thực tế cho từng sản phẩm
       giaHoaVonSanPhamPhuThucTe: { [tenSanPham: string]: string }; // Giá hòa vốn thực tế của các sản phẩm phụ
+      // Tỉ giá USD cho giá báo khách
+      tiGiaUSD: string;
     };
   }[]>([]);
 
@@ -165,12 +190,18 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       giaHoaVonSanPhamPhu: { [tenSanPham: string]: string };
       soLuong: string; // Số lượng (user input)
       donViTinh: string; // Đơn vị tính (user input)
+      // Tỉ giá USD cho giá báo khách
+      tiGiaUSD: string;
     };
   }
   const [additionalCostTabs, setAdditionalCostTabs] = useState<AdditionalCostTab[]>([]);
   const [showAddCostModal, setShowAddCostModal] = useState(false);
   const [newCostName, setNewCostName] = useState('');
   const [availableProducts, setAvailableProducts] = useState<InternationalProduct[]>([]);
+
+  // State để track raw input values cho flowchart costs (tránh lỗi duplicate khi gõ tiếng Việt)
+  const [flowchartInputValues, setFlowchartInputValues] = useState<Record<string, string>>({});
+  const [additionalFlowchartInputValues, setAdditionalFlowchartInputValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isOpen && quotationRequest) {
@@ -447,6 +478,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   }
                   return acc;
                 }, {}) || {},
+                tiGiaUSD: product.tiGiaUSD ? formatNumberWithDots(product.tiGiaUSD) : '',
               },
             };
           } else {
@@ -614,6 +646,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 }, {}) || {},
                 soLuong: product.soLuong?.toString() || '',
                 donViTinh: product.donViTinh || '',
+                tiGiaUSD: product.tiGiaUSD ? formatNumberWithDots(product.tiGiaUSD) : '',
               },
             };
           }));
@@ -671,6 +704,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           tiLeThuHoiThucTe: {},
           loiNhuanCongThemThucTe: '',
           giaHoaVonSanPhamPhuThucTe: {},
+          // Tỉ giá USD cho giá báo khách
+          tiGiaUSD: '',
         },
       }));
 
@@ -717,6 +752,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           tiLeThuHoiThucTe: {},
           loiNhuanCongThemThucTe: '',
           giaHoaVonSanPhamPhuThucTe: {},
+          // Tỉ giá USD cho giá báo khách
+          tiGiaUSD: '',
         },
       }));
 
@@ -795,6 +832,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           giaHoaVonSanPhamPhu: {},
           soLuong: '',
           donViTinh: '',
+          // Tỉ giá USD cho giá báo khách
+          tiGiaUSD: '',
         },
       };
 
@@ -1659,6 +1698,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 chiPhiXuatKhauThucTe: tab.formData.chiPhiXuatKhauThucTe ? parseFloat(tab.formData.chiPhiXuatKhauThucTe) : undefined,
                 giaHoaVon: giaHoaVonCalculated || undefined,
                 loiNhuanCongThem: tab.formData.loiNhuanCongThem ? parseFloat(tab.formData.loiNhuanCongThem) : undefined,
+                tiGiaUSD: tab.formData.tiGiaUSD ? parseNumberFromDots(tab.formData.tiGiaUSD) : undefined,
                 ghiChu: tab.formData.ghiChu,
                 byProducts,
                 isAdditionalCost: false,
@@ -1724,6 +1764,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 chiPhiXuatKhauThucTe: tab.formData.chiPhiXuatKhauThucTe ? parseFloat(tab.formData.chiPhiXuatKhauThucTe) : undefined,
                 giaHoaVon: tab.formData.giaHoaVon ? parseFloat(tab.formData.giaHoaVon) : undefined,
                 loiNhuanCongThem: tab.formData.loiNhuanCongThem ? parseFloat(tab.formData.loiNhuanCongThem) : undefined,
+                tiGiaUSD: tab.formData.tiGiaUSD ? parseNumberFromDots(tab.formData.tiGiaUSD) : undefined,
                 ghiChu: tab.formData.ghiChu,
                 byProducts,
                 isAdditionalCost: true,
@@ -1882,6 +1923,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               chiPhiXuatKhauThucTe: tab.formData.chiPhiXuatKhauThucTe ? parseFloat(tab.formData.chiPhiXuatKhauThucTe) : undefined,
               giaHoaVon: giaHoaVonCalculated || undefined,
               loiNhuanCongThem: tab.formData.loiNhuanCongThem ? parseFloat(tab.formData.loiNhuanCongThem) : undefined,
+              tiGiaUSD: tab.formData.tiGiaUSD ? parseNumberFromDots(tab.formData.tiGiaUSD) : undefined,
               ghiChu: tab.formData.ghiChu,
               byProducts,
               isAdditionalCost: false,
@@ -1936,6 +1978,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               chiPhiXuatKhauThucTe: tab.formData.chiPhiXuatKhauThucTe ? parseFloat(tab.formData.chiPhiXuatKhauThucTe) : undefined,
               giaHoaVon: tab.formData.giaHoaVon ? parseFloat(tab.formData.giaHoaVon) : undefined,
               loiNhuanCongThem: tab.formData.loiNhuanCongThem ? parseFloat(tab.formData.loiNhuanCongThem) : undefined,
+              tiGiaUSD: tab.formData.tiGiaUSD ? parseNumberFromDots(tab.formData.tiGiaUSD) : undefined,
               ghiChu: tab.formData.ghiChu,
               byProducts,
               isAdditionalCost: true,
@@ -2550,6 +2593,29 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     return soKgChinhPham;
   };
 
+  // Helper: Tính số KG sản phẩm chính THỰC TẾ từ định mức
+  const calculateSoKgChinhPhamThucTe = (tabIndex: number) => {
+    const tab = tabsData[tabIndex];
+    if (!tab || !tab.selectedStandard || !tab.formData.sanPhamDauRa) return 0;
+
+    const sanPhamChinhItem = tab.selectedStandard.items?.find(sp => sp.tenThanhPham === tab.formData.sanPhamDauRa);
+    // Kiểm tra an toàn tiLeThuHoiThucTe là object
+    const tiLeThuHoiThucTeObj = typeof tab.formData.tiLeThuHoiThucTe === 'object' && tab.formData.tiLeThuHoiThucTe !== null
+      ? tab.formData.tiLeThuHoiThucTe
+      : {};
+    // Lấy tỉ lệ thu hồi thành phẩm K3 (dùng giá trị kế hoạch)
+    const tiLeThuHoiK3 = parseFloat(tab.formData.tiLeThuHoi) || 0;
+    // Lấy tỉ lệ thu hồi thực tế của sản phẩm chính
+    const tiLeThuHoiChinhThucTe = sanPhamChinhItem
+      ? parseFloat(tiLeThuHoiThucTeObj[sanPhamChinhItem.tenThanhPham] || sanPhamChinhItem.tiLe.toString())
+      : 0;
+    // Công thức: tongNguyenLieuCanSanXuat × tiLeThuHoiK3 / 100 × tiLeSanPhamChinh / 100
+    const soKgChinhPham = tab.formData.tongNguyenLieuCanSanXuat && tiLeThuHoiK3 && sanPhamChinhItem
+      ? parseFloat(tab.formData.tongNguyenLieuCanSanXuat) * tiLeThuHoiK3 / 100 * tiLeThuHoiChinhThucTe / 100
+      : 0;
+    return soKgChinhPham;
+  };
+
   // Helper: compute planned production cost (keHoach) = maxDays * per-day flowchart cost
   const calculateChiPhiSanXuatKeHoach = (tabIndex: number) => {
     const tab = tabsData[tabIndex];
@@ -2860,22 +2926,18 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               </td>
                               <td className="px-6 py-3">
                                 <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  value={item.keHoach || ''}
-                                  onChange={(e) => updateGeneralCostValue(group.id, item.id, 'keHoach', parseFloat(e.target.value) || 0)}
+                                  type="text"
+                                  value={formatNumberWithDots(item.keHoach)}
+                                  onChange={(e) => updateGeneralCostValue(group.id, item.id, 'keHoach', parseNumberFromDots(e.target.value))}
                                   className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   placeholder="0"
                                 />
                               </td>
                               <td className="px-6 py-3">
                                 <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  value={item.thucTe || ''}
-                                  onChange={(e) => updateGeneralCostValue(group.id, item.id, 'thucTe', parseFloat(e.target.value) || 0)}
+                                  type="text"
+                                  value={formatNumberWithDots(item.thucTe)}
+                                  onChange={(e) => updateGeneralCostValue(group.id, item.id, 'thucTe', parseNumberFromDots(e.target.value))}
                                   className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   placeholder="0"
                                 />
@@ -2966,31 +3028,25 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             <div className="space-y-1">
                               <div className="flex items-center gap-1">
                                 <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={item.keHoachUSD || ''}
-                                  onChange={(e) => updateExportCostUSDValue(item.id, 'keHoachUSD', parseFloat(e.target.value) || 0)}
+                                  type="text"
+                                  value={formatNumberWithDots(item.keHoachUSD)}
+                                  onChange={(e) => updateExportCostUSDValue(item.id, 'keHoachUSD', parseNumberFromDots(e.target.value))}
                                   className="w-20 px-2 py-1 text-xs border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   placeholder="USD"
                                 />
                                 <span className="text-xs text-gray-500">×</span>
                                 <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  value={item.tiGiaKeHoach || ''}
-                                  onChange={(e) => updateExportCostExchangeRate(item.id, 'tiGiaKeHoach', parseFloat(e.target.value) || 0)}
+                                  type="text"
+                                  value={formatNumberWithDots(item.tiGiaKeHoach)}
+                                  onChange={(e) => updateExportCostExchangeRate(item.id, 'tiGiaKeHoach', parseNumberFromDots(e.target.value))}
                                   className="w-24 px-2 py-1 text-xs border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   placeholder="Tỉ giá"
                                 />
                               </div>
                               <input
-                                type="number"
-                                step="1"
-                                min="0"
-                                value={item.keHoach || ''}
-                                onChange={(e) => updateExportCostValue(item.id, 'keHoach', parseFloat(e.target.value) || 0)}
+                                type="text"
+                                value={formatNumberWithDots(item.keHoach)}
+                                onChange={(e) => updateExportCostValue(item.id, 'keHoach', parseNumberFromDots(e.target.value))}
                                 className="w-full px-3 py-1.5 text-sm border border-blue-300 rounded-md text-right font-medium text-blue-700 bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 placeholder="VNĐ"
                               />
@@ -3000,31 +3056,25 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             <div className="space-y-1">
                               <div className="flex items-center gap-1">
                                 <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={item.thucTeUSD || ''}
-                                  onChange={(e) => updateExportCostUSDValue(item.id, 'thucTeUSD', parseFloat(e.target.value) || 0)}
+                                  type="text"
+                                  value={formatNumberWithDots(item.thucTeUSD)}
+                                  onChange={(e) => updateExportCostUSDValue(item.id, 'thucTeUSD', parseNumberFromDots(e.target.value))}
                                   className="w-20 px-2 py-1 text-xs border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   placeholder="USD"
                                 />
                                 <span className="text-xs text-gray-500">×</span>
                                 <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  value={item.tiGiaThucTe || ''}
-                                  onChange={(e) => updateExportCostExchangeRate(item.id, 'tiGiaThucTe', parseFloat(e.target.value) || 0)}
+                                  type="text"
+                                  value={formatNumberWithDots(item.tiGiaThucTe)}
+                                  onChange={(e) => updateExportCostExchangeRate(item.id, 'tiGiaThucTe', parseNumberFromDots(e.target.value))}
                                   className="w-24 px-2 py-1 text-xs border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                   placeholder="Tỉ giá"
                                 />
                               </div>
                               <input
-                                type="number"
-                                step="1"
-                                min="0"
-                                value={item.thucTe || ''}
-                                onChange={(e) => updateExportCostValue(item.id, 'thucTe', parseFloat(e.target.value) || 0)}
+                                type="text"
+                                value={formatNumberWithDots(item.thucTe)}
+                                onChange={(e) => updateExportCostValue(item.id, 'thucTe', parseNumberFromDots(e.target.value))}
                                 className="w-full px-3 py-1.5 text-sm border border-green-300 rounded-md text-right font-medium text-green-700 bg-green-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 placeholder="VNĐ"
                               />
@@ -3147,14 +3197,16 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 <div className="p-6 space-y-3">
                   {/* Doanh thu dự kiến */}
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-medium text-gray-700">Doanh thu dự kiến</span>
-                      <span className="text-xl font-bold text-gray-900">
+                    </div>
+                    {/* Kế hoạch */}
+                    <div className="flex justify-between items-center pl-4 py-1 border-l-2 border-blue-400">
+                      <span className="text-xs text-gray-600">Kế hoạch</span>
+                      <span className="text-lg font-bold text-gray-900">
                         {(() => {
-                          // Doanh thu dự kiến = Tổng (giá báo khách * số KG sản phẩm chính)
                           let doanhThuDuKien = 0;
                           tabsData.forEach((tab, index) => {
-                            // Doanh thu từ sản phẩm chính
                             const soKgChinhPham = calculateSoKgChinhPham(index);
                             const giaHoaVon = calculateGiaHoaVonChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
@@ -3165,16 +3217,36 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         })()}
                       </span>
                     </div>
+                    {/* Thực tế */}
+                    <div className="flex justify-between items-center pl-4 py-1 border-l-2 border-green-400 mt-1">
+                      <span className="text-xs text-gray-600">Thực tế</span>
+                      <span className="text-lg font-bold text-green-700">
+                        {(() => {
+                          let doanhThuThucTe = 0;
+                          tabsData.forEach((tab, index) => {
+                            const soKgChinhPhamThucTe = calculateSoKgChinhPhamThucTe(index);
+                            const giaHoaVonThucTe = calculateGiaHoaVonChinhPhamThucTe(index);
+                            const loiNhuanThucTe = parseFloat(tab.formData.loiNhuanCongThemThucTe || '0');
+                            const giaBaoKhachThucTe = giaHoaVonThucTe + loiNhuanThucTe;
+                            doanhThuThucTe += giaBaoKhachThucTe * soKgChinhPhamThucTe;
+                          });
+                          return doanhThuThucTe.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                        })()}
+                      </span>
+                    </div>
                     <p className="text-xs text-gray-500 mt-1">= Σ (giá báo khách × số KG sản phẩm chính)</p>
                   </div>
 
                   {/* Lợi nhuận trước thuế */}
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-medium text-gray-700">Lợi nhuận trước thuế</span>
-                      <span className="text-xl font-bold text-gray-900">
+                    </div>
+                    {/* Kế hoạch */}
+                    <div className="flex justify-between items-center pl-4 py-1 border-l-2 border-blue-400">
+                      <span className="text-xs text-gray-600">Kế hoạch</span>
+                      <span className="text-lg font-bold text-gray-900">
                         {(() => {
-                          // Lợi nhuận trước thuế = Σ (lợi nhuận cộng thêm × số kg thành phẩm chính)
                           let loiNhuanTruocThue = 0;
                           tabsData.forEach((tab, index) => {
                             const soKgChinhPham = calculateSoKgChinhPham(index);
@@ -3182,6 +3254,21 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             loiNhuanTruocThue += loiNhuan * soKgChinhPham;
                           });
                           return loiNhuanTruocThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                        })()}
+                      </span>
+                    </div>
+                    {/* Thực tế */}
+                    <div className="flex justify-between items-center pl-4 py-1 border-l-2 border-green-400 mt-1">
+                      <span className="text-xs text-gray-600">Thực tế</span>
+                      <span className="text-lg font-bold text-green-700">
+                        {(() => {
+                          let loiNhuanTruocThueThucTe = 0;
+                          tabsData.forEach((tab, index) => {
+                            const soKgChinhPhamThucTe = calculateSoKgChinhPhamThucTe(index);
+                            const loiNhuanThucTe = parseFloat(tab.formData.loiNhuanCongThemThucTe || '0');
+                            loiNhuanTruocThueThucTe += loiNhuanThucTe * soKgChinhPhamThucTe;
+                          });
+                          return loiNhuanTruocThueThucTe.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                         })()}
                       </span>
                     </div>
@@ -3208,21 +3295,40 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
                   {/* Lợi nhuận sau thuế */}
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-medium text-gray-700">Lợi nhuận sau thuế</span>
-                      <span className="text-xl font-bold text-gray-900">
+                    </div>
+                    {/* Kế hoạch */}
+                    <div className="flex justify-between items-center pl-4 py-1 border-l-2 border-blue-400">
+                      <span className="text-xs text-gray-600">Kế hoạch</span>
+                      <span className="text-lg font-bold text-gray-900">
                         {(() => {
-                          // Lợi nhuận trước thuế = Σ (lợi nhuận cộng thêm × số kg thành phẩm chính)
                           let loiNhuanTruocThue = 0;
                           tabsData.forEach((tab, index) => {
                             const soKgChinhPham = calculateSoKgChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             loiNhuanTruocThue += loiNhuan * soKgChinhPham;
                           });
-
                           const thue = parseFloat(phanTramThue || '0');
                           const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
                           return loiNhuanSauThue.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                        })()}
+                      </span>
+                    </div>
+                    {/* Thực tế */}
+                    <div className="flex justify-between items-center pl-4 py-1 border-l-2 border-green-400 mt-1">
+                      <span className="text-xs text-gray-600">Thực tế</span>
+                      <span className="text-lg font-bold text-green-700">
+                        {(() => {
+                          let loiNhuanTruocThueThucTe = 0;
+                          tabsData.forEach((tab, index) => {
+                            const soKgChinhPhamThucTe = calculateSoKgChinhPhamThucTe(index);
+                            const loiNhuanThucTe = parseFloat(tab.formData.loiNhuanCongThemThucTe || '0');
+                            loiNhuanTruocThueThucTe += loiNhuanThucTe * soKgChinhPhamThucTe;
+                          });
+                          const thue = parseFloat(phanTramThue || '0');
+                          const loiNhuanSauThueThucTe = loiNhuanTruocThueThucTe - (loiNhuanTruocThueThucTe * thue / 100);
+                          return loiNhuanSauThueThucTe.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                         })()}
                       </span>
                     </div>
@@ -3249,18 +3355,20 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
                   {/* Trích các quỹ */}
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-medium text-gray-700">Trích các quỹ</span>
-                      <span className="text-xl font-bold text-gray-900">
+                    </div>
+                    {/* Kế hoạch */}
+                    <div className="flex justify-between items-center pl-4 py-1 border-l-2 border-blue-400">
+                      <span className="text-xs text-gray-600">Kế hoạch</span>
+                      <span className="text-lg font-bold text-gray-900">
                         {(() => {
-                          // Lợi nhuận trước thuế = Σ (lợi nhuận cộng thêm × số kg thành phẩm chính)
                           let loiNhuanTruocThue = 0;
                           tabsData.forEach((tab, index) => {
                             const soKgChinhPham = calculateSoKgChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             loiNhuanTruocThue += loiNhuan * soKgChinhPham;
                           });
-
                           const thue = parseFloat(phanTramThue || '0');
                           const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
                           const quy = parseFloat(phanTramQuy || '0');
@@ -3269,29 +3377,70 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         })()}
                       </span>
                     </div>
+                    {/* Thực tế */}
+                    <div className="flex justify-between items-center pl-4 py-1 border-l-2 border-green-400 mt-1">
+                      <span className="text-xs text-gray-600">Thực tế</span>
+                      <span className="text-lg font-bold text-green-700">
+                        {(() => {
+                          let loiNhuanTruocThueThucTe = 0;
+                          tabsData.forEach((tab, index) => {
+                            const soKgChinhPhamThucTe = calculateSoKgChinhPhamThucTe(index);
+                            const loiNhuanThucTe = parseFloat(tab.formData.loiNhuanCongThemThucTe || '0');
+                            loiNhuanTruocThueThucTe += loiNhuanThucTe * soKgChinhPhamThucTe;
+                          });
+                          const thue = parseFloat(phanTramThue || '0');
+                          const loiNhuanSauThueThucTe = loiNhuanTruocThueThucTe - (loiNhuanTruocThueThucTe * thue / 100);
+                          const quy = parseFloat(phanTramQuy || '0');
+                          const trichCacQuyThucTe = loiNhuanSauThueThucTe * quy / 100;
+                          return trichCacQuyThucTe.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                        })()}
+                      </span>
+                    </div>
                     <p className="text-xs text-gray-500 mt-1">= lợi nhuận sau thuế × % quỹ</p>
                   </div>
 
                   {/* Lợi nhuận thực nhận */}
                   <div className="bg-blue-50 rounded-lg p-3 border-2 border-blue-300 hover:bg-blue-100 hover:shadow-md hover:scale-[1.02] transition-all duration-200">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-medium text-gray-700">Lợi nhuận thực nhận</span>
-                      <span className="text-2xl font-bold text-blue-700">
+                    </div>
+                    {/* Kế hoạch */}
+                    <div className="flex justify-between items-center pl-4 py-1 border-l-2 border-blue-400">
+                      <span className="text-xs text-gray-600">Kế hoạch</span>
+                      <span className="text-xl font-bold text-blue-700">
                         {(() => {
-                          // Lợi nhuận trước thuế = Σ (lợi nhuận cộng thêm × số kg thành phẩm chính)
                           let loiNhuanTruocThue = 0;
                           tabsData.forEach((tab, index) => {
                             const soKgChinhPham = calculateSoKgChinhPham(index);
                             const loiNhuan = parseFloat(tab.formData.loiNhuanCongThem || '0');
                             loiNhuanTruocThue += loiNhuan * soKgChinhPham;
                           });
-
                           const thue = parseFloat(phanTramThue || '0');
                           const loiNhuanSauThue = loiNhuanTruocThue - (loiNhuanTruocThue * thue / 100);
                           const quy = parseFloat(phanTramQuy || '0');
                           const trichCacQuy = loiNhuanSauThue * quy / 100;
                           const loiNhuanThucNhan = loiNhuanSauThue - trichCacQuy;
                           return loiNhuanThucNhan.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                        })()}
+                      </span>
+                    </div>
+                    {/* Thực tế */}
+                    <div className="flex justify-between items-center pl-4 py-1 border-l-2 border-green-400 mt-1">
+                      <span className="text-xs text-gray-600">Thực tế</span>
+                      <span className="text-xl font-bold text-green-700">
+                        {(() => {
+                          let loiNhuanTruocThueThucTe = 0;
+                          tabsData.forEach((tab, index) => {
+                            const soKgChinhPhamThucTe = calculateSoKgChinhPhamThucTe(index);
+                            const loiNhuanThucTe = parseFloat(tab.formData.loiNhuanCongThemThucTe || '0');
+                            loiNhuanTruocThueThucTe += loiNhuanThucTe * soKgChinhPhamThucTe;
+                          });
+                          const thue = parseFloat(phanTramThue || '0');
+                          const loiNhuanSauThueThucTe = loiNhuanTruocThueThucTe - (loiNhuanTruocThueThucTe * thue / 100);
+                          const quy = parseFloat(phanTramQuy || '0');
+                          const trichCacQuyThucTe = loiNhuanSauThueThucTe * quy / 100;
+                          const loiNhuanThucNhanThucTe = loiNhuanSauThueThucTe - trichCacQuyThucTe;
+                          return loiNhuanThucNhanThucTe.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
                         })()}
                       </span>
                     </div>
@@ -4068,7 +4217,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             const isSelected = currentAdditionalTab.formData.sanPhamDauRa === item.tenThanhPham;
                             const giaHoaVonValue = isSelected
                               ? '0'
-                              : (currentAdditionalTab.formData.giaHoaVonSanPhamPhu[item.tenThanhPham] || '');
+                              : formatNumberWithDots(currentAdditionalTab.formData.giaHoaVonSanPhamPhu[item.tenThanhPham]);
 
                             return (
                               <td
@@ -4078,9 +4227,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                 }`}
                               >
                                 <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
+                                  type="text"
                                   value={giaHoaVonValue}
                                   onChange={(e) => {
                                     if (!isSelected) {
@@ -4090,7 +4237,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                         if (tabIndex !== -1) {
                                           newTabs[tabIndex].formData.giaHoaVonSanPhamPhu = {
                                             ...newTabs[tabIndex].formData.giaHoaVonSanPhamPhu,
-                                            [item.tenThanhPham]: e.target.value,
+                                            [item.tenThanhPham]: String(parseNumberFromDots(e.target.value)),
                                           };
                                         }
                                         return newTabs;
@@ -4124,16 +4271,14 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               >
                                 {isSelected ? (
                                   <input
-                                    type="number"
-                                    step="1"
-                                    min="0"
-                                    value={currentAdditionalTab.formData.loiNhuanCongThem}
+                                    type="text"
+                                    value={formatNumberWithDots(currentAdditionalTab.formData.loiNhuanCongThem)}
                                     onChange={(e) => {
                                       setAdditionalCostTabs(prev => {
                                         const newTabs = [...prev];
                                         const tabIndex = newTabs.findIndex(t => t.id === currentAdditionalTab.id);
                                         if (tabIndex !== -1) {
-                                          newTabs[tabIndex].formData.loiNhuanCongThem = e.target.value;
+                                          newTabs[tabIndex].formData.loiNhuanCongThem = String(parseNumberFromDots(e.target.value));
                                         }
                                         return newTabs;
                                       });
@@ -4160,7 +4305,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               ? (() => {
                                   const giaHoaVon = 0;
                                   const loiNhuan = parseFloat(currentAdditionalTab.formData.loiNhuanCongThem || '0');
-                                  return (giaHoaVon + loiNhuan).toFixed(2);
+                                  return formatNumberWithDots(giaHoaVon + loiNhuan);
                                 })()
                               : '';
 
@@ -4175,6 +4320,81 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                   <input
                                     type="text"
                                     value={giaBaoKhachValue}
+                                    disabled
+                                    className="w-full px-2 py-1 text-center border border-blue-400 rounded bg-yellow-50 font-bold text-lg"
+                                    placeholder="0"
+                                  />
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+
+                        {/* Giá báo khách USD/KG */}
+                        <tr>
+                          <td className="px-4 py-2 bg-blue-100 border border-gray-300 text-sm font-medium text-gray-700">
+                            <div className="flex flex-col">
+                              <span>giá báo khách (USD/KG)</span>
+                              <div className="flex items-center mt-1">
+                                <span className="text-xs text-gray-500 mr-1">Tỉ giá:</span>
+                                <input
+                                  type="text"
+                                  value={currentAdditionalTab.formData.tiGiaUSD}
+                                  onChange={(e) => {
+                                    const rawValue = handleNumericInput(e.target.value);
+                                    setAdditionalCostTabs(prev => {
+                                      const newTabs = [...prev];
+                                      const tabIndex = newTabs.findIndex(t => t.id === currentAdditionalTab.id);
+                                      if (tabIndex !== -1) {
+                                        newTabs[tabIndex].formData.tiGiaUSD = rawValue;
+                                      }
+                                      return newTabs;
+                                    });
+                                  }}
+                                  onBlur={(e) => {
+                                    const numValue = parseNumberFromDots(e.target.value);
+                                    if (numValue > 0) {
+                                      setAdditionalCostTabs(prev => {
+                                        const newTabs = [...prev];
+                                        const tabIndex = newTabs.findIndex(t => t.id === currentAdditionalTab.id);
+                                        if (tabIndex !== -1) {
+                                          newTabs[tabIndex].formData.tiGiaUSD = formatNumberWithDots(numValue);
+                                        }
+                                        return newTabs;
+                                      });
+                                    }
+                                  }}
+                                  className="w-24 px-2 py-1 text-xs border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500"
+                                  placeholder="VD: 25000"
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          {currentAdditionalTab.selectedStandard.items.map((item, index) => {
+                            const isSelected = currentAdditionalTab.formData.sanPhamDauRa === item.tenThanhPham;
+                            const tiGiaUSD = parseNumberFromDots(currentAdditionalTab.formData.tiGiaUSD || '0');
+
+                            // Tính giá báo khách USD/KG = Giá báo khách VNĐ / Tỉ giá
+                            const giaHoaVon = 0;
+                            const loiNhuan = parseFloat(currentAdditionalTab.formData.loiNhuanCongThem || '0');
+                            const giaBaoKhachVND = giaHoaVon + loiNhuan;
+                            const giaBaoKhachUSD = isSelected && tiGiaUSD > 0
+                              ? formatNumberWithDots(giaBaoKhachVND / tiGiaUSD)
+                              : '';
+
+                            return (
+                              <td
+                                key={index}
+                                className={`px-4 py-2 border border-gray-300 text-center ${
+                                  isSelected ? 'bg-blue-50' : 'bg-gray-50'
+                                }`}
+                              >
+                                {isSelected ? (
+                                  <input
+                                    type="text"
+                                    value={giaBaoKhachUSD}
                                     disabled
                                     className="w-full px-2 py-1 text-center border border-blue-400 rounded bg-yellow-50 font-bold text-lg"
                                     placeholder="0"
@@ -4300,24 +4520,50 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               {/* Cột THỰC TẾ - Editable */}
                               <td className="border border-gray-400 px-3 py-2 text-center bg-green-50">
                                 <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={cost.soLuongThucTe !== undefined && cost.soLuongThucTe !== null ? cost.soLuongThucTe : ''}
-                                  onChange={(e) => handleAdditionalTabFlowchartCostChange(currentAdditionalTab.id, sectionIndex, costIndex, 'soLuongThucTe', e.target.value)}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                  type="text"
+                                  value={additionalFlowchartInputValues[`${currentAdditionalTab.id}-${sectionIndex}-${costIndex}-soLuongThucTe`] ?? formatNumberWithDots(cost.soLuongThucTe)}
+                                  onChange={(e) => {
+                                    const rawValue = handleNumericInput(e.target.value);
+                                    setAdditionalFlowchartInputValues(prev => ({
+                                      ...prev,
+                                      [`${currentAdditionalTab.id}-${sectionIndex}-${costIndex}-soLuongThucTe`]: rawValue
+                                    }));
+                                  }}
+                                  onBlur={(e) => {
+                                    const numValue = parseNumberFromDots(e.target.value);
+                                    handleAdditionalTabFlowchartCostChange(currentAdditionalTab.id, sectionIndex, costIndex, 'soLuongThucTe', String(numValue));
+                                    setAdditionalFlowchartInputValues(prev => {
+                                      const newValues = { ...prev };
+                                      delete newValues[`${currentAdditionalTab.id}-${sectionIndex}-${costIndex}-soLuongThucTe`];
+                                      return newValues;
+                                    });
+                                  }}
+                                  className="w-full min-w-[100px] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-right"
                                   placeholder="0"
                                 />
                               </td>
                               {/* Cột GIÁ (KẾ HOẠCH) - Editable */}
                               <td className="border border-gray-400 px-3 py-2 text-center bg-green-50">
                                 <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  value={cost.giaKeHoach !== undefined && cost.giaKeHoach !== null ? cost.giaKeHoach : ''}
-                                  onChange={(e) => handleAdditionalTabFlowchartCostChange(currentAdditionalTab.id, sectionIndex, costIndex, 'giaKeHoach', e.target.value)}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                  type="text"
+                                  value={additionalFlowchartInputValues[`${currentAdditionalTab.id}-${sectionIndex}-${costIndex}-giaKeHoach`] ?? formatNumberWithDots(cost.giaKeHoach)}
+                                  onChange={(e) => {
+                                    const rawValue = handleNumericInput(e.target.value);
+                                    setAdditionalFlowchartInputValues(prev => ({
+                                      ...prev,
+                                      [`${currentAdditionalTab.id}-${sectionIndex}-${costIndex}-giaKeHoach`]: rawValue
+                                    }));
+                                  }}
+                                  onBlur={(e) => {
+                                    const numValue = parseNumberFromDots(e.target.value);
+                                    handleAdditionalTabFlowchartCostChange(currentAdditionalTab.id, sectionIndex, costIndex, 'giaKeHoach', String(numValue));
+                                    setAdditionalFlowchartInputValues(prev => {
+                                      const newValues = { ...prev };
+                                      delete newValues[`${currentAdditionalTab.id}-${sectionIndex}-${costIndex}-giaKeHoach`];
+                                      return newValues;
+                                    });
+                                  }}
+                                  className="w-full min-w-[100px] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-right"
                                   placeholder="0"
                                 />
                               </td>
@@ -4327,18 +4573,31 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                   const gia = cost.giaKeHoach || 0;
                                   const soLuong = cost.soLuongKeHoach || 0;
                                   const thanhTien = gia * soLuong;
-                                  return thanhTien > 0 ? thanhTien.toLocaleString('vi-VN') : '0';
+                                  return thanhTien > 0 ? formatNumberWithDots(thanhTien) : '0';
                                 })()}
                               </td>
                               {/* Cột GIÁ (THỰC TẾ) - Editable */}
                               <td className="border border-gray-400 px-3 py-2 text-center bg-green-50">
                                 <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  value={cost.giaThucTe !== undefined && cost.giaThucTe !== null ? cost.giaThucTe : ''}
-                                  onChange={(e) => handleAdditionalTabFlowchartCostChange(currentAdditionalTab.id, sectionIndex, costIndex, 'giaThucTe', e.target.value)}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                  type="text"
+                                  value={additionalFlowchartInputValues[`${currentAdditionalTab.id}-${sectionIndex}-${costIndex}-giaThucTe`] ?? formatNumberWithDots(cost.giaThucTe)}
+                                  onChange={(e) => {
+                                    const rawValue = handleNumericInput(e.target.value);
+                                    setAdditionalFlowchartInputValues(prev => ({
+                                      ...prev,
+                                      [`${currentAdditionalTab.id}-${sectionIndex}-${costIndex}-giaThucTe`]: rawValue
+                                    }));
+                                  }}
+                                  onBlur={(e) => {
+                                    const numValue = parseNumberFromDots(e.target.value);
+                                    handleAdditionalTabFlowchartCostChange(currentAdditionalTab.id, sectionIndex, costIndex, 'giaThucTe', String(numValue));
+                                    setAdditionalFlowchartInputValues(prev => {
+                                      const newValues = { ...prev };
+                                      delete newValues[`${currentAdditionalTab.id}-${sectionIndex}-${costIndex}-giaThucTe`];
+                                      return newValues;
+                                    });
+                                  }}
+                                  className="w-full min-w-[100px] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-right"
                                   placeholder="0"
                                 />
                               </td>
@@ -4348,7 +4607,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                   const gia = cost.giaThucTe || 0;
                                   const soLuong = cost.soLuongThucTe || 0;
                                   const thanhTien = gia * soLuong;
-                                  return thanhTien > 0 ? thanhTien.toLocaleString('vi-VN') : '0';
+                                  return thanhTien > 0 ? formatNumberWithDots(thanhTien) : '0';
                                 })()}
                               </td>
                             </tr>
@@ -5359,13 +5618,13 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
                         // Tính giá hòa vốn KẾ HOẠCH cho sản phẩm đầu ra chính (auto-calculated)
                         const giaHoaVonKeHoach = isSelected
-                          ? calculateGiaHoaVonChinhPham(activeTab).toFixed(2)
-                          : (currentTab.formData.giaHoaVonSanPhamPhu[item.tenThanhPham] || '');
+                          ? formatNumberWithDots(calculateGiaHoaVonChinhPham(activeTab))
+                          : formatNumberWithDots(currentTab.formData.giaHoaVonSanPhamPhu[item.tenThanhPham]);
 
                         // Tính giá hòa vốn THỰC TẾ cho sản phẩm đầu ra chính (auto-calculated)
                         const giaHoaVonThucTe = isSelected
-                          ? calculateGiaHoaVonChinhPhamThucTe(activeTab).toFixed(2)
-                          : (currentTab.formData.giaHoaVonSanPhamPhuThucTe?.[item.tenThanhPham] || '');
+                          ? formatNumberWithDots(calculateGiaHoaVonChinhPhamThucTe(activeTab))
+                          : formatNumberWithDots(currentTab.formData.giaHoaVonSanPhamPhuThucTe?.[item.tenThanhPham]);
 
                         return (
                           <React.Fragment key={index}>
@@ -5374,9 +5633,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               isSelected ? 'bg-blue-50' : 'bg-gray-50'
                             }`}>
                               <input
-                                type="number"
-                                step="1"
-                                min="0"
+                                type="text"
                                 value={giaHoaVonKeHoach}
                                 onChange={(e) => {
                                   if (!isSelected) {
@@ -5384,7 +5641,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                       const newTabs = [...prev];
                                       newTabs[activeTab].formData.giaHoaVonSanPhamPhu = {
                                         ...newTabs[activeTab].formData.giaHoaVonSanPhamPhu,
-                                        [item.tenThanhPham]: e.target.value,
+                                        [item.tenThanhPham]: String(parseNumberFromDots(e.target.value)),
                                       };
                                       return newTabs;
                                     });
@@ -5411,16 +5668,14 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                 />
                               ) : (
                                 <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  value={currentTab.formData.giaHoaVonSanPhamPhuThucTe?.[item.tenThanhPham] || ''}
+                                  type="text"
+                                  value={formatNumberWithDots(currentTab.formData.giaHoaVonSanPhamPhuThucTe?.[item.tenThanhPham])}
                                   onChange={(e) => {
                                     setTabsData(prev => {
                                       const newTabs = [...prev];
                                       newTabs[activeTab].formData.giaHoaVonSanPhamPhuThucTe = {
                                         ...newTabs[activeTab].formData.giaHoaVonSanPhamPhuThucTe,
-                                        [item.tenThanhPham]: e.target.value,
+                                        [item.tenThanhPham]: String(parseNumberFromDots(e.target.value)),
                                       };
                                       return newTabs;
                                     });
@@ -5450,14 +5705,12 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             }`}>
                               {isSelected ? (
                                 <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  value={currentTab.formData.loiNhuanCongThem}
+                                  type="text"
+                                  value={formatNumberWithDots(currentTab.formData.loiNhuanCongThem)}
                                   onChange={(e) => {
                                     setTabsData(prev => {
                                       const newTabs = [...prev];
-                                      newTabs[activeTab].formData.loiNhuanCongThem = e.target.value;
+                                      newTabs[activeTab].formData.loiNhuanCongThem = String(parseNumberFromDots(e.target.value));
                                       return newTabs;
                                     });
                                   }}
@@ -5474,14 +5727,12 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                             }`}>
                               {isSelected ? (
                                 <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  value={currentTab.formData.loiNhuanCongThemThucTe || ''}
+                                  type="text"
+                                  value={formatNumberWithDots(currentTab.formData.loiNhuanCongThemThucTe)}
                                   onChange={(e) => {
                                     setTabsData(prev => {
                                       const newTabs = [...prev];
-                                      newTabs[activeTab].formData.loiNhuanCongThemThucTe = e.target.value;
+                                      newTabs[activeTab].formData.loiNhuanCongThemThucTe = String(parseNumberFromDots(e.target.value));
                                       return newTabs;
                                     });
                                   }}
@@ -5510,7 +5761,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           ? (() => {
                               const giaHoaVon = calculateGiaHoaVonChinhPham(activeTab);
                               const loiNhuan = parseFloat(currentTab.formData.loiNhuanCongThem || '0');
-                              return (giaHoaVon + loiNhuan).toFixed(2);
+                              return formatNumberWithDots(giaHoaVon + loiNhuan);
                             })()
                           : '';
 
@@ -5519,7 +5770,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           ? (() => {
                               const giaHoaVon = calculateGiaHoaVonChinhPhamThucTe(activeTab);
                               const loiNhuan = parseFloat(currentTab.formData.loiNhuanCongThemThucTe || '0');
-                              return (giaHoaVon + loiNhuan).toFixed(2);
+                              return formatNumberWithDots(giaHoaVon + loiNhuan);
                             })()
                           : '';
 
@@ -5549,6 +5800,99 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                 <input
                                   type="text"
                                   value={giaBaoKhachThucTe}
+                                  disabled
+                                  className="w-full px-2 py-1 text-center border border-green-400 rounded bg-green-50 font-bold text-sm"
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                          </React.Fragment>
+                        );
+                      })}
+                    </tr>
+
+                    {/* Giá báo khách USD/KG */}
+                    <tr>
+                      <td className="px-4 py-2 bg-blue-100 border border-gray-300 text-sm font-medium text-gray-700">
+                        <div className="flex flex-col">
+                          <span>giá báo khách (USD/KG)</span>
+                          <div className="flex items-center mt-1">
+                            <span className="text-xs text-gray-500 mr-1">Tỉ giá:</span>
+                            <input
+                              type="text"
+                              value={currentTab.formData.tiGiaUSD}
+                              onChange={(e) => {
+                                const rawValue = handleNumericInput(e.target.value);
+                                setTabsData(prev => {
+                                  const newTabs = [...prev];
+                                  newTabs[activeTab].formData.tiGiaUSD = rawValue;
+                                  return newTabs;
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const numValue = parseNumberFromDots(e.target.value);
+                                if (numValue > 0) {
+                                  setTabsData(prev => {
+                                    const newTabs = [...prev];
+                                    newTabs[activeTab].formData.tiGiaUSD = formatNumberWithDots(numValue);
+                                    return newTabs;
+                                  });
+                                }
+                              }}
+                              className="w-24 px-2 py-1 text-xs border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500"
+                              placeholder="VD: 25000"
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      {currentTab.selectedStandard.items.map((item, index) => {
+                        const isSelected = currentTab.formData.sanPhamDauRa === item.tenThanhPham;
+                        const tiGiaUSD = parseNumberFromDots(currentTab.formData.tiGiaUSD || '0');
+
+                        // Tính giá báo khách USD/KG KẾ HOẠCH = Giá báo khách VNĐ / Tỉ giá
+                        const giaBaoKhachKeHoachVND = isSelected
+                          ? calculateGiaHoaVonChinhPham(activeTab) + parseFloat(currentTab.formData.loiNhuanCongThem || '0')
+                          : 0;
+                        const giaBaoKhachUSDKeHoach = isSelected && tiGiaUSD > 0
+                          ? formatNumberWithDots(giaBaoKhachKeHoachVND / tiGiaUSD)
+                          : '';
+
+                        // Tính giá báo khách USD/KG THỰC TẾ = Giá báo khách VNĐ thực tế / Tỉ giá
+                        const giaBaoKhachThucTeVND = isSelected
+                          ? calculateGiaHoaVonChinhPhamThucTe(activeTab) + parseFloat(currentTab.formData.loiNhuanCongThemThucTe || '0')
+                          : 0;
+                        const giaBaoKhachUSDThucTe = isSelected && tiGiaUSD > 0
+                          ? formatNumberWithDots(giaBaoKhachThucTeVND / tiGiaUSD)
+                          : '';
+
+                        return (
+                          <React.Fragment key={index}>
+                            {/* Kế hoạch */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
+                              isSelected ? 'bg-blue-50' : 'bg-gray-50'
+                            }`}>
+                              {isSelected ? (
+                                <input
+                                  type="text"
+                                  value={giaBaoKhachUSDKeHoach}
+                                  disabled
+                                  className="w-full px-2 py-1 text-center border border-blue-400 rounded bg-yellow-50 font-bold text-sm"
+                                  placeholder="0"
+                                />
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            {/* Thực tế */}
+                            <td className={`px-3 py-2 border border-gray-300 text-center ${
+                              isSelected ? 'bg-green-50' : 'bg-gray-50'
+                            }`}>
+                              {isSelected ? (
+                                <input
+                                  type="text"
+                                  value={giaBaoKhachUSDThucTe}
                                   disabled
                                   className="w-full px-2 py-1 text-center border border-green-400 rounded bg-green-50 font-bold text-sm"
                                   placeholder="0"
@@ -5681,24 +6025,50 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           {/* Cột THỰC TẾ - Editable */}
                           <td className="border border-gray-400 px-3 py-2 text-center bg-green-50">
                             <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={cost.soLuongThucTe !== undefined && cost.soLuongThucTe !== null ? cost.soLuongThucTe : ''}
-                              onChange={(e) => handleFlowchartCostChange(sectionIndex, costIndex, 'soLuongThucTe', e.target.value)}
-                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                              type="text"
+                              value={flowchartInputValues[`${activeTab}-${sectionIndex}-${costIndex}-soLuongThucTe`] ?? formatNumberWithDots(cost.soLuongThucTe)}
+                              onChange={(e) => {
+                                const rawValue = handleNumericInput(e.target.value);
+                                setFlowchartInputValues(prev => ({
+                                  ...prev,
+                                  [`${activeTab}-${sectionIndex}-${costIndex}-soLuongThucTe`]: rawValue
+                                }));
+                              }}
+                              onBlur={(e) => {
+                                const numValue = parseNumberFromDots(e.target.value);
+                                handleFlowchartCostChange(sectionIndex, costIndex, 'soLuongThucTe', String(numValue));
+                                setFlowchartInputValues(prev => {
+                                  const newValues = { ...prev };
+                                  delete newValues[`${activeTab}-${sectionIndex}-${costIndex}-soLuongThucTe`];
+                                  return newValues;
+                                });
+                              }}
+                              className="w-full min-w-[100px] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-right"
                               placeholder="0"
                             />
                           </td>
                           {/* Cột GIÁ (KẾ HOẠCH) - Editable */}
                           <td className="border border-gray-400 px-3 py-2 text-center bg-green-50">
                             <input
-                              type="number"
-                              step="1"
-                              min="0"
-                              value={cost.giaKeHoach !== undefined && cost.giaKeHoach !== null ? cost.giaKeHoach : ''}
-                              onChange={(e) => handleFlowchartCostChange(sectionIndex, costIndex, 'giaKeHoach', e.target.value)}
-                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                              type="text"
+                              value={flowchartInputValues[`${activeTab}-${sectionIndex}-${costIndex}-giaKeHoach`] ?? formatNumberWithDots(cost.giaKeHoach)}
+                              onChange={(e) => {
+                                const rawValue = handleNumericInput(e.target.value);
+                                setFlowchartInputValues(prev => ({
+                                  ...prev,
+                                  [`${activeTab}-${sectionIndex}-${costIndex}-giaKeHoach`]: rawValue
+                                }));
+                              }}
+                              onBlur={(e) => {
+                                const numValue = parseNumberFromDots(e.target.value);
+                                handleFlowchartCostChange(sectionIndex, costIndex, 'giaKeHoach', String(numValue));
+                                setFlowchartInputValues(prev => {
+                                  const newValues = { ...prev };
+                                  delete newValues[`${activeTab}-${sectionIndex}-${costIndex}-giaKeHoach`];
+                                  return newValues;
+                                });
+                              }}
+                              className="w-full min-w-[100px] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-right"
                               placeholder="0"
                             />
                           </td>
@@ -5708,18 +6078,31 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               const gia = cost.giaKeHoach || 0;
                               const soLuong = cost.soLuongKeHoach || 0;
                               const thanhTien = gia * soLuong;
-                              return thanhTien > 0 ? thanhTien.toLocaleString('vi-VN') : '0';
+                              return thanhTien > 0 ? formatNumberWithDots(thanhTien) : '0';
                             })()}
                           </td>
                           {/* Cột GIÁ (THỰC TẾ) - Editable */}
                           <td className="border border-gray-400 px-3 py-2 text-center bg-green-50">
                             <input
-                              type="number"
-                              step="1"
-                              min="0"
-                              value={cost.giaThucTe !== undefined && cost.giaThucTe !== null ? cost.giaThucTe : ''}
-                              onChange={(e) => handleFlowchartCostChange(sectionIndex, costIndex, 'giaThucTe', e.target.value)}
-                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                              type="text"
+                              value={flowchartInputValues[`${activeTab}-${sectionIndex}-${costIndex}-giaThucTe`] ?? formatNumberWithDots(cost.giaThucTe)}
+                              onChange={(e) => {
+                                const rawValue = handleNumericInput(e.target.value);
+                                setFlowchartInputValues(prev => ({
+                                  ...prev,
+                                  [`${activeTab}-${sectionIndex}-${costIndex}-giaThucTe`]: rawValue
+                                }));
+                              }}
+                              onBlur={(e) => {
+                                const numValue = parseNumberFromDots(e.target.value);
+                                handleFlowchartCostChange(sectionIndex, costIndex, 'giaThucTe', String(numValue));
+                                setFlowchartInputValues(prev => {
+                                  const newValues = { ...prev };
+                                  delete newValues[`${activeTab}-${sectionIndex}-${costIndex}-giaThucTe`];
+                                  return newValues;
+                                });
+                              }}
+                              className="w-full min-w-[100px] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-right"
                               placeholder="0"
                             />
                           </td>
@@ -5729,7 +6112,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               const gia = cost.giaThucTe || 0;
                               const soLuong = cost.soLuongThucTe || 0;
                               const thanhTien = gia * soLuong;
-                              return thanhTien > 0 ? thanhTien.toLocaleString('vi-VN') : '0';
+                              return thanhTien > 0 ? formatNumberWithDots(thanhTien) : '0';
                             })()}
                           </td>
                         </tr>

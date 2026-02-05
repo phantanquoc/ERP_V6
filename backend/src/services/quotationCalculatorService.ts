@@ -53,6 +53,7 @@ export interface QuotationCalculatorProductData {
   tongThanhPhamCanSxThemThucTe?: number; // Tổng thành phẩm cần sx thêm thực tế (auto-calculated)
   tongNguyenLieuCanSanXuatThucTe?: number; // Tổng nguyên liệu cần sản xuất thực tế
   loiNhuanCongThemThucTe?: number; // Lợi nhuận cộng thêm thực tế
+  tiGiaUSD?: number; // Tỉ giá USD cho giá báo khách USD/KG
   byProducts?: {
     tenSanPham: string;
     tiLe?: number; // Tỉ lệ thu hồi kế hoạch
@@ -163,6 +164,7 @@ class QuotationCalculatorService {
             tongThanhPhamCanSxThemThucTe: product.tongThanhPhamCanSxThemThucTe,
             tongNguyenLieuCanSanXuatThucTe: product.tongNguyenLieuCanSanXuatThucTe,
             loiNhuanCongThemThucTe: product.loiNhuanCongThemThucTe,
+            tiGiaUSD: product.tiGiaUSD,
             isAdditionalCost: product.isAdditionalCost || false,
             tenChiPhiBoSung: product.tenChiPhiBoSung,
             originalTabId: product.originalTabId,
@@ -277,6 +279,7 @@ class QuotationCalculatorService {
             tongThanhPhamCanSxThemThucTe: product.tongThanhPhamCanSxThemThucTe,
             tongNguyenLieuCanSanXuatThucTe: product.tongNguyenLieuCanSanXuatThucTe,
             loiNhuanCongThemThucTe: product.loiNhuanCongThemThucTe,
+            tiGiaUSD: product.tiGiaUSD,
             isAdditionalCost: product.isAdditionalCost || false,
             tenChiPhiBoSung: product.tenChiPhiBoSung,
             originalTabId: product.originalTabId,

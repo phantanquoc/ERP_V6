@@ -853,6 +853,7 @@ model QuotationCalculatorProduct {
   tongThanhPhamCanSxThemThucTe    Float?                         // Tổng thành phẩm cần sx thêm thực tế (auto-calculated)
   tongNguyenLieuCanSanXuatThucTe  Float?                         // Tổng nguyên liệu cần sản xuất thực tế
   loiNhuanCongThemThucTe          Float?                         // Lợi nhuận cộng thêm thực tế
+  tiGiaUSD                        Float?                         // Tỉ giá USD cho giá báo khách USD/KG
   createdAt                       DateTime                       @default(now())
   updatedAt                       DateTime                       @updatedAt
   byProducts                      QuotationCalculatorByProduct[]
