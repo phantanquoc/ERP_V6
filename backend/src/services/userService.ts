@@ -108,6 +108,19 @@ export class UserService {
         subDepartmentId: true,
         supervisor1Id: true,
         supervisor2Id: true,
+        employees: {
+          select: {
+            phoneNumber: true,
+            bankAccount: true,
+            lockerNumber: true,
+            gender: true,
+            weight: true,
+            height: true,
+            shirtSize: true,
+            pantSize: true,
+            shoeSize: true,
+          },
+        },
       },
     });
 
@@ -153,8 +166,21 @@ export class UserService {
       supervisor2 = sup2;
     }
 
+    // Flatten employee data into user object
+    const employeeData = user.employees;
+
     return {
       ...user,
+      employees: undefined,
+      phoneNumber: employeeData?.phoneNumber || null,
+      bankAccount: employeeData?.bankAccount || null,
+      lockerNumber: employeeData?.lockerNumber || null,
+      gender: employeeData?.gender || null,
+      weight: employeeData?.weight || null,
+      height: employeeData?.height || null,
+      shirtSize: employeeData?.shirtSize || null,
+      pantSize: employeeData?.pantSize || null,
+      shoeSize: employeeData?.shoeSize || null,
       departmentName,
       subDepartmentName,
       supervisor1,
