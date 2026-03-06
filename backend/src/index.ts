@@ -1,6 +1,7 @@
-import express, { Express } from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { env } from '@config/env';
+import logger from '@config/logger';
 import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import authRoutes from '@routes/authRoutes';
 import userRoutes from '@routes/userRoutes';
@@ -29,6 +30,8 @@ import orderRoutes from '@routes/orderRoutes';
 import taxReportRoutes from '@routes/taxReportRoutes';
 import supplyRequestRoutes from '@routes/supplyRequestRoutes';
 import warehouseRoutes from '@routes/warehouseRoutes';
+import lotRoutes from '@routes/lotRoutes';
+import lotProductRoutes from '@routes/lotProductRoutes';
 import warehouseReceiptRoutes from '@routes/warehouseReceiptRoutes';
 import warehouseIssueRoutes from '@routes/warehouseIssueRoutes';
 import debtRoutes from '@routes/debtRoutes';
@@ -44,6 +47,7 @@ import qualityEvaluationRoutes from '@routes/qualityEvaluationRoutes';
 import productionReportRoutes from '@routes/productionReportRoutes';
 import dailyWorkReportRoutes from '@routes/dailyWorkReportRoutes';
 import taskRoutes from '@routes/taskRoutes';
+import workPlanRoutes from '@routes/workPlanRoutes';
 import privateFeedbackRoutes from '@routes/privateFeedbackRoutes';
 import leaveRequestRoutes from '@routes/leaveRequestRoutes';
 import customerFeedbackRoutes from '@routes/customerFeedbackRoutes';
@@ -63,6 +67,21 @@ app.use(
     credentials: true,
   })
 );
+
+// Request logging middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    logger.info({
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      duration: `${Date.now() - start}ms`,
+      ip: req.ip || req.socket.remoteAddress,
+    });
+  });
+  next();
+});
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static('uploads'));
@@ -84,7 +103,7 @@ app.use('/api/employee-evaluations', employeeEvaluationRoutes);
 app.use('/api/payrolls', payrollRoutes);
 app.use('/api/internal-inspections', internalInspectionRoutes);
 app.use('/api/attendances', attendanceRoutes);
-app.use('/api', notificationRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/international-customers', internationalCustomerRoutes);
 app.use('/api/international-products', internationalProductRoutes);
 app.use('/api/quotation-requests', quotationRequestRoutes);
@@ -99,7 +118,9 @@ app.use('/api/quotation-calculators', quotationCalculatorRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/tax-reports', taxReportRoutes);
 app.use('/api/supply-requests', supplyRequestRoutes);
-app.use('/api', warehouseRoutes);
+app.use('/api/warehouses', warehouseRoutes);
+app.use('/api/lots', lotRoutes);
+app.use('/api/lot-products', lotProductRoutes);
 app.use('/api/warehouse-receipts', warehouseReceiptRoutes);
 app.use('/api/warehouse-issues', warehouseIssueRoutes);
 app.use('/api/debts', debtRoutes);
@@ -115,6 +136,7 @@ app.use('/api/quality-evaluations', qualityEvaluationRoutes);
 app.use('/api/production-reports', productionReportRoutes);
 app.use('/api/daily-work-reports', dailyWorkReportRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/work-plans', workPlanRoutes);
 app.use('/api/private-feedbacks', privateFeedbackRoutes);
 app.use('/api/leave-requests', leaveRequestRoutes);
 app.use('/api/customer-feedbacks', customerFeedbackRoutes);
@@ -132,8 +154,8 @@ app.use(errorHandler);
 // Start server
 const PORT = env.PORT;
 app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`Environment: ${env.NODE_ENV}`);
+  logger.info(`🚀 Server is running on http://localhost:${PORT}`);
+  logger.info(`Environment: ${env.NODE_ENV}`);
 });
 
 export default app;

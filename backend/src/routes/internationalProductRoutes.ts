@@ -11,6 +11,7 @@ router.use(authenticate);
 // GET routes - accessible to all authenticated users
 router.get('/', internationalProductController.getAllProducts);
 router.get('/generate-code', internationalProductController.generateProductCode);
+router.get('/export/excel', internationalProductController.exportToExcel);
 router.get('/code/:code', internationalProductController.getProductByCode);
 router.get('/:id', internationalProductController.getProductById);
 

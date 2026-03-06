@@ -1,6 +1,5 @@
-import { Prisma, PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@config/database';
+import { Prisma } from '@prisma/client';
 
 // Interface for creating/updating quotation calculator
 export interface QuotationCalculatorData {

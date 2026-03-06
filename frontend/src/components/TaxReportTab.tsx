@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, Edit, Trash2, Calendar, DollarSign, FileText, Upload } from 'lucide-react';
+import { Eye, Edit, Trash2, Calendar, DollarSign, FileText, Upload, Download } from 'lucide-react';
 import taxReportService, { TaxReport, TaxReportStatus, TaxReportInput } from '../services/taxReportService';
 
 const TaxReportTab: React.FC = () => {
   const [taxReports, setTaxReports] = useState<TaxReport[]>([]);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [selectedReport, setSelectedReport] = useState<TaxReport | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [formData, setFormData] = useState<TaxReportInput>({});
@@ -94,6 +96,16 @@ const TaxReportTab: React.FC = () => {
     return colors[status];
   };
 
+  const handleExportExcel = async () => {
+    try {
+      await taxReportService.exportToExcel();
+      alert('Xuất file Excel thành công!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Lỗi khi xuất file Excel');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -102,8 +114,20 @@ const TaxReportTab: React.FC = () => {
     );
   }
 
+  const totalPages = Math.ceil(taxReports.length / itemsPerPage);
+  const paginatedReports = taxReports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="flex justify-end p-4">
+        <button
+          onClick={handleExportExcel}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          Xuất Excel
+        </button>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
@@ -123,14 +147,14 @@ const TaxReportTab: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {taxReports.map((report, index) => (
+            {paginatedReports.map((report, index) => (
               <tr
                 key={report.id}
                 className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
                   index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                 }`}
               >
-                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{index + 1}</td>
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                 <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                   <div className="flex items-center">
                     <Calendar className="w-4 h-4 text-gray-400 mr-1" />
@@ -184,6 +208,45 @@ const TaxReportTab: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, taxReports.length)} / {taxReports.length} mục
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+              .map((page, idx, arr) => (
+                <React.Fragment key={page}>
+                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-sm rounded-md ${
+                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {showEditModal && selectedReport && (

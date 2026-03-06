@@ -53,6 +53,9 @@ router.get('/', purchaseRequestController.getAllPurchaseRequests);
 // Generate purchase request code
 router.get('/generate-code', purchaseRequestController.generatePurchaseRequestCode);
 
+// Export purchase requests to Excel (must be before /:id route)
+router.get('/export/excel', purchaseRequestController.exportToExcel);
+
 // Get purchase request by ID
 router.get('/:id', purchaseRequestController.getPurchaseRequestById);
 

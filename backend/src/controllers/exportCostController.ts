@@ -1,5 +1,6 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import exportCostService from '../services/exportCostService';
+import logger from '@config/logger';
 
 class ExportCostController {
   // Get all export costs
@@ -17,7 +18,7 @@ class ExportCostController {
         pagination: result.pagination,
       });
     } catch (error: any) {
-      console.error('Error getting export costs:', error);
+      logger.error('Error getting export costs:', error);
       res.status(500).json({ message: 'Lỗi khi lấy danh sách chi phí xuất khẩu', error: error.message });
     }
   }
@@ -34,7 +35,7 @@ class ExportCostController {
 
       return res.json(exportCost);
     } catch (error: any) {
-      console.error('Error getting export cost:', error);
+      logger.error('Error getting export cost:', error);
       return res.status(500).json({ message: 'Lỗi khi lấy chi phí xuất khẩu', error: error.message });
     }
   }
@@ -45,7 +46,7 @@ class ExportCostController {
       const exportCost = await exportCostService.createExportCost(req.body);
       res.status(201).json(exportCost);
     } catch (error: any) {
-      console.error('Error creating export cost:', error);
+      logger.error('Error creating export cost:', error);
       res.status(500).json({ message: 'Lỗi khi tạo chi phí xuất khẩu', error: error.message });
     }
   }
@@ -57,7 +58,7 @@ class ExportCostController {
       const exportCost = await exportCostService.updateExportCost(id, req.body);
       res.json(exportCost);
     } catch (error: any) {
-      console.error('Error updating export cost:', error);
+      logger.error('Error updating export cost:', error);
       res.status(500).json({ message: 'Lỗi khi cập nhật chi phí xuất khẩu', error: error.message });
     }
   }
@@ -69,8 +70,22 @@ class ExportCostController {
       await exportCostService.deleteExportCost(id);
       res.json({ message: 'Xóa chi phí xuất khẩu thành công' });
     } catch (error: any) {
-      console.error('Error deleting export cost:', error);
+      logger.error('Error deleting export cost:', error);
       res.status(500).json({ message: 'Lỗi khi xóa chi phí xuất khẩu', error: error.message });
+    }
+  }
+
+  // Export to Excel
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: any = {};
+      if (req.query.search) filters.search = req.query.search as string;
+      const buffer = await exportCostService.exportToExcel(filters);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=chi-phi-xuat-khau-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
     }
   }
 }

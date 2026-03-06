@@ -1,6 +1,5 @@
-import { PrismaClient, FeedbackType, FeedbackStatus } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@config/database';
+import { FeedbackType, FeedbackStatus } from '@prisma/client';
 
 interface CreatePrivateFeedbackData {
   type: FeedbackType;

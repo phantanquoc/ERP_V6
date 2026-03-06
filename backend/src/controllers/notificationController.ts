@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import notificationService from '@services/notificationService';
+import logger from '@config/logger';
 
 export class NotificationController {
   async getEmployeeNotifications(req: Request, res: Response): Promise<void> {
@@ -39,7 +40,7 @@ export class NotificationController {
         data: notifications,
       });
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      logger.error('Error fetching notifications:', error);
       res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error fetching notifications',
@@ -82,7 +83,7 @@ export class NotificationController {
         count: notifications.length,
       });
     } catch (error) {
-      console.error('Error fetching unread notifications:', error);
+      logger.error('Error fetching unread notifications:', error);
       res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error fetching unread notifications',
@@ -101,7 +102,7 @@ export class NotificationController {
         data: notification,
       });
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      logger.error('Error marking notification as read:', error);
       res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error marking notification as read',
@@ -142,7 +143,7 @@ export class NotificationController {
         data: result,
       });
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      logger.error('Error marking all notifications as read:', error);
       res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error marking all notifications as read',
@@ -161,7 +162,7 @@ export class NotificationController {
         message: 'Notification deleted',
       });
     } catch (error) {
-      console.error('Error deleting notification:', error);
+      logger.error('Error deleting notification:', error);
       res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error deleting notification',
@@ -202,7 +203,7 @@ export class NotificationController {
         data: notification,
       });
     } catch (error) {
-      console.error('Error fetching latest evaluation notification:', error);
+      logger.error('Error fetching latest evaluation notification:', error);
       res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error fetching latest evaluation notification',

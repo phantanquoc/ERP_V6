@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import invoiceService from '@services/invoiceService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 
@@ -91,6 +91,19 @@ export class InvoiceController {
         success: true,
         data: { code },
       } as ApiResponse<any>);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: any = {};
+      if (req.query.search) filters.search = req.query.search as string;
+      const buffer = await invoiceService.exportToExcel(filters);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-hoa-don-${Date.now()}.xlsx`);
+      res.send(buffer);
     } catch (error) {
       next(error);
     }

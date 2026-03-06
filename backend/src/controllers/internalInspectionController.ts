@@ -1,7 +1,24 @@
 import { Request, Response } from 'express';
 import internalInspectionService from '@services/internalInspectionService';
+import logger from '@config/logger';
 
 export class InternalInspectionController {
+  async exportToExcel(_req: Request, res: Response): Promise<void> {
+    try {
+      const buffer = await internalInspectionService.exportToExcel();
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=kiem-tra-noi-bo-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      logger.error('Error exporting to Excel:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Error exporting to Excel',
+      });
+    }
+  }
+
   async getAllInspections(req: Request, res: Response): Promise<void> {
     try {
       const { month, year, search } = req.query;
@@ -22,7 +39,7 @@ export class InternalInspectionController {
       });
       return;
     } catch (error) {
-      console.error('Error fetching inspections:', error);
+      logger.error('Error fetching inspections:', error);
       res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error fetching inspections',
@@ -43,7 +60,7 @@ export class InternalInspectionController {
       });
       return;
     } catch (error) {
-      console.error('Error fetching inspection:', error);
+      logger.error('Error fetching inspection:', error);
       res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error fetching inspection',
@@ -65,7 +82,7 @@ export class InternalInspectionController {
       });
       return;
     } catch (error) {
-      console.error('Error creating inspection:', error);
+      logger.error('Error creating inspection:', error);
       res.status(400).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error creating inspection',
@@ -88,7 +105,7 @@ export class InternalInspectionController {
       });
       return;
     } catch (error) {
-      console.error('Error updating inspection:', error);
+      logger.error('Error updating inspection:', error);
       res.status(error instanceof Error && error.message.includes('not found') ? 404 : 400).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error updating inspection',
@@ -109,7 +126,7 @@ export class InternalInspectionController {
       });
       return;
     } catch (error) {
-      console.error('Error deleting inspection:', error);
+      logger.error('Error deleting inspection:', error);
       res.status(error instanceof Error && error.message.includes('not found') ? 404 : 400).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error deleting inspection',

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Eye, Edit, Trash2, Package, Calculator } from 'lucide-react';
+import { Search, Eye, Edit, Trash2, Package, Calculator, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { orderService, Order } from '../services/orderService';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
@@ -20,19 +20,38 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
   const [showCostingModal, setShowCostingModal] = useState(false);
   const [formData, setFormData] = useState<Partial<Order>>({});
   const [quotationRequestForModal, setQuotationRequestForModal] = useState<QuotationRequest | null>(null);
+  const [exportError, setExportError] = useState<string>('');
+  const [exportSuccess, setExportSuccess] = useState<string>('');
+  const [exportLoading, setExportLoading] = useState(false);
 
   const itemsPerPage = 10;
 
   const queryClient = useQueryClient();
   const filterCustomerType = customerType === 'all' ? undefined : customerType;
   const { data: ordersData, isLoading: loading, refetch: refetchOrders } = useOrders({
-    page: currentPage,
-    limit: itemsPerPage,
+    page: 1,
+    limit: 1000,
     search: searchTerm || undefined,
     customerType: filterCustomerType,
   });
   const orders = ordersData?.data || [];
-  const totalPages = ordersData?.pagination?.totalPages || 1;
+
+  const handleExportExcel = async () => {
+    try {
+      setExportError('');
+      setExportLoading(true);
+      await orderService.exportToExcel({
+        search: searchTerm || undefined,
+      });
+      setExportSuccess('Đã xuất file Excel thành công');
+      setTimeout(() => setExportSuccess(''), 3000);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      setExportError('Không thể xuất file Excel');
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   const handleView = (order: Order) => {
     setSelectedOrder(order);
@@ -150,11 +169,33 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
             type="text"
             placeholder="Tìm kiếm..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
           />
         </div>
+        <button
+          onClick={handleExportExcel}
+          disabled={exportLoading}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+        >
+          <Download size={18} />
+          {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
+        </button>
       </div>
+
+      {/* Alert Messages */}
+      {exportError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <p className="text-red-800">{exportError}</p>
+        </div>
+      )}
+      {exportSuccess && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+          <CheckCircle className="w-5 h-5 text-green-600" />
+          <p className="text-green-800">{exportSuccess}</p>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -186,7 +227,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                 </td>
               </tr>
             ) : (
-              orders.map((order, index) => (
+              orders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((order, index) => (
                 <tr key={order.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm text-blue-600 font-medium">
                     {(currentPage - 1) * itemsPerPage + index + 1}
@@ -255,30 +296,46 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
         </table>
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white px-6 py-4 rounded-lg shadow-sm border border-gray-200">
-          <div className="text-sm text-gray-700">
-            Trang <span className="font-semibold">{currentPage}</span> / <span className="font-semibold">{totalPages}</span>
+      {(() => {
+        const totalItems = orders.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        return totalPages > 1 ? (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
           </div>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Trước
-            </button>
-            <button
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Sau
-            </button>
-          </div>
-        </div>
-      )}
+        ) : null;
+      })()}
 
       {/* View Modal */}
       {showViewModal && selectedOrder && (

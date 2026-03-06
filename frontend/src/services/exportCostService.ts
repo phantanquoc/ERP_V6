@@ -90,6 +90,31 @@ class ExportCostService {
   async deleteExportCost(id: string): Promise<void> {
     await axios.delete(`${API_URL}/${id}`, this.getAuthHeaders());
   }
+
+  async exportToExcel(): Promise<void> {
+    const token = localStorage.getItem('accessToken');
+    const url = `${API_URL}/export/excel`;
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to export to Excel');
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `chi-phi-xuat-khau-${Date.now()}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
 }
 
 export default new ExportCostService();

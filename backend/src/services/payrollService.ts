@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import ExcelJS from 'exceljs';
 
 export class PayrollService {
   async getPayrollByMonthYear(month: number, year: number): Promise<any[]> {
@@ -316,6 +317,75 @@ export class PayrollService {
     });
 
     return updated;
+  }
+
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+
+    if (filters?.search) {
+      where.employee = {
+        OR: [
+          { employeeCode: { contains: filters.search, mode: 'insensitive' } },
+          { user: { firstName: { contains: filters.search, mode: 'insensitive' } } },
+          { user: { lastName: { contains: filters.search, mode: 'insensitive' } } },
+        ],
+      };
+    }
+
+    const data = await prisma.payroll.findMany({
+      where,
+      include: {
+        employee: {
+          include: {
+            user: true,
+          },
+        },
+      },
+      orderBy: [
+        { year: 'desc' },
+        { month: 'desc' },
+      ],
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Bảng lương');
+
+    worksheet.columns = [
+      { header: 'Mã NV', key: 'employeeCode', width: 15 },
+      { header: 'Họ tên', key: 'fullName', width: 25 },
+      { header: 'Tháng', key: 'month', width: 10 },
+      { header: 'Năm', key: 'year', width: 10 },
+      { header: 'Lương cơ bản', key: 'baseSalary', width: 18 },
+      { header: 'Phụ cấp', key: 'allowances', width: 18 },
+      { header: 'Khấu trừ', key: 'deductions', width: 18 },
+      { header: 'Thực lĩnh', key: 'netSalary', width: 18 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((payroll) => {
+      const fullName = `${payroll.employee.user.lastName} ${payroll.employee.user.firstName}`;
+      const allowances = Number(payroll.kpiBonus) + Number(payroll.positionAllowance) + Number(payroll.otherAllowances);
+
+      worksheet.addRow({
+        employeeCode: payroll.employee.employeeCode,
+        fullName,
+        month: payroll.month,
+        year: payroll.year,
+        baseSalary: Number(payroll.baseSalary),
+        allowances,
+        deductions: Number(payroll.totalDeductions),
+        netSalary: Number(payroll.netSalary),
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

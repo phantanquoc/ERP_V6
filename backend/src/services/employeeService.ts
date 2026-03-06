@@ -1,7 +1,8 @@
 import prisma from '@config/database';
-import { NotFoundError } from '@utils/errors';
+import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
+import ExcelJS from 'exceljs';
 
 export class EmployeeService {
   /**
@@ -35,11 +36,22 @@ export class EmployeeService {
     // Format: NV001, NV002, etc.
     return `NV${String(sequence).padStart(3, '0')}`;
   }
-  async getAllEmployees(page: number = 1, limit: number = 10): Promise<PaginatedResponse<any>> {
+  async getAllEmployees(page: number = 1, limit: number = 10, departmentId?: string): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
+
+    // Nếu có departmentId thì filter theo department của user
+    const where = departmentId
+      ? {
+          OR: [
+            { user: { departmentId } },
+            { subDepartment: { departmentId } },
+          ],
+        }
+      : {};
 
     const [employees, total] = await Promise.all([
       prisma.employee.findMany({
+        where,
         skip,
         take: limit,
         include: {
@@ -62,7 +74,7 @@ export class EmployeeService {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.employee.count(),
+      prisma.employee.count({ where }),
     ]);
 
     // Transform to include department name
@@ -214,6 +226,11 @@ export class EmployeeService {
       throw new NotFoundError('Employee not found');
     }
 
+    // Validate positionId - if provided, must not be empty
+    if (data.positionId !== undefined && !data.positionId) {
+      throw new ValidationError('Chức vụ là bắt buộc');
+    }
+
     const updated = await prisma.employee.update({
       where: { id },
       data: {
@@ -267,6 +284,77 @@ export class EmployeeService {
     }
 
     await prisma.employee.delete({ where: { id } });
+  }
+
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+
+    if (filters?.search) {
+      where.OR = [
+        { employeeCode: { contains: filters.search, mode: 'insensitive' } },
+        { user: { firstName: { contains: filters.search, mode: 'insensitive' } } },
+        { user: { lastName: { contains: filters.search, mode: 'insensitive' } } },
+        { user: { email: { contains: filters.search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const data = await prisma.employee.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        position: true,
+        subDepartment: {
+          include: {
+            department: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách nhân viên');
+
+    worksheet.columns = [
+      { header: 'Mã NV', key: 'employeeCode', width: 15 },
+      { header: 'Họ tên', key: 'fullName', width: 25 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Chức vụ', key: 'position', width: 20 },
+      { header: 'Phòng ban', key: 'department', width: 25 },
+      { header: 'Ngày vào làm', key: 'hireDate', width: 18 },
+      { header: 'Trạng thái', key: 'status', width: 15 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((emp) => {
+      const fullName = `${emp.user.lastName} ${emp.user.firstName}`;
+      const departmentName = emp.subDepartment?.department?.name || '';
+
+      worksheet.addRow({
+        employeeCode: emp.employeeCode,
+        fullName,
+        email: emp.user.email,
+        position: emp.position?.name || '',
+        department: departmentName,
+        hireDate: emp.hireDate ? new Date(emp.hireDate).toLocaleDateString('vi-VN') : '',
+        status: emp.status === 'ACTIVE' ? 'Đang làm việc' : 'Nghỉ việc',
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

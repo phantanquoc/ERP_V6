@@ -8,6 +8,18 @@ interface RequestWithFile extends AuthenticatedRequest {
 }
 
 export class QualityEvaluationController {
+  async exportToExcel(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const buffer = await qualityEvaluationService.exportToExcel();
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-gia-chat-luong-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getAllQualityEvaluations(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;

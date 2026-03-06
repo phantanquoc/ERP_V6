@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import prisma from '@config/database';
 import type { AuthenticatedRequest } from '@types';
+import logger from '@config/logger';
 
 /**
  * RBAC + ABAC Middleware
@@ -45,35 +46,49 @@ export const checkAccess = (options: AccessControlOptions = {}) => {
 
       // Bước 2: ABAC - Kiểm tra department/subdepartment
       if (checkDepartment || checkSubDepartment) {
-        // Lấy thông tin user hiện tại (departmentId từ user)
-        const currentUser = await prisma.user.findUnique({
-          where: { id: req.user.id },
-          select: {
-            departmentId: true,
-          },
-        });
+        // Ưu tiên đọc từ JWT (không tốn DB query)
+        if (req.user.departmentId !== undefined) {
+          req.userDepartmentId = req.user.departmentId;
 
-        if (!currentUser) {
-          res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Không tìm thấy người dùng' });
-          return;
+          // subDepartmentId cần lấy từ employee nếu chưa có trong JWT
+          if (req.user.subDepartmentId !== undefined) {
+            req.userSubDepartmentId = req.user.subDepartmentId;
+          } else {
+            const emp = await prisma.employee.findUnique({
+              where: { userId: req.user.id },
+              select: { subDepartmentId: true },
+            });
+            if (!emp) {
+              res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Không tìm thấy nhân viên' });
+              return;
+            }
+            req.userSubDepartmentId = emp.subDepartmentId;
+          }
+        } else {
+          // Fallback: query song song nếu JWT cũ chưa có department
+          const [currentUser, currentUserEmployee] = await Promise.all([
+            prisma.user.findUnique({
+              where: { id: req.user.id },
+              select: { departmentId: true },
+            }),
+            prisma.employee.findUnique({
+              where: { userId: req.user.id },
+              select: { subDepartmentId: true },
+            }),
+          ]);
+
+          if (!currentUser) {
+            res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Không tìm thấy người dùng' });
+            return;
+          }
+          if (!currentUserEmployee) {
+            res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Không tìm thấy nhân viên' });
+            return;
+          }
+
+          req.userDepartmentId = currentUser.departmentId;
+          req.userSubDepartmentId = currentUserEmployee.subDepartmentId;
         }
-
-        // Lấy thông tin employee của user hiện tại (subDepartmentId từ employee)
-        const currentUserEmployee = await prisma.employee.findUnique({
-          where: { userId: req.user.id },
-          select: {
-            subDepartmentId: true,
-          },
-        });
-
-        if (!currentUserEmployee) {
-          res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Không tìm thấy nhân viên' });
-          return;
-        }
-
-        // Lưu thông tin vào request để sử dụng sau
-        req.userDepartmentId = currentUser.departmentId;
-        req.userSubDepartmentId = currentUserEmployee.subDepartmentId;
       }
 
       next();
@@ -97,64 +112,43 @@ export const canAccessEmployee = async (
   checkLevel: 'department' | 'subdepartment' = 'department'
 ): Promise<boolean> => {
   try {
-    // Lấy thông tin user hiện tại
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true },
-    });
+    // Gộp thành 1 query: lấy role, departmentId và subDepartmentId cùng lúc
+    const [currentUser, currentEmployee, targetEmployee] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true, departmentId: true },
+      }),
+      prisma.employee.findUnique({
+        where: { userId },
+        select: { subDepartmentId: true },
+      }),
+      prisma.employee.findUnique({
+        where: { id: targetEmployeeId },
+        select: {
+          subDepartmentId: true,
+          user: { select: { departmentId: true } },
+        },
+      }),
+    ]);
 
-    if (!currentUser) return false;
+    if (!currentUser || !targetEmployee) return false;
 
     // ADMIN có thể truy cập tất cả
     if (currentUser.role === 'ADMIN') return true;
 
-    // Lấy thông tin user hiện tại (departmentId từ user)
-    const currentUserData = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        departmentId: true,
-      },
-    });
+    if (!currentEmployee) return false;
 
-    if (!currentUserData) return false;
-
-    // Lấy thông tin employee của user hiện tại (subDepartmentId từ employee)
-    const currentUserEmployee = await prisma.employee.findUnique({
-      where: { userId },
-      select: {
-        subDepartmentId: true,
-      },
-    });
-
-    if (!currentUserEmployee) return false;
-
-    // Lấy thông tin employee cần truy cập
-    const targetEmployee = await prisma.employee.findUnique({
-      where: { id: targetEmployeeId },
-      include: {
-        user: {
-          select: {
-            departmentId: true,
-          },
-        },
-      },
-    });
-
-    if (!targetEmployee) return false;
-
-    // Kiểm tra department
     if (checkLevel === 'department') {
-      return currentUserData.departmentId === targetEmployee.user?.departmentId;
+      return currentUser.departmentId === targetEmployee.user?.departmentId;
     }
 
-    // Kiểm tra subdepartment
     if (checkLevel === 'subdepartment') {
-      return currentUserEmployee.subDepartmentId === targetEmployee.subDepartmentId;
+      return currentEmployee.subDepartmentId === targetEmployee.subDepartmentId;
     }
 
     return false;
   } catch (error) {
-    console.error('Error in canAccessEmployee:', error);
+    logger.error('Error in canAccessEmployee:', error);
     return false;
   }
 };
@@ -171,28 +165,19 @@ export const canAccessDepartment = async (
   departmentId: string
 ): Promise<boolean> => {
   try {
-    // Lấy thông tin user hiện tại
+    // Gộp thành 1 query: lấy role và departmentId cùng lúc
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true },
+      select: { role: true, departmentId: true },
     });
 
     if (!currentUser) return false;
 
-    // ADMIN có thể truy cập tất cả
     if (currentUser.role === 'ADMIN') return true;
 
-    // Lấy thông tin user hiện tại (departmentId từ user)
-    const currentUserData = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { departmentId: true },
-    });
-
-    if (!currentUserData) return false;
-
-    return currentUserData.departmentId === departmentId;
+    return currentUser.departmentId === departmentId;
   } catch (error) {
-    console.error('Error in canAccessDepartment:', error);
+    logger.error('Error in canAccessDepartment:', error);
     return false;
   }
 };
@@ -209,28 +194,27 @@ export const canAccessSubDepartment = async (
   subDepartmentId: string
 ): Promise<boolean> => {
   try {
-    // Lấy thông tin user hiện tại
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true },
-    });
+    // Gộp thành 1 query: lấy role và subDepartmentId qua employee
+    const [currentUser, currentEmployee] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      }),
+      prisma.employee.findUnique({
+        where: { userId },
+        select: { subDepartmentId: true },
+      }),
+    ]);
 
     if (!currentUser) return false;
 
-    // ADMIN có thể truy cập tất cả
     if (currentUser.role === 'ADMIN') return true;
 
-    // Lấy thông tin employee của user hiện tại
-    const currentUserEmployee = await prisma.employee.findUnique({
-      where: { userId },
-      select: { subDepartmentId: true },
-    });
+    if (!currentEmployee) return false;
 
-    if (!currentUserEmployee) return false;
-
-    return currentUserEmployee.subDepartmentId === subDepartmentId;
+    return currentEmployee.subDepartmentId === subDepartmentId;
   } catch (error) {
-    console.error('Error in canAccessSubDepartment:', error);
+    logger.error('Error in canAccessSubDepartment:', error);
     return false;
   }
 };

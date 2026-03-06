@@ -21,6 +21,11 @@ router.post('/generate-code',
   internationalCustomerController.generateCustomerCode
 );
 
+// Export to Excel
+router.get('/export/excel',
+  internationalCustomerController.exportToExcel
+);
+
 // Get customer by code
 router.get('/code/:code',
   internationalCustomerController.getCustomerByCode

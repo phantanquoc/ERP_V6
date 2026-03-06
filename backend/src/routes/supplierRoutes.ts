@@ -9,6 +9,9 @@ router.get('/', supplierController.getAllSuppliers);
 // GET /api/suppliers/generate-code - Generate next supplier code
 router.get('/generate-code', supplierController.generateCode);
 
+// GET /api/suppliers/export/excel - Export suppliers to Excel
+router.get('/export/excel', supplierController.exportToExcel);
+
 // GET /api/suppliers/:id - Get supplier by ID
 router.get('/:id', supplierController.getSupplierById);
 

@@ -10,6 +10,9 @@ router.use(authenticate);
 // GET /api/export-costs - Get all export costs
 router.get('/', exportCostController.getAllExportCosts);
 
+// GET /api/export-costs/export/excel - Export to Excel (must be before /:id)
+router.get('/export/excel', exportCostController.exportToExcel);
+
 // GET /api/export-costs/:id - Get export cost by ID
 router.get('/:id', exportCostController.getExportCostById);
 

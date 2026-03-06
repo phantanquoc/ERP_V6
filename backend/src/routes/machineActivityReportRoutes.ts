@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import ExcelJS from 'exceljs';
 
 const router = Router();
 
@@ -56,6 +57,54 @@ let nextId = 1;
 // GET all reports
 router.get('/', (_req: Request, res: Response) => {
   res.json(reports);
+});
+
+// Export to Excel
+router.get('/export/excel', async (_req: Request, res: Response) => {
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Báo cáo hoạt động máy');
+
+    worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
+      { header: 'Vị trí', key: 'viTri', width: 15 },
+      { header: 'Tên hệ thống/thiết bị', key: 'tenHeThong', width: 25 },
+      { header: 'Tổng số lượng', key: 'tongSoLuong', width: 15 },
+      { header: 'SL hoạt động', key: 'soLuongHoatDong', width: 15 },
+      { header: 'SL ngưng', key: 'soLuongNgung', width: 15 },
+      { header: 'Nguyên nhân', key: 'nguyenNhan', width: 30 },
+      { header: 'Người báo cáo', key: 'nguoiBaoCao', width: 20 },
+      { header: 'Ngày tạo', key: 'ngayTao', width: 15 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    reports.forEach((item, index) => {
+      worksheet.addRow({
+        stt: index + 1,
+        viTri: item.viTri,
+        tenHeThong: item.tenHeThong,
+        tongSoLuong: item.tongSoLuong,
+        soLuongHoatDong: item.soLuongHoatDong,
+        soLuongNgung: item.soLuongNgung,
+        nguyenNhan: item.nguyenNhan,
+        nguoiBaoCao: item.nguoiBaoCao,
+        ngayTao: item.ngayTao ? new Date(item.ngayTao).toLocaleDateString('vi-VN') : '',
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=bao-cao-hoat-dong-may-${Date.now()}.xlsx`);
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi xuất Excel', error: (error as Error).message });
+  }
 });
 
 // GET single report

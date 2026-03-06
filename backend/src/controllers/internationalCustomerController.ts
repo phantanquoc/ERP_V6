@@ -1,8 +1,25 @@
 import { Response, NextFunction } from 'express';
 import internationalCustomerService from '@services/internationalCustomerService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
+import logger from '@config/logger';
 
 export class InternationalCustomerController {
+  async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const filters: any = {};
+      if (req.query.search) filters.search = req.query.search as string;
+      if (req.query.phanLoaiDiaLy) filters.phanLoaiDiaLy = req.query.phanLoaiDiaLy as string;
+
+      const buffer = await internationalCustomerService.exportToExcel(filters);
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-khach-hang-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getAllCustomers(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
@@ -57,7 +74,7 @@ export class InternationalCustomerController {
 
   async createCustomer(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      console.log('Received customer data:', req.body);
+      logger.debug('Received customer data:', req.body);
       const customer = await internationalCustomerService.createCustomer(req.body);
 
       res.status(201).json({

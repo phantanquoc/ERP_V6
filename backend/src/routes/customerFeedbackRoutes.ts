@@ -38,6 +38,27 @@ router.get('/statistics/summary', authenticate, async (_req, res) => {
   }
 });
 
+// Export feedbacks to Excel (must be before /:id route)
+router.get('/export/excel', authenticate, async (req, res) => {
+  try {
+    const filters = {
+      trangThaiXuLy: req.query.trangThaiXuLy as string,
+      loaiPhanHoi: req.query.loaiPhanHoi as string,
+      mucDoNghiemTrong: req.query.mucDoNghiemTrong as string,
+      search: req.query.search as string,
+      customerType: req.query.customerType as string,
+    };
+
+    const buffer = await customerFeedbackService.exportToExcel(filters);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=danh-sach-phan-hoi-khach-hang-${Date.now()}.xlsx`);
+    res.send(buffer);
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Get feedback by ID
 router.get('/:id', authenticate, async (req, res) => {
   try {

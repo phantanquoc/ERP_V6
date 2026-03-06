@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@config/database';
+import logger from '@config/logger';
 
 // Generate unique receipt code
 export const generateReceiptCode = async (_req: Request, res: Response): Promise<void> => {
@@ -37,7 +36,7 @@ export const generateReceiptCode = async (_req: Request, res: Response): Promise
       data: { code },
     });
   } catch (error: any) {
-    console.error('Error generating receipt code:', error);
+    logger.error('Error generating receipt code:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi tạo mã phiếu nhập',
@@ -118,7 +117,7 @@ export const createWarehouseReceipt = async (req: Request, res: Response): Promi
       message: 'Tạo phiếu nhập kho thành công',
     });
   } catch (error: any) {
-    console.error('Error creating warehouse receipt:', error);
+    logger.error('Error creating warehouse receipt:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Lỗi khi tạo phiếu nhập kho',
@@ -140,7 +139,7 @@ export const getAllWarehouseReceipts = async (_req: Request, res: Response): Pro
       data: receipts,
     });
   } catch (error: any) {
-    console.error('Error fetching warehouse receipts:', error);
+    logger.error('Error fetching warehouse receipts:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi tải danh sách phiếu nhập kho',

@@ -123,6 +123,23 @@ export class InternationalProductController {
       next(error);
     }
   }
+
+  async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const filters: any = {};
+      if (req.query.search) {
+        filters.search = req.query.search as string;
+      }
+
+      const buffer = await internationalProductService.exportToExcel(filters);
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=san-pham-quoc-te-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new InternationalProductController();

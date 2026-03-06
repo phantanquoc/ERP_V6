@@ -40,6 +40,7 @@ const upload = multer({
 
 // Routes - All routes require authentication
 router.get('/', authenticate, repairRequestController.getAllRepairRequests);
+router.get('/export/excel', authenticate, repairRequestController.exportToExcel);
 router.get('/generate-code', authenticate, repairRequestController.generateCode);
 router.get('/:id', authenticate, repairRequestController.getRepairRequestById);
 router.post('/', authenticate, upload.single('file'), repairRequestController.createRepairRequest);

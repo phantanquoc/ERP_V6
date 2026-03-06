@@ -1,4 +1,5 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
@@ -344,7 +345,7 @@ export class LeaveRequestService {
       },
     });
 
-    console.log('📊 Found leave requests:', data.length);
+    logger.debug('📊 Found leave requests:', data.length);
 
     // Create workbook and worksheet
     const workbook = new ExcelJS.Workbook();

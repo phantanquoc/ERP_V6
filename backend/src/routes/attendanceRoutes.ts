@@ -7,6 +7,9 @@ const router = Router();
 // Get attendance by date range
 router.get('/date-range', authenticate, (req, res) => attendanceController.getAttendanceByDateRange(req, res));
 
+// Export to Excel
+router.get('/export/excel', authenticate, (req, res, next) => attendanceController.exportToExcel(req, res, next));
+
 // Get employee attendance
 router.get('/employee/:employeeId', authenticate, (req, res) => attendanceController.getEmployeeAttendance(req, res));
 

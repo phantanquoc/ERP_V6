@@ -42,6 +42,7 @@ services:
       API_URL: ${API_URL:-https://erp.yourdomain.com/api}
     volumes:
       - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,6 +90,8 @@ volumes:
   postgres_data:
     driver: local
   backend_uploads:
+    driver: local
+  backend_logs:
     driver: local
   nginx_logs:
     driver: local

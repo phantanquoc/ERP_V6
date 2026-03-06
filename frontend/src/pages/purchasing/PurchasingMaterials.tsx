@@ -403,13 +403,29 @@ const PurchasingMaterials = () => {
                     Tìm kiếm
                   </button>
                 </div>
-                <button
-                  onClick={openAddSupplierModal}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                >
-                  <Plus className="h-4 w-4" />
-                  Thêm nhà cung cấp
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await supplierService.exportToExcel({ search: supplierSearch || undefined });
+                      } catch (error) {
+                        console.error('Error exporting to Excel:', error);
+                        alert('Lỗi khi xuất Excel');
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    <Download className="h-4 w-4" />
+                    Xuất Excel
+                  </button>
+                  <button
+                    onClick={openAddSupplierModal}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Thêm nhà cung cấp
+                  </button>
+                </div>
               </div>
 
               {/* Table */}
@@ -571,7 +587,17 @@ const PurchasingMaterials = () => {
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await purchaseRequestService.exportToExcel({ search: purchaseRequestSearch || undefined });
+                      } catch (error) {
+                        console.error('Error exporting to Excel:', error);
+                        alert('Lỗi khi xuất Excel');
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
                     <Download className="h-4 w-4" />
                     Xuất Excel
                   </button>

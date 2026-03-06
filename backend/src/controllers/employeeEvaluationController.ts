@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import employeeEvaluationService from '@services/employeeEvaluationService';
 import type { AuthenticatedRequest } from '@types';
+import logger from '@config/logger';
 
 export class EmployeeEvaluationController {
   async getEmployeeEvaluations(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -26,7 +27,7 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      console.error('Error fetching evaluations:', error);
+      logger.error('Error fetching evaluations:', error);
       res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error fetching evaluations',
@@ -48,7 +49,7 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      console.error('Error fetching evaluation details:', error);
+      logger.error('Error fetching evaluation details:', error);
       const statusCode = error instanceof Error && error.message.includes('not found') ? 404
         : error instanceof Error && error.message.includes('Access denied') ? 403
         : 500;
@@ -84,7 +85,7 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      console.error('Error creating/updating evaluation:', error);
+      logger.error('Error creating/updating evaluation:', error);
       res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error creating/updating evaluation',
@@ -111,7 +112,7 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      console.error('Error updating evaluation detail:', error);
+      logger.error('Error updating evaluation detail:', error);
       const statusCode = error instanceof Error && error.message.includes('not found') ? 404
         : error instanceof Error && error.message.includes('Access denied') ? 403
         : 400;
@@ -136,7 +137,7 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      console.error('Error fetching evaluation history:', error);
+      logger.error('Error fetching evaluation history:', error);
       const statusCode = error instanceof Error && error.message.includes('not found') ? 404
         : error instanceof Error && error.message.includes('Access denied') ? 403
         : 500;
@@ -160,7 +161,7 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      console.error('Error finalizing evaluation:', error);
+      logger.error('Error finalizing evaluation:', error);
       res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error finalizing evaluation',
@@ -186,7 +187,7 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      console.error('Error fetching subordinates:', error);
+      logger.error('Error fetching subordinates:', error);
       res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error fetching subordinates',

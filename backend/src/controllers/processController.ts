@@ -3,6 +3,18 @@ import processService from '@services/processService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 
 export class ProcessController {
+  async exportToExcel(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const buffer = await processService.exportToExcel();
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-quy-trinh-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getAllProcesses(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;

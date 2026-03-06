@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import repairRequestService from '@services/repairRequestService';
 
 class RepairRequestController {
@@ -119,6 +119,19 @@ class RepairRequestController {
         success: false,
         message: error.message || 'Lỗi khi xóa yêu cầu sửa chữa',
       });
+    }
+  }
+
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: any = {};
+      if (req.query.search) filters.search = req.query.search as string;
+      const buffer = await repairRequestService.exportToExcel(filters);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-yeu-cau-sua-chua-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
     }
   }
 

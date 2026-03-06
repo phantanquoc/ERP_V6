@@ -1,4 +1,5 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { NotFoundError, AuthenticationError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages, hashPassword, comparePassword } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
@@ -403,12 +404,12 @@ export class UserService {
             },
           });
 
-          console.log(`✅ Auto-created employee ${employeeCode} for user ${newUser.email} (role: ${data.role})`);
+          logger.info(`✅ Auto-created employee ${employeeCode} for user ${newUser.email} (role: ${data.role})`);
         } else {
-          console.warn('⚠️ No default position found, skipping employee creation');
+          logger.warn('⚠️ No default position found, skipping employee creation');
         }
       } catch (employeeError) {
-        console.warn('⚠️ Failed to auto-create employee:', employeeError);
+        logger.warn('⚠️ Failed to auto-create employee:', employeeError);
         // Don't fail the transaction if employee creation fails
         // User will be created, employee can be created manually later
       }
@@ -511,7 +512,7 @@ export class UserService {
         updatedCount,
       };
     } catch (error) {
-      console.error('Error recalculating supervisors:', error);
+      logger.error('Error recalculating supervisors:', error);
       throw error;
     }
   }
@@ -753,7 +754,7 @@ export async function calculateSupervisors(
     }
     // ADMIN has no supervisor2
   } catch (error) {
-    console.error('Error calculating supervisors:', error);
+    logger.error('Error calculating supervisors:', error);
   }
 
   return { supervisor1Id, supervisor2Id };

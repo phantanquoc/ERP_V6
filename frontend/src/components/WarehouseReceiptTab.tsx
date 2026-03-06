@@ -14,6 +14,8 @@ const WarehouseReceiptTab: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<WarehouseReceipt | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const handleViewDetail = (receipt: WarehouseReceipt) => {
     setSelectedReceipt(receipt);
@@ -143,6 +145,9 @@ const WarehouseReceiptTab: React.FC = () => {
     }
   };
 
+  const totalPages = Math.ceil(receipts.length / itemsPerPage);
+  const paginatedReceipts = receipts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -179,7 +184,7 @@ const WarehouseReceiptTab: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              receipts.map((receipt) => (
+              paginatedReceipts.map((receipt) => (
                 <tr key={receipt.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {receipt.maPhieuNhap}
@@ -217,6 +222,45 @@ const WarehouseReceiptTab: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, receipts.length)} / {receipts.length} mục
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+              .map((page, idx, arr) => (
+                <React.Fragment key={page}>
+                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-sm rounded-md ${
+                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Detail Modal */}
       {showDetailModal && selectedReceipt && (

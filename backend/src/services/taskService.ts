@@ -1,4 +1,5 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { CreateTaskRequest, UpdateTaskRequest, TaskListQuery, TaskPriority } from '@types';
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import { Task } from '@prisma/client';
@@ -38,7 +39,7 @@ class TaskService {
         })),
       };
     } catch (error) {
-      console.error('❌ Error populating task with users:', error);
+      logger.error('❌ Error populating task with users:', error);
       // Return task with minimal info if population fails
       return {
         ...task,
@@ -59,23 +60,23 @@ class TaskService {
     }
 
     // Validate người nhận exists (data.nguoiNhan contains employee IDs)
-    console.log('🔍 Received nguoiNhan IDs:', data.nguoiNhan);
+    logger.debug('🔍 Received nguoiNhan IDs:', data.nguoiNhan);
 
     const nguoiNhanEmployees = await prisma.employee.findMany({
       where: { id: { in: data.nguoiNhan } },
       select: { id: true, userId: true },
     });
 
-    console.log('✅ Found employees:', nguoiNhanEmployees);
+    logger.debug('✅ Found employees:', nguoiNhanEmployees);
 
     if (nguoiNhanEmployees.length !== data.nguoiNhan.length) {
-      console.log(`❌ Mismatch: Expected ${data.nguoiNhan.length}, found ${nguoiNhanEmployees.length}`);
+      logger.debug(`❌ Mismatch: Expected ${data.nguoiNhan.length}, found ${nguoiNhanEmployees.length}`);
       throw new NotFoundError('Một hoặc nhiều người nhận nhiệm vụ không tồn tại');
     }
 
     // Extract user IDs from employees
     const nguoiNhanUserIds = nguoiNhanEmployees.map(emp => emp.userId);
-    console.log('👥 Extracted user IDs:', nguoiNhanUserIds);
+    logger.debug('👥 Extracted user IDs:', nguoiNhanUserIds);
 
     // Validate thời hạn hoàn thành
     const thoiHan = new Date(data.thoiHanHoanThanh);
@@ -110,9 +111,9 @@ class TaskService {
         assignerName
       );
 
-      console.log(`✅ Sent notifications to ${nguoiNhanEmployeeIds.length} recipients`);
+      logger.info(`✅ Sent notifications to ${nguoiNhanEmployeeIds.length} recipients`);
     } catch (error) {
-      console.error('❌ Error sending task notifications:', error);
+      logger.error('❌ Error sending task notifications:', error);
       // Don't fail the task creation if notification fails
     }
 

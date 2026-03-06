@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, Edit2, Save, X } from 'lucide-react';
+import { Eye, Edit2, Save, X, Download } from 'lucide-react';
 import payrollService, { PayrollItem, PayrollDetail } from '@services/payrollService';
 import evaluationService from '@services/employeeEvaluationService';
 import { usePayrollByMonthYear, payrollKeys } from '../hooks';
@@ -9,6 +9,8 @@ const PayrollManagement: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollDetail | null>(null);
   const [editingPayroll, setEditingPayroll] = useState<PayrollDetail | null>(null);
@@ -168,6 +170,10 @@ const PayrollManagement: React.FC = () => {
       item.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalItems = filteredPayrolls.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedPayrolls = filteredPayrolls.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
@@ -213,7 +219,7 @@ const PayrollManagement: React.FC = () => {
             type="text"
             placeholder="Mã NV hoặc Tên NV"
             value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
+            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="w-full px-3 py-2 border border-gray-300 rounded-md"
           />
         </div>
@@ -225,6 +231,22 @@ const PayrollManagement: React.FC = () => {
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
           >
             {loading ? 'Đang tải...' : 'Tải lại'}
+          </button>
+        </div>
+        <div className="flex items-end">
+          <button
+            onClick={async () => {
+              try {
+                await payrollService.exportToExcel({ search: searchTerm || undefined });
+              } catch (err) {
+                console.error('Error exporting to Excel:', err);
+                alert('Không thể xuất file Excel');
+              }
+            }}
+            className="w-full flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+          >
+            <Download size={18} />
+            Xuất Excel
           </button>
         </div>
       </div>
@@ -248,14 +270,14 @@ const PayrollManagement: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredPayrolls.map((payroll, index) => (
+              {paginatedPayrolls.map((payroll, index) => (
                 <tr
                   key={payroll.employeeId}
                   className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
                     index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                   }`}
                 >
-                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{index + 1}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                     {payroll.employeeCode}
                   </td>
@@ -297,6 +319,45 @@ const PayrollManagement: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+              .map((page, idx, arr) => (
+                <React.Fragment key={page}>
+                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-sm rounded-md ${
+                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Detail Modal */}
       {showDetailModal && editingPayroll && (

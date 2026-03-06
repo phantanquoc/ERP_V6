@@ -1796,6 +1796,35 @@ enum TaskPriority {
   @@schema("common")
 }
 
+// ==================== WORK PLAN (Kế hoạch công việc) ====================
+model WorkPlan {
+  id                 String           @id @default(cuid())
+  tieuDe             String           // Tiêu đề kế hoạch
+  noiDung            String           @db.Text // Nội dung chi tiết
+  nguoiTaoId         String           // User ID người tạo
+  nguoiThucHienIds   String[]         // Array of employee IDs
+  ngayBatDau         DateTime         // Ngày bắt đầu
+  ngayKetThuc        DateTime         // Ngày kết thúc
+  mucDoUuTien        TaskPriority     // Reuse TaskPriority enum
+  trangThai          WorkPlanStatus   @default(CHUA_BAT_DAU)
+  ghiChu             String?          @db.Text
+  files              String[]         @default([])
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@map("work_plans")
+  @@schema("common")
+}
+
+enum WorkPlanStatus {
+  CHUA_BAT_DAU
+  DANG_THUC_HIEN
+  HOAN_THANH
+  HUY
+
+  @@schema("common")
+}
+
 // ==================== PRIVATE FEEDBACK ====================
 model PrivateFeedback {
   id        String   @id @default(cuid())

@@ -2,6 +2,8 @@ export interface JwtPayload {
   id: string;
   email: string;
   role: string;
+  departmentId?: string | null;
+  subDepartmentId?: string | null;
 }
 
 export interface AuthRequest {

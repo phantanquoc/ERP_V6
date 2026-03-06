@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import employeeEvaluationService, { EvaluationDetailsResponse } from '@services/employeeEvaluationService';
 
@@ -28,6 +28,8 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
   const [subordinates, setSubordinates] = useState<Subordinate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     loadSubordinates();
@@ -38,6 +40,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
       setLoading(true);
       const data = await employeeEvaluationService.getSubordinatesForEvaluation(month, year);
       setSubordinates(data || []);
+      setCurrentPage(1);
       setError('');
     } catch (err) {
       setError('Lỗi tải danh sách nhân viên cấp dưới');
@@ -89,7 +92,12 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
     return <div className="p-8 text-center text-gray-500">Không có nhân viên cấp dưới</div>;
   }
 
+  const totalItems = subordinates.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedSubordinates = subordinates.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
+    <div>
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead className="bg-gray-50 border-b">
@@ -105,7 +113,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
           </tr>
         </thead>
         <tbody>
-          {subordinates.map(subordinate => (
+          {paginatedSubordinates.map(subordinate => (
             <tr key={subordinate.employeeId} className="border-b hover:bg-gray-50">
               <td className="px-6 py-4 text-sm text-gray-900">{subordinate.employeeCode}</td>
               <td className="px-6 py-4 text-sm text-gray-900">{subordinate.employeeName}</td>
@@ -127,6 +135,46 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
           ))}
         </tbody>
       </table>
+    </div>
+
+    {totalPages > 1 && (
+      <div className="flex items-center justify-between mt-4 px-2">
+        <span className="text-sm text-gray-600">
+          Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Trước
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+            .map((page, idx, arr) => (
+              <React.Fragment key={page}>
+                {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                <button
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1.5 text-sm rounded-md ${
+                    page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              </React.Fragment>
+            ))}
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Sau
+          </button>
+        </div>
+      </div>
+    )}
     </div>
   );
 };

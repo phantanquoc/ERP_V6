@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Eye, Search, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, Search, X, Download } from 'lucide-react';
 import internalInspectionService from '@services/internalInspectionService';
 import type { InternalInspection } from '@services/internalInspectionService';
 
@@ -7,6 +7,8 @@ const InternalInspectionManagement = () => {
   const [inspections, setInspections] = useState<InternalInspection[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showModal, setShowModal] = useState(false);
@@ -47,6 +49,7 @@ const InternalInspectionManagement = () => {
   };
 
   const handleSearch = async () => {
+    setCurrentPage(1);
     if (!searchTerm.trim()) {
       loadInspections();
       return;
@@ -136,6 +139,26 @@ const InternalInspectionManagement = () => {
     }
   };
 
+  const filteredInspections = inspections.filter(ins =>
+    ins.inspectionCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    ins.violationCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    ins.inspectedBy?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleExportExcel = async () => {
+    try {
+      await internalInspectionService.exportToExcel();
+      alert('Đã xuất file Excel thành công');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Không thể xuất file Excel');
+    }
+  };
+
+  const totalItems = filteredInspections.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedInspections = filteredInspections.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -175,7 +198,7 @@ const InternalInspectionManagement = () => {
               type="text"
               placeholder="Mã kiểm tra, mã vi phạm..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               className="flex-1 border rounded px-3 py-2"
             />
             <button
@@ -188,8 +211,15 @@ const InternalInspectionManagement = () => {
           </div>
         </div>
         <button
-          onClick={handleAdd}
+          onClick={handleExportExcel}
           className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2"
+        >
+          <Download size={18} />
+          Xuất Excel
+        </button>
+        <button
+          onClick={handleAdd}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
         >
           <Plus size={18} />
           Thêm mới
@@ -226,7 +256,7 @@ const InternalInspectionManagement = () => {
                 </td>
               </tr>
             ) : (
-              inspections.map((inspection) => (
+              paginatedInspections.map((inspection) => (
                 <tr key={inspection.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-2">{inspection.stt}</td>
                   <td className="px-4 py-2">{inspection.inspectionCode}</td>
@@ -268,6 +298,45 @@ const InternalInspectionManagement = () => {
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+              .map((page, idx, arr) => (
+                <React.Fragment key={page}>
+                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-sm rounded-md ${
+                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (

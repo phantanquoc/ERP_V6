@@ -1080,6 +1080,70 @@ async function main(): Promise<void> {
 
   console.log('✅ Attendance data created');
 
+  // ─── International Products ───────────────────────────────────────────────
+  console.log('\n📦 Creating international products...');
+  const internationalProducts = [
+    { maSanPham: 'SP-001', tenSanPham: 'Khoai tây chiên đông lạnh', moTaSanPham: 'Khoai tây cắt lát, chiên sơ và đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-002', tenSanPham: 'Cà rốt xay nhuyễn', moTaSanPham: 'Cà rốt tươi xay nhuyễn, đóng gói hút chân không', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
+    { maSanPham: 'SP-003', tenSanPham: 'Bắp ngô ngọt đông lạnh', moTaSanPham: 'Hạt bắp ngô ngọt tách hạt, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-004', tenSanPham: 'Đậu Hà Lan đông lạnh', moTaSanPham: 'Đậu Hà Lan tươi, đông lạnh nhanh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-005', tenSanPham: 'Ớt chuông đỏ cắt lát', moTaSanPham: 'Ớt chuông đỏ cắt lát mỏng, đông lạnh', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-006', tenSanPham: 'Cải bó xôi xay nhuyễn', moTaSanPham: 'Cải bó xôi tươi xay nhuyễn, đóng túi 1kg', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
+    { maSanPham: 'SP-007', tenSanPham: 'Bông cải xanh đông lạnh', moTaSanPham: 'Bông cải xanh cắt bông, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-008', tenSanPham: 'Cà chua bi đông lạnh', moTaSanPham: 'Cà chua bi nguyên quả, đông lạnh', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-009', tenSanPham: 'Hành tây cắt hạt lựu', moTaSanPham: 'Hành tây cắt hạt lựu 1cm, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-010', tenSanPham: 'Tỏi băm đông lạnh', moTaSanPham: 'Tỏi tươi băm nhỏ, đông lạnh, đóng gói 500g', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-011', tenSanPham: 'Gừng xay nhuyễn', moTaSanPham: 'Gừng tươi xay nhuyễn, đóng hũ 200g', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
+    { maSanPham: 'SP-012', tenSanPham: 'Khoai lang đông lạnh', moTaSanPham: 'Khoai lang cắt khối vuông, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-013', tenSanPham: 'Bí đỏ xay nhuyễn', moTaSanPham: 'Bí đỏ hấp chín và xay nhuyễn, đóng túi 1kg', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
+    { maSanPham: 'SP-014', tenSanPham: 'Đậu bắp cắt khúc đông lạnh', moTaSanPham: 'Đậu bắp tươi cắt khúc 2cm, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-015', tenSanPham: 'Nấm rơm đông lạnh', moTaSanPham: 'Nấm rơm nguyên tai, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-016', tenSanPham: 'Nấm hương sấy khô', moTaSanPham: 'Nấm hương sấy khô nguyên tai, đóng gói 200g', loaiSanPham: 'Sấy khô', donViTinh: 'kg' },
+    { maSanPham: 'SP-017', tenSanPham: 'Măng tây đông lạnh', moTaSanPham: 'Măng tây xanh cắt khúc 5cm, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-018', tenSanPham: 'Cần tây cắt nhỏ đông lạnh', moTaSanPham: 'Cần tây cắt nhỏ 1cm, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-019', tenSanPham: 'Dứa cắt miếng đông lạnh', moTaSanPham: 'Dứa tươi cắt miếng tam giác, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-020', tenSanPham: 'Xoài cắt miếng đông lạnh', moTaSanPham: 'Xoài chín cắt miếng, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-021', tenSanPham: 'Thanh long ruột đỏ đông lạnh', moTaSanPham: 'Thanh long ruột đỏ cắt khối, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-022', tenSanPham: 'Chanh dây xay nhuyễn', moTaSanPham: 'Chanh dây tươi xay nhuyễn, lọc hạt, đóng túi 1kg', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
+    { maSanPham: 'SP-023', tenSanPham: 'Chuối xay nhuyễn đông lạnh', moTaSanPham: 'Chuối chín xay nhuyễn, đông lạnh, đóng túi 1kg', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
+    { maSanPham: 'SP-024', tenSanPham: 'Ổi xay nhuyễn', moTaSanPham: 'Ổi tươi xay nhuyễn, lọc hạt, đóng túi 1kg', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
+    { maSanPham: 'SP-025', tenSanPham: 'Mãng cầu xay nhuyễn', moTaSanPham: 'Mãng cầu xiêm xay nhuyễn, đóng túi 500g', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
+    { maSanPham: 'SP-026', tenSanPham: 'Sầu riêng đông lạnh', moTaSanPham: 'Múi sầu riêng Monthong đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-027', tenSanPham: 'Vải thiều đông lạnh', moTaSanPham: 'Vải thiều bóc vỏ, bỏ hạt, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-028', tenSanPham: 'Nhãn đông lạnh', moTaSanPham: 'Nhãn bóc vỏ, bỏ hạt, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-029', tenSanPham: 'Chôm chôm đông lạnh', moTaSanPham: 'Chôm chôm bóc vỏ, bỏ hạt, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-030', tenSanPham: 'Bơ xay nhuyễn đông lạnh', moTaSanPham: 'Bơ chín xay nhuyễn, đông lạnh, đóng túi 500g', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
+    { maSanPham: 'SP-031', tenSanPham: 'Tôm thẻ đông lạnh', moTaSanPham: 'Tôm thẻ chân trắng bóc vỏ, bỏ đầu, đông lạnh IQF', loaiSanPham: 'Hải sản đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-032', tenSanPham: 'Mực ống đông lạnh', moTaSanPham: 'Mực ống làm sạch, cắt khoanh, đông lạnh IQF', loaiSanPham: 'Hải sản đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-033', tenSanPham: 'Cá tra phi lê đông lạnh', moTaSanPham: 'Cá tra phi lê, cắt miếng, đông lạnh IQF', loaiSanPham: 'Hải sản đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-034', tenSanPham: 'Cua thịt đông lạnh', moTaSanPham: 'Thịt cua tách sẵn, đông lạnh, đóng hộp 500g', loaiSanPham: 'Hải sản đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-035', tenSanPham: 'Nghêu luộc đông lạnh', moTaSanPham: 'Nghêu luộc chín, tách vỏ, đông lạnh IQF', loaiSanPham: 'Hải sản đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-036', tenSanPham: 'Thịt heo xay đông lạnh', moTaSanPham: 'Thịt heo nạc xay, đông lạnh, đóng gói 500g', loaiSanPham: 'Thịt đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-037', tenSanPham: 'Thịt gà phi lê đông lạnh', moTaSanPham: 'Ức gà phi lê, đông lạnh IQF, đóng gói 1kg', loaiSanPham: 'Thịt đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-038', tenSanPham: 'Thịt bò xay đông lạnh', moTaSanPham: 'Thịt bò nạc xay, đông lạnh, đóng gói 500g', loaiSanPham: 'Thịt đông lạnh', donViTinh: 'kg' },
+    { maSanPham: 'SP-039', tenSanPham: 'Lạp xưởng tươi', moTaSanPham: 'Lạp xưởng tươi truyền thống, đóng gói 500g', loaiSanPham: 'Chế biến', donViTinh: 'kg' },
+    { maSanPham: 'SP-040', tenSanPham: 'Chả giò đông lạnh', moTaSanPham: 'Chả giò nhân thịt heo và rau củ, đông lạnh', loaiSanPham: 'Chế biến', donViTinh: 'thùng' },
+    { maSanPham: 'SP-041', tenSanPham: 'Bánh mì đông lạnh', moTaSanPham: 'Bánh mì baguette nướng sơ, đông lạnh, đóng túi 5 cái', loaiSanPham: 'Chế biến', donViTinh: 'thùng' },
+    { maSanPham: 'SP-042', tenSanPham: 'Nước cốt dừa đóng hộp', moTaSanPham: 'Nước cốt dừa tươi nguyên chất, đóng hộp 400ml', loaiSanPham: 'Đồ hộp', donViTinh: 'thùng' },
+    { maSanPham: 'SP-043', tenSanPham: 'Cà chua nghiền đóng hộp', moTaSanPham: 'Cà chua chín nghiền, đóng hộp 400g', loaiSanPham: 'Đồ hộp', donViTinh: 'thùng' },
+    { maSanPham: 'SP-044', tenSanPham: 'Đậu đỏ đóng hộp', moTaSanPham: 'Đậu đỏ luộc chín, đóng hộp 400g', loaiSanPham: 'Đồ hộp', donViTinh: 'thùng' },
+    { maSanPham: 'SP-045', tenSanPham: 'Ngô ngọt đóng hộp', moTaSanPham: 'Hạt ngô ngọt luộc chín, đóng hộp 340g', loaiSanPham: 'Đồ hộp', donViTinh: 'thùng' },
+    { maSanPham: 'SP-046', tenSanPham: 'Gạo Jasmine xuất khẩu', moTaSanPham: 'Gạo Jasmine thơm, hạt dài, đóng bao 25kg', loaiSanPham: 'Ngũ cốc', donViTinh: 'tấn' },
+    { maSanPham: 'SP-047', tenSanPham: 'Gạo ST25 xuất khẩu', moTaSanPham: 'Gạo ST25 ngon nhất thế giới, đóng bao 5kg', loaiSanPham: 'Ngũ cốc', donViTinh: 'tấn' },
+    { maSanPham: 'SP-048', tenSanPham: 'Hạt điều rang muối', moTaSanPham: 'Hạt điều W240 rang muối, đóng gói 500g', loaiSanPham: 'Hạt khô', donViTinh: 'kg' },
+    { maSanPham: 'SP-049', tenSanPham: 'Hạt tiêu đen xuất khẩu', moTaSanPham: 'Hạt tiêu đen Phú Quốc, đóng gói 1kg', loaiSanPham: 'Gia vị', donViTinh: 'kg' },
+    { maSanPham: 'SP-050', tenSanPham: 'Cà phê Robusta xuất khẩu', moTaSanPham: 'Cà phê Robusta Tây Nguyên rang xay, đóng gói 500g', loaiSanPham: 'Đồ uống', donViTinh: 'kg' },
+  ];
+
+  for (const product of internationalProducts) {
+    await prisma.internationalProduct.upsert({
+      where: { maSanPham: product.maSanPham },
+      update: {},
+      create: product,
+    });
+  }
+  console.log(`✅ Created ${internationalProducts.length} international products`);
+
   console.log('✨ Database seeding completed!');
 }
 

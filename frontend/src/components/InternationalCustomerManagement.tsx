@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, MapPin, X } from 'lucide-react';
+import DatePicker from './DatePicker';
+import { Plus, Search, Edit, Trash2, Eye, MapPin, X, Download } from 'lucide-react';
 import internationalCustomerService, {
   InternationalCustomer,
   CreateInternationalCustomerRequest,
@@ -14,7 +15,8 @@ const InternationalCustomerManagement: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<InternationalCustomer | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<InternationalCustomer | null>(null);
-  const [page, setPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [formData, setFormData] = useState<CreateInternationalCustomerRequest>({
     tenCongTy: '',
     nguoiLienHe: '',
@@ -24,13 +26,11 @@ const InternationalCustomerManagement: React.FC = () => {
 
   const queryClient = useQueryClient();
   const { data: customersData, isLoading: loading } = useCustomers({
-    page,
-    limit: 10,
+    limit: 1000,
     search: searchTerm,
     customerType: 'Quốc tế',
   });
   const customers = customersData?.data || [];
-  const totalPages = customersData?.totalPages || 1;
 
   const handleCreate = async () => {
     try {
@@ -121,7 +121,17 @@ const InternationalCustomerManagement: React.FC = () => {
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
-    setPage(1);
+    setCurrentPage(1);
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      await internationalCustomerService.exportToExcel({ search: searchTerm, phanLoaiDiaLy: 'Quốc tế' });
+      alert('Đã xuất file Excel thành công');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Không thể xuất file Excel');
+    }
   };
 
   return (
@@ -138,13 +148,22 @@ const InternationalCustomerManagement: React.FC = () => {
             className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-        <button
-          onClick={openCreateModal}
-          className="ml-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Thêm khách hàng
-        </button>
+        <div className="flex items-center gap-2 ml-4">
+          <button
+            onClick={handleExportExcel}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+          >
+            <Download className="w-5 h-5" />
+            Xuất Excel
+          </button>
+          <button
+            onClick={openCreateModal}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Thêm khách hàng
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -177,7 +196,7 @@ const InternationalCustomerManagement: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                customers.map((customer, index) => (
+                customers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((customer, index) => (
                   <tr
                     key={customer.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -250,27 +269,46 @@ const InternationalCustomerManagement: React.FC = () => {
       </div>
 
       {/* Pagination */}
-      <div className="mt-4 flex justify-between items-center">
-        <div className="text-sm text-gray-600">
-          Trang {page} / {totalPages}
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Trước
-          </button>
-          <button
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Sau
-          </button>
-        </div>
-      </div>
+      {(() => {
+        const totalItems = customers.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        return totalPages > 1 ? (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Create/Edit Modal */}
       {showModal && (
@@ -434,15 +472,12 @@ const InternationalCustomerManagement: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Ngày hợp tác
-                    </label>
-                    <input
-                      type="date"
-                      name="ngayHopTac"
+                    <DatePicker
+                      label="Ngày hợp tác"
                       value={formData.ngayHopTac || ''}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      onChange={(date) => setFormData(prev => ({ ...prev, ngayHopTac: date }))}
+                      placeholder="Chọn ngày hợp tác"
+                      allowClear
                     />
                   </div>
                 </div>

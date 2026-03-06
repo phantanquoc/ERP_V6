@@ -10,6 +10,9 @@ router.use(authenticate);
 // GET /api/general-costs - Get all general costs
 router.get('/', generalCostController.getAllGeneralCosts);
 
+// GET /api/general-costs/export/excel - Export to Excel (must be before /:id)
+router.get('/export/excel', generalCostController.exportToExcel);
+
 // GET /api/general-costs/:id - Get general cost by ID
 router.get('/:id', generalCostController.getGeneralCostById);
 

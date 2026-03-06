@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
 import quotationCalculatorService from '../services/quotationCalculatorService';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@config/database';
+import logger from '@config/logger';
 
 // Get calculator by quotation request ID
 export const getCalculatorByQuotationRequestId = async (req: Request, res: Response) => {
@@ -17,7 +16,7 @@ export const getCalculatorByQuotationRequestId = async (req: Request, res: Respo
       data: calculator, // Will be null if not found
     });
   } catch (error: any) {
-    console.error('Error getting calculator:', error);
+    logger.error('Error getting calculator:', error);
     return res.status(500).json({
       success: false,
       message: error.message || 'Lỗi khi lấy bảng tính chi phí',
@@ -31,11 +30,11 @@ export const upsertCalculator = async (req: Request, res: Response) => {
     const data = req.body;
 
     // Debug log để kiểm tra dữ liệu nhận được
-    console.log('💾 [Backend] Received upsertCalculator request');
-    console.log('💾 [Backend] Products count:', data.products?.length);
+    logger.debug('Received upsertCalculator request');
+    logger.debug('Products count:', data.products?.length);
     if (data.products && data.products.length > 0) {
       data.products.forEach((p: any, i: number) => {
-        console.log(`💾 [Backend] Product ${i} thực tế fields:`, {
+        logger.debug(`Product ${i} thực tế fields:`, {
           tongKhoiLuongThanhPhamThucTe: p.tongKhoiLuongThanhPhamThucTe,
           thanhPhamTonKhoThucTe: p.thanhPhamTonKhoThucTe,
           tongThanhPhamCanSxThemThucTe: p.tongThanhPhamCanSxThemThucTe,
@@ -53,7 +52,7 @@ export const upsertCalculator = async (req: Request, res: Response) => {
       message: 'Lưu bảng tính chi phí thành công',
     });
   } catch (error: any) {
-    console.error('Error upserting calculator:', error);
+    logger.error('Error upserting calculator:', error);
     return res.status(500).json({
       success: false,
       message: error.message || 'Lỗi khi lưu bảng tính chi phí',
@@ -73,7 +72,7 @@ export const deleteCalculator = async (req: Request, res: Response) => {
       message: 'Xóa bảng tính chi phí thành công',
     });
   } catch (error: any) {
-    console.error('Error deleting calculator:', error);
+    logger.error('Error deleting calculator:', error);
     return res.status(500).json({
       success: false,
       message: error.message || 'Lỗi khi xóa bảng tính chi phí',
@@ -126,7 +125,7 @@ export const createQuotationFromCalculator = async (req: Request, res: Response)
       });
     }
 
-    console.log('🔍 First product data:', {
+    logger.debug('First product data:', {
       giaHoaVon: firstProduct.giaHoaVon,
       loiNhuanCongThem: firstProduct.loiNhuanCongThem,
     });
@@ -134,7 +133,7 @@ export const createQuotationFromCalculator = async (req: Request, res: Response)
     // Calculate giaBaoKhach from first product (giaHoaVon + loiNhuanCongThem)
     const giaBaoKhach = (firstProduct.giaHoaVon || 0) + (firstProduct.loiNhuanCongThem || 0);
 
-    console.log('🔍 Final giaBaoKhach:', giaBaoKhach);
+    logger.debug('Final giaBaoKhach:', giaBaoKhach);
 
     // Create quotation
     const quotation = await prisma.quotation.create({
@@ -175,7 +174,7 @@ export const createQuotationFromCalculator = async (req: Request, res: Response)
       message: 'Tạo báo giá thành công',
     });
   } catch (error: any) {
-    console.error('Error creating quotation from calculator:', error);
+    logger.error('Error creating quotation from calculator:', error);
     return res.status(500).json({
       success: false,
       message: error.message || 'Lỗi khi tạo báo giá',

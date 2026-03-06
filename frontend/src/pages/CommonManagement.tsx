@@ -6,6 +6,7 @@ import Modal from '../components/Modal';
 import SupplyRequestModal from '../components/SupplyRequestModal';
 import ProcessListModal from '../components/ProcessListModal';
 import CreateTaskModal from '../components/CreateTaskModal';
+import CreateWorkPlanModal from '../components/CreateWorkPlanModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
 import {
   FileText,
@@ -38,6 +39,7 @@ const CommonManagement = () => {
   const [selectedCategory, setSelectedCategory] = useState<RequestType | ''>('');
   const [isProcessListOpen, setIsProcessListOpen] = useState<boolean>(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState<boolean>(false);
+  const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState<boolean>(false);
 
   // Private Feedback Modal states
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState<boolean>(false);
@@ -178,6 +180,12 @@ const CommonManagement = () => {
     // Xử lý "Tạo nhiệm vụ"
     if (categoryId === 'nhiem_vu') {
       setIsTaskModalOpen(true);
+      return;
+    }
+
+    // Xử lý "Tạo kế hoạch công việc"
+    if (categoryId === 'ke_hoach') {
+      setIsWorkPlanModalOpen(true);
       return;
     }
 
@@ -646,8 +654,16 @@ const CommonManagement = () => {
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
         onSuccess={() => {
-          // Có thể refresh danh sách nhiệm vụ ở đây nếu cần
           console.log('Task created successfully');
+        }}
+      />
+
+      {/* Create Work Plan Modal */}
+      <CreateWorkPlanModal
+        isOpen={isWorkPlanModalOpen}
+        onClose={() => setIsWorkPlanModalOpen(false)}
+        onSuccess={() => {
+          console.log('Work plan created successfully');
         }}
       />
 

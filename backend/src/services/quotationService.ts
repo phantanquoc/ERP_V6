@@ -1,8 +1,9 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
+import ExcelJS from 'exceljs';
 
-export class QuotationService {
+class QuotationService {
   /**
    * Generate quotation code
    * Format: BG-{maYeuCauBaoGia}
@@ -300,6 +301,44 @@ export class QuotationService {
     await prisma.quotation.delete({
       where: { id },
     });
+  }
+
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+    if (filters?.search) {
+      where.OR = [
+        { maBaoGia: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+    const data = await prisma.quotation.findMany({
+      where,
+      include: { quotationRequest: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách báo giá');
+    worksheet.columns = [
+      { header: 'Mã báo giá', key: 'maBaoGia', width: 15 },
+      { header: 'Mã YCBG', key: 'maYeuCau', width: 15 },
+      { header: 'Ngày báo giá', key: 'ngayBaoGia', width: 20 },
+      { header: 'Tổng tiền', key: 'tongTien', width: 20 },
+      { header: 'Trạng thái', key: 'trangThai', width: 15 },
+      { header: 'Ngày tạo', key: 'createdAt', width: 20 },
+    ];
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+    data.forEach((q) => {
+      worksheet.addRow({
+        maBaoGia: q.maBaoGia,
+        maYeuCau: q.quotationRequest?.maYeuCauBaoGia || '',
+        ngayBaoGia: q.ngayBaoGia ? new Date(q.ngayBaoGia).toLocaleDateString('vi-VN') : '',
+        tongTien: (q as any).tongTien?.toLocaleString('vi-VN') || '0',
+        trangThai: q.tinhTrang || '',
+        createdAt: new Date(q.createdAt).toLocaleDateString('vi-VN'),
+      });
+    });
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

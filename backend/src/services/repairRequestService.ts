@@ -1,6 +1,7 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError } from '@utils/errors';
+import ExcelJS from 'exceljs';
 
 interface CreateRepairRequestData {
   ngayThang: Date;
@@ -132,6 +133,66 @@ class RepairRequestService {
     });
 
     return { message: 'Xóa yêu cầu sửa chữa thành công' };
+  }
+
+  /**
+   * Export repair requests to Excel
+   */
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+    if (filters?.search) {
+      where.OR = [
+        { maYeuCau: { contains: filters.search, mode: 'insensitive' } },
+        { tenHeThong: { contains: filters.search, mode: 'insensitive' } },
+        { noiDungLoi: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const data = await prisma.repairRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách yêu cầu sửa chữa');
+
+    worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
+      { header: 'Ngày tháng', key: 'ngayThang', width: 15 },
+      { header: 'Mã yêu cầu', key: 'maYeuCau', width: 20 },
+      { header: 'Tên hệ thống/thiết bị', key: 'tenHeThong', width: 25 },
+      { header: 'Tình trạng thiết bị', key: 'tinhTrangThietBi', width: 20 },
+      { header: 'Loại lỗi', key: 'loaiLoi', width: 15 },
+      { header: 'Mức độ ưu tiên', key: 'mucDoUuTien', width: 15 },
+      { header: 'Nội dung lỗi', key: 'noiDungLoi', width: 30 },
+      { header: 'Trạng thái', key: 'trangThai', width: 15 },
+      { header: 'Ghi chú', key: 'ghiChu', width: 25 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((item, index) => {
+      worksheet.addRow({
+        stt: index + 1,
+        ngayThang: item.ngayThang ? new Date(item.ngayThang).toLocaleDateString('vi-VN') : '',
+        maYeuCau: item.maYeuCau,
+        tenHeThong: item.tenHeThong,
+        tinhTrangThietBi: item.tinhTrangThietBi,
+        loaiLoi: item.loaiLoi,
+        mucDoUuTien: item.mucDoUuTien,
+        noiDungLoi: item.noiDungLoi,
+        trangThai: item.trangThai,
+        ghiChu: item.ghiChu || '',
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

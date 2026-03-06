@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Edit, Eye, Trash2, X, Upload, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Edit, Eye, Trash2, X, Upload, CheckCircle, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
 
@@ -25,6 +25,8 @@ const RepairRequestList = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingRequest, setEditingRequest] = useState<RepairRequest | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [isAcceptanceFormOpen, setIsAcceptanceFormOpen] = useState(false);
   const [selectedRequestForAcceptance, setSelectedRequestForAcceptance] = useState<RepairRequest | null>(null);
   
@@ -265,11 +267,38 @@ const RepairRequestList = () => {
     fetchRequests();
   };
 
+  const handleExportExcel = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const url = `${API_URL}/repair-requests/export/excel`;
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to export');
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `danh-sach-yeu-cau-sua-chua-${Date.now()}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    }
+  };
+
   const handleAddNew = async () => {
     setEditingRequest(null);
     setIsViewMode(false);
     await handleOpenCreateModal();
   };
+
+  const totalItems = requests.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedRequests = requests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -294,6 +323,13 @@ const RepairRequestList = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800">Danh sách yêu cầu sửa chữa</h2>
+        <button
+          onClick={handleExportExcel}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        >
+          <Download size={18} />
+          Xuất Excel
+        </button>
       </div>
 
       {/* Table */}
@@ -311,9 +347,9 @@ const RepairRequestList = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {requests.map((request, index) => (
+            {paginatedRequests.map((request, index) => (
               <tr key={request.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                   {new Date(request.ngayThang).toLocaleDateString('vi-VN')}
                 </td>
@@ -350,6 +386,45 @@ const RepairRequestList = () => {
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+              .map((page, idx, arr) => (
+                <React.Fragment key={page}>
+                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-sm rounded-md ${
+                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {isModalOpen && (

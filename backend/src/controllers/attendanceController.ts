@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import attendanceService from '@services/attendanceService';
 import { ValidationError } from '@utils/errors';
 
@@ -175,6 +175,19 @@ export class AttendanceController {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to delete attendance',
       });
+    }
+  }
+
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: any = {};
+      if (req.query.search) filters.search = req.query.search as string;
+      const buffer = await attendanceService.exportToExcel(filters);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=bang-cham-cong-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
     }
   }
 }

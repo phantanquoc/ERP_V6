@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@config/database';
+import logger from '@config/logger';
 
 // Get all warehouses
 export const getAllWarehouses = async (_req: Request, res: Response) => {
@@ -26,7 +25,7 @@ export const getAllWarehouses = async (_req: Request, res: Response) => {
       data: warehouses,
     });
   } catch (error: any) {
-    console.error('Error fetching warehouses:', error);
+    logger.error('Error fetching warehouses:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy danh sách kho',
@@ -53,7 +52,7 @@ export const generateWarehouseCode = async (_req: Request, res: Response) => {
       data: { code: newCode },
     });
   } catch (error: any) {
-    console.error('Error generating warehouse code:', error);
+    logger.error('Error generating warehouse code:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi tạo mã kho',
@@ -102,7 +101,7 @@ export const createWarehouse = async (req: Request, res: Response): Promise<void
       message: 'Tạo kho thành công',
     });
   } catch (error: any) {
-    console.error('Error creating warehouse:', error);
+    logger.error('Error creating warehouse:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi tạo kho',
@@ -125,7 +124,7 @@ export const deleteWarehouse = async (req: Request, res: Response) => {
       message: 'Xóa kho thành công',
     });
   } catch (error: any) {
-    console.error('Error deleting warehouse:', error);
+    logger.error('Error deleting warehouse:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi xóa kho',

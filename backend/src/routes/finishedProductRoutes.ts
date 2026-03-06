@@ -14,6 +14,9 @@ router.use(authenticate);
 // GET /api/finished-products - Get all finished products
 router.get('/', finishedProductController.getAllFinishedProducts);
 
+// GET /api/finished-products/export/excel - Export to Excel
+router.get('/export/excel', finishedProductController.exportToExcel);
+
 // GET /api/finished-products/total-weight-by-date - Get total weight by date
 router.get('/total-weight-by-date', finishedProductController.getTotalWeightByDate);
 

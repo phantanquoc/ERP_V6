@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
+import ExcelJS from 'exceljs';
 
 export class QuotationRequestService {
   /**
@@ -374,6 +375,48 @@ export class QuotationRequestService {
     await prisma.quotationRequest.delete({
       where: { id },
     });
+  }
+
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+    if (filters?.search) {
+      where.OR = [
+        { maYeuCauBaoGia: { contains: filters.search, mode: 'insensitive' } },
+        { tenKhachHang: { contains: filters.search, mode: 'insensitive' } },
+        { tenNhanVien: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+    const data = await prisma.quotationRequest.findMany({
+      where,
+      include: {
+        items: { include: { product: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách yêu cầu báo giá');
+    worksheet.columns = [
+      { header: 'Mã YCBG', key: 'maYeuCauBaoGia', width: 15 },
+      { header: 'Ngày yêu cầu', key: 'ngayYeuCau', width: 20 },
+      { header: 'Nhân viên', key: 'tenNhanVien', width: 25 },
+      { header: 'Khách hàng', key: 'tenKhachHang', width: 25 },
+      { header: 'Quốc gia', key: 'quocGia', width: 15 },
+      { header: 'Ngày tạo', key: 'createdAt', width: 20 },
+    ];
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+    data.forEach((qr) => {
+      worksheet.addRow({
+        maYeuCauBaoGia: qr.maYeuCauBaoGia,
+        ngayYeuCau: qr.ngayYeuCau ? new Date(qr.ngayYeuCau).toLocaleDateString('vi-VN') : '',
+        tenNhanVien: qr.tenNhanVien || '',
+        tenKhachHang: qr.tenKhachHang || '',
+        quocGia: qr.quocGia || '',
+        createdAt: new Date(qr.createdAt).toLocaleDateString('vi-VN'),
+      });
+    });
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

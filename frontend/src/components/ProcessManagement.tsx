@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X, FileText, Upload } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, X, FileText, Upload, Download } from 'lucide-react';
 import processService, { Process, CreateProcessData, ProcessFlowchartSection, ProcessFlowchartCost } from '../services/processService';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,7 +16,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isStandardModalOpen, setIsStandardModalOpen] = useState(false);
@@ -36,14 +36,13 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
 
   useEffect(() => {
     fetchProcesses();
-  }, [currentPage, searchTerm]);
+  }, [searchTerm]);
 
   const fetchProcesses = async () => {
     try {
       setLoading(true);
-      const response = await processService.getAllProcesses(currentPage, 10, searchTerm);
+      const response = await processService.getAllProcesses(1, 1000, searchTerm);
       setProcesses(response.data);
-      setTotalPages(response.pagination.totalPages);
     } catch (error) {
       console.error('Error fetching processes:', error);
       alert('Lỗi khi tải danh sách quy trình');
@@ -373,7 +372,16 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
-    fetchProcesses();
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      await processService.exportToExcel();
+      alert('Đã xuất file Excel thành công');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Không thể xuất file Excel');
+    }
   };
 
   return (
@@ -388,19 +396,28 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
               type="text"
               placeholder="Tìm kiếm theo mã quy trình, tên quy trình..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
             />
           </div>
-          {mode === 'full' && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={handleOpenModal}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
-              <Plus className="w-4 h-4" />
-              Tạo quy trình mới
+              <Download className="w-4 h-4" />
+              Xuất Excel
             </button>
-          )}
+            {mode === 'full' && (
+              <button
+                onClick={handleOpenModal}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Tạo quy trình mới
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Table */}
@@ -431,7 +448,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                   </td>
                 </tr>
               ) : (
-                processes.map((process, index) => (
+                processes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((process, index) => (
                   <tr
                     key={process.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -439,7 +456,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                     }`}
                   >
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
-                      {(currentPage - 1) * 10 + index + 1}
+                      {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                       {process.maQuyTrinh}
@@ -503,29 +520,46 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-            <div className="text-sm text-gray-700">
-              Trang {currentPage} / {totalPages}
+        {(() => {
+          const totalItems = processes.length;
+          const totalPages = Math.ceil(totalItems / itemsPerPage);
+          return totalPages > 1 ? (
+            <div className="flex items-center justify-between mt-4 px-2">
+              <span className="text-sm text-gray-600">
+                Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                  .map((page, idx, arr) => (
+                    <React.Fragment key={page}>
+                      {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  ))}
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        )}
+          ) : null;
+        })()}
       </div>
 
       {/* Create/Edit Modal - TÍCH HỢP LƯU ĐỒ */}

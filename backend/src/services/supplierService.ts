@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '@config/database';
 import { NotFoundError } from '../utils/errors';
-
-const prisma = new PrismaClient();
+import ExcelJS from 'exceljs';
 
 interface CreateSupplierData {
   maNhaCungCap: string;
@@ -175,6 +174,73 @@ export const supplierService = {
     const numPart = parseInt(lastCode.replace('NCC', '')) || 0;
     const nextNum = numPart + 1;
     return `NCC${nextNum.toString().padStart(3, '0')}`;
+  },
+
+  // Export suppliers to Excel
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+
+    if (filters?.search) {
+      where.OR = [
+        { maNhaCungCap: { contains: filters.search, mode: 'insensitive' } },
+        { tenNhaCungCap: { contains: filters.search, mode: 'insensitive' } },
+        { loaiCungCap: { contains: filters.search, mode: 'insensitive' } },
+        { nguoiLienHe: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const data = await prisma.supplier.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        employee: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách nhà cung cấp');
+
+    worksheet.columns = [
+      { header: 'Mã NCC', key: 'maNhaCungCap', width: 15 },
+      { header: 'Tên NCC', key: 'tenNhaCungCap', width: 30 },
+      { header: 'Loại cung cấp', key: 'loaiCungCap', width: 20 },
+      { header: 'Quốc gia', key: 'quocGia', width: 15 },
+      { header: 'Người liên hệ', key: 'nguoiLienHe', width: 20 },
+      { header: 'Số điện thoại', key: 'soDienThoai', width: 15 },
+      { header: 'Email', key: 'emailLienHe', width: 25 },
+      { header: 'Loại hình', key: 'loaiHinh', width: 15 },
+      { header: 'Trạng thái', key: 'trangThai', width: 15 },
+      { header: 'Doanh chi', key: 'doanhChi', width: 15 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((item) => {
+      worksheet.addRow({
+        maNhaCungCap: item.maNhaCungCap,
+        tenNhaCungCap: item.tenNhaCungCap,
+        loaiCungCap: item.loaiCungCap,
+        quocGia: item.quocGia,
+        nguoiLienHe: item.nguoiLienHe,
+        soDienThoai: item.soDienThoai,
+        emailLienHe: item.emailLienHe,
+        loaiHinh: item.loaiHinh,
+        trangThai: item.trangThai,
+        doanhChi: item.doanhChi || 0,
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   },
 };
 

@@ -91,6 +91,26 @@ class SupplyRequestController {
       });
     }
   }
+
+  async exportToExcel(req: Request, res: Response): Promise<void> {
+    try {
+      const filters: any = {};
+      if (req.query.search) {
+        filters.search = req.query.search as string;
+      }
+
+      const buffer = await supplyRequestService.exportToExcel(filters);
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-yeu-cau-cung-cap-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Lỗi khi xuất Excel',
+      });
+    }
+  }
 }
 
 export default new SupplyRequestController();

@@ -12,6 +12,14 @@ router.get(
   payrollController.getPayrollByMonthYear
 );
 
+// Export to Excel
+router.get(
+  '/export/excel',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  payrollController.exportToExcel
+);
+
 // Get payroll detail
 router.get(
   '/:payrollId/detail',

@@ -23,6 +23,8 @@ const AttendanceManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedEmployeeName, setSelectedEmployeeName] = useState('');
@@ -198,6 +200,10 @@ const AttendanceManagement: React.FC = () => {
       item.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalItems = filteredAttendances.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedAttendances = filteredAttendances.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="bg-white rounded-lg shadow-sm">
       {/* Header */}
@@ -241,10 +247,26 @@ const AttendanceManagement: React.FC = () => {
                 type="text"
                 placeholder="Tìm theo mã hoặc tên nhân viên..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={async () => {
+                try {
+                  await attendanceService.exportToExcel({ search: searchTerm || undefined });
+                } catch (err) {
+                  console.error('Error exporting to Excel:', err);
+                  alert('Không thể xuất file Excel');
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Download size={18} />
+              Xuất Excel
+            </button>
           </div>
         </div>
       </div>
@@ -274,7 +296,7 @@ const AttendanceManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredAttendances.map((record, index) => (
+                {paginatedAttendances.map((record, index) => (
                   <tr
                     key={record.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -336,8 +358,44 @@ const AttendanceManagement: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Modal */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+              .map((page, idx, arr) => (
+                <React.Fragment key={page}>
+                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-sm rounded-md ${
+                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      )}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">

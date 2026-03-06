@@ -1,4 +1,5 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import {
   hashPassword,
   comparePassword,
@@ -48,6 +49,8 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      departmentId: user.departmentId,
+      subDepartmentId: user.subDepartmentId,
     };
 
     const accessToken = generateAccessToken(payload);
@@ -124,7 +127,7 @@ export class AuthService {
           browser,
           status: 'failed',
         }).catch(err => {
-          console.error('Failed to log failed login history:', err);
+          logger.error('Failed to log failed login history:', err);
         });
       }
       throw error;
@@ -177,6 +180,8 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      departmentId: user.departmentId,
+      subDepartmentId: user.subDepartmentId,
     };
 
     const accessToken = generateAccessToken(payload);
@@ -202,7 +207,7 @@ export class AuthService {
         browser,
         status: 'success',
       }).catch(err => {
-        console.error('Failed to log login history:', err);
+        logger.error('Failed to log login history:', err);
       });
     }
 
@@ -280,6 +285,8 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      departmentId: user.departmentId,
+      subDepartmentId: user.subDepartmentId,
     };
 
     const accessToken = generateAccessToken(payload);

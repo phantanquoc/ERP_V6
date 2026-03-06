@@ -70,5 +70,23 @@ export const supplierController = {
       next(error);
     }
   },
+
+  // Export suppliers to Excel
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: any = {};
+      if (req.query.search) {
+        filters.search = req.query.search as string;
+      }
+
+      const buffer = await supplierService.exportToExcel(filters);
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-nha-cung-cap-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  },
 };
 

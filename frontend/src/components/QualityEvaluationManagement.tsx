@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Trash2, Eye } from 'lucide-react';
+import { Edit, Trash2, Eye, Download } from 'lucide-react';
 import qualityEvaluationService, { QualityEvaluation } from '../services/qualityEvaluationService';
 import machineService, { Machine } from '../services/machineService';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,6 +18,7 @@ const QualityEvaluationManagement: React.FC = () => {
   const [selectedEvaluation, setSelectedEvaluation] = useState<QualityEvaluation | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
 
   // Get current user's full name
   const currentUserName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
@@ -258,9 +259,28 @@ const QualityEvaluationManagement: React.FC = () => {
     setIsViewModalOpen(true);
   };
 
+  const handleExportExcel = async () => {
+    try {
+      await qualityEvaluationService.exportToExcel();
+      alert('Đã xuất file Excel thành công');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Không thể xuất file Excel');
+    }
+  };
+
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Quản lý Đánh giá Chất lượng</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Quản lý Đánh giá Chất lượng</h2>
+        <button
+          onClick={handleExportExcel}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        >
+          <Download size={18} />
+          Xuất Excel
+        </button>
+      </div>
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
@@ -321,7 +341,7 @@ const QualityEvaluationManagement: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                evaluations.map((evaluation, index) => (
+                evaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
                   <tr
                     key={evaluation.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -329,7 +349,7 @@ const QualityEvaluationManagement: React.FC = () => {
                     }`}
                   >
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
-                      {index + 1}
+                      {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                       {evaluation.maChien}
@@ -390,6 +410,47 @@ const QualityEvaluationManagement: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {(() => {
+        const totalItems = evaluations.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        return totalPages > 1 ? (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Modal */}
       <QualityEvaluationModal

@@ -1,7 +1,8 @@
-import { PrismaClient, TaxReportStatus } from '@prisma/client';
+import prisma from '@config/database';
+import logger from '@config/logger';
+import { TaxReportStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../utils/errors';
-
-const prisma = new PrismaClient();
+import ExcelJS from 'exceljs';
 
 class OrderService {
   // Generate order code
@@ -104,9 +105,9 @@ class OrderService {
           trangThai: TaxReportStatus.CHUA_BAO_CAO,
         },
       });
-      console.log(`✅ Tax report created automatically for order ${order.maDonHang}`);
+      logger.info(`✅ Tax report created automatically for order ${order.maDonHang}`);
     } catch (error) {
-      console.error('⚠️ Failed to create tax report automatically:', error);
+      logger.error('⚠️ Failed to create tax report automatically:', error);
       // Don't throw error, just log it - order creation should still succeed
     }
 
@@ -283,6 +284,45 @@ class OrderService {
     });
 
     return { message: 'Xóa đơn hàng thành công' };
+  }
+
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+    if (filters?.search) {
+      where.OR = [
+        { maDonHang: { contains: filters.search, mode: 'insensitive' } },
+        { tenKhachHang: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+    const data = await prisma.order.findMany({
+      where,
+      include: { items: true, customer: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách đơn hàng');
+    worksheet.columns = [
+      { header: 'Mã đơn hàng', key: 'maDonHang', width: 15 },
+      { header: 'Ngày đặt hàng', key: 'ngayDatHang', width: 20 },
+      { header: 'Khách hàng', key: 'tenKhachHang', width: 25 },
+      { header: 'Quốc gia', key: 'quocGia', width: 15 },
+      { header: 'Trạng thái SX', key: 'trangThaiSanXuat', width: 20 },
+      { header: 'Ngày tạo', key: 'createdAt', width: 20 },
+    ];
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+    data.forEach((order) => {
+      worksheet.addRow({
+        maDonHang: order.maDonHang,
+        ngayDatHang: order.ngayDatHang ? new Date(order.ngayDatHang).toLocaleDateString('vi-VN') : '',
+        tenKhachHang: order.tenKhachHang || '',
+        quocGia: order.customer?.quocGia || '',
+        trangThaiSanXuat: order.trangThaiSanXuat || '',
+        createdAt: new Date(order.createdAt).toLocaleDateString('vi-VN'),
+      });
+    });
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

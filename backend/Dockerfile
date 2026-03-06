@@ -47,8 +47,8 @@ RUN npx prisma generate
 # Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Create uploads directory
-RUN mkdir -p uploads && chown -R nodejs:nodejs uploads
+# Create uploads and logs directories
+RUN mkdir -p uploads logs && chown -R nodejs:nodejs uploads logs
 
 # Change ownership of the app
 RUN chown -R nodejs:nodejs /app

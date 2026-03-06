@@ -10,6 +10,9 @@ router.use(authenticate);
 // Get all invoices
 router.get('/', invoiceController.getAllInvoices);
 
+// Export invoices to Excel (must be before /:id route)
+router.get('/export/excel', invoiceController.exportToExcel);
+
 // Generate invoice number
 router.post('/generate-code', invoiceController.generateInvoiceNumber);
 

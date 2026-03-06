@@ -6,6 +6,7 @@ import {
   createTaxReportFromOrder,
   updateTaxReport,
   deleteTaxReport,
+  exportTaxReportsToExcel,
 } from '../controllers/taxReportController';
 import { authenticate } from '../middlewares/auth';
 import { createSingleUploadMiddleware } from '../middlewares/upload';
@@ -20,6 +21,9 @@ router.use(authenticate);
 
 // Get all tax reports
 router.get('/', getAllTaxReports);
+
+// Export tax reports to Excel (must be before /:id)
+router.get('/export/excel', exportTaxReportsToExcel);
 
 // Get tax report by ID
 router.get('/:id', getTaxReportById);

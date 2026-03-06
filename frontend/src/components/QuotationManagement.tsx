@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Eye, Edit, Trash2, ShoppingCart } from 'lucide-react';
+import { Search, Eye, Edit, Trash2, ShoppingCart, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { quotationService, Quotation } from '../services/quotationService';
 import { orderService } from '../services/orderService';
 import { useQuotations, quotationKeys } from '../hooks';
@@ -15,6 +15,9 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string>('');
+  const [exportSuccess, setExportSuccess] = useState<string>('');
   const [editFormData, setEditFormData] = useState({
     giaBaoKhach: '',
     thoiGianGiaoHang: '',
@@ -28,13 +31,12 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
 
   const filterCustomerType = customerType === 'all' ? undefined : customerType;
   const { data: quotationsData, isLoading: loading } = useQuotations({
-    page: currentPage,
-    limit: itemsPerPage,
+    page: 1,
+    limit: 1000,
     search: searchTerm || undefined,
     customerType: filterCustomerType,
   });
   const quotations = quotationsData?.data || [];
-  const totalPages = quotationsData?.pagination?.totalPages || 1;
 
   const handleView = (quotation: Quotation) => {
     setSelectedQuotation(quotation);
@@ -115,6 +117,21 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
     }
   };
 
+  const handleExportExcel = async () => {
+    try {
+      setExportError('');
+      setExportLoading(true);
+      await quotationService.exportToExcel({ search: searchTerm || undefined });
+      setExportSuccess('Đã xuất file Excel thành công');
+      setTimeout(() => setExportSuccess(''), 3000);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      setExportError('Không thể xuất file Excel');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
       DRAFT: { label: 'Nháp', className: 'bg-gray-100 text-gray-800' },
@@ -158,11 +175,33 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
             type="text"
             placeholder="Tìm kiếm..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
           />
         </div>
+        <button
+          onClick={handleExportExcel}
+          disabled={exportLoading}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+        >
+          <Download size={18} />
+          {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
+        </button>
       </div>
+
+      {/* Alert Messages */}
+      {exportError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <p className="text-red-800">{exportError}</p>
+        </div>
+      )}
+      {exportSuccess && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+          <CheckCircle className="w-5 h-5 text-green-600" />
+          <p className="text-green-800">{exportSuccess}</p>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -195,7 +234,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                 </td>
               </tr>
             ) : (
-              quotations.map((quotation, index) => (
+              quotations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((quotation, index) => (
                 <tr key={quotation.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm text-blue-600 font-medium">
                     {(currentPage - 1) * itemsPerPage + index + 1}
@@ -277,30 +316,46 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
         </table>
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white px-6 py-3.5 rounded-lg shadow-md border border-gray-200">
-          <div className="text-sm text-gray-700 font-medium">
-            Trang <span className="font-bold text-blue-600">{currentPage}</span> / <span className="font-bold">{totalPages}</span>
+      {(() => {
+        const totalItems = quotations.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        return totalPages > 1 ? (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="px-4 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              ← Trước
-            </button>
-            <button
-              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="px-4 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              Sau →
-            </button>
-          </div>
-        </div>
-      )}
+        ) : null;
+      })()}
 
       {/* Modal Xem Chi Tiết */}
       {showViewModal && selectedQuotation && (

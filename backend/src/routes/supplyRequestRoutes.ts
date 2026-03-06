@@ -11,6 +11,9 @@ router.use(authenticate);
 // Get all supply requests (all authenticated users can view)
 router.get('/', supplyRequestController.getAllSupplyRequests);
 
+// Export supply requests to Excel (must be before /:id route)
+router.get('/export/excel', supplyRequestController.exportToExcel);
+
 // Get supply request by ID (all authenticated users can view)
 router.get('/:id', supplyRequestController.getSupplyRequestById);
 

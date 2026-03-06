@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Trash2, Eye, FileText, Edit, Package, ShoppingCart } from 'lucide-react';
+import { Search, Trash2, Eye, FileText, Edit, Package, ShoppingCart, Download } from 'lucide-react';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
 import CreatePurchaseRequestModal from './CreatePurchaseRequestModal';
@@ -13,7 +13,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<'edit' | 'view'>('view');
   const [selectedRequest, setSelectedRequest] = useState<SupplyRequest | null>(null);
@@ -35,14 +35,13 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
 
   useEffect(() => {
     fetchRequests();
-  }, [currentPage, searchTerm]);
+  }, [searchTerm]);
 
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const response = await supplyRequestService.getAllSupplyRequests(currentPage, 10, searchTerm);
+      const response = await supplyRequestService.getAllSupplyRequests(1, 1000, searchTerm);
       setRequests(response.data);
-      setTotalPages(response.pagination.totalPages);
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi tải danh sách yêu cầu cung cấp');
     } finally {
@@ -165,6 +164,20 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
             />
           </div>
         </div>
+        <button
+          onClick={async () => {
+            try {
+              await supplyRequestService.exportToExcel({ search: searchTerm || undefined });
+            } catch (error) {
+              console.error('Error exporting to Excel:', error);
+              alert('Lỗi khi xuất Excel');
+            }
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+        >
+          <Download className="h-4 w-4" />
+          Xuất Excel
+        </button>
       </div>
 
       {/* Table */}
@@ -200,9 +213,9 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                   </td>
                 </tr>
               ) : (
-                requests.map((request, index) => (
+                requests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((request, index) => (
                   <tr key={request.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm">{(currentPage - 1) * 10 + index + 1}</td>
+                    <td className="px-4 py-3 text-sm">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-4 py-3 text-sm">{new Date(request.ngayYeuCau).toLocaleDateString('vi-VN')}</td>
                     <td className="px-4 py-3 text-sm font-medium text-indigo-600">{request.maYeuCau}</td>
                     <td className="px-4 py-3 text-sm">{request.tenNhanVien}</td>
@@ -255,29 +268,46 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-            <div className="text-sm text-gray-700">
-              Trang {currentPage} / {totalPages}
+        {(() => {
+          const totalItems = requests.length;
+          const totalPages = Math.ceil(totalItems / itemsPerPage);
+          return totalPages > 1 ? (
+            <div className="flex items-center justify-between mt-4 px-2">
+              <span className="text-sm text-gray-600">
+                Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                  .map((page, idx, arr) => (
+                    <React.Fragment key={page}>
+                      {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  ))}
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Trước
-              </button>
-              <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        )}
+          ) : null;
+        })()}
       </div>
 
       {/* Modal Edit/View */}

@@ -1,5 +1,7 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import ExcelJS from 'exceljs';
 
 export class FinishedProductService {
   async getAllFinishedProducts(page: number = 1, limit: number = 10, tenMay?: string) {
@@ -213,7 +215,7 @@ export class FinishedProductService {
     // thoiGianChien is stored as a String in format YYYY-MM-DDTHH:mm
     // We need to find all products where thoiGianChien starts with the date
 
-    console.log('[getTotalWeightByDate] Input date:', date);
+    logger.debug('[getTotalWeightByDate] Input date:', date);
 
     // Get all finished products and filter by date in application code
     // since thoiGianChien is a String field, not DateTime
@@ -234,8 +236,8 @@ export class FinishedProductService {
       },
     });
 
-    console.log('[getTotalWeightByDate] Total products in DB:', allProducts.length);
-    console.log('[getTotalWeightByDate] Sample thoiGianChien values:', allProducts.slice(0, 5).map(p => p.thoiGianChien));
+    logger.debug('[getTotalWeightByDate] Total products in DB:', allProducts.length);
+    logger.debug('[getTotalWeightByDate] Sample thoiGianChien values:', allProducts.slice(0, 5).map(p => p.thoiGianChien));
 
     // Filter products by date (thoiGianChien format: YYYY-MM-DDTHH:mm or ISO string)
     const products = allProducts.filter(product => {
@@ -264,8 +266,8 @@ export class FinishedProductService {
       return productDate === targetDate;
     });
 
-    console.log('[getTotalWeightByDate] Filtered products count:', products.length);
-    console.log('[getTotalWeightByDate] Filtered products:', products.map(p => ({ maChien: p.maChien, tenMay: p.tenMay, thoiGianChien: p.thoiGianChien })));
+    logger.debug('[getTotalWeightByDate] Filtered products count:', products.length);
+    logger.debug('[getTotalWeightByDate] Filtered products:', products.map(p => ({ maChien: p.maChien, tenMay: p.tenMay, thoiGianChien: p.thoiGianChien })));
 
     // Calculate total weight by summing all component weights from all machines
     // This matches the "Tổng các máy" tab calculation logic
@@ -288,6 +290,82 @@ export class FinishedProductService {
       productCount: products.length,
       machines: [...new Set(products.map(p => p.tenMay).filter(Boolean))], // List of unique machines
     };
+  }
+
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+    if (filters?.search) {
+      where.OR = [
+        { maChien: { contains: filters.search, mode: 'insensitive' } },
+        { tenHangHoa: { contains: filters.search, mode: 'insensitive' } },
+        { nguoiThucHien: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+    if (filters?.tenMay) {
+      where.tenMay = filters.tenMay;
+    }
+
+    const data = await prisma.finishedProduct.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách thành phẩm');
+
+    worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
+      { header: 'Mã chiên', key: 'maChien', width: 15 },
+      { header: 'Thời gian chiên', key: 'thoiGianChien', width: 20 },
+      { header: 'Tên hàng hóa', key: 'tenHangHoa', width: 20 },
+      { header: 'Tên máy', key: 'tenMay', width: 15 },
+      { header: 'KL đầu vào (kg)', key: 'khoiLuong', width: 15 },
+      { header: 'A (kg)', key: 'aKhoiLuong', width: 12 },
+      { header: 'A (%)', key: 'aTiLe', width: 10 },
+      { header: 'B (kg)', key: 'bKhoiLuong', width: 12 },
+      { header: 'B (%)', key: 'bTiLe', width: 10 },
+      { header: 'B Dầu (kg)', key: 'bDauKhoiLuong', width: 12 },
+      { header: 'C (kg)', key: 'cKhoiLuong', width: 12 },
+      { header: 'Vụn lớn (kg)', key: 'vunLonKhoiLuong', width: 12 },
+      { header: 'Vụn nhỏ (kg)', key: 'vunNhoKhoiLuong', width: 12 },
+      { header: 'Phế phẩm (kg)', key: 'phePhamKhoiLuong', width: 12 },
+      { header: 'Ướt (kg)', key: 'uotKhoiLuong', width: 12 },
+      { header: 'Tổng KL (kg)', key: 'tongKhoiLuong', width: 15 },
+      { header: 'Người thực hiện', key: 'nguoiThucHien', width: 20 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((item, index) => {
+      worksheet.addRow({
+        stt: index + 1,
+        maChien: item.maChien,
+        thoiGianChien: item.thoiGianChien || '',
+        tenHangHoa: item.tenHangHoa,
+        tenMay: item.tenMay || '',
+        khoiLuong: item.khoiLuong,
+        aKhoiLuong: item.aKhoiLuong,
+        aTiLe: item.aTiLe,
+        bKhoiLuong: item.bKhoiLuong,
+        bTiLe: item.bTiLe,
+        bDauKhoiLuong: item.bDauKhoiLuong,
+        cKhoiLuong: item.cKhoiLuong,
+        vunLonKhoiLuong: item.vunLonKhoiLuong,
+        vunNhoKhoiLuong: item.vunNhoKhoiLuong,
+        phePhamKhoiLuong: item.phePhamKhoiLuong,
+        uotKhoiLuong: item.uotKhoiLuong,
+        tongKhoiLuong: item.tongKhoiLuong,
+        nguoiThucHien: item.nguoiThucHien || '',
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

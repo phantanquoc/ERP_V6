@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '@config/database';
+import logger from '@config/logger';
 
 // Generate mã phiếu xuất tự động
 export const generateIssueCode = async (_req: Request, res: Response): Promise<void> => {
@@ -34,7 +35,7 @@ export const generateIssueCode = async (_req: Request, res: Response): Promise<v
       data: { maPhieuXuat },
     });
   } catch (error: any) {
-    console.error('Error generating issue code:', error);
+    logger.error('Error generating issue code:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi tạo mã phiếu xuất',
@@ -123,7 +124,7 @@ export const createWarehouseIssue = async (req: Request, res: Response): Promise
       data: warehouseIssue,
     });
   } catch (error: any) {
-    console.error('Error creating warehouse issue:', error);
+    logger.error('Error creating warehouse issue:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi tạo phiếu xuất kho',
@@ -146,7 +147,7 @@ export const getAllWarehouseIssues = async (_req: Request, res: Response): Promi
       data: issues,
     });
   } catch (error: any) {
-    console.error('Error fetching warehouse issues:', error);
+    logger.error('Error fetching warehouse issues:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy danh sách phiếu xuất kho',

@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
+import ExcelJS from 'exceljs';
 
 export class ProcessService {
   /**
@@ -153,6 +154,47 @@ export class ProcessService {
     await prisma.process.delete({
       where: { id },
     });
+  }
+
+  async exportToExcel(_filters?: any): Promise<Buffer> {
+    const data = await prisma.process.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách quy trình');
+
+    worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
+      { header: 'Mã quy trình', key: 'maQuyTrinh', width: 18 },
+      { header: 'MSNV', key: 'msnv', width: 15 },
+      { header: 'Tên nhân viên', key: 'tenNhanVien', width: 25 },
+      { header: 'Tên quy trình', key: 'tenQuyTrinh', width: 30 },
+      { header: 'Loại quy trình', key: 'loaiQuyTrinh', width: 20 },
+      { header: 'Ngày tạo', key: 'createdAt', width: 15 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((item, index) => {
+      worksheet.addRow({
+        stt: index + 1,
+        maQuyTrinh: item.maQuyTrinh,
+        msnv: item.msnv,
+        tenNhanVien: item.tenNhanVien,
+        tenQuyTrinh: item.tenQuyTrinh,
+        loaiQuyTrinh: item.loaiQuyTrinh,
+        createdAt: new Date(item.createdAt).toLocaleDateString('vi-VN'),
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 
   // ==================== FLOWCHART OPERATIONS ====================

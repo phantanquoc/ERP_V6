@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
+import ExcelJS from 'exceljs';
 
 export class InvoiceService {
   /**
@@ -153,6 +154,52 @@ export class InvoiceService {
   async deleteInvoice(id: string): Promise<void> {
     await this.getInvoiceById(id);
     await prisma.invoice.delete({ where: { id } });
+  }
+
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+    if (filters?.search) {
+      where.OR = [
+        { soHoaDon: { contains: filters.search, mode: 'insensitive' } },
+        { khachHang: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+    const data = await prisma.invoice.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách hóa đơn');
+    worksheet.columns = [
+      { header: 'Số hóa đơn', key: 'soHoaDon', width: 18 },
+      { header: 'Ngày lập', key: 'ngayLap', width: 15 },
+      { header: 'Khách hàng', key: 'khachHang', width: 25 },
+      { header: 'Mã số thuế', key: 'maSoThue', width: 15 },
+      { header: 'Tổng tiền', key: 'tongTien', width: 18 },
+      { header: 'Thuế', key: 'thue', width: 10 },
+      { header: 'Thành tiền', key: 'thanhTien', width: 18 },
+      { header: 'Trạng thái', key: 'trangThai', width: 18 },
+      { header: 'Loại hóa đơn', key: 'loaiHoaDon', width: 18 },
+      { header: 'Ngày tạo', key: 'createdAt', width: 15 },
+    ];
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+    data.forEach((inv) => {
+      worksheet.addRow({
+        soHoaDon: inv.soHoaDon,
+        ngayLap: inv.ngayLap ? new Date(inv.ngayLap).toLocaleDateString('vi-VN') : '',
+        khachHang: inv.khachHang || '',
+        maSoThue: inv.maSoThue || '',
+        tongTien: inv.tongTien?.toLocaleString('vi-VN') || '0',
+        thue: inv.thue != null ? `${inv.thue}%` : '',
+        thanhTien: inv.thanhTien?.toLocaleString('vi-VN') || '0',
+        trangThai: inv.trangThai || '',
+        loaiHoaDon: inv.loaiHoaDon || '',
+        createdAt: new Date(inv.createdAt).toLocaleDateString('vi-VN'),
+      });
+    });
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

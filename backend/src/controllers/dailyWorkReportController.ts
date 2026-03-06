@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import dailyWorkReportService from '@services/dailyWorkReportService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
+import prisma from '@config/database';
 
 export class DailyWorkReportController {
   /**
@@ -95,8 +96,6 @@ export class DailyWorkReportController {
       }
 
       // Get employee by userId
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
       const employee = await prisma.employee.findUnique({
         where: { userId },
       });
@@ -144,8 +143,6 @@ export class DailyWorkReportController {
       }
 
       // Get employee by userId
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
       const employee = await prisma.employee.findUnique({
         where: { userId },
       });
@@ -252,8 +249,6 @@ export class DailyWorkReportController {
       }
 
       // Get employee by userId
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
       const employee = await prisma.employee.findUnique({
         where: { userId },
       });

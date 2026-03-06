@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@config/database';
+import logger from '@config/logger';
 
 // Get all lot products
 export const getAllLotProducts = async (_req: Request, res: Response) => {
@@ -23,7 +22,7 @@ export const getAllLotProducts = async (_req: Request, res: Response) => {
       data: lotProducts,
     });
   } catch (error: any) {
-    console.error('Error fetching lot products:', error);
+    logger.error('Error fetching lot products:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy danh sách sản phẩm',
@@ -83,7 +82,7 @@ export const addProductToLot = async (req: Request, res: Response): Promise<void
       message: 'Thêm sản phẩm vào lô thành công',
     });
   } catch (error: any) {
-    console.error('Error adding product to lot:', error);
+    logger.error('Error adding product to lot:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi thêm sản phẩm vào lô',
@@ -106,7 +105,7 @@ export const removeProductFromLot = async (req: Request, res: Response) => {
       message: 'Xóa sản phẩm khỏi lô thành công',
     });
   } catch (error: any) {
-    console.error('Error removing product from lot:', error);
+    logger.error('Error removing product from lot:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi xóa sản phẩm khỏi lô',
@@ -210,7 +209,7 @@ export const moveProductBetweenLots = async (req: Request, res: Response): Promi
       });
     }
   } catch (error: any) {
-    console.error('Error moving product:', error);
+    logger.error('Error moving product:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi di chuyển sản phẩm',
@@ -243,7 +242,7 @@ export const updateProductQuantity = async (req: Request, res: Response) => {
       message: 'Cập nhật thành công',
     });
   } catch (error: any) {
-    console.error('Error updating product quantity:', error);
+    logger.error('Error updating product quantity:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi cập nhật số lượng',

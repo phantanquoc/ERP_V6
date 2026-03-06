@@ -1,5 +1,6 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import generalCostService from '../services/generalCostService';
+import logger from '@config/logger';
 
 class GeneralCostController {
   // Get all general costs
@@ -17,7 +18,7 @@ class GeneralCostController {
         pagination: result.pagination,
       });
     } catch (error: any) {
-      console.error('Error getting general costs:', error);
+      logger.error('Error getting general costs:', error);
       res.status(500).json({ message: 'Lỗi khi lấy danh sách chi phí chung', error: error.message });
     }
   }
@@ -34,7 +35,7 @@ class GeneralCostController {
 
       return res.json(generalCost);
     } catch (error: any) {
-      console.error('Error getting general cost:', error);
+      logger.error('Error getting general cost:', error);
       return res.status(500).json({ message: 'Lỗi khi lấy chi phí chung', error: error.message });
     }
   }
@@ -45,7 +46,7 @@ class GeneralCostController {
       const generalCost = await generalCostService.createGeneralCost(req.body);
       res.status(201).json(generalCost);
     } catch (error: any) {
-      console.error('Error creating general cost:', error);
+      logger.error('Error creating general cost:', error);
       res.status(500).json({ message: 'Lỗi khi tạo chi phí chung', error: error.message });
     }
   }
@@ -57,7 +58,7 @@ class GeneralCostController {
       const generalCost = await generalCostService.updateGeneralCost(id, req.body);
       res.json(generalCost);
     } catch (error: any) {
-      console.error('Error updating general cost:', error);
+      logger.error('Error updating general cost:', error);
       res.status(500).json({ message: 'Lỗi khi cập nhật chi phí chung', error: error.message });
     }
   }
@@ -69,8 +70,22 @@ class GeneralCostController {
       await generalCostService.deleteGeneralCost(id);
       res.json({ message: 'Xóa chi phí chung thành công' });
     } catch (error: any) {
-      console.error('Error deleting general cost:', error);
+      logger.error('Error deleting general cost:', error);
       res.status(500).json({ message: 'Lỗi khi xóa chi phí chung', error: error.message });
+    }
+  }
+
+  // Export to Excel
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: any = {};
+      if (req.query.search) filters.search = req.query.search as string;
+      const buffer = await generalCostService.exportToExcel(filters);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=chi-phi-chung-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
     }
   }
 }

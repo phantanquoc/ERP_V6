@@ -4,44 +4,44 @@ import { authenticate } from '@middlewares/auth';
 
 const router = Router();
 
-// Get all notifications for current employee
+// GET /api/notifications
 router.get(
-  '/notifications',
+  '/',
   authenticate,
   notificationController.getEmployeeNotifications
 );
 
-// Get unread notifications for current employee
+// GET /api/notifications/unread
 router.get(
-  '/notifications/unread',
+  '/unread',
   authenticate,
   notificationController.getUnreadNotifications
 );
 
-// Get latest evaluation notification
+// GET /api/notifications/evaluation/latest
 router.get(
-  '/notifications/evaluation/latest',
+  '/evaluation/latest',
   authenticate,
   notificationController.getLatestEvaluationNotification
 );
 
-// Mark notification as read
+// PATCH /api/notifications/:notificationId/read
 router.patch(
-  '/notifications/:notificationId/read',
+  '/:notificationId/read',
   authenticate,
   notificationController.markAsRead
 );
 
-// Mark all notifications as read
+// PATCH /api/notifications/read-all
 router.patch(
-  '/notifications/read-all',
+  '/read-all',
   authenticate,
   notificationController.markAllAsRead
 );
 
-// Delete notification
+// DELETE /api/notifications/:notificationId
 router.delete(
-  '/notifications/:notificationId',
+  '/:notificationId',
   authenticate,
   notificationController.deleteNotification
 );

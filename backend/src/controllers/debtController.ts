@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@config/database';
 import { getFileUrl } from '../middlewares/upload';
-
-const prisma = new PrismaClient();
+import ExcelJS from 'exceljs';
+import logger from '@config/logger';
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
@@ -20,7 +20,7 @@ export const getAllDebts = async (_req: Request, res: Response): Promise<void> =
       data: debts,
     });
   } catch (error: any) {
-    console.error('Error fetching debts:', error);
+    logger.error('Error fetching debts:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy danh sách công nợ',
@@ -51,7 +51,7 @@ export const getDebtById = async (req: Request, res: Response): Promise<void> =>
       data: debt,
     });
   } catch (error: any) {
-    console.error('Error fetching debt:', error);
+    logger.error('Error fetching debt:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy thông tin công nợ',
@@ -120,7 +120,7 @@ export const createDebt = async (req: RequestWithFile, res: Response): Promise<v
       message: 'Tạo công nợ thành công',
     });
   } catch (error: any) {
-    console.error('Error creating debt:', error);
+    logger.error('Error creating debt:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi tạo công nợ',
@@ -168,7 +168,7 @@ export const updateDebt = async (req: RequestWithFile, res: Response): Promise<v
       message: 'Cập nhật công nợ thành công',
     });
   } catch (error: any) {
-    console.error('Error updating debt:', error);
+    logger.error('Error updating debt:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi cập nhật công nợ',
@@ -191,10 +191,80 @@ export const deleteDebt = async (req: Request, res: Response): Promise<void> => 
       message: 'Xóa công nợ thành công',
     });
   } catch (error: any) {
-    console.error('Error deleting debt:', error);
+    logger.error('Error deleting debt:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi xóa công nợ',
+      error: error.message,
+    });
+  }
+};
+
+// Export debts to Excel
+export const exportDebtsToExcel = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await prisma.debt.findMany({
+      orderBy: { ngayPhatSinh: 'desc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Quản lý công nợ');
+
+    worksheet.columns = [
+      { header: 'Ngày phát sinh', key: 'ngayPhatSinh', width: 18 },
+      { header: 'Loại chi phí', key: 'loaiChiPhi', width: 18 },
+      { header: 'Mã NCC', key: 'maNhaCungCap', width: 15 },
+      { header: 'Tên nhà cung cấp', key: 'tenNhaCungCap', width: 25 },
+      { header: 'Loại cung cấp', key: 'loaiCungCap', width: 18 },
+      { header: 'Cung cấp', key: 'cungCap', width: 20 },
+      { header: 'Nội dung chi cho', key: 'noiDungChiCho', width: 25 },
+      { header: 'Loại hình', key: 'loaiHinh', width: 15 },
+      { header: 'Số tiền phải trả', key: 'soTienPhaiTra', width: 20 },
+      { header: 'Số tiền đã thanh toán', key: 'soTienDaThanhToan', width: 22 },
+      { header: 'Còn nợ', key: 'conNo', width: 20 },
+      { header: 'Ngày hoạch toán', key: 'ngayHoachToan', width: 18 },
+      { header: 'Ngày đến hạn', key: 'ngayDenHan', width: 18 },
+      { header: 'Số tài khoản', key: 'soTaiKhoan', width: 18 },
+      { header: 'Ghi chú', key: 'ghiChu', width: 30 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((item) => {
+      worksheet.addRow({
+        ngayPhatSinh: new Date(item.ngayPhatSinh).toLocaleDateString('vi-VN'),
+        loaiChiPhi: item.loaiChiPhi || '',
+        maNhaCungCap: item.maNhaCungCap,
+        tenNhaCungCap: item.tenNhaCungCap,
+        loaiCungCap: item.loaiCungCap || '',
+        cungCap: item.cungCap || '',
+        noiDungChiCho: item.noiDungChiCho || '',
+        loaiHinh: item.loaiHinh || '',
+        soTienPhaiTra: item.soTienPhaiTra,
+        soTienDaThanhToan: item.soTienDaThanhToan,
+        conNo: item.soTienPhaiTra - item.soTienDaThanhToan,
+        ngayHoachToan: item.ngayHoachToan ? new Date(item.ngayHoachToan).toLocaleDateString('vi-VN') : '',
+        ngayDenHan: item.ngayDenHan ? new Date(item.ngayDenHan).toLocaleDateString('vi-VN') : '',
+        soTaiKhoan: item.soTaiKhoan || '',
+        ghiChu: item.ghiChu || '',
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=cong-no-${Date.now()}.xlsx`);
+    res.send(buffer);
+  } catch (error: any) {
+    logger.error('Error exporting debts to Excel:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi xuất công nợ ra Excel',
       error: error.message,
     });
   }
@@ -219,7 +289,7 @@ export const getDebtSummary = async (_req: Request, res: Response): Promise<void
       data: summary,
     });
   } catch (error: any) {
-    console.error('Error getting debt summary:', error);
+    logger.error('Error getting debt summary:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy tổng hợp công nợ',

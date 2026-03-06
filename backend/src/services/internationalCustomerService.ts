@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
+import ExcelJS from 'exceljs';
 
 export class InternationalCustomerService {
   /**
@@ -155,6 +156,74 @@ export class InternationalCustomerService {
     await prisma.internationalCustomer.delete({
       where: { id },
     });
+  }
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+
+    if (filters?.phanLoaiDiaLy === 'Quốc tế') {
+      where.quocGia = { not: null };
+    } else if (filters?.phanLoaiDiaLy === 'Nội địa') {
+      where.tinhThanh = { not: null };
+    }
+
+    if (filters?.search) {
+      where.OR = [
+        { maKhachHang: { contains: filters.search, mode: 'insensitive' as const } },
+        { tenCongTy: { contains: filters.search, mode: 'insensitive' as const } },
+        { nguoiLienHe: { contains: filters.search, mode: 'insensitive' as const } },
+      ];
+    }
+
+    const data = await prisma.internationalCustomer.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const sheetName = filters?.phanLoaiDiaLy === 'Nội địa' ? 'Khách hàng nội địa' : 'Khách hàng quốc tế';
+    const worksheet = workbook.addWorksheet(sheetName);
+
+    worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
+      { header: 'Mã KH', key: 'maKhachHang', width: 15 },
+      { header: 'Tên công ty', key: 'tenCongTy', width: 30 },
+      { header: 'Người liên hệ', key: 'nguoiLienHe', width: 20 },
+      { header: 'Loại KH', key: 'loaiKhachHang', width: 15 },
+      { header: 'Quốc gia', key: 'quocGia', width: 15 },
+      { header: 'Tỉnh/Thành', key: 'tinhThanh', width: 15 },
+      { header: 'Điện thoại', key: 'soDienThoai', width: 15 },
+      { header: 'Email', key: 'email', width: 25 },
+      { header: 'Trạng thái', key: 'trangThai', width: 15 },
+      { header: 'Doanh thu năm', key: 'doanhThuNam', width: 18 },
+      { header: 'Số đơn hàng', key: 'soLuongDonHang', width: 15 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((item, index) => {
+      worksheet.addRow({
+        stt: index + 1,
+        maKhachHang: item.maKhachHang,
+        tenCongTy: item.tenCongTy,
+        nguoiLienHe: item.nguoiLienHe,
+        loaiKhachHang: item.loaiKhachHang,
+        quocGia: item.quocGia || '',
+        tinhThanh: item.tinhThanh || '',
+        soDienThoai: item.soDienThoai || '',
+        email: item.email || '',
+        trangThai: item.trangThai,
+        doanhThuNam: item.doanhThuNam,
+        soLuongDonHang: item.soLuongDonHang,
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

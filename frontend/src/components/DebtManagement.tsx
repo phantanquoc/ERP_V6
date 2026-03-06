@@ -5,6 +5,9 @@ import DatePicker from './DatePicker';
 
 const DebtManagement: React.FC = () => {
   const [debtData, setDebtData] = useState<Debt[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [summary, setSummary] = useState<DebtSummary>({
     tongPhaiTra: 0,
     daThanhToan: 0,
@@ -190,6 +193,16 @@ const DebtManagement: React.FC = () => {
 
 
 
+  const handleExportExcel = async () => {
+    try {
+      await debtService.exportToExcel();
+      alert('Xuất file Excel thành công!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Lỗi khi xuất file Excel');
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -202,6 +215,17 @@ const DebtManagement: React.FC = () => {
     return new Date(dateString).toLocaleDateString('vi-VN');
   };
 
+  const filteredDebtData = debtData.filter(
+    item =>
+      item.tenNhaCungCap.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.maNhaCungCap.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.loaiChiPhi || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const totalItems = filteredDebtData.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedDebtData = filteredDebtData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div>
       {/* Action Bar */}
@@ -211,16 +235,27 @@ const DebtManagement: React.FC = () => {
           <input
             type="text"
             placeholder="Tìm kiếm công nợ..."
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
           />
         </div>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 border-2 border-blue-600 hover:border-blue-700 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Thêm mới
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 border-2 border-green-600 hover:border-green-700 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Xuất Excel
+          </button>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 border-2 border-blue-600 hover:border-blue-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Thêm mới
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -242,9 +277,9 @@ const DebtManagement: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {debtData.map((item, index) => (
+              {paginatedDebtData.map((item, index) => (
                 <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">{index + 1}</td>
+                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{formatDate(item.ngayPhatSinh)}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{item.loaiChiPhi || '-'}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-red-600">{formatCurrency(item.soTienPhaiTra)}</td>
@@ -280,6 +315,44 @@ const DebtManagement: React.FC = () => {
           </table>
         )}
       </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+              .map((page, idx, arr) => (
+                <React.Fragment key={page}>
+                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-sm rounded-md ${
+                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add Modal */}
       {isAddModalOpen && (

@@ -13,6 +13,8 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     if (isOpen) {
@@ -23,13 +25,14 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
   const loadTasks = async () => {
     try {
       setLoading(true);
-      const params: any = { page: currentPage, limit: 10 };
+      const params: any = { page: currentPage, limit: itemsPerPage };
       // If admin, load all tasks; otherwise load only user's tasks
       const response = isAdmin
         ? await taskService.getAllTasks(params)
         : await taskService.getMyTasks(params);
       setTasks(response.data);
       setTotalPages(response.totalPages);
+      setTotalItems(response.total || response.data.length);
     } catch (error) {
       console.error('Error loading tasks:', error);
     } finally {
@@ -101,7 +104,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
                   return (
                     <tr key={task.id} className="hover:bg-gray-50">
                       <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {(currentPage - 1) * 10 + index + 1}
+                        {(currentPage - 1) * itemsPerPage + index + 1}
                       </td>
                       <td className="px-3 py-3 text-sm text-gray-900 max-w-[200px]">
                         <div className="line-clamp-2" title={task.noiDung}>{task.noiDung}</div>
@@ -171,23 +174,44 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
         {!loading && tasks.length > 0 && totalPages > 1 && (
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
             <div className="flex items-center justify-between">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trang trước
-              </button>
               <span className="text-sm text-gray-600">
-                Trang {currentPage} / {totalPages}
+                Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
               </span>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trang sau
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                  .map((page, idx, arr) => (
+                    <React.Fragment key={page}>
+                      {idx > 0 && arr[idx - 1] !== page - 1 && (
+                        <span className="px-1 text-gray-400">...</span>
+                      )}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-sm rounded-md ${
+                          page === currentPage
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  ))}
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
+              </div>
             </div>
           </div>
         )}

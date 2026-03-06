@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import taxReportService from '../services/taxReportService';
 import { getFileUrl } from '../middlewares/upload';
+import logger from '@config/logger';
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
@@ -22,7 +23,7 @@ export const getAllTaxReports = async (req: Request, res: Response) => {
       pagination: result.pagination,
     });
   } catch (error: any) {
-    console.error('Error getting tax reports:', error);
+    logger.error('Error getting tax reports:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to get tax reports',
@@ -50,7 +51,7 @@ export const getTaxReportById = async (req: Request, res: Response) => {
       data: taxReport,
     });
   } catch (error: any) {
-    console.error('Error getting tax report:', error);
+    logger.error('Error getting tax report:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to get tax report',
@@ -78,7 +79,7 @@ export const getTaxReportByOrderId = async (req: Request, res: Response) => {
       data: taxReport,
     });
   } catch (error: any) {
-    console.error('Error getting tax report by order:', error);
+    logger.error('Error getting tax report by order:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to get tax report',
@@ -106,7 +107,7 @@ export const createTaxReportFromOrder = async (req: RequestWithFile, res: Respon
       data: taxReport,
     });
   } catch (error: any) {
-    console.error('Error creating tax report:', error);
+    logger.error('Error creating tax report:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to create tax report',
@@ -134,7 +135,7 @@ export const updateTaxReport = async (req: RequestWithFile, res: Response) => {
       data: taxReport,
     });
   } catch (error: any) {
-    console.error('Error updating tax report:', error);
+    logger.error('Error updating tax report:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to update tax report',
@@ -155,10 +156,29 @@ export const deleteTaxReport = async (req: Request, res: Response) => {
       message: 'Tax report deleted successfully',
     });
   } catch (error: any) {
-    console.error('Error deleting tax report:', error);
+    logger.error('Error deleting tax report:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to delete tax report',
+      error: error.message,
+    });
+  }
+};
+
+// Export tax reports to Excel
+export const exportTaxReportsToExcel = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const filters: any = {};
+    if (req.query.search) filters.search = req.query.search as string;
+    const buffer = await taxReportService.exportToExcel(filters);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=bao-cao-thue-${Date.now()}.xlsx`);
+    res.send(buffer);
+  } catch (error: any) {
+    logger.error('Error exporting tax reports to Excel:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export tax reports',
       error: error.message,
     });
   }

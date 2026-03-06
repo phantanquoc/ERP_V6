@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, X, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import generalCostService, { GeneralCost, CreateGeneralCostInput, UpdateGeneralCostInput } from '../services/generalCostService';
 
@@ -9,7 +9,7 @@ const GeneralCostManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
   const [showModal, setShowModal] = useState(false);
   const [editingCost, setEditingCost] = useState<GeneralCost | null>(null);
   const [formData, setFormData] = useState<CreateGeneralCostInput>({
@@ -25,14 +25,13 @@ const GeneralCostManagement: React.FC = () => {
 
   useEffect(() => {
     loadCosts();
-  }, [currentPage, searchTerm]);
+  }, [searchTerm]);
 
   const loadCosts = async () => {
     try {
       setLoading(true);
-      const response = await generalCostService.getAllGeneralCosts(currentPage, 10, searchTerm);
+      const response = await generalCostService.getAllGeneralCosts(1, 1000, searchTerm);
       setCosts(response.data);
-      setTotalPages(response.pagination.totalPages);
     } catch (error) {
       console.error('Error loading general costs:', error);
       alert('Lỗi khi tải danh sách chi phí chung');
@@ -112,18 +111,37 @@ const GeneralCostManagement: React.FC = () => {
     }
   };
 
+  const handleExportExcel = async () => {
+    try {
+      await generalCostService.exportToExcel();
+      alert('Xuất file Excel thành công!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Lỗi khi xuất file Excel');
+    }
+  };
+
   return (
     <div className="p-6">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Quản lý Chi phí Chung</h2>
-        <button
-          onClick={() => handleOpenModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Tạo chi phí chung
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Xuất Excel
+          </button>
+          <button
+            onClick={() => handleOpenModal()}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Tạo chi phí chung
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -171,7 +189,7 @@ const GeneralCostManagement: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              costs.map((cost) => (
+              costs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((cost) => (
                 <tr key={cost.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {cost.maChiPhi}
@@ -217,27 +235,46 @@ const GeneralCostManagement: React.FC = () => {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="mt-4 flex justify-center gap-2">
-          <button
-            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-            className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-          >
-            Trước
-          </button>
-          <span className="px-4 py-2">
-            Trang {currentPage} / {totalPages}
-          </span>
-          <button
-            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages}
-            className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-          >
-            Sau
-          </button>
-        </div>
-      )}
+      {(() => {
+        const totalItems = costs.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        return totalPages > 1 ? (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Modal */}
       {showModal && (

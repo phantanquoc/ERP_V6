@@ -12,6 +12,14 @@ router.get(
   (req, res) => internalInspectionController.getAllInspections(req, res)
 );
 
+// Export to Excel
+router.get(
+  '/export/excel',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  (req, res) => internalInspectionController.exportToExcel(req, res)
+);
+
 // Get inspection by ID
 router.get(
   '/:id',

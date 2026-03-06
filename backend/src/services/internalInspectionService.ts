@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError } from '@utils/errors';
+import ExcelJS from 'exceljs';
 
 export class InternalInspectionService {
   async getAllInspections(month?: number, year?: number): Promise<any[]> {
@@ -172,6 +173,55 @@ export class InternalInspectionService {
     } catch (error) {
       throw error;
     }
+  }
+
+  async exportToExcel(_filters?: any): Promise<Buffer> {
+    const data = await prisma.internalInspection.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách kiểm tra nội bộ');
+
+    worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
+      { header: 'Mã kiểm tra', key: 'inspectionCode', width: 18 },
+      { header: 'Ngày kiểm tra', key: 'inspectionDate', width: 15 },
+      { header: 'Mã kế hoạch', key: 'inspectionPlanCode', width: 18 },
+      { header: 'Mã vi phạm', key: 'violationCode', width: 15 },
+      { header: 'Nội dung vi phạm', key: 'violationContent', width: 30 },
+      { header: 'Mức độ', key: 'violationLevel', width: 12 },
+      { header: 'Phân loại', key: 'violationCategory', width: 15 },
+      { header: 'Mô tả vi phạm', key: 'violationDescription', width: 30 },
+      { header: 'Người kiểm tra', key: 'inspectedBy', width: 20 },
+      { header: 'Trạng thái', key: 'status', width: 15 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((item, index) => {
+      worksheet.addRow({
+        stt: index + 1,
+        inspectionCode: item.inspectionCode,
+        inspectionDate: item.inspectionDate ? new Date(item.inspectionDate).toLocaleDateString('vi-VN') : '',
+        inspectionPlanCode: item.inspectionPlanCode,
+        violationCode: item.violationCode,
+        violationContent: item.violationContent,
+        violationLevel: item.violationLevel,
+        violationCategory: item.violationCategory,
+        violationDescription: item.violationDescription,
+        inspectedBy: item.inspectedBy,
+        status: item.status,
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

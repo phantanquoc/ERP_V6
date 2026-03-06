@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, Edit, Eye, Trash2, X, Upload } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Edit, Eye, Trash2, X, Upload, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface MachineActivityReport {
@@ -18,6 +18,8 @@ interface MachineActivityReport {
 const MachineActivityReport = () => {
   const { user } = useAuth();
   const [reports, setReports] = useState<MachineActivityReport[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingReport, setEditingReport] = useState<MachineActivityReport | null>(null);
@@ -182,10 +184,37 @@ const MachineActivityReport = () => {
     setIsModalOpen(true);
   };
 
+  const handleExportExcel = async () => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const url = `${API_URL}/machine-activity-reports/export/excel`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to export');
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `bao-cao-hoat-dong-may-${Date.now()}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    }
+  };
+
   return (
     <div>
       {/* Header with Add Button */}
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex justify-end gap-2">
+        <button
+          onClick={handleExportExcel}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+        >
+          <Download className="h-4 w-4" />
+          Xuất Excel
+        </button>
         <button
           onClick={handleAddNew}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -213,9 +242,9 @@ const MachineActivityReport = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {reports.map((report, index) => (
+            {reports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((report, index) => (
               <tr key={report.id} className="hover:bg-gray-50">
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{report.viTri}</td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{report.tenHeThong}</td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{report.tongSoLuong}</td>
@@ -260,6 +289,48 @@ const MachineActivityReport = () => {
           </tbody>
         </table>
       </div>
+      {(() => {
+        const totalItems = reports.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        return totalPages > 1 ? (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${
+                        page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Modal */}
       {isModalOpen && (

@@ -1,6 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import logger from '@config/logger';
 
 // Allowed file types for upload
 const ALLOWED_TYPES = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx|txt|zip|rar/;
@@ -138,7 +139,7 @@ export const deleteUploadedFile = (filePath: string): void => {
       fs.unlinkSync(fullPath);
     }
   } catch (error) {
-    console.error('Error deleting file:', error);
+    logger.error('Error deleting file:', error);
   }
 };
 

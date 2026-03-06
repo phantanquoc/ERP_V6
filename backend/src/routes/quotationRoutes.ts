@@ -13,6 +13,7 @@ router.use(authenticate);
 // GET routes - accessible to all authenticated users
 router.get('/', quotationController.getAllQuotations);
 router.get('/generate-code', quotationController.generateQuotationCode);
+router.get('/export/excel', quotationController.exportToExcel);
 router.get('/:id', quotationController.getQuotationById);
 
 // POST routes - accessible to ADMIN and DEPARTMENT_HEAD

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import leaveRequestService from '@services/leaveRequestService';
+import logger from '@config/logger';
 
 export class LeaveRequestController {
   /**
@@ -119,7 +120,7 @@ export class LeaveRequestController {
    */
   async exportToExcel(req: Request, res: Response, next: NextFunction) {
     try {
-      console.log('📥 Export Excel request received');
+      logger.debug('Export Excel request received');
       const filters: any = {};
 
       if (req.query.status) {
@@ -132,16 +133,16 @@ export class LeaveRequestController {
         filters.leaveType = req.query.leaveType as string;
       }
 
-      console.log('🔍 Filters:', filters);
+      logger.debug('Filters:', filters);
       const buffer = await leaveRequestService.exportToExcel(filters);
-      console.log('✅ Buffer generated, size:', buffer.length);
+      logger.debug('Buffer generated, size:', buffer.length);
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=danh-sach-don-nghi-phep-${Date.now()}.xlsx`);
       res.send(buffer);
-      console.log('✅ File sent to client');
+      logger.debug('File sent to client');
     } catch (error) {
-      console.error('❌ Error exporting to Excel:', error);
+      logger.error('Error exporting to Excel:', error);
       next(error);
     }
   }

@@ -120,6 +120,20 @@ export class FinishedProductController {
       next(error);
     }
   }
+
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: any = {};
+      if (req.query.search) filters.search = req.query.search as string;
+      if (req.query.tenMay) filters.tenMay = req.query.tenMay as string;
+      const buffer = await finishedProductService.exportToExcel(filters);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-thanh-pham-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new FinishedProductController();

@@ -23,95 +23,32 @@ import EmployeeDashboard from "./EmployeeDashboard";
 import purchaseRequestService from "../services/purchaseRequestService";
 import TaskListModal from "../components/TaskListModal";
 import FeedbackListModal from "../components/FeedbackListModal";
+import WorkPlanListModal from "../components/WorkPlanListModal";
 import { useTasksCount, usePrivateFeedbackStats } from "../hooks";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
-// Department Statistics Data
-const departmentStats = {
-  general: {
-    name: "Bộ phận tổng hợp",
-    icon: <Building2 className="h-6 w-6" />,
-    color: "from-blue-600 to-blue-800",
-    stats: [
-      { label: "Đơn hàng", value: "08", trend: "+2", color: "text-blue-600" },
-      { label: "Báo giá", value: "12", trend: "+5", color: "text-green-600" },
-      { label: "Chăm sóc KH", value: "24", trend: "+3", color: "text-purple-600" },
-      { label: "Phàn nàn", value: "02", trend: "-1", color: "text-red-600" }
-    ]
-  },
-  quality: {
-    name: "Bộ phận chất lượng",
-    icon: <ShieldCheck className="h-6 w-6" />,
-    color: "from-green-600 to-green-800",
-    stats: [
-      { label: "Quy trình", value: "15", trend: "+2", color: "text-blue-600" },
-      { label: "Không phù hợp", value: "03", trend: "-1", color: "text-red-600" },
-      { label: "Vi phạm", value: "01", trend: "0", color: "text-orange-600" },
-      { label: "Nhân viên", value: "48", trend: "+2", color: "text-green-600" }
-    ]
-  },
-  business: {
-    name: "Bộ phận kinh doanh",
-    icon: <Briefcase className="h-6 w-6" />,
-    color: "from-purple-600 to-purple-800",
-    stats: [
-      { label: "Hợp đồng", value: "25", trend: "+8", color: "text-blue-600" },
-      { label: "Khách hàng", value: "156", trend: "+12", color: "text-green-600" },
-      { label: "Doanh thu", value: "2.5B", trend: "+15%", color: "text-purple-600" },
-      { label: "Mục tiêu", value: "85%", trend: "+5%", color: "text-orange-600" }
-    ]
-  },
-  accounting: {
-    name: "Bộ phận kế toán",
-    icon: <Calculator className="h-6 w-6" />,
-    color: "from-orange-600 to-orange-800",
-    stats: [
-      { label: "Hóa đơn", value: "142", trend: "+18", color: "text-blue-600" },
-      { label: "Thu chi", value: "3.2B", trend: "+12%", color: "text-green-600" },
-      { label: "Công nợ", value: "450M", trend: "-8%", color: "text-red-600" },
-      { label: "Báo cáo", value: "28", trend: "+4", color: "text-purple-600" }
-    ]
-  },
-  production: {
-    name: "Bộ phận sản xuất",
-    icon: <Factory className="h-6 w-6" />,
-    color: "from-indigo-600 to-indigo-800",
-    stats: [
-      { label: "Đơn hàng SX", value: "18", trend: "+6", color: "text-blue-600" },
-      { label: "Hoàn thành", value: "15", trend: "+4", color: "text-green-600" },
-      { label: "Đang SX", value: "03", trend: "+2", color: "text-orange-600" },
-      { label: "Hiệu suất", value: "92%", trend: "+3%", color: "text-purple-600" }
-    ]
-  },
-  purchasing: {
-    name: "Bộ phận mua hàng",
-    icon: <ShoppingCart className="h-6 w-6" />,
-    color: "from-teal-600 to-teal-800",
-    stats: [
-      { label: "Đơn mua", value: "34", trend: "+7", color: "text-blue-600" },
-      { label: "Nhà cung cấp", value: "28", trend: "+3", color: "text-green-600" },
-      { label: "Tồn kho", value: "1.8B", trend: "+5%", color: "text-purple-600" },
-      { label: "Tiết kiệm", value: "120M", trend: "+8%", color: "text-orange-600" }
-    ]
-  },
-  technical: {
-    name: "Bộ phận kỹ thuật",
-    icon: <Wrench className="h-6 w-6" />,
-    color: "from-red-600 to-red-800",
-    stats: [
-      { label: "Dự án", value: "12", trend: "+3", color: "text-blue-600" },
-      { label: "Bảo trì", value: "08", trend: "+1", color: "text-green-600" },
-      { label: "Sự cố", value: "02", trend: "-2", color: "text-red-600" },
-      { label: "Cải tiến", value: "05", trend: "+2", color: "text-purple-600" }
-    ]
-  }
-};
+import { orderService } from "../services/orderService";
+import { quotationService } from "../services/quotationService";
+import customerFeedbackService from "../services/customerFeedbackService";
+import internationalCustomerService from "../services/internationalCustomerService";
+import employeeService from "../services/employeeService";
+import processService from "../services/processService";
+import internalInspectionService from "../services/internalInspectionService";
+import invoiceService from "../services/invoiceService";
+import debtService from "../services/debtService";
+import generalCostService from "../services/generalCostService";
+import machineService from "../services/machineService";
+import finishedProductService from "../services/finishedProductService";
+import { supplierService } from "../services/supplierService";
+import supplyRequestService from "../services/supplyRequestService";
+import taxReportService from "../services/taxReportService";
+import qualityEvaluationService from "../services/qualityEvaluationService";
+import { workPlanService } from "../services/workPlanService";
 
 // Quick Stats for Overview
-const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0) => [
+const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0) => [
   { label: "Yêu cầu mua hàng", value: purchaseRequestCount.toString(), change: `Chờ duyệt: ${purchaseRequestPendingCount}`, icon: <ShoppingCart className="h-5 w-5" />, color: "text-blue-600", clickable: true, type: 'purchaseRequests' },
   { label: "Danh sách nhiệm vụ", value: tasksCount.toString(), change: `Nhiệm vụ: ${tasksCount}`, icon: <CheckSquare className="h-5 w-5" />, color: "text-green-600", clickable: true, type: 'tasks' },
-  { label: "Danh sách kế hoạch", value: "08", change: "Đã lên kế hoạch: 08", icon: <Calendar className="h-5 w-5" />, color: "text-purple-600", clickable: false },
+  { label: "Danh sách kế hoạch", value: workPlanCount.toString(), change: `Đã lên kế hoạch: ${workPlanCount}`, icon: <Calendar className="h-5 w-5" />, color: "text-purple-600", clickable: true, type: 'workPlans' },
   { label: "Danh sách khó khăn và góp ý", value: feedbackCount.toString(), change: `Góp ý & Khó khăn: ${feedbackCount}`, icon: <AlertTriangle className="h-5 w-5" />, color: "text-orange-600", clickable: true, type: 'feedbacks' }
 ];
 
@@ -123,31 +60,29 @@ const DepartmentCard: React.FC<{
 }> = ({ department, onClick, isFullWidth = false }) => (
   <div
     onClick={onClick}
-    className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1 border border-gray-100"
+    className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer border border-gray-200"
   >
-    {/* Header with gradient */}
-    <div className={`bg-gradient-to-r ${department.color} p-4 rounded-t-xl`}>
-      <div className="flex items-center justify-between text-white">
+    {/* Header with accent bar */}
+    <div className="p-4 rounded-t-xl relative overflow-hidden">
+      <div className={`absolute top-0 left-0 w-full h-3 ${department.color}`}></div>
+      <div className="flex items-center justify-between text-gray-700">
         <div className="flex items-center space-x-3">
-          {department.icon}
-          <h3 className="text-lg font-semibold">{department.name}</h3>
+          <div className="text-gray-500">{department.icon}</div>
+          <h3 className="text-lg font-semibold text-gray-800">{department.name}</h3>
         </div>
-        <div className="text-white/80">
+        <div className="text-gray-400">
           <BarChart3 className="h-5 w-5" />
         </div>
       </div>
     </div>
 
     {/* Stats Grid */}
-    <div className="p-4">
+    <div className="p-4 pt-2">
       <div className={`grid gap-3 ${isFullWidth ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2'}`}>
         {department.stats.map((stat: any, index: number) => (
-          <div key={index} className="text-center">
+          <div key={index} className="text-center p-2 rounded-lg bg-gray-50">
             <div className="text-2xl font-bold text-gray-800">{stat.value}</div>
-            <div className="text-sm text-gray-600 mb-1">{stat.label}</div>
-            <div className={`text-xs font-medium ${stat.color}`}>
-              {stat.trend}
-            </div>
+            <div className="text-sm text-gray-500">{stat.label}</div>
           </div>
         ))}
       </div>
@@ -199,6 +134,7 @@ const Dashboard1: React.FC = () => {
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
   const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
   const [isPurchaseRequestModalOpen, setIsPurchaseRequestModalOpen] = useState(false);
+  const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState(false);
   const [approveLoading, setApproveLoading] = useState<string | null>(null);
 
   const userIsAdmin = user ? isAdmin(user.department) : false;
@@ -220,6 +156,129 @@ const Dashboard1: React.FC = () => {
   const purchaseRequestPendingCount = purchaseRequests.filter(
     (r: PurchaseRequest) => r.trangThai === 'Chờ duyệt'
   ).length;
+
+  // Dashboard stats queries
+  const { data: ordersData } = useQuery({
+    queryKey: ['dashboard', 'orders'],
+    queryFn: () => orderService.getAllOrders(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: quotationsData } = useQuery({
+    queryKey: ['dashboard', 'quotations'],
+    queryFn: () => quotationService.getAllQuotations(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: customersData } = useQuery({
+    queryKey: ['dashboard', 'customers'],
+    queryFn: () => internationalCustomerService.getAllCustomers(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: feedbacksData } = useQuery({
+    queryKey: ['dashboard', 'feedbacks'],
+    queryFn: () => customerFeedbackService.getAllFeedbacks(),
+    enabled: userIsAdmin,
+  });
+
+  const { data: processesData } = useQuery({
+    queryKey: ['dashboard', 'processes'],
+    queryFn: () => processService.getAllProcesses(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: inspectionsData } = useQuery({
+    queryKey: ['dashboard', 'inspections'],
+    queryFn: () => internalInspectionService.getAllInspections(),
+    enabled: userIsAdmin,
+  });
+
+  const { data: qualityEvalData } = useQuery({
+    queryKey: ['dashboard', 'qualityEvaluations'],
+    queryFn: () => qualityEvaluationService.getAllQualityEvaluations(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: employeesData } = useQuery({
+    queryKey: ['dashboard', 'employees'],
+    queryFn: () => employeeService.getAllEmployees(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: invoicesData } = useQuery({
+    queryKey: ['dashboard', 'invoices'],
+    queryFn: () => invoiceService.getAllInvoices(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: costsData } = useQuery({
+    queryKey: ['dashboard', 'costs'],
+    queryFn: () => generalCostService.getAllGeneralCosts(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: debtSummaryData } = useQuery({
+    queryKey: ['dashboard', 'debtSummary'],
+    queryFn: () => debtService.getDebtSummary(),
+    enabled: userIsAdmin,
+  });
+
+  const { data: taxReportsData } = useQuery({
+    queryKey: ['dashboard', 'taxReports'],
+    queryFn: () => taxReportService.getAllTaxReports(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: machinesData } = useQuery({
+    queryKey: ['dashboard', 'machines'],
+    queryFn: () => machineService.getAllMachines(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: finishedProductsData } = useQuery({
+    queryKey: ['dashboard', 'finishedProducts'],
+    queryFn: () => finishedProductService.getAllFinishedProducts(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: suppliersData } = useQuery({
+    queryKey: ['dashboard', 'suppliers'],
+    queryFn: () => supplierService.getAllSuppliers(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: supplyRequestsData } = useQuery({
+    queryKey: ['dashboard', 'supplyRequests'],
+    queryFn: () => supplyRequestService.getAllSupplyRequests(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  const { data: workPlansData } = useQuery({
+    queryKey: ['dashboard', 'workPlans'],
+    queryFn: () => workPlanService.getAllWorkPlans(1, 10000),
+    enabled: userIsAdmin,
+  });
+
+  // Compute department stats from real data
+  const orders = ordersData?.data || [];
+  const quotations = quotationsData?.data || [];
+  const customers = customersData?.data || [];
+  const feedbacks = Array.isArray(feedbacksData) ? feedbacksData : (feedbacksData?.data || []);
+  const processes = processesData?.data || [];
+  const inspections = Array.isArray(inspectionsData) ? inspectionsData : (inspectionsData?.data || []);
+  const qualityEvals = qualityEvalData?.data || [];
+  const employees = employeesData?.data || [];
+  const invoices = invoicesData?.data || [];
+  const costs = costsData?.data || [];
+  const debtSummary = debtSummaryData?.data?.data || debtSummaryData?.data || {};
+  const taxReports = taxReportsData?.data || [];
+  const machines = machinesData?.data || [];
+  const finishedProducts = finishedProductsData?.data || [];
+  const suppliers = suppliersData?.data || [];
+  const supplyRequests = supplyRequestsData?.data || [];
+  const workPlans = workPlansData?.data || [];
+  const workPlanCount = workPlans.length;
 
   // Mutation for approving/rejecting purchase requests
   const approveMutation = useMutation({
@@ -264,7 +323,87 @@ const Dashboard1: React.FC = () => {
 
   // Nếu là admin, hiển thị Admin Dashboard
   const departmentName = getDepartmentDisplayName(user.department);
-  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount);
+  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount);
+
+  const departmentStats = {
+    general: {
+      name: "Bộ phận tổng hợp",
+      icon: <Building2 className="h-6 w-6" />,
+      color: "bg-slate-400",
+      stats: [
+        { label: "Đơn hàng", value: orders.length.toString() },
+        { label: "Báo giá", value: quotations.length.toString() },
+        { label: "Khách hàng", value: customers.length.toString() },
+        { label: "Phản hồi KH", value: feedbacks.length.toString() }
+      ]
+    },
+    quality: {
+      name: "Bộ phận chất lượng",
+      icon: <ShieldCheck className="h-6 w-6" />,
+      color: "bg-emerald-400",
+      stats: [
+        { label: "Quy trình", value: processes.length.toString() },
+        { label: "Kiểm tra NB", value: inspections.length.toString() },
+        { label: "Đánh giá CL", value: qualityEvals.length.toString() },
+        { label: "Nhân viên", value: employees.length.toString() }
+      ]
+    },
+    business: {
+      name: "Bộ phận kinh doanh",
+      icon: <Briefcase className="h-6 w-6" />,
+      color: "bg-blue-400",
+      stats: [
+        { label: "Đơn hàng", value: orders.length.toString() },
+        { label: "Khách hàng", value: customers.length.toString() },
+        { label: "Báo giá", value: quotations.length.toString() },
+        { label: "Phản hồi", value: feedbacks.length.toString() }
+      ]
+    },
+    accounting: {
+      name: "Bộ phận kế toán",
+      icon: <Calculator className="h-6 w-6" />,
+      color: "bg-amber-400",
+      stats: [
+        { label: "Hóa đơn", value: invoices.length.toString() },
+        { label: "Chi phí", value: costs.length.toString() },
+        { label: "Công nợ", value: (debtSummary?.soLuongCongNo || 0).toString() },
+        { label: "Báo cáo thuế", value: taxReports.length.toString() }
+      ]
+    },
+    production: {
+      name: "Bộ phận sản xuất",
+      icon: <Factory className="h-6 w-6" />,
+      color: "bg-indigo-400",
+      stats: [
+        { label: "Máy móc", value: machines.length.toString() },
+        { label: "Đang SX", value: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length.toString() },
+        { label: "Thành phẩm", value: finishedProducts.length.toString() },
+        { label: "Đã giao", value: orders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length.toString() }
+      ]
+    },
+    purchasing: {
+      name: "Bộ phận mua hàng",
+      icon: <ShoppingCart className="h-6 w-6" />,
+      color: "bg-teal-400",
+      stats: [
+        { label: "Yêu cầu mua", value: purchaseRequestCount.toString() },
+        { label: "Nhà cung cấp", value: suppliers.length.toString() },
+        { label: "Yêu cầu cung ứng", value: supplyRequests.length.toString() },
+        { label: "Chờ duyệt", value: purchaseRequestPendingCount.toString() }
+      ]
+    },
+    technical: {
+      name: "Bộ phận kỹ thuật",
+      icon: <Wrench className="h-6 w-6" />,
+      color: "bg-rose-400",
+      stats: [
+        { label: "Máy móc", value: machines.length.toString() },
+        { label: "Bảo trì", value: machines.filter((m: any) => m.trangThai === 'BẢO_TRÌ').length.toString() },
+        { label: "Hoạt động", value: machines.filter((m: any) => m.trangThai === 'HOAT_DONG').length.toString() },
+        { label: "Ngừng", value: machines.filter((m: any) => m.trangThai === 'NGỪNG_HOẠT_ĐỘNG').length.toString() }
+      ]
+    }
+  };
 
   const handleDepartmentClick = (deptKey: string) => {
     // Navigate to department page
@@ -273,7 +412,7 @@ const Dashboard1: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Section */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl shadow-xl p-4 mb-8">
           <div className="flex items-center justify-between">
@@ -324,6 +463,8 @@ const Dashboard1: React.FC = () => {
                   setIsFeedbackListModalOpen(true);
                 } else if (stat.type === 'purchaseRequests') {
                   setIsPurchaseRequestModalOpen(true);
+                } else if (stat.type === 'workPlans') {
+                  setIsWorkPlanModalOpen(true);
                 }
               } : undefined}
             />
@@ -339,9 +480,9 @@ const Dashboard1: React.FC = () => {
             </div>
 
             {/* All Departments - Full Width Format */}
-            <div className="space-y-8">
+            <div className="space-y-4">
               {Object.entries(departmentStats).map(([key, department]) => (
-                <div key={key} className="mb-8">
+                <div key={key}>
                   <DepartmentCard
                     department={department}
                     onClick={() => handleDepartmentClick(key)}
@@ -437,6 +578,13 @@ const Dashboard1: React.FC = () => {
       <FeedbackListModal
         isOpen={isFeedbackListModalOpen}
         onClose={() => setIsFeedbackListModalOpen(false)}
+      />
+
+      {/* Work Plan List Modal */}
+      <WorkPlanListModal
+        isOpen={isWorkPlanModalOpen}
+        onClose={() => setIsWorkPlanModalOpen(false)}
+        isAdmin={userIsAdmin}
       />
 
       {/* Purchase Request Modal */}

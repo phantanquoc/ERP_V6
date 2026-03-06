@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import acceptanceHandoverService from '@services/acceptanceHandoverService';
 
 class AcceptanceHandoverController {
@@ -103,6 +103,19 @@ class AcceptanceHandoverController {
         success: false,
         message: error.message || 'Lỗi khi cập nhật nghiệm thu bàn giao',
       });
+    }
+  }
+
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: any = {};
+      if (req.query.search) filters.search = req.query.search as string;
+      const buffer = await acceptanceHandoverService.exportToExcel(filters);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-nghiem-thu-ban-giao-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
     }
   }
 

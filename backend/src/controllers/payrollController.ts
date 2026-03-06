@@ -1,5 +1,6 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import payrollService from '@services/payrollService';
+import logger from '@config/logger';
 
 export class PayrollController {
   async getPayrollByMonthYear(req: Request, res: Response): Promise<void> {
@@ -22,7 +23,7 @@ export class PayrollController {
       });
       return;
     } catch (error) {
-      console.error('Error fetching payrolls:', error);
+      logger.error('Error fetching payrolls:', error);
       res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error fetching payrolls',
@@ -43,7 +44,7 @@ export class PayrollController {
       });
       return;
     } catch (error) {
-      console.error('Error fetching payroll detail:', error);
+      logger.error('Error fetching payroll detail:', error);
       res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error fetching payroll detail',
@@ -77,7 +78,7 @@ export class PayrollController {
       });
       return;
     } catch (error) {
-      console.error('Error creating/updating payroll:', error);
+      logger.error('Error creating/updating payroll:', error);
       res.status(error instanceof Error && error.message.includes('not found') ? 404 : 400).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error creating/updating payroll',
@@ -99,12 +100,25 @@ export class PayrollController {
       });
       return;
     } catch (error) {
-      console.error('Error updating payroll:', error);
+      logger.error('Error updating payroll:', error);
       res.status(error instanceof Error && error.message.includes('not found') ? 404 : 400).json({
         success: false,
         message: error instanceof Error ? error.message : 'Error updating payroll',
       });
       return;
+    }
+  }
+
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: any = {};
+      if (req.query.search) filters.search = req.query.search as string;
+      const buffer = await payrollService.exportToExcel(filters);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=bang-luong-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
     }
   }
 }

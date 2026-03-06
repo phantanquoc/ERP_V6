@@ -10,6 +10,8 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Modal states
   const [viewModalOpen, setViewModalOpen] = useState(false);
@@ -113,7 +115,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
             {warehouses.map((warehouse) => (
               <button
                 key={warehouse.id}
-                onClick={() => setSelectedWarehouse(warehouse)}
+                onClick={() => { setSelectedWarehouse(warehouse); setCurrentPage(1); }}
                 className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   selectedWarehouse?.id === warehouse.id
                     ? 'border-blue-500 text-blue-600'
@@ -159,7 +161,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
           {/* Lots Table */}
           {selectedWarehouse?.lots && selectedWarehouse.lots.length > 0 ? (
             <div className="space-y-4">
-              {selectedWarehouse.lots.map((lot) => (
+              {selectedWarehouse.lots.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lot) => (
                 <div key={lot.id} className="border border-gray-200 rounded-lg overflow-hidden">
                   {/* Lot Header */}
                   <div className="flex justify-between items-center px-4 py-3 bg-gray-50 border-b border-gray-200">
@@ -262,6 +264,47 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
           ) : (
             <p className="text-center text-gray-500">Chưa có lô nào trong kho này</p>
           )}
+
+          {(() => {
+            const totalItems = selectedWarehouse?.lots?.length || 0;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            return totalPages > 1 ? (
+              <div className="flex items-center justify-between mt-4 px-2">
+                <span className="text-sm text-gray-600">
+                  Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Trước
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                    .map((page, idx, arr) => (
+                      <React.Fragment key={page}>
+                        {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                        <button
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Sau
+                  </button>
+                </div>
+              </div>
+            ) : null;
+          })()}
         </div>
       )}
 

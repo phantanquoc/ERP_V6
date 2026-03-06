@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import ExcelJS from 'exceljs';
 
 export class QualityEvaluationService {
   async getAllQualityEvaluations(page: number = 1, limit: number = 10, tenMay?: string) {
@@ -162,6 +163,68 @@ export class QualityEvaluationService {
     });
 
     return { message: 'Đã xóa đánh giá chất lượng thành công' };
+  }
+  async exportToExcel(_filters?: any): Promise<Buffer> {
+    const data = await prisma.qualityEvaluation.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách đánh giá chất lượng');
+
+    worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
+      { header: 'Mã chiên', key: 'maChien', width: 15 },
+      { header: 'Thời gian chiên', key: 'thoiGianChien', width: 20 },
+      { header: 'Tên hàng hóa', key: 'tenHangHoa', width: 25 },
+      { header: 'Màu sắc', key: 'mauSac', width: 12 },
+      { header: 'A (%)', key: 'aTiLe', width: 10 },
+      { header: 'B (%)', key: 'bTiLe', width: 10 },
+      { header: "B' (%)", key: 'bDauTiLe', width: 10 },
+      { header: 'C (%)', key: 'cTiLe', width: 10 },
+      { header: 'Vụn lớn (%)', key: 'vunLonTiLe', width: 12 },
+      { header: 'Vụn nhỏ (%)', key: 'vunNhoTiLe', width: 12 },
+      { header: 'Phế phẩm (%)', key: 'phePhamTiLe', width: 12 },
+      { header: 'Ướt (%)', key: 'uotTiLe', width: 10 },
+      { header: 'Mùi hương', key: 'muiHuong', width: 15 },
+      { header: 'Hương vị', key: 'huongVi', width: 15 },
+      { header: 'Độ ngọt', key: 'doNgot', width: 12 },
+      { header: 'Độ giòn', key: 'doGion', width: 12 },
+      { header: 'Người thực hiện', key: 'nguoiThucHien', width: 20 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((item, index) => {
+      worksheet.addRow({
+        stt: index + 1,
+        maChien: item.maChien,
+        thoiGianChien: item.thoiGianChien ? new Date(item.thoiGianChien).toLocaleString('vi-VN') : '',
+        tenHangHoa: item.tenHangHoa,
+        mauSac: item.mauSac,
+        aTiLe: item.aTiLe,
+        bTiLe: item.bTiLe,
+        bDauTiLe: item.bDauTiLe,
+        cTiLe: item.cTiLe,
+        vunLonTiLe: item.vunLonTiLe,
+        vunNhoTiLe: item.vunNhoTiLe,
+        phePhamTiLe: item.phePhamTiLe,
+        uotTiLe: item.uotTiLe,
+        muiHuong: item.muiHuong,
+        huongVi: item.huongVi,
+        doNgot: item.doNgot,
+        doGion: item.doGion,
+        nguoiThucHien: item.nguoiThucHien,
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

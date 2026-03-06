@@ -13,7 +13,7 @@ const ProductionProcessManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [editingProcess, setEditingProcess] = useState<ProductionProcess | null>(null);
@@ -37,14 +37,13 @@ const ProductionProcessManagement: React.FC = () => {
     loadProductionProcesses();
     loadTemplateProcesses();
     loadMaterialStandards();
-  }, [currentPage]);
+  }, []);
 
   const loadProductionProcesses = async () => {
     setLoading(true);
     try {
-      const response = await productionProcessService.getAllProductionProcesses(currentPage, 10);
+      const response = await productionProcessService.getAllProductionProcesses(1, 1000);
       setProductionProcesses(response.data);
-      setTotalPages(response.pagination.totalPages);
     } catch (error) {
       console.error('Error loading production processes:', error);
       alert('Lỗi khi tải danh sách quy trình sản xuất');
@@ -365,6 +364,11 @@ const ProductionProcessManagement: React.FC = () => {
     process.tenQuyTrinh.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -381,7 +385,7 @@ const ProductionProcessManagement: React.FC = () => {
             type="text"
             placeholder="Tìm kiếm theo mã hoặc tên quy trình..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -426,7 +430,7 @@ const ProductionProcessManagement: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredProcesses.map((process, index) => (
+                filteredProcesses.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((process, index) => (
                   <tr
                     key={process.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -434,7 +438,7 @@ const ProductionProcessManagement: React.FC = () => {
                     }`}
                   >
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
-                      {(currentPage - 1) * 10 + index + 1}
+                      {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                       {process.maQuyTrinhSanXuat}
@@ -487,27 +491,46 @@ const ProductionProcessManagement: React.FC = () => {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="mt-6 flex justify-center gap-2">
-          <button
-            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-            className="px-4 py-2 border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-          >
-            Trước
-          </button>
-          <span className="px-4 py-2">
-            Trang {currentPage} / {totalPages}
-          </span>
-          <button
-            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages}
-            className="px-4 py-2 border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-          >
-            Sau
-          </button>
-        </div>
-      )}
+      {(() => {
+        const totalItems = filteredProcesses.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        return totalPages > 1 ? (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Create/Edit Modal */}
       {isModalOpen && (

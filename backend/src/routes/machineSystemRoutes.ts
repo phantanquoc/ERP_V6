@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import ExcelJS from 'exceljs';
 
 const router = Router();
 
@@ -57,6 +58,60 @@ let nextId = 1;
 // GET all machine systems
 router.get('/', (_req: Request, res: Response) => {
   res.json(machineSystems);
+});
+
+// Export to Excel
+router.get('/export/excel', async (_req: Request, res: Response) => {
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách hệ thống máy');
+
+    worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
+      { header: 'Khu vực', key: 'khuVuc', width: 15 },
+      { header: 'Vị trí', key: 'viTri', width: 15 },
+      { header: 'Mã hệ thống', key: 'maHeThong', width: 15 },
+      { header: 'Tên hệ thống', key: 'tenHeThong', width: 20 },
+      { header: 'Chức năng', key: 'chucNang', width: 20 },
+      { header: 'Mã thiết bị', key: 'maThietBi', width: 15 },
+      { header: 'Tên thiết bị', key: 'tenThietBi', width: 20 },
+      { header: 'Nhiệm vụ', key: 'nhiemVu', width: 20 },
+      { header: 'Mã NTH', key: 'maNguoiThucHien', width: 15 },
+      { header: 'Người thực hiện', key: 'nguoiThucHien', width: 20 },
+      { header: 'Ngày tạo', key: 'ngayTao', width: 15 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    machineSystems.forEach((item, index) => {
+      worksheet.addRow({
+        stt: index + 1,
+        khuVuc: item.khuVuc,
+        viTri: item.viTri,
+        maHeThong: item.maHeThong,
+        tenHeThong: item.tenHeThong,
+        chucNang: item.chucNang,
+        maThietBi: item.maThietBi,
+        tenThietBi: item.tenThietBi,
+        nhiemVu: item.nhiemVu,
+        maNguoiThucHien: item.maNguoiThucHien,
+        nguoiThucHien: item.nguoiThucHien,
+        ngayTao: item.ngayTao ? new Date(item.ngayTao).toLocaleDateString('vi-VN') : '',
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=danh-sach-he-thong-may-${Date.now()}.xlsx`);
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi xuất Excel', error: (error as Error).message });
+  }
 });
 
 // GET single machine system

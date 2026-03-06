@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X, FileText } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, X, FileText, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import internationalCustomerService, { InternationalCustomer } from '../services/internationalCustomerService';
@@ -24,6 +24,9 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
   const [editingRequest, setEditingRequest] = useState<QuotationRequest | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<QuotationRequest | null>(null);
   const [quotationRequest, setQuotationRequest] = useState<QuotationRequest | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string>('');
+  const [exportSuccess, setExportSuccess] = useState<string>('');
   const [formData, setFormData] = useState({
     maYeuCauBaoGia: '',
     employeeId: '',
@@ -49,15 +52,14 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
   // React Query for fetching quotation requests
   const filterCustomerType = customerType === 'all' ? undefined : customerType;
   const { data: requestsData, isLoading: loading } = useQuotationRequests({
-    page: currentPage,
-    limit: itemsPerPage,
+    page: 1,
+    limit: 1000,
     search: searchTerm || undefined,
     customerType: filterCustomerType,
   });
 
   // Derive data from query result
   const requests = requestsData?.data ?? [];
-  const totalPages = requestsData?.pagination?.totalPages ?? 1;
 
   // Fetch customers and products on mount and when customerType changes
   useEffect(() => {
@@ -359,6 +361,21 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     setCurrentPage(1);
   };
 
+  const handleExportExcel = async () => {
+    try {
+      setExportError('');
+      setExportLoading(true);
+      await quotationRequestService.exportToExcel({ search: searchTerm || undefined });
+      setExportSuccess('Đã xuất file Excel thành công');
+      setTimeout(() => setExportSuccess(''), 3000);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      setExportError('Không thể xuất file Excel');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('vi-VN');
   };
@@ -396,10 +413,31 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        <button
+          onClick={handleExportExcel}
+          disabled={exportLoading}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+        >
+          <Download size={18} />
+          {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
+        </button>
       </div>
 
+      {/* Alert Messages */}
+      {exportError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <p className="text-red-800">{exportError}</p>
+        </div>
+      )}
+      {exportSuccess && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+          <CheckCircle className="w-5 h-5 text-green-600" />
+          <p className="text-green-800">{exportSuccess}</p>
+        </div>
+      )}
+
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -428,7 +466,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                   </td>
                 </tr>
               ) : (
-                requests.map((request, index) => (
+                requests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((request, index) => (
                   <tr
                     key={request.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -517,30 +555,47 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Pagination */}
-      <div className="flex justify-between items-center">
-        <div className="text-sm text-gray-700">
-          Trang {currentPage} / {totalPages}
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Trước
-          </button>
-          <button
-            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Sau
-          </button>
-        </div>
-      </div>
+      {(() => {
+        const totalItems = requests.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        return totalPages > 1 ? (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Create/Edit Modal */}
       {showModal && (

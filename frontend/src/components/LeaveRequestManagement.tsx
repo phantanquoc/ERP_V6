@@ -13,17 +13,17 @@ const LeaveRequestManagement = () => {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
 
   const { data: leaveRequestsData, isLoading: loading } = useLeaveRequests({
-    page: currentPage,
-    limit: 10,
+    page: 1,
+    limit: 1000,
     status: statusFilter || undefined,
   });
   const leaveRequests = leaveRequestsData?.data || [];
-  const totalPages = leaveRequestsData?.pagination?.totalPages || 1;
 
   const handleApprove = async (request: LeaveRequest) => {
     if (!user?.employeeId) {
@@ -191,7 +191,7 @@ const LeaveRequestManagement = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {leaveRequests.map((request, index) => (
+                    {leaveRequests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((request, index) => (
                       <tr
                         key={request.id}
                         className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -274,27 +274,46 @@ const LeaveRequestManagement = () => {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-4 flex justify-center gap-2">
-              <button
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Trước
-              </button>
-              <span className="px-4 py-2 text-gray-700">
-                Trang {currentPage} / {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Sau
-              </button>
-            </div>
-          )}
+          {(() => {
+            const totalItems = leaveRequests.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            return totalPages > 1 ? (
+              <div className="flex items-center justify-between mt-4 px-2">
+                <span className="text-sm text-gray-600">
+                  Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Trước
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                    .map((page, idx, arr) => (
+                      <React.Fragment key={page}>
+                        {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                        <button
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Sau
+                  </button>
+                </div>
+              </div>
+            ) : null;
+          })()}
         </>
       )}
 

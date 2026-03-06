@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Edit, Eye, Trash2, Calendar, Plus, X } from 'lucide-react';
+import { Search, Edit, Eye, Trash2, Calendar, Plus, X, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import invoiceService, { Invoice } from '../services/invoiceService';
 import DatePicker from './DatePicker';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,11 @@ const InvoiceManagement: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string>('');
+  const [exportSuccess, setExportSuccess] = useState<string>('');
+  const itemsPerPage = 10;
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -236,6 +241,25 @@ const InvoiceManagement: React.FC = () => {
     invoice.khachHang?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleExportExcel = async () => {
+    try {
+      setExportError('');
+      setExportLoading(true);
+      await invoiceService.exportToExcel({ search: searchTerm || undefined });
+      setExportSuccess('Đã xuất file Excel thành công');
+      setTimeout(() => setExportSuccess(''), 3000);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      setExportError('Không thể xuất file Excel');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const totalItems = filteredInvoices.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedInvoices = filteredInvoices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div>
       {/* Header & Search */}
@@ -246,18 +270,42 @@ const InvoiceManagement: React.FC = () => {
             type="text"
             placeholder="Tìm kiếm hóa đơn..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
           />
         </div>
-        <button
-          onClick={handleAddClick}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 border-2 border-blue-600 hover:border-blue-700 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Thêm hóa đơn
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            disabled={exportLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+          >
+            <Download size={18} />
+            {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
+          </button>
+          <button
+            onClick={handleAddClick}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 border-2 border-blue-600 hover:border-blue-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Thêm hóa đơn
+          </button>
+        </div>
       </div>
+
+      {/* Alert Messages */}
+      {exportError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <p className="text-red-800">{exportError}</p>
+        </div>
+      )}
+      {exportSuccess && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+          <CheckCircle className="w-5 h-5 text-green-600" />
+          <p className="text-green-800">{exportSuccess}</p>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -284,9 +332,9 @@ const InvoiceManagement: React.FC = () => {
                 <td colSpan={8} className="px-4 py-8 text-center text-gray-500">Không có dữ liệu</td>
               </tr>
             ) : (
-              filteredInvoices.map((invoice, index) => (
+              paginatedInvoices.map((invoice, index) => (
                 <tr key={invoice.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">{index + 1}</td>
+                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-blue-600">{invoice.soHoaDon}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{formatDate(invoice.ngayLap)}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{invoice.khachHang}</td>
@@ -320,6 +368,45 @@ const InvoiceManagement: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+              .map((page, idx, arr) => (
+                <React.Fragment key={page}>
+                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-sm rounded-md ${
+                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add Modal */}
       {isAddModalOpen && (

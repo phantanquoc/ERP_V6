@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, MoveRight } from 'lucide-react';
+import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus } from 'lucide-react';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 import { useWarehouses, warehouseKeys } from '../hooks';
@@ -9,6 +9,8 @@ const WarehouseManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
   const [products, setProducts] = useState<InternationalProduct[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // React Query hook for warehouses
   const { data: warehousesData, isLoading: loading } = useWarehouses();
@@ -237,28 +239,39 @@ const WarehouseManagement: React.FC = () => {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Quản lý kho</h1>
 
-      {/* Warehouse Tabs - Machine style */}
+      {/* Warehouse Tabs */}
       <div className="bg-white rounded-lg shadow mb-6">
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6 overflow-x-auto" aria-label="Warehouse Tabs">
+          <nav className="flex space-x-1 px-4 overflow-x-auto" aria-label="Warehouse Tabs">
             {warehouses.map((warehouse) => (
               <button
                 key={warehouse.id}
-                onClick={() => setSelectedWarehouse(warehouse)}
-                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                onClick={() => { setSelectedWarehouse(warehouse); setCurrentPage(1); }}
+                className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
                   selectedWarehouse?.id === warehouse.id
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-blue-500 text-blue-600 bg-blue-50/50'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
+                <WarehouseIcon className="w-3.5 h-3.5" />
                 {warehouse.tenKho}
+                {warehouse.lots && warehouse.lots.length > 0 && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                    selectedWarehouse?.id === warehouse.id
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {warehouse.lots.length}
+                  </span>
+                )}
               </button>
             ))}
             <button
               onClick={() => setShowWarehouseModal(true)}
-              className="whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm text-green-600 hover:text-green-700 hover:border-green-300 transition-colors"
+              className="whitespace-nowrap py-3 px-4 border-b-2 border-transparent font-medium text-sm text-green-600 hover:text-green-700 hover:border-green-400 hover:bg-green-50/50 transition-colors flex items-center gap-1.5"
             >
-              + Thêm kho
+              <Plus className="w-3.5 h-3.5" />
+              Thêm kho
             </button>
           </nav>
         </div>
@@ -266,19 +279,29 @@ const WarehouseManagement: React.FC = () => {
 
       {/* Warehouse Content */}
       {selectedWarehouse && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-end items-center mb-4">
-            <div className="flex gap-2">
+        <div className="bg-white rounded-lg shadow">
+          {/* Warehouse Header */}
+          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <WarehouseIcon className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">{selectedWarehouse.tenKho}</h2>
+                <p className="text-xs text-gray-500">{selectedWarehouse.lots?.length || 0} lô</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowLotModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-1.5 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Thêm lô
               </button>
               <button
                 onClick={() => handleDeleteWarehouse(selectedWarehouse.id)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
+                className="px-3 py-2 bg-white text-red-600 border border-red-200 rounded-lg hover:bg-red-50 text-sm font-medium flex items-center gap-1.5 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
                 Xóa kho
@@ -286,30 +309,45 @@ const WarehouseManagement: React.FC = () => {
             </div>
           </div>
 
-          {/* Lots Table */}
+          {/* Lots */}
+          <div className="p-6">
           {loading ? (
-            <p className="text-center text-gray-500">Đang tải...</p>
+            <p className="text-center text-gray-500 py-8">Đang tải...</p>
           ) : selectedWarehouse?.lots && selectedWarehouse.lots.length > 0 ? (
-            <div className="space-y-4">
-              {selectedWarehouse.lots.map((lot) => (
-                <div key={lot.id} className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="space-y-3">
+              {(() => {
+                const allLots = selectedWarehouse.lots;
+                const lotsTotalPages = Math.ceil(allLots.length / itemsPerPage);
+                const paginatedLots = allLots.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+                return (
+                  <>
+                    {paginatedLots.map((lot, lotIndex) => (
+                <div key={lot.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                   {/* Lot Header */}
-                  <div className="flex justify-between items-center px-4 py-3 bg-gray-50 border-b border-gray-200">
-                    <h3 className="text-base font-semibold text-gray-800">{lot.tenLo}</h3>
-                    <div className="flex gap-2">
+                  <div className="flex justify-between items-center px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700">
+                        {(currentPage - 1) * itemsPerPage + lotIndex + 1}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-800">{lot.tenLo}</h3>
+                        <p className="text-xs text-gray-400">{lot.lotProducts?.length || 0} sản phẩm</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
                           setSelectedLotId(lot.id);
                           setShowProductModal(true);
                         }}
-                        className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium flex items-center gap-1"
+                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium flex items-center gap-1.5 transition-colors"
                       >
-                        <Plus className="w-3.5 h-3.5" />
+                        <PackagePlus className="w-3.5 h-3.5" />
                         Thêm sản phẩm
                       </button>
                       <button
                         onClick={() => handleDeleteLot(lot.id)}
-                        className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium flex items-center gap-1"
+                        className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg hover:bg-red-50 text-xs font-medium flex items-center gap-1.5 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Xóa lô
@@ -321,41 +359,44 @@ const WarehouseManagement: React.FC = () => {
                   {lot?.lotProducts && lot.lotProducts.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full table-fixed">
-                        <thead className="bg-gray-100">
+                        <thead className="bg-gray-50">
                           <tr>
-                            <th className="w-[50%] px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            <th className="w-[50%] px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                               Tên hàng hóa
                             </th>
-                            <th className="w-[30%] px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            <th className="w-[30%] px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                               Số lượng
                             </th>
-                            <th className="w-[20%] px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            <th className="w-[20%] px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
                               Hành động
                             </th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200 bg-white">
-                          {lot.lotProducts.map((product) => (
-                            <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-3 text-sm text-gray-900">
+                        <tbody className="divide-y divide-gray-100 bg-white">
+                          {lot.lotProducts.map((product, idx) => (
+                            <tr key={product.id} className={`hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                              <td className="px-4 py-3 text-sm text-gray-900 flex items-center gap-2">
+                                <Package className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                                 {product.internationalProduct?.tenSanPham || '-'}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-900 font-medium">
-                                {product.soLuong} {product.donViTinh}
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-xs font-semibold">
+                                  {product.soLuong} {product.donViTinh}
+                                </span>
                               </td>
                               <td className="px-4 py-3 text-sm">
-                                <div className="flex justify-center gap-3">
+                                <div className="flex justify-center gap-2">
                                   <button
                                     onClick={() => openMoveModal(product)}
-                                    className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
-                                    title="Di chuyển"
+                                    className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                    title="Di chuyển sang lô khác"
                                   >
                                     <MoveRight className="w-4 h-4" />
                                   </button>
                                   <button
                                     onClick={() => handleRemoveProduct(product.id)}
-                                    className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
-                                    title="Xóa"
+                                    className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                                    title="Xóa sản phẩm"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
@@ -367,16 +408,69 @@ const WarehouseManagement: React.FC = () => {
                       </table>
                     </div>
                   ) : (
-                    <div className="px-4 py-6 text-center text-gray-500 text-sm bg-white">
-                      Chưa có sản phẩm trong lô này
+                    <div className="px-4 py-8 text-center bg-white">
+                      <Package className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-400">Chưa có sản phẩm trong lô này</p>
                     </div>
                   )}
                 </div>
               ))}
+                    {lotsTotalPages > 1 && (
+                      <div className="flex items-center justify-between mt-4 px-2">
+                        <span className="text-sm text-gray-600">
+                          Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, allLots.length)} / {allLots.length} lô
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Trước
+                          </button>
+                          {Array.from({ length: lotsTotalPages }, (_, i) => i + 1)
+                            .filter(page => page === 1 || page === lotsTotalPages || Math.abs(page - currentPage) <= 2)
+                            .map((page, idx, arr) => (
+                              <React.Fragment key={page}>
+                                {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                                <button
+                                  onClick={() => setCurrentPage(page)}
+                                  className={`px-3 py-1.5 text-sm rounded-md ${
+                                    page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {page}
+                                </button>
+                              </React.Fragment>
+                            ))}
+                          <button
+                            onClick={() => setCurrentPage(p => Math.min(lotsTotalPages, p + 1))}
+                            disabled={currentPage === lotsTotalPages}
+                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Sau
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           ) : (
-            <p className="text-center text-gray-500">Chưa có lô nào</p>
+            <div className="text-center py-12">
+              <WarehouseIcon className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-400 text-sm">Chưa có lô nào trong kho này</p>
+              <button
+                onClick={() => setShowLotModal(true)}
+                className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium inline-flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                Thêm lô đầu tiên
+              </button>
+            </div>
           )}
+          </div>
         </div>
       )}
 

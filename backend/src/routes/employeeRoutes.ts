@@ -23,6 +23,15 @@ router.get('/',
   employeeController.getAllEmployees
 );
 
+// Export to Excel
+router.get('/export/excel',
+  checkAccess({
+    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD],
+    checkDepartment: true,
+  }),
+  employeeController.exportToExcel
+);
+
 // Get employee by ID (with RBAC + ABAC)
 router.get('/:id',
   checkAccess({

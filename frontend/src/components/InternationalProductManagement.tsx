@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, X, Download } from 'lucide-react';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 
 const InternationalProductManagement: React.FC = () => {
@@ -7,7 +7,6 @@ const InternationalProductManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<InternationalProduct | null>(null);
@@ -25,18 +24,17 @@ const InternationalProductManagement: React.FC = () => {
 
   useEffect(() => {
     fetchProducts();
-  }, [currentPage, searchTerm]);
+  }, [searchTerm]);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
       const response = await internationalProductService.getAllProducts(
-        currentPage,
-        itemsPerPage,
+        1,
+        1000,
         searchTerm || undefined
       );
       setProducts(response.data);
-      setTotalPages(response.pagination.totalPages);
     } catch (error) {
       console.error('Error fetching products:', error);
       alert('Lỗi khi tải danh sách sản phẩm');
@@ -198,6 +196,7 @@ const InternationalProductManagement: React.FC = () => {
     setCurrentPage(1);
   };
 
+
   return (
     <div>
       {/* Table Container */}
@@ -214,13 +213,29 @@ const InternationalProductManagement: React.FC = () => {
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
             />
           </div>
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Thêm sản phẩm
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  await internationalProductService.exportToExcel({ search: searchTerm || undefined });
+                } catch (error) {
+                  console.error('Error exporting to Excel:', error);
+                  alert('Lỗi khi xuất Excel');
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Xuất Excel
+            </button>
+            <button
+              onClick={openCreateModal}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm sản phẩm
+            </button>
+          </div>
         </div>
 
         {/* Table */}
@@ -258,7 +273,7 @@ const InternationalProductManagement: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              products.map((product) => (
+              products.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((product) => (
                 <tr key={product.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                     {product.maSanPham}
@@ -305,27 +320,46 @@ const InternationalProductManagement: React.FC = () => {
       </div>
 
       {/* Pagination */}
-      <div className="flex justify-between items-center">
-        <div className="text-sm text-gray-700">
-          Trang {currentPage} / {totalPages}
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Trước
-          </button>
-          <button
-            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Sau
-          </button>
-        </div>
-      </div>
+      {(() => {
+        const totalItems = products.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        return totalPages > 1 ? (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Create/Edit Modal */}
       {showModal && (

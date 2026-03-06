@@ -1,7 +1,9 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
+import ExcelJS from 'exceljs';
 
 export class InternationalProductService {
   /**
@@ -134,18 +136,18 @@ export class InternationalProductService {
 
   async deleteProduct(id: string): Promise<void> {
     const product = await this.getProductById(id);
-    console.log('Attempting to delete product:', product.maSanPham);
+    logger.debug('Attempting to delete product:', product.maSanPham);
 
     // Check if product is being used in quotation request items
     const quotationRequestItems = await prisma.quotationRequestItem.count({
       where: { productId: id },
     });
 
-    console.log('Quotation request items count:', quotationRequestItems);
+    logger.debug('Quotation request items count:', quotationRequestItems);
 
     if (quotationRequestItems > 0) {
       const errorMsg = `Không thể xóa sản phẩm này vì đang được sử dụng trong ${quotationRequestItems} yêu cầu báo giá`;
-      console.log('Throwing ValidationError:', errorMsg);
+      logger.debug('Throwing ValidationError:', errorMsg);
       throw new ValidationError(errorMsg);
     }
 
@@ -163,6 +165,54 @@ export class InternationalProductService {
     await prisma.internationalProduct.delete({
       where: { id },
     });
+  }
+
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+
+    if (filters?.search) {
+      where.OR = [
+        { maSanPham: { contains: filters.search, mode: 'insensitive' as const } },
+        { tenSanPham: { contains: filters.search, mode: 'insensitive' as const } },
+        { moTaSanPham: { contains: filters.search, mode: 'insensitive' as const } },
+      ];
+    }
+
+    const data = await prisma.internationalProduct.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách sản phẩm quốc tế');
+
+    worksheet.columns = [
+      { header: 'Mã sản phẩm', key: 'maSanPham', width: 20 },
+      { header: 'Tên sản phẩm', key: 'tenSanPham', width: 30 },
+      { header: 'Mô tả sản phẩm', key: 'moTaSanPham', width: 40 },
+      { header: 'Loại sản phẩm', key: 'loaiSanPham', width: 20 },
+      { header: 'Ngày tạo', key: 'createdAt', width: 20 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((item) => {
+      worksheet.addRow({
+        maSanPham: item.maSanPham,
+        tenSanPham: item.tenSanPham,
+        moTaSanPham: item.moTaSanPham || '',
+        loaiSanPham: item.loaiSanPham || '',
+        createdAt: new Date(item.createdAt).toLocaleDateString('vi-VN'),
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

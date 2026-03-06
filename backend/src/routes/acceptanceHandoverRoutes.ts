@@ -49,6 +49,7 @@ router.use(authenticate);
 
 // GET routes
 router.get('/', acceptanceHandoverController.getAllAcceptanceHandovers);
+router.get('/export/excel', acceptanceHandoverController.exportToExcel);
 router.get('/generate-code', acceptanceHandoverController.generateAcceptanceHandoverCode);
 router.get('/:id', acceptanceHandoverController.getAcceptanceHandoverById);
 

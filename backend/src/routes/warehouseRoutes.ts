@@ -1,42 +1,31 @@
-import express from 'express';
+import { Router } from 'express';
 import {
   getAllWarehouses,
   generateWarehouseCode,
   createWarehouse,
   deleteWarehouse,
-} from '../controllers/warehouseController';
-import {
-  getLotsByWarehouse,
-  createLot,
-  deleteLot,
-} from '../controllers/lotController';
-import {
-  getAllLotProducts,
-  addProductToLot,
-  removeProductFromLot,
-  moveProductBetweenLots,
-  updateProductQuantity,
-} from '../controllers/lotProductController';
+} from '@controllers/warehouseController';
+import { getLotsByWarehouse } from '@controllers/lotController';
+import { authenticate } from '@middlewares/auth';
 
-const router = express.Router();
+const router = Router();
 
-// Warehouse routes
-router.get('/warehouses', getAllWarehouses);
-router.get('/warehouses/generate-code', generateWarehouseCode);
-router.post('/warehouses', createWarehouse);
-router.delete('/warehouses/:id', deleteWarehouse);
+router.use(authenticate);
 
-// Lot routes
-router.get('/warehouses/:warehouseId/lots', getLotsByWarehouse);
-router.post('/lots', createLot);
-router.delete('/lots/:id', deleteLot);
+// GET /api/warehouses
+router.get('/', getAllWarehouses);
 
-// Lot Product routes
-router.get('/lot-products', getAllLotProducts);
-router.post('/lot-products', addProductToLot);
-router.delete('/lot-products/:id', removeProductFromLot);
-router.put('/lot-products/move', moveProductBetweenLots);
-router.put('/lot-products/:id', updateProductQuantity);
+// GET /api/warehouses/generate-code
+router.get('/generate-code', generateWarehouseCode);
+
+// POST /api/warehouses
+router.post('/', createWarehouse);
+
+// DELETE /api/warehouses/:id
+router.delete('/:id', deleteWarehouse);
+
+// GET /api/warehouses/:warehouseId/lots
+router.get('/:warehouseId/lots', getLotsByWarehouse);
 
 export default router;
 

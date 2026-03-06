@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import ExcelJS from 'exceljs';
 
 export class MachineService {
   async getAllMachines(page: number = 1, limit: number = 100) {
@@ -151,6 +152,63 @@ export class MachineService {
     });
 
     return { message: 'Machine deleted successfully' };
+  }
+
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+
+    if (filters?.search) {
+      where.OR = [
+        { maMay: { contains: filters.search, mode: 'insensitive' } },
+        { tenMay: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const data = await prisma.machine.findMany({
+      where,
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách máy móc');
+
+    worksheet.columns = [
+      { header: 'Mã máy', key: 'maMay', width: 15 },
+      { header: 'Tên máy', key: 'tenMay', width: 25 },
+      { header: 'Mô tả', key: 'moTa', width: 30 },
+      { header: 'Trạng thái', key: 'trangThai', width: 20 },
+      { header: 'Ghi chú', key: 'ghiChu', width: 25 },
+      { header: 'Ngày tạo', key: 'createdAt', width: 18 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((machine) => {
+      let statusText = '';
+      switch (machine.trangThai) {
+        case 'HOAT_DONG': statusText = 'Hoạt động'; break;
+        case 'BẢO_TRÌ': statusText = 'Bảo trì'; break;
+        case 'NGỪNG_HOẠT_ĐỘNG': statusText = 'Ngừng hoạt động'; break;
+        default: statusText = machine.trangThai;
+      }
+
+      worksheet.addRow({
+        maMay: machine.maMay,
+        tenMay: machine.tenMay,
+        moTa: machine.moTa || '',
+        trangThai: statusText,
+        ghiChu: machine.ghiChu || '',
+        createdAt: new Date(machine.createdAt).toLocaleDateString('vi-VN'),
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   }
 }
 

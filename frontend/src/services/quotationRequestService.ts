@@ -147,5 +147,26 @@ export const quotationRequestService = {
     const response = await axios.get(`${API_URL}/generate-code`, getAuthHeader());
     return response.data;
   },
+
+  async exportToExcel(filters?: { search?: string }): Promise<void> {
+    const token = localStorage.getItem('accessToken');
+    const params = new URLSearchParams();
+    if (filters?.search) params.append('search', filters.search);
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const url = `${API_BASE}/quotation-requests/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error('Failed to export to Excel');
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `danh-sach-yeu-cau-bao-gia-${Date.now()}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  },
 };
 

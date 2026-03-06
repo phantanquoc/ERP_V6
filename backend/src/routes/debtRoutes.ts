@@ -6,6 +6,7 @@ import {
   updateDebt,
   deleteDebt,
   getDebtSummary,
+  exportDebtsToExcel,
 } from '../controllers/debtController';
 import { createSingleUploadMiddleware } from '../middlewares/upload';
 
@@ -19,6 +20,9 @@ router.get('/', getAllDebts);
 
 // Get debt summary
 router.get('/summary', getDebtSummary);
+
+// Export debts to Excel (must be before /:id)
+router.get('/export/excel', exportDebtsToExcel);
 
 // Get debt by ID
 router.get('/:id', getDebtById);

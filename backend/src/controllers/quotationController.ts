@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest, ApiResponse } from '@types';
 import quotationService from '@services/quotationService';
 
@@ -106,6 +106,19 @@ export class QuotationController {
       };
 
       res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: any = {};
+      if (req.query.search) filters.search = req.query.search as string;
+      const buffer = await quotationService.exportToExcel(filters);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-bao-gia-${Date.now()}.xlsx`);
+      res.send(buffer);
     } catch (error) {
       next(error);
     }

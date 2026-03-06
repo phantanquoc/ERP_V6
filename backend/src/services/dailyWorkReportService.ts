@@ -1,7 +1,6 @@
-import { PrismaClient, DailyWorkReportStatus } from '@prisma/client';
+import prisma from '@config/database';
+import { DailyWorkReportStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '@utils/errors';
-
-const prisma = new PrismaClient();
 
 export class DailyWorkReportService {
   /**

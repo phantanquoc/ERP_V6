@@ -140,6 +140,28 @@ class OrderService {
     });
     return response.data;
   }
+
+  // Export orders to Excel
+  async exportToExcel(filters?: { search?: string }): Promise<void> {
+    const token = localStorage.getItem('accessToken');
+    const params = new URLSearchParams();
+    if (filters?.search) params.append('search', filters.search);
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const url = `${API_BASE}/orders/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error('Failed to export to Excel');
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `danh-sach-don-hang-${Date.now()}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
 }
 
 export const orderService = new OrderService();

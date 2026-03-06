@@ -1,9 +1,6 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-// Get lots by warehouse
+import prisma from '@config/database';
+import logger from '@config/logger';
 export const getLotsByWarehouse = async (req: Request, res: Response) => {
   try {
     const warehouseId = req.params.warehouseId as string;
@@ -25,7 +22,7 @@ export const getLotsByWarehouse = async (req: Request, res: Response) => {
       data: lots,
     });
   } catch (error: any) {
-    console.error('Error fetching lots:', error);
+    logger.error('Error fetching lots:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy danh sách lô',
@@ -67,7 +64,7 @@ export const createLot = async (req: Request, res: Response): Promise<void> => {
       message: 'Tạo lô thành công',
     });
   } catch (error: any) {
-    console.error('Error creating lot:', error);
+    logger.error('Error creating lot:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi tạo lô',
@@ -90,7 +87,7 @@ export const deleteLot = async (req: Request, res: Response) => {
       message: 'Xóa lô thành công',
     });
   } catch (error: any) {
-    console.error('Error deleting lot:', error);
+    logger.error('Error deleting lot:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi xóa lô',

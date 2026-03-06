@@ -10,6 +10,7 @@ router.use(authenticate);
 
 // GET routes - accessible to all authenticated users
 router.get('/', machineController.getAllMachines);
+router.get('/export/excel', machineController.exportToExcel);
 router.get('/generate-code', machineController.generateMachineCode);
 router.get('/:id', machineController.getMachineById);
 

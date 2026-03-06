@@ -14,6 +14,9 @@ router.use(authenticate);
 // GET /api/quality-evaluations - Get all quality evaluations with pagination and filtering
 router.get('/', qualityEvaluationController.getAllQualityEvaluations.bind(qualityEvaluationController));
 
+// GET /api/quality-evaluations/export/excel - Export to Excel
+router.get('/export/excel', qualityEvaluationController.exportToExcel.bind(qualityEvaluationController));
+
 // GET /api/quality-evaluations/:id - Get quality evaluation by ID
 router.get('/:id', qualityEvaluationController.getQualityEvaluationById.bind(qualityEvaluationController));
 

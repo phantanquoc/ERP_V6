@@ -67,6 +67,29 @@ class CustomerFeedbackService {
     const response = await api.get<any>('/customer-feedbacks/statistics/summary');
     return response.data;
   }
+
+  async exportToExcel(filters?: { search?: string; customerType?: string }): Promise<void> {
+    const token = localStorage.getItem('accessToken');
+    const params = new URLSearchParams();
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.customerType) params.append('customerType', filters.customerType);
+
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const url = `${API_URL}/customer-feedbacks/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error('Failed to export to Excel');
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `danh-sach-phan-hoi-khach-hang-${Date.now()}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
 }
 
 export default new CustomerFeedbackService();

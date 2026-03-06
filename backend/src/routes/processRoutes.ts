@@ -11,6 +11,7 @@ router.use(authenticate);
 // GET routes - accessible to all authenticated users
 router.get('/', processController.getAllProcesses);
 router.get('/generate-code', processController.generateProcessCode);
+router.get('/export/excel', processController.exportToExcel);
 router.get('/:id', processController.getProcessById);
 
 // POST routes - accessible to ADMIN and DEPARTMENT_HEAD

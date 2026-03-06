@@ -15,6 +15,7 @@ router.use(authenticate);
 // GET routes - accessible to all authenticated users
 router.get('/', orderController.getAllOrders);
 router.get('/generate-code', orderController.generateOrderCode);
+router.get('/export/excel', orderController.exportToExcel);
 router.get('/:id', orderController.getOrderById);
 
 // POST routes - accessible to ADMIN and DEPARTMENT_HEAD

@@ -1,6 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@config/database';
+import ExcelJS from 'exceljs';
 
 interface CreateCustomerFeedbackData {
   customerId: string;
@@ -204,6 +203,82 @@ export const customerFeedbackService = {
     } catch (error) {
       throw error;
     }
+  },
+
+  // Export feedbacks to Excel
+  async exportToExcel(filters?: any): Promise<Buffer> {
+    const where: any = {};
+
+    if (filters?.customerType === 'Quốc tế') {
+      where.customer = { quocGia: { not: null } };
+    } else if (filters?.customerType === 'Nội địa') {
+      where.customer = { tinhThanh: { not: null } };
+    }
+
+    if (filters?.trangThaiXuLy) {
+      where.trangThaiXuLy = filters.trangThaiXuLy;
+    }
+    if (filters?.loaiPhanHoi) {
+      where.loaiPhanHoi = filters.loaiPhanHoi;
+    }
+    if (filters?.mucDoNghiemTrong) {
+      where.mucDoNghiemTrong = filters.mucDoNghiemTrong;
+    }
+    if (filters?.search) {
+      where.OR = [
+        { noiDungPhanHoi: { contains: filters.search, mode: 'insensitive' } },
+        { sanPhamLienQuan: { contains: filters.search, mode: 'insensitive' } },
+        { donHangLienQuan: { contains: filters.search, mode: 'insensitive' } },
+        { customer: { tenCongTy: { contains: filters.search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const data = await prisma.customerFeedback.findMany({
+      where,
+      include: {
+        customer: true,
+      },
+      orderBy: {
+        ngayPhanHoi: 'desc',
+      },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách phản hồi khách hàng');
+
+    worksheet.columns = [
+      { header: 'Ngày phản hồi', key: 'ngayPhanHoi', width: 15 },
+      { header: 'Khách hàng', key: 'tenKhachHang', width: 25 },
+      { header: 'Loại phản hồi', key: 'loaiPhanHoi', width: 15 },
+      { header: 'Mức độ nghiêm trọng', key: 'mucDoNghiemTrong', width: 20 },
+      { header: 'Nội dung phản hồi', key: 'noiDungPhanHoi', width: 40 },
+      { header: 'Sản phẩm liên quan', key: 'sanPhamLienQuan', width: 20 },
+      { header: 'Trạng thái xử lý', key: 'trangThaiXuLy', width: 15 },
+      { header: 'Người tiếp nhận', key: 'nguoiTiepNhan', width: 20 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    data.forEach((item) => {
+      worksheet.addRow({
+        ngayPhanHoi: item.ngayPhanHoi ? new Date(item.ngayPhanHoi).toLocaleDateString('vi-VN') : '',
+        tenKhachHang: item.customer?.tenCongTy || '',
+        loaiPhanHoi: item.loaiPhanHoi,
+        mucDoNghiemTrong: item.mucDoNghiemTrong,
+        noiDungPhanHoi: item.noiDungPhanHoi,
+        sanPhamLienQuan: item.sanPhamLienQuan || '',
+        trangThaiXuLy: item.trangThaiXuLy,
+        nguoiTiepNhan: item.nguoiTiepNhan || '',
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
   },
 };
 
