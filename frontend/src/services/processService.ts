@@ -169,6 +169,20 @@ export const processService = {
     return response.data;
   },
 
+  async uploadSectionFile(file: File): Promise<{ success: boolean; data: { fileUrl: string; fileName: string } }> {
+    const token = localStorage.getItem('accessToken');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await axios.post(`${API_URL}/upload-file`, formData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
   async exportToExcel(): Promise<void> {
     const token = localStorage.getItem('accessToken');
     const url = `${API_URL}/export/excel`;

@@ -84,6 +84,19 @@ class FinishedProductService {
     };
   }
 
+  private buildFormData(data: Record<string, any>, file?: File): FormData {
+    const formData = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && key !== 'fileDinhKem') {
+        formData.append(key, typeof value === 'object' ? JSON.stringify(value) : value.toString());
+      }
+    });
+    if (file) {
+      formData.append('file', file);
+    }
+    return formData;
+  }
+
   async getAllFinishedProducts(page: number = 1, limit: number = 10, tenMay?: string): Promise<{ data: FinishedProduct[], pagination: any }> {
     try {
       const params: any = { page, limit };
@@ -115,8 +128,18 @@ class FinishedProductService {
     }
   }
 
-  async createFinishedProduct(data: Partial<FinishedProduct>): Promise<FinishedProduct> {
+  async createFinishedProduct(data: Partial<FinishedProduct>, file?: File): Promise<FinishedProduct> {
     try {
+      if (file) {
+        const formData = this.buildFormData(data, file);
+        const response = await axios.post(`${API_BASE_URL}/finished-products`, formData, {
+          headers: {
+            'Authorization': `Bearer ${this.getAuthToken()}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        return response.data.data;
+      }
       const response = await axios.post(`${API_BASE_URL}/finished-products`, data, {
         headers: this.getHeaders(),
       });
@@ -126,8 +149,18 @@ class FinishedProductService {
     }
   }
 
-  async updateFinishedProduct(id: string, data: Partial<FinishedProduct>): Promise<FinishedProduct> {
+  async updateFinishedProduct(id: string, data: Partial<FinishedProduct>, file?: File): Promise<FinishedProduct> {
     try {
+      if (file) {
+        const formData = this.buildFormData(data, file);
+        const response = await axios.patch(`${API_BASE_URL}/finished-products/${id}`, formData, {
+          headers: {
+            'Authorization': `Bearer ${this.getAuthToken()}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        return response.data.data;
+      }
       const response = await axios.patch(`${API_BASE_URL}/finished-products/${id}`, data, {
         headers: this.getHeaders(),
       });

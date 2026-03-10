@@ -39,18 +39,30 @@ export const resetPasswordSchema = z.object({
 });
 
 // ==================== CUSTOMER SCHEMAS ====================
+// Helper: accept string, null, or undefined
+const optionalString = z.string().optional().nullable();
+const optionalNumber = z.union([z.number(), z.string()]).optional().nullable();
+
 export const createCustomerSchema = z.object({
   tenCongTy: z.string().min(1, 'Tên công ty là bắt buộc'),
   nguoiLienHe: z.string().min(1, 'Người liên hệ là bắt buộc'),
   loaiKhachHang: z.string().min(1, 'Loại khách hàng là bắt buộc'),
-  quocGia: z.string().optional(),
-  tinhThanh: z.string().optional(),
-  email: z.string().email('Email không hợp lệ').optional().or(z.literal('')),
-  soDienThoai: z.string().optional(),
-  diaChi: z.string().optional(),
-  maKhachHang: z.string().optional(),
-  ngayHopTac: z.string().optional(),
-  ghiChu: z.string().optional(),
+  quocGia: optionalString,
+  thanhPho: optionalString,
+  tinhThanh: optionalString,
+  quanHuyen: optionalString,
+  maSoThue: optionalString,
+  email: z.string().email('Email không hợp lệ').optional().nullable().or(z.literal('')),
+  soDienThoai: optionalString,
+  diaChi: optionalString,
+  website: optionalString,
+  maKhachHang: optionalString,
+  trangThai: optionalString,
+  ngayHopTac: optionalString,
+  doanhThuNam: optionalNumber,
+  soLuongDonHang: optionalNumber,
+  sanPhamChinh: optionalString,
+  ghiChu: optionalString,
 }).refine(
   (data) => data.quocGia || data.tinhThanh,
   { message: 'Phải có Quốc gia (khách quốc tế) hoặc Tỉnh/Thành (khách nội địa)', path: ['quocGia'] }
@@ -58,15 +70,23 @@ export const createCustomerSchema = z.object({
 
 export const updateCustomerSchema = z.object({
   tenCongTy: z.string().min(1, 'Tên công ty là bắt buộc').optional(),
-  nguoiLienHe: z.string().optional(),
-  loaiKhachHang: z.string().optional(),
-  quocGia: z.string().optional(),
-  tinhThanh: z.string().optional(),
-  email: z.string().email('Email không hợp lệ').optional().or(z.literal('')),
-  soDienThoai: z.string().optional(),
-  diaChi: z.string().optional(),
-  ngayHopTac: z.string().optional(),
-  ghiChu: z.string().optional(),
+  nguoiLienHe: optionalString,
+  loaiKhachHang: optionalString,
+  quocGia: optionalString,
+  thanhPho: optionalString,
+  tinhThanh: optionalString,
+  quanHuyen: optionalString,
+  maSoThue: optionalString,
+  email: z.string().email('Email không hợp lệ').optional().nullable().or(z.literal('')),
+  soDienThoai: optionalString,
+  diaChi: optionalString,
+  website: optionalString,
+  trangThai: optionalString,
+  ngayHopTac: optionalString,
+  doanhThuNam: optionalNumber,
+  soLuongDonHang: optionalNumber,
+  sanPhamChinh: optionalString,
+  ghiChu: optionalString,
 });
 
 // ==================== QUOTATION REQUEST SCHEMAS ====================
@@ -85,12 +105,22 @@ export const createQuotationRequestSchema = z.object({
   employeeId: z.string().min(1, 'Nhân viên là bắt buộc'),
   items: z.array(quotationRequestItemSchema).min(1, 'Phải có ít nhất 1 sản phẩm'),
   maYeuCauBaoGia: z.string().optional(),
+  hinhThucVanChuyen: z.string().optional(),
+  hinhThucThanhToan: z.string().optional(),
+  quocGia: z.string().optional(),
+  cangDen: z.string().optional(),
   ghiChu: z.string().optional(),
 });
 
 export const updateQuotationRequestSchema = z.object({
+  customerId: z.string().optional(),
   trangThai: z.string().optional(),
+  hinhThucVanChuyen: z.string().optional(),
+  hinhThucThanhToan: z.string().optional(),
+  quocGia: z.string().optional(),
+  cangDen: z.string().optional(),
   ghiChu: z.string().optional(),
+  items: z.array(quotationRequestItemSchema).optional(),
 });
 
 // ==================== QUOTATION SCHEMAS ====================

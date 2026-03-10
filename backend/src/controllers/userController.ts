@@ -1,9 +1,9 @@
-import { Response } from 'express';
+import { Response, NextFunction } from 'express';
 import userService from '@services/userService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 
 export class UserController {
-  async getAllUsers(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async getAllUsers(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
@@ -16,21 +16,11 @@ export class UserController {
         data: result,
       } as ApiResponse<any>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 
-  async getUserById(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async getUserById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
       const user = await userService.getUserById(id as string);
@@ -41,21 +31,11 @@ export class UserController {
         data: user,
       } as ApiResponse<any>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(error.message === 'User not found' ? 404 : 400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 
-  async updateUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async updateUser(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
       const { firstName, lastName, role, isActive, departmentId, subDepartmentId } = req.body;
@@ -75,21 +55,11 @@ export class UserController {
         data: user,
       } as ApiResponse<any>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(error.message === 'User not found' ? 404 : 400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 
-  async deleteUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async deleteUser(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
       await userService.deleteUser(id as string);
@@ -99,21 +69,11 @@ export class UserController {
         message: 'User deleted successfully',
       });
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(error.message === 'User not found' ? 404 : 400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 
-  async getProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async getProfile(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({
@@ -131,21 +91,11 @@ export class UserController {
         data: user,
       } as ApiResponse<any>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 
-  async createUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async createUser(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { email, password, firstName, lastName, role, departmentId, subDepartmentId } = req.body;
 
@@ -165,21 +115,11 @@ export class UserController {
         data: user,
       } as ApiResponse<any>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(error.message.includes('already exists') ? 409 : 400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 
-  async recalculateSupervisors(_req: AuthenticatedRequest, res: Response): Promise<void> {
+  async recalculateSupervisors(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const result = await userService.recalculateSupervisorsForAllUsers();
 
@@ -189,21 +129,11 @@ export class UserController {
         data: result,
       } as ApiResponse<any>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 
-  async changePassword(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async changePassword(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.id;
       const { currentPassword, newPassword } = req.body;
@@ -231,22 +161,11 @@ export class UserController {
         message: 'Đổi mật khẩu thành công',
       } as ApiResponse<void>);
     } catch (error) {
-      if (error instanceof Error) {
-        const statusCode = error.message.includes('không đúng') ? 401 : 400;
-        res.status(statusCode).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 
-  async updateProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async updateProfile(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.id;
       const {
@@ -293,17 +212,7 @@ export class UserController {
         data: updatedUser,
       } as ApiResponse<any>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 }

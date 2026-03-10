@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Upload } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import processService, { ProcessFlowchartSection, ProcessFlowchartCost } from '../services/processService';
+import FileUpload from './FileUpload';
 
 interface FlowchartEditorProps {
   processId: string;
@@ -104,11 +105,15 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
   };
 
   const handleFileUpload = async (sectionIndex: number, costIndex: number, file: File) => {
-    // TODO: Implement file upload to server
-    // For now, just store the file name
-    const fileUrl = `/uploads/${file.name}`;
-    handleCostChange(sectionIndex, costIndex, 'fileUrl', fileUrl);
-    alert(`File "${file.name}" đã được chọn (chức năng upload sẽ được implement sau)`);
+    try {
+      const response = await processService.uploadSectionFile(file);
+      if (response.success) {
+        handleCostChange(sectionIndex, costIndex, 'fileUrl', response.data.fileUrl);
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Lỗi khi tải file lên');
+    }
   };
 
   const handleSubmit = async () => {
@@ -300,25 +305,14 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
                                 />
                               </td>
                               <td className="border border-gray-300 px-2 py-1">
-                                <div className="flex items-center gap-2">
-                                  <label className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded cursor-pointer hover:bg-gray-200">
-                                    <Upload className="w-3 h-3" />
-                                    <span>Chọn file</span>
-                                    <input
-                                      type="file"
-                                      className="hidden"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) handleFileUpload(sectionIndex, costIndex, file);
-                                      }}
-                                    />
-                                  </label>
-                                  {cost.fileUrl && (
-                                    <span className="text-xs text-blue-600 truncate max-w-[100px]" title={cost.fileUrl}>
-                                      {cost.fileUrl.split('/').pop()}
-                                    </span>
-                                  )}
-                                </div>
+                                <FileUpload
+                                  files={[]}
+                                  onChange={(files) => {
+                                    if (files[0]) handleFileUpload(sectionIndex, costIndex, files[0]);
+                                  }}
+                                  compact
+                                  existingFileName={cost.fileUrl ? cost.fileUrl.split('/').pop() : undefined}
+                                />
                               </td>
                               <td className="border border-gray-300 px-2 py-1 text-center">
                                 <button

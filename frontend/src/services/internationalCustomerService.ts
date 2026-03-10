@@ -175,10 +175,10 @@ class InternationalCustomerService {
     }
   }
 
-  async generateCustomerCode(): Promise<string> {
+  async generateCustomerCode(type: 'international' | 'domestic' = 'international'): Promise<string> {
     try {
       const response = await axios.post(`${API_BASE_URL}/international-customers/generate-code`,
-        {},
+        { type },
         {
           headers: this.getHeaders(),
         }

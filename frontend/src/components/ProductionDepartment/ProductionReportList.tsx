@@ -12,7 +12,17 @@ const ProductionReportList: React.FC = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ProductionReport | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [columnFilters, setColumnFilters] = useState({
+    maDinhMuc: '',
+    nguoiThucHien: '',
+  });
   const itemsPerPage = 10;
+
+  const filteredReports = reports.filter(report => {
+    const matchMaDM = !columnFilters.maDinhMuc || (report.maDinhMuc || '').toLowerCase().includes(columnFilters.maDinhMuc.toLowerCase());
+    const matchNguoiTH = !columnFilters.nguoiThucHien || (report.nguoiThucHien || '').toLowerCase().includes(columnFilters.nguoiThucHien.toLowerCase());
+    return matchMaDM && matchNguoiTH;
+  });
 
   useEffect(() => {
     fetchReports();
@@ -130,6 +140,31 @@ const ProductionReportList: React.FC = () => {
                   Hoạt động
                 </th>
               </tr>
+              <tr className="bg-white border-b border-gray-200">
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input
+                    type="text"
+                    placeholder="Lọc..."
+                    value={columnFilters.maDinhMuc}
+                    onChange={(e) => { setColumnFilters(prev => ({...prev, maDinhMuc: e.target.value})); setCurrentPage(1); }}
+                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input
+                    type="text"
+                    placeholder="Lọc..."
+                    value={columnFilters.nguoiThucHien}
+                    onChange={(e) => { setColumnFilters(prev => ({...prev, nguoiThucHien: e.target.value})); setCurrentPage(1); }}
+                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </th>
+                <th className="px-2 py-2"></th>
+              </tr>
             </thead>
             <tbody>
               {loading ? (
@@ -138,14 +173,14 @@ const ProductionReportList: React.FC = () => {
                     Đang tải...
                   </td>
                 </tr>
-              ) : reports.length === 0 ? (
+              ) : filteredReports.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     Chưa có báo cáo sản lượng nào
                   </td>
                 </tr>
               ) : (
-                reports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((report, index) => (
+                filteredReports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((report, index) => (
                   <tr
                     key={report.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -206,7 +241,7 @@ const ProductionReportList: React.FC = () => {
 
         {/* Pagination */}
         {(() => {
-          const totalItems = reports.length;
+          const totalItems = filteredReports.length;
           const totalPages = Math.ceil(totalItems / itemsPerPage);
           return totalPages > 1 ? (
             <div className="flex items-center justify-between mt-4 px-2">

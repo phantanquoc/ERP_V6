@@ -1,6 +1,8 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import notificationService from './notificationService';
+import { NotificationType, EvaluationStatus } from '@types';
 
 export class EmployeeEvaluationService {
   async getEmployeeEvaluations(month: number, year: number): Promise<any[]> {
@@ -262,120 +264,126 @@ export class EmployeeEvaluationService {
     });
 
     // Handle notification workflow
-    if (data.selfScore !== undefined) {
-      // Employee just completed self-evaluation
-      // Check if all details have selfScore
-      const allDetailsWithSelfScore = await prisma.evaluationDetail.findMany({
-        where: {
-          evaluationId: detail.evaluation.id,
-          selfScore: { not: null },
-        },
-      });
-
-      const totalDetails = await prisma.evaluationDetail.count({
-        where: { evaluationId: detail.evaluation.id },
-      });
-
-      if (allDetailsWithSelfScore.length === totalDetails) {
-        // All self-evaluations are done, send notification to supervisor1
-        const employee = await prisma.employee.findUnique({
-          where: { id: detail.evaluation.employeeId },
-          include: { user: true },
+    try {
+      if (data.selfScore !== undefined) {
+        // Employee just completed self-evaluation
+        // Check if all details have selfScore
+        const allDetailsWithSelfScore = await prisma.evaluationDetail.findMany({
+          where: {
+            evaluationId: detail.evaluation.id,
+            selfScore: { not: null },
+          },
         });
 
-        if (employee?.user?.supervisor1Id) {
-          // Send to supervisor1
-          await notificationService.createNotification({
-            userId: employee.user.supervisor1Id,
-            type: 'EVALUATION_SUPERVISOR1',
-            title: 'Đánh giá cấp trên 1',
-            message: `${employee.user.firstName} ${employee.user.lastName} đã hoàn thành tự đánh giá. Vui lòng đánh giá.`,
-            evaluationId: detail.evaluation.id,
-            period: detail.evaluation.period,
+        const totalDetails = await prisma.evaluationDetail.count({
+          where: { evaluationId: detail.evaluation.id },
+        });
+
+        if (allDetailsWithSelfScore.length === totalDetails) {
+          // All self-evaluations are done, send notification to supervisor1
+          const employee = await prisma.employee.findUnique({
+            where: { id: detail.evaluation.employeeId },
+            include: { user: true },
           });
 
-          // Update evaluation status
-          await prisma.evaluation.update({
-            where: { id: detail.evaluation.id },
-            data: { status: 'SUPERVISOR1_PENDING' },
-          });
-        } else if (employee?.user?.supervisor2Id) {
-          // No supervisor1, send to supervisor2
-          await notificationService.createNotification({
-            userId: employee.user.supervisor2Id,
-            type: 'EVALUATION_SUPERVISOR2',
-            title: 'Đánh giá cấp trên 2',
-            message: `${employee.user.firstName} ${employee.user.lastName} đã hoàn thành tự đánh giá. Vui lòng đánh giá.`,
+          if (employee?.user?.supervisor1Id) {
+            // Send to supervisor1 and update status in transaction
+            await prisma.$transaction(async (tx) => {
+              await notificationService.createNotification({
+                userId: employee.user!.supervisor1Id!,
+                type: NotificationType.EVALUATION_SUPERVISOR1,
+                title: 'Đánh giá cấp trên 1',
+                message: `${employee.user!.firstName} ${employee.user!.lastName} đã hoàn thành tự đánh giá. Vui lòng đánh giá.`,
+                evaluationId: detail.evaluation.id,
+                period: detail.evaluation.period,
+              });
+
+              await tx.evaluation.update({
+                where: { id: detail.evaluation.id },
+                data: { status: EvaluationStatus.SUPERVISOR1_PENDING },
+              });
+            });
+          } else if (employee?.user?.supervisor2Id) {
+            // No supervisor1, send to supervisor2 and update status in transaction
+            await prisma.$transaction(async (tx) => {
+              await notificationService.createNotification({
+                userId: employee.user!.supervisor2Id!,
+                type: NotificationType.EVALUATION_SUPERVISOR2,
+                title: 'Đánh giá cấp trên 2',
+                message: `${employee.user!.firstName} ${employee.user!.lastName} đã hoàn thành tự đánh giá. Vui lòng đánh giá.`,
+                evaluationId: detail.evaluation.id,
+                period: detail.evaluation.period,
+              });
+
+              await tx.evaluation.update({
+                where: { id: detail.evaluation.id },
+                data: { status: EvaluationStatus.SUPERVISOR2_PENDING },
+              });
+            });
+          }
+        }
+      } else if (data.supervisorScore1 !== undefined) {
+        // Supervisor1 just completed evaluation
+        const allDetailsWithScore1 = await prisma.evaluationDetail.findMany({
+          where: {
             evaluationId: detail.evaluation.id,
-            period: detail.evaluation.period,
+            supervisorScore1: { not: null },
+          },
+        });
+
+        const totalDetails = await prisma.evaluationDetail.count({
+          where: { evaluationId: detail.evaluation.id },
+        });
+
+        if (allDetailsWithScore1.length === totalDetails) {
+          // All supervisor1 evaluations are done, send notification to supervisor2
+          const employee = await prisma.employee.findUnique({
+            where: { id: detail.evaluation.employeeId },
+            include: { user: true },
           });
 
-          // Update evaluation status
+          if (employee?.user?.supervisor2Id) {
+            await prisma.$transaction(async (tx) => {
+              await notificationService.createNotification({
+                userId: employee.user!.supervisor2Id!,
+                type: NotificationType.EVALUATION_SUPERVISOR2,
+                title: 'Đánh giá cấp trên 2',
+                message: `${employee.user!.firstName} ${employee.user!.lastName} đã được đánh giá bởi cấp trên 1. Vui lòng đánh giá.`,
+                evaluationId: detail.evaluation.id,
+                period: detail.evaluation.period,
+              });
+
+              await tx.evaluation.update({
+                where: { id: detail.evaluation.id },
+                data: { status: EvaluationStatus.SUPERVISOR2_PENDING },
+              });
+            });
+          }
+        }
+      } else if (data.supervisorScore2 !== undefined) {
+        // Supervisor2 just completed evaluation
+        const allDetailsWithScore2 = await prisma.evaluationDetail.findMany({
+          where: {
+            evaluationId: detail.evaluation.id,
+            supervisorScore2: { not: null },
+          },
+        });
+
+        const totalDetails = await prisma.evaluationDetail.count({
+          where: { evaluationId: detail.evaluation.id },
+        });
+
+        if (allDetailsWithScore2.length === totalDetails) {
+          // All evaluations are done
           await prisma.evaluation.update({
             where: { id: detail.evaluation.id },
-            data: { status: 'SUPERVISOR2_PENDING' },
+            data: { status: EvaluationStatus.COMPLETED },
           });
         }
       }
-    } else if (data.supervisorScore1 !== undefined) {
-      // Supervisor1 just completed evaluation
-      // Check if all details have supervisorScore1
-      const allDetailsWithScore1 = await prisma.evaluationDetail.findMany({
-        where: {
-          evaluationId: detail.evaluation.id,
-          supervisorScore1: { not: null },
-        },
-      });
-
-      const totalDetails = await prisma.evaluationDetail.count({
-        where: { evaluationId: detail.evaluation.id },
-      });
-
-      if (allDetailsWithScore1.length === totalDetails) {
-        // All supervisor1 evaluations are done, send notification to supervisor2
-        const employee = await prisma.employee.findUnique({
-          where: { id: detail.evaluation.employeeId },
-          include: { user: true },
-        });
-
-        if (employee?.user?.supervisor2Id) {
-          await notificationService.createNotification({
-            userId: employee.user.supervisor2Id,
-            type: 'EVALUATION_SUPERVISOR2',
-            title: 'Đánh giá cấp trên 2',
-            message: `${employee.user.firstName} ${employee.user.lastName} đã được đánh giá bởi cấp trên 1. Vui lòng đánh giá.`,
-            evaluationId: detail.evaluation.id,
-            period: detail.evaluation.period,
-          });
-
-          // Update evaluation status
-          await prisma.evaluation.update({
-            where: { id: detail.evaluation.id },
-            data: { status: 'SUPERVISOR2_PENDING' },
-          });
-        }
-      }
-    } else if (data.supervisorScore2 !== undefined) {
-      // Supervisor2 just completed evaluation
-      // Check if all details have supervisorScore2
-      const allDetailsWithScore2 = await prisma.evaluationDetail.findMany({
-        where: {
-          evaluationId: detail.evaluation.id,
-          supervisorScore2: { not: null },
-        },
-      });
-
-      const totalDetails = await prisma.evaluationDetail.count({
-        where: { evaluationId: detail.evaluation.id },
-      });
-
-      if (allDetailsWithScore2.length === totalDetails) {
-        // All evaluations are done
-        await prisma.evaluation.update({
-          where: { id: detail.evaluation.id },
-          data: { status: 'COMPLETED' },
-        });
-      }
+    } catch (error) {
+      logger.error('❌ Error in evaluation notification workflow:', error);
+      // Don't fail the evaluation update if notification fails
     }
 
     return updatedDetail;

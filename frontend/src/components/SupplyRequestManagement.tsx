@@ -3,6 +3,7 @@ import { Search, Trash2, Eye, FileText, Edit, Package, ShoppingCart, Download } 
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
 import CreatePurchaseRequestModal from './CreatePurchaseRequestModal';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface SupplyRequestManagementProps {
   onClose?: () => void;
@@ -364,7 +365,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     <input
                       type="number"
                       value={formData.soLuong}
-                      onChange={(e) => setFormData({ ...formData, soLuong: parseFloat(e.target.value) })}
+                      onChange={(e) => setFormData({ ...formData, soLuong: parseNumberInput(e.target.value) })}
                       disabled={modalMode === 'view'}
                       required
                       min="0"

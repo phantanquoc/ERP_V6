@@ -1,57 +1,60 @@
+import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedLayout from './components/ProtectedLayout';
 import ProtectedSubRoute from './components/ProtectedSubRoute';
-import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import Dashboard1 from './pages/Dashboard1';
+
+const Login = React.lazy(() => import('./pages/Login'));
+const ForgotPassword = React.lazy(() => import('./pages/ForgotPassword'));
+const Dashboard1 = React.lazy(() => import('./pages/Dashboard1'));
 
 // Common Management
-import CommonManagement from './pages/CommonManagement';
+const CommonManagement = React.lazy(() => import('./pages/CommonManagement'));
 
 // Quality Management
-import QualityManagement from './pages/QualityManagement';
-import QualityPersonnel from './pages/quality/QualityPersonnel';
-import QualityOffice from './pages/quality/QualityOffice';
-import QualityProduction from './pages/quality/QualityProduction';
-import QualityProcess from './pages/quality/QualityProcess';
-import ProcessList from './pages/quality/ProcessList';
+const QualityManagement = React.lazy(() => import('./pages/QualityManagement'));
+const QualityPersonnel = React.lazy(() => import('./pages/quality/QualityPersonnel'));
+const QualityOffice = React.lazy(() => import('./pages/quality/QualityOffice'));
+const QualityProduction = React.lazy(() => import('./pages/quality/QualityProduction'));
+const QualityProcess = React.lazy(() => import('./pages/quality/QualityProcess'));
+const ProcessList = React.lazy(() => import('./pages/quality/ProcessList'));
 
 // General Management
-import GeneralManagement from './pages/GeneralManagement';
-import GeneralPricing from './pages/general/GeneralPricing';
-import GeneralPartners from './pages/general/GeneralPartners';
+const GeneralManagement = React.lazy(() => import('./pages/GeneralManagement'));
+const GeneralPricing = React.lazy(() => import('./pages/general/GeneralPricing'));
+const GeneralPartners = React.lazy(() => import('./pages/general/GeneralPartners'));
 
 // Business Management
-import BusinessManagement from './pages/BusinessManagement';
-import BusinessInternational from './pages/business/BusinessInternational';
-import BusinessDomestic from './pages/business/BusinessDomestic';
-import BusinessReport from './pages/BusinessReport';
+const BusinessManagement = React.lazy(() => import('./pages/BusinessManagement'));
+const BusinessInternational = React.lazy(() => import('./pages/business/BusinessInternational'));
+const BusinessDomestic = React.lazy(() => import('./pages/business/BusinessDomestic'));
+const BusinessReport = React.lazy(() => import('./pages/BusinessReport'));
 
 // Accounting Management
-import AccountingManagement from './pages/AccountingManagement';
-import AccountingAdmin from './pages/accounting/AccountingAdmin';
-import AccountingTax from './pages/accounting/AccountingTax';
+const AccountingManagement = React.lazy(() => import('./pages/AccountingManagement'));
+const AccountingAdmin = React.lazy(() => import('./pages/accounting/AccountingAdmin'));
+const AccountingTax = React.lazy(() => import('./pages/accounting/AccountingTax'));
 
 // Purchasing Management
-import PurchasingManagement from './pages/PurchasingManagement';
-import PurchasingMaterials from './pages/purchasing/PurchasingMaterials';
-import PurchasingEquipment from './pages/purchasing/PurchasingEquipment';
+const PurchasingManagement = React.lazy(() => import('./pages/PurchasingManagement'));
+const PurchasingMaterials = React.lazy(() => import('./pages/purchasing/PurchasingMaterials'));
+const PurchasingEquipment = React.lazy(() => import('./pages/purchasing/PurchasingEquipment'));
 
 // Production Management
-import ProductionManagement from './pages/ProductionManagement';
-import ProductionDepartment from './pages/production/ProductionDepartment';
-import ProductionWarehouse from './pages/production/ProductionWarehouse';
+const ProductionManagement = React.lazy(() => import('./pages/ProductionManagement'));
+const ProductionDepartment = React.lazy(() => import('./pages/production/ProductionDepartment'));
+const ProductionWarehouse = React.lazy(() => import('./pages/production/ProductionWarehouse'));
 
 // Technical Management
-import TechnicalManagement from './pages/TechnicalManagement';
-import TechnicalQuality from './pages/technical/TechnicalQuality';
-import TechnicalMechanical from './pages/technical/TechnicalMechanical';
+const TechnicalManagement = React.lazy(() => import('./pages/TechnicalManagement'));
+const TechnicalQuality = React.lazy(() => import('./pages/technical/TechnicalQuality'));
+const TechnicalMechanical = React.lazy(() => import('./pages/technical/TechnicalMechanical'));
 
 function App() {
   return (
     <Router>
       <AuthProvider>
+        <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
@@ -125,6 +128,7 @@ function App() {
           <Route path="/technical/quality" element={<ProtectedLayout><TechnicalQuality /></ProtectedLayout>} />
           <Route path="/technical/mechanical" element={<ProtectedLayout><TechnicalMechanical /></ProtectedLayout>} />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </Router>
   );

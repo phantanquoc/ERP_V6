@@ -106,6 +106,22 @@ export const workPlanService = {
     };
   },
 
+  async getMyWorkPlans(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+  ): Promise<{ data: WorkPlan[]; pagination: any }> {
+    const response = await axios.get(`${API_URL}/my-work-plans`, {
+      ...getAuthHeader(),
+      params: { page, limit, ...(search ? { search } : {}) },
+    });
+
+    return {
+      data: response.data.data,
+      pagination: response.data.pagination,
+    };
+  },
+
   async getWorkPlanById(id: string): Promise<WorkPlan> {
     const response = await axios.get(`${API_URL}/${id}`, getAuthHeader());
     return response.data.data;

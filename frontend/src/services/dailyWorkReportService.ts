@@ -48,6 +48,7 @@ export interface CreateDailyWorkReportRequest {
   workHours?: number;
   status?: string;
   attachments?: string;
+  files?: File[];
 }
 
 export interface UpdateDailyWorkReportRequest {
@@ -59,6 +60,7 @@ export interface UpdateDailyWorkReportRequest {
   workHours?: number;
   status?: string;
   attachments?: string;
+  files?: File[];
 }
 
 export interface ReportStatistics {
@@ -122,8 +124,25 @@ class DailyWorkReportService {
 
   async createReport(data: CreateDailyWorkReportRequest): Promise<DailyWorkReport> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/daily-work-reports`, data, {
-        headers: this.getHeaders(),
+      const formData = new FormData();
+      formData.append('reportDate', data.reportDate);
+      formData.append('workDescription', data.workDescription);
+      if (data.achievements) formData.append('achievements', data.achievements);
+      if (data.challenges) formData.append('challenges', data.challenges);
+      if (data.planForNextDay) formData.append('planForNextDay', data.planForNextDay);
+      if (data.workHours !== undefined) formData.append('workHours', data.workHours.toString());
+      if (data.status) formData.append('status', data.status);
+      if (data.files && data.files.length > 0) {
+        data.files.forEach(file => {
+          formData.append('files', file);
+        });
+      }
+
+      const response = await axios.post(`${API_BASE_URL}/daily-work-reports`, formData, {
+        headers: {
+          'Authorization': `Bearer ${this.getAuthToken()}`,
+          'Content-Type': 'multipart/form-data',
+        },
       });
       return response.data.data;
     } catch (error: any) {
@@ -133,8 +152,25 @@ class DailyWorkReportService {
 
   async updateReport(id: string, data: UpdateDailyWorkReportRequest): Promise<DailyWorkReport> {
     try {
-      const response = await axios.patch(`${API_BASE_URL}/daily-work-reports/${id}`, data, {
-        headers: this.getHeaders(),
+      const formData = new FormData();
+      if (data.reportDate) formData.append('reportDate', data.reportDate);
+      if (data.workDescription) formData.append('workDescription', data.workDescription);
+      if (data.achievements !== undefined) formData.append('achievements', data.achievements);
+      if (data.challenges !== undefined) formData.append('challenges', data.challenges);
+      if (data.planForNextDay !== undefined) formData.append('planForNextDay', data.planForNextDay);
+      if (data.workHours !== undefined) formData.append('workHours', data.workHours.toString());
+      if (data.status) formData.append('status', data.status);
+      if (data.files && data.files.length > 0) {
+        data.files.forEach(file => {
+          formData.append('files', file);
+        });
+      }
+
+      const response = await axios.patch(`${API_BASE_URL}/daily-work-reports/${id}`, formData, {
+        headers: {
+          'Authorization': `Bearer ${this.getAuthToken()}`,
+          'Content-Type': 'multipart/form-data',
+        },
       });
       return response.data.data;
     } catch (error: any) {

@@ -1,10 +1,11 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { privateFeedbackService } from '../services/privateFeedbackService';
 import { FeedbackType, FeedbackStatus } from '@prisma/client';
+import { getFileUrl } from '@middlewares/upload';
 
 export const privateFeedbackController = {
   // GET /api/private-feedbacks - Lấy tất cả feedback
-  async getAll(req: Request, res: Response) {
+  async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const {
         page = '1',
@@ -30,17 +31,13 @@ export const privateFeedbackController = {
         data: result.data,
         pagination: result.pagination
       });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: 'Lỗi khi lấy danh sách feedback',
-        error: error.message
-      });
+    } catch (error) {
+      next(error);
     }
   },
 
   // GET /api/private-feedbacks/:id - Lấy feedback theo ID
-  async getById(req: Request, res: Response) {
+  async getById(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
       const feedback = await privateFeedbackService.getById(id);
@@ -50,16 +47,13 @@ export const privateFeedbackController = {
         message: 'Lấy feedback thành công',
         data: feedback
       });
-    } catch (error: any) {
-      res.status(404).json({
-        success: false,
-        message: error.message
-      });
+    } catch (error) {
+      next(error);
     }
   },
 
   // GET /api/private-feedbacks/code/:code - Lấy feedback theo code
-  async getByCode(req: Request, res: Response) {
+  async getByCode(req: Request, res: Response, next: NextFunction) {
     try {
       const code = req.params.code as string;
       const feedback = await privateFeedbackService.getByCode(code);
@@ -69,16 +63,13 @@ export const privateFeedbackController = {
         message: 'Lấy feedback thành công',
         data: feedback
       });
-    } catch (error: any) {
-      res.status(404).json({
-        success: false,
-        message: error.message
-      });
+    } catch (error) {
+      next(error);
     }
   },
 
   // POST /api/private-feedbacks/generate-code - Tạo mã tự động
-  async generateCode(req: Request, res: Response): Promise<void> {
+  async generateCode(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { type } = req.body;
 
@@ -97,17 +88,13 @@ export const privateFeedbackController = {
         message: 'Tạo mã thành công',
         data: { code }
       });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: 'Lỗi khi tạo mã',
-        error: error.message
-      });
+    } catch (error) {
+      next(error);
     }
   },
 
   // POST /api/private-feedbacks - Tạo feedback mới
-  async create(req: Request, res: Response): Promise<void> {
+  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { type, content, notes, purpose, solution } = req.body;
       const userId = (req as any).user.id; // Từ auth middleware
@@ -131,7 +118,7 @@ export const privateFeedbackController = {
 
       // Lấy file paths từ uploaded files
       const files = (req as any).files || [];
-      const attachments = files.map((file: any) => `/uploads/feedbacks/${file.filename}`);
+      const attachments = files.map((file: any) => getFileUrl('feedbacks', file.filename));
 
       const feedback = await privateFeedbackService.create({
         type: type as FeedbackType,
@@ -148,17 +135,13 @@ export const privateFeedbackController = {
         message: 'Tạo feedback thành công',
         data: feedback
       });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: 'Lỗi khi tạo feedback',
-        error: error.message
-      });
+    } catch (error) {
+      next(error);
     }
   },
 
   // PATCH /api/private-feedbacks/:id - Cập nhật feedback
-  async update(req: Request, res: Response) {
+  async update(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
       const { content, notes, purpose, solution, attachments, status, response, respondedBy } = req.body;
@@ -186,17 +169,13 @@ export const privateFeedbackController = {
         message: 'Cập nhật feedback thành công',
         data: feedback
       });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: 'Lỗi khi cập nhật feedback',
-        error: error.message
-      });
+    } catch (error) {
+      next(error);
     }
   },
 
   // DELETE /api/private-feedbacks/:id - Xóa feedback
-  async delete(req: Request, res: Response) {
+  async delete(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
       await privateFeedbackService.delete(id);
@@ -205,17 +184,13 @@ export const privateFeedbackController = {
         success: true,
         message: 'Xóa feedback thành công'
       });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: 'Lỗi khi xóa feedback',
-        error: error.message
-      });
+    } catch (error) {
+      next(error);
     }
   },
 
   // GET /api/private-feedbacks/stats - Thống kê
-  async getStats(req: Request, res: Response) {
+  async getStats(req: Request, res: Response, next: NextFunction) {
     try {
       const { userId } = req.query;
       const stats = await privateFeedbackService.getStats(userId as string);
@@ -225,12 +200,8 @@ export const privateFeedbackController = {
         message: 'Lấy thống kê thành công',
         data: stats
       });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: 'Lỗi khi lấy thống kê',
-        error: error.message
-      });
+    } catch (error) {
+      next(error);
     }
   }
 };

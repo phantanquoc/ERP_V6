@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Eye, X, Upload, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, Download } from 'lucide-react';
+import FileUpload from './FileUpload';
 
 interface MachineSystem {
   id: number;
@@ -347,14 +348,12 @@ const MachineSystemList = () => {
                 </div>
                 {!isViewMode && (
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">File đính kèm</label>
-                    <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-gray-50">
-                        <Upload className="w-4 h-4" />
-                        <span>{selectedFile ? selectedFile.name : 'Chọn file'}</span>
-                        <input type="file" className="hidden" onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
-                      </label>
-                    </div>
+                    <FileUpload
+                      label="File đính kèm"
+                      files={selectedFile ? [selectedFile] : []}
+                      onChange={(files) => setSelectedFile(files[0] || null)}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                    />
                   </div>
                 )}
               </div>

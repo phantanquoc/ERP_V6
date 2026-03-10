@@ -13,6 +13,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useEmployees, useDepartments, usePositions, usePositionLevelsByPosition, employeeKeys } from '../hooks';
 import employeeService from '@services/employeeService';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface Employee {
   id: string;
@@ -197,9 +198,10 @@ const EmployeeManagement: React.FC = () => {
         kpiLevel: 0,
       }));
     } else {
+      const numberFields = ['baseSalary', 'kpiLevel', 'height', 'weight'];
       setFormData(prev => ({
         ...prev,
-        [name]: name === 'baseSalary' ? parseFloat(value) : value
+        [name]: numberFields.includes(name) ? parseNumberInput(value) : value
       }));
     }
 

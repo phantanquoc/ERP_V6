@@ -1,71 +1,230 @@
 import express from 'express';
 import { privateFeedbackController } from '../controllers/privateFeedbackController';
 import { authenticate } from '@middlewares/auth';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
+import { createUploadMiddleware } from '@middlewares/upload';
 
 const router = express.Router();
 
-// Configure multer for file upload
-const uploadDir = 'uploads/feedbacks';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const nameWithoutExt = path.basename(file.originalname, ext);
-    cb(null, `${nameWithoutExt}-${uniqueSuffix}${ext}`);
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter: (_req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx|txt/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Chỉ chấp nhận file: JPG, PNG, GIF, PDF, DOC, DOCX, XLS, XLSX, TXT'));
-    }
-  }
-});
+// Upload middleware for feedbacks (multiple files, max 5)
+const uploadFeedback = createUploadMiddleware('feedbacks', 5);
 
 // Tất cả routes đều cần authentication
 router.use(authenticate);
 
-// GET /api/private-feedbacks/stats - Thống kê (phải đặt trước /:id)
+/**
+ * @swagger
+ * /api/private-feedbacks/stats:
+ *   get:
+ *     tags: [Private Feedbacks]
+ *     summary: Thống kê góp ý
+ *     description: Lấy thống kê tổng quan về góp ý nội bộ
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lấy thống kê thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ */
 router.get('/stats', privateFeedbackController.getStats);
 
-// POST /api/private-feedbacks/generate-code - Tạo mã tự động
+/**
+ * @swagger
+ * /api/private-feedbacks/generate-code:
+ *   post:
+ *     tags: [Private Feedbacks]
+ *     summary: Tạo mã góp ý
+ *     description: Tạo mã tự động cho góp ý mới
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Tạo mã thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ */
 router.post('/generate-code', privateFeedbackController.generateCode);
 
-// GET /api/private-feedbacks/code/:code - Lấy theo code
+/**
+ * @swagger
+ * /api/private-feedbacks/code/{code}:
+ *   get:
+ *     tags: [Private Feedbacks]
+ *     summary: Tìm theo mã
+ *     description: Lấy thông tin góp ý theo mã code
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: code
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Mã góp ý
+ *     responses:
+ *       200:
+ *         description: Lấy thông tin góp ý thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ *       404:
+ *         description: Không tìm thấy góp ý
+ */
 router.get('/code/:code', privateFeedbackController.getByCode);
 
-// GET /api/private-feedbacks - Lấy tất cả
+/**
+ * @swagger
+ * /api/private-feedbacks:
+ *   get:
+ *     tags: [Private Feedbacks]
+ *     summary: Danh sách góp ý
+ *     description: Lấy tất cả góp ý nội bộ
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Số trang
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Số lượng mỗi trang
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Từ khóa tìm kiếm
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách góp ý thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ */
 router.get('/', privateFeedbackController.getAll);
 
-// GET /api/private-feedbacks/:id - Lấy theo ID
+/**
+ * @swagger
+ * /api/private-feedbacks/{id}:
+ *   get:
+ *     tags: [Private Feedbacks]
+ *     summary: Chi tiết góp ý
+ *     description: Lấy thông tin chi tiết của một góp ý theo ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của góp ý
+ *     responses:
+ *       200:
+ *         description: Lấy chi tiết góp ý thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ *       404:
+ *         description: Không tìm thấy góp ý
+ */
 router.get('/:id', privateFeedbackController.getById);
 
-// POST /api/private-feedbacks - Tạo mới (với upload files)
-router.post('/', upload.array('files', 5), privateFeedbackController.create);
+/**
+ * @swagger
+ * /api/private-feedbacks:
+ *   post:
+ *     tags: [Private Feedbacks]
+ *     summary: Tạo góp ý
+ *     description: Tạo góp ý mới với khả năng đính kèm nhiều file
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: "Danh sách file đính kèm (tối đa 5 file)"
+ *     responses:
+ *       201:
+ *         description: Tạo góp ý thành công
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       401:
+ *         description: Không có quyền truy cập
+ */
+router.post('/', uploadFeedback, privateFeedbackController.create);
 
-// PATCH /api/private-feedbacks/:id - Cập nhật
-router.patch('/:id', privateFeedbackController.update);
+/**
+ * @swagger
+ * /api/private-feedbacks/{id}:
+ *   patch:
+ *     tags: [Private Feedbacks]
+ *     summary: Cập nhật góp ý
+ *     description: Cập nhật thông tin góp ý với khả năng đính kèm nhiều file
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của góp ý
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: "Danh sách file đính kèm (tối đa 5 file)"
+ *     responses:
+ *       200:
+ *         description: Cập nhật góp ý thành công
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       401:
+ *         description: Không có quyền truy cập
+ *       404:
+ *         description: Không tìm thấy góp ý
+ */
+router.patch('/:id', uploadFeedback, privateFeedbackController.update);
 
-// DELETE /api/private-feedbacks/:id - Xóa
+/**
+ * @swagger
+ * /api/private-feedbacks/{id}:
+ *   delete:
+ *     tags: [Private Feedbacks]
+ *     summary: Xóa góp ý
+ *     description: Xóa một góp ý theo ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của góp ý
+ *     responses:
+ *       200:
+ *         description: Xóa góp ý thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ *       404:
+ *         description: Không tìm thấy góp ý
+ */
 router.delete('/:id', privateFeedbackController.delete);
 
 export default router;

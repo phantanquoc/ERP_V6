@@ -1,7 +1,6 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
-import logger from '@config/logger';
-export const getLotsByWarehouse = async (req: Request, res: Response) => {
+export const getLotsByWarehouse = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const warehouseId = req.params.warehouseId as string;
 
@@ -21,18 +20,13 @@ export const getLotsByWarehouse = async (req: Request, res: Response) => {
       success: true,
       data: lots,
     });
-  } catch (error: any) {
-    logger.error('Error fetching lots:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi lấy danh sách lô',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Create lot
-export const createLot = async (req: Request, res: Response): Promise<void> => {
+export const createLot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { tenLo, warehouseId } = req.body;
 
@@ -63,18 +57,13 @@ export const createLot = async (req: Request, res: Response): Promise<void> => {
       data: lot,
       message: 'Tạo lô thành công',
     });
-  } catch (error: any) {
-    logger.error('Error creating lot:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi tạo lô',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Delete lot
-export const deleteLot = async (req: Request, res: Response) => {
+export const deleteLot = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
 
@@ -86,13 +75,8 @@ export const deleteLot = async (req: Request, res: Response) => {
       success: true,
       message: 'Xóa lô thành công',
     });
-  } catch (error: any) {
-    logger.error('Error deleting lot:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi xóa lô',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 

@@ -4,6 +4,7 @@ import materialEvaluationService, { MaterialEvaluation } from '../services/mater
 import materialEvaluationCriteriaService, { MaterialEvaluationCriteria } from '../services/materialEvaluationCriteriaService';
 import systemOperationService from '../services/systemOperationService';
 import DateTimePicker from './DateTimePicker';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface MaterialEvaluationManagementProps {
   onCreateSystemOperation?: (maChien: string, thoiGianChien: string) => void;
@@ -20,6 +21,10 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [columnFilters, setColumnFilters] = useState({
+    maChien: '',
+    tenHangHoa: '',
+  });
 
   // Criteria states
   const [criteria, setCriteria] = useState<MaterialEvaluationCriteria[]>([]);
@@ -259,7 +264,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     setFormData(prev => ({
       ...prev,
       [name]: ['khoiLuong', 'soLanNgam', 'nhietDoNuocTruocNgam', 'nhietDoNuocSauVot', 'thoiGianNgam', 'brixNuocNgam'].includes(name)
-        ? parseFloat(value) || 0
+        ? parseNumberInput(value)
         : value
     }));
   };
@@ -374,17 +379,8 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         </div>
       )}
 
-      {/* Loading */}
-      {loading && (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-gray-600">Đang tải...</p>
-        </div>
-      )}
-
       {/* Table */}
-      {!loading && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
@@ -397,9 +393,38 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian ngâm (Phút)</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
+                <tr className="bg-white border-b border-gray-200">
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200">
+                    <input type="text" placeholder="Lọc..." value={columnFilters.maChien} onChange={(e) => { setColumnFilters(prev => ({...prev, maChien: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                  </th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200">
+                    <input type="text" placeholder="Lọc..." value={columnFilters.tenHangHoa} onChange={(e) => { setColumnFilters(prev => ({...prev, tenHangHoa: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                  </th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2"></th>
+                </tr>
               </thead>
               <tbody>
-                {evaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
+                {(() => {
+                  const filteredEvaluations = evaluations.filter(evaluation => {
+                    const matchMaChien = !columnFilters.maChien || (evaluation.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
+                    const matchTenHangHoa = !columnFilters.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(columnFilters.tenHangHoa.toLowerCase());
+                    return matchMaChien && matchTenHangHoa;
+                  });
+                  if (loading) return (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
+                  </tr>
+                );
+                  if (filteredEvaluations.length === 0) return (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">Chưa có dữ liệu</td>
+                  </tr>
+                );
+                  return filteredEvaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
                   <tr
                     key={evaluation.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -447,20 +472,19 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                       </div>
                     </td>
                   </tr>
-                ))}
+                ));
+                })()}
               </tbody>
             </table>
           </div>
-
-        {evaluations.length === 0 && !loading && (
-          <div className="text-center py-12 text-gray-500">
-            Chưa có dữ liệu
-          </div>
-        )}
       </div>
-      )}
       {(() => {
-        const totalItems = evaluations.length;
+        const filteredEvaluations = evaluations.filter(evaluation => {
+          const matchMaChien = !columnFilters.maChien || (evaluation.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
+          const matchTenHangHoa = !columnFilters.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(columnFilters.tenHangHoa.toLowerCase());
+          return matchMaChien && matchTenHangHoa;
+        });
+        const totalItems = filteredEvaluations.length;
         const totalPages = Math.ceil(totalItems / itemsPerPage);
         return totalPages > 1 ? (
           <div className="flex items-center justify-between mt-4 px-2">
@@ -882,7 +906,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     <input
                       type="number"
                       value={newCriteriaCode}
-                      onChange={(e) => setNewCriteriaCode(parseInt(e.target.value) || 0)}
+                      onChange={(e) => setNewCriteriaCode(parseNumberInput(e.target.value, false))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                     />
                   </div>

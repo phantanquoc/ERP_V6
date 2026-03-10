@@ -1,41 +1,13 @@
 import { Router, Request, Response } from 'express';
-import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import ExcelJS from 'exceljs';
+import { createSingleUploadMiddleware, getFileUrl } from '@middlewares/upload';
 
 const router = Router();
 
-// Configure multer for file upload
-const storage = multer.diskStorage({
-  destination: function (_req, _file, cb) {
-    const uploadDir = 'uploads/machine-reports';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (_req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'report-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  fileFilter: function (_req, file, cb) {
-    const allowedTypes = /pdf|doc|docx|xls|xlsx|jpg|jpeg|png/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Chỉ chấp nhận file PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG'));
-    }
-  }
-});
+// Upload middleware for machine activity reports (single file)
+const uploadMachineReport = createSingleUploadMiddleware('machine-reports');
 
 interface MachineActivityReport {
   id: number;
@@ -54,12 +26,37 @@ interface MachineActivityReport {
 let reports: MachineActivityReport[] = [];
 let nextId = 1;
 
-// GET all reports
+/**
+ * @swagger
+ * /api/machine-activity-reports:
+ *   get:
+ *     tags: [Machine Activity Reports]
+ *     summary: Lấy danh sách báo cáo hoạt động máy
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách báo cáo hoạt động máy thành công
+ */
 router.get('/', (_req: Request, res: Response) => {
   res.json(reports);
 });
 
-// Export to Excel
+/**
+ * @swagger
+ * /api/machine-activity-reports/export/excel:
+ *   get:
+ *     tags: [Machine Activity Reports]
+ *     summary: Xuất báo cáo hoạt động máy ra Excel
+ *     responses:
+ *       200:
+ *         description: Xuất Excel thành công
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       500:
+ *         description: Lỗi khi xuất Excel
+ */
 router.get('/export/excel', async (_req: Request, res: Response) => {
   try {
     const workbook = new ExcelJS.Workbook();
@@ -107,7 +104,25 @@ router.get('/export/excel', async (_req: Request, res: Response) => {
   }
 });
 
-// GET single report
+/**
+ * @swagger
+ * /api/machine-activity-reports/{id}:
+ *   get:
+ *     tags: [Machine Activity Reports]
+ *     summary: Lấy chi tiết báo cáo hoạt động máy theo ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của báo cáo
+ *     responses:
+ *       200:
+ *         description: Lấy chi tiết báo cáo thành công
+ *       404:
+ *         description: Không tìm thấy báo cáo
+ */
 router.get('/:id', (req: Request, res: Response): void => {
   const report = reports.find(r => r.id === parseInt(req.params.id as string));
   if (!report) {
@@ -117,8 +132,30 @@ router.get('/:id', (req: Request, res: Response): void => {
   res.json(report);
 });
 
-// POST create new report
-router.post('/', upload.single('file'), (req: Request, res: Response) => {
+/**
+ * @swagger
+ * /api/machine-activity-reports:
+ *   post:
+ *     tags: [Machine Activity Reports]
+ *     summary: Tạo báo cáo hoạt động máy mới
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: File đính kèm
+ *     responses:
+ *       201:
+ *         description: Tạo báo cáo thành công
+ *       500:
+ *         description: Lỗi khi tạo báo cáo
+ */
+router.post('/', uploadMachineReport, (req: Request, res: Response) => {
   try {
     const { viTri, tenHeThong, tongSoLuong, soLuongHoatDong, soLuongNgung, nguyenNhan, nguoiBaoCao } = req.body;
     
@@ -131,7 +168,7 @@ router.post('/', upload.single('file'), (req: Request, res: Response) => {
       soLuongNgung: parseInt(soLuongNgung),
       nguyenNhan,
       nguoiBaoCao,
-      fileDinhKem: req.file ? `/uploads/machine-reports/${req.file.filename}` : undefined,
+      fileDinhKem: req.file ? getFileUrl('machine-reports', req.file.filename) : undefined,
       ngayTao: new Date().toISOString()
     };
     
@@ -142,8 +179,39 @@ router.post('/', upload.single('file'), (req: Request, res: Response) => {
   }
 });
 
-// PUT update report
-router.put('/:id', upload.single('file'), (req: Request, res: Response): void => {
+/**
+ * @swagger
+ * /api/machine-activity-reports/{id}:
+ *   put:
+ *     tags: [Machine Activity Reports]
+ *     summary: Cập nhật báo cáo hoạt động máy
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của báo cáo
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: File đính kèm
+ *     responses:
+ *       200:
+ *         description: Cập nhật báo cáo thành công
+ *       404:
+ *         description: Không tìm thấy báo cáo
+ *       500:
+ *         description: Lỗi khi cập nhật báo cáo
+ */
+router.put('/:id', uploadMachineReport, (req: Request, res: Response): void => {
   try {
     const reportIndex = reports.findIndex(r => r.id === parseInt(req.params.id as string));
     if (reportIndex === -1) {
@@ -162,7 +230,7 @@ router.put('/:id', upload.single('file'), (req: Request, res: Response): void =>
       soLuongNgung: parseInt(soLuongNgung),
       nguyenNhan,
       nguoiBaoCao,
-      fileDinhKem: req.file ? `/uploads/machine-reports/${req.file.filename}` : reports[reportIndex].fileDinhKem
+      fileDinhKem: req.file ? getFileUrl('machine-reports', req.file.filename) : reports[reportIndex].fileDinhKem
     };
 
     reports[reportIndex] = updatedReport;
@@ -172,7 +240,27 @@ router.put('/:id', upload.single('file'), (req: Request, res: Response): void =>
   }
 });
 
-// DELETE report
+/**
+ * @swagger
+ * /api/machine-activity-reports/{id}:
+ *   delete:
+ *     tags: [Machine Activity Reports]
+ *     summary: Xóa báo cáo hoạt động máy
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của báo cáo
+ *     responses:
+ *       200:
+ *         description: Xóa báo cáo thành công
+ *       404:
+ *         description: Không tìm thấy báo cáo
+ *       500:
+ *         description: Lỗi khi xóa báo cáo
+ */
 router.delete('/:id', (req: Request, res: Response): void => {
   try {
     const reportIndex = reports.findIndex(r => r.id === parseInt(req.params.id as string));

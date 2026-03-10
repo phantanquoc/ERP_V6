@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Eye, Trash2, X } from 'lucide-react';
-import materialStandardService, { 
-  MaterialStandard, 
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Edit, Eye, Trash2, X, ChevronDown } from 'lucide-react';
+import materialStandardService, {
+  MaterialStandard,
   MaterialStandardItem,
-  CreateMaterialStandardRequest 
+  CreateMaterialStandardRequest
 } from '../services/materialStandardService';
+import { internationalProductService, InternationalProduct } from '../services/internationalProductService';
+import { parseNumberInput, parseNumberInputStr } from '../utils/numberInput';
 
 interface FormData {
   maDinhMuc: string;
@@ -20,7 +22,11 @@ const MaterialStandardManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [columnFilters, setColumnFilters] = useState({
+    maDinhMuc: '',
+    tenDinhMuc: '',
+    loaiDinhMuc: '',
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -36,8 +42,16 @@ const MaterialStandardManagement: React.FC = () => {
     items: [],
   });
 
+  // Product selector state
+  const [allProducts, setAllProducts] = useState<InternationalProduct[]>([]);
+  const [productSearchTerms, setProductSearchTerms] = useState<Record<number, string>>({});
+  const [productFilterType, setProductFilterType] = useState<Record<number, string>>({});
+  const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
+  const dropdownRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
   useEffect(() => {
     loadStandards();
+    loadProducts();
   }, []);
 
   const loadStandards = async () => {
@@ -53,6 +67,30 @@ const MaterialStandardManagement: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const loadProducts = async () => {
+    try {
+      const response = await internationalProductService.getAllProducts(1, 1000);
+      setAllProducts(response.data);
+    } catch (error) {
+      console.error('Error loading products:', error);
+    }
+  };
+
+  // Click-outside handler for product dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openDropdownIndex !== null) {
+        const ref = dropdownRefs.current[openDropdownIndex];
+        if (ref && !ref.contains(event.target as Node)) {
+          setOpenDropdownIndex(null);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openDropdownIndex]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -80,7 +118,7 @@ const MaterialStandardManagement: React.FC = () => {
     setFormData(prev => ({
       ...prev,
       items: prev.items.map((item, i) => 
-        i === index ? { ...item, [field]: field === 'tiLe' ? parseFloat(value as string) : value } : item
+        i === index ? { ...item, [field]: field === 'tiLe' ? parseNumberInput(value as string) : value } : item
       )
     }));
   };
@@ -180,10 +218,12 @@ const MaterialStandardManagement: React.FC = () => {
     return type === 'RAW_MATERIAL' ? 'Nguyên liệu - Thành phẩm' : 'Vật tư - Thiết bị';
   };
 
-  const filteredStandards = standards.filter(standard =>
-    standard.maDinhMuc.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    standard.tenDinhMuc.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredStandards = standards.filter(standard => {
+    const matchMaDM = !columnFilters.maDinhMuc || (standard.maDinhMuc || '').toLowerCase().includes(columnFilters.maDinhMuc.toLowerCase());
+    const matchTenDM = !columnFilters.tenDinhMuc || (standard.tenDinhMuc || '').toLowerCase().includes(columnFilters.tenDinhMuc.toLowerCase());
+    const matchLoaiDM = !columnFilters.loaiDinhMuc || (standard.loaiDinhMuc || '').toLowerCase().includes(columnFilters.loaiDinhMuc.toLowerCase());
+    return matchMaDM && matchTenDM && matchLoaiDM;
+  });
 
   return (
     <div className="space-y-6">
@@ -203,16 +243,6 @@ const MaterialStandardManagement: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm p-4">
         <div className="flex flex-wrap gap-4 items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm..."
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-              />
-            </div>
           </div>
           <button
             onClick={openCreateModal}
@@ -226,25 +256,43 @@ const MaterialStandardManagement: React.FC = () => {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-500">Đang tải...</div>
-        ) : filteredStandards.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">Không có định mức nào</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã định mức</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên định mức</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Loại định mức</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tỉ lệ thu hồi (%)</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày tạo</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã định mức</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên định mức</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Loại định mức</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tỉ lệ thu hồi (%)</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày tạo</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+              </tr>
+              <tr className="bg-white border-b border-gray-200">
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.maDinhMuc} onChange={(e) => { setColumnFilters(prev => ({...prev, maDinhMuc: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.tenDinhMuc} onChange={(e) => { setColumnFilters(prev => ({...prev, tenDinhMuc: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.loaiDinhMuc} onChange={(e) => { setColumnFilters(prev => ({...prev, loaiDinhMuc: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredStandards.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((standard, index) => (
+              ) : filteredStandards.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">Không có định mức nào</td>
+                </tr>
+              ) : (
+                filteredStandards.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((standard, index) => (
                   <tr
                     key={standard.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -294,11 +342,11 @@ const MaterialStandardManagement: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
       {(() => {
         const totalItems = filteredStandards.length;
@@ -410,7 +458,7 @@ const MaterialStandardManagement: React.FC = () => {
                       step="0.01"
                       name="tiLeThuHoi"
                       value={formData.tiLeThuHoi}
-                      onChange={handleInputChange}
+                      onChange={(e) => setFormData(prev => ({ ...prev, tiLeThuHoi: parseNumberInputStr(e.target.value) }))}
                       placeholder="Nhập tỉ lệ thu hồi"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -449,15 +497,77 @@ const MaterialStandardManagement: React.FC = () => {
                   <div className="space-y-3">
                     {formData.items.map((item, index) => (
                       <div key={index} className="flex gap-3 items-start p-3 bg-gray-50 rounded-md">
-                        <div className="flex-1">
+                        <div className="flex-1 relative" ref={(el) => { dropdownRefs.current[index] = el; }}>
                           <label className="block text-xs font-medium text-gray-700 mb-1">Tên thành phẩm</label>
-                          <input
-                            type="text"
-                            value={item.tenThanhPham}
-                            onChange={(e) => handleItemChange(index, 'tenThanhPham', e.target.value)}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
+                          <div
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md cursor-pointer bg-white flex items-center justify-between hover:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500"
+                            onClick={() => setOpenDropdownIndex(openDropdownIndex === index ? null : index)}
+                          >
+                            <span className={item.tenThanhPham ? 'text-gray-900' : 'text-gray-400'}>
+                              {item.tenThanhPham || 'Chọn sản phẩm...'}
+                            </span>
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          </div>
+                          {openDropdownIndex === index && (
+                            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-hidden">
+                              <div className="p-2 space-y-1.5 border-b border-gray-200">
+                                <select
+                                  value={productFilterType[index] || ''}
+                                  onChange={(e) => setProductFilterType(prev => ({ ...prev, [index]: e.target.value }))}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                                >
+                                  <option value="">-- Tất cả loại sản phẩm --</option>
+                                  {[...new Set(allProducts.map(p => p.loaiSanPham).filter(Boolean))].map(type => (
+                                    <option key={type} value={type}>{type}</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  placeholder="Tìm sản phẩm..."
+                                  value={productSearchTerms[index] || ''}
+                                  onChange={(e) => setProductSearchTerms(prev => ({ ...prev, [index]: e.target.value }))}
+                                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  onClick={(e) => e.stopPropagation()}
+                                  autoFocus
+                                />
+                              </div>
+                              <div className="overflow-y-auto max-h-48">
+                                {allProducts
+                                  .filter(p => {
+                                    const typeFilter = productFilterType[index] || '';
+                                    if (typeFilter && p.loaiSanPham !== typeFilter) return false;
+                                    const search = (productSearchTerms[index] || '').toLowerCase();
+                                    return !search || p.tenSanPham.toLowerCase().includes(search) || p.maSanPham.toLowerCase().includes(search);
+                                  })
+                                  .map(product => (
+                                    <div
+                                      key={product.id}
+                                      className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 ${
+                                        item.tenThanhPham === product.tenSanPham ? 'bg-blue-100 font-medium' : ''
+                                      }`}
+                                      onClick={() => {
+                                        handleItemChange(index, 'tenThanhPham', product.tenSanPham);
+                                        setOpenDropdownIndex(null);
+                                        setProductSearchTerms(prev => ({ ...prev, [index]: '' }));
+                                      }}
+                                    >
+                                      <span className="text-blue-600 mr-2">{product.maSanPham}</span>
+                                      {product.tenSanPham}
+                                      {product.loaiSanPham && <span className="text-gray-400 ml-1 text-xs">({product.loaiSanPham})</span>}
+                                    </div>
+                                  ))}
+                                {allProducts.filter(p => {
+                                  const typeFilter = productFilterType[index] || '';
+                                  if (typeFilter && p.loaiSanPham !== typeFilter) return false;
+                                  const search = (productSearchTerms[index] || '').toLowerCase();
+                                  return !search || p.tenSanPham.toLowerCase().includes(search) || p.maSanPham.toLowerCase().includes(search);
+                                }).length === 0 && (
+                                  <div className="px-3 py-2 text-sm text-gray-400 italic">Không tìm thấy sản phẩm</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="w-32">
                           <label className="block text-xs font-medium text-gray-700 mb-1">Tỉ lệ (%)</label>

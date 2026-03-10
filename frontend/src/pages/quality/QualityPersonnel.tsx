@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { parseNumberInputStr } from '../../utils/numberInput';
 import {
   Users,
   FileText,
@@ -979,7 +980,7 @@ const QualityPersonnel = () => {
                           value={item.tyTrong}
                           onChange={(e) => {
                             const updated = responsibilityItems.map(i =>
-                              i.id === item.id ? {...i, tyTrong: e.target.value} : i
+                              i.id === item.id ? {...i, tyTrong: parseNumberInputStr(e.target.value)} : i
                             );
                             setResponsibilityItems(updated);
                           }}

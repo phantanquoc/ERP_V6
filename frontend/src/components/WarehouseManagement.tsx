@@ -4,6 +4,7 @@ import warehouseService, { Warehouse, Lot, LotProduct } from '../services/wareho
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 import { useWarehouses, warehouseKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import { parseNumberInputStr } from '../utils/numberInput';
 
 const WarehouseManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -43,6 +44,7 @@ const WarehouseManagement: React.FC = () => {
   const [newLotName, setNewLotName] = useState('');
   const [selectedLotId, setSelectedLotId] = useState('');
   const [selectedProductType, setSelectedProductType] = useState('');
+  const [productCodeSearch, setProductCodeSearch] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [productQuantity, setProductQuantity] = useState('');
   const [productUnit, setProductUnit] = useState('');
@@ -179,15 +181,21 @@ const WarehouseManagement: React.FC = () => {
   const resetProductForm = () => {
     setSelectedLotId('');
     setSelectedProductType('');
+    setProductCodeSearch('');
     setSelectedProductId('');
     setProductQuantity('');
     setProductUnit('');
   };
 
-  // Filter products by type
-  const filteredProducts = selectedProductType
-    ? products.filter((p) => p.loaiSanPham === selectedProductType)
-    : products;
+  // Filter products by type and code search
+  const filteredProducts = products.filter((p) => {
+    if (selectedProductType && p.loaiSanPham !== selectedProductType) return false;
+    if (productCodeSearch) {
+      const search = productCodeSearch.toLowerCase();
+      return p.maSanPham.toLowerCase().includes(search) || p.tenSanPham.toLowerCase().includes(search);
+    }
+    return true;
+  });
 
   // Get unique product types
   const productTypes = Array.from(new Set(products.map((p) => p.loaiSanPham).filter(Boolean)));
@@ -578,6 +586,21 @@ const WarehouseManagement: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tìm theo mã / tên sản phẩm
+                </label>
+                <input
+                  type="text"
+                  value={productCodeSearch}
+                  onChange={(e) => {
+                    setProductCodeSearch(e.target.value);
+                    setSelectedProductId('');
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="VD: SP-001 hoặc tên sản phẩm..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Sản phẩm <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -588,7 +611,7 @@ const WarehouseManagement: React.FC = () => {
                   <option value="">-- Chọn sản phẩm --</option>
                   {(filteredProducts || []).map((product) => (
                     <option key={product.id} value={product.id}>
-                      {product.tenSanPham}
+                      {product.maSanPham} - {product.tenSanPham}
                     </option>
                   ))}
                 </select>
@@ -600,7 +623,7 @@ const WarehouseManagement: React.FC = () => {
                 <input
                   type="number"
                   value={productQuantity}
-                  onChange={(e) => setProductQuantity(e.target.value)}
+                  onChange={(e) => setProductQuantity(parseNumberInputStr(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="Nhập số lượng"
                   min="0"

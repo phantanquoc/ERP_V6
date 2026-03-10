@@ -1,9 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import notificationService from '@services/notificationService';
-import logger from '@config/logger';
 
 export class NotificationController {
-  async getEmployeeNotifications(req: Request, res: Response): Promise<void> {
+  async getEmployeeNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
       if (!userId) {
@@ -40,15 +39,11 @@ export class NotificationController {
         data: notifications,
       });
     } catch (error) {
-      logger.error('Error fetching notifications:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching notifications',
-      });
+      next(error);
     }
   }
 
-  async getUnreadNotifications(req: Request, res: Response): Promise<void> {
+  async getUnreadNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
       if (!userId) {
@@ -83,15 +78,11 @@ export class NotificationController {
         count: notifications.length,
       });
     } catch (error) {
-      logger.error('Error fetching unread notifications:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching unread notifications',
-      });
+      next(error);
     }
   }
 
-  async markAsRead(req: Request, res: Response): Promise<void> {
+  async markAsRead(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const notificationId = req.params.notificationId as string;
 
@@ -102,15 +93,11 @@ export class NotificationController {
         data: notification,
       });
     } catch (error) {
-      logger.error('Error marking notification as read:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error marking notification as read',
-      });
+      next(error);
     }
   }
 
-  async markAllAsRead(req: Request, res: Response): Promise<void> {
+  async markAllAsRead(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
       if (!userId) {
@@ -143,15 +130,11 @@ export class NotificationController {
         data: result,
       });
     } catch (error) {
-      logger.error('Error marking all notifications as read:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error marking all notifications as read',
-      });
+      next(error);
     }
   }
 
-  async deleteNotification(req: Request, res: Response): Promise<void> {
+  async deleteNotification(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const notificationId = req.params.notificationId as string;
 
@@ -162,15 +145,11 @@ export class NotificationController {
         message: 'Notification deleted',
       });
     } catch (error) {
-      logger.error('Error deleting notification:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error deleting notification',
-      });
+      next(error);
     }
   }
 
-  async getLatestEvaluationNotification(req: Request, res: Response): Promise<void> {
+  async getLatestEvaluationNotification(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
       if (!userId) {
@@ -203,11 +182,7 @@ export class NotificationController {
         data: notification,
       });
     } catch (error) {
-      logger.error('Error fetching latest evaluation notification:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching latest evaluation notification',
-      });
+      next(error);
     }
   }
 }

@@ -4,6 +4,8 @@ import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
+import notificationService from './notificationService';
+import { LeaveRequestStatusConst } from '@types';
 
 export class LeaveRequestService {
   /**
@@ -54,7 +56,7 @@ export class LeaveRequestService {
         halfDayPeriod: data.halfDayPeriod,
         reason: data.reason,
         attachments: data.attachments || [],
-        status: 'PENDING',
+        status: LeaveRequestStatusConst.PENDING,
       },
       include: {
         employee: {
@@ -175,14 +177,14 @@ export class LeaveRequestService {
   async approveLeaveRequest(id: string, approvedBy: string) {
     const leaveRequest = await this.getLeaveRequestById(id);
 
-    if (leaveRequest.status !== 'PENDING') {
+    if (leaveRequest.status !== LeaveRequestStatusConst.PENDING) {
       throw new ValidationError('Leave request is already processed');
     }
 
     const updatedRequest = await prisma.leaveRequest.update({
       where: { id },
       data: {
-        status: 'APPROVED',
+        status: LeaveRequestStatusConst.APPROVED,
         approvedBy,
         approvedAt: new Date(),
       },
@@ -213,14 +215,14 @@ export class LeaveRequestService {
   async rejectLeaveRequest(id: string, approvedBy: string, rejectionReason: string) {
     const leaveRequest = await this.getLeaveRequestById(id);
 
-    if (leaveRequest.status !== 'PENDING') {
+    if (leaveRequest.status !== LeaveRequestStatusConst.PENDING) {
       throw new ValidationError('Leave request is already processed');
     }
 
     const updatedRequest = await prisma.leaveRequest.update({
       where: { id },
       data: {
-        status: 'REJECTED',
+        status: LeaveRequestStatusConst.REJECTED,
         approvedBy,
         approvedAt: new Date(),
         rejectionReason,
@@ -259,37 +261,26 @@ export class LeaveRequestService {
       },
     });
 
-    // Create notifications for all Quality Personnel employees
-    const notifications = qualityPersonnel.map((employee) => ({
-      employeeId: employee.id,
-      type: 'LEAVE_REQUEST',
-      title: 'Đơn nghỉ phép mới',
-      message: `${leaveRequest.employee.user.firstName} ${leaveRequest.employee.user.lastName} đã gửi đơn nghỉ phép ${this.getLeaveTypeLabel(leaveRequest.leaveType)}`,
-      isRead: false,
-    }));
+    const employeeName = `${leaveRequest.employee.user.firstName} ${leaveRequest.employee.user.lastName}`;
+    const leaveTypeLabel = this.getLeaveTypeLabel(leaveRequest.leaveType);
+    const employeeIds = qualityPersonnel.map((emp) => emp.id);
 
-    await prisma.notification.createMany({
-      data: notifications,
-    });
+    await notificationService.createLeaveRequestNotification(
+      employeeIds,
+      employeeName,
+      leaveTypeLabel
+    );
   }
 
   /**
    * Create notification for employee
    */
   private async createNotificationForEmployee(leaveRequest: any, status: 'APPROVED' | 'REJECTED') {
-    const message = status === 'APPROVED'
-      ? `Đơn nghỉ phép ${leaveRequest.code} của bạn đã được phê duyệt`
-      : `Đơn nghỉ phép ${leaveRequest.code} của bạn đã bị từ chối`;
-
-    await prisma.notification.create({
-      data: {
-        employeeId: leaveRequest.employeeId,
-        type: 'LEAVE_REQUEST_RESPONSE',
-        title: status === 'APPROVED' ? 'Đơn nghỉ phép được duyệt' : 'Đơn nghỉ phép bị từ chối',
-        message,
-        isRead: false,
-      },
-    });
+    await notificationService.createLeaveRequestResponseNotification(
+      leaveRequest.employeeId,
+      leaveRequest.code,
+      status
+    );
   }
 
   /**
@@ -379,13 +370,13 @@ export class LeaveRequestService {
 
       let statusText = '';
       switch (request.status) {
-        case 'PENDING':
+        case LeaveRequestStatusConst.PENDING:
           statusText = 'Chờ duyệt';
           break;
-        case 'APPROVED':
+        case LeaveRequestStatusConst.APPROVED:
           statusText = 'Đã duyệt';
           break;
-        case 'REJECTED':
+        case LeaveRequestStatusConst.REJECTED:
           statusText = 'Từ chối';
           break;
         default:

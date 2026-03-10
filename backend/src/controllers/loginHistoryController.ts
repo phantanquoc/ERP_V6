@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Response, NextFunction } from 'express';
 import loginHistoryService from '@services/loginHistoryService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 
@@ -6,7 +6,7 @@ export class LoginHistoryController {
   /**
    * Get login history for the authenticated user
    */
-  async getMyLoginHistory(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async getMyLoginHistory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.id;
       const limit = parseInt(req.query.limit as string) || 10;
@@ -32,24 +32,14 @@ export class LoginHistoryController {
         message: 'Login history retrieved successfully',
       } as ApiResponse<any>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 
   /**
    * Get all login history (admin only)
    */
-  async getAllLoginHistory(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async getAllLoginHistory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
       const offset = parseInt(req.query.offset as string) || 0;
@@ -70,17 +60,7 @@ export class LoginHistoryController {
         message: 'Login history retrieved successfully',
       } as ApiResponse<any>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error',
-        });
-      }
+      next(error);
     }
   }
 }

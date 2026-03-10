@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getDepartmentDisplayName } from '../utils/permissions';
 import Modal from './Modal';
 import userService from '../services/userService';
+import { parseNumberInputStr } from '../utils/numberInput';
 
 interface PersonalInfoModalProps {
   isOpen: boolean;
@@ -601,7 +602,7 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
                           type="number"
                           step="0.1"
                           value={formData.weight}
-                          onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, weight: parseNumberInputStr(e.target.value) })}
                           className={`w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
                             errors.weight ? 'border-red-500' : 'border-gray-300'
                           }`}
@@ -627,7 +628,7 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
                           type="number"
                           step="0.1"
                           value={formData.height}
-                          onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, height: parseNumberInputStr(e.target.value) })}
                           className={`w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
                             errors.height ? 'border-red-500' : 'border-gray-300'
                           }`}

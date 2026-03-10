@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import DatePicker from './DatePicker';
 import { taskService, TaskPriority, CreateTaskData } from '../services/taskService';
-import { X, Upload, Calendar, Users, FileText, AlertCircle } from 'lucide-react';
+import { X, Calendar, Users, FileText, AlertCircle } from 'lucide-react';
 import axios from 'axios';
+import FileUpload from './FileUpload';
 import { getTaskPriorityLabel } from '../utils/taskHelpers';
 
 interface CreateTaskModalProps {
@@ -37,7 +38,6 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSu
   const [loading, setLoading] = useState(false);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [error, setError] = useState('');
-  const [fileNames, setFileNames] = useState<string[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -95,15 +95,6 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSu
       setError(errorMsg);
     } finally {
       setLoadingEmployees(false);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      const fileArray = Array.from(files);
-      setFormData({ ...formData, files: fileArray });
-      setFileNames(fileArray.map(f => f.name));
     }
   };
 
@@ -165,7 +156,6 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSu
       files: [],
     });
     setSelectedDepartment('');
-    setFileNames([]);
     setError('');
     onClose();
   };
@@ -350,27 +340,13 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSu
         </div>
 
         {/* Row 7: File kèm theo */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center">
-            <Upload className="w-4 h-4 mr-1.5" />
-            File kèm theo
-          </label>
-          <input
-            type="file"
-            multiple
-            onChange={handleFileChange}
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm file:mr-4 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-          />
-          {fileNames.length > 0 && (
-            <div className="mt-2 space-y-1.5">
-              {fileNames.map((name, index) => (
-                <div key={index} className="flex items-center bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                  <span className="text-sm text-gray-700">📎 {name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <FileUpload
+          label="File kèm theo"
+          files={formData.files || []}
+          onChange={(files) => setFormData({ ...formData, files })}
+          multiple
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+        />
 
           </form>
         </div>

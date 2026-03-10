@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Upload } from 'lucide-react';
+import { X } from 'lucide-react';
+import FileUpload from './FileUpload';
 import acceptanceHandoverService, { CreateAcceptanceHandoverRequest } from '../services/acceptanceHandoverService';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -40,12 +41,6 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
       ...prev,
       [name]: value
     }));
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -216,35 +211,13 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
 
             {/* File đính kèm */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                File đính kèm
-              </label>
-              <div className="flex items-center gap-2">
-                <label className="flex-1 flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors">
-                  <Upload className="w-5 h-5 text-gray-400 mr-2" />
-                  <span className="text-sm text-gray-600">
-                    {selectedFile ? selectedFile.name : 'Chọn file đính kèm'}
-                  </span>
-                  <input
-                    type="file"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar"
-                  />
-                </label>
-                {selectedFile && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedFile(null)}
-                    className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
-                  >
-                    Xóa
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Chấp nhận: PDF, Word, Excel, Ảnh, ZIP, RAR (Tối đa 10MB)
-              </p>
+              <FileUpload
+                label="File đính kèm"
+                files={selectedFile ? [selectedFile] : []}
+                onChange={(files) => setSelectedFile(files[0] || null)}
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar"
+                helpText="PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, ZIP, RAR (Tối đa 100MB)"
+              />
             </div>
           </div>
 

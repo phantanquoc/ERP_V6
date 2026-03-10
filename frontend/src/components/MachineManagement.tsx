@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, X, Search, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, X } from 'lucide-react';
 import machineService, { Machine, CreateMachineRequest, UpdateMachineRequest } from '../services/machineService';
 import { useMachines, machineKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,7 +13,11 @@ const MachineManagement: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [columnFilters, setColumnFilters] = useState({
+    maMay: '',
+    tenMay: '',
+    trangThai: '',
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [nextMachineCode, setNextMachineCode] = useState<string>('');
@@ -103,10 +107,12 @@ const MachineManagement: React.FC = () => {
     }
   };
 
-  const filteredMachines = machines.filter(machine =>
-    machine.tenMay.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    machine.maMay.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredMachines = machines.filter(machine => {
+    const matchMaMay = !columnFilters.maMay || machine.maMay.toLowerCase().includes(columnFilters.maMay.toLowerCase());
+    const matchTenMay = !columnFilters.tenMay || machine.tenMay.toLowerCase().includes(columnFilters.tenMay.toLowerCase());
+    const matchTrangThai = !columnFilters.trangThai || (machine.trangThai || '').toLowerCase().includes(columnFilters.trangThai.toLowerCase());
+    return matchMaMay && matchTenMay && matchTrangThai;
+  });
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -143,60 +149,47 @@ const MachineManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Search */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex gap-4 items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm theo mã máy, tên máy, loại máy..."
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <button
-            onClick={async () => {
-              try {
-                setError('');
-                await machineService.exportToExcel({ search: searchTerm || undefined });
-              } catch (err) {
-                console.error('Error exporting to Excel:', err);
-                setError('Không thể xuất file Excel');
-              }
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Download size={18} />
-            Xuất Excel
-          </button>
-        </div>
-      </div>
-
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-500">Đang tải...</div>
-        ) : filteredMachines.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            {searchTerm ? 'Không tìm thấy máy nào' : 'Chưa có máy nào'}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã máy</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên máy</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mô tả</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã máy</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên máy</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mô tả</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+              </tr>
+              <tr className="bg-white border-b border-gray-200">
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.maMay} onChange={(e) => { setColumnFilters(prev => ({...prev, maMay: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.tenMay} onChange={(e) => { setColumnFilters(prev => ({...prev, tenMay: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.trangThai} onChange={(e) => { setColumnFilters(prev => ({...prev, trangThai: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredMachines.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((machine, index) => (
+              ) : filteredMachines.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    {(columnFilters.maMay || columnFilters.tenMay || columnFilters.trangThai) ? 'Không tìm thấy máy nào' : 'Chưa có máy nào'}
+                  </td>
+                </tr>
+              ) : (
+                filteredMachines.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((machine, index) => (
                   <tr
                     key={machine.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -237,11 +230,11 @@ const MachineManagement: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
       {(() => {
         const totalItems = filteredMachines.length;

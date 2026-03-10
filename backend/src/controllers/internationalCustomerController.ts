@@ -116,9 +116,10 @@ export class InternationalCustomerController {
     }
   }
 
-  async generateCustomerCode(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async generateCustomerCode(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const code = await internationalCustomerService.generateCustomerCode();
+      const type = (req.body.type as 'international' | 'domestic') || 'international';
+      const code = await internationalCustomerService.generateCustomerCode(type);
 
       res.json({
         success: true,

@@ -4,6 +4,7 @@ import { quotationService, Quotation } from '../services/quotationService';
 import { orderService } from '../services/orderService';
 import { useQuotations, quotationKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import { parseNumberInputStr } from '../utils/numberInput';
 
 interface QuotationManagementProps {
   customerType?: 'Quốc tế' | 'Nội địa' | 'all';
@@ -560,7 +561,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                     step="0.01"
                     min="0"
                     value={editFormData.giaBaoKhach}
-                    onChange={(e) => setEditFormData({ ...editFormData, giaBaoKhach: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, giaBaoKhach: parseNumberInputStr(e.target.value) })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                     placeholder="Nhập giá báo khách"
                   />
@@ -574,7 +575,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                     type="number"
                     min="1"
                     value={editFormData.thoiGianGiaoHang}
-                    onChange={(e) => setEditFormData({ ...editFormData, thoiGianGiaoHang: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, thoiGianGiaoHang: parseNumberInputStr(e.target.value) })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                     placeholder="Nhập thời gian giao hàng"
                   />
@@ -588,7 +589,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                     type="number"
                     min="1"
                     value={editFormData.hieuLucBaoGia}
-                    onChange={(e) => setEditFormData({ ...editFormData, hieuLucBaoGia: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, hieuLucBaoGia: parseNumberInputStr(e.target.value) })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                     placeholder="Nhập hiệu lực báo giá"
                   />

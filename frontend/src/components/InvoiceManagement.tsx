@@ -4,6 +4,7 @@ import invoiceService, { Invoice } from '../services/invoiceService';
 import DatePicker from './DatePicker';
 import { useAuth } from '../contexts/AuthContext';
 import internationalCustomerService from '../services/internationalCustomerService';
+import { parseNumberInputStr } from '../utils/numberInput';
 
 interface Customer {
   id: string;
@@ -467,15 +468,15 @@ const InvoiceManagement: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tổng tiền</label>
-                  <input type="number" value={formData.tongTien} onChange={(e) => setFormData({ ...formData, tongTien: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <input type="number" value={formData.tongTien} onChange={(e) => setFormData({ ...formData, tongTien: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thuế VAT (%)</label>
-                  <input type="number" value={formData.thue} onChange={(e) => setFormData({ ...formData, thue: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <input type="number" value={formData.thue} onChange={(e) => setFormData({ ...formData, thue: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
-                  <input type="number" value={formData.thanhTien} onChange={(e) => setFormData({ ...formData, thanhTien: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <input type="number" value={formData.thanhTien} onChange={(e) => setFormData({ ...formData, thanhTien: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
@@ -575,15 +576,15 @@ const InvoiceManagement: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tổng tiền</label>
-                  <input type="number" value={formData.tongTien} onChange={(e) => setFormData({ ...formData, tongTien: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <input type="number" value={formData.tongTien} onChange={(e) => setFormData({ ...formData, tongTien: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thuế VAT (%)</label>
-                  <input type="number" value={formData.thue} onChange={(e) => setFormData({ ...formData, thue: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <input type="number" value={formData.thue} onChange={(e) => setFormData({ ...formData, thue: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
-                  <input type="number" value={formData.thanhTien} onChange={(e) => setFormData({ ...formData, thanhTien: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <input type="number" value={formData.thanhTien} onChange={(e) => setFormData({ ...formData, thanhTien: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>

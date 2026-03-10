@@ -2,6 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { FinishedProduct } from '../services/finishedProductService';
 import DateTimePicker from './DateTimePicker';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface FinishedProductModalProps {
   isOpen: boolean;
@@ -91,7 +92,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                 type="number"
                 step="0.01"
                 value={formData.khoiLuong}
-                onChange={(e) => handleInputChange('khoiLuong', parseFloat(e.target.value))}
+                onChange={(e) => handleInputChange('khoiLuong', parseNumberInput(e.target.value))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -136,7 +137,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.aKhoiLuong}
-                  onChange={(e) => handleInputChange('aKhoiLuong', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('aKhoiLuong', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -148,7 +149,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.aTiLe}
-                  onChange={(e) => handleInputChange('aTiLe', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('aTiLe', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -167,7 +168,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.bKhoiLuong}
-                  onChange={(e) => handleInputChange('bKhoiLuong', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('bKhoiLuong', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -179,7 +180,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.bTiLe}
-                  onChange={(e) => handleInputChange('bTiLe', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('bTiLe', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -198,7 +199,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.bDauKhoiLuong}
-                  onChange={(e) => handleInputChange('bDauKhoiLuong', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('bDauKhoiLuong', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -210,7 +211,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.bDauTiLe}
-                  onChange={(e) => handleInputChange('bDauTiLe', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('bDauTiLe', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -229,7 +230,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.cKhoiLuong}
-                  onChange={(e) => handleInputChange('cKhoiLuong', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('cKhoiLuong', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -241,7 +242,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.cTiLe}
-                  onChange={(e) => handleInputChange('cTiLe', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('cTiLe', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -260,7 +261,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.vunLonKhoiLuong}
-                  onChange={(e) => handleInputChange('vunLonKhoiLuong', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('vunLonKhoiLuong', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -272,7 +273,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.vunLonTiLe}
-                  onChange={(e) => handleInputChange('vunLonTiLe', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('vunLonTiLe', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -291,7 +292,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.vunNhoKhoiLuong}
-                  onChange={(e) => handleInputChange('vunNhoKhoiLuong', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('vunNhoKhoiLuong', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -303,7 +304,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.vunNhoTiLe}
-                  onChange={(e) => handleInputChange('vunNhoTiLe', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('vunNhoTiLe', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -322,7 +323,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.phePhamKhoiLuong}
-                  onChange={(e) => handleInputChange('phePhamKhoiLuong', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('phePhamKhoiLuong', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -334,7 +335,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.phePhamTiLe}
-                  onChange={(e) => handleInputChange('phePhamTiLe', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('phePhamTiLe', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -353,7 +354,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.uotKhoiLuong}
-                  onChange={(e) => handleInputChange('uotKhoiLuong', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('uotKhoiLuong', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -365,7 +366,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
                   type="number"
                   step="0.01"
                   value={formData.uotTiLe}
-                  onChange={(e) => handleInputChange('uotTiLe', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('uotTiLe', parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>

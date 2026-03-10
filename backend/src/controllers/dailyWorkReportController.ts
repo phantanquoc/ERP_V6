@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import dailyWorkReportService from '@services/dailyWorkReportService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 import prisma from '@config/database';
+import { getFileUrl } from '@middlewares/upload';
 
 export class DailyWorkReportController {
   /**
@@ -155,9 +156,22 @@ export class DailyWorkReportController {
         return;
       }
 
+      // Handle file uploads
+      const files = req.files as Express.Multer.File[] | undefined;
+      const attachments = files && files.length > 0
+        ? JSON.stringify(files.map(file => ({
+            fileName: file.originalname,
+            fileSize: file.size,
+            fileUrl: getFileUrl('daily-work-reports', file.filename),
+            uploadedAt: new Date().toISOString(),
+          })))
+        : req.body.attachments;
+
       const report = await dailyWorkReportService.createReport({
         ...req.body,
         employeeId: employee.id,
+        attachments,
+        workHours: req.body.workHours ? parseFloat(req.body.workHours) : undefined,
       });
 
       res.status(201).json({
@@ -176,7 +190,23 @@ export class DailyWorkReportController {
   async updateReport(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
-      const report = await dailyWorkReportService.updateReport(id, req.body);
+
+      // Handle file uploads
+      const files = req.files as Express.Multer.File[] | undefined;
+      const data = { ...req.body };
+      if (data.workHours) {
+        data.workHours = parseFloat(data.workHours);
+      }
+      if (files && files.length > 0) {
+        data.attachments = JSON.stringify(files.map(file => ({
+          fileName: file.originalname,
+          fileSize: file.size,
+          fileUrl: getFileUrl('daily-work-reports', file.filename),
+          uploadedAt: new Date().toISOString(),
+        })));
+      }
+
+      const report = await dailyWorkReportService.updateReport(id, data);
 
       res.json({
         success: true,

@@ -8,10 +8,11 @@ import {
   Clock,
   CheckCircle,
   TrendingUp,
-  Paperclip,
 } from 'lucide-react';
 import Modal from './Modal';
+import FileUpload from './FileUpload';
 import DatePicker from './DatePicker';
+import { parseNumberInput } from '../utils/numberInput';
 import dailyWorkReportService, {
   DailyWorkReport,
   CreateDailyWorkReportRequest,
@@ -76,17 +77,6 @@ const DailyWorkReportModal: React.FC<DailyWorkReportModalProps> = ({
     }
   }, [isOpen, report]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      setSelectedFiles(prev => [...prev, ...filesArray]);
-    }
-  };
-
-  const handleRemoveFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -113,22 +103,9 @@ const DailyWorkReportModal: React.FC<DailyWorkReportModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      // Prepare attachments data
-      let attachmentsData = formData.attachments;
-      if (selectedFiles.length > 0) {
-        // Convert files to attachment objects (in real app, upload to server first)
-        const fileAttachments = selectedFiles.map(file => ({
-          fileName: file.name,
-          fileSize: file.size,
-          fileUrl: URL.createObjectURL(file), // Temporary URL - in production, upload to server
-          uploadedAt: new Date().toISOString(),
-        }));
-        attachmentsData = JSON.stringify(fileAttachments);
-      }
-
       const dataToSubmit = {
         ...formData,
-        attachments: attachmentsData,
+        files: selectedFiles.length > 0 ? selectedFiles : undefined,
       };
 
       if (report) {
@@ -209,7 +186,7 @@ const DailyWorkReportModal: React.FC<DailyWorkReportModalProps> = ({
                     min="0"
                     max="24"
                     value={formData.workHours}
-                    onChange={(e) => setFormData({ ...formData, workHours: parseFloat(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, workHours: parseNumberInput(e.target.value) })}
                     className={`w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
                       errors.workHours ? 'border-red-500' : 'border-gray-300'
                     }`}
@@ -298,58 +275,13 @@ const DailyWorkReportModal: React.FC<DailyWorkReportModalProps> = ({
               </div>
 
               {/* File Attachments */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  File đính kèm
-                </label>
-                <div className="space-y-3">
-                  {/* Upload Button */}
-                  <div className="relative">
-                    <input
-                      type="file"
-                      multiple
-                      onChange={handleFileChange}
-                      className="hidden"
-                      id="file-upload"
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                    />
-                    <label
-                      htmlFor="file-upload"
-                      className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors"
-                    >
-                      <Paperclip className="w-5 h-5 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-600">Chọn file để đính kèm</span>
-                    </label>
-                  </div>
-
-                  {/* File List */}
-                  {selectedFiles.length > 0 && (
-                    <div className="space-y-2">
-                      {selectedFiles.map((file, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-200"
-                        >
-                          <div className="flex items-center space-x-2 flex-1 min-w-0">
-                            <Paperclip className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                            <span className="text-sm text-gray-700 truncate">{file.name}</span>
-                            <span className="text-xs text-gray-500 flex-shrink-0">
-                              ({(file.size / 1024).toFixed(1)} KB)
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveFile(index)}
-                            className="ml-2 p-1 text-red-500 hover:bg-red-50 rounded transition-colors flex-shrink-0"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <FileUpload
+                label="File đính kèm"
+                files={selectedFiles}
+                onChange={setSelectedFiles}
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+              />
 
               {/* Error Message */}
               {errors.submit && (

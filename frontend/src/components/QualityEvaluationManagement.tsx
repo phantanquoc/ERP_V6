@@ -19,6 +19,10 @@ const QualityEvaluationManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
+  const [columnFilters, setColumnFilters] = useState({
+    maChien: '',
+    tenHangHoa: '',
+  });
 
   // Get current user's full name
   const currentUserName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
@@ -269,6 +273,12 @@ const QualityEvaluationManagement: React.FC = () => {
     }
   };
 
+  const filteredEvaluations = evaluations.filter(evaluation => {
+    const matchMaChien = !columnFilters.maChien || (evaluation.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
+    const matchTenHangHoa = !columnFilters.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(columnFilters.tenHangHoa.toLowerCase());
+    return matchMaChien && matchTenHangHoa;
+  });
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -326,6 +336,23 @@ const QualityEvaluationManagement: React.FC = () => {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
+              <tr className="bg-white border-b border-gray-200">
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.maChien} onChange={(e) => { setColumnFilters(prev => ({...prev, maChien: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.tenHangHoa} onChange={(e) => { setColumnFilters(prev => ({...prev, tenHangHoa: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2"></th>
+              </tr>
             </thead>
             <tbody>
               {loading ? (
@@ -334,14 +361,14 @@ const QualityEvaluationManagement: React.FC = () => {
                     Đang tải...
                   </td>
                 </tr>
-              ) : evaluations.length === 0 ? (
+              ) : filteredEvaluations.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
                     Không có dữ liệu
                   </td>
                 </tr>
               ) : (
-                evaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
+                filteredEvaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
                   <tr
                     key={evaluation.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -412,7 +439,7 @@ const QualityEvaluationManagement: React.FC = () => {
       </div>
 
       {(() => {
-        const totalItems = evaluations.length;
+        const totalItems = filteredEvaluations.length;
         const totalPages = Math.ceil(totalItems / itemsPerPage);
         return totalPages > 1 ? (
           <div className="flex items-center justify-between mt-4 px-2">

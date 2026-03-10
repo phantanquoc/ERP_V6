@@ -103,3 +103,6 @@ export interface AuthenticatedRequest extends Request {
 
 // Export task types
 export * from './task.types';
+
+// Export notification types
+export * from './notification.types';

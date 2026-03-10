@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, FileText, Loader2 } from 'lucide-react';
+import { X, FileText, Loader2 } from 'lucide-react';
 import { privateFeedbackService, FeedbackType } from '../services/privateFeedbackService';
+import FileUpload from './FileUpload';
 
 interface PrivateFeedbackModalProps {
   isOpen: boolean;
@@ -125,28 +126,6 @@ const PrivateFeedbackModal: React.FC<PrivateFeedbackModalProps> = ({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-
-    // Giới hạn 5 files
-    if (selectedFiles.length + files.length > 5) {
-      alert('Chỉ được chọn tối đa 5 files');
-      return;
-    }
-
-    // Kiểm tra kích thước file (max 10MB mỗi file)
-    const invalidFiles = files.filter(file => file.size > 10 * 1024 * 1024);
-    if (invalidFiles.length > 0) {
-      alert('Mỗi file không được vượt quá 10MB');
-      return;
-    }
-
-    setSelectedFiles(prev => [...prev, ...files]);
-  };
-
-  const handleRemoveFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
 
   if (!isOpen) return null;
 
@@ -263,64 +242,16 @@ const PrivateFeedbackModal: React.FC<PrivateFeedbackModalProps> = ({
           </div>
 
           {/* File kèm theo */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              File kèm theo (Tối đa 5 files, mỗi file &lt; 10MB)
-            </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-md p-4">
-              <input
-                type="file"
-                multiple
-                onChange={handleFileChange}
-                className="hidden"
-                id="file-upload"
-                accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                disabled={isSubmitting}
-              />
-              <label
-                htmlFor="file-upload"
-                className="cursor-pointer flex flex-col items-center"
-              >
-                <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                <p className="text-sm text-gray-500">
-                  Click để chọn file
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  JPG, PNG, PDF, DOC, DOCX, XLS, XLSX, TXT
-                </p>
-              </label>
-            </div>
-
-            {/* Danh sách file đã chọn */}
-            {selectedFiles.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {selectedFiles.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between bg-gray-50 p-2 rounded border border-gray-200"
-                  >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                      <span className="text-sm text-gray-700 truncate">
-                        {file.name}
-                      </span>
-                      <span className="text-xs text-gray-500 flex-shrink-0">
-                        ({(file.size / 1024).toFixed(1)} KB)
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFile(index)}
-                      className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
-                      disabled={isSubmitting}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <FileUpload
+            label="File kèm theo"
+            files={selectedFiles}
+            onChange={setSelectedFiles}
+            multiple
+            maxFiles={5}
+            maxSizeMB={100}
+            accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+            disabled={isSubmitting}
+          />
 
           {/* Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t">

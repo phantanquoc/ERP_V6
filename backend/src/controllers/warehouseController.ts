@@ -1,9 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
-import logger from '@config/logger';
 
 // Get all warehouses
-export const getAllWarehouses = async (_req: Request, res: Response) => {
+export const getAllWarehouses = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const warehouses = await prisma.warehouses.findMany({
       orderBy: { createdAt: 'desc' },
@@ -24,18 +23,13 @@ export const getAllWarehouses = async (_req: Request, res: Response) => {
       success: true,
       data: warehouses,
     });
-  } catch (error: any) {
-    logger.error('Error fetching warehouses:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi lấy danh sách kho',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Generate warehouse code
-export const generateWarehouseCode = async (_req: Request, res: Response) => {
+export const generateWarehouseCode = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const lastWarehouse = await prisma.warehouses.findFirst({
       orderBy: { maKho: 'desc' },
@@ -51,18 +45,13 @@ export const generateWarehouseCode = async (_req: Request, res: Response) => {
       success: true,
       data: { code: newCode },
     });
-  } catch (error: any) {
-    logger.error('Error generating warehouse code:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi tạo mã kho',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Create warehouse
-export const createWarehouse = async (req: Request, res: Response): Promise<void> => {
+export const createWarehouse = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { maKho, tenKho } = req.body;
 
@@ -100,18 +89,13 @@ export const createWarehouse = async (req: Request, res: Response): Promise<void
       data: warehouse,
       message: 'Tạo kho thành công',
     });
-  } catch (error: any) {
-    logger.error('Error creating warehouse:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi tạo kho',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Delete warehouse
-export const deleteWarehouse = async (req: Request, res: Response) => {
+export const deleteWarehouse = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
 
@@ -123,13 +107,8 @@ export const deleteWarehouse = async (req: Request, res: Response) => {
       success: true,
       message: 'Xóa kho thành công',
     });
-  } catch (error: any) {
-    logger.error('Error deleting warehouse:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi xóa kho',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 

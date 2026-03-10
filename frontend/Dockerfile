@@ -35,6 +35,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 RUN echo '#!/bin/sh' > /docker-entrypoint.d/40-envsubst-on-index.sh && \
     echo 'if [ -n "$VITE_API_URL" ]; then' >> /docker-entrypoint.d/40-envsubst-on-index.sh && \
     echo '  find /usr/share/nginx/html -type f -name "*.js" -exec sed -i "s|http://localhost:5000/api|$VITE_API_URL|g" {} \;' >> /docker-entrypoint.d/40-envsubst-on-index.sh && \
+    echo '  find /usr/share/nginx/html -type f -name "*.js" -exec sed -i "s|http://localhost:3000/api|$VITE_API_URL|g" {} \;' >> /docker-entrypoint.d/40-envsubst-on-index.sh && \
     echo 'fi' >> /docker-entrypoint.d/40-envsubst-on-index.sh && \
     chmod +x /docker-entrypoint.d/40-envsubst-on-index.sh
 

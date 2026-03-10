@@ -617,6 +617,9 @@ model InternationalProduct {
   orderItems            OrderItem[]
   product_batches       product_batches[]
   quotationRequestItems QuotationRequestItem[]
+  @@index([tenSanPham])
+  @@index([loaiSanPham])
+  @@index([createdAt])
   @@map("international_products")
   @@schema("business")
 }

@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest, CreateTaskRequest, UpdateTaskRequest, TaskListQuery, ApiResponse } from '@types';
 import taskService from '@services/taskService';
+import { getFileUrl } from '@middlewares/upload';
 
 class TaskController {
   async createTask(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -16,7 +17,7 @@ class TaskController {
 
       const data: CreateTaskRequest = req.body;
       const files = req.files as Express.Multer.File[] | undefined;
-      const filePaths = files?.map(file => file.path) || [];
+      const filePaths = files?.map(file => getFileUrl('tasks', file.filename)) || [];
 
       const task = await taskService.createTask(data, userId, filePaths);
 
@@ -87,7 +88,7 @@ class TaskController {
       const id = req.params.id as string;
       const data: UpdateTaskRequest = req.body;
       const files = req.files as Express.Multer.File[] | undefined;
-      const filePaths = files?.map(file => file.path) || [];
+      const filePaths = files?.map(file => getFileUrl('tasks', file.filename)) || [];
 
       const task = await taskService.updateTask(id, data, userId, filePaths);
 

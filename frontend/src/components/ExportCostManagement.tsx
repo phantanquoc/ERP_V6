@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Search, Edit, Trash2, X, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import exportCostService, { ExportCost, CreateExportCostInput, UpdateExportCostInput } from '../services/exportCostService';
+import { parseNumberInput } from '../utils/numberInput';
 
 const ExportCostManagement: React.FC = () => {
   const { user } = useAuth();
@@ -338,7 +339,7 @@ const ExportCostManagement: React.FC = () => {
                       type="number"
                       step="0.01"
                       value={formData.giaThanhNgay || ''}
-                      onChange={(e) => setFormData({ ...formData, giaThanhNgay: e.target.value ? parseFloat(e.target.value) : undefined })}
+                      onChange={(e) => setFormData({ ...formData, giaThanhNgay: e.target.value ? parseNumberInput(e.target.value) : undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                       placeholder="Nhập giá thành/ngày"
                     />

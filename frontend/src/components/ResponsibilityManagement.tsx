@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import positionService, { Position } from '@services/positionService';
 import positionResponsibilityService, { PositionResponsibility } from '@services/positionResponsibilityService';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface FormData {
   title: string;
@@ -387,7 +388,7 @@ const ResponsibilityManagement = () => {
                         min="0"
                         max="100"
                         value={formData.weight}
-                        onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) })}
+                        onChange={(e) => setFormData({ ...formData, weight: parseNumberInput(e.target.value) })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required
                       />

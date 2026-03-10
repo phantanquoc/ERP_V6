@@ -1,9 +1,9 @@
-import { Response } from 'express';
+import { Response, NextFunction } from 'express';
 import authService from '@services/authService';
 import type { AuthenticatedRequest, ApiResponse, AuthResponse } from '@types';
 
 export class AuthController {
-  async register(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async register(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { email, password, firstName, lastName } = req.body;
 
@@ -15,21 +15,11 @@ export class AuthController {
         data: result,
       } as ApiResponse<AuthResponse>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Lỗi máy chủ nội bộ',
-        });
-      }
+      next(error);
     }
   }
 
-  async login(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async login(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { email, password } = req.body;
 
@@ -48,21 +38,11 @@ export class AuthController {
         data: result,
       } as ApiResponse<AuthResponse>);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(401).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Lỗi máy chủ nội bộ',
-        });
-      }
+      next(error);
     }
   }
 
-  async refreshToken(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async refreshToken(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { refreshToken } = req.body;
 
@@ -82,21 +62,11 @@ export class AuthController {
         data: result,
       });
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(401).json({
-          success: false,
-          message: error.message,
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Lỗi máy chủ nội bộ',
-        });
-      }
+      next(error);
     }
   }
 
-  async logout(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async logout(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { refreshToken } = req.body;
 
@@ -109,10 +79,7 @@ export class AuthController {
         message: 'Đăng xuất thành công',
       });
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Đăng xuất thất bại',
-      });
+      next(error);
     }
   }
 }

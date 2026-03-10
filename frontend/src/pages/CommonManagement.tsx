@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
+import FileUpload from '../components/FileUpload';
 import Modal from '../components/Modal';
 import SupplyRequestModal from '../components/SupplyRequestModal';
 import ProcessListModal from '../components/ProcessListModal';
@@ -336,46 +337,26 @@ const CommonManagement = () => {
 
             {/* Modal Body */}
             <div className="p-6">
-              {/* Header with company logo - only for repair request */}
-              {selectedCategory === 'yeu_cau_sua_chua' && (
-                <div className="flex items-center justify-center mb-6 p-4 border-2 border-gray-300 rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 flex items-center justify-center">
-                      <img src="/logo.png" alt="Company Logo" className="w-16 h-16 object-contain" />
-                    </div>
-                    <div className="text-center">
-                      <h2 className="text-2xl font-bold text-gray-800 border-2 border-gray-400 px-6 py-2">
-                        BÁO LỖI HỆ THỐNG/ THIẾT BỊ
-                      </h2>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Form fields for repair request */}
               {selectedCategory === 'yeu_cau_sua_chua' ? (
-                <form onSubmit={repairForm.handleSubmit(onSubmitRepair)} className="space-y-0">
+                <form onSubmit={repairForm.handleSubmit(onSubmitRepair)} className="space-y-4">
                   {/* Employee Name */}
-                  <div className="grid grid-cols-4 gap-0 border border-gray-300">
-                    <div className="bg-gray-100 p-3 border-r border-gray-300 font-medium">
-                      Tên nhân viên:
-                    </div>
-                    <div className="col-span-3 p-3 bg-blue-50">
-                      {user?.firstName} {user?.lastName}
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên</label>
+                    <input type="text" value={`${user?.firstName || ''} ${user?.lastName || ''}`} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50" readOnly />
                   </div>
 
-                  {/* System/Equipment Name */}
-                  <div className="grid grid-cols-4 gap-0 border border-gray-300 border-t-0">
-                    <div className="bg-gray-100 p-3 border-r border-gray-300 font-medium">
-                      Tên hệ thống/ thiết bị <span className="text-red-500">*</span>
-                    </div>
-                    <div className="col-span-3 p-3 bg-blue-50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* System/Equipment Name */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tên hệ thống/ thiết bị <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="text"
                         {...repairForm.register('systemName')}
-                        className={`w-full bg-transparent border-none outline-none ${
-                          repairForm.formState.errors.systemName ? 'text-red-600' : ''
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          repairForm.formState.errors.systemName ? 'border-red-500' : 'border-gray-300'
                         }`}
                         placeholder="Nhập tên hệ thống/thiết bị..."
                       />
@@ -383,19 +364,17 @@ const CommonManagement = () => {
                         <p className="text-red-500 text-xs mt-1">{repairForm.formState.errors.systemName.message}</p>
                       )}
                     </div>
-                  </div>
 
-                  {/* Usage Area */}
-                  <div className="grid grid-cols-4 gap-0 border border-gray-300 border-t-0">
-                    <div className="bg-gray-100 p-3 border-r border-gray-300 font-medium">
-                      Khu vực sử dụng <span className="text-red-500">*</span>
-                    </div>
-                    <div className="col-span-3 p-3 bg-blue-50">
+                    {/* Usage Area */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Khu vực sử dụng <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="text"
                         {...repairForm.register('usageArea')}
-                        className={`w-full bg-transparent border-none outline-none ${
-                          repairForm.formState.errors.usageArea ? 'text-red-600' : ''
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          repairForm.formState.errors.usageArea ? 'border-red-500' : 'border-gray-300'
                         }`}
                         placeholder="Nhập khu vực sử dụng..."
                       />
@@ -406,60 +385,53 @@ const CommonManagement = () => {
                   </div>
 
                   {/* Error Content */}
-                  <div className="grid grid-cols-4 gap-0 border border-gray-300 border-t-0">
-                    <div className="bg-yellow-100 p-3 border-r border-gray-300 font-medium">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Nội dung lỗi <span className="text-red-500">*</span>
-                    </div>
-                    <div className="col-span-3 p-3 bg-yellow-50">
-                      <textarea
-                        rows={3}
-                        {...repairForm.register('errorContent')}
-                        className={`w-full bg-transparent border-none outline-none resize-none ${
-                          repairForm.formState.errors.errorContent ? 'text-red-600' : ''
-                        }`}
-                        placeholder="Mô tả chi tiết lỗi..."
-                      />
-                      {repairForm.formState.errors.errorContent && (
-                        <p className="text-red-500 text-xs mt-1">{repairForm.formState.errors.errorContent.message}</p>
-                      )}
-                    </div>
+                    </label>
+                    <textarea
+                      rows={3}
+                      {...repairForm.register('errorContent')}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
+                        repairForm.formState.errors.errorContent ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                      placeholder="Mô tả chi tiết lỗi..."
+                    />
+                    {repairForm.formState.errors.errorContent && (
+                      <p className="text-red-500 text-xs mt-1">{repairForm.formState.errors.errorContent.message}</p>
+                    )}
                   </div>
 
-                  {/* Error Type */}
-                  <div className="grid grid-cols-4 gap-0 border border-gray-300 border-t-0">
-                    <div className="bg-yellow-100 p-3 border-r border-gray-300 font-medium">
-                      Loại lỗi <span className="text-red-500">*</span>
-                    </div>
-                    <div className="col-span-3 p-3 bg-yellow-50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Error Type */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Loại lỗi <span className="text-red-500">*</span>
+                      </label>
                       <select
                         {...repairForm.register('errorType')}
-                        className={`w-full bg-transparent border-none outline-none ${
-                          repairForm.formState.errors.errorType ? 'text-red-600' : ''
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          repairForm.formState.errors.errorType ? 'border-red-500' : 'border-gray-300'
                         }`}
                       >
                         <option value="">Chọn loại lỗi</option>
                         <option value="loi_moi">Lỗi mới</option>
                         <option value="loi_lap_lai">Lỗi lặp lại</option>
-                        {/* <option value="loi_he_thong">Lỗi hệ thống</option>
-                        <option value="loi_phan_cung">Lỗi phần cứng</option>
-                        <option value="loi_phan_mem">Lỗi phần mềm</option> */}
                       </select>
                       {repairForm.formState.errors.errorType && (
                         <p className="text-red-500 text-xs mt-1">{repairForm.formState.errors.errorType.message}</p>
                       )}
                     </div>
-                  </div>
 
-                  {/* Priority Level */}
-                  <div className="grid grid-cols-4 gap-0 border border-gray-300 border-t-0">
-                    <div className="bg-yellow-100 p-3 border-r border-gray-300 font-medium">
-                      Mức độ ưu tiên <span className="text-red-500">*</span>
-                    </div>
-                    <div className="col-span-3 p-3 bg-yellow-50">
+                    {/* Priority Level */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Mức độ ưu tiên <span className="text-red-500">*</span>
+                      </label>
                       <select
                         {...repairForm.register('priority')}
-                        className={`w-full bg-transparent border-none outline-none ${
-                          repairForm.formState.errors.priority ? 'text-red-600' : ''
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          repairForm.formState.errors.priority ? 'border-red-500' : 'border-gray-300'
                         }`}
                       >
                         <option value="">Chọn mức độ ưu tiên</option>
@@ -467,7 +439,6 @@ const CommonManagement = () => {
                         <option value="cao">Cao</option>
                         <option value="trung_binh">Trung bình</option>
                         <option value="thap">Thấp</option>
-                       
                       </select>
                       {repairForm.formState.errors.priority && (
                         <p className="text-red-500 text-xs mt-1">{repairForm.formState.errors.priority.message}</p>
@@ -476,41 +447,48 @@ const CommonManagement = () => {
                   </div>
 
                   {/* Notes */}
-                  <div className="grid grid-cols-4 gap-0 border border-gray-300 border-t-0">
-                    <div className="bg-gray-100 p-3 border-r border-gray-300 font-medium">
-                      Ghi chú:
-                    </div>
-                    <div className="col-span-3 p-3 bg-gray-50">
-                      <textarea
-                        rows={2}
-                        {...repairForm.register('notes')}
-                        className="w-full bg-transparent border-none outline-none resize-none"
-                        placeholder="Ghi chú thêm..."
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                    <textarea
+                      rows={2}
+                      {...repairForm.register('notes')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      placeholder="Ghi chú thêm..."
+                    />
                   </div>
 
                   {/* File Upload */}
-                  <div className="grid grid-cols-4 gap-0 border border-gray-300 border-t-0">
-                    <div className="bg-gray-100 p-3 border-r border-gray-300 font-medium">
-                      File:
-                    </div>
-                    <div className="col-span-3 p-3 bg-gray-50">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tệp đính kèm</label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 hover:bg-blue-50/30 transition-colors">
                       <input
                         type="file"
                         multiple
                         {...repairForm.register('files')}
-                        className="w-full text-sm text-gray-600"
+                        className="hidden"
                         accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        id="repair-file-upload"
                       />
+                      <label htmlFor="repair-file-upload" className="cursor-pointer flex flex-col items-center">
+                        <Upload className="w-7 h-7 text-gray-400 mb-1.5" />
+                        <p className="text-sm text-gray-600">Click để chọn file</p>
+                        <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, JPG, PNG (Tối đa 100MB)</p>
+                      </label>
                     </div>
                   </div>
 
                   {/* Submit Button */}
-                  <div className="flex justify-end mt-6">
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={handleCloseModal}
+                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors mr-3"
+                    >
+                      Hủy
+                    </button>
                     <button
                       type="submit"
-                      className="px-8 py-3 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors font-medium mt-2"
+                      className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
                     >
                       Tạo yêu cầu sửa chữa
                     </button>
@@ -589,28 +567,25 @@ const CommonManagement = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Tệp đính kèm
                     </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
-                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-colors">
+                      <Upload className="h-7 w-7 text-gray-400 mx-auto mb-1.5" />
                       <input
                         type="file"
                         multiple
                         {...generalForm.register('attachments')}
                         className="hidden"
                         accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                        id="file-upload"
+                        id="general-file-upload"
                       />
-                      <label htmlFor="file-upload" className="cursor-pointer">
+                      <label htmlFor="general-file-upload" className="cursor-pointer">
                         <p className="text-sm text-gray-600">
-                          Kéo thả tệp vào đây hoặc{' '}
-                          <span className="text-blue-500 hover:text-blue-700">chọn tệp</span>
+                          Click để chọn file
                         </p>
                       </label>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Hỗ trợ: PDF, DOC, DOCX, JPG, PNG (Tối đa 10MB)
-                      </p>
+                      <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, JPG, PNG (Tối đa 100MB)</p>
                     </div>
                   </div>
 

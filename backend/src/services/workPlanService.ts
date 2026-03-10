@@ -128,6 +128,53 @@ class WorkPlanService {
     };
   }
 
+  async getMyWorkPlans(userId: string, employeeId: string, page: number = 1, limit: number = 10, search?: string): Promise<any> {
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      OR: [
+        { nguoiTaoId: userId },
+        { nguoiThucHienIds: { hasSome: [employeeId] } },
+      ],
+    };
+
+    if (search) {
+      where.AND = [
+        {
+          OR: [
+            { tieuDe: { contains: search, mode: 'insensitive' } },
+            { noiDung: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
+    const [total, workPlans] = await Promise.all([
+      prisma.workPlan.count({ where }),
+      prisma.workPlan.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    const populatedWorkPlans = await Promise.all(
+      workPlans.map(wp => this.populateWorkPlanWithUsers(wp))
+    );
+
+    return {
+      data: populatedWorkPlans,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+
   async getWorkPlanById(id: string): Promise<any> {
     const workPlan = await prisma.workPlan.findUnique({
       where: { id },

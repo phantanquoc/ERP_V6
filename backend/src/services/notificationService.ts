@@ -1,4 +1,5 @@
 import prisma from '@config/database';
+import { NotificationType } from '@types';
 
 export class NotificationService {
   async createNotification(data: {
@@ -51,7 +52,7 @@ export class NotificationService {
     const notification = await prisma.notification.create({
       data: {
         employeeId,
-        type: 'EVALUATION',
+        type: NotificationType.EVALUATION,
         title: `Đánh giá tháng ${monthName}`,
         message: `Bạn có một bản đánh giá mới cho tháng ${monthName}. Vui lòng hoàn thành đánh giá của bạn.`,
         period,
@@ -116,7 +117,7 @@ export class NotificationService {
     const notification = await prisma.notification.findFirst({
       where: {
         employeeId,
-        type: 'EVALUATION',
+        type: NotificationType.EVALUATION,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -133,7 +134,7 @@ export class NotificationService {
     const notification = await prisma.notification.create({
       data: {
         employeeId,
-        type: 'TASK',
+        type: NotificationType.TASK,
         title: 'Nhiệm vụ mới',
         message: `${assignerName} đã giao cho bạn nhiệm vụ: "${taskTitle}"`,
         taskId,
@@ -149,14 +150,61 @@ export class NotificationService {
     taskId: string,
     taskTitle: string,
     assignerName: string
-  ): Promise<any[]> {
-    const notifications = await Promise.all(
-      employeeIds.map(employeeId =>
-        this.createTaskNotification(employeeId, taskId, taskTitle, assignerName)
-      )
-    );
+  ): Promise<void> {
+    if (employeeIds.length === 0) return;
 
-    return notifications;
+    const notifications = employeeIds.map((employeeId) => ({
+      employeeId,
+      type: NotificationType.TASK,
+      title: 'Nhiệm vụ mới',
+      message: `${assignerName} đã giao cho bạn nhiệm vụ: "${taskTitle}"`,
+      taskId,
+      isRead: false,
+    }));
+
+    await prisma.notification.createMany({
+      data: notifications,
+    });
+  }
+
+  async createLeaveRequestNotification(
+    employeeIds: string[],
+    employeeName: string,
+    leaveTypeLabel: string
+  ): Promise<void> {
+    if (employeeIds.length === 0) return;
+
+    const notifications = employeeIds.map((employeeId) => ({
+      employeeId,
+      type: NotificationType.LEAVE_REQUEST,
+      title: 'Đơn nghỉ phép mới',
+      message: `${employeeName} đã gửi đơn nghỉ phép ${leaveTypeLabel}`,
+      isRead: false,
+    }));
+
+    await prisma.notification.createMany({
+      data: notifications,
+    });
+  }
+
+  async createLeaveRequestResponseNotification(
+    employeeId: string,
+    leaveCode: string,
+    status: 'APPROVED' | 'REJECTED'
+  ): Promise<void> {
+    const message = status === 'APPROVED'
+      ? `Đơn nghỉ phép ${leaveCode} của bạn đã được phê duyệt`
+      : `Đơn nghỉ phép ${leaveCode} của bạn đã bị từ chối`;
+
+    await prisma.notification.create({
+      data: {
+        employeeId,
+        type: NotificationType.LEAVE_REQUEST_RESPONSE,
+        title: status === 'APPROVED' ? 'Đơn nghỉ phép được duyệt' : 'Đơn nghỉ phép bị từ chối',
+        message,
+        isRead: false,
+      },
+    });
   }
 }
 

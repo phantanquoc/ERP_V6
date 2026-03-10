@@ -1,9 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
-import logger from '@config/logger';
 
 // Generate unique receipt code
-export const generateReceiptCode = async (_req: Request, res: Response): Promise<void> => {
+export const generateReceiptCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const today = new Date();
     const year = today.getFullYear();
@@ -35,17 +34,13 @@ export const generateReceiptCode = async (_req: Request, res: Response): Promise
       success: true,
       data: { code },
     });
-  } catch (error: any) {
-    logger.error('Error generating receipt code:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi tạo mã phiếu nhập',
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Create warehouse receipt
-export const createWarehouseReceipt = async (req: Request, res: Response): Promise<void> => {
+export const createWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const {
       maPhieuNhap,
@@ -116,17 +111,13 @@ export const createWarehouseReceipt = async (req: Request, res: Response): Promi
       data: receipt,
       message: 'Tạo phiếu nhập kho thành công',
     });
-  } catch (error: any) {
-    logger.error('Error creating warehouse receipt:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Lỗi khi tạo phiếu nhập kho',
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Get all warehouse receipts
-export const getAllWarehouseReceipts = async (_req: Request, res: Response): Promise<void> => {
+export const getAllWarehouseReceipts = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const receipts = await prisma.warehouseReceipt.findMany({
       orderBy: {
@@ -138,12 +129,8 @@ export const getAllWarehouseReceipts = async (_req: Request, res: Response): Pro
       success: true,
       data: receipts,
     });
-  } catch (error: any) {
-    logger.error('Error fetching warehouse receipts:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi tải danh sách phiếu nhập kho',
-    });
+  } catch (error) {
+    next(error);
   }
 };
 

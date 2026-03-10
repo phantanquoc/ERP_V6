@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Download, Edit, Eye, Trash2, Calendar, FileText, Upload } from 'lucide-react';
 import debtService, { Debt, DebtSummary } from '../services/debtService';
 import DatePicker from './DatePicker';
+import { parseNumberInputStr } from '../utils/numberInput';
 
 const DebtManagement: React.FC = () => {
   const [debtData, setDebtData] = useState<Debt[]>([]);
@@ -501,7 +502,7 @@ const DebtManagement: React.FC = () => {
                   <input
                     type="number"
                     value={formData.soTienPhaiTra}
-                    onChange={(e) => setFormData({ ...formData, soTienPhaiTra: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, soTienPhaiTra: parseNumberInputStr(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                     placeholder="0"
                   />
@@ -515,7 +516,7 @@ const DebtManagement: React.FC = () => {
                   <input
                     type="number"
                     value={formData.soTienDaThanhToan}
-                    onChange={(e) => setFormData({ ...formData, soTienDaThanhToan: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, soTienDaThanhToan: parseNumberInputStr(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                     placeholder="0"
                   />
@@ -747,7 +748,7 @@ const DebtManagement: React.FC = () => {
                   <input
                     type="number"
                     value={formData.soTienPhaiTra}
-                    onChange={(e) => setFormData({ ...formData, soTienPhaiTra: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, soTienPhaiTra: parseNumberInputStr(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
@@ -759,7 +760,7 @@ const DebtManagement: React.FC = () => {
                   <input
                     type="number"
                     value={formData.soTienDaThanhToan}
-                    onChange={(e) => setFormData({ ...formData, soTienDaThanhToan: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, soTienDaThanhToan: parseNumberInputStr(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>

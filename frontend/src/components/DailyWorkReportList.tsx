@@ -11,6 +11,8 @@ import {
   XCircle,
   AlertCircle,
   Send,
+  Paperclip,
+  Download,
 } from 'lucide-react';
 import dailyWorkReportService, { DailyWorkReport } from '../services/dailyWorkReportService';
 import DailyWorkReportModal from './DailyWorkReportModal';
@@ -322,6 +324,47 @@ const DailyWorkReportList: React.FC = () => {
                     <p className="text-gray-900 whitespace-pre-wrap">{viewReport.planForNextDay}</p>
                   </div>
                 )}
+                {(() => {
+                  let attachments: any[] = [];
+                  if (viewReport.attachments) {
+                    if (typeof viewReport.attachments === 'string') {
+                      try {
+                        attachments = JSON.parse(viewReport.attachments);
+                      } catch (e) {
+                        console.error('Failed to parse attachments:', e);
+                      }
+                    } else if (Array.isArray(viewReport.attachments)) {
+                      attachments = viewReport.attachments;
+                    }
+                  }
+                  return attachments.length > 0 ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">File đính kèm</label>
+                      <div className="space-y-2">
+                        {attachments.map((attachment: any, index: number) => (
+                          <div key={index} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                            <div className="flex items-center space-x-2 flex-1 min-w-0">
+                              <Paperclip className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                              <span className="text-sm text-gray-700 truncate">
+                                {attachment.fileName || attachment.name || `File ${index + 1}`}
+                              </span>
+                              {attachment.fileSize && (
+                                <span className="text-xs text-gray-500 flex-shrink-0">
+                                  ({(attachment.fileSize / 1024).toFixed(1)} KB)
+                                </span>
+                              )}
+                            </div>
+                            {attachment.fileUrl && (
+                              <a href={`http://localhost:5000${attachment.fileUrl}`} download target="_blank" rel="noopener noreferrer" className="ml-2 p-1 text-green-600 hover:bg-green-50 rounded transition-colors flex-shrink-0">
+                                <Download className="w-4 h-4" />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
                 {viewReport.supervisorComment && (
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <label className="block text-sm font-medium text-blue-900 mb-1">Nhận xét của quản lý</label>

@@ -4,6 +4,7 @@ import payrollService, { PayrollItem, PayrollDetail } from '@services/payrollSer
 import evaluationService from '@services/employeeEvaluationService';
 import { usePayrollByMonthYear, payrollKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import { parseNumberInput } from '../utils/numberInput';
 
 const PayrollManagement: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -407,7 +408,7 @@ const PayrollManagement: React.FC = () => {
                         type="number"
                         value={editingPayroll.baseSalary}
                         onChange={e => {
-                          const newBaseSalary = Number(e.target.value);
+                          const newBaseSalary = parseNumberInput(e.target.value);
                           const newLeaveDeduction =
                             newBaseSalary > 0 && editingPayroll.leaveDays > 0
                               ? Math.round((newBaseSalary / 26) * editingPayroll.leaveDays)
@@ -427,7 +428,7 @@ const PayrollManagement: React.FC = () => {
                         type="number"
                         value={editingPayroll.kpiBonus}
                         onChange={e => {
-                          const newKpiBonus = Number(e.target.value);
+                          const newKpiBonus = parseNumberInput(e.target.value);
                           const supervisor2Percentage = getSupervisor2Percentage(
                             editingPayroll.employeeCode
                           );
@@ -452,7 +453,7 @@ const PayrollManagement: React.FC = () => {
                         onChange={e =>
                           setEditingPayroll({
                             ...editingPayroll,
-                            positionAllowance: Number(e.target.value),
+                            positionAllowance: parseNumberInput(e.target.value),
                           })
                         }
                         className="w-32 px-2 py-1 border border-gray-300 rounded text-right"
@@ -466,7 +467,7 @@ const PayrollManagement: React.FC = () => {
                         onChange={e =>
                           setEditingPayroll({
                             ...editingPayroll,
-                            otherAllowances: Number(e.target.value),
+                            otherAllowances: parseNumberInput(e.target.value),
                           })
                         }
                         className="w-32 px-2 py-1 border border-gray-300 rounded text-right"
@@ -498,7 +499,7 @@ const PayrollManagement: React.FC = () => {
                         onChange={e =>
                           setEditingPayroll({
                             ...editingPayroll,
-                            socialInsurance: Number(e.target.value),
+                            socialInsurance: parseNumberInput(e.target.value),
                           })
                         }
                         className="w-32 px-2 py-1 border border-gray-300 rounded text-right"
@@ -512,7 +513,7 @@ const PayrollManagement: React.FC = () => {
                         onChange={e =>
                           setEditingPayroll({
                             ...editingPayroll,
-                            healthInsurance: Number(e.target.value),
+                            healthInsurance: parseNumberInput(e.target.value),
                           })
                         }
                         className="w-32 px-2 py-1 border border-gray-300 rounded text-right"
@@ -526,7 +527,7 @@ const PayrollManagement: React.FC = () => {
                         onChange={e =>
                           setEditingPayroll({
                             ...editingPayroll,
-                            unemploymentInsurance: Number(e.target.value),
+                            unemploymentInsurance: parseNumberInput(e.target.value),
                           })
                         }
                         className="w-32 px-2 py-1 border border-gray-300 rounded text-right"
@@ -540,7 +541,7 @@ const PayrollManagement: React.FC = () => {
                         onChange={e =>
                           setEditingPayroll({
                             ...editingPayroll,
-                            personalIncomeTax: Number(e.target.value),
+                            personalIncomeTax: parseNumberInput(e.target.value),
                           })
                         }
                         className="w-32 px-2 py-1 border border-gray-300 rounded text-right"
@@ -554,7 +555,7 @@ const PayrollManagement: React.FC = () => {
                         onChange={e =>
                           setEditingPayroll({
                             ...editingPayroll,
-                            kpiDeduction: Number(e.target.value),
+                            kpiDeduction: parseNumberInput(e.target.value),
                           })
                         }
                         className="w-32 px-2 py-1 border border-gray-300 rounded text-right"
@@ -568,7 +569,7 @@ const PayrollManagement: React.FC = () => {
                         onChange={e =>
                           setEditingPayroll({
                             ...editingPayroll,
-                            leaveDeduction: Number(e.target.value),
+                            leaveDeduction: parseNumberInput(e.target.value),
                           })
                         }
                         className="w-32 px-2 py-1 border border-gray-300 rounded text-right"
@@ -602,7 +603,7 @@ const PayrollManagement: React.FC = () => {
                     onChange={e =>
                       setEditingPayroll({
                         ...editingPayroll,
-                        workDays: Number(e.target.value),
+                        workDays: parseNumberInput(e.target.value),
                       })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded"
@@ -614,7 +615,7 @@ const PayrollManagement: React.FC = () => {
                     type="number"
                     value={editingPayroll.leaveDays}
                     onChange={e => {
-                      const newLeaveDays = Number(e.target.value);
+                      const newLeaveDays = parseNumberInput(e.target.value);
                       const newLeaveDeduction =
                         editingPayroll.baseSalary > 0 && newLeaveDays > 0
                           ? Math.round((editingPayroll.baseSalary / 26) * newLeaveDays)
@@ -636,7 +637,7 @@ const PayrollManagement: React.FC = () => {
                     onChange={e =>
                       setEditingPayroll({
                         ...editingPayroll,
-                        overtimeHours: Number(e.target.value),
+                        overtimeHours: parseNumberInput(e.target.value),
                       })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded"

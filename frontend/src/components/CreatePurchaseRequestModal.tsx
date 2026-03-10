@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload } from 'lucide-react';
+import { X } from 'lucide-react';
+import FileUpload from './FileUpload';
 import purchaseRequestService from '../services/purchaseRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import { SupplyRequest } from '../services/supplyRequestService';
@@ -32,6 +33,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
     ghiChu: '',
     fileKemTheo: '',
   });
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -191,21 +193,12 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
           </div>
 
           {/* Row 8: File đính kèm */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">File đính kèm</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={formData.fileKemTheo}
-                onChange={(e) => setFormData({ ...formData, fileKemTheo: e.target.value })}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Đường dẫn file hoặc URL"
-              />
-              <button type="button" className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                <Upload className="h-5 w-5 text-gray-500" />
-              </button>
-            </div>
-          </div>
+          <FileUpload
+            label="File đính kèm"
+            files={selectedFiles}
+            onChange={setSelectedFiles}
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+          />
 
           {/* Buttons */}
           <div className="flex justify-end gap-2 mt-6">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Eye, Trash2, X, Upload, CheckCircle, Download } from 'lucide-react';
+import { Edit, Eye, Trash2, X, CheckCircle, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import FileUpload from './FileUpload';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
 
 interface RepairRequest {
@@ -249,12 +250,6 @@ const RepairRequestList = () => {
       ghiChu: '',
       trangThai: 'Chờ xử lý',
     });
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
   };
 
   const handleAcceptance = (request: RepairRequest) => {
@@ -593,37 +588,14 @@ const RepairRequestList = () => {
                 {/* File đính kèm */}
                 {!isViewMode && (
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      File đính kèm
-                    </label>
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
-                        <Upload className="w-4 h-4" />
-                        <span>Chọn file</span>
-                        <input
-                          type="file"
-                          onChange={handleFileChange}
-                          className="hidden"
-                          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                        />
-                      </label>
-                      {selectedFile && (
-                        <span className="text-sm text-gray-600">{selectedFile.name}</span>
-                      )}
-                      {editingRequest?.fileDinhKem && !selectedFile && (
-                        <a
-                          href={`http://localhost:5000${editingRequest.fileDinhKem}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:underline"
-                        >
-                          File hiện tại
-                        </a>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Hỗ trợ: PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG (Tối đa 10MB)
-                    </p>
+                    <FileUpload
+                      label="File đính kèm"
+                      files={selectedFile ? [selectedFile] : []}
+                      onChange={(files) => setSelectedFile(files[0] || null)}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                      existingFileUrl={editingRequest?.fileDinhKem ? `http://localhost:5000${editingRequest.fileDinhKem}` : undefined}
+                      existingFileName={editingRequest?.fileDinhKem ? 'File hiện tại' : undefined}
+                    />
                   </div>
                 )}
 

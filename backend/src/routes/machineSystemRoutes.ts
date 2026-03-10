@@ -1,40 +1,13 @@
 import { Router, Request, Response } from 'express';
-import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import ExcelJS from 'exceljs';
+import { createSingleUploadMiddleware, getFileUrl } from '@middlewares/upload';
 
 const router = Router();
 
-// Configure multer for file upload
-const storage = multer.diskStorage({
-  destination: function (_req, _file, cb) {
-    const uploadDir = 'uploads/machine-systems';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (_req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'system-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: function (_req, file, cb) {
-    const allowedTypes = /pdf|doc|docx|xls|xlsx|jpg|jpeg|png/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Chỉ chấp nhận file PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG'));
-    }
-  }
-});
+// Upload middleware for machine systems (single file)
+const uploadMachineSystem = createSingleUploadMiddleware('machine-systems');
 
 interface MachineSystem {
   id: number;
@@ -55,12 +28,37 @@ interface MachineSystem {
 let machineSystems: MachineSystem[] = [];
 let nextId = 1;
 
-// GET all machine systems
+/**
+ * @swagger
+ * /api/machine-systems:
+ *   get:
+ *     tags: [Machine Systems]
+ *     summary: Lấy danh sách hệ thống máy
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách hệ thống máy thành công
+ */
 router.get('/', (_req: Request, res: Response) => {
   res.json(machineSystems);
 });
 
-// Export to Excel
+/**
+ * @swagger
+ * /api/machine-systems/export/excel:
+ *   get:
+ *     tags: [Machine Systems]
+ *     summary: Xuất danh sách hệ thống máy ra Excel
+ *     responses:
+ *       200:
+ *         description: Xuất Excel thành công
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       500:
+ *         description: Lỗi khi xuất Excel
+ */
 router.get('/export/excel', async (_req: Request, res: Response) => {
   try {
     const workbook = new ExcelJS.Workbook();
@@ -114,7 +112,25 @@ router.get('/export/excel', async (_req: Request, res: Response) => {
   }
 });
 
-// GET single machine system
+/**
+ * @swagger
+ * /api/machine-systems/{id}:
+ *   get:
+ *     tags: [Machine Systems]
+ *     summary: Lấy chi tiết hệ thống máy theo ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của hệ thống máy
+ *     responses:
+ *       200:
+ *         description: Lấy chi tiết hệ thống máy thành công
+ *       404:
+ *         description: Không tìm thấy hệ thống
+ */
 router.get('/:id', (req: Request, res: Response): void => {
   const system = machineSystems.find(s => s.id === parseInt(req.params.id as string));
   if (!system) {
@@ -124,8 +140,28 @@ router.get('/:id', (req: Request, res: Response): void => {
   res.json(system);
 });
 
-// POST create new machine system
-router.post('/', upload.single('file'), (req: Request, res: Response) => {
+/**
+ * @swagger
+ * /api/machine-systems:
+ *   post:
+ *     tags: [Machine Systems]
+ *     summary: Tạo hệ thống máy mới
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: File đính kèm
+ *     responses:
+ *       201:
+ *         description: Tạo hệ thống máy thành công
+ */
+router.post('/', uploadMachineSystem, (req: Request, res: Response) => {
   const newSystem: MachineSystem = {
     id: nextId++,
     khuVuc: req.body.khuVuc || '',
@@ -138,15 +174,44 @@ router.post('/', upload.single('file'), (req: Request, res: Response) => {
     nhiemVu: req.body.nhiemVu || '',
     maNguoiThucHien: req.body.maNguoiThucHien || '',
     nguoiThucHien: req.body.nguoiThucHien || '',
-    fileDinhKem: req.file ? `/uploads/machine-systems/${req.file.filename}` : undefined,
+    fileDinhKem: req.file ? getFileUrl('machine-systems', req.file.filename) : undefined,
     ngayTao: new Date().toISOString()
   };
   machineSystems.push(newSystem);
   res.status(201).json(newSystem);
 });
 
-// PUT update machine system
-router.put('/:id', upload.single('file'), (req: Request, res: Response): void => {
+/**
+ * @swagger
+ * /api/machine-systems/{id}:
+ *   put:
+ *     tags: [Machine Systems]
+ *     summary: Cập nhật hệ thống máy
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của hệ thống máy
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: File đính kèm
+ *     responses:
+ *       200:
+ *         description: Cập nhật hệ thống máy thành công
+ *       404:
+ *         description: Không tìm thấy hệ thống
+ */
+router.put('/:id', uploadMachineSystem, (req: Request, res: Response): void => {
   const index = machineSystems.findIndex(s => s.id === parseInt(req.params.id as string));
   if (index === -1) {
     res.status(404).json({ message: 'Không tìm thấy hệ thống' });
@@ -166,12 +231,30 @@ router.put('/:id', upload.single('file'), (req: Request, res: Response): void =>
     nhiemVu: req.body.nhiemVu || existingSystem.nhiemVu,
     maNguoiThucHien: req.body.maNguoiThucHien || existingSystem.maNguoiThucHien,
     nguoiThucHien: req.body.nguoiThucHien || existingSystem.nguoiThucHien,
-    fileDinhKem: req.file ? `/uploads/machine-systems/${req.file.filename}` : existingSystem.fileDinhKem
+    fileDinhKem: req.file ? getFileUrl('machine-systems', req.file.filename) : existingSystem.fileDinhKem
   };
   res.json(machineSystems[index]);
 });
 
-// DELETE machine system
+/**
+ * @swagger
+ * /api/machine-systems/{id}:
+ *   delete:
+ *     tags: [Machine Systems]
+ *     summary: Xóa hệ thống máy
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của hệ thống máy
+ *     responses:
+ *       200:
+ *         description: Xóa hệ thống máy thành công
+ *       404:
+ *         description: Không tìm thấy hệ thống
+ */
 router.delete('/:id', (req: Request, res: Response): void => {
   const index = machineSystems.findIndex(s => s.id === parseInt(req.params.id as string));
   if (index === -1) {

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X, FileText, Upload, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, FileText, Download } from 'lucide-react';
+import FileUpload from './FileUpload';
 import processService, { Process, CreateProcessData, ProcessFlowchartSection, ProcessFlowchartCost } from '../services/processService';
 import { useAuth } from '../contexts/AuthContext';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface ProcessManagementProps {
   mode?: 'full' | 'standard-only' | 'production';
@@ -14,7 +16,11 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
   const { user } = useAuth(); // Get current logged-in user
   const [processes, setProcesses] = useState<Process[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [columnFilters, setColumnFilters] = useState({
+    maQuyTrinh: '',
+    tenQuyTrinh: '',
+    loaiQuyTrinh: '',
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,12 +42,12 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
 
   useEffect(() => {
     fetchProcesses();
-  }, [searchTerm]);
+  }, []);
 
   const fetchProcesses = async () => {
     try {
       setLoading(true);
-      const response = await processService.getAllProcesses(1, 1000, searchTerm);
+      const response = await processService.getAllProcesses(1, 1000);
       setProcesses(response.data);
     } catch (error) {
       console.error('Error fetching processes:', error);
@@ -167,8 +173,8 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
     if (!standardProcess || !standardProcess.flowchart) return;
 
     const updatedSections = [...standardProcess.flowchart.sections];
-    const numValue = parseFloat(value);
-    updatedSections[sectionIndex].costs[costIndex].dinhMucLaoDong = isNaN(numValue) ? undefined : numValue;
+    const numValue = value === '' ? undefined : parseNumberInput(value);
+    updatedSections[sectionIndex].costs[costIndex].dinhMucLaoDong = numValue;
 
     setStandardProcess({
       ...standardProcess,
@@ -198,8 +204,8 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
     if (!standardProcess || !standardProcess.flowchart) return;
 
     const updatedSections = [...standardProcess.flowchart.sections];
-    const numValue = parseFloat(value);
-    (updatedSections[sectionIndex].costs[costIndex] as any)[field] = isNaN(numValue) ? undefined : numValue;
+    const numValue = value === '' ? undefined : parseNumberInput(value);
+    (updatedSections[sectionIndex].costs[costIndex] as any)[field] = numValue;
 
     setStandardProcess({
       ...standardProcess,
@@ -284,10 +290,15 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
   };
 
   const handleSectionFileUpload = async (sectionIndex: number, file: File) => {
-    // TODO: Implement file upload to server
-    const fileUrl = `/uploads/${file.name}`;
-    handleSectionChange(sectionIndex, 'fileUrl', fileUrl);
-    alert(`File "${file.name}" đã được chọn (chức năng upload sẽ được implement sau)`);
+    try {
+      const response = await processService.uploadSectionFile(file);
+      if (response.success) {
+        handleSectionChange(sectionIndex, 'fileUrl', response.data.fileUrl);
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Lỗi khi tải file lên');
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -369,11 +380,6 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCurrentPage(1);
-  };
-
   const handleExportExcel = async () => {
     try {
       await processService.exportToExcel();
@@ -389,17 +395,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
       {/* Table Container */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {/* Action Bar */}
-        <div className="bg-white px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <div className="relative w-80">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm theo mã quy trình, tên quy trình..."
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-            />
-          </div>
+        <div className="bg-white px-6 py-4 border-b border-gray-200 flex justify-end items-center">
           <div className="flex items-center gap-2">
             <button
               onClick={handleExportExcel}
@@ -433,22 +429,49 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại quy trình</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
+              <tr className="bg-white border-b border-gray-200">
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.maQuyTrinh} onChange={(e) => { setColumnFilters(prev => ({...prev, maQuyTrinh: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.tenQuyTrinh} onChange={(e) => { setColumnFilters(prev => ({...prev, tenQuyTrinh: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.loaiQuyTrinh} onChange={(e) => { setColumnFilters(prev => ({...prev, loaiQuyTrinh: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2"></th>
+              </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    Đang tải...
-                  </td>
-                </tr>
-              ) : processes.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    Không có dữ liệu
-                  </td>
-                </tr>
-              ) : (
-                processes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((process, index) => (
+              {(() => {
+                const filteredProcesses = processes.filter(process => {
+                  const matchMaQT = !columnFilters.maQuyTrinh || (process.maQuyTrinh || '').toLowerCase().includes(columnFilters.maQuyTrinh.toLowerCase());
+                  const matchTenQT = !columnFilters.tenQuyTrinh || (process.tenQuyTrinh || '').toLowerCase().includes(columnFilters.tenQuyTrinh.toLowerCase());
+                  const matchLoaiQT = !columnFilters.loaiQuyTrinh || (process.loaiQuyTrinh || '').toLowerCase().includes(columnFilters.loaiQuyTrinh.toLowerCase());
+                  return matchMaQT && matchTenQT && matchLoaiQT;
+                });
+                if (loading) {
+                  return (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                        Đang tải...
+                      </td>
+                    </tr>
+                  );
+                }
+                if (filteredProcesses.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                        Không có dữ liệu
+                      </td>
+                    </tr>
+                  );
+                }
+                return filteredProcesses.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((process, index) => (
                   <tr
                     key={process.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -513,15 +536,21 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                ));
+              })()}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
         {(() => {
-          const totalItems = processes.length;
+          const filteredProcesses = processes.filter(process => {
+            const matchMaQT = !columnFilters.maQuyTrinh || (process.maQuyTrinh || '').toLowerCase().includes(columnFilters.maQuyTrinh.toLowerCase());
+            const matchTenQT = !columnFilters.tenQuyTrinh || (process.tenQuyTrinh || '').toLowerCase().includes(columnFilters.tenQuyTrinh.toLowerCase());
+            const matchLoaiQT = !columnFilters.loaiQuyTrinh || (process.loaiQuyTrinh || '').toLowerCase().includes(columnFilters.loaiQuyTrinh.toLowerCase());
+            return matchMaQT && matchTenQT && matchLoaiQT;
+          });
+          const totalItems = filteredProcesses.length;
           const totalPages = Math.ceil(totalItems / itemsPerPage);
           return totalPages > 1 ? (
             <div className="flex items-center justify-between mt-4 px-2">
@@ -712,25 +741,14 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                         <div className="grid grid-cols-4 gap-4">
                           <div className="col-span-1 font-medium text-gray-700">File đính kèm</div>
                           <div className="col-span-3">
-                            <div className="flex items-center gap-2">
-                              <label className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 text-sm rounded cursor-pointer hover:bg-gray-200 border border-gray-300">
-                                <Upload className="w-4 h-4" />
-                                <span>Chọn file</span>
-                                <input
-                                  type="file"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleSectionFileUpload(sectionIndex, file);
-                                  }}
-                                />
-                              </label>
-                              {section.fileUrl && (
-                                <span className="text-sm text-blue-600 truncate max-w-[200px]" title={section.fileUrl}>
-                                  {section.fileUrl.split('/').pop()}
-                                </span>
-                              )}
-                            </div>
+                            <FileUpload
+                              files={[]}
+                              onChange={(files) => {
+                                if (files[0]) handleSectionFileUpload(sectionIndex, files[0]);
+                              }}
+                              compact
+                              existingFileName={section.fileUrl ? section.fileUrl.split('/').pop() : undefined}
+                            />
                           </div>
                         </div>
 

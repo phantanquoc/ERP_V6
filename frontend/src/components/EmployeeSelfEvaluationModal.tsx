@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle, Calendar } from 'lucide-react';
+import { parseNumberInput } from '../utils/numberInput';
 import employeeEvaluationService, { EvaluationDetail, EvaluationDetailsResponse } from '../services/employeeEvaluationService';
 import notificationService from '../services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
@@ -336,7 +337,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                                 min="0"
                                 max="100"
                                 value={editingScores[detail.detailId!] ?? detail.selfScore ?? ''}
-                                onChange={(e) => handleScoreChange(detail.detailId!, Number(e.target.value))}
+                                onChange={(e) => handleScoreChange(detail.detailId!, parseNumberInput(e.target.value))}
                                 className="w-20 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="0-100"
                               />
@@ -453,7 +454,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                                       handleSubordinateScoreChange(
                                         detail.detailId,
                                         'supervisorScore1',
-                                        Number(e.target.value)
+                                        parseNumberInput(e.target.value)
                                       )
                                     }
                                     className={`w-20 px-2 py-1 border rounded text-sm text-center ${
@@ -479,7 +480,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                                       handleSubordinateScoreChange(
                                         detail.detailId,
                                         'supervisorScore2',
-                                        Number(e.target.value)
+                                        parseNumberInput(e.target.value)
                                       )
                                     }
                                     className={`w-20 px-2 py-1 border rounded text-sm text-center ${

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import productionProcessService from '../services/productionProcessService';
+import { getFileUrl } from '../middlewares/upload';
 
 class ProductionProcessController {
   // Get all production processes
@@ -90,6 +91,30 @@ class ProductionProcessController {
         success: true,
         data: productionProcess,
         message: 'Production process synced from template successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Upload file for flowchart section
+  async uploadFile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) {
+        res.status(400).json({
+          success: false,
+          message: 'No file uploaded',
+        });
+        return;
+      }
+
+      const fileUrl = getFileUrl('production-processes', file.filename);
+
+      res.json({
+        success: true,
+        data: { fileUrl, fileName: file.originalname },
+        message: 'File uploaded successfully',
       });
     } catch (error) {
       next(error);

@@ -81,7 +81,7 @@ const ProductionWarehouse = () => {
 
   const tabs = [
     { id: 'warehouseManagement', name: 'Quản lý kho', icon: <Package className="w-4 h-4" /> },
-    { id: 'products', name: 'Danh sách sản phẩm', icon: <Package className="w-4 h-4" /> },
+    { id: 'products', name: 'Danh sách hàng hóa', icon: <Package className="w-4 h-4" /> },
     { id: 'inbound', name: 'Nhập kho', icon: <ArrowDown className="w-4 h-4" /> },
     { id: 'outbound', name: 'Xuất kho', icon: <ArrowUp className="w-4 h-4" /> },
     { id: 'supplyRequest', name: 'Yêu cầu cung cấp', icon: <FileText className="w-4 h-4" /> }
@@ -215,7 +215,7 @@ const ProductionWarehouse = () => {
             <WarehouseManagement />
           )}
 
-          {/* DANH SÁCH SẢN PHẨM */}
+          {/* DANH SÁCH HÀNG HÓA */}
           {activeTab === 'products' && (
             <div className="p-6">
               <InternationalProductManagement />

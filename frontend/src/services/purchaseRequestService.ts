@@ -68,7 +68,24 @@ class PurchaseRequestService {
     return response.data;
   }
 
-  async createPurchaseRequest(data: CreatePurchaseRequestRequest) {
+  async createPurchaseRequest(data: CreatePurchaseRequestRequest, file?: File) {
+    if (file) {
+      const formData = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && key !== 'fileKemTheo') {
+          formData.append(key, value.toString());
+        }
+      });
+      formData.append('file', file);
+      const response = await axios.post(API_URL, formData, {
+        ...getAuthHeader(),
+        headers: {
+          ...getAuthHeader().headers,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    }
     const response = await axios.post(API_URL, data, getAuthHeader());
     return response.data;
   }

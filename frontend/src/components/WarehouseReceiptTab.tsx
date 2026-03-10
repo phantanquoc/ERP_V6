@@ -3,6 +3,7 @@ import { Plus, FileText, Eye } from 'lucide-react';
 import warehouseReceiptService, { WarehouseReceipt } from '../services/warehouseReceiptService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import { useAuth } from '../contexts/AuthContext';
+import { parseNumberInput } from '../utils/numberInput';
 
 const WarehouseReceiptTab: React.FC = () => {
   const { user } = useAuth();
@@ -495,7 +496,7 @@ const WarehouseReceiptTab: React.FC = () => {
                 <input
                   type="number"
                   value={formData.soLuongNhap}
-                  onChange={(e) => setFormData({ ...formData, soLuongNhap: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setFormData({ ...formData, soLuongNhap: parseNumberInput(e.target.value) })}
                   required
                   min="0"
                   step="0.01"

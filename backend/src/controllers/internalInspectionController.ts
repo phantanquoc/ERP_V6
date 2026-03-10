@@ -1,9 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import internalInspectionService from '@services/internalInspectionService';
-import logger from '@config/logger';
 
 export class InternalInspectionController {
-  async exportToExcel(_req: Request, res: Response): Promise<void> {
+  async exportToExcel(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const buffer = await internalInspectionService.exportToExcel();
 
@@ -11,15 +10,11 @@ export class InternalInspectionController {
       res.setHeader('Content-Disposition', `attachment; filename=kiem-tra-noi-bo-${Date.now()}.xlsx`);
       res.send(buffer);
     } catch (error) {
-      logger.error('Error exporting to Excel:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error exporting to Excel',
-      });
+      next(error);
     }
   }
 
-  async getAllInspections(req: Request, res: Response): Promise<void> {
+  async getAllInspections(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { month, year, search } = req.query;
 
@@ -39,16 +34,11 @@ export class InternalInspectionController {
       });
       return;
     } catch (error) {
-      logger.error('Error fetching inspections:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching inspections',
-      });
-      return;
+      next(error);
     }
   }
 
-  async getInspectionById(req: Request, res: Response): Promise<void> {
+  async getInspectionById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
 
@@ -60,16 +50,11 @@ export class InternalInspectionController {
       });
       return;
     } catch (error) {
-      logger.error('Error fetching inspection:', error);
-      res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching inspection',
-      });
-      return;
+      next(error);
     }
   }
 
-  async createInspection(req: Request, res: Response): Promise<void> {
+  async createInspection(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = req.body;
 
@@ -82,16 +67,11 @@ export class InternalInspectionController {
       });
       return;
     } catch (error) {
-      logger.error('Error creating inspection:', error);
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error creating inspection',
-      });
-      return;
+      next(error);
     }
   }
 
-  async updateInspection(req: Request, res: Response): Promise<void> {
+  async updateInspection(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
       const data = req.body;
@@ -105,16 +85,11 @@ export class InternalInspectionController {
       });
       return;
     } catch (error) {
-      logger.error('Error updating inspection:', error);
-      res.status(error instanceof Error && error.message.includes('not found') ? 404 : 400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error updating inspection',
-      });
-      return;
+      next(error);
     }
   }
 
-  async deleteInspection(req: Request, res: Response): Promise<void> {
+  async deleteInspection(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
 
@@ -126,12 +101,7 @@ export class InternalInspectionController {
       });
       return;
     } catch (error) {
-      logger.error('Error deleting inspection:', error);
-      res.status(error instanceof Error && error.message.includes('not found') ? 404 : 400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error deleting inspection',
-      });
-      return;
+      next(error);
     }
   }
 }

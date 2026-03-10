@@ -1,38 +1,67 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
-import logger from '@config/logger';
 
 // Get all lot products
-export const getAllLotProducts = async (_req: Request, res: Response) => {
+export const getAllLotProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const lotProducts = await prisma.lotProduct.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        internationalProduct: true,
-        lot: {
+    const page = req.query.page ? parseInt(req.query.page as string) : undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+
+    if (page && limit) {
+      const skip = (page - 1) * limit;
+
+      const [lotProducts, total] = await Promise.all([
+        prisma.lotProduct.findMany({
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
           include: {
-            warehouse: true,
+            internationalProduct: true,
+            lot: {
+              include: {
+                warehouse: true,
+              },
+            },
+          },
+        }),
+        prisma.lotProduct.count(),
+      ]);
+
+      res.json({
+        success: true,
+        data: lotProducts,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
+    } else {
+      const lotProducts = await prisma.lotProduct.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: {
+          internationalProduct: true,
+          lot: {
+            include: {
+              warehouse: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    res.json({
-      success: true,
-      data: lotProducts,
-    });
-  } catch (error: any) {
-    logger.error('Error fetching lot products:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi lấy danh sách sản phẩm',
-      error: error.message,
-    });
+      res.json({
+        success: true,
+        data: lotProducts,
+      });
+    }
+  } catch (error) {
+    next(error);
   }
 };
 
 // Add product to lot
-export const addProductToLot = async (req: Request, res: Response): Promise<void> => {
+export const addProductToLot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { lotId, internationalProductId, soLuong, donViTinh } = req.body;
 
@@ -81,18 +110,13 @@ export const addProductToLot = async (req: Request, res: Response): Promise<void
       data: lotProduct,
       message: 'Thêm sản phẩm vào lô thành công',
     });
-  } catch (error: any) {
-    logger.error('Error adding product to lot:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi thêm sản phẩm vào lô',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Remove product from lot
-export const removeProductFromLot = async (req: Request, res: Response) => {
+export const removeProductFromLot = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
 
@@ -104,18 +128,13 @@ export const removeProductFromLot = async (req: Request, res: Response) => {
       success: true,
       message: 'Xóa sản phẩm khỏi lô thành công',
     });
-  } catch (error: any) {
-    logger.error('Error removing product from lot:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi xóa sản phẩm khỏi lô',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Move product between lots
-export const moveProductBetweenLots = async (req: Request, res: Response): Promise<void> => {
+export const moveProductBetweenLots = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { lotProductId, targetLotId } = req.body;
 
@@ -208,18 +227,13 @@ export const moveProductBetweenLots = async (req: Request, res: Response): Promi
         message: 'Di chuyển sản phẩm thành công',
       });
     }
-  } catch (error: any) {
-    logger.error('Error moving product:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi di chuyển sản phẩm',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Update product quantity
-export const updateProductQuantity = async (req: Request, res: Response) => {
+export const updateProductQuantity = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const { soLuong, donViTinh, giaThanh } = req.body;
@@ -241,13 +255,8 @@ export const updateProductQuantity = async (req: Request, res: Response) => {
       data: lotProduct,
       message: 'Cập nhật thành công',
     });
-  } catch (error: any) {
-    logger.error('Error updating product quantity:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi cập nhật số lượng',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 

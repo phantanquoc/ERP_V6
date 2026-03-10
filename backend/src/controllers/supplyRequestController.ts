@@ -1,8 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import supplyRequestService from '@services/supplyRequestService';
 
 class SupplyRequestController {
-  async getAllSupplyRequests(req: Request, res: Response) {
+  async getAllSupplyRequests(req: Request, res: Response, next: NextFunction) {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
@@ -15,15 +15,12 @@ class SupplyRequestController {
         data: result.data,
         pagination: result.pagination,
       });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Lỗi khi lấy danh sách yêu cầu cung cấp',
-      });
+    } catch (error) {
+      return next(error);
     }
   }
 
-  async getSupplyRequestById(req: Request, res: Response) {
+  async getSupplyRequestById(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
       const supplyRequest = await supplyRequestService.getSupplyRequestById(id);
@@ -32,15 +29,12 @@ class SupplyRequestController {
         success: true,
         data: supplyRequest,
       });
-    } catch (error: any) {
-      return res.status(404).json({
-        success: false,
-        message: error.message || 'Không tìm thấy yêu cầu cung cấp',
-      });
+    } catch (error) {
+      return next(error);
     }
   }
 
-  async createSupplyRequest(req: Request, res: Response) {
+  async createSupplyRequest(req: Request, res: Response, next: NextFunction) {
     try {
       const supplyRequest = await supplyRequestService.createSupplyRequest(req.body);
 
@@ -49,15 +43,12 @@ class SupplyRequestController {
         data: supplyRequest,
         message: 'Tạo yêu cầu cung cấp thành công',
       });
-    } catch (error: any) {
-      return res.status(400).json({
-        success: false,
-        message: error.message || 'Lỗi khi tạo yêu cầu cung cấp',
-      });
+    } catch (error) {
+      return next(error);
     }
   }
 
-  async updateSupplyRequest(req: Request, res: Response) {
+  async updateSupplyRequest(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
       const supplyRequest = await supplyRequestService.updateSupplyRequest(id, req.body);
@@ -67,15 +58,12 @@ class SupplyRequestController {
         data: supplyRequest,
         message: 'Cập nhật yêu cầu cung cấp thành công',
       });
-    } catch (error: any) {
-      return res.status(400).json({
-        success: false,
-        message: error.message || 'Lỗi khi cập nhật yêu cầu cung cấp',
-      });
+    } catch (error) {
+      return next(error);
     }
   }
 
-  async deleteSupplyRequest(req: Request, res: Response) {
+  async deleteSupplyRequest(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
       await supplyRequestService.deleteSupplyRequest(id);
@@ -84,15 +72,12 @@ class SupplyRequestController {
         success: true,
         message: 'Xóa yêu cầu cung cấp thành công',
       });
-    } catch (error: any) {
-      return res.status(400).json({
-        success: false,
-        message: error.message || 'Lỗi khi xóa yêu cầu cung cấp',
-      });
+    } catch (error) {
+      return next(error);
     }
   }
 
-  async exportToExcel(req: Request, res: Response): Promise<void> {
+  async exportToExcel(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const filters: any = {};
       if (req.query.search) {
@@ -104,11 +89,8 @@ class SupplyRequestController {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=danh-sach-yeu-cau-cung-cap-${Date.now()}.xlsx`);
       res.send(buffer);
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Lỗi khi xuất Excel',
-      });
+    } catch (error) {
+      next(error);
     }
   }
 }

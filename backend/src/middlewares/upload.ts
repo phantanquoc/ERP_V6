@@ -5,7 +5,7 @@ import logger from '@config/logger';
 
 // Allowed file types for upload
 const ALLOWED_TYPES = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx|txt|zip|rar/;
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 /**
  * Create multer upload middleware for a specific folder
@@ -43,7 +43,7 @@ export const createUploadMiddleware = (folderName: string, maxFiles: number = 5)
     );
     const mimetype = ALLOWED_TYPES.test(file.mimetype);
 
-    if (mimetype && extname) {
+    if (mimetype || extname) {
       return cb(null, true);
     } else {
       cb(
@@ -96,7 +96,7 @@ export const createSingleUploadMiddleware = (folderName: string) => {
     );
     const mimetype = ALLOWED_TYPES.test(file.mimetype);
 
-    if (mimetype && extname) {
+    if (mimetype || extname) {
       return cb(null, true);
     } else {
       cb(

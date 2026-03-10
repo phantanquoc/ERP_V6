@@ -1,9 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
-import logger from '@config/logger';
 
 // Generate mã phiếu xuất tự động
-export const generateIssueCode = async (_req: Request, res: Response): Promise<void> => {
+export const generateIssueCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const today = new Date();
     const year = today.getFullYear();
@@ -34,18 +33,13 @@ export const generateIssueCode = async (_req: Request, res: Response): Promise<v
       success: true,
       data: { maPhieuXuat },
     });
-  } catch (error: any) {
-    logger.error('Error generating issue code:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi tạo mã phiếu xuất',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Tạo phiếu xuất kho
-export const createWarehouseIssue = async (req: Request, res: Response): Promise<void> => {
+export const createWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const {
       maPhieuXuat,
@@ -123,18 +117,13 @@ export const createWarehouseIssue = async (req: Request, res: Response): Promise
       message: 'Tạo phiếu xuất kho thành công',
       data: warehouseIssue,
     });
-  } catch (error: any) {
-    logger.error('Error creating warehouse issue:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi tạo phiếu xuất kho',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Lấy tất cả phiếu xuất kho
-export const getAllWarehouseIssues = async (_req: Request, res: Response): Promise<void> => {
+export const getAllWarehouseIssues = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const issues = await prisma.warehouseIssue.findMany({
       orderBy: {
@@ -146,13 +135,8 @@ export const getAllWarehouseIssues = async (_req: Request, res: Response): Promi
       success: true,
       data: issues,
     });
-  } catch (error: any) {
-    logger.error('Error fetching warehouse issues:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi lấy danh sách phiếu xuất kho',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 

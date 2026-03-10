@@ -4,6 +4,7 @@ import warehouseIssueService from '../services/warehouseIssueService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import { useAuth } from '../contexts/AuthContext';
 import { SupplyRequest } from '../services/supplyRequestService';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface CreateWarehouseIssueModalProps {
   isOpen: boolean;
@@ -261,7 +262,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
             <input
               type="number"
               value={formData.soLuongXuat}
-              onChange={(e) => setFormData({ ...formData, soLuongXuat: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => setFormData({ ...formData, soLuongXuat: parseNumberInput(e.target.value) })}
               required
               min="0"
               step="0.01"

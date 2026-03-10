@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Eye, Trash2, X, Upload, Download } from 'lucide-react';
+import { Plus, Edit, Eye, Trash2, X, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import FileUpload from './FileUpload';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface MachineActivityReport {
   id: number;
@@ -161,11 +163,7 @@ const MachineActivityReport = () => {
     });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
+
 
 
 
@@ -186,8 +184,8 @@ const MachineActivityReport = () => {
 
   const handleExportExcel = async () => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const url = `${API_URL}/machine-activity-reports/export/excel`;
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const url = `${API_BASE}/machine-activity-reports/export/excel`;
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to export');
       const blob = await response.blob();
@@ -387,7 +385,7 @@ const MachineActivityReport = () => {
                   <input
                     type="number"
                     value={formData.tongSoLuong}
-                    onChange={(e) => setFormData({ ...formData, tongSoLuong: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, tongSoLuong: parseNumberInput(e.target.value, false) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={isViewMode}
@@ -404,7 +402,7 @@ const MachineActivityReport = () => {
                   <input
                     type="number"
                     value={formData.soLuongHoatDong}
-                    onChange={(e) => setFormData({ ...formData, soLuongHoatDong: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, soLuongHoatDong: parseNumberInput(e.target.value, false) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={isViewMode}
@@ -422,7 +420,7 @@ const MachineActivityReport = () => {
                   <input
                     type="number"
                     value={formData.soLuongNgung}
-                    onChange={(e) => setFormData({ ...formData, soLuongNgung: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, soLuongNgung: parseNumberInput(e.target.value, false) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={isViewMode}
@@ -463,28 +461,12 @@ const MachineActivityReport = () => {
                 {/* File đính kèm */}
                 {!isViewMode && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      File đính kèm
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="file"
-                        onChange={handleFileChange}
-                        className="hidden"
-                        id="file-upload"
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                      />
-                      <label
-                        htmlFor="file-upload"
-                        className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50"
-                      >
-                        <Upload className="w-4 h-4" />
-                        <span className="text-sm">Chọn file</span>
-                      </label>
-                      {selectedFile && (
-                        <span className="text-sm text-gray-600">{selectedFile.name}</span>
-                      )}
-                    </div>
+                    <FileUpload
+                      label="File đính kèm"
+                      files={selectedFile ? [selectedFile] : []}
+                      onChange={(files) => setSelectedFile(files[0] || null)}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                    />
                   </div>
                 )}
 

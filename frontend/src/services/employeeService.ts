@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -223,8 +223,7 @@ class EmployeeService {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const url = `${API_URL}/employees/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    const url = `${API_BASE_URL}/employees/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!response.ok) throw new Error('Failed to export to Excel');
     const blob = await response.blob();

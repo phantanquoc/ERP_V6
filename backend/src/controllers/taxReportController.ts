@@ -1,14 +1,13 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import taxReportService from '../services/taxReportService';
 import { getFileUrl } from '../middlewares/upload';
-import logger from '@config/logger';
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
 }
 
 // Get all tax reports
-export const getAllTaxReports = async (req: Request, res: Response) => {
+export const getAllTaxReports = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -22,18 +21,13 @@ export const getAllTaxReports = async (req: Request, res: Response) => {
       data: result.data,
       pagination: result.pagination,
     });
-  } catch (error: any) {
-    logger.error('Error getting tax reports:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to get tax reports',
-      error: error.message,
-    });
+  } catch (error) {
+    return next(error);
   }
 };
 
 // Get tax report by ID
-export const getTaxReportById = async (req: Request, res: Response) => {
+export const getTaxReportById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const taxReport = await taxReportService.getTaxReportById(id);
@@ -50,18 +44,13 @@ export const getTaxReportById = async (req: Request, res: Response) => {
       message: 'Tax report retrieved successfully',
       data: taxReport,
     });
-  } catch (error: any) {
-    logger.error('Error getting tax report:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to get tax report',
-      error: error.message,
-    });
+  } catch (error) {
+    return next(error);
   }
 };
 
 // Get tax report by order ID
-export const getTaxReportByOrderId = async (req: Request, res: Response) => {
+export const getTaxReportByOrderId = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const orderId = req.params.orderId as string;
     const taxReport = await taxReportService.getTaxReportByOrderId(orderId);
@@ -78,18 +67,13 @@ export const getTaxReportByOrderId = async (req: Request, res: Response) => {
       message: 'Tax report retrieved successfully',
       data: taxReport,
     });
-  } catch (error: any) {
-    logger.error('Error getting tax report by order:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to get tax report',
-      error: error.message,
-    });
+  } catch (error) {
+    return next(error);
   }
 };
 
 // Create tax report from order
-export const createTaxReportFromOrder = async (req: RequestWithFile, res: Response) => {
+export const createTaxReportFromOrder = async (req: RequestWithFile, res: Response, next: NextFunction) => {
   try {
     const orderId = req.params.orderId as string;
     const input = req.body;
@@ -106,18 +90,13 @@ export const createTaxReportFromOrder = async (req: RequestWithFile, res: Respon
       message: 'Tax report created successfully',
       data: taxReport,
     });
-  } catch (error: any) {
-    logger.error('Error creating tax report:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to create tax report',
-      error: error.message,
-    });
+  } catch (error) {
+    return next(error);
   }
 };
 
 // Update tax report
-export const updateTaxReport = async (req: RequestWithFile, res: Response) => {
+export const updateTaxReport = async (req: RequestWithFile, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const input = req.body;
@@ -134,18 +113,13 @@ export const updateTaxReport = async (req: RequestWithFile, res: Response) => {
       message: 'Tax report updated successfully',
       data: taxReport,
     });
-  } catch (error: any) {
-    logger.error('Error updating tax report:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to update tax report',
-      error: error.message,
-    });
+  } catch (error) {
+    return next(error);
   }
 };
 
 // Delete tax report
-export const deleteTaxReport = async (req: Request, res: Response) => {
+export const deleteTaxReport = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
 
@@ -155,18 +129,13 @@ export const deleteTaxReport = async (req: Request, res: Response) => {
       success: true,
       message: 'Tax report deleted successfully',
     });
-  } catch (error: any) {
-    logger.error('Error deleting tax report:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to delete tax report',
-      error: error.message,
-    });
+  } catch (error) {
+    return next(error);
   }
 };
 
 // Export tax reports to Excel
-export const exportTaxReportsToExcel = async (req: Request, res: Response): Promise<void> => {
+export const exportTaxReportsToExcel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const filters: any = {};
     if (req.query.search) filters.search = req.query.search as string;
@@ -174,13 +143,8 @@ export const exportTaxReportsToExcel = async (req: Request, res: Response): Prom
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=bao-cao-thue-${Date.now()}.xlsx`);
     res.send(buffer);
-  } catch (error: any) {
-    logger.error('Error exporting tax reports to Excel:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to export tax reports',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 

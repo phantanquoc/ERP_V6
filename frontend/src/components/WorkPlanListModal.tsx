@@ -23,7 +23,9 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
   const loadPlans = async () => {
     try {
       setLoading(true);
-      const response = await workPlanService.getAllWorkPlans(currentPage, itemsPerPage);
+      const response = isAdmin
+        ? await workPlanService.getAllWorkPlans(currentPage, itemsPerPage)
+        : await workPlanService.getMyWorkPlans(currentPage, itemsPerPage);
       setPlans(response.data || []);
       setTotalPages(response.pagination?.totalPages || 1);
       setTotalItems(response.pagination?.total || response.data?.length || 0);

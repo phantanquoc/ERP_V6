@@ -69,24 +69,58 @@ export interface DebtSummary {
   daThanhToanHet: number;
 }
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('accessToken');
+  return { Authorization: `Bearer ${token}` };
+};
+
+const buildFormData = (data: Record<string, any>, file?: File): FormData => {
+  const formData = new FormData();
+  Object.entries(data).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      formData.append(key, value.toString());
+    }
+  });
+  if (file) {
+    formData.append('file', file);
+  }
+  return formData;
+};
+
 const debtService = {
   // Get all debts
-  getAllDebts: () => axios.get(`${API_URL}`),
+  getAllDebts: () => axios.get(`${API_URL}`, { headers: getAuthHeaders() }),
 
   // Get debt by ID
-  getDebtById: (id: string) => axios.get(`${API_URL}/${id}`),
+  getDebtById: (id: string) => axios.get(`${API_URL}/${id}`, { headers: getAuthHeaders() }),
 
   // Get debt summary
-  getDebtSummary: () => axios.get(`${API_URL}/summary`),
+  getDebtSummary: () => axios.get(`${API_URL}/summary`, { headers: getAuthHeaders() }),
 
   // Create debt
-  createDebt: (data: CreateDebtData) => axios.post(`${API_URL}`, data),
+  createDebt: (data: CreateDebtData, file?: File) => {
+    if (file) {
+      const formData = buildFormData(data as Record<string, any>, file);
+      return axios.post(`${API_URL}`, formData, {
+        headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return axios.post(`${API_URL}`, data, { headers: getAuthHeaders() });
+  },
 
   // Update debt
-  updateDebt: (id: string, data: UpdateDebtData) => axios.put(`${API_URL}/${id}`, data),
+  updateDebt: (id: string, data: UpdateDebtData, file?: File) => {
+    if (file) {
+      const formData = buildFormData(data as Record<string, any>, file);
+      return axios.put(`${API_URL}/${id}`, formData, {
+        headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return axios.put(`${API_URL}/${id}`, data, { headers: getAuthHeaders() });
+  },
 
   // Delete debt
-  deleteDebt: (id: string) => axios.delete(`${API_URL}/${id}`),
+  deleteDebt: (id: string) => axios.delete(`${API_URL}/${id}`, { headers: getAuthHeaders() }),
 
   // Export to Excel
   exportToExcel: async (): Promise<void> => {

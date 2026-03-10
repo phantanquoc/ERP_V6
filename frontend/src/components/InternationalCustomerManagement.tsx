@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import DatePicker from './DatePicker';
 import { Plus, Search, Edit, Trash2, Eye, MapPin, X, Download } from 'lucide-react';
+import { parseNumberInput } from '../utils/numberInput';
 import internationalCustomerService, {
   InternationalCustomer,
   CreateInternationalCustomerRequest,
@@ -115,7 +116,7 @@ const InternationalCustomerManagement: React.FC = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'doanhThuNam' || name === 'soLuongDonHang' ? Number(value) : value
+      [name]: name === 'doanhThuNam' ? parseNumberInput(value) : name === 'soLuongDonHang' ? parseNumberInput(value, false) : value
     }));
   };
 

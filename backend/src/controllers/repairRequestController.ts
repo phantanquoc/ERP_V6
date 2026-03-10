@@ -1,45 +1,41 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
+import type { AuthenticatedRequest } from '@types';
 import repairRequestService from '@services/repairRequestService';
+import { getFileUrl } from '@middlewares/upload';
 
 class RepairRequestController {
-  async getAllRepairRequests(req: Request, res: Response) {
+  async getAllRepairRequests(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
 
       const result = await repairRequestService.getAllRepairRequests(page, limit);
 
-      return res.json({
+      res.json({
         success: true,
         data: result.data,
         pagination: result.pagination,
       });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Lỗi khi lấy danh sách yêu cầu sửa chữa',
-      });
+    } catch (error) {
+      next(error);
     }
   }
 
-  async getRepairRequestById(req: Request, res: Response) {
+  async getRepairRequestById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const request = await repairRequestService.getRepairRequestById(id);
 
-      return res.json({
+      res.json({
         success: true,
         data: request,
       });
-    } catch (error: any) {
-      return res.status(error.statusCode || 500).json({
-        success: false,
-        message: error.message || 'Lỗi khi lấy thông tin yêu cầu sửa chữa',
-      });
+    } catch (error) {
+      next(error);
     }
   }
 
-  async createRepairRequest(req: Request, res: Response) {
+  async createRepairRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = {
         ngayThang: new Date(req.body.ngayThang),
@@ -51,25 +47,22 @@ class RepairRequestController {
         noiDungLoi: req.body.noiDungLoi,
         ghiChu: req.body.ghiChu,
         trangThai: req.body.trangThai,
-        fileDinhKem: req.file ? `/uploads/repair-requests/${req.file.filename}` : undefined,
+        fileDinhKem: req.file ? getFileUrl('repair-requests', req.file.filename) : undefined,
       };
 
       const request = await repairRequestService.createRepairRequest(data);
 
-      return res.status(201).json({
+      res.status(201).json({
         success: true,
         data: request,
         message: 'Tạo yêu cầu sửa chữa thành công',
       });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Lỗi khi tạo yêu cầu sửa chữa',
-      });
+    } catch (error) {
+      next(error);
     }
   }
 
-  async updateRepairRequest(req: Request, res: Response) {
+  async updateRepairRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const data: any = {
@@ -87,42 +80,36 @@ class RepairRequestController {
       }
 
       if (req.file) {
-        data.fileDinhKem = `/uploads/repair-requests/${req.file.filename}`;
+        data.fileDinhKem = getFileUrl('repair-requests', req.file.filename);
       }
 
       const updated = await repairRequestService.updateRepairRequest(id, data);
 
-      return res.json({
+      res.json({
         success: true,
         data: updated,
         message: 'Cập nhật yêu cầu sửa chữa thành công',
       });
-    } catch (error: any) {
-      return res.status(error.statusCode || 500).json({
-        success: false,
-        message: error.message || 'Lỗi khi cập nhật yêu cầu sửa chữa',
-      });
+    } catch (error) {
+      next(error);
     }
   }
 
-  async deleteRepairRequest(req: Request, res: Response) {
+  async deleteRepairRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       await repairRequestService.deleteRepairRequest(id);
 
-      return res.json({
+      res.json({
         success: true,
         message: 'Xóa yêu cầu sửa chữa thành công',
       });
-    } catch (error: any) {
-      return res.status(error.statusCode || 500).json({
-        success: false,
-        message: error.message || 'Lỗi khi xóa yêu cầu sửa chữa',
-      });
+    } catch (error) {
+      next(error);
     }
   }
 
-  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+  async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const filters: any = {};
       if (req.query.search) filters.search = req.query.search as string;
@@ -135,18 +122,15 @@ class RepairRequestController {
     }
   }
 
-  async generateCode(_req: Request, res: Response) {
+  async generateCode(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const code = repairRequestService.generateRepairRequestCode();
-      return res.json({
+      res.json({
         success: true,
         data: { code },
       });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Lỗi khi tạo mã yêu cầu',
-      });
+    } catch (error) {
+      next(error);
     }
   }
 }

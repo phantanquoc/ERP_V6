@@ -6,6 +6,7 @@ import internationalCustomerService, { InternationalCustomer } from '../services
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 import { useQuotationRequests, quotationRequestKeys } from '../hooks';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface QuotationRequestManagementProps {
   mode?: 'business' | 'pricing';
@@ -735,7 +736,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                             <input
                               type="number"
                               value={item.soLuong}
-                              onChange={(e) => updateItem(index, 'soLuong', Number(e.target.value))}
+                              onChange={(e) => updateItem(index, 'soLuong', parseNumberInput(e.target.value))}
                               required
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
@@ -764,7 +765,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                             <input
                               type="number"
                               value={item.giaDoiThuBan}
-                              onChange={(e) => updateItem(index, 'giaDoiThuBan', Number(e.target.value))}
+                              onChange={(e) => updateItem(index, 'giaDoiThuBan', parseNumberInput(e.target.value))}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                           </div>
@@ -775,7 +776,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                             <input
                               type="number"
                               value={item.giaBanGanNhat}
-                              onChange={(e) => updateItem(index, 'giaBanGanNhat', Number(e.target.value))}
+                              onChange={(e) => updateItem(index, 'giaBanGanNhat', parseNumberInput(e.target.value))}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             />
                           </div>

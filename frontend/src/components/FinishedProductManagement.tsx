@@ -22,6 +22,10 @@ const FinishedProductManagement: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FinishedProduct | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [columnFilters, setColumnFilters] = useState({
+    maChien: '',
+    tenHangHoa: '',
+  });
   const itemsPerPage = 10;
 
   // Get current user's full name
@@ -348,6 +352,20 @@ const FinishedProductManagement: React.FC = () => {
     return result;
   }, [selectedMachine, allProducts]);
 
+  // Filtered aggregated data
+  const filteredAggregated = aggregatedByMaChien.filter(item => {
+    const matchMaChien = !columnFilters.maChien || (item.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
+    const matchTenHangHoa = !columnFilters.tenHangHoa || (item.tenHangHoa || '').toLowerCase().includes(columnFilters.tenHangHoa.toLowerCase());
+    return matchMaChien && matchTenHangHoa;
+  });
+
+  // Filtered individual products
+  const filteredProducts = products.filter(product => {
+    const matchMaChien = !columnFilters.maChien || (product.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
+    const matchTenHangHoa = !columnFilters.tenHangHoa || (product.tenHangHoa || '').toLowerCase().includes(columnFilters.tenHangHoa.toLowerCase());
+    return matchMaChien && matchTenHangHoa;
+  });
+
   // State for viewing aggregated product detail
   const [selectedAggregatedProduct, setSelectedAggregatedProduct] = useState<AggregatedProduct | null>(null);
   const [isAggregatedViewModalOpen, setIsAggregatedViewModalOpen] = useState(false);
@@ -619,7 +637,7 @@ const FinishedProductManagement: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-gradient-to-r from-green-50 to-green-100 border-b-2 border-green-300">
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
@@ -630,28 +648,43 @@ const FinishedProductManagement: React.FC = () => {
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Đánh giá</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
+                <tr className="bg-white border-b border-gray-200">
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200">
+                    <input type="text" placeholder="Lọc..." value={columnFilters.maChien} onChange={(e) => { setColumnFilters(prev => ({...prev, maChien: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                  </th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200">
+                    <input type="text" placeholder="Lọc..." value={columnFilters.tenHangHoa} onChange={(e) => { setColumnFilters(prev => ({...prev, tenHangHoa: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                  </th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2"></th>
+                </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                       <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                         <span className="ml-2">Đang tải...</span>
                       </div>
                     </td>
                   </tr>
-                ) : aggregatedByMaChien.length === 0 ? (
+                ) : filteredAggregated.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                       Chưa có dữ liệu
                     </td>
                   </tr>
                 ) : (
-                  aggregatedByMaChien.map((product, index) => (
+                  filteredAggregated.map((product, index) => (
                     <tr
                       key={product.maChien}
-                      className={`border-b border-gray-200 hover:bg-green-50 transition-colors ${
+                      className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
                         index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                       }`}
                     >
@@ -736,6 +769,20 @@ const FinishedProductManagement: React.FC = () => {
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
+                <tr className="bg-white border-b border-gray-200">
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200">
+                    <input type="text" placeholder="Lọc..." value={columnFilters.maChien} onChange={(e) => { setColumnFilters(prev => ({...prev, maChien: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                  </th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200">
+                    <input type="text" placeholder="Lọc..." value={columnFilters.tenHangHoa} onChange={(e) => { setColumnFilters(prev => ({...prev, tenHangHoa: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                  </th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2 border-r border-gray-200"></th>
+                  <th className="px-2 py-2"></th>
+                </tr>
               </thead>
               <tbody>
                 {loading ? (
@@ -747,14 +794,14 @@ const FinishedProductManagement: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ) : products.length === 0 ? (
+                ) : filteredProducts.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                       Chưa có dữ liệu
                     </td>
                   </tr>
                 ) : (
-                  products.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((product, index) => (
+                  filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((product, index) => (
                     <tr
                       key={product.id}
                       className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -816,7 +863,7 @@ const FinishedProductManagement: React.FC = () => {
 
           {/* Pagination */}
           {(() => {
-            const totalItems = products.length;
+            const totalItems = filteredProducts.length;
             const totalPages = Math.ceil(totalItems / itemsPerPage);
             return totalPages > 1 ? (
               <div className="flex items-center justify-between mt-4 px-2">

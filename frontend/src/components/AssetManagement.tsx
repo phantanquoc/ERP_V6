@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Edit, Eye, X } from 'lucide-react';
 import warehouseService, { Warehouse, LotProduct } from '../services/warehouseService';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface AssetManagementProps {
   hideHeader?: boolean;
@@ -418,7 +419,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                 <input
                   type="number"
                   value={editGiaThanh}
-                  onChange={(e) => setEditGiaThanh(Number(e.target.value))}
+                  onChange={(e) => setEditGiaThanh(parseNumberInput(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                   placeholder="Nhập đơn giá"
                   min="0"

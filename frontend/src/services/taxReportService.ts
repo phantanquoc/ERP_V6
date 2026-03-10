@@ -96,8 +96,30 @@ class TaxReportService {
   }
 
   // Create tax report from order
-  async createTaxReportFromOrder(orderId: string, input?: TaxReportInput) {
+  async createTaxReportFromOrder(orderId: string, input?: TaxReportInput, file?: File) {
     const token = getAuthToken();
+    if (file) {
+      const formData = new FormData();
+      if (input) {
+        Object.entries(input).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && key !== 'fileDinhKem') {
+            formData.append(key, value.toString());
+          }
+        });
+      }
+      formData.append('file', file);
+      const response = await axios.post<ApiResponse<TaxReport>>(
+        `${API_URL}/order/${orderId}`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      return response.data;
+    }
     const response = await axios.post<ApiResponse<TaxReport>>(
       `${API_URL}/order/${orderId}`,
       input || {},
@@ -111,8 +133,24 @@ class TaxReportService {
   }
 
   // Update tax report
-  async updateTaxReport(id: string, input: TaxReportInput) {
+  async updateTaxReport(id: string, input: TaxReportInput, file?: File) {
     const token = getAuthToken();
+    if (file) {
+      const formData = new FormData();
+      Object.entries(input).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && key !== 'fileDinhKem') {
+          formData.append(key, value.toString());
+        }
+      });
+      formData.append('file', file);
+      const response = await axios.put<ApiResponse<TaxReport>>(`${API_URL}/${id}`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    }
     const response = await axios.put<ApiResponse<TaxReport>>(`${API_URL}/${id}`, input, {
       headers: {
         Authorization: `Bearer ${token}`,

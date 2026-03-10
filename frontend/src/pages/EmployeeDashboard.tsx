@@ -22,8 +22,10 @@ import LeaveRequestModal from "../components/LeaveRequestModal";
 import EmployeeSelfEvaluationModal from "../components/EmployeeSelfEvaluationModal";
 import DailyWorkReportListModal from "../components/DailyWorkReportListModal";
 import TaskListModal from "../components/TaskListModal";
+import WorkPlanListModal from "../components/WorkPlanListModal";
 import notificationService, { Notification } from "../services/notificationService";
 import dailyWorkReportService, { DailyWorkReport } from "../services/dailyWorkReportService";
+import { workPlanService } from "../services/workPlanService";
 import { useMyTasksCount } from "../hooks";
 
 // Helper function to display gender in Vietnamese
@@ -42,7 +44,7 @@ const getGenderDisplay = (gender?: string): string => {
 };
 
 // Personal Stats for Employee
-const getPersonalStats = (user: any, evaluationNotification?: Notification | null, tasksCount?: number) => {
+const getPersonalStats = (user: any, evaluationNotification?: Notification | null, tasksCount?: number, workPlansCount?: number) => {
   const baseStats = [
     {
       label: "Nhiệm vụ",
@@ -54,7 +56,7 @@ const getPersonalStats = (user: any, evaluationNotification?: Notification | nul
     },
     {
       label: "Kế hoạch",
-      value: "Chưa có thông tin",
+      value: workPlansCount !== undefined ? workPlansCount.toString() : "0",
       total: "",
       icon: <CheckSquare className="w-5 h-5" />,
       color: "from-green-500 to-green-600",
@@ -150,16 +152,18 @@ const getQuickActions = (department: string) => {
 };
 
 // Component for Personal Stat Card
-const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; onTaskClick?: () => void }> = ({ stat, onEvaluationClick, onTaskClick }) => (
+const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; onTaskClick?: () => void; onWorkPlanClick?: () => void }> = ({ stat, onEvaluationClick, onTaskClick, onWorkPlanClick }) => (
   <div
     onClick={() => {
       if (stat.label === "Đánh giá" && onEvaluationClick) {
         onEvaluationClick();
       } else if (stat.label === "Nhiệm vụ" && onTaskClick) {
         onTaskClick();
+      } else if (stat.label === "Kế hoạch" && onWorkPlanClick) {
+        onWorkPlanClick();
       }
     }}
-    className={`bg-white rounded-xl shadow-sm border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-100'} p-6 hover:shadow-md transition-shadow relative ${(stat.label === "Đánh giá" || stat.label === "Nhiệm vụ") ? 'cursor-pointer' : ''}`}
+    className={`bg-white rounded-xl shadow-sm border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-100'} p-6 hover:shadow-md transition-shadow relative ${(stat.label === "Đánh giá" || stat.label === "Nhiệm vụ" || stat.label === "Kế hoạch") ? 'cursor-pointer' : ''}`}
   >
     {stat.hasNotification && (
       <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
@@ -252,12 +256,15 @@ const EmployeeDashboard: React.FC = () => {
   const [recentReports, setRecentReports] = useState<DailyWorkReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
+  const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState(false);
+  const [workPlansCount, setWorkPlansCount] = useState<number>(0);
 
   const { data: tasksCount = 0 } = useMyTasksCount();
 
   useEffect(() => {
     loadLatestEvaluationNotification();
     loadRecentReports();
+    loadWorkPlansCount();
   }, []);
 
   const loadLatestEvaluationNotification = async () => {
@@ -284,6 +291,15 @@ const EmployeeDashboard: React.FC = () => {
     }
   };
 
+  const loadWorkPlansCount = async () => {
+    try {
+      const response = await workPlanService.getMyWorkPlans(1, 1);
+      setWorkPlansCount(response.pagination?.total || 0);
+    } catch (error) {
+      console.error('Error loading work plans count:', error);
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -296,7 +312,7 @@ const EmployeeDashboard: React.FC = () => {
   }
 
   const departmentName = getDepartmentDisplayName(user.department);
-  const personalStats = getPersonalStats(user, latestEvaluationNotification, tasksCount);
+  const personalStats = getPersonalStats(user, latestEvaluationNotification, tasksCount, workPlansCount);
   const recentActivities = getRecentActivities(user.department || '');
   const quickActions = getQuickActions(user.department || '');
 
@@ -448,6 +464,7 @@ const EmployeeDashboard: React.FC = () => {
               stat={stat}
               onEvaluationClick={() => setIsEvaluationModalOpen(true)}
               onTaskClick={() => setIsTaskListModalOpen(true)}
+              onWorkPlanClick={() => setIsWorkPlanModalOpen(true)}
             />
           ))}
         </div>
@@ -511,7 +528,7 @@ const EmployeeDashboard: React.FC = () => {
                 </div>
                 <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Số điện thoại:</span>
-                  <span className="text-sm font-medium text-gray-900">{user.personalPhone || 'N/A'}</span>
+                  <span className="text-sm font-medium text-gray-900">{user.phoneNumber || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Số tài khoản:</span>
@@ -567,6 +584,12 @@ const EmployeeDashboard: React.FC = () => {
         <TaskListModal
           isOpen={isTaskListModalOpen}
           onClose={() => setIsTaskListModalOpen(false)}
+        />
+
+        {/* Work Plan List Modal */}
+        <WorkPlanListModal
+          isOpen={isWorkPlanModalOpen}
+          onClose={() => setIsWorkPlanModalOpen(false)}
         />
       </div>
     </div>

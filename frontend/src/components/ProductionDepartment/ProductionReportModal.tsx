@@ -5,6 +5,7 @@ import materialStandardService, { MaterialStandard } from '../../services/materi
 import finishedProductService from '../../services/finishedProductService';
 import Modal from '../Modal';
 import DatePicker from '../DatePicker';
+import { parseNumberInput } from '../../utils/numberInput';
 
 interface ProductionReportModalProps {
   isOpen: boolean;
@@ -264,7 +265,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
               type="number"
               value={formData.tongSoTuaSanXuat}
               onChange={(e) => {
-                const tongSoTua = Number(e.target.value);
+                const tongSoTua = parseNumberInput(e.target.value);
                 const tongSoMeKeHoach = tongSoTua * formData.soMeTua;
                 setFormData({
                   ...formData,
@@ -286,7 +287,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
               type="number"
               value={formData.soMeTua}
               onChange={(e) => {
-                const soMeTua = Number(e.target.value);
+                const soMeTua = parseNumberInput(e.target.value);
                 const tongSoMeKeHoach = formData.tongSoTuaSanXuat * soMeTua;
                 setFormData({
                   ...formData,
@@ -307,7 +308,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
             <input
               type="number"
               value={formData.tongSoMeKeHoach}
-              onChange={(e) => setFormData({ ...formData, tongSoMeKeHoach: Number(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, tongSoMeKeHoach: parseNumberInput(e.target.value) })}
               disabled={viewMode}
               min="0"
               className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
@@ -324,7 +325,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
               type="number"
               value={formData.soMeThucTe}
               onChange={(e) => {
-                const soMeThucTe = Number(e.target.value);
+                const soMeThucTe = parseNumberInput(e.target.value);
                 const tiLeThuHoi = selectedMaterialStandard?.tiLeThuHoi || 0;
                 const autoValues = calculateAutoValues(soMeThucTe, formData.khoiLuongThanhPhamThucTe, tiLeThuHoi);
                 setFormData({
@@ -379,7 +380,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
               step="0.01"
               value={formData.khoiLuongThanhPhamThucTe}
               onChange={(e) => {
-                const khoiLuongThanhPhamThucTe = Number(e.target.value);
+                const khoiLuongThanhPhamThucTe = parseNumberInput(e.target.value);
                 const tiLeThuHoi = selectedMaterialStandard?.tiLeThuHoi || 0;
                 const autoValues = calculateAutoValues(formData.soMeThucTe, khoiLuongThanhPhamThucTe, tiLeThuHoi);
                 setFormData({

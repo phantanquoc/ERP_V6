@@ -34,6 +34,19 @@ class MaterialEvaluationService {
     };
   }
 
+  private buildFormData(data: Record<string, any>, file?: File): FormData {
+    const formData = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && key !== 'fileDinhKem') {
+        formData.append(key, typeof value === 'object' ? JSON.stringify(value) : value.toString());
+      }
+    });
+    if (file) {
+      formData.append('file', file);
+    }
+    return formData;
+  }
+
   async getAllMaterialEvaluations(page: number = 1, limit: number = 10): Promise<{ data: MaterialEvaluation[], pagination: any }> {
     try {
       const response = await axios.get(`${API_BASE_URL}/material-evaluations`, {
@@ -82,8 +95,15 @@ class MaterialEvaluationService {
     }
   }
 
-  async createMaterialEvaluation(data: Partial<MaterialEvaluation>): Promise<MaterialEvaluation> {
+  async createMaterialEvaluation(data: Partial<MaterialEvaluation>, file?: File): Promise<MaterialEvaluation> {
     try {
+      if (file) {
+        const formData = this.buildFormData(data, file);
+        const response = await axios.post(`${API_BASE_URL}/material-evaluations`, formData, {
+          headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data.data;
+      }
       const response = await axios.post(`${API_BASE_URL}/material-evaluations`, data, {
         headers: this.getHeaders(),
       });
@@ -93,8 +113,15 @@ class MaterialEvaluationService {
     }
   }
 
-  async updateMaterialEvaluation(id: string, data: Partial<MaterialEvaluation>): Promise<MaterialEvaluation> {
+  async updateMaterialEvaluation(id: string, data: Partial<MaterialEvaluation>, file?: File): Promise<MaterialEvaluation> {
     try {
+      if (file) {
+        const formData = this.buildFormData(data, file);
+        const response = await axios.patch(`${API_BASE_URL}/material-evaluations/${id}`, formData, {
+          headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data.data;
+      }
       const response = await axios.patch(`${API_BASE_URL}/material-evaluations/${id}`, data, {
         headers: this.getHeaders(),
       });

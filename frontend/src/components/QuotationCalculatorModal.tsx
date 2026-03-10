@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, DollarSign, PlusCircle, Users } from 'lucide-react';
+import { X, Plus, Trash2, DollarSign, PlusCircle, Users, Package } from 'lucide-react';
 import { quotationService, CreateQuotationRequest, QuotationItem } from '../services/quotationService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
 import { QuotationRequest } from '../services/quotationRequestService';
 // warehouseInventoryService đã được xóa - tồn kho sẽ được nhập thủ công
+import warehouseService from '../services/warehouseService';
 import productionProcessService, { ProductionProcess } from '../services/productionProcessService';
 import generalCostService, { GeneralCost } from '../services/generalCostService';
 import exportCostService, { ExportCost } from '../services/exportCostService';
 import quotationCalculatorService from '../services/quotationCalculatorService';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
+import { parseNumberInputStr } from '../utils/numberInput';
 
 // Helper functions để format số với dấu chấm phân cách hàng ngàn
 const formatNumberWithDots = (value: number | string | undefined | null): string => {
@@ -107,6 +109,13 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
   const [phanTramThue, setPhanTramThue] = useState<string>('');
   const [phanTramQuy, setPhanTramQuy] = useState<string>('');
 
+  // State for inventory check popup
+  const [inventoryCheckResult, setInventoryCheckResult] = useState<{
+    show: boolean;
+    loading: boolean;
+    productName: string;
+    items: { tenKho: string; tenLo: string; soLuong: number; giaThanh: number; donViTinh: string }[];
+  }>({ show: false, loading: false, productName: '', items: [] });
   // Computed: Get all selected general costs from all groups (for backward compatibility)
   const selectedGeneralCosts = generalCostGroups.flatMap(group => group.selectedCosts);
 
@@ -1128,6 +1137,39 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
   const calculateMaterialToImport = (totalMaterialNeeded: number, materialInventory: number): number => {
     const result = totalMaterialNeeded - materialInventory;
     return result > 0 ? result : 0; // Không cho phép số âm
+  };
+
+  // Kiểm tra tồn kho sản phẩm đầu ra
+  const handleCheckInventory = async (productName: string) => {
+    if (!productName) {
+      alert('Vui lòng chọn sản phẩm đầu ra trước');
+      return;
+    }
+
+    setInventoryCheckResult({ show: true, loading: true, productName, items: [] });
+
+    try {
+      const response = await warehouseService.getAllLotProducts();
+      const lotProducts = response.data?.data || response.data || [];
+
+      // Lọc theo tên sản phẩm, giữ chi tiết từng kho/lô
+      const matched = lotProducts.filter(
+        (lp: any) => lp.internationalProduct?.tenSanPham === productName
+      );
+
+      const items = matched.map((lp: any) => ({
+        tenKho: lp.lot?.warehouse?.tenKho || 'N/A',
+        tenLo: lp.lot?.tenLo || 'N/A',
+        soLuong: lp.soLuong || 0,
+        giaThanh: lp.giaThanh || 0,
+        donViTinh: lp.donViTinh || 'KG',
+      }));
+
+      setInventoryCheckResult({ show: true, loading: false, productName, items });
+    } catch (error) {
+      console.error('Lỗi kiểm tra tồn kho:', error);
+      setInventoryCheckResult({ show: true, loading: false, productName, items: [] });
+    }
   };
 
   // Auto-fill tồn kho khi chọn sản phẩm đầu ra
@@ -3285,7 +3327,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         min="0"
                         max="100"
                         value={phanTramThue}
-                        onChange={(e) => setPhanTramThue(e.target.value)}
+                        onChange={(e) => setPhanTramThue(parseNumberInputStr(e.target.value))}
                         className="w-32 px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base font-semibold text-right"
                         placeholder="0.00"
                       />
@@ -3345,7 +3387,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         min="0"
                         max="100"
                         value={phanTramQuy}
-                        onChange={(e) => setPhanTramQuy(e.target.value)}
+                        onChange={(e) => setPhanTramQuy(parseNumberInputStr(e.target.value))}
                         className="w-32 px-3 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base font-semibold text-right"
                         placeholder="0.00"
                       />
@@ -3524,7 +3566,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <input
                         type="number"
                         value={currentAdditionalTab.formData.soLuong || ''}
-                        onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'soLuong', e.target.value)}
+                        onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'soLuong', parseNumberInputStr(e.target.value))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         placeholder="Nhập khối lượng"
                       />
@@ -3584,7 +3626,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       type="number"
                       step="0.01"
                       value={currentAdditionalTab.formData.tiLeThuHoi}
-                      onChange={(e) => handleAdditionalTabTiLeThuHoiChange(currentAdditionalTab.id, e.target.value)}
+                      onChange={(e) => handleAdditionalTabTiLeThuHoiChange(currentAdditionalTab.id, parseNumberInputStr(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                       placeholder="Nhập tỉ lệ thu hồi"
                     />
@@ -3598,18 +3640,30 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Chọn sản phẩm đầu ra
                     </label>
-                    <select
-                      value={currentAdditionalTab.formData.sanPhamDauRa}
-                      onChange={(e) => handleAdditionalTabOutputProductChange(currentAdditionalTab.id, e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">-- Chọn sản phẩm --</option>
-                      {currentAdditionalTab.selectedStandard?.items?.map((item) => (
-                        <option key={item.tenThanhPham} value={item.tenThanhPham}>
-                          {item.tenThanhPham}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex gap-2">
+                      <select
+                        value={currentAdditionalTab.formData.sanPhamDauRa}
+                        onChange={(e) => handleAdditionalTabOutputProductChange(currentAdditionalTab.id, e.target.value)}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- Chọn sản phẩm --</option>
+                        {currentAdditionalTab.selectedStandard?.items?.map((item) => (
+                          <option key={item.tenThanhPham} value={item.tenThanhPham}>
+                            {item.tenThanhPham}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleCheckInventory(currentAdditionalTab.formData.sanPhamDauRa)}
+                        disabled={!currentAdditionalTab.formData.sanPhamDauRa}
+                        className="px-3 py-2 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1"
+                        title="Kiểm tra tồn kho"
+                      >
+                        <Package className="w-3.5 h-3.5" />
+                        Kiểm tra tồn kho
+                      </button>
+                    </div>
                   </div>
 
                   {/* Thành phẩm tồn kho */}
@@ -3621,7 +3675,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       type="number"
                       step="0.01"
                       value={currentAdditionalTab.formData.thanhPhamTonKho}
-                      onChange={(e) => handleAdditionalTabInventoryChange(currentAdditionalTab.id, e.target.value)}
+                      onChange={(e) => handleAdditionalTabInventoryChange(currentAdditionalTab.id, parseNumberInputStr(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                       placeholder="Nhập số lượng tồn kho"
                     />
@@ -3666,7 +3720,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       type="number"
                       step="0.01"
                       value={currentAdditionalTab.formData.nguyenLieuTonKho}
-                      onChange={(e) => handleAdditionalTabMaterialInventoryChange(currentAdditionalTab.id, e.target.value)}
+                      onChange={(e) => handleAdditionalTabMaterialInventoryChange(currentAdditionalTab.id, parseNumberInputStr(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                       placeholder="Nhập nguyên liệu tồn kho"
                     />
@@ -3693,22 +3747,6 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               <div className="mt-6 space-y-4">
                 {/* Hàng 1: Các trường thời gian */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Thời gian cho phép tối đa (số ngày) */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      thời gian cho phép tối đa (số ngày)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={currentAdditionalTab.formData.thoiGianChoPhepToiDa}
-                      onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'thoiGianChoPhepToiDa', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                      placeholder="Nhập số ngày"
-                    />
-                  </div>
-
                   {/* Ngày bắt đầu sản xuất */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -3722,7 +3760,23 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                     />
                   </div>
 
-                  {/* Ngày hoàn thành (thực tế) */}
+                  {/* Số ngày hoàn thành (kế hoạch) */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Số ngày hoàn thành ( kế hoạch )
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={currentAdditionalTab.formData.thoiGianChoPhepToiDa}
+                      onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'thoiGianChoPhepToiDa', parseNumberInputStr(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      placeholder="Nhập số ngày"
+                    />
+                  </div>
+
+                  {/* Số ngày hoàn thành (thực tế) */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Số ngày hoàn thành ( thực tế )
@@ -3733,7 +3787,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       min="0"
                       placeholder="Nhập số ngày"
                       value={currentAdditionalTab.formData.ngayHoanThanhThucTe}
-                      onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'ngayHoanThanhThucTe', e.target.value)}
+                      onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'ngayHoanThanhThucTe', parseNumberInputStr(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -4746,7 +4800,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       type="number"
                       step="0.01"
                       value={currentTab.formData.tiLeThuHoi}
-                      onChange={(e) => handleTiLeThuHoiChange(e.target.value)}
+                      onChange={(e) => handleTiLeThuHoiChange(parseNumberInputStr(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                       placeholder="Nhập tỉ lệ thu hồi"
                     />
@@ -4799,7 +4853,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       type="number"
                       step="0.01"
                       value={currentTab.formData.tongKhoiLuongThanhPhamThucTe || ''}
-                      onChange={(e) => updateFormData('tongKhoiLuongThanhPhamThucTe', e.target.value)}
+                      onChange={(e) => updateFormData('tongKhoiLuongThanhPhamThucTe', parseNumberInputStr(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
                       placeholder="Nhập thực tế"
                     />
@@ -4815,19 +4869,31 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Chọn sản phẩm đầu ra
                 </label>
-                <select
-                  value={currentTab.formData.sanPhamDauRa}
-                  onChange={(e) => handleOutputProductChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                  disabled={!currentTab.selectedStandard}
-                >
-                  <option value="">-- Chọn sản phẩm --</option>
-                  {currentTab.selectedStandard?.items?.map((item, index) => (
-                    <option key={index} value={item.tenThanhPham}>
-                      {item.tenThanhPham}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={currentTab.formData.sanPhamDauRa}
+                    onChange={(e) => handleOutputProductChange(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    disabled={!currentTab.selectedStandard}
+                  >
+                    <option value="">-- Chọn sản phẩm --</option>
+                    {currentTab.selectedStandard?.items?.map((item, index) => (
+                      <option key={index} value={item.tenThanhPham}>
+                        {item.tenThanhPham}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleCheckInventory(currentTab.formData.sanPhamDauRa)}
+                    disabled={!currentTab.formData.sanPhamDauRa}
+                    className="px-3 py-2 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1"
+                    title="Kiểm tra tồn kho"
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                    Kiểm tra tồn kho
+                  </button>
+                </div>
               </div>
 
               {/* Thành phẩm tồn kho */}
@@ -4843,7 +4909,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       type="number"
                       step="0.01"
                       value={currentTab.formData.thanhPhamTonKho}
-                      onChange={(e) => handleInventoryChange(e.target.value)}
+                      onChange={(e) => handleInventoryChange(parseNumberInputStr(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                       placeholder="Nhập tồn kho"
                     />
@@ -4855,7 +4921,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       type="number"
                       step="0.01"
                       value={currentTab.formData.thanhPhamTonKhoThucTe || ''}
-                      onChange={(e) => handleInventoryThucTeChange(e.target.value)}
+                      onChange={(e) => handleInventoryThucTeChange(parseNumberInputStr(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
                       placeholder="Nhập thực tế"
                     />
@@ -4921,7 +4987,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       type="number"
                       step="0.01"
                       value={currentTab.formData.tongNguyenLieuCanSanXuatThucTe || ''}
-                      onChange={(e) => updateFormData('tongNguyenLieuCanSanXuatThucTe', e.target.value)}
+                      onChange={(e) => updateFormData('tongNguyenLieuCanSanXuatThucTe', parseNumberInputStr(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
                       placeholder="Nhập thực tế"
                     />
@@ -4938,7 +5004,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   type="number"
                   step="0.01"
                   value={currentTab.formData.nguyenLieuTonKho}
-                  onChange={(e) => handleMaterialInventoryChange(e.target.value)}
+                  onChange={(e) => handleMaterialInventoryChange(parseNumberInputStr(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   placeholder="Nhập nguyên liệu tồn kho"
                 />
@@ -4965,10 +5031,29 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           <div className="mt-6 space-y-4">
             {/* Hàng 1: Các trường thời gian */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Thời gian cho phép tối đa (số ngày) */}
+              {/* Ngày bắt đầu sản xuất */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  thời gian cho phép tối đa (số ngày)
+                  ngày bắt đầu sản xuất
+                </label>
+                <input
+                  type="date"
+                  value={currentTab.formData.ngayBatDauSanXuat}
+                  onChange={(e) => {
+                    setTabsData(prev => {
+                      const newTabs = [...prev];
+                      newTabs[activeTab].formData.ngayBatDauSanXuat = e.target.value;
+                      return newTabs;
+                    });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Số ngày hoàn thành (kế hoạch) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Số ngày hoàn thành ( kế hoạch )
                 </label>
                 <input
                   type="number"
@@ -4978,7 +5063,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   onChange={(e) => {
                     setTabsData(prev => {
                       const newTabs = [...prev];
-                      newTabs[activeTab].formData.thoiGianChoPhepToiDa = e.target.value;
+                      newTabs[activeTab].formData.thoiGianChoPhepToiDa = parseNumberInputStr(e.target.value);
 
                       // Recalculate planned production cost using updated days and existing flowchart
                       try {
@@ -5007,26 +5092,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 />
               </div>
 
-              {/* Ngày bắt đầu sản xuất */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ngày bắt đầu sản xuất
-                </label>
-                <input
-                  type="date"
-                  value={currentTab.formData.ngayBatDauSanXuat}
-                  onChange={(e) => {
-                    setTabsData(prev => {
-                      const newTabs = [...prev];
-                      newTabs[activeTab].formData.ngayBatDauSanXuat = e.target.value;
-                      return newTabs;
-                    });
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Ngày hoàn thành (thực tế) */}
+              {/* Số ngày hoàn thành (thực tế) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Số ngày hoàn thành ( thực tế )
@@ -5040,7 +5106,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   onChange={(e) => {
                     setTabsData(prev => {
                       const newTabs = [...prev];
-                      newTabs[activeTab].formData.ngayHoanThanhThucTe = e.target.value;
+                      newTabs[activeTab].formData.ngayHoanThanhThucTe = parseNumberInputStr(e.target.value);
                       return newTabs;
                     });
                   }}
@@ -5547,7 +5613,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                       : {};
                                     newTabs[activeTab].formData.tiLeThuHoiThucTe = {
                                       ...currentTiLe,
-                                      [item.tenThanhPham]: e.target.value
+                                      [item.tenThanhPham]: parseNumberInputStr(e.target.value)
                                     };
                                     return newTabs;
                                   });
@@ -6229,7 +6295,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   type="number"
                   min="1"
                   value={quotationFormData.hieuLucBaoGia}
-                  onChange={(e) => setQuotationFormData(prev => ({ ...prev, hieuLucBaoGia: e.target.value }))}
+                  onChange={(e) => setQuotationFormData(prev => ({ ...prev, hieuLucBaoGia: parseNumberInputStr(e.target.value) }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   placeholder="Nhập số ngày"
                   required
@@ -6519,6 +6585,89 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   Xác nhận
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup kiểm tra tồn kho */}
+      {inventoryCheckResult.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-[520px] max-w-[90vw] max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <Package className="w-5 h-5 text-teal-600" />
+                Kiểm tra tồn kho
+              </h3>
+              <button
+                onClick={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-3 mb-3">
+              <span className="text-xs text-gray-500">Sản phẩm</span>
+              <p className="text-sm font-medium text-gray-800">{inventoryCheckResult.productName}</p>
+            </div>
+
+            {inventoryCheckResult.loading ? (
+              <div className="text-center py-6 text-gray-500">Đang tải...</div>
+            ) : inventoryCheckResult.items.length === 0 ? (
+              <p className="text-sm text-orange-600 text-center py-4">Không tìm thấy tồn kho cho sản phẩm này</p>
+            ) : (
+              <div className="overflow-auto flex-1">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="px-3 py-2 text-left border border-gray-200 font-medium text-gray-700">Kho</th>
+                      <th className="px-3 py-2 text-left border border-gray-200 font-medium text-gray-700">Lô</th>
+                      <th className="px-3 py-2 text-right border border-gray-200 font-medium text-gray-700">Số lượng</th>
+                      <th className="px-3 py-2 text-right border border-gray-200 font-medium text-gray-700">Giá thành</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventoryCheckResult.items.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 border border-gray-200">{item.tenKho}</td>
+                        <td className="px-3 py-2 border border-gray-200">{item.tenLo}</td>
+                        <td className="px-3 py-2 border border-gray-200 text-right font-medium text-blue-700">
+                          {item.soLuong.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} {item.donViTinh}
+                        </td>
+                        <td className="px-3 py-2 border border-gray-200 text-right font-medium text-green-700">
+                          {item.giaThanh > 0
+                            ? `${item.giaThanh.toLocaleString('vi-VN', { maximumFractionDigits: 0 })} VNĐ`
+                            : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-teal-50 font-semibold">
+                      <td colSpan={2} className="px-3 py-2 border border-gray-200 text-right">Tổng cộng</td>
+                      <td className="px-3 py-2 border border-gray-200 text-right text-blue-800">
+                        {inventoryCheckResult.items.reduce((s, i) => s + i.soLuong, 0).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} {inventoryCheckResult.items[0]?.donViTinh || ''}
+                      </td>
+                      <td className="px-3 py-2 border border-gray-200 text-right text-green-800">
+                        {(() => {
+                          const withPrice = inventoryCheckResult.items.filter(i => i.giaThanh > 0);
+                          if (withPrice.length === 0) return '-';
+                          const avg = withPrice.reduce((s, i) => s + i.giaThanh, 0) / withPrice.length;
+                          return `${avg.toLocaleString('vi-VN', { maximumFractionDigits: 0 })} VNĐ (TB)`;
+                        })()}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-4 text-right">
+              <button
+                onClick={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))}
+                className="px-4 py-2 bg-teal-600 text-white text-sm rounded-md hover:bg-teal-700"
+              >
+                Đóng
+              </button>
             </div>
           </div>
         </div>

@@ -144,6 +144,21 @@ class ProductionProcessService {
     });
     return response.data;
   }
+
+  // Upload file for flowchart section
+  async uploadSectionFile(file: File): Promise<{ success: boolean; data: { fileUrl: string; fileName: string } }> {
+    const token = localStorage.getItem('accessToken');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await axios.post(`${API_URL}/upload-file`, formData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  }
 }
 
 export default new ProductionProcessService();

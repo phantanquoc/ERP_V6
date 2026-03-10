@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Settings } from 'lucide-react';
 import systemOperationService, { SystemOperation, GiaiDoan } from '../services/systemOperationService';
 import machineService, { Machine } from '../services/machineService';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface FormData {
   maChien: string;
@@ -47,10 +48,19 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
   });
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [columnFilters, setColumnFilters] = useState({
+    maChien: '',
+    trangThai: '',
+  });
   const itemsPerPage = 10;
 
   // Lấy danh sách operations của máy đang chọn
-  const filteredOperations = operations.filter(op => op.tenMay === selectedMachine);
+  const filteredOperations = operations.filter(op => {
+    const matchMachine = op.tenMay === selectedMachine;
+    const matchMaChien = !columnFilters.maChien || (op.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
+    const matchTrangThai = !columnFilters.trangThai || (op.trangThai || '').toLowerCase().includes(columnFilters.trangThai.toLowerCase());
+    return matchMachine && matchMaChien && matchTrangThai;
+  });
 
   const totalPages = Math.ceil(filteredOperations.length / itemsPerPage);
   const paginatedOperations = filteredOperations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -235,7 +245,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
     const { name, value, type } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'number' ? (parseFloat(value) || 0) : value
+      [name]: type === 'number' ? parseNumberInput(value) : value
     }));
   };
 
@@ -244,7 +254,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       ...prev,
       [stage]: {
         ...prev[stage],
-        [field]: parseFloat(value) || 0
+        [field]: parseNumberInput(value)
       }
     }));
   };
@@ -420,9 +430,34 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
+              <tr className="bg-white border-b border-gray-200">
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.maChien} onChange={(e) => { setColumnFilters(prev => ({...prev, maChien: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.trangThai} onChange={(e) => { setColumnFilters(prev => ({...prev, trangThai: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2"></th>
+              </tr>
             </thead>
             <tbody>
-              {paginatedOperations.map((operation, index) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
+                </tr>
+              ) : paginatedOperations.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">Chưa có dữ liệu</td>
+                </tr>
+              ) : (
+              paginatedOperations.map((operation, index) => (
                 <tr
                   key={operation.id}
                   className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -468,16 +503,13 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                     </div>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
 
-        {filteredOperations.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            Chưa có dữ liệu cho {selectedMachine}
-          </div>
-        )}
+
       </div>
 
       {totalPages > 1 && (

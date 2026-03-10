@@ -61,6 +61,19 @@ class QualityEvaluationService {
     };
   }
 
+  private buildFormData(data: Record<string, any>, file?: File): FormData {
+    const formData = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && key !== 'fileDinhKem') {
+        formData.append(key, typeof value === 'object' ? JSON.stringify(value) : value.toString());
+      }
+    });
+    if (file) {
+      formData.append('file', file);
+    }
+    return formData;
+  }
+
   async getAllQualityEvaluations(page: number = 1, limit: number = 10, tenMay?: string): Promise<PaginatedResponse> {
     try {
       const params: any = { page, limit };
@@ -89,8 +102,15 @@ class QualityEvaluationService {
     }
   }
 
-  async createQualityEvaluation(data: Partial<QualityEvaluation>): Promise<QualityEvaluation> {
+  async createQualityEvaluation(data: Partial<QualityEvaluation>, file?: File): Promise<QualityEvaluation> {
     try {
+      if (file) {
+        const formData = this.buildFormData(data, file);
+        const response = await axios.post(`${API_BASE_URL}/quality-evaluations`, formData, {
+          headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data.data;
+      }
       const response = await axios.post(`${API_BASE_URL}/quality-evaluations`, data, {
         headers: this.getHeaders(),
       });
@@ -100,8 +120,15 @@ class QualityEvaluationService {
     }
   }
 
-  async updateQualityEvaluation(id: string, data: Partial<QualityEvaluation>): Promise<QualityEvaluation> {
+  async updateQualityEvaluation(id: string, data: Partial<QualityEvaluation>, file?: File): Promise<QualityEvaluation> {
     try {
+      if (file) {
+        const formData = this.buildFormData(data, file);
+        const response = await axios.put(`${API_BASE_URL}/quality-evaluations/${id}`, formData, {
+          headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data.data;
+      }
       const response = await axios.put(`${API_BASE_URL}/quality-evaluations/${id}`, data, {
         headers: this.getHeaders(),
       });

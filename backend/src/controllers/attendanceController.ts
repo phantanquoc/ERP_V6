@@ -1,9 +1,10 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
+import type { AuthenticatedRequest } from '@types';
 import attendanceService from '@services/attendanceService';
 import { ValidationError } from '@utils/errors';
 
 export class AttendanceController {
-  async getAttendanceByDateRange(req: Request, res: Response) {
+  async getAttendanceByDateRange(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { startDate, endDate } = req.query;
 
@@ -24,14 +25,11 @@ export class AttendanceController {
         data: attendances,
       });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to get attendance',
-      });
+      next(error);
     }
   }
 
-  async getEmployeeAttendance(req: Request, res: Response) {
+  async getEmployeeAttendance(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const employeeId = req.params.employeeId as string;
       const { startDate, endDate } = req.query;
@@ -53,14 +51,11 @@ export class AttendanceController {
         data: attendances,
       });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to get employee attendance',
-      });
+      next(error);
     }
   }
 
-  async checkIn(req: Request, res: Response) {
+  async checkIn(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { employeeId } = req.body;
 
@@ -75,14 +70,11 @@ export class AttendanceController {
         message: 'Check-in successful',
       });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Check-in failed',
-      });
+      next(error);
     }
   }
 
-  async checkOut(req: Request, res: Response) {
+  async checkOut(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { employeeId } = req.body;
 
@@ -97,14 +89,11 @@ export class AttendanceController {
         message: 'Check-out successful',
       });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Check-out failed',
-      });
+      next(error);
     }
   }
 
-  async createAttendance(req: Request, res: Response) {
+  async createAttendance(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { employeeId, attendanceDate, checkInTime, checkOutTime, workHours, status, notes } = req.body;
 
@@ -128,14 +117,11 @@ export class AttendanceController {
         message: 'Attendance created successfully',
       });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to create attendance',
-      });
+      next(error);
     }
   }
 
-  async updateAttendance(req: Request, res: Response) {
+  async updateAttendance(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
       const { checkInTime, checkOutTime, workHours, status, notes } = req.body;
@@ -154,14 +140,11 @@ export class AttendanceController {
         message: 'Attendance updated successfully',
       });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to update attendance',
-      });
+      next(error);
     }
   }
 
-  async deleteAttendance(req: Request, res: Response) {
+  async deleteAttendance(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
 
@@ -171,14 +154,11 @@ export class AttendanceController {
         message: 'Attendance deleted successfully',
       });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to delete attendance',
-      });
+      next(error);
     }
   }
 
-  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+  async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const filters: any = {};
       if (req.query.search) filters.search = req.query.search as string;

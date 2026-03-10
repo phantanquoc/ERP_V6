@@ -7,14 +7,16 @@ import ExcelJS from 'exceljs';
 export class InternationalCustomerService {
   /**
    * Generate customer code
-   * Format: KH-INT{SEQUENCE}
-   * Example: KH-INT001, KH-INT002
+   * Quốc tế: KHQT-{SEQUENCE} (e.g. KHQT-001)
+   * Nội địa: KHND-{SEQUENCE} (e.g. KHND-001)
    */
-  async generateCustomerCode(): Promise<string> {
+  async generateCustomerCode(type: 'international' | 'domestic' = 'international'): Promise<string> {
+    const prefix = type === 'domestic' ? 'KHND-' : 'KHQT-';
+
     const lastCustomer = await prisma.internationalCustomer.findFirst({
       where: {
         maKhachHang: {
-          startsWith: 'KH-INT',
+          startsWith: prefix,
         },
       },
       orderBy: {
@@ -25,13 +27,13 @@ export class InternationalCustomerService {
     let sequence = 1;
     if (lastCustomer) {
       const lastCode = lastCustomer.maKhachHang;
-      const sequenceStr = lastCode.replace('KH-INT', '');
+      const sequenceStr = lastCode.replace(prefix, '');
       if (sequenceStr) {
         sequence = parseInt(sequenceStr, 10) + 1;
       }
     }
 
-    return `KH-INT${String(sequence).padStart(3, '0')}`;
+    return `${prefix}${String(sequence).padStart(3, '0')}`;
   }
 
   async getAllCustomers(
@@ -49,6 +51,7 @@ export class InternationalCustomerService {
       where.quocGia = { not: null };
     } else if (phanLoaiDiaLy === 'Nội địa') {
       where.tinhThanh = { not: null };
+      where.quocGia = null;
     }
 
     // Search filter
@@ -109,7 +112,8 @@ export class InternationalCustomerService {
   async createCustomer(data: any): Promise<any> {
     // Generate customer code if not provided
     if (!data.maKhachHang) {
-      data.maKhachHang = await this.generateCustomerCode();
+      const type = data.tinhThanh ? 'domestic' : 'international';
+      data.maKhachHang = await this.generateCustomerCode(type);
     }
 
     // Check if customer code already exists
@@ -164,6 +168,7 @@ export class InternationalCustomerService {
       where.quocGia = { not: null };
     } else if (filters?.phanLoaiDiaLy === 'Nội địa') {
       where.tinhThanh = { not: null };
+      where.quocGia = null;
     }
 
     if (filters?.search) {

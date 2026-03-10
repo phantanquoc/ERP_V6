@@ -1,22 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import DatePicker from './DatePicker';
+import FileUpload from './FileUpload';
 import { workPlanService, WorkPlanPriority, CreateWorkPlanData } from '../services/workPlanService';
-import { X, Upload, Calendar, Users, FileText, AlertCircle, ClipboardList } from 'lucide-react';
-import axios from 'axios';
+import { X, Calendar, Users, FileText, AlertCircle, ClipboardList } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface CreateWorkPlanModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-}
-
-interface Employee {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  employeeCode: string;
-  department: string;
 }
 
 const getPriorityLabel = (p: WorkPlanPriority) => {
@@ -29,6 +22,8 @@ const getPriorityLabel = (p: WorkPlanPriority) => {
 };
 
 const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  const { user } = useAuth();
+
   const [formData, setFormData] = useState<CreateWorkPlanData>({
     tieuDe: '',
     nguoiThucHien: [],
@@ -40,90 +35,15 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
     files: [],
   });
 
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
-  const [departments, setDepartments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [error, setError] = useState('');
-  const [fileNames, setFileNames] = useState<string[]>([]);
 
+  // Auto fill người thực hiện = user đang login
   useEffect(() => {
-    if (isOpen) {
-      fetchEmployees();
+    if (isOpen && user?.employeeId) {
+      setFormData(prev => ({ ...prev, nguoiThucHien: [user.employeeId!] }));
     }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (selectedDepartment) {
-      setFilteredEmployees(employees.filter(emp => emp.department === selectedDepartment));
-    } else {
-      setFilteredEmployees(employees);
-    }
-  }, [selectedDepartment, employees]);
-
-  const fetchEmployees = async () => {
-    setLoadingEmployees(true);
-    setError('');
-    try {
-      const token = localStorage.getItem('accessToken');
-      const response = await axios.get((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/employees/for-assignment?limit=1000', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      let employeeList: any[] = [];
-      if (response.data.data) {
-        employeeList = Array.isArray(response.data.data) ? response.data.data : response.data.data.data || [];
-      } else if (Array.isArray(response.data)) {
-        employeeList = response.data;
-      }
-
-      const transformedEmployees = employeeList.map((emp: any) => ({
-        _id: emp.id || emp._id,
-        firstName: emp.user?.firstName || emp.firstName || '',
-        lastName: emp.user?.lastName || emp.lastName || '',
-        employeeCode: emp.employeeCode || '',
-        department: emp.departmentName || emp.subDepartmentName || 'Chưa xác định',
-      }));
-
-      setEmployees(transformedEmployees);
-      setFilteredEmployees(transformedEmployees);
-
-      const uniqueDepts = Array.from(new Set(transformedEmployees.map((emp: Employee) => emp.department).filter(Boolean)));
-      setDepartments(uniqueDepts as string[]);
-    } catch (err: any) {
-      console.error('Error fetching employees:', err);
-      const errorMsg = err.response?.data?.message || 'Không thể tải danh sách nhân viên';
-      setError(errorMsg);
-    } finally {
-      setLoadingEmployees(false);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      const fileArray = Array.from(files);
-      setFormData({ ...formData, files: fileArray });
-      setFileNames(fileArray.map(f => f.name));
-    }
-  };
-
-  const handleEmployeeToggle = (employeeId: string) => {
-    const currentSelection = formData.nguoiThucHien;
-    if (currentSelection.includes(employeeId)) {
-      setFormData({
-        ...formData,
-        nguoiThucHien: currentSelection.filter(id => id !== employeeId),
-      });
-    } else {
-      setFormData({
-        ...formData,
-        nguoiThucHien: [...currentSelection, employeeId],
-      });
-    }
-  };
+  }, [isOpen, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,18 +99,11 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
       mucDoUuTien: WorkPlanPriority.TRUNG_BINH,
       files: [],
     });
-    setSelectedDepartment('');
-    setFileNames([]);
     setError('');
     onClose();
   };
 
-  const getSelectedEmployeeNames = () => {
-    return employees
-      .filter(emp => formData.nguoiThucHien.includes(emp._id))
-      .map(emp => `${emp.firstName} ${emp.lastName}`)
-      .join(', ');
-  };
+
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose}>
@@ -234,7 +147,21 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
           />
         </div>
 
-        {/* Row 2: Tiêu đề kế hoạch */}
+        {/* Row 2: Người thực hiện (auto fill) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center">
+            <Users className="w-4 h-4 mr-1.5" />
+            Người thực hiện
+          </label>
+          <input
+            type="text"
+            value={user ? `${user.firstName} ${user.lastName}${user.employeeCode ? ` - ${user.employeeCode}` : ''}` : ''}
+            disabled
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 text-sm"
+          />
+        </div>
+
+        {/* Row 3: Tiêu đề kế hoạch */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center">
             <FileText className="w-4 h-4 mr-1.5" />
@@ -248,76 +175,6 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
             placeholder="Nhập tiêu đề kế hoạch..."
             required
           />
-        </div>
-
-        {/* Row 3: Lọc theo phòng ban */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Lọc theo phòng ban
-          </label>
-          <select
-            value={selectedDepartment}
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-          >
-            <option value="">Tất cả phòng ban</option>
-            {departments.map(dept => (
-              <option key={dept} value={dept}>{dept}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Row 4: Người thực hiện */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center">
-            <Users className="w-4 h-4 mr-1.5" />
-            Người thực hiện <span className="text-red-500 ml-1">*</span>
-          </label>
-
-          {loadingEmployees ? (
-            <div className="border border-gray-300 rounded-lg p-4 text-center">
-              <p className="text-gray-500 text-sm">Đang tải danh sách nhân viên...</p>
-            </div>
-          ) : filteredEmployees.length === 0 ? (
-            <div className="border border-gray-300 rounded-lg p-4 text-center">
-              <p className="text-gray-500 text-sm">
-                {selectedDepartment ? 'Không có nhân viên nào trong phòng ban này' : 'Không có nhân viên nào'}
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-gray-50">
-                <div className="space-y-1.5">
-                  {filteredEmployees.map(emp => (
-                    <label
-                      key={emp._id}
-                      className="flex items-start space-x-2.5 cursor-pointer hover:bg-white p-2 rounded transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.nguoiThucHien.includes(emp._id)}
-                        onChange={() => handleEmployeeToggle(emp._id)}
-                        className="w-4 h-4 mt-0.5 text-teal-600 rounded focus:ring-2 focus:ring-teal-500 flex-shrink-0"
-                      />
-                      <span className="text-sm text-gray-700">
-                        <span className="font-medium">{emp.firstName} {emp.lastName}</span>
-                        <span className="text-gray-500"> - {emp.employeeCode}</span>
-                        <span className="text-gray-400 text-xs block">{emp.department}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              {formData.nguoiThucHien.length > 0 && (
-                <div className="mt-2 px-3 py-2 bg-teal-50 border border-teal-200 rounded-lg">
-                  <p className="text-sm text-teal-700">
-                    <span className="font-medium">Đã chọn {formData.nguoiThucHien.length} người:</span>
-                    <span className="ml-1">{getSelectedEmployeeNames()}</span>
-                  </p>
-                </div>
-              )}
-            </>
-          )}
         </div>
 
         {/* Row 5: Nội dung kế hoạch */}
@@ -396,27 +253,13 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
         </div>
 
         {/* Row 9: File kèm theo */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center">
-            <Upload className="w-4 h-4 mr-1.5" />
-            File kèm theo
-          </label>
-          <input
-            type="file"
-            multiple
-            onChange={handleFileChange}
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm file:mr-4 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
-          />
-          {fileNames.length > 0 && (
-            <div className="mt-2 space-y-1.5">
-              {fileNames.map((name, index) => (
-                <div key={index} className="flex items-center bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                  <span className="text-sm text-gray-700">📎 {name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <FileUpload
+          label="File kèm theo"
+          files={formData.files || []}
+          onChange={(files) => setFormData({ ...formData, files })}
+          multiple
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+        />
 
           </form>
         </div>

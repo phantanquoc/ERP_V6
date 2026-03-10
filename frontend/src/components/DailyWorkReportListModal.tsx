@@ -45,7 +45,7 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
     try {
       setLoading(true);
       setError(null);
-      const response = await dailyWorkReportService.getMyReports(page, 10);
+      const response = await dailyWorkReportService.getMyReports(page, 5);
       setReports(response.data);
       setTotalPages(response.pagination.totalPages);
     } catch (error: any) {
@@ -333,7 +333,7 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
                             </div>
                             {attachment.fileUrl && (
                               <a
-                                href={attachment.fileUrl}
+                                href={`http://localhost:5000${attachment.fileUrl}`}
                                 download
                                 target="_blank"
                                 rel="noopener noreferrer"

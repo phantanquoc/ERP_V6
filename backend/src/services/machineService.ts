@@ -134,21 +134,33 @@ export class MachineService {
   async deleteMachine(id: string) {
     const existing = await prisma.machine.findUnique({
       where: { id },
-      include: {
-        systemOperations: true,
-      },
     });
 
     if (!existing) {
       throw new NotFoundError('Machine not found');
     }
 
-    if (existing.systemOperations.length > 0) {
-      throw new ValidationError('Không thể xóa máy đã có thông số vận hành');
-    }
+    // Xóa tất cả dữ liệu liên quan trong transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Xóa quality evaluations (references finished products)
+      await tx.qualityEvaluation.deleteMany({
+        where: { machineId: id },
+      });
 
-    await prisma.machine.delete({
-      where: { id },
+      // 2. Xóa finished products
+      await tx.finishedProduct.deleteMany({
+        where: { machineId: id },
+      });
+
+      // 3. Xóa system operations
+      await tx.systemOperation.deleteMany({
+        where: { machineId: id },
+      });
+
+      // 4. Xóa máy
+      await tx.machine.delete({
+        where: { id },
+      });
     });
 
     return { message: 'Machine deleted successfully' };

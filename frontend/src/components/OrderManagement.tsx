@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Search, Eye, Edit, Trash2, Package, Calculator, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import { Eye, Edit, Trash2, Package, Calculator, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { orderService, Order } from '../services/orderService';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
 import { useOrders, orderKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface OrderManagementProps {
   hideHeader?: boolean;
@@ -12,7 +13,12 @@ interface OrderManagementProps {
 }
 
 const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, customerType }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [columnFilters, setColumnFilters] = useState({
+    maDonHang: '',
+    maBaoGia: '',
+    tenKhachHang: '',
+    trangThaiSanXuat: '',
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -31,18 +37,24 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
   const { data: ordersData, isLoading: loading, refetch: refetchOrders } = useOrders({
     page: 1,
     limit: 1000,
-    search: searchTerm || undefined,
     customerType: filterCustomerType,
   });
-  const orders = ordersData?.data || [];
+  const orders = React.useMemo(() => {
+    const allOrders = ordersData?.data || [];
+    return allOrders.filter(order => {
+      const matchMaDH = !columnFilters.maDonHang || (order.maDonHang || '').toLowerCase().includes(columnFilters.maDonHang.toLowerCase());
+      const matchMaBG = !columnFilters.maBaoGia || (order.maBaoGia || '').toLowerCase().includes(columnFilters.maBaoGia.toLowerCase());
+      const matchKH = !columnFilters.tenKhachHang || (order.tenKhachHang || '').toLowerCase().includes(columnFilters.tenKhachHang.toLowerCase());
+      const matchTTSX = !columnFilters.trangThaiSanXuat || (order.trangThaiSanXuat || '').toLowerCase().includes(columnFilters.trangThaiSanXuat.toLowerCase());
+      return matchMaDH && matchMaBG && matchKH && matchTTSX;
+    });
+  }, [ordersData, columnFilters]);
 
   const handleExportExcel = async () => {
     try {
       setExportError('');
       setExportLoading(true);
-      await orderService.exportToExcel({
-        search: searchTerm || undefined,
-      });
+      await orderService.exportToExcel({});
       setExportSuccess('Đã xuất file Excel thành công');
       setTimeout(() => setExportSuccess(''), 3000);
     } catch (error) {
@@ -162,17 +174,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
   return (
     <div>
       {/* Action Bar */}
-      <div className="mb-4 flex flex-wrap gap-4 items-center justify-between">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
-          />
-        </div>
+      <div className="mb-4 flex flex-wrap gap-4 items-center justify-end">
         <button
           onClick={handleExportExcel}
           disabled={exportLoading}
@@ -198,66 +200,86 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
           <thead>
-            <tr className="border-b-2 border-gray-200">
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">STT</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Ngày đặt hàng</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Mã đơn hàng</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Mã báo giá</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Khách hàng</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Số lượng SP</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Trạng thái SX</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Trạng thái TT</th>
-              <th className="px-4 py-3 text-center text-sm font-semibold text-blue-600">Hành động</th>
+            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày đặt hàng</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã đơn hàng</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã báo giá</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng SP</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái SX</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái TT</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
+            </tr>
+            <tr className="bg-white border-b border-gray-200">
+              <th className="px-2 py-2 border-r border-gray-200"></th>
+              <th className="px-2 py-2 border-r border-gray-200"></th>
+              <th className="px-2 py-2 border-r border-gray-200">
+                <input type="text" placeholder="Lọc..." value={columnFilters.maDonHang} onChange={(e) => { setColumnFilters(prev => ({...prev, maDonHang: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+              </th>
+              <th className="px-2 py-2 border-r border-gray-200">
+                <input type="text" placeholder="Lọc..." value={columnFilters.maBaoGia} onChange={(e) => { setColumnFilters(prev => ({...prev, maBaoGia: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+              </th>
+              <th className="px-2 py-2 border-r border-gray-200">
+                <input type="text" placeholder="Lọc..." value={columnFilters.tenKhachHang} onChange={(e) => { setColumnFilters(prev => ({...prev, tenKhachHang: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+              </th>
+              <th className="px-2 py-2 border-r border-gray-200"></th>
+              <th className="px-2 py-2 border-r border-gray-200">
+                <input type="text" placeholder="Lọc..." value={columnFilters.trangThaiSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, trangThaiSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+              </th>
+              <th className="px-2 py-2 border-r border-gray-200"></th>
+              <th className="px-2 py-2"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                   Đang tải...
                 </td>
               </tr>
             ) : orders.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                   Không có dữ liệu
                 </td>
               </tr>
             ) : (
               orders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((order, index) => (
-                <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">
+                <tr key={order.id} className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                  <td className="px-6 py-4 text-sm text-blue-600 font-medium border-r border-gray-200">
                     {(currentPage - 1) * itemsPerPage + index + 1}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                     {formatDate(order.ngayDatHang)}
                   </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-blue-600">
+                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                     {order.maDonHang}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                     {order.maBaoGia}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                     {order.tenKhachHang}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                     {order.items?.length || 0}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4 border-r border-gray-200">
                     <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getProductionStatusColor(order.trangThaiSanXuat)}`}>
                       {getProductionStatusLabel(order.trangThaiSanXuat)}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4 border-r border-gray-200">
                     <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(order.trangThaiThanhToan)}`}>
                       {getPaymentStatusLabel(order.trangThaiThanhToan)}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => handleView(order)}
@@ -294,6 +316,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {(() => {
@@ -624,7 +647,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                         type="number"
                         step="0.01"
                         value={formData.giaTriDonHangUSD || ''}
-                        onChange={(e) => setFormData({ ...formData, giaTriDonHangUSD: parseFloat(e.target.value) || undefined })}
+                        onChange={(e) => setFormData({ ...formData, giaTriDonHangUSD: parseNumberInput(e.target.value) || undefined })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="0.00"
                       />
@@ -637,7 +660,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                         type="number"
                         step="1"
                         value={formData.giaTriDonHangVND || ''}
-                        onChange={(e) => setFormData({ ...formData, giaTriDonHangVND: parseFloat(e.target.value) || undefined })}
+                        onChange={(e) => setFormData({ ...formData, giaTriDonHangVND: parseNumberInput(e.target.value) || undefined })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="0"
                       />
@@ -656,7 +679,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                           type="number"
                           step="0.01"
                           value={formData.xuatKhauDot1USD || ''}
-                          onChange={(e) => setFormData({ ...formData, xuatKhauDot1USD: parseFloat(e.target.value) || undefined })}
+                          onChange={(e) => setFormData({ ...formData, xuatKhauDot1USD: parseNumberInput(e.target.value) || undefined })}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="0.00"
                         />
@@ -669,7 +692,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                           type="number"
                           step="1"
                           value={formData.noiDiaDot1VND || ''}
-                          onChange={(e) => setFormData({ ...formData, noiDiaDot1VND: parseFloat(e.target.value) || undefined })}
+                          onChange={(e) => setFormData({ ...formData, noiDiaDot1VND: parseNumberInput(e.target.value) || undefined })}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="0"
                         />
@@ -700,7 +723,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                           type="number"
                           step="0.01"
                           value={formData.xuatKhauDot2USD || ''}
-                          onChange={(e) => setFormData({ ...formData, xuatKhauDot2USD: parseFloat(e.target.value) || undefined })}
+                          onChange={(e) => setFormData({ ...formData, xuatKhauDot2USD: parseNumberInput(e.target.value) || undefined })}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="0.00"
                         />
@@ -713,7 +736,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                           type="number"
                           step="1"
                           value={formData.noiDiaDot2VND || ''}
-                          onChange={(e) => setFormData({ ...formData, noiDiaDot2VND: parseFloat(e.target.value) || undefined })}
+                          onChange={(e) => setFormData({ ...formData, noiDiaDot2VND: parseNumberInput(e.target.value) || undefined })}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="0"
                         />

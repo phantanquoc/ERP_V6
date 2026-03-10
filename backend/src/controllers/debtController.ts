@@ -1,15 +1,14 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
 import { getFileUrl } from '../middlewares/upload';
 import ExcelJS from 'exceljs';
-import logger from '@config/logger';
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
 }
 
 // Get all debts
-export const getAllDebts = async (_req: Request, res: Response): Promise<void> => {
+export const getAllDebts = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const debts = await prisma.debt.findMany({
       orderBy: { ngayPhatSinh: 'desc' },
@@ -19,18 +18,13 @@ export const getAllDebts = async (_req: Request, res: Response): Promise<void> =
       success: true,
       data: debts,
     });
-  } catch (error: any) {
-    logger.error('Error fetching debts:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi lấy danh sách công nợ',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Get debt by ID
-export const getDebtById = async (req: Request, res: Response): Promise<void> => {
+export const getDebtById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
 
@@ -50,18 +44,13 @@ export const getDebtById = async (req: Request, res: Response): Promise<void> =>
       success: true,
       data: debt,
     });
-  } catch (error: any) {
-    logger.error('Error fetching debt:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi lấy thông tin công nợ',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Create debt
-export const createDebt = async (req: RequestWithFile, res: Response): Promise<void> => {
+export const createDebt = async (req: RequestWithFile, res: Response, next: NextFunction): Promise<void> => {
   try {
     const {
       ngayPhatSinh,
@@ -119,18 +108,13 @@ export const createDebt = async (req: RequestWithFile, res: Response): Promise<v
       data: debt,
       message: 'Tạo công nợ thành công',
     });
-  } catch (error: any) {
-    logger.error('Error creating debt:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi tạo công nợ',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Update debt
-export const updateDebt = async (req: RequestWithFile, res: Response): Promise<void> => {
+export const updateDebt = async (req: RequestWithFile, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
     const updateData = req.body;
@@ -167,18 +151,13 @@ export const updateDebt = async (req: RequestWithFile, res: Response): Promise<v
       data: debt,
       message: 'Cập nhật công nợ thành công',
     });
-  } catch (error: any) {
-    logger.error('Error updating debt:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi cập nhật công nợ',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Delete debt
-export const deleteDebt = async (req: Request, res: Response): Promise<void> => {
+export const deleteDebt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = req.params.id as string;
 
@@ -190,18 +169,13 @@ export const deleteDebt = async (req: Request, res: Response): Promise<void> => 
       success: true,
       message: 'Xóa công nợ thành công',
     });
-  } catch (error: any) {
-    logger.error('Error deleting debt:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi xóa công nợ',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Export debts to Excel
-export const exportDebtsToExcel = async (_req: Request, res: Response): Promise<void> => {
+export const exportDebtsToExcel = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const data = await prisma.debt.findMany({
       orderBy: { ngayPhatSinh: 'desc' },
@@ -260,18 +234,13 @@ export const exportDebtsToExcel = async (_req: Request, res: Response): Promise<
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=cong-no-${Date.now()}.xlsx`);
     res.send(buffer);
-  } catch (error: any) {
-    logger.error('Error exporting debts to Excel:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi xuất công nợ ra Excel',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
 // Get debt summary
-export const getDebtSummary = async (_req: Request, res: Response): Promise<void> => {
+export const getDebtSummary = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const debts = await prisma.debt.findMany();
 
@@ -288,13 +257,8 @@ export const getDebtSummary = async (_req: Request, res: Response): Promise<void
       success: true,
       data: summary,
     });
-  } catch (error: any) {
-    logger.error('Error getting debt summary:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi lấy tổng hợp công nợ',
-      error: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 };
 

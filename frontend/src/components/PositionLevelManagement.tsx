@@ -13,6 +13,7 @@ import positionLevelService, { PositionLevel } from '@services/positionLevelServ
 import { usePositions, usePositionLevelsByPosition, positionKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { Position } from '@services/positionService';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface FormData {
   level: string;
@@ -335,7 +336,7 @@ const PositionLevelManagement = () => {
                   <input
                     type="number"
                     value={formData.baseSalary}
-                    onChange={(e) => setFormData({ ...formData, baseSalary: e.target.value ? Number(e.target.value) : '' })}
+                    onChange={(e) => setFormData({ ...formData, baseSalary: e.target.value ? parseNumberInput(e.target.value) : '' })}
                     placeholder="VD: 4000000"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
@@ -346,7 +347,7 @@ const PositionLevelManagement = () => {
                   <input
                     type="number"
                     value={formData.kpiSalary}
-                    onChange={(e) => setFormData({ ...formData, kpiSalary: e.target.value ? Number(e.target.value) : '' })}
+                    onChange={(e) => setFormData({ ...formData, kpiSalary: e.target.value ? parseNumberInput(e.target.value) : '' })}
                     placeholder="VD: 1000000"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />

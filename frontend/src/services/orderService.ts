@@ -67,8 +67,24 @@ class OrderService {
   }
 
   // Create order from quotation
-  async createOrderFromQuotation(quotationId: string) {
+  async createOrderFromQuotation(quotationId: string, file?: File) {
     const token = getAuthToken();
+    if (file) {
+      const formData = new FormData();
+      formData.append('quotationId', quotationId);
+      formData.append('file', file);
+      const response = await axios.post(
+        `${API_URL}/from-quotation`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      return response.data;
+    }
     const response = await axios.post(
       `${API_URL}/from-quotation`,
       { quotationId },
@@ -109,8 +125,24 @@ class OrderService {
   }
 
   // Update order
-  async updateOrder(id: string, data: Partial<Order>) {
+  async updateOrder(id: string, data: Partial<Order>, file?: File) {
     const token = getAuthToken();
+    if (file) {
+      const formData = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && key !== 'items') {
+          formData.append(key, typeof value === 'object' ? JSON.stringify(value) : value.toString());
+        }
+      });
+      formData.append('file', file);
+      const response = await axios.patch(`${API_URL}/${id}`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    }
     const response = await axios.patch(`${API_URL}/${id}`, data, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -146,8 +178,7 @@ class OrderService {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const url = `${API_BASE}/orders/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    const url = `${API_URL}/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });

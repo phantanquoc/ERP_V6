@@ -7,14 +7,14 @@ import ExcelJS from 'exceljs';
 export class QuotationRequestService {
   /**
    * Generate quotation request code
-   * Format: YC-BG{SEQUENCE}
-   * Example: YC-BG001, YC-BG002
+   * Format: YCBG-{SEQUENCE}
+   * Example: YCBG-001, YCBG-002
    */
   async generateQuotationRequestCode(): Promise<string> {
     const lastRequest = await prisma.quotationRequest.findFirst({
       where: {
         maYeuCauBaoGia: {
-          startsWith: 'YC-BG',
+          startsWith: 'YCBG-',
         },
       },
       orderBy: {
@@ -25,13 +25,13 @@ export class QuotationRequestService {
     let sequence = 1;
     if (lastRequest) {
       const lastCode = lastRequest.maYeuCauBaoGia;
-      const sequenceStr = lastCode.replace('YC-BG', '');
+      const sequenceStr = lastCode.replace('YCBG-', '');
       if (sequenceStr) {
         sequence = parseInt(sequenceStr, 10) + 1;
       }
     }
 
-    return `YC-BG${String(sequence).padStart(3, '0')}`;
+    return `YCBG-${String(sequence).padStart(3, '0')}`;
   }
 
   async getAllQuotationRequests(

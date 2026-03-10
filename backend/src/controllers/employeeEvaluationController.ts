@@ -1,10 +1,9 @@
-import { Response } from 'express';
+import { Response, NextFunction } from 'express';
 import employeeEvaluationService from '@services/employeeEvaluationService';
 import type { AuthenticatedRequest } from '@types';
-import logger from '@config/logger';
 
 export class EmployeeEvaluationController {
-  async getEmployeeEvaluations(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async getEmployeeEvaluations(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { month, year } = req.query;
 
@@ -27,16 +26,11 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      logger.error('Error fetching evaluations:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching evaluations',
-      });
-      return;
+      next(error);
     }
   }
 
-  async getEvaluationDetails(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async getEvaluationDetails(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const evaluationId = req.params.evaluationId as string;
       const userId = req.user?.id;
@@ -49,19 +43,11 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      logger.error('Error fetching evaluation details:', error);
-      const statusCode = error instanceof Error && error.message.includes('not found') ? 404
-        : error instanceof Error && error.message.includes('Access denied') ? 403
-        : 500;
-      res.status(statusCode).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching evaluation details',
-      });
-      return;
+      next(error);
     }
   }
 
-  async createOrUpdateEvaluation(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async createOrUpdateEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { employeeId, month, year } = req.body;
 
@@ -85,16 +71,11 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      logger.error('Error creating/updating evaluation:', error);
-      res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error creating/updating evaluation',
-      });
-      return;
+      next(error);
     }
   }
 
-  async updateEvaluationDetail(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async updateEvaluationDetail(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const detailId = req.params.detailId as string;
       const { selfScore, supervisorScore1, supervisorScore2 } = req.body;
@@ -112,19 +93,11 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      logger.error('Error updating evaluation detail:', error);
-      const statusCode = error instanceof Error && error.message.includes('not found') ? 404
-        : error instanceof Error && error.message.includes('Access denied') ? 403
-        : 400;
-      res.status(statusCode).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error updating evaluation detail',
-      });
-      return;
+      next(error);
     }
   }
 
-  async getEvaluationHistory(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async getEvaluationHistory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const evaluationId = req.params.evaluationId as string;
       const userId = req.user?.id;
@@ -137,19 +110,11 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      logger.error('Error fetching evaluation history:', error);
-      const statusCode = error instanceof Error && error.message.includes('not found') ? 404
-        : error instanceof Error && error.message.includes('Access denied') ? 403
-        : 500;
-      res.status(statusCode).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching evaluation history',
-      });
-      return;
+      next(error);
     }
   }
 
-  async finalizeEvaluation(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async finalizeEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const evaluationId = req.params.evaluationId as string;
 
@@ -161,16 +126,11 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      logger.error('Error finalizing evaluation:', error);
-      res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error finalizing evaluation',
-      });
-      return;
+      next(error);
     }
   }
 
-  async getSubordinatesForEvaluation(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async getSubordinatesForEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { month, year } = req.params;
       const userId = req.user?.id;
@@ -187,12 +147,7 @@ export class EmployeeEvaluationController {
       });
       return;
     } catch (error) {
-      logger.error('Error fetching subordinates:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching subordinates',
-      });
-      return;
+      next(error);
     }
   }
 }

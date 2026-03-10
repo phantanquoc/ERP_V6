@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, RefreshCw } from 'lucide-react';
 import productionProcessService, { ProductionProcess, CreateProductionProcessData, ProductionFlowchartSection } from '../services/productionProcessService';
 import processService, { Process } from '../services/processService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
 import { useAuth } from '../contexts/AuthContext';
+import { parseNumberInput } from '../utils/numberInput';
 
 const ProductionProcessManagement: React.FC = () => {
   const { user } = useAuth();
@@ -11,7 +12,12 @@ const ProductionProcessManagement: React.FC = () => {
   const [templateProcesses, setTemplateProcesses] = useState<Process[]>([]);
   const [materialStandards, setMaterialStandards] = useState<MaterialStandard[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [columnFilters, setColumnFilters] = useState({
+    maQuyTrinhSanXuat: '',
+    tenQuyTrinhSanXuat: '',
+    maNVSanXuat: '',
+    tenNVSanXuat: '',
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -183,7 +189,7 @@ const ProductionProcessManagement: React.FC = () => {
 
   const handleInputChange = (sectionIndex: number, costIndex: number, field: string, value: string) => {
     const newSections = [...flowchartSections];
-    const numValue = parseFloat(value) || 0;
+    const numValue = parseNumberInput(value);
     (newSections[sectionIndex].costs[costIndex] as any)[field] = numValue;
 
     // Tự động tính soLuongKeHoach khi thay đổi soLuongNguyenLieu hoặc soPhutThucHien
@@ -359,15 +365,13 @@ const ProductionProcessManagement: React.FC = () => {
     setViewingProcess(null);
   };
 
-  const filteredProcesses = productionProcesses.filter(process =>
-    process.maQuyTrinhSanXuat.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    process.tenQuyTrinh.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
-    setCurrentPage(1);
-  };
+  const filteredProcesses = productionProcesses.filter(process => {
+    const matchMaQTSX = !columnFilters.maQuyTrinhSanXuat || (process.maQuyTrinhSanXuat || '').toLowerCase().includes(columnFilters.maQuyTrinhSanXuat.toLowerCase());
+    const matchTenQTSX = !columnFilters.tenQuyTrinhSanXuat || (process.tenQuyTrinhSanXuat || process.tenQuyTrinh || '').toLowerCase().includes(columnFilters.tenQuyTrinhSanXuat.toLowerCase());
+    const matchMaNV = !columnFilters.maNVSanXuat || (process.maNVSanXuat || '').toLowerCase().includes(columnFilters.maNVSanXuat.toLowerCase());
+    const matchTenNV = !columnFilters.tenNVSanXuat || (process.tenNVSanXuat || '').toLowerCase().includes(columnFilters.tenNVSanXuat.toLowerCase());
+    return matchMaQTSX && matchTenQTSX && matchMaNV && matchTenNV;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -378,17 +382,7 @@ const ProductionProcessManagement: React.FC = () => {
       </div>
 
       {/* Action Bar */}
-      <div className="mb-6 flex justify-between items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo mã hoặc tên quy trình..."
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+      <div className="mb-6 flex justify-end items-center">
         <button
           onClick={handleOpenModal}
           className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -414,6 +408,26 @@ const ProductionProcessManagement: React.FC = () => {
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (Kg)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian (Ngày)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+              </tr>
+              <tr className="bg-white border-b border-gray-200">
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.maQuyTrinhSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, maQuyTrinhSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.tenQuyTrinhSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, tenQuyTrinhSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.maNVSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, maNVSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200">
+                  <input type="text" placeholder="Lọc..." value={columnFilters.tenNVSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, tenNVSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                </th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2 border-r border-gray-200"></th>
+                <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -611,7 +625,7 @@ const ProductionProcessManagement: React.FC = () => {
                     step="0.01"
                     min="0"
                     value={formData.khoiLuong || ''}
-                    onChange={(e) => handleKhoiLuongChange(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => handleKhoiLuongChange(parseNumberInput(e.target.value))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="0"
                   />
@@ -625,7 +639,7 @@ const ProductionProcessManagement: React.FC = () => {
                     step="0.01"
                     min="0"
                     value={formData.thoiGian || ''}
-                    onChange={(e) => setFormData({ ...formData, thoiGian: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, thoiGian: parseNumberInput(e.target.value) })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="0"
                   />
@@ -691,7 +705,7 @@ const ProductionProcessManagement: React.FC = () => {
                     step="0.01"
                     min="0"
                     value={formData.soGioLamTrong1Ngay || ''}
-                    onChange={(e) => setFormData({ ...formData, soGioLamTrong1Ngay: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, soGioLamTrong1Ngay: parseNumberInput(e.target.value) })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="0"
                   />

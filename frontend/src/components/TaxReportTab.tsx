@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, Edit, Trash2, Calendar, DollarSign, FileText, Upload, Download } from 'lucide-react';
 import taxReportService, { TaxReport, TaxReportStatus, TaxReportInput } from '../services/taxReportService';
+import { parseNumberInput } from '../utils/numberInput';
 
 const TaxReportTab: React.FC = () => {
   const [taxReports, setTaxReports] = useState<TaxReport[]>([]);
@@ -289,7 +290,7 @@ const TaxReportTab: React.FC = () => {
                   <input
                     type="number"
                     value={formData.soTienDongThue || ''}
-                    onChange={(e) => setFormData({ ...formData, soTienDongThue: parseFloat(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, soTienDongThue: parseNumberInput(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                     placeholder="Nhập số tiền đóng thuế"
                   />

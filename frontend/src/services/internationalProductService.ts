@@ -109,8 +109,7 @@ export const internationalProductService = {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
 
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const url = `${API_BASE_URL}/international-products/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    const url = `${API_URL}/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });

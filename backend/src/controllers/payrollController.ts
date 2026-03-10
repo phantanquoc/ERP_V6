@@ -1,9 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
+import type { AuthenticatedRequest } from '@types';
 import payrollService from '@services/payrollService';
-import logger from '@config/logger';
 
 export class PayrollController {
-  async getPayrollByMonthYear(req: Request, res: Response): Promise<void> {
+  async getPayrollByMonthYear(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { month, year } = req.query;
 
@@ -23,16 +23,11 @@ export class PayrollController {
       });
       return;
     } catch (error) {
-      logger.error('Error fetching payrolls:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching payrolls',
-      });
-      return;
+      next(error);
     }
   }
 
-  async getPayrollDetail(req: Request, res: Response): Promise<void> {
+  async getPayrollDetail(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const payrollId = req.params.payrollId as string;
 
@@ -44,16 +39,11 @@ export class PayrollController {
       });
       return;
     } catch (error) {
-      logger.error('Error fetching payroll detail:', error);
-      res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error fetching payroll detail',
-      });
-      return;
+      next(error);
     }
   }
 
-  async createOrUpdatePayroll(req: Request, res: Response): Promise<void> {
+  async createOrUpdatePayroll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { employeeId, month, year, ...payrollData } = req.body;
 
@@ -78,16 +68,11 @@ export class PayrollController {
       });
       return;
     } catch (error) {
-      logger.error('Error creating/updating payroll:', error);
-      res.status(error instanceof Error && error.message.includes('not found') ? 404 : 400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error creating/updating payroll',
-      });
-      return;
+      next(error);
     }
   }
 
-  async updatePayroll(req: Request, res: Response): Promise<void> {
+  async updatePayroll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const payrollId = req.params.payrollId as string;
       const payrollData = req.body;
@@ -100,16 +85,11 @@ export class PayrollController {
       });
       return;
     } catch (error) {
-      logger.error('Error updating payroll:', error);
-      res.status(error instanceof Error && error.message.includes('not found') ? 404 : 400).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Error updating payroll',
-      });
-      return;
+      next(error);
     }
   }
 
-  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+  async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const filters: any = {};
       if (req.query.search) filters.search = req.query.search as string;

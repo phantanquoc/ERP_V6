@@ -64,6 +64,19 @@ class ProductionReportService {
     };
   }
 
+  private buildFormData(data: Record<string, any>, file?: File): FormData {
+    const formData = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && key !== 'fileDinhKem') {
+        formData.append(key, typeof value === 'object' ? JSON.stringify(value) : value.toString());
+      }
+    });
+    if (file) {
+      formData.append('file', file);
+    }
+    return formData;
+  }
+
   async getAll(page: number = 1, limit: number = 10): Promise<ProductionReportListResponse> {
     const response = await axios.get(`${API_BASE_URL}/production-reports`, {
       params: { page, limit },
@@ -79,14 +92,28 @@ class ProductionReportService {
     return response.data.data;
   }
 
-  async create(data: ProductionReportCreateInput): Promise<ProductionReport> {
+  async create(data: ProductionReportCreateInput, file?: File): Promise<ProductionReport> {
+    if (file) {
+      const formData = this.buildFormData(data, file);
+      const response = await axios.post(`${API_BASE_URL}/production-reports`, formData, {
+        headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data.data;
+    }
     const response = await axios.post(`${API_BASE_URL}/production-reports`, data, {
       headers: this.getHeaders(),
     });
     return response.data.data;
   }
 
-  async update(id: string, data: ProductionReportUpdateInput): Promise<ProductionReport> {
+  async update(id: string, data: ProductionReportUpdateInput, file?: File): Promise<ProductionReport> {
+    if (file) {
+      const formData = this.buildFormData(data as Record<string, any>, file);
+      const response = await axios.put(`${API_BASE_URL}/production-reports/${id}`, formData, {
+        headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data.data;
+    }
     const response = await axios.put(`${API_BASE_URL}/production-reports/${id}`, data, {
       headers: this.getHeaders(),
     });

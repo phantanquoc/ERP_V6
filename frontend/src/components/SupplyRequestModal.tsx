@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import supplyRequestService from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
+import { parseNumberInput } from '../utils/numberInput';
 
 interface SupplyRequestModalProps {
   isOpen: boolean;
@@ -80,53 +81,24 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
 
         {/* Body */}
         <div className="p-6">
-          {/* Header with company logo */}
-          <div className="flex items-center justify-center mb-6 p-4 border-2 border-gray-300 rounded-lg">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 flex items-center justify-center">
-                <img src="/logo.png" alt="Company Logo" className="w-16 h-16 object-contain" />
-              </div>
-              <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-800 border-2 border-gray-400 px-6 py-2">
-                  TẠO YÊU CẦU BỔ SUNG/CUNG
-                </h2>
-              </div>
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-0">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Tên nhân viên */}
-            <div className="grid grid-cols-3 border border-gray-300">
-              <div className="bg-gray-100 p-3 border-r border-gray-300">
-                <label className="text-sm font-medium text-gray-700">Tên nhân viên:</label>
-              </div>
-              <div className="col-span-2 p-3">
-                <span>{user?.firstName} {user?.lastName}</span>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên</label>
+              <input type="text" value={`${user?.firstName || ''} ${user?.lastName || ''}`} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50" readOnly />
             </div>
 
             {/* Bộ phận */}
-            <div className="grid grid-cols-3 border border-gray-300 border-t-0">
-              <div className="bg-blue-100 p-3 border-r border-gray-300">
-                <label className="text-sm font-medium text-gray-700">Bộ phận:</label>
-              </div>
-              <div className="col-span-2 p-3 bg-blue-50">
-                <span>{user?.department || 'Chưa xác định'}</span>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label>
+              <input type="text" value={user?.department || 'Chưa xác định'} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50" readOnly />
             </div>
 
-            {/* Phân loại */}
-            <div className="grid grid-cols-3 border border-gray-300 border-t-0">
-              <div className="bg-yellow-100 p-3 border-r border-gray-300">
-                <label className="text-sm font-medium text-gray-700">Phân loại:</label>
-              </div>
-              <div className="col-span-2 p-3 bg-yellow-50">
-                <select
-                  value={formData.phanLoai}
-                  onChange={(e) => setFormData({ ...formData, phanLoai: e.target.value })}
-                  required
-                  className="w-full border-none outline-none bg-transparent"
-                >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Phân loại */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phân loại <span className="text-red-500">*</span></label>
+                <select value={formData.phanLoai} onChange={(e) => setFormData({ ...formData, phanLoai: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="Nguyên liệu">Nguyên liệu</option>
                   <option value="Phụ liệu">Phụ liệu</option>
                   <option value="Hệ thống">Hệ thống</option>
@@ -134,56 +106,25 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                   <option value="Vật tư">Vật tư</option>
                 </select>
               </div>
-            </div>
 
-            {/* Tên gọi */}
-            <div className="grid grid-cols-3 border border-gray-300 border-t-0">
-              <div className="bg-yellow-100 p-3 border-r border-gray-300">
-                <label className="text-sm font-medium text-gray-700">Tên gọi:</label>
-              </div>
-              <div className="col-span-2 p-3 bg-yellow-50">
-                <input
-                  type="text"
-                  value={formData.tenGoi}
-                  onChange={(e) => setFormData({ ...formData, tenGoi: e.target.value })}
-                  required
-                  className="w-full border-none outline-none bg-transparent"
-                  placeholder="Nhập tên gọi"
-                />
+              {/* Tên gọi */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tên gọi <span className="text-red-500">*</span></label>
+                <input type="text" value={formData.tenGoi} onChange={(e) => setFormData({ ...formData, tenGoi: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nhập tên gọi" />
               </div>
             </div>
 
-            {/* Số lượng */}
-            <div className="grid grid-cols-3 border border-gray-300 border-t-0">
-              <div className="bg-gray-200 p-3 border-r border-gray-300">
-                <label className="text-sm font-medium text-gray-700">Số lượng:</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Số lượng */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng <span className="text-red-500">*</span></label>
+                <input type="number" value={formData.soLuong} onChange={(e) => setFormData({ ...formData, soLuong: parseNumberInput(e.target.value) })} required min="0" step="0.01" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nhập số lượng" />
               </div>
-              <div className="col-span-2 p-3 bg-gray-100">
-                <input
-                  type="number"
-                  value={formData.soLuong}
-                  onChange={(e) => setFormData({ ...formData, soLuong: parseFloat(e.target.value) })}
-                  required
-                  min="0"
-                  step="0.01"
-                  className="w-full border-none outline-none bg-transparent"
-                  placeholder="Nhập số lượng"
-                />
-              </div>
-            </div>
 
-            {/* Đơn vị */}
-            <div className="grid grid-cols-3 border border-gray-300 border-t-0">
-              <div className="bg-gray-200 p-3 border-r border-gray-300">
-                <label className="text-sm font-medium text-gray-700">Đơn vị:</label>
-              </div>
-              <div className="col-span-2 p-3 bg-gray-100">
-                <select
-                  value={formData.donViTinh}
-                  onChange={(e) => setFormData({ ...formData, donViTinh: e.target.value })}
-                  required
-                  className="w-full border-none outline-none bg-transparent"
-                >
+              {/* Đơn vị */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị <span className="text-red-500">*</span></label>
+                <select value={formData.donViTinh} onChange={(e) => setFormData({ ...formData, donViTinh: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="Kg">Kg</option>
                   <option value="Cái">Cái</option>
                   <option value="Hệ">Hệ</option>
@@ -192,64 +133,31 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
             </div>
 
             {/* Mục đích yêu cầu */}
-            <div className="grid grid-cols-3 border border-gray-300 border-t-0">
-              <div className="bg-gray-200 p-3 border-r border-gray-300">
-                <label className="text-sm font-medium text-gray-700">Mục đích yêu cầu:</label>
-              </div>
-              <div className="col-span-2 p-3 bg-gray-100">
-                <textarea
-                  value={formData.mucDichYeuCau}
-                  onChange={(e) => setFormData({ ...formData, mucDichYeuCau: e.target.value })}
-                  required
-                  className="w-full border-none outline-none bg-transparent resize-none"
-                  rows={2}
-                  placeholder="Mô tả mục đích yêu cầu"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mục đích yêu cầu <span className="text-red-500">*</span></label>
+              <textarea value={formData.mucDichYeuCau} onChange={(e) => setFormData({ ...formData, mucDichYeuCau: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} placeholder="Mô tả mục đích yêu cầu" />
             </div>
 
             {/* Mức độ ưu tiên */}
-            <div className="grid grid-cols-3 border border-gray-300 border-t-0">
-              <div className="bg-gray-200 p-3 border-r border-gray-300">
-                <label className="text-sm font-medium text-gray-700">Mức độ ưu tiên:</label>
-              </div>
-              <div className="col-span-2 p-3 bg-gray-100">
-                <select
-                  value={formData.mucDoUuTien}
-                  onChange={(e) => setFormData({ ...formData, mucDoUuTien: e.target.value })}
-                  required
-                  className="w-full border-none outline-none bg-transparent"
-                >
-                  <option value="Cao">Cao</option>
-                  <option value="Trung bình">Trung bình</option>
-                  <option value="Thấp">Thấp</option>
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mức độ ưu tiên <span className="text-red-500">*</span></label>
+              <select value={formData.mucDoUuTien} onChange={(e) => setFormData({ ...formData, mucDoUuTien: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="Cao">Cao</option>
+                <option value="Trung bình">Trung bình</option>
+                <option value="Thấp">Thấp</option>
+              </select>
             </div>
 
             {/* Ghi chú */}
-            <div className="grid grid-cols-3 border border-gray-300 border-t-0">
-              <div className="bg-gray-200 p-3 border-r border-gray-300">
-                <label className="text-sm font-medium text-gray-700">Ghi chú:</label>
-              </div>
-              <div className="col-span-2 p-3 bg-gray-100">
-                <textarea
-                  value={formData.ghiChu}
-                  onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
-                  className="w-full border-none outline-none bg-transparent resize-none"
-                  rows={3}
-                  placeholder="Ghi chú thêm (nếu có)"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+              <textarea value={formData.ghiChu} onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={3} placeholder="Ghi chú thêm (nếu có)" />
             </div>
 
             {/* Submit Button */}
-            <div className="flex justify-center mt-6">
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-8 py-3 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors font-medium disabled:opacity-50"
-              >
+            <div className="flex justify-end pt-2">
+              <button type="button" onClick={onClose} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors mr-3">Hủy</button>
+              <button type="submit" disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium disabled:opacity-50">
                 {loading ? 'Đang xử lý...' : 'Tạo yêu cầu'}
               </button>
             </div>

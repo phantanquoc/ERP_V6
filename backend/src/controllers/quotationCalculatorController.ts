@@ -1,10 +1,10 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import quotationCalculatorService from '../services/quotationCalculatorService';
 import prisma from '@config/database';
 import logger from '@config/logger';
 
 // Get calculator by quotation request ID
-export const getCalculatorByQuotationRequestId = async (req: Request, res: Response) => {
+export const getCalculatorByQuotationRequestId = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const quotationRequestId = req.params.quotationRequestId as string;
 
@@ -15,17 +15,13 @@ export const getCalculatorByQuotationRequestId = async (req: Request, res: Respo
       success: true,
       data: calculator, // Will be null if not found
     });
-  } catch (error: any) {
-    logger.error('Error getting calculator:', error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || 'Lỗi khi lấy bảng tính chi phí',
-    });
+  } catch (error) {
+    return next(error);
   }
 };
 
 // Create or update calculator
-export const upsertCalculator = async (req: Request, res: Response) => {
+export const upsertCalculator = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = req.body;
 
@@ -51,17 +47,13 @@ export const upsertCalculator = async (req: Request, res: Response) => {
       data: calculator,
       message: 'Lưu bảng tính chi phí thành công',
     });
-  } catch (error: any) {
-    logger.error('Error upserting calculator:', error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || 'Lỗi khi lưu bảng tính chi phí',
-    });
+  } catch (error) {
+    return next(error);
   }
 };
 
 // Delete calculator
-export const deleteCalculator = async (req: Request, res: Response) => {
+export const deleteCalculator = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const quotationRequestId = req.params.quotationRequestId as string;
 
@@ -71,17 +63,13 @@ export const deleteCalculator = async (req: Request, res: Response) => {
       success: true,
       message: 'Xóa bảng tính chi phí thành công',
     });
-  } catch (error: any) {
-    logger.error('Error deleting calculator:', error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || 'Lỗi khi xóa bảng tính chi phí',
-    });
+  } catch (error) {
+    return next(error);
   }
 };
 
 // Create quotation from calculator
-export const createQuotationFromCalculator = async (req: Request, res: Response) => {
+export const createQuotationFromCalculator = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const quotationRequestId = req.params.quotationRequestId as string;
     const { hieuLucBaoGia, tinhTrang, ghiChu, employeeId, tenNhanVien } = req.body;
@@ -173,12 +161,8 @@ export const createQuotationFromCalculator = async (req: Request, res: Response)
       data: quotation,
       message: 'Tạo báo giá thành công',
     });
-  } catch (error: any) {
-    logger.error('Error creating quotation from calculator:', error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || 'Lỗi khi tạo báo giá',
-    });
+  } catch (error) {
+    return next(error);
   }
 };
 

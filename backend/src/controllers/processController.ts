@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import processService from '@services/processService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
+import { getFileUrl } from '@middlewares/upload';
 
 export class ProcessController {
   async exportToExcel(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -113,6 +114,29 @@ export class ProcessController {
       };
 
       res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async uploadFile(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) {
+        res.status(400).json({
+          success: false,
+          message: 'No file uploaded',
+        });
+        return;
+      }
+
+      const fileUrl = getFileUrl('processes', file.filename);
+
+      res.json({
+        success: true,
+        data: { fileUrl, fileName: file.originalname },
+        message: 'File uploaded successfully',
+      });
     } catch (error) {
       next(error);
     }

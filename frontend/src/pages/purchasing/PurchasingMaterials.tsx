@@ -19,14 +19,15 @@ import {
   Star,
   ClipboardList,
   List,
-  Upload,
   X,
   Globe,
   Building2
 } from 'lucide-react';
+import FileUpload from '../../components/FileUpload';
 import OrderManagement from '../../components/OrderManagement';
 import purchaseRequestService from '../../services/purchaseRequestService';
 import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } from '../../services/supplierService';
+import { parseNumberInput } from '../../utils/numberInput';
 
 interface PurchaseRequest {
   id: string;
@@ -259,19 +260,7 @@ const PurchasingMaterials = () => {
     setSelectedFile(null);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setSelectedFile(file);
-      // Lưu tên file vào formData (trong thực tế sẽ upload lên server)
-      setEditFormData({...editFormData, fileKemTheo: file.name});
-    }
-  };
 
-  const handleRemoveFile = () => {
-    setSelectedFile(null);
-    setEditFormData({...editFormData, fileKemTheo: ''});
-  };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -939,7 +928,7 @@ const PurchasingMaterials = () => {
                     <input
                       type="number"
                       value={editFormData.soLuong || ''}
-                      onChange={(e) => setEditFormData({...editFormData, soLuong: parseFloat(e.target.value)})}
+                      onChange={(e) => setEditFormData({...editFormData, soLuong: parseNumberInput(e.target.value)})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                   </div>
@@ -1015,34 +1004,15 @@ const PurchasingMaterials = () => {
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">File đính kèm</label>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors">
-                        <Upload className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm text-gray-700">Chọn file</span>
-                        <input
-                          type="file"
-                          onChange={handleFileChange}
-                          className="hidden"
-                          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                        />
-                      </label>
-                      {(selectedFile || editFormData.fileKemTheo) && (
-                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-md">
-                          <span className="text-sm text-gray-700 max-w-[200px] truncate">
-                            {selectedFile ? selectedFile.name : editFormData.fileKemTheo}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleRemoveFile}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">Hỗ trợ: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG</p>
+                    <FileUpload
+                      label="File đính kèm"
+                      files={selectedFile ? [selectedFile] : []}
+                      onChange={(files) => setSelectedFile(files[0] || null)}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                      existingFileName={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined}
+                      existingFileUrl={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined}
+                      onRemoveExisting={() => setEditFormData({...editFormData, fileKemTheo: ''})}
+                    />
                   </div>
                 </div>
 
@@ -1135,7 +1105,7 @@ const PurchasingMaterials = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Doanh chi (VNĐ)</label>
-                    <input type="number" value={supplierFormData.doanhChi || 0} onChange={(e) => setSupplierFormData({...supplierFormData, doanhChi: parseFloat(e.target.value) || 0})} className="w-full border rounded-md px-3 py-2" />
+                    <input type="number" value={supplierFormData.doanhChi || 0} onChange={(e) => setSupplierFormData({...supplierFormData, doanhChi: parseNumberInput(e.target.value)})} className="w-full border rounded-md px-3 py-2" />
                   </div>
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
@@ -1213,7 +1183,7 @@ const PurchasingMaterials = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Doanh chi (VNĐ)</label>
-                    <input type="number" value={supplierFormData.doanhChi || 0} onChange={(e) => setSupplierFormData({...supplierFormData, doanhChi: parseFloat(e.target.value) || 0})} className="w-full border rounded-md px-3 py-2" />
+                    <input type="number" value={supplierFormData.doanhChi || 0} onChange={(e) => setSupplierFormData({...supplierFormData, doanhChi: parseNumberInput(e.target.value)})} className="w-full border rounded-md px-3 py-2" />
                   </div>
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
