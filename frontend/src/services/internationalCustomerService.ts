@@ -1,6 +1,6 @@
-import axios from 'axios';
+import apiClient from './apiClient';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -98,24 +98,12 @@ export interface UpdateInternationalCustomerRequest {
 }
 
 class InternationalCustomerService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   async getAllCustomers(page: number = 1, limit: number = 10, search?: string, phanLoaiDiaLy?: string): Promise<PaginatedResponse<InternationalCustomer>> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/international-customers`, {
+      const response = await apiClient.get('/international-customers', {
         params: { page, limit, search, phanLoaiDiaLy },
-        headers: this.getHeaders(),
       });
-      return response.data;
+      return response as unknown as PaginatedResponse<InternationalCustomer>;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -123,10 +111,8 @@ class InternationalCustomerService {
 
   async getCustomerById(id: string): Promise<InternationalCustomer> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/international-customers/${id}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get(`/international-customers/${id}`);
+      return response.data as unknown as InternationalCustomer;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -134,10 +120,8 @@ class InternationalCustomerService {
 
   async getCustomerByCode(code: string): Promise<InternationalCustomer> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/international-customers/code/${code}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get(`/international-customers/code/${code}`);
+      return response.data as unknown as InternationalCustomer;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -145,10 +129,8 @@ class InternationalCustomerService {
 
   async createCustomer(data: CreateInternationalCustomerRequest): Promise<InternationalCustomer> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/international-customers`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.post('/international-customers', data);
+      return response.data as unknown as InternationalCustomer;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -156,10 +138,8 @@ class InternationalCustomerService {
 
   async updateCustomer(id: string, data: UpdateInternationalCustomerRequest): Promise<InternationalCustomer> {
     try {
-      const response = await axios.patch(`${API_BASE_URL}/international-customers/${id}`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.patch(`/international-customers/${id}`, data);
+      return response.data as unknown as InternationalCustomer;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -167,9 +147,7 @@ class InternationalCustomerService {
 
   async deleteCustomer(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/international-customers/${id}`, {
-        headers: this.getHeaders(),
-      });
+      await apiClient.delete(`/international-customers/${id}`);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -177,22 +155,16 @@ class InternationalCustomerService {
 
   async generateCustomerCode(type: 'international' | 'domestic' = 'international'): Promise<string> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/international-customers/generate-code`,
-        { type },
-        {
-          headers: this.getHeaders(),
-        }
-      );
-      return response.data.data.code;
+      const response = await apiClient.post('/international-customers/generate-code', { type });
+      return (response.data as any).code;
     } catch (error) {
       throw this.handleError(error);
     }
   }
 
   private handleError(error: any): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message;
-      return new Error(message);
+    if (error instanceof Error) {
+      return error;
     }
     return new Error('An unexpected error occurred');
   }

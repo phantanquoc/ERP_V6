@@ -22,7 +22,7 @@ export const useWarehouses = () => {
     queryKey: warehouseKeys.lists(),
     queryFn: async () => {
       const response = await warehouseService.getAllWarehouses();
-      return response.data.data;
+      return response.data;
     },
   });
 };
@@ -33,7 +33,7 @@ export const useLotProducts = () => {
     queryKey: warehouseKeys.lotProducts(),
     queryFn: async () => {
       const response = await warehouseService.getAllLotProducts();
-      return response.data.data;
+      return response.data;
     },
   });
 };

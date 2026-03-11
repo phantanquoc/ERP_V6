@@ -1,6 +1,6 @@
-import axios from 'axios';
+import apiClient from './apiClient';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export interface Invoice {
   id: string;
@@ -30,24 +30,12 @@ interface PaginatedResponse<T> {
 }
 
 class InvoiceService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   async getAllInvoices(page: number = 1, limit: number = 10, search?: string): Promise<PaginatedResponse<Invoice>> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/invoices`, {
+      const response = await apiClient.get('/invoices', {
         params: { page, limit, search },
-        headers: this.getHeaders(),
       });
-      return response.data;
+      return response as unknown as PaginatedResponse<Invoice>;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -55,10 +43,8 @@ class InvoiceService {
 
   async getInvoiceById(id: string): Promise<Invoice> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/invoices/${id}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get(`/invoices/${id}`);
+      return response.data as unknown as Invoice;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -66,10 +52,8 @@ class InvoiceService {
 
   async createInvoice(data: Partial<Invoice>): Promise<Invoice> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/invoices`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.post('/invoices', data);
+      return response.data as unknown as Invoice;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -77,10 +61,8 @@ class InvoiceService {
 
   async updateInvoice(id: string, data: Partial<Invoice>): Promise<Invoice> {
     try {
-      const response = await axios.put(`${API_BASE_URL}/invoices/${id}`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.put(`/invoices/${id}`, data);
+      return response.data as unknown as Invoice;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -88,20 +70,17 @@ class InvoiceService {
 
   async deleteInvoice(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/invoices/${id}`, {
-        headers: this.getHeaders(),
-      });
+      await apiClient.delete(`/invoices/${id}`);
     } catch (error) {
       throw this.handleError(error);
     }
   }
 
   private handleError(error: unknown): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message;
-      return new Error(message);
+    if (error instanceof Error) {
+      return error;
     }
-    return error instanceof Error ? error : new Error('Unknown error');
+    return new Error('Unknown error');
   }
 
   async exportToExcel(filters?: { search?: string }): Promise<void> {

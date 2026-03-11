@@ -55,7 +55,7 @@ const DebtManagement: React.FC = () => {
     try {
       setLoading(true);
       const response = await debtService.getAllDebts();
-      setDebtData(response.data.data);
+      setDebtData(response.data || []);
     } catch (error) {
       console.error('Error fetching debts:', error);
       alert('Lỗi khi tải danh sách công nợ');
@@ -67,7 +67,7 @@ const DebtManagement: React.FC = () => {
   const fetchSummary = async () => {
     try {
       const response = await debtService.getDebtSummary();
-      setSummary(response.data.data);
+      setSummary(response.data || summary);
     } catch (error) {
       console.error('Error fetching summary:', error);
     }

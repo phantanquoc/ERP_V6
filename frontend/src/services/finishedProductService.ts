@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+import apiClient from './apiClient';
 
 export interface FinishedProduct {
   id: string;
@@ -73,17 +71,6 @@ interface FinishedProductResponse {
 }
 
 class FinishedProductService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   private buildFormData(data: Record<string, any>, file?: File): FormData {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
@@ -104,13 +91,10 @@ class FinishedProductService {
         params.tenMay = tenMay;
       }
 
-      const response = await axios.get<FinishedProductResponse>(`${API_BASE_URL}/finished-products`, {
-        params,
-        headers: this.getHeaders(),
-      });
+      const response = await apiClient.get<FinishedProductResponse>('/finished-products', { params });
       return {
-        data: response.data.data,
-        pagination: response.data.pagination,
+        data: (response as any).data,
+        pagination: (response as any).pagination,
       };
     } catch (error) {
       throw this.handleError(error);
@@ -119,10 +103,8 @@ class FinishedProductService {
 
   async getFinishedProductById(id: string): Promise<FinishedProduct> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/finished-products/${id}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get<FinishedProduct>(`/finished-products/${id}`);
+      return response.data as FinishedProduct;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -132,18 +114,11 @@ class FinishedProductService {
     try {
       if (file) {
         const formData = this.buildFormData(data, file);
-        const response = await axios.post(`${API_BASE_URL}/finished-products`, formData, {
-          headers: {
-            'Authorization': `Bearer ${this.getAuthToken()}`,
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-        return response.data.data;
+        const response = await apiClient.post<FinishedProduct>('/finished-products', formData);
+        return response.data as FinishedProduct;
       }
-      const response = await axios.post(`${API_BASE_URL}/finished-products`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.post<FinishedProduct>('/finished-products', data as Record<string, any>);
+      return response.data as FinishedProduct;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -153,18 +128,11 @@ class FinishedProductService {
     try {
       if (file) {
         const formData = this.buildFormData(data, file);
-        const response = await axios.patch(`${API_BASE_URL}/finished-products/${id}`, formData, {
-          headers: {
-            'Authorization': `Bearer ${this.getAuthToken()}`,
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-        return response.data.data;
+        const response = await apiClient.patch<FinishedProduct>(`/finished-products/${id}`, formData);
+        return response.data as FinishedProduct;
       }
-      const response = await axios.patch(`${API_BASE_URL}/finished-products/${id}`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.patch<FinishedProduct>(`/finished-products/${id}`, data as Record<string, any>);
+      return response.data as FinishedProduct;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -172,9 +140,7 @@ class FinishedProductService {
 
   async deleteFinishedProduct(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/finished-products/${id}`, {
-        headers: this.getHeaders(),
-      });
+      await apiClient.delete(`/finished-products/${id}`);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -182,11 +148,8 @@ class FinishedProductService {
 
   async getTotalWeightByDate(date: string): Promise<{ totalWeight: number; productCount: number }> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/finished-products/total-weight-by-date`, {
-        params: { date },
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get<{ totalWeight: number; productCount: number }>('/finished-products/total-weight-by-date', { params: { date } });
+      return response.data as { totalWeight: number; productCount: number };
     } catch (error) {
       throw this.handleError(error);
     }
@@ -197,6 +160,7 @@ class FinishedProductService {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
     if (filters?.tenMay) params.append('tenMay', filters.tenMay);
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const url = `${API_BASE_URL}/finished-products/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
@@ -214,11 +178,10 @@ class FinishedProductService {
   }
 
   private handleError(error: any): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message;
-      return new Error(message);
+    if (error instanceof Error) {
+      return error;
     }
-    return error;
+    return new Error('An unexpected error occurred');
   }
 }
 

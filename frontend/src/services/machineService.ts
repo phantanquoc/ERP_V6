@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+import apiClient from './apiClient';
 
 export interface Machine {
   id: string;
@@ -38,80 +36,56 @@ export interface PaginatedResponse<T> {
 }
 
 class MachineService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   async getAllMachines(page: number = 1, limit: number = 100): Promise<PaginatedResponse<Machine>> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/machines`, {
-        params: { page, limit },
-        headers: this.getHeaders(),
-      });
-      return response.data;
+      const response = await apiClient.get<PaginatedResponse<Machine>>('/machines', { params: { page, limit } });
+      return response as unknown as PaginatedResponse<Machine>;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi tải danh sách máy');
+      throw new Error(error.message || 'Lỗi tải danh sách máy');
     }
   }
 
   async getMachineById(id: string): Promise<Machine> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/machines/${id}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get<Machine>(`/machines/${id}`);
+      return response.data as Machine;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi tải thông tin máy');
+      throw new Error(error.message || 'Lỗi tải thông tin máy');
     }
   }
 
   async generateMachineCode(): Promise<string> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/machines/generate-code`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get<any>('/machines/generate-code');
+      return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi tạo mã máy');
+      throw new Error(error.message || 'Lỗi tạo mã máy');
     }
   }
 
   async createMachine(data: CreateMachineRequest): Promise<Machine> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/machines`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.post<Machine>('/machines', data);
+      return response.data as Machine;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi tạo máy mới');
+      throw new Error(error.message || 'Lỗi tạo máy mới');
     }
   }
 
   async updateMachine(id: string, data: UpdateMachineRequest): Promise<Machine> {
     try {
-      const response = await axios.patch(`${API_BASE_URL}/machines/${id}`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.patch<Machine>(`/machines/${id}`, data);
+      return response.data as Machine;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi cập nhật máy');
+      throw new Error(error.message || 'Lỗi cập nhật máy');
     }
   }
 
   async deleteMachine(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/machines/${id}`, {
-        headers: this.getHeaders(),
-      });
+      await apiClient.delete(`/machines/${id}`);
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi xóa máy');
+      throw new Error(error.message || 'Lỗi xóa máy');
     }
   }
 
@@ -119,6 +93,7 @@ class MachineService {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const url = `${API_BASE_URL}/machines/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!response.ok) throw new Error('Failed to export to Excel');

@@ -1,7 +1,6 @@
-import axios from 'axios';
+import apiClient from './apiClient';
 
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/quotation-requests`;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export interface QuotationRequest {
   id: string;
@@ -91,68 +90,50 @@ export interface GenerateCodeResponse {
   };
 }
 
-const getAuthHeader = () => {
-  const token = localStorage.getItem('accessToken');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
-};
-
 export const quotationRequestService = {
   async getAllQuotationRequests(page: number = 1, limit: number = 10, search?: string, customerType?: string): Promise<PaginatedResponse> {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      limit: limit.toString(),
-    });
+    const params: Record<string, any> = { page, limit };
+    if (search) params.search = search;
+    if (customerType) params.customerType = customerType;
 
-    if (search) {
-      params.append('search', search);
-    }
-
-    if (customerType) {
-      params.append('customerType', customerType);
-    }
-
-    const response = await axios.get(`${API_URL}?${params.toString()}`, getAuthHeader());
-    return response.data;
+    const response = await apiClient.get('/quotation-requests', { params });
+    return response as unknown as PaginatedResponse;
   },
 
   async getQuotationRequestById(id: string): Promise<SingleResponse> {
-    const response = await axios.get(`${API_URL}/${id}`, getAuthHeader());
-    return response.data;
+    const response = await apiClient.get(`/quotation-requests/${id}`);
+    return response as unknown as SingleResponse;
   },
 
   async getQuotationRequestByCode(code: string): Promise<SingleResponse> {
-    const response = await axios.get(`${API_URL}/code/${code}`, getAuthHeader());
-    return response.data;
+    const response = await apiClient.get(`/quotation-requests/code/${code}`);
+    return response as unknown as SingleResponse;
   },
 
   async createQuotationRequest(data: CreateQuotationRequestData): Promise<SingleResponse> {
-    const response = await axios.post(API_URL, data, getAuthHeader());
-    return response.data;
+    const response = await apiClient.post('/quotation-requests', data);
+    return response as unknown as SingleResponse;
   },
 
   async updateQuotationRequest(id: string, data: UpdateQuotationRequestData): Promise<SingleResponse> {
-    const response = await axios.patch(`${API_URL}/${id}`, data, getAuthHeader());
-    return response.data;
+    const response = await apiClient.patch(`/quotation-requests/${id}`, data);
+    return response as unknown as SingleResponse;
   },
 
   async deleteQuotationRequest(id: string): Promise<void> {
-    await axios.delete(`${API_URL}/${id}`, getAuthHeader());
+    await apiClient.delete(`/quotation-requests/${id}`);
   },
 
   async generateQuotationRequestCode(): Promise<GenerateCodeResponse> {
-    const response = await axios.get(`${API_URL}/generate-code`, getAuthHeader());
-    return response.data;
+    const response = await apiClient.get('/quotation-requests/generate-code');
+    return response as unknown as GenerateCodeResponse;
   },
 
   async exportToExcel(filters?: { search?: string }): Promise<void> {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
-    const url = `${API_URL}/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    const url = `${API_BASE_URL}/quotation-requests/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });

@@ -1,14 +1,14 @@
 /**
  * API Client for making HTTP requests to the backend
- * Handles authentication, token refresh, and error handling
+ * Handles authentication, token refresh, error handling, and FormData uploads
  */
 
 import AuthService from './authService';
 
 // Use environment variable for API URL, fallback to localhost for development
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-interface ApiResponse<T> {
+export interface ApiResponse<T> {
   success: boolean;
   message?: string;
   data?: T;
@@ -36,17 +36,13 @@ class ApiClient {
   }
 
   /**
-   * Make HTTP request with automatic token refresh
+   * Build full URL with query params
    */
-  private async request<T>(
-    endpoint: string,
-    options: RequestOptions = {}
-  ): Promise<ApiResponse<T>> {
-    // Build URL with query params
+  private buildUrl(endpoint: string, params?: Record<string, any>): string {
     let url = `${this.baseUrl}${endpoint}`;
-    if (options.params) {
+    if (params) {
       const queryString = new URLSearchParams(
-        Object.entries(options.params)
+        Object.entries(params)
           .filter(([_, value]) => value !== undefined && value !== null && value !== '')
           .map(([key, value]) => [key, String(value)])
       ).toString();
@@ -54,9 +50,22 @@ class ApiClient {
         url += `?${queryString}`;
       }
     }
+    return url;
+  }
 
-    const headers = {
-      'Content-Type': 'application/json',
+  /**
+   * Make HTTP request with automatic token refresh
+   */
+  private async request<T>(
+    endpoint: string,
+    options: RequestOptions = {}
+  ): Promise<ApiResponse<T>> {
+    const url = this.buildUrl(endpoint, options.params);
+
+    const isFormData = options.body instanceof FormData;
+
+    const headers: Record<string, string> = {
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...this.getAuthHeader(),
       ...options.headers,
     };
@@ -71,16 +80,12 @@ class ApiClient {
       if (response.status === 401) {
         const newToken = await AuthService.refreshToken();
         if (newToken) {
-          const newHeaders = {
-            ...headers,
-            Authorization: `Bearer ${newToken}`,
-          };
+          headers.Authorization = `Bearer ${newToken}`;
           response = await fetch(url, {
             ...options,
-            headers: newHeaders,
+            headers,
           });
         } else {
-          // Refresh failed, redirect to login
           window.location.href = '/login';
           throw new Error('Session expired. Please login again.');
         }
@@ -103,54 +108,54 @@ class ApiClient {
    * GET request
    */
   async get<T>(endpoint: string, options?: RequestOptions): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
-      ...options,
-      method: 'GET',
-    });
+    return this.request<T>(endpoint, { ...options, method: 'GET' });
   }
 
   /**
-   * POST request
+   * POST request (JSON or FormData)
    */
   async post<T>(
     endpoint: string,
-    body?: Record<string, any>,
+    body?: Record<string, any> | FormData,
     options?: RequestOptions
   ): Promise<ApiResponse<T>> {
+    const isFormData = body instanceof FormData;
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
+      body: isFormData ? body : (body ? JSON.stringify(body) : undefined),
     });
   }
 
   /**
-   * PATCH request
+   * PATCH request (JSON or FormData)
    */
   async patch<T>(
     endpoint: string,
-    body?: Record<string, any>,
+    body?: Record<string, any> | FormData,
     options?: RequestOptions
   ): Promise<ApiResponse<T>> {
+    const isFormData = body instanceof FormData;
     return this.request<T>(endpoint, {
       ...options,
       method: 'PATCH',
-      body: body ? JSON.stringify(body) : undefined,
+      body: isFormData ? body : (body ? JSON.stringify(body) : undefined),
     });
   }
 
   /**
-   * PUT request
+   * PUT request (JSON or FormData)
    */
   async put<T>(
     endpoint: string,
-    body?: Record<string, any>,
+    body?: Record<string, any> | FormData,
     options?: RequestOptions
   ): Promise<ApiResponse<T>> {
+    const isFormData = body instanceof FormData;
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
-      body: body ? JSON.stringify(body) : undefined,
+      body: isFormData ? body : (body ? JSON.stringify(body) : undefined),
     });
   }
 
@@ -158,12 +163,10 @@ class ApiClient {
    * DELETE request
    */
   async delete<T>(endpoint: string, options?: RequestOptions): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
-      ...options,
-      method: 'DELETE',
-    });
+    return this.request<T>(endpoint, { ...options, method: 'DELETE' });
   }
 }
 
-export default new ApiClient();
+const apiClient = new ApiClient();
+export default apiClient;
 

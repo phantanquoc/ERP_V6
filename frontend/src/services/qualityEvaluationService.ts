@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+import apiClient from './apiClient';
 
 export interface QualityEvaluation {
   id: string;
@@ -50,17 +48,6 @@ interface PaginatedResponse {
 }
 
 class QualityEvaluationService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   private buildFormData(data: Record<string, any>, file?: File): FormData {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
@@ -81,24 +68,19 @@ class QualityEvaluationService {
         params.tenMay = tenMay;
       }
 
-      const response = await axios.get(`${API_BASE_URL}/quality-evaluations`, {
-        params,
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get('/quality-evaluations', { params });
+      return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi tải dữ liệu đánh giá chất lượng');
+      throw new Error(error instanceof Error ? error.message : 'Lỗi tải dữ liệu đánh giá chất lượng');
     }
   }
 
   async getQualityEvaluationById(id: string): Promise<QualityEvaluation> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/quality-evaluations/${id}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get(`/quality-evaluations/${id}`);
+      return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi tải dữ liệu đánh giá chất lượng');
+      throw new Error(error instanceof Error ? error.message : 'Lỗi tải dữ liệu đánh giá chất lượng');
     }
   }
 
@@ -106,17 +88,13 @@ class QualityEvaluationService {
     try {
       if (file) {
         const formData = this.buildFormData(data, file);
-        const response = await axios.post(`${API_BASE_URL}/quality-evaluations`, formData, {
-          headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
-        });
-        return response.data.data;
+        const response = await apiClient.post('/quality-evaluations', formData);
+        return response.data;
       }
-      const response = await axios.post(`${API_BASE_URL}/quality-evaluations`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.post('/quality-evaluations', data);
+      return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi tạo đánh giá chất lượng');
+      throw new Error(error instanceof Error ? error.message : 'Lỗi tạo đánh giá chất lượng');
     }
   }
 
@@ -124,32 +102,27 @@ class QualityEvaluationService {
     try {
       if (file) {
         const formData = this.buildFormData(data, file);
-        const response = await axios.put(`${API_BASE_URL}/quality-evaluations/${id}`, formData, {
-          headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
-        });
-        return response.data.data;
+        const response = await apiClient.put(`/quality-evaluations/${id}`, formData);
+        return response.data;
       }
-      const response = await axios.put(`${API_BASE_URL}/quality-evaluations/${id}`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.put(`/quality-evaluations/${id}`, data);
+      return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi cập nhật đánh giá chất lượng');
+      throw new Error(error instanceof Error ? error.message : 'Lỗi cập nhật đánh giá chất lượng');
     }
   }
 
   async deleteQualityEvaluation(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/quality-evaluations/${id}`, {
-        headers: this.getHeaders(),
-      });
+      await apiClient.delete(`/quality-evaluations/${id}`);
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi xóa đánh giá chất lượng');
+      throw new Error(error instanceof Error ? error.message : 'Lỗi xóa đánh giá chất lượng');
     }
   }
 
   async exportToExcel(): Promise<void> {
     const token = localStorage.getItem('accessToken');
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const url = `${API_BASE_URL}/quality-evaluations/export/excel`;
 
     const response = await fetch(url, {

@@ -1,12 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/quotation-calculators`;
-
-// Get auth token from localStorage
-const getAuthToken = () => {
-  return localStorage.getItem('accessToken');
-};
+import apiClient from './apiClient';
 
 // Interface for general cost group (bảng chi phí chung)
 export interface GeneralCostGroupData {
@@ -81,35 +73,20 @@ export interface QuotationCalculatorCostData {
 class QuotationCalculatorService {
   // Get calculator by quotation request ID
   async getByQuotationRequestId(quotationRequestId: string) {
-    const token = getAuthToken();
-    const response = await axios.get(`${API_URL}/quotation-request/${quotationRequestId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.get(`/quotation-calculators/quotation-request/${quotationRequestId}`);
+    return response;
   }
 
   // Create or update calculator
   async upsertCalculator(data: QuotationCalculatorData) {
-    const token = getAuthToken();
-    const response = await axios.post(API_URL, data, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.post('/quotation-calculators', data);
+    return response;
   }
 
   // Delete calculator
   async deleteCalculator(quotationRequestId: string) {
-    const token = getAuthToken();
-    const response = await axios.delete(`${API_URL}/quotation-request/${quotationRequestId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.delete(`/quotation-calculators/quotation-request/${quotationRequestId}`);
+    return response;
   }
 
   // Create quotation from calculator
@@ -123,17 +100,11 @@ class QuotationCalculatorService {
       tenNhanVien?: string;
     }
   ) {
-    const token = getAuthToken();
-    const response = await axios.post(
-      `${API_URL}/quotation-request/${quotationRequestId}/create-quotation`,
-      data,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
+    const response = await apiClient.post(
+      `/quotation-calculators/quotation-request/${quotationRequestId}/create-quotation`,
+      data
     );
-    return response.data;
+    return response;
   }
 }
 

@@ -238,7 +238,7 @@ const PayrollManagement: React.FC = () => {
           <button
             onClick={async () => {
               try {
-                await payrollService.exportToExcel({ search: searchTerm || undefined });
+                await payrollService.exportToExcel({ search: searchTerm || undefined, month: selectedMonth, year: selectedYear });
               } catch (err) {
                 console.error('Error exporting to Excel:', err);
                 alert('Không thể xuất file Excel');
@@ -317,6 +317,29 @@ const PayrollManagement: React.FC = () => {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="bg-blue-50 border-t-2 border-blue-300">
+                <td colSpan={4} className="px-6 py-4 text-sm font-bold text-blue-800 border-r border-gray-200">
+                  Tổng cộng ({filteredPayrolls.length} nhân viên)
+                </td>
+                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
+                  {filteredPayrolls.reduce((sum, p) => sum + p.baseSalary, 0).toLocaleString('vi-VN')} ₫
+                </td>
+                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
+                  {filteredPayrolls.reduce((sum, p) => sum + p.kpiBonus, 0).toLocaleString('vi-VN')} ₫
+                </td>
+                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
+                  {filteredPayrolls.reduce((sum, p) => sum + p.positionAllowance + p.otherAllowances, 0).toLocaleString('vi-VN')} ₫
+                </td>
+                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
+                  {filteredPayrolls.reduce((sum, p) => sum + p.totalDeductions, 0).toLocaleString('vi-VN')} ₫
+                </td>
+                <td className="px-6 py-4 text-sm font-bold text-blue-900 text-right border-r border-gray-200">
+                  {filteredPayrolls.reduce((sum, p) => sum + p.netSalary, 0).toLocaleString('vi-VN')} ₫
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>

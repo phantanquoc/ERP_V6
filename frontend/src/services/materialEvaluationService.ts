@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+import apiClient from './apiClient';
 
 export interface MaterialEvaluation {
   id: string;
@@ -23,17 +21,6 @@ export interface MaterialEvaluation {
 }
 
 class MaterialEvaluationService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   private buildFormData(data: Record<string, any>, file?: File): FormData {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
@@ -49,13 +36,10 @@ class MaterialEvaluationService {
 
   async getAllMaterialEvaluations(page: number = 1, limit: number = 10): Promise<{ data: MaterialEvaluation[], pagination: any }> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/material-evaluations`, {
-        params: { page, limit },
-        headers: this.getHeaders(),
-      });
+      const response = await apiClient.get<any>('/material-evaluations', { params: { page, limit } });
       return {
-        data: response.data.data,
-        pagination: response.data.pagination,
+        data: response.data,
+        pagination: (response as any).pagination,
       };
     } catch (error) {
       throw this.handleError(error);
@@ -64,10 +48,8 @@ class MaterialEvaluationService {
 
   async getMaterialEvaluationById(id: string): Promise<MaterialEvaluation> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/material-evaluations/${id}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get<MaterialEvaluation>(`/material-evaluations/${id}`);
+      return response.data as MaterialEvaluation;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -75,10 +57,8 @@ class MaterialEvaluationService {
 
   async getMaterialEvaluationByMaChien(maChien: string): Promise<MaterialEvaluation> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/material-evaluations/ma-chien/${maChien}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get<MaterialEvaluation>(`/material-evaluations/ma-chien/${maChien}`);
+      return response.data as MaterialEvaluation;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -86,10 +66,8 @@ class MaterialEvaluationService {
 
   async generateMaChien(): Promise<string> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/material-evaluations/generate-code`, {}, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data.maChien;
+      const response = await apiClient.post<any>('/material-evaluations/generate-code', {});
+      return (response.data as any).maChien;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -99,15 +77,11 @@ class MaterialEvaluationService {
     try {
       if (file) {
         const formData = this.buildFormData(data, file);
-        const response = await axios.post(`${API_BASE_URL}/material-evaluations`, formData, {
-          headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
-        });
-        return response.data.data;
+        const response = await apiClient.post<MaterialEvaluation>('/material-evaluations', formData);
+        return response.data as MaterialEvaluation;
       }
-      const response = await axios.post(`${API_BASE_URL}/material-evaluations`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.post<MaterialEvaluation>('/material-evaluations', data as Record<string, any>);
+      return response.data as MaterialEvaluation;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -117,15 +91,11 @@ class MaterialEvaluationService {
     try {
       if (file) {
         const formData = this.buildFormData(data, file);
-        const response = await axios.patch(`${API_BASE_URL}/material-evaluations/${id}`, formData, {
-          headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
-        });
-        return response.data.data;
+        const response = await apiClient.patch<MaterialEvaluation>(`/material-evaluations/${id}`, formData);
+        return response.data as MaterialEvaluation;
       }
-      const response = await axios.patch(`${API_BASE_URL}/material-evaluations/${id}`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.patch<MaterialEvaluation>(`/material-evaluations/${id}`, data as Record<string, any>);
+      return response.data as MaterialEvaluation;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -133,20 +103,17 @@ class MaterialEvaluationService {
 
   async deleteMaterialEvaluation(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/material-evaluations/${id}`, {
-        headers: this.getHeaders(),
-      });
+      await apiClient.delete(`/material-evaluations/${id}`);
     } catch (error) {
       throw this.handleError(error);
     }
   }
 
   private handleError(error: any): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message;
-      return new Error(message);
+    if (error instanceof Error) {
+      return error;
     }
-    return error;
+    return new Error('An unexpected error occurred');
   }
 }
 

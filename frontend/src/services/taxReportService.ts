@@ -1,12 +1,6 @@
-import axios from 'axios';
+import apiClient from './apiClient';
 
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/tax-reports`;
-
-// Get auth token from localStorage
-const getAuthToken = () => {
-  return localStorage.getItem('accessToken');
-};
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Tax Report Status enum
 export enum TaxReportStatus {
@@ -60,44 +54,27 @@ export interface ApiResponse<T> {
 class TaxReportService {
   // Get all tax reports
   async getAllTaxReports(page: number = 1, limit: number = 10, search?: string) {
-    const token = getAuthToken();
     const params: any = { page, limit };
     if (search) params.search = search;
 
-    const response = await axios.get<ApiResponse<TaxReport[]>>(API_URL, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      params,
-    });
-    return response.data;
+    const response = await apiClient.get('/tax-reports', { params });
+    return response;
   }
 
   // Get tax report by ID
   async getTaxReportById(id: string) {
-    const token = getAuthToken();
-    const response = await axios.get<ApiResponse<TaxReport>>(`${API_URL}/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.get(`/tax-reports/${id}`);
+    return response;
   }
 
   // Get tax report by order ID
   async getTaxReportByOrderId(orderId: string) {
-    const token = getAuthToken();
-    const response = await axios.get<ApiResponse<TaxReport>>(`${API_URL}/order/${orderId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.get(`/tax-reports/order/${orderId}`);
+    return response;
   }
 
   // Create tax report from order
   async createTaxReportFromOrder(orderId: string, input?: TaxReportInput, file?: File) {
-    const token = getAuthToken();
     if (file) {
       const formData = new FormData();
       if (input) {
@@ -108,33 +85,15 @@ class TaxReportService {
         });
       }
       formData.append('file', file);
-      const response = await axios.post<ApiResponse<TaxReport>>(
-        `${API_URL}/order/${orderId}`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
-      return response.data;
+      const response = await apiClient.post(`/tax-reports/order/${orderId}`, formData);
+      return response;
     }
-    const response = await axios.post<ApiResponse<TaxReport>>(
-      `${API_URL}/order/${orderId}`,
-      input || {},
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-    return response.data;
+    const response = await apiClient.post(`/tax-reports/order/${orderId}`, input || {});
+    return response;
   }
 
   // Update tax report
   async updateTaxReport(id: string, input: TaxReportInput, file?: File) {
-    const token = getAuthToken();
     if (file) {
       const formData = new FormData();
       Object.entries(input).forEach(([key, value]) => {
@@ -143,37 +102,23 @@ class TaxReportService {
         }
       });
       formData.append('file', file);
-      const response = await axios.put<ApiResponse<TaxReport>>(`${API_URL}/${id}`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
+      const response = await apiClient.put(`/tax-reports/${id}`, formData);
+      return response;
     }
-    const response = await axios.put<ApiResponse<TaxReport>>(`${API_URL}/${id}`, input, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.put(`/tax-reports/${id}`, input);
+    return response;
   }
 
   // Delete tax report
   async deleteTaxReport(id: string) {
-    const token = getAuthToken();
-    const response = await axios.delete<ApiResponse<void>>(`${API_URL}/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.delete(`/tax-reports/${id}`);
+    return response;
   }
 
   // Export to Excel
   async exportToExcel(): Promise<void> {
-    const token = getAuthToken();
-    const url = `${API_URL}/export/excel`;
+    const token = localStorage.getItem('accessToken');
+    const url = `${API_BASE_URL}/tax-reports/export/excel`;
 
     const response = await fetch(url, {
       headers: {

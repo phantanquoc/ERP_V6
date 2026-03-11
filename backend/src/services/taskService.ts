@@ -1,6 +1,6 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
-import { CreateTaskRequest, UpdateTaskRequest, TaskListQuery, TaskPriority } from '@types';
+import { CreateTaskRequest, UpdateTaskRequest, TaskListQuery, TaskPriority, TaskAcceptanceStatus, AcceptTaskRequest } from '@types';
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import { Task } from '@prisma/client';
 import notificationService from './notificationService';
@@ -87,6 +87,12 @@ class TaskService {
       throw new ValidationError('Thời hạn hoàn thành phải từ ngày hôm nay trở đi');
     }
 
+    // Initialize trangThaiTiepNhan for all recipients
+    const trangThaiTiepNhan: Record<string, string> = {};
+    nguoiNhanUserIds.forEach(uid => {
+      trangThaiTiepNhan[uid] = TaskAcceptanceStatus.CHUA_TIEP_NHAN;
+    });
+
     const task = await prisma.task.create({
       data: {
         nguoiGiaoId,
@@ -96,6 +102,7 @@ class TaskService {
         ghiChu: data.ghiChu,
         files: files || [],
         mucDoUuTien: data.mucDoUuTien as TaskPriority,
+        trangThaiTiepNhan,
       },
     });
 
@@ -281,6 +288,31 @@ class TaskService {
       page,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  async acceptTask(taskId: string, userId: string, data: AcceptTaskRequest): Promise<any> {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+    });
+
+    if (!task) {
+      throw new NotFoundError('Không tìm thấy nhiệm vụ');
+    }
+
+    // Only người nhận can accept/reject
+    if (!task.nguoiNhanIds.includes(userId)) {
+      throw new ApiError(403, 'Bạn không phải người nhận nhiệm vụ này');
+    }
+
+    const currentStatus = (task.trangThaiTiepNhan as Record<string, string>) || {};
+    currentStatus[userId] = data.trangThai;
+
+    const updatedTask = await prisma.task.update({
+      where: { id: taskId },
+      data: { trangThaiTiepNhan: currentStatus },
+    });
+
+    return this.populateTaskWithUsers(updatedTask);
   }
 }
 

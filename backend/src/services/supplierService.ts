@@ -15,6 +15,7 @@ interface CreateSupplierData {
   khaNang?: string;
   loaiHinh: string;
   trangThai?: string;
+  phanLoaiNCC?: string;
   doanhChi?: number;
   employeeId: string;
 }
@@ -36,17 +37,26 @@ interface UpdateSupplierData {
 
 export const supplierService = {
   // Get all suppliers with pagination and search
-  async getAllSuppliers(page: number = 1, limit: number = 10, search?: string) {
+  async getAllSuppliers(page: number = 1, limit: number = 10, search?: string, phanLoaiNCC?: string) {
     const skip = (page - 1) * limit;
-    
+
     const where: any = {};
+    if (phanLoaiNCC) {
+      where.phanLoaiNCC = phanLoaiNCC;
+    }
     if (search) {
-      where.OR = [
-        { maNhaCungCap: { contains: search, mode: 'insensitive' } },
-        { tenNhaCungCap: { contains: search, mode: 'insensitive' } },
-        { loaiCungCap: { contains: search, mode: 'insensitive' } },
-        { nguoiLienHe: { contains: search, mode: 'insensitive' } },
+      where.AND = [
+        ...(where.phanLoaiNCC ? [{ phanLoaiNCC: where.phanLoaiNCC }] : []),
+        {
+          OR: [
+            { maNhaCungCap: { contains: search, mode: 'insensitive' } },
+            { tenNhaCungCap: { contains: search, mode: 'insensitive' } },
+            { loaiCungCap: { contains: search, mode: 'insensitive' } },
+            { nguoiLienHe: { contains: search, mode: 'insensitive' } },
+          ],
+        },
       ];
+      delete where.phanLoaiNCC;
     }
 
     const [suppliers, total] = await Promise.all([
@@ -161,32 +171,48 @@ export const supplierService = {
   },
 
   // Generate next supplier code
-  async generateSupplierCode() {
+  async generateSupplierCode(phanLoaiNCC?: string) {
+    const prefix = phanLoaiNCC === 'Thiết bị' ? 'NCCTB' : 'NCC';
+    const where: any = {
+      maNhaCungCap: { startsWith: prefix },
+    };
+
     const lastSupplier = await prisma.supplier.findFirst({
+      where,
       orderBy: { maNhaCungCap: 'desc' },
     });
 
     if (!lastSupplier) {
-      return 'NCC001';
+      return `${prefix}001`;
     }
 
     const lastCode = lastSupplier.maNhaCungCap;
-    const numPart = parseInt(lastCode.replace('NCC', '')) || 0;
+    const numPart = parseInt(lastCode.replace(prefix, '')) || 0;
     const nextNum = numPart + 1;
-    return `NCC${nextNum.toString().padStart(3, '0')}`;
+    return `${prefix}${nextNum.toString().padStart(3, '0')}`;
   },
 
   // Export suppliers to Excel
   async exportToExcel(filters?: any): Promise<Buffer> {
     const where: any = {};
 
+    if (filters?.phanLoaiNCC) {
+      where.phanLoaiNCC = filters.phanLoaiNCC;
+    }
+
     if (filters?.search) {
-      where.OR = [
-        { maNhaCungCap: { contains: filters.search, mode: 'insensitive' } },
-        { tenNhaCungCap: { contains: filters.search, mode: 'insensitive' } },
-        { loaiCungCap: { contains: filters.search, mode: 'insensitive' } },
-        { nguoiLienHe: { contains: filters.search, mode: 'insensitive' } },
+      where.AND = [
+        ...(where.phanLoaiNCC ? [{ phanLoaiNCC: where.phanLoaiNCC }] : []),
+        {
+          OR: [
+            { maNhaCungCap: { contains: filters.search, mode: 'insensitive' } },
+            { tenNhaCungCap: { contains: filters.search, mode: 'insensitive' } },
+            { loaiCungCap: { contains: filters.search, mode: 'insensitive' } },
+            { nguoiLienHe: { contains: filters.search, mode: 'insensitive' } },
+          ],
+        },
       ];
+      delete where.phanLoaiNCC;
     }
 
     const data = await prisma.supplier.findMany({

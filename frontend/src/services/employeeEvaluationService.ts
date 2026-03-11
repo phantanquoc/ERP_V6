@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import apiClient from './apiClient';
 
 export interface EvaluationDetail {
   stt: number;
@@ -36,24 +34,12 @@ export interface EvaluationDetailsResponse {
 }
 
 class EmployeeEvaluationService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   async getEmployeeEvaluations(month: number, year: number): Promise<EmployeeEvaluation[]> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/employee-evaluations/evaluations`, {
+      const response = await apiClient.get('/employee-evaluations/evaluations', {
         params: { month, year },
-        headers: this.getHeaders(),
       });
-      return response.data.data;
+      return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -64,23 +50,17 @@ class EmployeeEvaluationService {
       // Try to use the /my-evaluation endpoint first (for self-evaluation)
       // If it fails with 403, fall back to the manager endpoint
       try {
-        const response = await axios.get(
-          `${API_BASE_URL}/employee-evaluations/my-evaluation/${evaluationId}`,
-          {
-            headers: this.getHeaders(),
-          }
+        const response = await apiClient.get(
+          `/employee-evaluations/my-evaluation/${evaluationId}`
         );
-        return response.data.data;
+        return response.data;
       } catch (error: any) {
         // If 403, try the manager endpoint
-        if (error.response?.status === 403) {
-          const response = await axios.get(
-            `${API_BASE_URL}/employee-evaluations/evaluations/${evaluationId}/details`,
-            {
-              headers: this.getHeaders(),
-            }
+        if (error.message?.includes('403')) {
+          const response = await apiClient.get(
+            `/employee-evaluations/evaluations/${evaluationId}/details`
           );
-          return response.data.data;
+          return response.data;
         }
         throw error;
       }
@@ -91,14 +71,11 @@ class EmployeeEvaluationService {
 
   async createOrUpdateEvaluation(employeeId: string, month: number, year: number): Promise<any> {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/employee-evaluations/evaluations`,
-        { employeeId, month, year },
-        {
-          headers: this.getHeaders(),
-        }
+      const response = await apiClient.post(
+        '/employee-evaluations/evaluations',
+        { employeeId, month, year }
       );
-      return response.data.data;
+      return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -111,36 +88,27 @@ class EmployeeEvaluationService {
     supervisorScore2?: number
   ): Promise<any> {
     try {
+      const body = {
+        ...(selfScore !== undefined && { selfScore }),
+        ...(supervisorScore1 !== undefined && { supervisorScore1 }),
+        ...(supervisorScore2 !== undefined && { supervisorScore2 }),
+      };
       // Try to use the /my-evaluation endpoint first (for self-evaluation)
       // If it fails with 403, fall back to the manager endpoint
       try {
-        const response = await axios.patch(
-          `${API_BASE_URL}/employee-evaluations/my-evaluation/details/${detailId}`,
-          {
-            ...(selfScore !== undefined && { selfScore }),
-            ...(supervisorScore1 !== undefined && { supervisorScore1 }),
-            ...(supervisorScore2 !== undefined && { supervisorScore2 }),
-          },
-          {
-            headers: this.getHeaders(),
-          }
+        const response = await apiClient.patch(
+          `/employee-evaluations/my-evaluation/details/${detailId}`,
+          body
         );
-        return response.data.data;
+        return response.data;
       } catch (error: any) {
         // If 403, try the manager endpoint
-        if (error.response?.status === 403) {
-          const response = await axios.patch(
-            `${API_BASE_URL}/employee-evaluations/evaluations/details/${detailId}`,
-            {
-              ...(selfScore !== undefined && { selfScore }),
-              ...(supervisorScore1 !== undefined && { supervisorScore1 }),
-              ...(supervisorScore2 !== undefined && { supervisorScore2 }),
-            },
-            {
-              headers: this.getHeaders(),
-            }
+        if (error.message?.includes('403')) {
+          const response = await apiClient.patch(
+            `/employee-evaluations/evaluations/details/${detailId}`,
+            body
           );
-          return response.data.data;
+          return response.data;
         }
         throw error;
       }
@@ -151,13 +119,10 @@ class EmployeeEvaluationService {
 
   async getEvaluationHistory(evaluationId: string): Promise<any> {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/employee-evaluations/evaluations/${evaluationId}/history`,
-        {
-          headers: this.getHeaders(),
-        }
+      const response = await apiClient.get(
+        `/employee-evaluations/evaluations/${evaluationId}/history`
       );
-      return response.data.data;
+      return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -165,14 +130,11 @@ class EmployeeEvaluationService {
 
   async finalizeEvaluation(evaluationId: string): Promise<any> {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/employee-evaluations/evaluations/${evaluationId}/finalize`,
-        {},
-        {
-          headers: this.getHeaders(),
-        }
+      const response = await apiClient.post(
+        `/employee-evaluations/evaluations/${evaluationId}/finalize`,
+        {}
       );
-      return response.data.data;
+      return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -180,21 +142,18 @@ class EmployeeEvaluationService {
 
   async getSubordinatesForEvaluation(month: number, year: number): Promise<any[]> {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/employee-evaluations/subordinates/${month}/${year}`,
-        {
-          headers: this.getHeaders(),
-        }
+      const response = await apiClient.get(
+        `/employee-evaluations/subordinates/${month}/${year}`
       );
-      return response.data.data || [];
+      return response.data || [];
     } catch (error) {
       throw this.handleError(error);
     }
   }
 
   private handleError(error: any): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message;
+    if (error instanceof Error) {
+      const message = error.message;
       return new Error(message);
     }
     return new Error('An unexpected error occurred');

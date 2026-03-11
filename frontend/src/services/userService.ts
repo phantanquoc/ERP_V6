@@ -1,7 +1,5 @@
-import axios from 'axios';
+import apiClient from './apiClient';
 import { User as UserType } from '../types/auth';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -51,24 +49,10 @@ interface UpdateProfileRequest {
 }
 
 class UserService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
-  async getAllUsers(page: number = 1, limit: number = 10): Promise<PaginatedResponse<any>> {
+   async getAllUsers(page: number = 1, limit: number = 10): Promise<PaginatedResponse<any>> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/users`, {
-        params: { page, limit },
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+       const response = await apiClient.get('/users', { params: { page, limit } });
+       return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -76,10 +60,8 @@ class UserService {
 
   async getUserById(id: string): Promise<any> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/users/${id}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+       const response = await apiClient.get(`/users/${id}`);
+       return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -87,10 +69,8 @@ class UserService {
 
   async createUser(data: CreateUserRequest): Promise<any> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/users`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+       const response = await apiClient.post('/users', data);
+       return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -98,10 +78,8 @@ class UserService {
 
   async updateUser(id: string, data: UpdateUserRequest): Promise<any> {
     try {
-      const response = await axios.patch(`${API_BASE_URL}/users/${id}`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+       const response = await apiClient.patch(`/users/${id}`, data);
+       return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -109,9 +87,7 @@ class UserService {
 
   async deleteUser(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/users/${id}`, {
-        headers: this.getHeaders(),
-      });
+       await apiClient.delete(`/users/${id}`);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -119,9 +95,7 @@ class UserService {
 
   async changePassword(data: ChangePasswordRequest): Promise<void> {
     try {
-      await axios.post(`${API_BASE_URL}/users/change-password`, data, {
-        headers: this.getHeaders(),
-      });
+       await apiClient.post('/users/change-password', data);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -129,18 +103,16 @@ class UserService {
 
   async updateProfile(data: UpdateProfileRequest): Promise<any> {
     try {
-      const response = await axios.patch(`${API_BASE_URL}/users/profile`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+       const response = await apiClient.patch('/users/profile', data);
+       return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
   }
 
   private handleError(error: any): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message;
+     if (error instanceof Error) {
+       const message = error.message;
       return new Error(message);
     }
     return new Error('An unexpected error occurred');

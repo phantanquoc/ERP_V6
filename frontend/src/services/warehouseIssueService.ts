@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import apiClient from './apiClient';
 
 export interface WarehouseIssue {
   id: string;
@@ -42,27 +40,15 @@ export interface CreateWarehouseIssueData {
 
 const warehouseIssueService = {
   generateIssueCode: async () => {
-    const token = localStorage.getItem('accessToken');
-    const response = await axios.get(`${API_BASE_URL}/warehouse-issues/generate-code`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return response.data;
+    return apiClient.get('/warehouse-issues/generate-code');
   },
-  
+
   createWarehouseIssue: async (data: CreateWarehouseIssueData) => {
-    const token = localStorage.getItem('accessToken');
-    const response = await axios.post(`${API_BASE_URL}/warehouse-issues`, data, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return response.data;
+    return apiClient.post('/warehouse-issues', data);
   },
-  
+
   getAllWarehouseIssues: async () => {
-    const token = localStorage.getItem('accessToken');
-    const response = await axios.get(`${API_BASE_URL}/warehouse-issues`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return response.data;
+    return apiClient.get('/warehouse-issues');
   },
 };
 

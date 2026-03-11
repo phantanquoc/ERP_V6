@@ -208,5 +208,43 @@ router.put(
  */
 router.delete('/:id', taskController.deleteTask);
 
+/**
+ * @swagger
+ * /api/tasks/{id}/accept:
+ *   patch:
+ *     tags: [Tasks]
+ *     summary: Tiếp nhận/Từ chối nhiệm vụ
+ *     description: Cập nhật trạng thái tiếp nhận nhiệm vụ (DA_TIEP_NHAN hoặc TU_CHOI)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của nhiệm vụ
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               trangThai:
+ *                 type: string
+ *                 enum: [DA_TIEP_NHAN, TU_CHOI]
+ *     responses:
+ *       200:
+ *         description: Cập nhật trạng thái thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ *       403:
+ *         description: Không phải người nhận nhiệm vụ
+ *       404:
+ *         description: Không tìm thấy nhiệm vụ
+ */
+router.patch('/:id/accept', taskController.acceptTask);
+
 export default router;
 

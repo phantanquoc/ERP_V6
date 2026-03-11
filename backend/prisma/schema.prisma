@@ -1093,6 +1093,7 @@ model Supplier {
   khaNang         String?   // Khả năng cung cấp
   loaiHinh        String    // Sản xuất, Thương mại
   trangThai       String    @default("Đang cung cấp") // Đang cung cấp, Ngừng cung cấp
+  phanLoaiNCC     String    @default("NVL") // NVL, Thiết bị
   doanhChi        Float?    // Doanh chi
   employeeId      String
   employee        Employee  @relation("SupplierCreatedBy", fields: [employeeId], references: [id])
@@ -1783,6 +1784,7 @@ model Task {
   ghiChu             String?
   files              String[]     @default([])
   mucDoUuTien        TaskPriority
+  trangThaiTiepNhan  Json         @default("{}") // Map of userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 

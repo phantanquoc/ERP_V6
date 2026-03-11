@@ -1,7 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE_URL}/private-feedbacks`;
+import apiClient from './apiClient';
 
 // Types
 export type FeedbackType = 'GOP_Y' | 'NEU_KHO_KHAN';
@@ -95,17 +92,6 @@ export interface StatsResponse {
   };
 }
 
-// Helper function to get auth header
-const getAuthHeader = () => {
-  const token = localStorage.getItem('accessToken');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  };
-};
-
 export const privateFeedbackService = {
   // Lấy tất cả feedback
   async getAll(options: {
@@ -135,32 +121,31 @@ export const privateFeedbackService = {
     if (status) params.append('status', status);
     if (userId) params.append('userId', userId);
 
-    const response = await axios.get(`${API_URL}?${params.toString()}`, getAuthHeader());
-    return response.data;
+    const response = await apiClient.get(`/private-feedbacks?${params.toString()}`);
+    return response as unknown as PaginatedResponse;
   },
 
   // Lấy feedback theo ID
   async getById(id: string): Promise<SingleResponse> {
-    const response = await axios.get(`${API_URL}/${id}`, getAuthHeader());
-    return response.data;
+    const response = await apiClient.get(`/private-feedbacks/${id}`);
+    return response as unknown as SingleResponse;
   },
 
   // Lấy feedback theo code
   async getByCode(code: string): Promise<SingleResponse> {
-    const response = await axios.get(`${API_URL}/code/${code}`, getAuthHeader());
-    return response.data;
+    const response = await apiClient.get(`/private-feedbacks/code/${code}`);
+    return response as unknown as SingleResponse;
   },
 
   // Tạo mã tự động
   async generateCode(type: FeedbackType): Promise<GenerateCodeResponse> {
-    const response = await axios.post(`${API_URL}/generate-code`, { type }, getAuthHeader());
-    return response.data;
+    const response = await apiClient.post('/private-feedbacks/generate-code', { type });
+    return response as unknown as GenerateCodeResponse;
   },
 
   // Tạo feedback mới
   async create(data: CreatePrivateFeedbackData, files?: File[]): Promise<SingleResponse> {
     if (files && files.length > 0) {
-      const token = localStorage.getItem('accessToken');
       const formData = new FormData();
       formData.append('type', data.type);
       formData.append('content', data.content);
@@ -168,22 +153,16 @@ export const privateFeedbackService = {
       if (data.purpose) formData.append('purpose', data.purpose);
       if (data.solution) formData.append('solution', data.solution);
       files.forEach(file => formData.append('files', file));
-      const response = await axios.post(API_URL, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
+      const response = await apiClient.post('/private-feedbacks', formData);
+      return response as unknown as SingleResponse;
     }
-    const response = await axios.post(API_URL, data, getAuthHeader());
-    return response.data;
+    const response = await apiClient.post('/private-feedbacks', data);
+    return response as unknown as SingleResponse;
   },
 
   // Cập nhật feedback
   async update(id: string, data: UpdatePrivateFeedbackData, files?: File[]): Promise<SingleResponse> {
     if (files && files.length > 0) {
-      const token = localStorage.getItem('accessToken');
       const formData = new FormData();
       Object.entries(data).forEach(([key, value]) => {
         if (value !== undefined && value !== null && key !== 'attachments') {
@@ -195,28 +174,23 @@ export const privateFeedbackService = {
         }
       });
       files.forEach(file => formData.append('files', file));
-      const response = await axios.patch(`${API_URL}/${id}`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
+      const response = await apiClient.patch(`/private-feedbacks/${id}`, formData);
+      return response as unknown as SingleResponse;
     }
-    const response = await axios.patch(`${API_URL}/${id}`, data, getAuthHeader());
-    return response.data;
+    const response = await apiClient.patch(`/private-feedbacks/${id}`, data);
+    return response as unknown as SingleResponse;
   },
 
   // Xóa feedback
   async delete(id: string): Promise<void> {
-    await axios.delete(`${API_URL}/${id}`, getAuthHeader());
+    await apiClient.delete(`/private-feedbacks/${id}`);
   },
 
   // Lấy thống kê
   async getStats(userId?: string): Promise<StatsResponse> {
     const params = userId ? `?userId=${userId}` : '';
-    const response = await axios.get(`${API_URL}/stats${params}`, getAuthHeader());
-    return response.data;
+    const response = await apiClient.get(`/private-feedbacks/stats${params}`);
+    return response as unknown as StatsResponse;
   },
 };
 

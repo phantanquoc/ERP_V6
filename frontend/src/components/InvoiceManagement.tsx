@@ -81,22 +81,21 @@ const InvoiceManagement: React.FC = () => {
 
   // Generate next invoice number
   const generateInvoiceNumber = (): string => {
-    const currentYear = new Date().getFullYear();
-    const prefix = `HD-${currentYear}-`;
+    const prefix = 'HD';
 
-    // Find the highest invoice number for current year
-    const currentYearInvoices = invoices.filter(inv => inv.soHoaDon?.startsWith(prefix));
+    // Find the highest invoice number
+    const matchingInvoices = invoices.filter(inv => inv.soHoaDon?.startsWith(prefix));
     let maxNumber = 0;
 
-    currentYearInvoices.forEach(inv => {
-      const match = inv.soHoaDon.match(/HD-\d{4}-(\d+)/);
+    matchingInvoices.forEach(inv => {
+      const match = inv.soHoaDon.match(/^HD(\d+)$/);
       if (match) {
         const num = parseInt(match[1], 10);
         if (num > maxNumber) maxNumber = num;
       }
     });
 
-    return `${prefix}${String(maxNumber + 1).padStart(4, '0')}`;
+    return `${prefix}${String(maxNumber + 1).padStart(3, '0')}`;
   };
 
   useEffect(() => {

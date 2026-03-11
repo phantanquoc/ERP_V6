@@ -7,12 +7,11 @@ import ExcelJS from 'exceljs';
 export class InvoiceService {
   /**
    * Generate invoice number
-   * Format: HD-{YEAR}-{SEQUENCE}
-   * Example: HD-2026-0001
+   * Format: HD{SEQUENCE}
+   * Example: HD001, HD002
    */
   async generateInvoiceNumber(): Promise<string> {
-    const currentYear = new Date().getFullYear();
-    const prefix = `HD-${currentYear}-`;
+    const prefix = 'HD';
 
     const lastInvoice = await prisma.invoice.findFirst({
       where: {
@@ -34,7 +33,7 @@ export class InvoiceService {
       }
     }
 
-    return `${prefix}${String(sequence).padStart(4, '0')}`;
+    return `${prefix}${String(sequence).padStart(3, '0')}`;
   }
 
   async getAllInvoices(

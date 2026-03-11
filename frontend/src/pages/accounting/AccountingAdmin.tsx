@@ -174,7 +174,7 @@ const AccountingAdmin = () => {
         {/* Overview Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Card 1: Tổng quan tài sản */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Building className="w-5 h-5 mr-2 text-blue-600" />
@@ -192,7 +192,7 @@ const AccountingAdmin = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+                <div className="bg-blue-50 rounded-lg p-3 border-2 border-blue-300 cursor-pointer">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-gray-700">Tổng tài sản</span>
                     <span className="text-2xl font-bold text-blue-600">
@@ -201,19 +201,19 @@ const AccountingAdmin = () => {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
                     <div className="text-xl font-bold text-red-600">
                       {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(assetOverview.tongCongNo)}
                     </div>
                     <div className="text-xs text-gray-600 mt-0.5">Tổng công nợ</div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
                     <div className="text-xl font-bold text-green-600">
                       {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(assetOverview.daThanhToan)}
                     </div>
                     <div className="text-xs text-gray-600 mt-0.5">Đã thanh toán</div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
                     <div className="text-xl font-bold text-yellow-600">
                       {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(assetOverview.chuaThanhToan)}
                     </div>
@@ -225,7 +225,7 @@ const AccountingAdmin = () => {
           </div>
 
           {/* Card 2: Tổng quan doanh thu */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400">
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <TrendingUp className="w-5 h-5 mr-2 text-green-600" />
@@ -242,7 +242,7 @@ const AccountingAdmin = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="bg-green-50 rounded-lg p-3 hover:bg-green-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-green-300 cursor-pointer">
+                <div className="bg-green-50 rounded-lg p-3 border-2 border-green-300 cursor-pointer">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-gray-700">Tổng doanh thu</span>
                     <span className="text-2xl font-bold text-green-600">
@@ -251,13 +251,13 @@ const AccountingAdmin = () => {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
                     <div className="text-xl font-bold text-blue-600">
                       {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(revenueOverview.quocTe)}
                     </div>
                     <div className="text-xs text-gray-600 mt-0.5">Quốc tế</div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
                     <div className="text-xl font-bold text-green-600">
                       {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(revenueOverview.noiDia)}
                     </div>

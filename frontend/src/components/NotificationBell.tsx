@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
+import TaskListModal from './TaskListModal';
+import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
+import AllNotificationsModal from './AllNotificationsModal';
 
 const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
+  const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
+  const [selectedEvaluationNotification, setSelectedEvaluationNotification] = useState<Notification | null>(null);
+  const [isAllNotificationsOpen, setIsAllNotificationsOpen] = useState(false);
 
   useEffect(() => {
     loadNotifications();
@@ -17,7 +24,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const loadNotifications = async () => {
     try {
       setLoading(true);
-      const data = await notificationService.getEmployeeNotifications(20);
+      const data = await notificationService.getEmployeeNotifications(5);
       setNotifications(data);
     } catch (error) {
       console.error('Error loading notifications:', error);
@@ -39,6 +46,12 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id);
+    if (notification.type === 'TASK') {
+      setIsTaskListModalOpen(true);
+    } else if (['EVALUATION', 'EVALUATION_SUPERVISOR1', 'EVALUATION_SUPERVISOR2', 'EVALUATION_COMPLETED'].includes(notification.type)) {
+      setSelectedEvaluationNotification(notification);
+      setIsEvaluationModalOpen(true);
+    }
     if (onNotificationClick) {
       onNotificationClick(notification);
     }
@@ -49,17 +62,22 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
+      case 'EVALUATION':
+        return <ClipboardList className="w-4 h-4 text-orange-600" />;
       case 'EVALUATION_SUPERVISOR1':
       case 'EVALUATION_SUPERVISOR2':
         return <Clock className="w-4 h-4 text-blue-600" />;
       case 'EVALUATION_COMPLETED':
         return <CheckCircle className="w-4 h-4 text-green-600" />;
+      case 'TASK':
+        return <Target className="w-4 h-4 text-indigo-600" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }
   };
 
   return (
+    <>
     <div className="relative">
       {/* Bell Button */}
       <button
@@ -136,7 +154,10 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
           {/* Footer */}
           {notifications.length > 0 && (
             <div className="p-3 border-t border-gray-200 bg-gray-50 text-center">
-              <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+              <button
+                onClick={() => { setIsAllNotificationsOpen(true); setIsOpen(false); }}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
                 Xem tất cả thông báo
               </button>
             </div>
@@ -144,6 +165,35 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         </div>
       )}
     </div>
+
+      {/* Task List Modal - opened when clicking TASK notification */}
+      <TaskListModal
+        isOpen={isTaskListModalOpen}
+        onClose={() => setIsTaskListModalOpen(false)}
+      />
+
+      {/* Evaluation Modal - opened when clicking EVALUATION notification */}
+      <EmployeeSelfEvaluationModal
+        isOpen={isEvaluationModalOpen}
+        onClose={() => {
+          setIsEvaluationModalOpen(false);
+          setSelectedEvaluationNotification(null);
+        }}
+        evaluationId={selectedEvaluationNotification?.evaluationId || null}
+        notificationId={selectedEvaluationNotification?.id}
+        evaluationPeriod={selectedEvaluationNotification?.period}
+      />
+
+      {/* All Notifications Modal */}
+      <AllNotificationsModal
+        isOpen={isAllNotificationsOpen}
+        onClose={() => setIsAllNotificationsOpen(false)}
+        onNotificationClick={(notification) => {
+          setIsAllNotificationsOpen(false);
+          handleNotificationClick(notification);
+        }}
+      />
+    </>
   );
 };
 

@@ -1,7 +1,6 @@
-import axios from 'axios';
+import apiClient from './apiClient';
 
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/supply-requests`;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export interface SupplyRequest {
   id: string;
@@ -53,15 +52,6 @@ export interface UpdateSupplyRequestRequest {
   fileKemTheo?: string;
 }
 
-const getAuthHeader = () => {
-  const token = localStorage.getItem('accessToken');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
-};
-
 class SupplyRequestService {
   async getAllSupplyRequests(page: number = 1, limit: number = 10, search?: string) {
     const params: any = { page, limit };
@@ -69,31 +59,28 @@ class SupplyRequestService {
       params.search = search;
     }
 
-    const response = await axios.get(API_URL, {
-      ...getAuthHeader(),
-      params,
-    });
-    return response.data;
+    const response = await apiClient.get('/supply-requests', { params });
+    return response;
   }
 
   async getSupplyRequestById(id: string) {
-    const response = await axios.get(`${API_URL}/${id}`, getAuthHeader());
-    return response.data;
+    const response = await apiClient.get(`/supply-requests/${id}`);
+    return response;
   }
 
   async createSupplyRequest(data: CreateSupplyRequestRequest) {
-    const response = await axios.post(API_URL, data, getAuthHeader());
-    return response.data;
+    const response = await apiClient.post('/supply-requests', data);
+    return response;
   }
 
   async updateSupplyRequest(id: string, data: UpdateSupplyRequestRequest) {
-    const response = await axios.put(`${API_URL}/${id}`, data, getAuthHeader());
-    return response.data;
+    const response = await apiClient.put(`/supply-requests/${id}`, data);
+    return response;
   }
 
   async deleteSupplyRequest(id: string) {
-    const response = await axios.delete(`${API_URL}/${id}`, getAuthHeader());
-    return response.data;
+    const response = await apiClient.delete(`/supply-requests/${id}`);
+    return response;
   }
 
   async exportToExcel(filters?: { search?: string }): Promise<void> {
@@ -101,7 +88,7 @@ class SupplyRequestService {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
 
-    const url = `${API_URL}/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    const url = `${API_BASE_URL}/supply-requests/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });

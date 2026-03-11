@@ -106,7 +106,7 @@ const PurchasingMaterials = () => {
   const fetchSuppliers = async () => {
     try {
       setSupplierLoading(true);
-      const response = await supplierService.getAllSuppliers(supplierPage, 10, supplierSearch || undefined);
+      const response = await supplierService.getAllSuppliers(supplierPage, 10, supplierSearch || undefined, 'NVL');
       setSuppliers(response.data || []);
       setSupplierTotalPages(response.totalPages || 1);
     } catch (error) {
@@ -123,7 +123,7 @@ const PurchasingMaterials = () => {
 
   const openAddSupplierModal = async () => {
     try {
-      const { code } = await supplierService.generateCode();
+      const { code } = await supplierService.generateCode('NVL');
       // Get employeeId from localStorage
       const userStr = localStorage.getItem('user');
       const user = userStr ? JSON.parse(userStr) : null;
@@ -140,6 +140,7 @@ const PurchasingMaterials = () => {
         khaNang: '',
         loaiHinh: 'Sản xuất',
         trangThai: 'Đang cung cấp',
+        phanLoaiNCC: 'NVL',
         doanhChi: 0,
         employeeId: user?.employee?.id || '',
       });
@@ -314,35 +315,6 @@ const PurchasingMaterials = () => {
           <p className="text-gray-600">Quản lý nhà cung cấp, đơn hàng mua, hợp đồng và chi phí nguyên vật liệu</p>
         </div>
 
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-          {/* Tổng quan nhà cung cấp */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Users className="w-5 h-5 text-blue-600 mr-2" />
-              Nhà cung cấp NVL
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Tổng NCC</span>
-                <span className="text-lg font-bold text-blue-600">{suppliers.length}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Đang cung cấp</span>
-                <span className="text-lg font-bold text-green-600">
-                  {suppliers.filter(item => item.trangThai === 'Đang cung cấp').length}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700">Ngừng cung cấp</span>
-                <span className="text-lg font-bold text-red-600">
-                  {suppliers.filter(item => item.trangThai === 'Ngừng cung cấp').length}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
@@ -396,7 +368,7 @@ const PurchasingMaterials = () => {
                   <button
                     onClick={async () => {
                       try {
-                        await supplierService.exportToExcel({ search: supplierSearch || undefined });
+                        await supplierService.exportToExcel({ search: supplierSearch || undefined, phanLoaiNCC: 'NVL' });
                       } catch (error) {
                         console.error('Error exporting to Excel:', error);
                         alert('Lỗi khi xuất Excel');

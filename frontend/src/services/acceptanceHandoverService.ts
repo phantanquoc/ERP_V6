@@ -1,19 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/acceptance-handovers`;
-
-// Get auth token from localStorage
-const getAuthToken = () => {
-  return localStorage.getItem('accessToken');
-};
-
-const getAuthHeaders = () => {
-  const token = getAuthToken();
-  return {
-    Authorization: `Bearer ${token}`,
-  };
-};
+ import apiClient from './apiClient';
 
 export interface AcceptanceHandover {
   id: string;
@@ -52,11 +37,8 @@ class AcceptanceHandoverService {
         params.search = search;
       }
 
-      const response = await axios.get(API_URL, {
-        params,
-        headers: getAuthHeaders(),
-      });
-      return response.data;
+       const response = await apiClient.get('/acceptance-handovers', { params });
+       return response;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Lỗi khi lấy danh sách nghiệm thu bàn giao');
     }
@@ -64,10 +46,8 @@ class AcceptanceHandoverService {
 
   async getAcceptanceHandoverById(id: string) {
     try {
-      const response = await axios.get(`${API_URL}/${id}`, {
-        headers: getAuthHeaders(),
-      });
-      return response.data;
+       const response = await apiClient.get(`/acceptance-handovers/${id}`);
+       return response;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Lỗi khi lấy thông tin nghiệm thu bàn giao');
     }
@@ -90,13 +70,8 @@ class AcceptanceHandoverService {
         formData.append('file', file);
       }
 
-      const response = await axios.post(API_URL, formData, {
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
+       const response = await apiClient.post('/acceptance-handovers', formData);
+       return response;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Lỗi khi tạo nghiệm thu bàn giao');
     }
@@ -119,13 +94,8 @@ class AcceptanceHandoverService {
         formData.append('file', file);
       }
 
-      const response = await axios.put(`${API_URL}/${id}`, formData, {
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
+       const response = await apiClient.put(`/acceptance-handovers/${id}`, formData);
+       return response;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Lỗi khi cập nhật nghiệm thu bàn giao');
     }
@@ -133,10 +103,8 @@ class AcceptanceHandoverService {
 
   async deleteAcceptanceHandover(id: string) {
     try {
-      const response = await axios.delete(`${API_URL}/${id}`, {
-        headers: getAuthHeaders(),
-      });
-      return response.data;
+       const response = await apiClient.delete(`/acceptance-handovers/${id}`);
+       return response;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Lỗi khi xóa nghiệm thu bàn giao');
     }
@@ -144,10 +112,8 @@ class AcceptanceHandoverService {
 
   async generateCode() {
     try {
-      const response = await axios.get(`${API_URL}/generate-code`, {
-        headers: getAuthHeaders(),
-      });
-      return response.data.data.code;
+       const response = await apiClient.get('/acceptance-handovers/generate-code');
+       return (response.data as any).code;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Lỗi khi tạo mã nghiệm thu bàn giao');
     }
@@ -157,7 +123,8 @@ class AcceptanceHandoverService {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
-    const url = `${API_URL}/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+     const url = `${API_BASE_URL}/acceptance-handovers/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });

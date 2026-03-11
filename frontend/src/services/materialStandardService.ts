@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+import apiClient from './apiClient';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -46,24 +44,10 @@ interface UpdateMaterialStandardRequest {
 }
 
 class MaterialStandardService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   async getAllMaterialStandards(page: number = 1, limit: number = 10): Promise<PaginatedResponse<MaterialStandard>> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/material-standards`, {
-        params: { page, limit },
-        headers: this.getHeaders(),
-      });
-      return response.data;
+      const response = await apiClient.get<PaginatedResponse<MaterialStandard>>('/material-standards', { params: { page, limit } });
+      return response as unknown as PaginatedResponse<MaterialStandard>;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -71,10 +55,8 @@ class MaterialStandardService {
 
   async getMaterialStandardById(id: string): Promise<MaterialStandard> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/material-standards/${id}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.get<MaterialStandard>(`/material-standards/${id}`);
+      return response.data as MaterialStandard;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -82,10 +64,8 @@ class MaterialStandardService {
 
   async createMaterialStandard(data: CreateMaterialStandardRequest): Promise<MaterialStandard> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/material-standards`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.post<MaterialStandard>('/material-standards', data as Record<string, any>);
+      return response.data as MaterialStandard;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -93,10 +73,8 @@ class MaterialStandardService {
 
   async updateMaterialStandard(id: string, data: UpdateMaterialStandardRequest): Promise<MaterialStandard> {
     try {
-      const response = await axios.patch(`${API_BASE_URL}/material-standards/${id}`, data, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+      const response = await apiClient.patch<MaterialStandard>(`/material-standards/${id}`, data as Record<string, any>);
+      return response.data as MaterialStandard;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -104,9 +82,7 @@ class MaterialStandardService {
 
   async deleteMaterialStandard(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/material-standards/${id}`, {
-        headers: this.getHeaders(),
-      });
+      await apiClient.delete(`/material-standards/${id}`);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -114,22 +90,16 @@ class MaterialStandardService {
 
   async generateMaterialStandardCode(): Promise<string> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/material-standards/generate-code`,
-        {},
-        {
-          headers: this.getHeaders(),
-        }
-      );
-      return response.data.data.code;
+      const response = await apiClient.post<any>('/material-standards/generate-code', {});
+      return (response.data as any).code;
     } catch (error) {
       throw this.handleError(error);
     }
   }
 
   private handleError(error: any): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message;
-      return new Error(message);
+    if (error instanceof Error) {
+      return error;
     }
     return new Error('An unexpected error occurred');
   }

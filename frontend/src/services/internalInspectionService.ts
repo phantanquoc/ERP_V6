@@ -1,7 +1,6 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_BASE_URL = `${API_BASE}/internal-inspections`;
+ import apiClient from './apiClient';
+ 
+ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export interface InternalInspection {
   id: string;
@@ -25,24 +24,16 @@ export interface InternalInspection {
 }
 
 class InternalInspectionService {
-  private getAuthHeader() {
-    const token = localStorage.getItem('accessToken');
-    return {
-      Authorization: `Bearer ${token}`,
-    };
-  }
-
   async getAllInspections(month?: number, year?: number): Promise<InternalInspection[]> {
     try {
       const params: any = {};
       if (month) params.month = month;
       if (year) params.year = year;
 
-      const response = await axios.get(`${API_BASE_URL}`, {
+       const response = await apiClient.get('/internal-inspections', {
         params,
-        headers: this.getAuthHeader(),
       });
-      return response.data.data || [];
+       return response.data || [];
     } catch (error) {
       console.error('Error fetching inspections:', error);
       throw error;
@@ -51,10 +42,8 @@ class InternalInspectionService {
 
   async getInspectionById(id: string): Promise<InternalInspection> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/${id}`, {
-        headers: this.getAuthHeader(),
-      });
-      return response.data.data;
+       const response = await apiClient.get(`/internal-inspections/${id}`);
+       return response.data;
     } catch (error) {
       console.error('Error fetching inspection:', error);
       throw error;
@@ -63,10 +52,8 @@ class InternalInspectionService {
 
   async createInspection(data: any): Promise<InternalInspection> {
     try {
-      const response = await axios.post(`${API_BASE_URL}`, data, {
-        headers: this.getAuthHeader(),
-      });
-      return response.data.data;
+       const response = await apiClient.post('/internal-inspections', data);
+       return response.data;
     } catch (error) {
       console.error('Error creating inspection:', error);
       throw error;
@@ -75,10 +62,8 @@ class InternalInspectionService {
 
   async updateInspection(id: string, data: any): Promise<InternalInspection> {
     try {
-      const response = await axios.patch(`${API_BASE_URL}/${id}`, data, {
-        headers: this.getAuthHeader(),
-      });
-      return response.data.data;
+       const response = await apiClient.patch(`/internal-inspections/${id}`, data);
+       return response.data;
     } catch (error) {
       console.error('Error updating inspection:', error);
       throw error;
@@ -87,9 +72,7 @@ class InternalInspectionService {
 
   async deleteInspection(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/${id}`, {
-        headers: this.getAuthHeader(),
-      });
+       await apiClient.delete(`/internal-inspections/${id}`);
     } catch (error) {
       console.error('Error deleting inspection:', error);
       throw error;
@@ -98,11 +81,10 @@ class InternalInspectionService {
 
   async searchInspections(query: string): Promise<InternalInspection[]> {
     try {
-      const response = await axios.get(`${API_BASE_URL}`, {
+       const response = await apiClient.get('/internal-inspections', {
         params: { search: query },
-        headers: this.getAuthHeader(),
       });
-      return response.data.data || [];
+       return response.data || [];
     } catch (error) {
       console.error('Error searching inspections:', error);
       throw error;
@@ -111,7 +93,7 @@ class InternalInspectionService {
 
   async exportToExcel(): Promise<void> {
     const token = localStorage.getItem('accessToken');
-    const url = `${API_BASE_URL}/export/excel`;
+     const url = `${API_BASE_URL}/internal-inspections/export/excel`;
 
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },

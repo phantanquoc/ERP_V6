@@ -1,22 +1,16 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/tasks`;
-
-const getAuthHeader = () => {
-  const token = localStorage.getItem('accessToken');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
-};
+ import apiClient from './apiClient';
 
 export enum TaskPriority {
   KHAN_CAP = 'KHAN_CAP',
   CAO = 'CAO',
   TRUNG_BINH = 'TRUNG_BINH',
   THAP = 'THAP',
+}
+
+export enum TaskAcceptanceStatus {
+  CHUA_TIEP_NHAN = 'CHUA_TIEP_NHAN',
+  DA_TIEP_NHAN = 'DA_TIEP_NHAN',
+  TU_CHOI = 'TU_CHOI',
 }
 
 export interface Task {
@@ -41,6 +35,7 @@ export interface Task {
   ghiChu?: string;
   files?: string[];
   mucDoUuTien: TaskPriority;
+  trangThaiTiepNhan?: Record<string, TaskAcceptanceStatus>;
   createdAt: string;
   updatedAt: string;
 }
@@ -78,15 +73,9 @@ export const taskService = {
       });
     }
 
-    const response = await axios.post(API_URL, formData, {
-      ...getAuthHeader(),
-      headers: {
-        ...getAuthHeader().headers,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    
-    return response.data.data;
+     const response = await apiClient.post('/tasks', formData);
+     
+     return response.data;
   },
 
   async getAllTasks(params?: {
@@ -96,16 +85,13 @@ export const taskService = {
     mucDoUuTien?: TaskPriority;
     department?: string;
   }): Promise<{ data: Task[]; total: number; page: number; totalPages: number }> {
-    const response = await axios.get(API_URL, {
-      ...getAuthHeader(),
-      params,
-    });
-    
-    return {
-      data: response.data.data,
-      total: response.data.pagination.total,
-      page: response.data.pagination.page,
-      totalPages: response.data.pagination.totalPages,
+     const response = await apiClient.get('/tasks', { params });
+     
+     return {
+       data: response.data,
+       total: (response as any).pagination.total,
+       page: (response as any).pagination.page,
+       totalPages: (response as any).pagination.totalPages,
     };
   },
 
@@ -113,22 +99,19 @@ export const taskService = {
     page?: number;
     limit?: number;
   }): Promise<{ data: Task[]; total: number; page: number; totalPages: number }> {
-    const response = await axios.get(`${API_URL}/my-tasks`, {
-      ...getAuthHeader(),
-      params,
-    });
-    
-    return {
-      data: response.data.data,
-      total: response.data.pagination.total,
-      page: response.data.pagination.page,
-      totalPages: response.data.pagination.totalPages,
+     const response = await apiClient.get('/tasks/my-tasks', { params });
+     
+     return {
+       data: response.data,
+       total: (response as any).pagination.total,
+       page: (response as any).pagination.page,
+       totalPages: (response as any).pagination.totalPages,
     };
   },
 
   async getTaskById(id: string): Promise<Task> {
-    const response = await axios.get(`${API_URL}/${id}`, getAuthHeader());
-    return response.data.data;
+     const response = await apiClient.get(`/tasks/${id}`);
+     return response.data;
   },
 
   async updateTask(id: string, data: Partial<CreateTaskData>): Promise<Task> {
@@ -151,19 +134,18 @@ export const taskService = {
       });
     }
 
-    const response = await axios.put(`${API_URL}/${id}`, formData, {
-      ...getAuthHeader(),
-      headers: {
-        ...getAuthHeader().headers,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
-    return response.data.data;
+     const response = await apiClient.put(`/tasks/${id}`, formData);
+ 
+     return response.data;
   },
 
   async deleteTask(id: string): Promise<void> {
-    await axios.delete(`${API_URL}/${id}`, getAuthHeader());
+     await apiClient.delete(`/tasks/${id}`);
+  },
+
+  async acceptTask(id: string, trangThai: TaskAcceptanceStatus): Promise<Task> {
+    const response = await apiClient.patch(`/tasks/${id}/accept`, { trangThai });
+    return response.data;
   },
 };
 

@@ -320,44 +320,72 @@ export class PayrollService {
   }
 
   async exportToExcel(filters?: any): Promise<Buffer> {
-    const where: any = {};
+    let data: any[];
 
-    if (filters?.search) {
-      where.employee = {
-        OR: [
-          { employeeCode: { contains: filters.search, mode: 'insensitive' } },
-          { user: { firstName: { contains: filters.search, mode: 'insensitive' } } },
-          { user: { lastName: { contains: filters.search, mode: 'insensitive' } } },
-        ],
-      };
-    }
+    if (filters?.month && filters?.year) {
+      // Use same logic as UI - get all active employees with calculated payroll
+      data = await this.getPayrollByMonthYear(filters.month, filters.year);
 
-    const data = await prisma.payroll.findMany({
-      where,
-      include: {
-        employee: {
-          include: {
-            user: true,
+      // Apply search filter if provided
+      if (filters?.search) {
+        const search = filters.search.toLowerCase();
+        data = data.filter(
+          (item: any) =>
+            item.employeeCode?.toLowerCase().includes(search) ||
+            item.employeeName?.toLowerCase().includes(search)
+        );
+      }
+    } else {
+      // Fallback: query saved payroll records directly
+      const where: any = {};
+      if (filters?.search) {
+        where.employee = {
+          OR: [
+            { employeeCode: { contains: filters.search, mode: 'insensitive' } },
+            { user: { firstName: { contains: filters.search, mode: 'insensitive' } } },
+            { user: { lastName: { contains: filters.search, mode: 'insensitive' } } },
+          ],
+        };
+      }
+
+      const payrolls = await prisma.payroll.findMany({
+        where,
+        include: {
+          employee: {
+            include: {
+              user: true,
+            },
           },
         },
-      },
-      orderBy: [
-        { year: 'desc' },
-        { month: 'desc' },
-      ],
-    });
+        orderBy: [{ year: 'desc' }, { month: 'desc' }],
+      });
+
+      data = payrolls.map((payroll) => ({
+        employeeCode: payroll.employee.employeeCode,
+        employeeName: `${payroll.employee.user.lastName} ${payroll.employee.user.firstName}`,
+        month: payroll.month,
+        year: payroll.year,
+        baseSalary: payroll.baseSalary,
+        kpiBonus: payroll.kpiBonus,
+        positionAllowance: payroll.positionAllowance,
+        otherAllowances: payroll.otherAllowances,
+        totalDeductions: payroll.totalDeductions,
+        netSalary: payroll.netSalary,
+      }));
+    }
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Bảng lương');
 
     worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
       { header: 'Mã NV', key: 'employeeCode', width: 15 },
       { header: 'Họ tên', key: 'fullName', width: 25 },
-      { header: 'Tháng', key: 'month', width: 10 },
-      { header: 'Năm', key: 'year', width: 10 },
+      { header: 'Vị trí', key: 'positionName', width: 20 },
       { header: 'Lương cơ bản', key: 'baseSalary', width: 18 },
-      { header: 'Phụ cấp', key: 'allowances', width: 18 },
-      { header: 'Khấu trừ', key: 'deductions', width: 18 },
+      { header: 'Lương KPI', key: 'kpiBonus', width: 18 },
+      { header: 'Phụ cấp khác', key: 'otherAllowances', width: 18 },
+      { header: 'Tổng khấu trừ', key: 'deductions', width: 18 },
       { header: 'Thực lĩnh', key: 'netSalary', width: 18 },
     ];
 
@@ -368,21 +396,51 @@ export class PayrollService {
       fgColor: { argb: 'FFE0E0E0' },
     };
 
-    data.forEach((payroll) => {
-      const fullName = `${payroll.employee.user.lastName} ${payroll.employee.user.firstName}`;
-      const allowances = Number(payroll.kpiBonus) + Number(payroll.positionAllowance) + Number(payroll.otherAllowances);
+    let totalBaseSalary = 0;
+    let totalKpiBonus = 0;
+    let totalOtherAllowances = 0;
+    let totalDeductions = 0;
+    let totalNetSalary = 0;
+
+    data.forEach((item, index) => {
+      const baseSalary = Number(item.baseSalary || 0);
+      const kpiBonus = Number(item.kpiBonus || 0);
+      const otherAllowances = Number(item.positionAllowance || 0) + Number(item.otherAllowances || 0);
+      const deductions = Number(item.totalDeductions || 0);
+      const netSalary = Number(item.netSalary || 0);
+
+      totalBaseSalary += baseSalary;
+      totalKpiBonus += kpiBonus;
+      totalOtherAllowances += otherAllowances;
+      totalDeductions += deductions;
+      totalNetSalary += netSalary;
 
       worksheet.addRow({
-        employeeCode: payroll.employee.employeeCode,
-        fullName,
-        month: payroll.month,
-        year: payroll.year,
-        baseSalary: Number(payroll.baseSalary),
-        allowances,
-        deductions: Number(payroll.totalDeductions),
-        netSalary: Number(payroll.netSalary),
+        stt: index + 1,
+        employeeCode: item.employeeCode,
+        fullName: item.employeeName,
+        positionName: item.positionName || '',
+        baseSalary,
+        kpiBonus,
+        otherAllowances,
+        deductions,
+        netSalary,
       });
     });
+
+    // Add total row
+    const totalRow = worksheet.addRow({
+      stt: '',
+      employeeCode: '',
+      fullName: `Tổng cộng (${data.length} nhân viên)`,
+      positionName: '',
+      baseSalary: totalBaseSalary,
+      kpiBonus: totalKpiBonus,
+      otherAllowances: totalOtherAllowances,
+      deductions: totalDeductions,
+      netSalary: totalNetSalary,
+    });
+    totalRow.font = { bold: true };
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as any;

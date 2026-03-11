@@ -7,9 +7,11 @@ import { hasModuleAccess, hasSubModuleAccess } from '../utils/permissions';
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
+const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -124,7 +126,19 @@ const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
   });
 
   return (
-    <div className={`${collapsed ? 'w-16' : 'w-64'} bg-gray-900 text-white flex flex-col h-full transition-all duration-300`}>
+    <>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+      <div className={`
+        ${collapsed ? 'w-16' : 'w-64'} bg-gray-900 text-white flex flex-col h-full transition-all duration-300
+        fixed md:relative z-50
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
+      `}>
       {/* Header with toggle button */}
       <div className="p-4 border-b border-gray-800 flex items-center justify-between">
         {!collapsed && <h1 className="text-xl font-bold">ABF System</h1>}
@@ -211,6 +225,7 @@ const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
         </ul>
       </nav>
     </div>
+    </>
   );
 };
 

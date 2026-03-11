@@ -3,7 +3,7 @@ import Modal from './Modal';
 import DatePicker from './DatePicker';
 import { taskService, TaskPriority, CreateTaskData } from '../services/taskService';
 import { X, Calendar, Users, FileText, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import apiClient from '../services/apiClient';
 import FileUpload from './FileUpload';
 import { getTaskPriorityLabel } from '../utils/taskHelpers';
 
@@ -57,19 +57,16 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSu
     setLoadingEmployees(true);
     setError('');
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await axios.get((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/employees/for-assignment?limit=1000', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient.get('/employees/for-assignment', { params: { limit: 1000 } });
 
-      console.log('Employee API response:', response.data);
+      console.log('Employee API response:', response);
 
       // Handle different response structures
       let employeeList: any[] = [];
-      if (response.data.data) {
-        employeeList = Array.isArray(response.data.data) ? response.data.data : response.data.data.data || [];
-      } else if (Array.isArray(response.data)) {
-        employeeList = response.data;
+      if (response.data) {
+        employeeList = Array.isArray(response.data) ? response.data : (response.data as any).data || [];
+      } else if (Array.isArray(response)) {
+        employeeList = response as any;
       }
 
       // Transform employee data to match our interface

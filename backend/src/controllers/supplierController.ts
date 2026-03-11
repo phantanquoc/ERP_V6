@@ -8,8 +8,9 @@ export const supplierController = {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
+      const phanLoaiNCC = req.query.phanLoaiNCC as string;
 
-      const result = await supplierService.getAllSuppliers(page, limit, search);
+      const result = await supplierService.getAllSuppliers(page, limit, search, phanLoaiNCC);
       res.json(result);
     } catch (error) {
       next(error);
@@ -62,9 +63,10 @@ export const supplierController = {
   },
 
   // Generate next supplier code
-  async generateCode(_req: Request, res: Response, next: NextFunction) {
+  async generateCode(req: Request, res: Response, next: NextFunction) {
     try {
-      const code = await supplierService.generateSupplierCode();
+      const phanLoaiNCC = req.query.phanLoaiNCC as string;
+      const code = await supplierService.generateSupplierCode(phanLoaiNCC);
       res.json({ code });
     } catch (error) {
       next(error);
@@ -77,6 +79,9 @@ export const supplierController = {
       const filters: any = {};
       if (req.query.search) {
         filters.search = req.query.search as string;
+      }
+      if (req.query.phanLoaiNCC) {
+        filters.phanLoaiNCC = req.query.phanLoaiNCC as string;
       }
 
       const buffer = await supplierService.exportToExcel(filters);

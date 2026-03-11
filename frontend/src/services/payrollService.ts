@@ -1,7 +1,6 @@
-import axios from 'axios';
+import apiClient from './apiClient';
 
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_BASE_URL = `${API_BASE}/payrolls`;
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
 
 export interface PayrollItem {
   stt: number;
@@ -57,20 +56,12 @@ export interface PayrollDetail {
 }
 
 class PayrollService {
-  private getAuthHeader() {
-    const token = localStorage.getItem('accessToken');
-    return {
-      Authorization: `Bearer ${token}`,
-    };
-  }
-
   async getPayrollByMonthYear(month: number, year: number): Promise<PayrollItem[]> {
     try {
-      const response = await axios.get(`${API_BASE_URL}`, {
+      const response = await apiClient.get('/payrolls', {
         params: { month, year },
-        headers: this.getAuthHeader(),
       });
-      return response.data.data || [];
+      return response.data || [];
     } catch (error) {
       console.error('Error fetching payrolls:', error);
       throw error;
@@ -79,10 +70,8 @@ class PayrollService {
 
   async getPayrollDetail(payrollId: string): Promise<PayrollDetail> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/${payrollId}/detail`, {
-        headers: this.getAuthHeader(),
-      });
-      return response.data.data;
+      const response = await apiClient.get(`/payrolls/${payrollId}/detail`);
+      return response.data;
     } catch (error) {
       console.error('Error fetching payroll detail:', error);
       throw error;
@@ -96,19 +85,13 @@ class PayrollService {
     data: any
   ): Promise<any> {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}`,
-        {
-          employeeId,
-          month,
-          year,
-          ...data,
-        },
-        {
-          headers: this.getAuthHeader(),
-        }
-      );
-      return response.data.data;
+      const response = await apiClient.post('/payrolls', {
+        employeeId,
+        month,
+        year,
+        ...data,
+      });
+      return response.data;
     } catch (error) {
       console.error('Error creating/updating payroll:', error);
       throw error;
@@ -117,21 +100,21 @@ class PayrollService {
 
   async updatePayroll(payrollId: string, data: any): Promise<any> {
     try {
-      const response = await axios.patch(`${API_BASE_URL}/${payrollId}`, data, {
-        headers: this.getAuthHeader(),
-      });
-      return response.data.data;
+      const response = await apiClient.patch(`/payrolls/${payrollId}`, data);
+      return response.data;
     } catch (error) {
       console.error('Error updating payroll:', error);
       throw error;
     }
   }
 
-  async exportToExcel(filters?: { search?: string }): Promise<void> {
+  async exportToExcel(filters?: { search?: string; month?: number; year?: number }): Promise<void> {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
-    const url = `${API_BASE}/payrolls/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    if (filters?.month) params.append('month', filters.month.toString());
+    if (filters?.year) params.append('year', filters.year.toString());
+    const url = `${API_BASE_URL}/payrolls/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!response.ok) throw new Error('Failed to export to Excel');
     const blob = await response.blob();

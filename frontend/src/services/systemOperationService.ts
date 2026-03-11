@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+ import apiClient from './apiClient';
 
 export interface GiaiDoan {
   thoiGian: number;
@@ -28,29 +26,17 @@ export interface SystemOperation {
 }
 
 class SystemOperationService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   async getAllSystemOperations(page: number = 1, limit: number = 10, tenMay?: string): Promise<{ data: SystemOperation[], pagination: any }> {
     try {
       const params: any = { page, limit };
       if (tenMay) params.tenMay = tenMay;
 
-      const response = await axios.get(`${API_BASE_URL}/system-operations`, {
+       const response = await apiClient.get('/system-operations', {
         params,
-        headers: this.getHeaders(),
       });
       return {
-        data: response.data.data.map(this.transformFromAPI),
-        pagination: response.data.pagination,
+         data: (response.data as any[]).map(this.transformFromAPI),
+         pagination: (response as any).pagination,
       };
     } catch (error) {
       throw this.handleError(error);
@@ -59,10 +45,8 @@ class SystemOperationService {
 
   async getSystemOperationById(id: string): Promise<SystemOperation> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/system-operations/${id}`, {
-        headers: this.getHeaders(),
-      });
-      return this.transformFromAPI(response.data.data);
+       const response = await apiClient.get(`/system-operations/${id}`);
+       return this.transformFromAPI(response.data);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -70,12 +54,8 @@ class SystemOperationService {
 
   async createBulkSystemOperations(maChien: string, thoiGianChien: string): Promise<SystemOperation[]> {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/system-operations/bulk`,
-        { maChien, thoiGianChien },
-        { headers: this.getHeaders() }
-      );
-      return response.data.data.map(this.transformFromAPI);
+       const response = await apiClient.post('/system-operations/bulk', { maChien, thoiGianChien });
+       return (response.data as any[]).map(this.transformFromAPI);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -83,10 +63,8 @@ class SystemOperationService {
 
   async getSystemOperationsByMaChien(maChien: string): Promise<SystemOperation[]> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/system-operations/ma-chien/${maChien}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data.map(this.transformFromAPI);
+       const response = await apiClient.get(`/system-operations/ma-chien/${maChien}`);
+       return (response.data as any[]).map(this.transformFromAPI);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -95,10 +73,8 @@ class SystemOperationService {
   async createSystemOperation(data: Partial<SystemOperation>): Promise<SystemOperation> {
     try {
       const apiData = this.transformToAPI(data);
-      const response = await axios.post(`${API_BASE_URL}/system-operations`, apiData, {
-        headers: this.getHeaders(),
-      });
-      return this.transformFromAPI(response.data.data);
+       const response = await apiClient.post('/system-operations', apiData);
+       return this.transformFromAPI(response.data);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -107,10 +83,8 @@ class SystemOperationService {
   async updateSystemOperation(id: string, data: Partial<SystemOperation>): Promise<SystemOperation> {
     try {
       const apiData = this.transformToAPI(data);
-      const response = await axios.patch(`${API_BASE_URL}/system-operations/${id}`, apiData, {
-        headers: this.getHeaders(),
-      });
-      return this.transformFromAPI(response.data.data);
+       const response = await apiClient.patch(`/system-operations/${id}`, apiData);
+       return this.transformFromAPI(response.data);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -118,9 +92,7 @@ class SystemOperationService {
 
   async deleteSystemOperation(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/system-operations/${id}`, {
-        headers: this.getHeaders(),
-      });
+       await apiClient.delete(`/system-operations/${id}`);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -191,8 +163,8 @@ class SystemOperationService {
   }
 
   private handleError(error: any): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message;
+     if (error instanceof Error) {
+       const message = error.message;
       return new Error(message);
     }
     return error;

@@ -1,7 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/general-costs`;
+ import apiClient from './apiClient';
 
 export interface GeneralCost {
   id: string;
@@ -51,15 +48,6 @@ export interface GeneralCostResponse {
 }
 
 class GeneralCostService {
-  private getAuthHeaders() {
-    const token = localStorage.getItem('accessToken');
-    return {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    };
-  }
-
   async getAllGeneralCosts(page: number = 1, limit: number = 10, search?: string): Promise<GeneralCostResponse> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -70,32 +58,33 @@ class GeneralCostService {
       params.append('search', search);
     }
 
-    const response = await axios.get(`${API_URL}?${params.toString()}`, this.getAuthHeaders());
-    return response.data;
+     const response = await apiClient.get(`/general-costs?${params.toString()}`);
+     return response as unknown as GeneralCostResponse;
   }
 
   async getGeneralCostById(id: string): Promise<GeneralCost> {
-    const response = await axios.get(`${API_URL}/${id}`, this.getAuthHeaders());
-    return response.data;
+     const response = await apiClient.get(`/general-costs/${id}`);
+     return response as unknown as GeneralCost;
   }
 
   async createGeneralCost(data: CreateGeneralCostInput): Promise<GeneralCost> {
-    const response = await axios.post(API_URL, data, this.getAuthHeaders());
-    return response.data;
+     const response = await apiClient.post('/general-costs', data);
+     return response as unknown as GeneralCost;
   }
 
   async updateGeneralCost(id: string, data: UpdateGeneralCostInput): Promise<GeneralCost> {
-    const response = await axios.put(`${API_URL}/${id}`, data, this.getAuthHeaders());
-    return response.data;
+     const response = await apiClient.put(`/general-costs/${id}`, data);
+     return response as unknown as GeneralCost;
   }
 
   async deleteGeneralCost(id: string): Promise<void> {
-    await axios.delete(`${API_URL}/${id}`, this.getAuthHeaders());
+     await apiClient.delete(`/general-costs/${id}`);
   }
 
   async exportToExcel(): Promise<void> {
     const token = localStorage.getItem('accessToken');
-    const url = `${API_URL}/export/excel`;
+     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+     const url = `${API_BASE_URL}/general-costs/export/excel`;
 
     const response = await fetch(url, {
       headers: {

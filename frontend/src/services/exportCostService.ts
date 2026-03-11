@@ -1,7 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/export-costs`;
+ import apiClient from './apiClient';
 
 export interface ExportCost {
   id: string;
@@ -49,15 +46,6 @@ export interface ExportCostResponse {
 }
 
 class ExportCostService {
-  private getAuthHeaders() {
-    const token = localStorage.getItem('accessToken');
-    return {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    };
-  }
-
   async getAllExportCosts(page: number = 1, limit: number = 10, search?: string): Promise<ExportCostResponse> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -68,32 +56,33 @@ class ExportCostService {
       params.append('search', search);
     }
 
-    const response = await axios.get(`${API_URL}?${params.toString()}`, this.getAuthHeaders());
-    return response.data;
+     const response = await apiClient.get(`/export-costs?${params.toString()}`);
+     return response as unknown as ExportCostResponse;
   }
 
   async getExportCostById(id: string): Promise<ExportCost> {
-    const response = await axios.get(`${API_URL}/${id}`, this.getAuthHeaders());
-    return response.data;
+     const response = await apiClient.get(`/export-costs/${id}`);
+     return response as unknown as ExportCost;
   }
 
   async createExportCost(data: CreateExportCostInput): Promise<ExportCost> {
-    const response = await axios.post(API_URL, data, this.getAuthHeaders());
-    return response.data;
+     const response = await apiClient.post('/export-costs', data);
+     return response as unknown as ExportCost;
   }
 
   async updateExportCost(id: string, data: UpdateExportCostInput): Promise<ExportCost> {
-    const response = await axios.put(`${API_URL}/${id}`, data, this.getAuthHeaders());
-    return response.data;
+     const response = await apiClient.put(`/export-costs/${id}`, data);
+     return response as unknown as ExportCost;
   }
 
   async deleteExportCost(id: string): Promise<void> {
-    await axios.delete(`${API_URL}/${id}`, this.getAuthHeaders());
+     await apiClient.delete(`/export-costs/${id}`);
   }
 
   async exportToExcel(): Promise<void> {
     const token = localStorage.getItem('accessToken');
-    const url = `${API_URL}/export/excel`;
+     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+     const url = `${API_BASE_URL}/export-costs/export/excel`;
 
     const response = await fetch(url, {
       headers: {

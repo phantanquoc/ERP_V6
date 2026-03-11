@@ -93,6 +93,8 @@ export class PayrollController {
     try {
       const filters: any = {};
       if (req.query.search) filters.search = req.query.search as string;
+      if (req.query.month) filters.month = Number(req.query.month);
+      if (req.query.year) filters.year = Number(req.query.year);
       const buffer = await payrollService.exportToExcel(filters);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=bang-luong-${Date.now()}.xlsx`);

@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+import apiClient from './apiClient';
 
 export interface ProductionReport {
   id: string;
@@ -53,17 +51,6 @@ export interface ProductionReportListResponse {
 }
 
 class ProductionReportService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   private buildFormData(data: Record<string, any>, file?: File): FormData {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
@@ -78,52 +65,37 @@ class ProductionReportService {
   }
 
   async getAll(page: number = 1, limit: number = 10): Promise<ProductionReportListResponse> {
-    const response = await axios.get(`${API_BASE_URL}/production-reports`, {
-      params: { page, limit },
-      headers: this.getHeaders(),
-    });
-    return response.data.data;
+    const response = await apiClient.get<ProductionReportListResponse>('/production-reports', { params: { page, limit } });
+    return response.data as unknown as ProductionReportListResponse;
   }
 
   async getById(id: string): Promise<ProductionReport> {
-    const response = await axios.get(`${API_BASE_URL}/production-reports/${id}`, {
-      headers: this.getHeaders(),
-    });
-    return response.data.data;
+    const response = await apiClient.get<ProductionReport>(`/production-reports/${id}`);
+    return response.data as ProductionReport;
   }
 
   async create(data: ProductionReportCreateInput, file?: File): Promise<ProductionReport> {
     if (file) {
       const formData = this.buildFormData(data, file);
-      const response = await axios.post(`${API_BASE_URL}/production-reports`, formData, {
-        headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
-      });
-      return response.data.data;
+      const response = await apiClient.post<ProductionReport>('/production-reports', formData);
+      return response.data as ProductionReport;
     }
-    const response = await axios.post(`${API_BASE_URL}/production-reports`, data, {
-      headers: this.getHeaders(),
-    });
-    return response.data.data;
+    const response = await apiClient.post<ProductionReport>('/production-reports', data as Record<string, any>);
+    return response.data as ProductionReport;
   }
 
   async update(id: string, data: ProductionReportUpdateInput, file?: File): Promise<ProductionReport> {
     if (file) {
       const formData = this.buildFormData(data as Record<string, any>, file);
-      const response = await axios.put(`${API_BASE_URL}/production-reports/${id}`, formData, {
-        headers: { 'Authorization': `Bearer ${this.getAuthToken()}`, 'Content-Type': 'multipart/form-data' },
-      });
-      return response.data.data;
+      const response = await apiClient.put<ProductionReport>(`/production-reports/${id}`, formData);
+      return response.data as ProductionReport;
     }
-    const response = await axios.put(`${API_BASE_URL}/production-reports/${id}`, data, {
-      headers: this.getHeaders(),
-    });
-    return response.data.data;
+    const response = await apiClient.put<ProductionReport>(`/production-reports/${id}`, data as Record<string, any>);
+    return response.data as ProductionReport;
   }
 
   async delete(id: string): Promise<void> {
-    await axios.delete(`${API_BASE_URL}/production-reports/${id}`, {
-      headers: this.getHeaders(),
-    });
+    await apiClient.delete(`/production-reports/${id}`);
   }
 }
 

@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+ import apiClient from './apiClient';
 
 export interface FileAttachment {
   fileName: string;
@@ -76,49 +74,34 @@ export interface ReportStatistics {
 }
 
 class DailyWorkReportService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   async getMyReports(page: number = 1, limit: number = 10): Promise<any> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/daily-work-reports/my-reports`, {
+       const response = await apiClient.get('/daily-work-reports/my-reports', {
         params: { page, limit },
-        headers: this.getHeaders(),
       });
-      return response.data;
+       return response;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Không thể tải báo cáo');
+       throw new Error(error instanceof Error ? error.message : 'Không thể tải báo cáo');
     }
   }
 
   async getMyStatistics(month?: number, year?: number): Promise<ReportStatistics> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/daily-work-reports/my-statistics`, {
+       const response = await apiClient.get('/daily-work-reports/my-statistics', {
         params: { month, year },
-        headers: this.getHeaders(),
       });
-      return response.data.data;
+       return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Không thể tải thống kê');
+       throw new Error(error instanceof Error ? error.message : 'Không thể tải thống kê');
     }
   }
 
   async getReportById(id: string): Promise<DailyWorkReport> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/daily-work-reports/${id}`, {
-        headers: this.getHeaders(),
-      });
-      return response.data.data;
+       const response = await apiClient.get(`/daily-work-reports/${id}`);
+       return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Không thể tải báo cáo');
+       throw new Error(error instanceof Error ? error.message : 'Không thể tải báo cáo');
     }
   }
 
@@ -138,15 +121,10 @@ class DailyWorkReportService {
         });
       }
 
-      const response = await axios.post(`${API_BASE_URL}/daily-work-reports`, formData, {
-        headers: {
-          'Authorization': `Bearer ${this.getAuthToken()}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data.data;
+       const response = await apiClient.post('/daily-work-reports', formData);
+       return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Không thể tạo báo cáo');
+       throw new Error(error instanceof Error ? error.message : 'Không thể tạo báo cáo');
     }
   }
 
@@ -166,25 +144,18 @@ class DailyWorkReportService {
         });
       }
 
-      const response = await axios.patch(`${API_BASE_URL}/daily-work-reports/${id}`, formData, {
-        headers: {
-          'Authorization': `Bearer ${this.getAuthToken()}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data.data;
+       const response = await apiClient.patch(`/daily-work-reports/${id}`, formData);
+       return response.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Không thể cập nhật báo cáo');
+       throw new Error(error instanceof Error ? error.message : 'Không thể cập nhật báo cáo');
     }
   }
 
   async deleteReport(id: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/daily-work-reports/${id}`, {
-        headers: this.getHeaders(),
-      });
+       await apiClient.delete(`/daily-work-reports/${id}`);
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Không thể xóa báo cáo');
+       throw new Error(error instanceof Error ? error.message : 'Không thể xóa báo cáo');
     }
   }
 }

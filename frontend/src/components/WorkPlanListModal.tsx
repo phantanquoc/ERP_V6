@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, FileText } from 'lucide-react';
+import { X, Calendar, FileText, Eye, Clock, User, Users, Flag, AlertCircle, Download } from 'lucide-react';
 import { workPlanService, WorkPlan, WorkPlanPriority, WorkPlanStatus } from '../services/workPlanService';
+import Modal from './Modal';
 
 interface WorkPlanListModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [viewPlan, setViewPlan] = useState<WorkPlan | null>(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -59,6 +61,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
   if (!isOpen) return null;
 
   return (
+    <>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden">
         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
@@ -95,6 +98,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ưu tiên</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">File</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -136,6 +140,16 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                           </a>
                         )) : <span className="text-gray-400">-</span>}
                       </td>
+                      <td className="px-3 py-3 text-sm text-center">
+                        <button
+                          onClick={() => setViewPlan(plan)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-purple-600 hover:bg-purple-50 rounded-lg transition-colors font-medium"
+                          title="Xem chi tiết"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>Xem</span>
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -170,6 +184,132 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
         )}
       </div>
     </div>
+
+    {/* Detail Modal */}
+    {viewPlan && (
+      <Modal isOpen={true} onClose={() => setViewPlan(null)}>
+        <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Chi tiết kế hoạch
+              </h3>
+              <button
+                onClick={() => setViewPlan(null)}
+                className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-colors text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+            <div className="space-y-5">
+              {/* Tiêu đề */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Tiêu đề</label>
+                <p className="text-lg font-semibold text-gray-900">{viewPlan.tieuDe}</p>
+              </div>
+
+              {/* Nội dung */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Nội dung</label>
+                <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap">
+                  {viewPlan.noiDung || <span className="text-gray-400 italic">Không có nội dung</span>}
+                </div>
+              </div>
+
+              {/* Grid 2 cột */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                    <User className="w-3.5 h-3.5 inline mr-1" />Người tạo
+                  </label>
+                  <p className="text-sm text-gray-900">
+                    {viewPlan.nguoiTao ? `${viewPlan.nguoiTao.firstName} ${viewPlan.nguoiTao.lastName}` : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                    <Users className="w-3.5 h-3.5 inline mr-1" />Người thực hiện
+                  </label>
+                  {viewPlan.nguoiThucHien && viewPlan.nguoiThucHien.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {viewPlan.nguoiThucHien.map((n: any, i: number) => (
+                        <span key={i} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                          {n.firstName} {n.lastName}
+                        </span>
+                      ))}
+                    </div>
+                  ) : <p className="text-sm text-gray-400">-</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                    <Clock className="w-3.5 h-3.5 inline mr-1" />Ngày bắt đầu
+                  </label>
+                  <p className="text-sm text-gray-900">{new Date(viewPlan.ngayBatDau).toLocaleDateString('vi-VN')}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                    <Clock className="w-3.5 h-3.5 inline mr-1" />Ngày kết thúc
+                  </label>
+                  <p className="text-sm text-gray-900">{new Date(viewPlan.ngayKetThuc).toLocaleDateString('vi-VN')}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                    <Flag className="w-3.5 h-3.5 inline mr-1" />Mức độ ưu tiên
+                  </label>
+                  <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getPriorityBadge(viewPlan.mucDoUuTien).class}`}>
+                    {getPriorityBadge(viewPlan.mucDoUuTien).label}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                    <AlertCircle className="w-3.5 h-3.5 inline mr-1" />Trạng thái
+                  </label>
+                  <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getStatusBadge(viewPlan.trangThai).class}`}>
+                    {getStatusBadge(viewPlan.trangThai).label}
+                  </span>
+                </div>
+              </div>
+
+              {/* Ghi chú */}
+              {viewPlan.ghiChu && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Ghi chú</label>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-gray-800 whitespace-pre-wrap">
+                    {viewPlan.ghiChu}
+                  </div>
+                </div>
+              )}
+
+              {/* Files */}
+              {viewPlan.files && viewPlan.files.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-2">File đính kèm</label>
+                  <div className="space-y-2">
+                    {viewPlan.files.map((file, i) => (
+                      <a key={i} href={`http://localhost:5000${file}`} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm text-blue-600">
+                        <Download className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">{file.split('/').pop()}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Timestamps */}
+              <div className="pt-3 border-t border-gray-200 flex flex-wrap gap-4 text-xs text-gray-400">
+                <span>Tạo lúc: {new Date(viewPlan.createdAt).toLocaleString('vi-VN')}</span>
+                <span>Cập nhật: {new Date(viewPlan.updatedAt).toLocaleString('vi-VN')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
+    )}
+    </>
   );
 };
 

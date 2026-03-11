@@ -1,16 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const API_URL = `${API_BASE}/work-plans`;
-
-const getAuthHeader = () => {
-  const token = localStorage.getItem('accessToken');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
-};
+ import apiClient from './apiClient';
 
 export enum WorkPlanPriority {
   KHAN_CAP = 'KHAN_CAP',
@@ -79,15 +67,9 @@ export const workPlanService = {
       });
     }
 
-    const response = await axios.post(API_URL, formData, {
-      ...getAuthHeader(),
-      headers: {
-        ...getAuthHeader().headers,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
-    return response.data.data;
+     const response = await apiClient.post('/work-plans', formData);
+ 
+     return response.data;
   },
 
   async getAllWorkPlans(
@@ -95,14 +77,13 @@ export const workPlanService = {
     limit: number = 10,
     search?: string,
   ): Promise<{ data: WorkPlan[]; pagination: any }> {
-    const response = await axios.get(API_URL, {
-      ...getAuthHeader(),
-      params: { page, limit, ...(search ? { search } : {}) },
-    });
+     const response = await apiClient.get('/work-plans', {
+       params: { page, limit, ...(search ? { search } : {}) },
+     });
 
     return {
-      data: response.data.data,
-      pagination: response.data.pagination,
+       data: response.data,
+       pagination: (response as any).pagination,
     };
   },
 
@@ -111,20 +92,19 @@ export const workPlanService = {
     limit: number = 10,
     search?: string,
   ): Promise<{ data: WorkPlan[]; pagination: any }> {
-    const response = await axios.get(`${API_URL}/my-work-plans`, {
-      ...getAuthHeader(),
-      params: { page, limit, ...(search ? { search } : {}) },
-    });
+     const response = await apiClient.get('/work-plans/my-work-plans', {
+       params: { page, limit, ...(search ? { search } : {}) },
+     });
 
     return {
-      data: response.data.data,
-      pagination: response.data.pagination,
+       data: response.data,
+       pagination: (response as any).pagination,
     };
   },
 
   async getWorkPlanById(id: string): Promise<WorkPlan> {
-    const response = await axios.get(`${API_URL}/${id}`, getAuthHeader());
-    return response.data.data;
+     const response = await apiClient.get(`/work-plans/${id}`);
+     return response.data;
   },
 
   async updateWorkPlan(id: string, data: Partial<CreateWorkPlanData>): Promise<WorkPlan> {
@@ -149,19 +129,13 @@ export const workPlanService = {
       });
     }
 
-    const response = await axios.put(`${API_URL}/${id}`, formData, {
-      ...getAuthHeader(),
-      headers: {
-        ...getAuthHeader().headers,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
-    return response.data.data;
+     const response = await apiClient.put(`/work-plans/${id}`, formData);
+ 
+     return response.data;
   },
 
   async deleteWorkPlan(id: string): Promise<void> {
-    await axios.delete(`${API_URL}/${id}`, getAuthHeader());
+     await apiClient.delete(`/work-plans/${id}`);
   },
 };
 

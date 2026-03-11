@@ -1,7 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/purchase-requests`;
+ import apiClient from './apiClient';
 
 export interface PurchaseRequest {
   id: string;
@@ -40,15 +37,6 @@ export interface CreatePurchaseRequestRequest {
   supplyRequestId?: string;
 }
 
-const getAuthHeader = () => {
-  const token = localStorage.getItem('accessToken');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
-};
-
 class PurchaseRequestService {
   async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string) {
     const params: any = { page, limit };
@@ -56,16 +44,13 @@ class PurchaseRequestService {
       params.search = search;
     }
 
-    const response = await axios.get(API_URL, {
-      ...getAuthHeader(),
-      params,
-    });
-    return response.data;
+     const response = await apiClient.get('/purchase-requests', { params });
+     return response;
   }
 
   async getPurchaseRequestById(id: string) {
-    const response = await axios.get(`${API_URL}/${id}`, getAuthHeader());
-    return response.data;
+     const response = await apiClient.get(`/purchase-requests/${id}`);
+     return response;
   }
 
   async createPurchaseRequest(data: CreatePurchaseRequestRequest, file?: File) {
@@ -77,22 +62,16 @@ class PurchaseRequestService {
         }
       });
       formData.append('file', file);
-      const response = await axios.post(API_URL, formData, {
-        ...getAuthHeader(),
-        headers: {
-          ...getAuthHeader().headers,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
+       const response = await apiClient.post('/purchase-requests', formData);
+       return response;
     }
-    const response = await axios.post(API_URL, data, getAuthHeader());
-    return response.data;
+     const response = await apiClient.post('/purchase-requests', data);
+     return response;
   }
 
   async generateCode() {
-    const response = await axios.get(`${API_URL}/generate-code`, getAuthHeader());
-    return response.data;
+     const response = await apiClient.get('/purchase-requests/generate-code');
+     return response;
   }
 
   async updatePurchaseRequest(id: string, data: {
@@ -127,19 +106,13 @@ class PurchaseRequestService {
       formData.append('file', data.file);
     }
 
-    const response = await axios.put(`${API_URL}/${id}`, formData, {
-      ...getAuthHeader(),
-      headers: {
-        ...getAuthHeader().headers,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
+     const response = await apiClient.put(`/purchase-requests/${id}`, formData);
+     return response;
   }
 
   async deletePurchaseRequest(id: string) {
-    const response = await axios.delete(`${API_URL}/${id}`, getAuthHeader());
-    return response.data;
+     const response = await apiClient.delete(`/purchase-requests/${id}`);
+     return response;
   }
 
   async exportToExcel(filters?: { search?: string }): Promise<void> {
@@ -147,7 +120,8 @@ class PurchaseRequestService {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
 
-    const url = `${API_URL}/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+     const url = `${API_BASE_URL}/purchase-requests/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });

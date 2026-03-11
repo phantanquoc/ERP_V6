@@ -1,7 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/production-processes`;
+import apiClient from './apiClient';
 
 export interface ProductionFlowchartCost {
   id?: string;
@@ -80,84 +77,47 @@ export interface CreateProductionProcessData {
 class ProductionProcessService {
   // Get all production processes
   async getAllProductionProcesses(page: number = 1, limit: number = 10) {
-    const token = localStorage.getItem('accessToken');
-    const response = await axios.get(API_URL, {
-      params: { page, limit },
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.get('/production-processes', { params: { page, limit } });
+    return response;
   }
 
   // Get production process by ID
   async getProductionProcessById(id: string) {
-    const token = localStorage.getItem('accessToken');
-    const response = await axios.get(`${API_URL}/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.get(`/production-processes/${id}`);
+    return response;
   }
 
   // Create production process
   async createProductionProcess(data: CreateProductionProcessData) {
-    const token = localStorage.getItem('accessToken');
-    const response = await axios.post(API_URL, data, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.post('/production-processes', data as unknown as Record<string, any>);
+    return response;
   }
 
   // Update production process
   async updateProductionProcess(id: string, data: CreateProductionProcessData) {
-    const token = localStorage.getItem('accessToken');
-    const response = await axios.put(`${API_URL}/${id}`, data, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.put(`/production-processes/${id}`, data as unknown as Record<string, any>);
+    return response;
   }
 
   // Delete production process
   async deleteProductionProcess(id: string) {
-    const token = localStorage.getItem('accessToken');
-    const response = await axios.delete(`${API_URL}/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.delete(`/production-processes/${id}`);
+    return response;
   }
 
   // Sync production process from template
   async syncFromTemplate(id: string) {
-    const token = localStorage.getItem('accessToken');
-    const response = await axios.post(`${API_URL}/${id}/sync`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.post(`/production-processes/${id}/sync`, {});
+    return response;
   }
 
   // Upload file for flowchart section
   async uploadSectionFile(file: File): Promise<{ success: boolean; data: { fileUrl: string; fileName: string } }> {
-    const token = localStorage.getItem('accessToken');
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await axios.post(`${API_URL}/upload-file`, formData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
+    const response = await apiClient.post<{ fileUrl: string; fileName: string }>('/production-processes/upload-file', formData);
+    return response as unknown as { success: boolean; data: { fileUrl: string; fileName: string } };
   }
 }
 

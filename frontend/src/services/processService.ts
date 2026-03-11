@@ -1,7 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/processes`;
+ import apiClient from './apiClient';
 
 // Flowchart interfaces (defined first to be used in Process)
 export interface ProcessFlowchartCost {
@@ -98,15 +95,6 @@ export interface FlowchartResponse {
   message?: string;
 }
 
-const getAuthHeader = () => {
-  const token = localStorage.getItem('accessToken');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
-};
-
 export const processService = {
   async getAllProcesses(page: number = 1, limit: number = 10, search?: string): Promise<PaginatedResponse> {
     const params = new URLSearchParams({
@@ -118,74 +106,69 @@ export const processService = {
       params.append('search', search);
     }
 
-    const response = await axios.get(`${API_URL}?${params.toString()}`, getAuthHeader());
-    return response.data;
+     const response = await apiClient.get(`/processes?${params.toString()}`);
+     return response as unknown as PaginatedResponse;
   },
 
   async getProcessById(id: string): Promise<SingleResponse> {
-    const response = await axios.get(`${API_URL}/${id}`, getAuthHeader());
-    return response.data;
+     const response = await apiClient.get(`/processes/${id}`);
+     return response as unknown as SingleResponse;
   },
 
   async createProcess(data: CreateProcessData): Promise<SingleResponse> {
-    const response = await axios.post(API_URL, data, getAuthHeader());
-    return response.data;
+     const response = await apiClient.post('/processes', data);
+     return response as unknown as SingleResponse;
   },
 
   async updateProcess(id: string, data: UpdateProcessData): Promise<SingleResponse> {
-    const response = await axios.put(`${API_URL}/${id}`, data, getAuthHeader());
-    return response.data;
+     const response = await apiClient.put(`/processes/${id}`, data);
+     return response as unknown as SingleResponse;
   },
 
   async deleteProcess(id: string): Promise<{ success: boolean; message: string }> {
-    const response = await axios.delete(`${API_URL}/${id}`, getAuthHeader());
-    return response.data;
+     const response = await apiClient.delete(`/processes/${id}`);
+     return response as unknown as { success: boolean; message: string };
   },
 
   async generateProcessCode(): Promise<GenerateCodeResponse> {
-    const response = await axios.get(`${API_URL}/generate-code`, getAuthHeader());
-    return response.data;
+     const response = await apiClient.get('/processes/generate-code');
+     return response as unknown as GenerateCodeResponse;
   },
 
   // ==================== FLOWCHART OPERATIONS ====================
 
   async getFlowchart(processId: string): Promise<FlowchartResponse> {
-    const response = await axios.get(`${API_URL}/${processId}/flowchart`, getAuthHeader());
-    return response.data;
+     const response = await apiClient.get(`/processes/${processId}/flowchart`);
+     return response as unknown as FlowchartResponse;
   },
 
   async createFlowchart(processId: string, sections: ProcessFlowchartSection[]): Promise<FlowchartResponse> {
-    const response = await axios.post(`${API_URL}/${processId}/flowchart`, { sections }, getAuthHeader());
-    return response.data;
+     const response = await apiClient.post(`/processes/${processId}/flowchart`, { sections });
+     return response as unknown as FlowchartResponse;
   },
 
   async updateFlowchart(processId: string, sections: ProcessFlowchartSection[]): Promise<FlowchartResponse> {
-    const response = await axios.put(`${API_URL}/${processId}/flowchart`, { sections }, getAuthHeader());
-    return response.data;
+     const response = await apiClient.put(`/processes/${processId}/flowchart`, { sections });
+     return response as unknown as FlowchartResponse;
   },
 
   async deleteFlowchart(processId: string): Promise<{ success: boolean; message: string }> {
-    const response = await axios.delete(`${API_URL}/${processId}/flowchart`, getAuthHeader());
-    return response.data;
+     const response = await apiClient.delete(`/processes/${processId}/flowchart`);
+     return response as unknown as { success: boolean; message: string };
   },
 
   async uploadSectionFile(file: File): Promise<{ success: boolean; data: { fileUrl: string; fileName: string } }> {
-    const token = localStorage.getItem('accessToken');
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await axios.post(`${API_URL}/upload-file`, formData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
+     const response = await apiClient.post('/processes/upload-file', formData);
+     return response as unknown as { success: boolean; data: { fileUrl: string; fileName: string } };
   },
 
   async exportToExcel(): Promise<void> {
     const token = localStorage.getItem('accessToken');
-    const url = `${API_URL}/export/excel`;
+     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+     const url = `${API_BASE_URL}/processes/export/excel`;
 
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },

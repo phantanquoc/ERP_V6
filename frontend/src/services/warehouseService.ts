@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+import apiClient from './apiClient';
 
 export interface Warehouse {
   id: string;
@@ -70,30 +68,25 @@ export interface MoveProductData {
   targetLotId: string;
 }
 
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('accessToken');
-  return { Authorization: `Bearer ${token}` };
-};
-
 const warehouseService = {
   // Warehouse APIs
-  getAllWarehouses: () => axios.get(`${API_URL}/warehouses`, { headers: getAuthHeaders() }),
-  generateWarehouseCode: () => axios.get(`${API_URL}/warehouses/generate-code`, { headers: getAuthHeaders() }),
-  createWarehouse: (data: CreateWarehouseData) => axios.post(`${API_URL}/warehouses`, data, { headers: getAuthHeaders() }),
-  deleteWarehouse: (id: string) => axios.delete(`${API_URL}/warehouses/${id}`, { headers: getAuthHeaders() }),
+  getAllWarehouses: () => apiClient.get('/warehouses'),
+  generateWarehouseCode: () => apiClient.get('/warehouses/generate-code'),
+  createWarehouse: (data: CreateWarehouseData) => apiClient.post('/warehouses', data),
+  deleteWarehouse: (id: string) => apiClient.delete(`/warehouses/${id}`),
 
   // Lot APIs
-  getLotsByWarehouse: (warehouseId: string) => axios.get(`${API_URL}/warehouses/${warehouseId}/lots`, { headers: getAuthHeaders() }),
-  createLot: (data: CreateLotData) => axios.post(`${API_URL}/lots`, data, { headers: getAuthHeaders() }),
-  deleteLot: (id: string) => axios.delete(`${API_URL}/lots/${id}`, { headers: getAuthHeaders() }),
+  getLotsByWarehouse: (warehouseId: string) => apiClient.get(`/warehouses/${warehouseId}/lots`),
+  createLot: (data: CreateLotData) => apiClient.post('/lots', data),
+  deleteLot: (id: string) => apiClient.delete(`/lots/${id}`),
 
   // Lot Product APIs
-  getAllLotProducts: () => axios.get(`${API_URL}/lot-products`, { headers: getAuthHeaders() }),
-  addProductToLot: (data: AddProductToLotData) => axios.post(`${API_URL}/lot-products`, data, { headers: getAuthHeaders() }),
-  removeProductFromLot: (id: string) => axios.delete(`${API_URL}/lot-products/${id}`, { headers: getAuthHeaders() }),
-  moveProductBetweenLots: (data: MoveProductData) => axios.put(`${API_URL}/lot-products/move`, data, { headers: getAuthHeaders() }),
+  getAllLotProducts: () => apiClient.get('/lot-products'),
+  addProductToLot: (data: AddProductToLotData) => apiClient.post('/lot-products', data),
+  removeProductFromLot: (id: string) => apiClient.delete(`/lot-products/${id}`),
+  moveProductBetweenLots: (data: MoveProductData) => apiClient.put('/lot-products/move', data),
   updateProductQuantity: (id: string, data: { soLuong?: number; donViTinh?: string; giaThanh?: number }) =>
-    axios.put(`${API_URL}/lot-products/${id}`, data, { headers: getAuthHeaders() }),
+    apiClient.put(`/lot-products/${id}`, data),
 };
 
 export default warehouseService;

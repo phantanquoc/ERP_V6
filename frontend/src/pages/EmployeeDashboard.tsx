@@ -5,12 +5,8 @@ import {
   CheckSquare,
   Calendar,
   AlertTriangle,
-  TrendingUp,
-  Users,
   FileText,
-  Bell,
   Award,
-  BarChart3,
   Activity,
   User
 } from "lucide-react";
@@ -64,8 +60,8 @@ const getPersonalStats = (user: any, evaluationNotification?: Notification | nul
     },
     {
       label: "Đánh giá",
-      value: evaluationNotification ? evaluationNotification.title : (user?.evaluationScore ? user.evaluationScore.toFixed(1) : "Chưa có thông tin"),
-      total: evaluationNotification ? "" : (user?.evaluationScore ? "5.0" : ""),
+      value: user?.evaluationScore ? user.evaluationScore.toFixed(1) : "Chưa có thông tin",
+      total: user?.evaluationScore ? "5.0" : "",
       subtitle: evaluationNotification ? evaluationNotification.message : undefined,
       icon: <Award className="w-5 h-5" />,
       color: evaluationNotification ? "from-red-500 to-red-600" : "from-purple-500 to-purple-600",
@@ -75,46 +71,6 @@ const getPersonalStats = (user: any, evaluationNotification?: Notification | nul
   ];
 
   return baseStats;
-};
-
-// Recent Activities for Employee
-const getRecentActivities = (department: string) => {
-  const activities = [
-    {
-      id: 1,
-      title: "Hoàn thành báo cáo tuần",
-      description: "Báo cáo công việc tuần 47/2024",
-      time: "2 giờ trước",
-      type: "completed",
-      icon: <FileText className="w-4 h-4" />
-    },
-    {
-      id: 2,
-      title: "Tham gia họp phòng ban",
-      description: "Họp review kết quả tháng 11",
-      time: "1 ngày trước",
-      type: "meeting",
-      icon: <Users className="w-4 h-4" />
-    },
-    {
-      id: 3,
-      title: "Cập nhật tiến độ dự án",
-      description: "Dự án cải tiến quy trình",
-      time: "2 ngày trước",
-      type: "update",
-      icon: <TrendingUp className="w-4 h-4" />
-    },
-    {
-      id: 4,
-      title: "Nhận nhiệm vụ mới",
-      description: "Kiểm tra chất lượng sản phẩm",
-      time: "3 ngày trước",
-      type: "task",
-      icon: <CheckSquare className="w-4 h-4" />
-    }
-  ];
-
-  return activities;
 };
 
 // Quick Actions for Employee
@@ -228,22 +184,6 @@ const QuickActionCard: React.FC<{
   </div>
 );
 
-// Component for Activity Item
-const ActivityItem: React.FC<{ activity: any }> = ({ activity }) => (
-  <div className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-    <div className="flex-shrink-0 p-2 bg-blue-100 rounded-lg">
-      <div className="text-blue-600">
-        {activity.icon}
-      </div>
-    </div>
-    <div className="flex-1 min-w-0">
-      <p className="text-sm font-medium text-gray-900">{activity.title}</p>
-      <p className="text-sm text-gray-600">{activity.description}</p>
-      <p className="text-xs text-gray-400 mt-1">{activity.time}</p>
-    </div>
-  </div>
-);
-
 const EmployeeDashboard: React.FC = () => {
   const { user } = useAuth();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -313,12 +253,11 @@ const EmployeeDashboard: React.FC = () => {
 
   const departmentName = getDepartmentDisplayName(user.department);
   const personalStats = getPersonalStats(user, latestEvaluationNotification, tasksCount, workPlansCount);
-  const recentActivities = getRecentActivities(user.department || '');
   const quickActions = getQuickActions(user.department || '');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-full bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Lunar New Year Theme Header */}
         <div className="relative bg-gradient-to-r from-red-700 via-red-600 to-red-700 rounded-2xl shadow-xl p-6 mb-8 overflow-hidden">
           {/* Background pattern */}
@@ -423,14 +362,14 @@ const EmployeeDashboard: React.FC = () => {
             <div className="flex-1">
               <div>
                 <p className="text-yellow-300 text-sm font-medium tracking-wider mb-1">🧧 CHÚC MỪNG NĂM MỚI - XUÂN BÍNH NGỌ 2026 ✨</p>
-                <h1 className="text-3xl font-bold text-white drop-shadow-lg">
+                <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">
                   Chào mừng, {user.firstName}!
                 </h1>
                 <p className="text-red-100 text-lg mt-1">
                   {user.position} - {departmentName}
                 </p>
               </div>
-              <div className="flex items-center mt-3 space-x-2">
+              <div className="flex items-center mt-3 space-x-2 flex-wrap gap-y-2">
                 <span className="px-3 py-1 bg-yellow-500 text-red-800 rounded-full text-sm font-bold shadow-lg">
                   🏷️ {user.employeeCode}
                 </span>

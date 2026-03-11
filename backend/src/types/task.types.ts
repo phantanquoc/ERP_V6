@@ -5,6 +5,12 @@ export enum TaskPriority {
   THAP = 'THAP',
 }
 
+export enum TaskAcceptanceStatus {
+  CHUA_TIEP_NHAN = 'CHUA_TIEP_NHAN',
+  DA_TIEP_NHAN = 'DA_TIEP_NHAN',
+  TU_CHOI = 'TU_CHOI',
+}
+
 export interface CreateTaskRequest {
   nguoiNhan: string[]; // Array of user IDs
   noiDung: string;
@@ -19,6 +25,10 @@ export interface UpdateTaskRequest {
   thoiHanHoanThanh?: string;
   ghiChu?: string;
   mucDoUuTien?: TaskPriority;
+}
+
+export interface AcceptTaskRequest {
+  trangThai: TaskAcceptanceStatus;
 }
 
 export interface TaskResponse {
@@ -43,6 +53,7 @@ export interface TaskResponse {
   ghiChu?: string;
   files?: string[];
   mucDoUuTien: TaskPriority;
+  trangThaiTiepNhan: Record<string, TaskAcceptanceStatus>;
   createdAt: string;
   updatedAt: string;
 }

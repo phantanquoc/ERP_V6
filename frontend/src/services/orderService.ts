@@ -1,12 +1,6 @@
-import axios from 'axios';
+import apiClient from './apiClient';
 
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
-const API_URL = `${API_BASE}/orders`;
-
-// Get auth token from localStorage
-const getAuthToken = () => {
-  return localStorage.getItem('accessToken');
-};
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export interface OrderItem {
   id: string;
@@ -57,76 +51,41 @@ export interface Order {
 class OrderService {
   // Generate order code
   async generateOrderCode() {
-    const token = getAuthToken();
-    const response = await axios.get(`${API_URL}/generate-code`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.get('/orders/generate-code');
+    return response;
   }
 
   // Create order from quotation
   async createOrderFromQuotation(quotationId: string, file?: File) {
-    const token = getAuthToken();
     if (file) {
       const formData = new FormData();
       formData.append('quotationId', quotationId);
       formData.append('file', file);
-      const response = await axios.post(
-        `${API_URL}/from-quotation`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
-      return response.data;
+      const response = await apiClient.post('/orders/from-quotation', formData);
+      return response;
     }
-    const response = await axios.post(
-      `${API_URL}/from-quotation`,
-      { quotationId },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-    return response.data;
+    const response = await apiClient.post('/orders/from-quotation', { quotationId });
+    return response;
   }
 
   // Get all orders
   async getAllOrders(page: number = 1, limit: number = 10, search?: string, customerType?: string) {
-    const token = getAuthToken();
     const params: any = { page, limit };
     if (search) params.search = search;
     if (customerType) params.customerType = customerType;
 
-    const response = await axios.get(API_URL, {
-      params,
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.get('/orders', { params });
+    return response;
   }
 
   // Get order by ID
   async getOrderById(id: string) {
-    const token = getAuthToken();
-    const response = await axios.get(`${API_URL}/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.get(`/orders/${id}`);
+    return response;
   }
 
   // Update order
   async updateOrder(id: string, data: Partial<Order>, file?: File) {
-    const token = getAuthToken();
     if (file) {
       const formData = new FormData();
       Object.entries(data).forEach(([key, value]) => {
@@ -135,42 +94,23 @@ class OrderService {
         }
       });
       formData.append('file', file);
-      const response = await axios.patch(`${API_URL}/${id}`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
+      const response = await apiClient.patch(`/orders/${id}`, formData);
+      return response;
     }
-    const response = await axios.patch(`${API_URL}/${id}`, data, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.patch(`/orders/${id}`, data);
+    return response;
   }
 
   // Update order item
   async updateOrderItem(itemId: string, data: { loaiHangHoa?: string }) {
-    const token = getAuthToken();
-    const response = await axios.patch(`${API_URL}/items/${itemId}`, data, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.patch(`/orders/items/${itemId}`, data);
+    return response;
   }
 
   // Delete order
   async deleteOrder(id: string) {
-    const token = getAuthToken();
-    const response = await axios.delete(`${API_URL}/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
+    const response = await apiClient.delete(`/orders/${id}`);
+    return response;
   }
 
   // Export orders to Excel
@@ -178,7 +118,7 @@ class OrderService {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
-    const url = `${API_URL}/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    const url = `${API_BASE_URL}/orders/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });

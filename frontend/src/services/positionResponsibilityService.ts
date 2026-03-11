@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import apiClient from './apiClient';
 
 export interface PositionResponsibility {
   id: string;
@@ -13,20 +11,9 @@ export interface PositionResponsibility {
 }
 
 class PositionResponsibilityService {
-  private getAuthToken(): string {
-    return localStorage.getItem('accessToken') || '';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.getAuthToken()}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
   private handleError(error: any): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message;
+    if (error instanceof Error) {
+      const message = error.message;
       return new Error(message);
     }
     return new Error('An unexpected error occurred');
@@ -34,11 +21,8 @@ class PositionResponsibilityService {
 
   async getAllResponsibilities(positionId: string): Promise<PositionResponsibility[]> {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/position-responsibilities/${positionId}/responsibilities`,
-        { headers: this.getHeaders() }
-      );
-      return response.data.data;
+      const response = await apiClient.get(`/position-responsibilities/${positionId}/responsibilities`);
+      return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -46,11 +30,8 @@ class PositionResponsibilityService {
 
   async getResponsibilityById(id: string): Promise<PositionResponsibility> {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/position-responsibilities/responsibility/${id}`,
-        { headers: this.getHeaders() }
-      );
-      return response.data.data;
+      const response = await apiClient.get(`/position-responsibilities/responsibility/${id}`);
+      return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -61,12 +42,8 @@ class PositionResponsibilityService {
     data: Omit<PositionResponsibility, 'id' | 'positionId' | 'createdAt' | 'updatedAt'>
   ): Promise<PositionResponsibility> {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/position-responsibilities/${positionId}/responsibilities`,
-        data,
-        { headers: this.getHeaders() }
-      );
-      return response.data.data;
+      const response = await apiClient.post(`/position-responsibilities/${positionId}/responsibilities`, data);
+      return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -77,12 +54,8 @@ class PositionResponsibilityService {
     data: Partial<PositionResponsibility>
   ): Promise<PositionResponsibility> {
     try {
-      const response = await axios.patch(
-        `${API_BASE_URL}/position-responsibilities/responsibility/${id}`,
-        data,
-        { headers: this.getHeaders() }
-      );
-      return response.data.data;
+      const response = await apiClient.patch(`/position-responsibilities/responsibility/${id}`, data);
+      return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -90,10 +63,7 @@ class PositionResponsibilityService {
 
   async deleteResponsibility(id: string): Promise<void> {
     try {
-      await axios.delete(
-        `${API_BASE_URL}/position-responsibilities/responsibility/${id}`,
-        { headers: this.getHeaders() }
-      );
+      await apiClient.delete(`/position-responsibilities/responsibility/${id}`);
     } catch (error) {
       throw this.handleError(error);
     }
