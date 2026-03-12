@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { downloadFile } from '../utils/downloadFile';
 
 export interface FinishedProduct {
   id: string;
@@ -156,25 +157,12 @@ class FinishedProductService {
   }
 
   async exportToExcel(filters?: { search?: string; tenMay?: string }): Promise<void> {
-    const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
     if (filters?.tenMay) params.append('tenMay', filters.tenMay);
     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const url = `${API_BASE_URL}/finished-products/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('Failed to export');
-    const blob = await response.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `danh-sach-thanh-pham-${Date.now()}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(downloadUrl);
+    await downloadFile(url, `danh-sach-thanh-pham-${Date.now()}.xlsx`);
   }
 
   private handleError(error: any): Error {

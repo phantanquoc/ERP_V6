@@ -87,6 +87,7 @@ class AuthService {
           'Phòng mua Thiết bị': 'equipment',
           'Phòng QLSX': 'management',
           'Quản lý kho': 'warehouse',
+          'Dữ liệu sản xuất': 'data',
           'Phòng QLHTM': 'quality',
           'Phòng cơ- điện': 'mechanical',
         };

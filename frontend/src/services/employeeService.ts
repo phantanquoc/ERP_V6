@@ -67,7 +67,7 @@ interface CreateEmployeeRequest {
   dateOfBirth?: string;
   phoneNumber?: string;
   address?: string;
-  positionId: string;
+  positionId?: string;
   positionLevelId?: string;
   subDepartmentId?: string;
   status?: string;

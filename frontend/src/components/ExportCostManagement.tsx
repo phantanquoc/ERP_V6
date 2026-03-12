@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, X, Download } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, X, Download, DollarSign, Plane } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import exportCostService, { ExportCost, CreateExportCostInput, UpdateExportCostInput } from '../services/exportCostService';
+import generalCostService, { GeneralCost, CreateGeneralCostInput, UpdateGeneralCostInput } from '../services/generalCostService';
 import { parseNumberInput } from '../utils/numberInput';
+
+type CostType = 'export' | 'general';
+type AnyCost = ExportCost | GeneralCost;
 
 const ExportCostManagement: React.FC = () => {
   const { user } = useAuth();
-  const [costs, setCosts] = useState<ExportCost[]>([]);
+  const [costType, setCostType] = useState<CostType>('export');
+  const [costs, setCosts] = useState<AnyCost[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [showModal, setShowModal] = useState(false);
-  const [editingCost, setEditingCost] = useState<ExportCost | null>(null);
+  const [editingCost, setEditingCost] = useState<AnyCost | null>(null);
   const [formData, setFormData] = useState<CreateExportCostInput>({
     tenChiPhi: '',
     loaiChiPhi: '',
@@ -26,22 +31,31 @@ const ExportCostManagement: React.FC = () => {
 
   useEffect(() => {
     loadCosts();
-  }, [searchTerm]);
+  }, [searchTerm, costType]);
+
+  const isExport = costType === 'export';
+  const label = isExport ? 'chi phí xuất khẩu' : 'chi phí chung';
+  const Label = isExport ? 'Chi phí Xuất khẩu' : 'Chi phí Chung';
 
   const loadCosts = async () => {
     try {
       setLoading(true);
-      const response = await exportCostService.getAllExportCosts(1, 1000, searchTerm);
-      setCosts(response.data);
+      if (isExport) {
+        const response = await exportCostService.getAllExportCosts(1, 1000, searchTerm);
+        setCosts(response.data);
+      } else {
+        const response = await generalCostService.getAllGeneralCosts(1, 1000, searchTerm);
+        setCosts(response.data);
+      }
     } catch (error) {
-      console.error('Error loading export costs:', error);
-      alert('Lỗi khi tải danh sách chi phí xuất khẩu');
+      console.error(`Error loading ${label}:`, error);
+      alert(`Lỗi khi tải danh sách ${label}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOpenModal = (cost?: ExportCost) => {
+  const handleOpenModal = (cost?: AnyCost) => {
     if (cost) {
       setEditingCost(cost);
       setFormData({
@@ -82,18 +96,25 @@ const ExportCostManagement: React.FC = () => {
     }
 
     try {
-      if (editingCost) {
-        await exportCostService.updateExportCost(editingCost.id, formData as UpdateExportCostInput);
-        alert('Cập nhật chi phí xuất khẩu thành công!');
+      if (isExport) {
+        if (editingCost) {
+          await exportCostService.updateExportCost(editingCost.id, formData as UpdateExportCostInput);
+        } else {
+          await exportCostService.createExportCost(formData);
+        }
       } else {
-        await exportCostService.createExportCost(formData);
-        alert('Tạo chi phí xuất khẩu thành công!');
+        if (editingCost) {
+          await generalCostService.updateGeneralCost(editingCost.id, formData as UpdateGeneralCostInput);
+        } else {
+          await generalCostService.createGeneralCost(formData as CreateGeneralCostInput);
+        }
       }
+      alert(editingCost ? `Cập nhật ${label} thành công!` : `Tạo ${label} thành công!`);
       handleCloseModal();
       loadCosts();
     } catch (error) {
-      console.error('Error saving export cost:', error);
-      alert('Lỗi khi lưu chi phí xuất khẩu');
+      console.error(`Error saving ${label}:`, error);
+      alert(`Lỗi khi lưu ${label}`);
     }
   };
 
@@ -103,18 +124,26 @@ const ExportCostManagement: React.FC = () => {
     }
 
     try {
-      await exportCostService.deleteExportCost(id);
-      alert('Xóa chi phí xuất khẩu thành công!');
+      if (isExport) {
+        await exportCostService.deleteExportCost(id);
+      } else {
+        await generalCostService.deleteGeneralCost(id);
+      }
+      alert(`Xóa ${label} thành công!`);
       loadCosts();
     } catch (error) {
-      console.error('Error deleting export cost:', error);
-      alert('Lỗi khi xóa chi phí xuất khẩu');
+      console.error(`Error deleting ${label}:`, error);
+      alert(`Lỗi khi xóa ${label}`);
     }
   };
 
   const handleExportExcel = async () => {
     try {
-      await exportCostService.exportToExcel();
+      if (isExport) {
+        await exportCostService.exportToExcel();
+      } else {
+        await generalCostService.exportToExcel();
+      }
       alert('Xuất file Excel thành công!');
     } catch (error) {
       console.error('Error exporting to Excel:', error);
@@ -122,11 +151,43 @@ const ExportCostManagement: React.FC = () => {
     }
   };
 
+  const handleSwitchCostType = (type: CostType) => {
+    setCostType(type);
+    setCurrentPage(1);
+    setSearchTerm('');
+  };
+
   return (
     <div className="p-6">
+      {/* Cost Type Toggle */}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => handleSwitchCostType('export')}
+          className={`px-4 py-2 rounded-lg flex items-center gap-2 font-medium text-sm transition-colors ${
+            costType === 'export'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <Plane className="w-4 h-4" />
+          Chi phí Xuất khẩu
+        </button>
+        <button
+          onClick={() => handleSwitchCostType('general')}
+          className={`px-4 py-2 rounded-lg flex items-center gap-2 font-medium text-sm transition-colors ${
+            costType === 'general'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <DollarSign className="w-4 h-4" />
+          Chi phí Chung
+        </button>
+      </div>
+
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Quản lý Chi phí Xuất khẩu</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Quản lý {Label}</h2>
         <div className="flex gap-2">
           <button
             onClick={handleExportExcel}
@@ -140,7 +201,7 @@ const ExportCostManagement: React.FC = () => {
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Tạo chi phí xuất khẩu
+            Tạo {label}
           </button>
         </div>
       </div>
@@ -205,7 +266,7 @@ const ExportCostManagement: React.FC = () => {
                     {cost.donViTinh || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {cost.giaThanhNgay ? cost.giaThanhNgay.toLocaleString() : '-'}
+                    {cost.giaThanhNgay ? `${new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(cost.giaThanhNgay)} ${cost.donViTien || 'VND'}` : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {cost.tenNhanVien || '-'}
@@ -283,7 +344,7 @@ const ExportCostManagement: React.FC = () => {
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-800">
-                {editingCost ? 'Chỉnh sửa chi phí xuất khẩu' : 'Tạo chi phí xuất khẩu'}
+                {editingCost ? `Chỉnh sửa ${label}` : `Tạo ${label}`}
               </h3>
               <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700">
                 <X className="w-6 h-6" />

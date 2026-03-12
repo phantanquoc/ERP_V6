@@ -39,11 +39,13 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
   const [distance, setDistance] = useState<number | null>(null);
   const [isWithinRange, setIsWithinRange] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [attendanceType, setAttendanceType] = useState<'checkin' | 'checkout'>('checkin');
+  const [attendanceType, setAttendanceType] = useState<'checkin' | 'checkout' | 'overtime-checkin' | 'overtime-checkout'>('checkin');
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasCheckedIn, setHasCheckedIn] = useState(false);
+  const [hasOvertimeCheckedIn, setHasOvertimeCheckedIn] = useState(false);
 
   // Update time every second
   useEffect(() => {
@@ -62,19 +64,30 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
 
     const checkTodayAttendance = async () => {
       try {
-        const todayRecord = await attendanceService.getTodayAttendance(user.employeeId!);
+        const todayRecords = await attendanceService.getTodayAttendances(user.employeeId!);
+        const regularRecord = todayRecords.find(r => r.status !== 'OVERTIME');
+        const overtimeRecord = todayRecords.find(r => r.status === 'OVERTIME');
 
-        // If already checked in today (has checkInTime but no checkOutTime), default to checkout
-        if (todayRecord && todayRecord.checkInTime && !todayRecord.checkOutTime) {
+        // Track whether user has already checked in
+        const checkedIn = !!(regularRecord && regularRecord.checkInTime);
+        const overtimeCheckedIn = !!(overtimeRecord && overtimeRecord.checkInTime);
+        setHasCheckedIn(checkedIn);
+        setHasOvertimeCheckedIn(overtimeCheckedIn);
+
+        if (overtimeRecord && overtimeRecord.checkInTime && !overtimeRecord.checkOutTime) {
+          setAttendanceType('overtime-checkout');
+        } else if (regularRecord && regularRecord.checkInTime && regularRecord.checkOutTime) {
+          setAttendanceType('overtime-checkin');
+        } else if (regularRecord && regularRecord.checkInTime && !regularRecord.checkOutTime) {
           setAttendanceType('checkout');
         } else {
-          // Otherwise default to checkin
           setAttendanceType('checkin');
         }
       } catch (error) {
         console.error('Error checking today attendance:', error);
-        // Default to checkin on error
         setAttendanceType('checkin');
+        setHasCheckedIn(false);
+        setHasOvertimeCheckedIn(false);
       }
     };
 
@@ -169,8 +182,12 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
       // Call the appropriate API based on attendance type
       if (attendanceType === 'checkin') {
         await attendanceService.checkIn(user.employeeId);
-      } else {
+      } else if (attendanceType === 'checkout') {
         await attendanceService.checkOut(user.employeeId);
+      } else if (attendanceType === 'overtime-checkin') {
+        await attendanceService.overtimeCheckIn(user.employeeId);
+      } else {
+        await attendanceService.overtimeCheckOut(user.employeeId);
       }
 
       setSubmitSuccess(true);
@@ -180,6 +197,8 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
         // Reset form
         setNote('');
         setAttendanceType('checkin');
+        setHasCheckedIn(false);
+        setHasOvertimeCheckedIn(false);
       }, 2000);
     } catch (error: any) {
       console.error('Error submitting attendance:', error);
@@ -271,16 +290,19 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => setAttendanceType('checkin')}
+                      disabled={hasCheckedIn}
+                      onClick={() => !hasCheckedIn && setAttendanceType('checkin')}
                       className={`p-3 rounded-lg border-2 transition-all ${
-                        attendanceType === 'checkin'
-                          ? 'border-green-500 bg-green-50 text-green-700'
-                          : 'border-gray-200 hover:border-gray-300'
+                        hasCheckedIn
+                          ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60'
+                          : attendanceType === 'checkin'
+                            ? 'border-green-500 bg-green-50 text-green-700'
+                            : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
                       <div className="text-center">
                         <div className="text-lg font-semibold">Vào ca</div>
-                        <div className="text-xs">Check In</div>
+                        <div className="text-xs">{hasCheckedIn ? 'Đã chấm' : 'Check In'}</div>
                       </div>
                     </button>
                     <button
@@ -295,6 +317,37 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
                       <div className="text-center">
                         <div className="text-lg font-semibold">Ra ca</div>
                         <div className="text-xs">Check Out</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={hasOvertimeCheckedIn}
+                      onClick={() => !hasOvertimeCheckedIn && setAttendanceType('overtime-checkin')}
+                      className={`p-3 rounded-lg border-2 transition-all ${
+                        hasOvertimeCheckedIn
+                          ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60'
+                          : attendanceType === 'overtime-checkin'
+                            ? 'border-orange-500 bg-orange-50 text-orange-700'
+                            : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-lg font-semibold">Tăng ca</div>
+                        <div className="text-xs text-orange-500">{hasOvertimeCheckedIn ? 'Đã chấm' : '(Vào ca)'}</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAttendanceType('overtime-checkout')}
+                      className={`p-3 rounded-lg border-2 transition-all ${
+                        attendanceType === 'overtime-checkout'
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-lg font-semibold">Tăng ca</div>
+                        <div className="text-xs text-orange-500">(Ra ca)</div>
                       </div>
                     </button>
                   </div>
@@ -375,7 +428,9 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
                       ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                       : attendanceType === 'checkin'
                         ? 'bg-green-600 hover:bg-green-700 text-white'
-                        : 'bg-red-600 hover:bg-red-700 text-white'
+                        : attendanceType === 'checkout'
+                          ? 'bg-red-600 hover:bg-red-700 text-white'
+                          : 'bg-orange-600 hover:bg-orange-700 text-white'
                   } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {isSubmitting ? (
@@ -389,7 +444,7 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
                       <span>Vui lòng đến công ty để chấm công</span>
                     </div>
                   ) : (
-                    `${attendanceType === 'checkin' ? 'Chấm công vào' : 'Chấm công ra'}`
+                    `${attendanceType === 'checkin' ? 'Chấm công vào' : attendanceType === 'checkout' ? 'Chấm công ra' : attendanceType === 'overtime-checkin' ? 'Chấm công tăng ca vào' : 'Chấm công tăng ca ra'}`
                   )}
                 </button>
               </form>

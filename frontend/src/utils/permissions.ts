@@ -33,6 +33,7 @@ export const SUB_DEPARTMENTS = {
   // Production sub-departments
   PRODUCTION_MANAGEMENT: 'management', // Phòng QLSX
   PRODUCTION_WAREHOUSE: 'warehouse',   // Quản lý kho
+  PRODUCTION_DATA: 'data',             // Dữ liệu sản xuất
 
   // Technical sub-departments
   TECHNICAL_QUALITY: 'quality',      // Phòng QLHTM

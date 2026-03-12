@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Eye, Edit2, Save, X, Download } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Eye, Edit2, Save, X, Download, Settings, Send } from 'lucide-react';
 import payrollService, { PayrollItem, PayrollDetail } from '@services/payrollService';
 import evaluationService from '@services/employeeEvaluationService';
-import { usePayrollByMonthYear, payrollKeys } from '../hooks';
+import { usePayrollByMonthYear, usePayrollSettings, useUpdatePayrollSettings, payrollKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInput } from '../utils/numberInput';
 
@@ -16,9 +16,17 @@ const PayrollManagement: React.FC = () => {
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollDetail | null>(null);
   const [editingPayroll, setEditingPayroll] = useState<PayrollDetail | null>(null);
   const [evaluations, setEvaluations] = useState<any[]>([]);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsForm, setSettingsForm] = useState({ standardWorkDays: 26, overtimeRate: 0 });
+  const [sendingNotifications, setSendingNotifications] = useState(false);
 
   const queryClient = useQueryClient();
   const { data: payrolls = [], isLoading: loading } = usePayrollByMonthYear(selectedMonth, selectedYear);
+  const { data: payrollSettings } = usePayrollSettings();
+  const updateSettingsMutation = useUpdatePayrollSettings();
+
+  const standardWorkDays = payrollSettings?.standardWorkDays ?? 26;
+  const overtimeRate = payrollSettings?.overtimeRate ?? 0;
 
   useEffect(() => {
     fetchEvaluations();
@@ -39,71 +47,96 @@ const PayrollManagement: React.FC = () => {
     return evaluation?.supervisorScore2 ?? 0;
   };
 
+  // Recalculate payroll data client-side using evaluation-based kpiDeduction
+  // so the table matches the modal's calculation exactly
+  const recalculatedPayrolls = useMemo(() => {
+    return payrolls.map(p => {
+      const supervisor2Percentage = getSupervisor2Percentage(p.employeeCode);
+      const kpiDeduction =
+        p.kpiBonus > 0
+          ? Math.round((p.kpiBonus * (100 - supervisor2Percentage)) / 100)
+          : 0;
+      const leaveDeduction =
+        p.baseSalary > 0 && p.leaveDays > 0
+          ? Math.round((p.baseSalary / standardWorkDays) * p.leaveDays)
+          : 0;
+      const totalIncome =
+        p.baseSalary + p.kpiBonus + p.positionAllowance + p.otherAllowances;
+      const totalDeductions =
+        p.socialInsurance +
+        p.healthInsurance +
+        p.unemploymentInsurance +
+        p.personalIncomeTax +
+        kpiDeduction +
+        leaveDeduction;
+      const overtimePay = Math.round(p.overtimeHours * overtimeRate);
+      const netSalary = totalIncome - totalDeductions + overtimePay;
+      return { ...p, kpiDeduction, leaveDeduction, totalIncome, totalDeductions, netSalary };
+    });
+  }, [payrolls, evaluations, standardWorkDays, overtimeRate]);
+
   const handleViewDetail = async (payroll: PayrollItem) => {
     try {
-      let detail: PayrollDetail;
+      // Luôn dùng dữ liệu đã tính lại từ getPayrollByMonthYear (payroll param)
+      // thay vì gọi getPayrollDetail đọc giá trị cũ từ DB
+      const evaluation = evaluations.find(e => e.employeeCode === payroll.employeeCode);
+      const supervisor2Percentage = evaluation?.supervisorScore2 ?? 0;
 
-      if (payroll.payrollId) {
-        // Đã có bảng lương => lấy chi tiết từ API
-        detail = await payrollService.getPayrollDetail(payroll.payrollId);
-      } else {
-        // Chưa có bảng lương => khởi tạo mặc định và tự tính khấu trừ KPI / ngày nghỉ
-        const evaluation = evaluations.find(e => e.employeeCode === payroll.employeeCode);
-        const supervisor2Percentage = evaluation?.supervisorScore2 ?? 0;
+      // Khấu trừ KPI = Lương KPI * (100% - % Cấp trên 2)
+      const kpiDeduction =
+        payroll.kpiBonus > 0
+          ? Math.round((payroll.kpiBonus * (100 - supervisor2Percentage)) / 100)
+          : 0;
 
-        // Khấu trừ KPI = Lương KPI * (100% - % Cấp trên 2)
-        const kpiDeduction =
-          payroll.kpiBonus > 0
-            ? Math.round((payroll.kpiBonus * (100 - supervisor2Percentage)) / 100)
-            : 0;
+      // Khấu trừ ngày nghỉ = (Lương cơ bản / ngày công chuẩn) * Số ngày nghỉ
+      const leaveDeduction =
+        payroll.baseSalary > 0 && payroll.leaveDays > 0
+          ? Math.round((payroll.baseSalary / standardWorkDays) * payroll.leaveDays)
+          : 0;
 
-        // Khấu trừ ngày nghỉ = (Lương cơ bản / 26) * Số ngày nghỉ
-        const leaveDeduction =
-          payroll.baseSalary > 0 && payroll.leaveDays > 0
-            ? Math.round((payroll.baseSalary / 26) * payroll.leaveDays)
-            : 0;
+      const totalIncome =
+        payroll.baseSalary +
+        payroll.kpiBonus +
+        payroll.positionAllowance +
+        payroll.otherAllowances;
 
-        const totalIncome =
-          payroll.baseSalary +
-          payroll.kpiBonus +
-          payroll.positionAllowance +
-          payroll.otherAllowances;
+      const totalDeductions =
+        payroll.socialInsurance +
+        payroll.healthInsurance +
+        payroll.unemploymentInsurance +
+        payroll.personalIncomeTax +
+        kpiDeduction +
+        leaveDeduction;
 
-        const totalDeductions =
-          payroll.socialInsurance +
-          payroll.healthInsurance +
-          payroll.unemploymentInsurance +
-          payroll.personalIncomeTax +
-          kpiDeduction +
-          leaveDeduction;
+      const overtimePay = Math.round(payroll.overtimeHours * overtimeRate);
+      const netSalary = totalIncome - totalDeductions + overtimePay;
 
-        const netSalary = totalIncome - totalDeductions;
-
-        detail = {
-          employeeId: payroll.employeeId,
-          employeeCode: payroll.employeeCode,
-          employeeName: payroll.employeeName,
-          positionName: payroll.positionName,
-          month: payroll.month,
-          year: payroll.year,
-          baseSalary: payroll.baseSalary,
-          kpiBonus: payroll.kpiBonus,
-          positionAllowance: payroll.positionAllowance,
-          otherAllowances: payroll.otherAllowances,
-          totalIncome,
-          socialInsurance: payroll.socialInsurance,
-          healthInsurance: payroll.healthInsurance,
-          unemploymentInsurance: payroll.unemploymentInsurance,
-          personalIncomeTax: payroll.personalIncomeTax,
-          kpiDeduction,
-          leaveDeduction,
-          totalDeductions,
-          netSalary,
-          workDays: payroll.workDays,
-          leaveDays: payroll.leaveDays,
-          overtimeHours: payroll.overtimeHours,
-        };
-      }
+      const detail: PayrollDetail = {
+        ...(payroll.payrollId ? { id: payroll.payrollId } : {}),
+        employeeId: payroll.employeeId,
+        employeeCode: payroll.employeeCode,
+        employeeName: payroll.employeeName,
+        positionName: payroll.positionName,
+        month: payroll.month,
+        year: payroll.year,
+        baseSalary: payroll.baseSalary,
+        kpiBonus: payroll.kpiBonus,
+        positionAllowance: payroll.positionAllowance,
+        otherAllowances: payroll.otherAllowances,
+        totalIncome,
+        socialInsurance: payroll.socialInsurance,
+        healthInsurance: payroll.healthInsurance,
+        unemploymentInsurance: payroll.unemploymentInsurance,
+        personalIncomeTax: payroll.personalIncomeTax,
+        kpiDeduction,
+        leaveDeduction,
+        totalDeductions,
+        netSalary,
+        workDays: payroll.workDays,
+        leaveDays: payroll.leaveDays,
+        overtimeHours: payroll.overtimeHours,
+        overtimePay,
+      };
 
       setSelectedPayroll(detail);
       setEditingPayroll({ ...detail });
@@ -165,7 +198,7 @@ const PayrollManagement: React.FC = () => {
     );
   };
 
-  const filteredPayrolls = payrolls.filter(
+  const filteredPayrolls = recalculatedPayrolls.filter(
     item =>
       item.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -225,13 +258,48 @@ const PayrollManagement: React.FC = () => {
           />
         </div>
 
-        <div className="flex items-end">
+        <div className="flex items-end gap-2">
           <button
             onClick={() => queryClient.invalidateQueries({ queryKey: payrollKeys.lists() })}
             disabled={loading}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
           >
-            {loading ? 'Đang tải...' : 'Tải lại'}
+            {loading ? 'Đang tải...' : 'Làm mới'}
+          </button>
+          <button
+            onClick={() => {
+              setSettingsForm({
+                standardWorkDays: payrollSettings?.standardWorkDays ?? 26,
+                overtimeRate: payrollSettings?.overtimeRate ?? 0,
+              });
+              setShowSettingsModal(true);
+            }}
+            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center gap-2"
+            title="Cài đặt"
+          >
+            <Settings size={18} />
+            Cài đặt
+          </button>
+          <button
+            onClick={async () => {
+              if (!confirm(`Gửi thông báo bảng lương tháng ${selectedMonth}/${selectedYear} đến tất cả nhân viên?`)) return;
+              try {
+                setSendingNotifications(true);
+                const result = await payrollService.sendPayrollNotifications(selectedMonth, selectedYear);
+                alert(`Đã gửi thông báo bảng lương đến ${result.count} nhân viên`);
+              } catch (err: any) {
+                console.error('Error sending payroll notifications:', err);
+                alert(err?.response?.data?.message || 'Lỗi khi gửi thông báo bảng lương');
+              } finally {
+                setSendingNotifications(false);
+              }
+            }}
+            disabled={sendingNotifications || loading}
+            className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 flex items-center gap-2"
+            title="Gửi bảng lương"
+          >
+            <Send size={18} />
+            {sendingNotifications ? 'Đang gửi...' : 'Gửi bảng lương'}
           </button>
         </div>
         <div className="flex items-end">
@@ -434,7 +502,7 @@ const PayrollManagement: React.FC = () => {
                           const newBaseSalary = parseNumberInput(e.target.value);
                           const newLeaveDeduction =
                             newBaseSalary > 0 && editingPayroll.leaveDays > 0
-                              ? Math.round((newBaseSalary / 26) * editingPayroll.leaveDays)
+                              ? Math.round((newBaseSalary / standardWorkDays) * editingPayroll.leaveDays)
                               : 0;
                           setEditingPayroll({
                             ...editingPayroll,
@@ -617,7 +685,7 @@ const PayrollManagement: React.FC = () => {
               </div>
 
               {/* Work Days */}
-              <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b">
+              <div className="grid grid-cols-4 gap-4 mb-6 pb-6 border-b">
                 <div>
                   <label className="block text-sm font-medium mb-2">Số ngày làm</label>
                   <input
@@ -641,7 +709,7 @@ const PayrollManagement: React.FC = () => {
                       const newLeaveDays = parseNumberInput(e.target.value);
                       const newLeaveDeduction =
                         editingPayroll.baseSalary > 0 && newLeaveDays > 0
-                          ? Math.round((editingPayroll.baseSalary / 26) * newLeaveDays)
+                          ? Math.round((editingPayroll.baseSalary / standardWorkDays) * newLeaveDays)
                           : 0;
                       setEditingPayroll({
                         ...editingPayroll,
@@ -657,14 +725,22 @@ const PayrollManagement: React.FC = () => {
                   <input
                     type="number"
                     value={editingPayroll.overtimeHours}
-                    onChange={e =>
+                    onChange={e => {
+                      const newOvertimeHours = parseNumberInput(e.target.value);
                       setEditingPayroll({
                         ...editingPayroll,
-                        overtimeHours: parseNumberInput(e.target.value),
-                      })
-                    }
+                        overtimeHours: newOvertimeHours,
+                        overtimePay: Math.round(newOvertimeHours * overtimeRate),
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Tiền OT</label>
+                  <div className="w-full px-3 py-2 border border-gray-200 rounded bg-gray-50 text-right text-sm font-semibold text-green-700">
+                    {(editingPayroll.overtimePay ?? 0).toLocaleString('vi-VN')} ₫
+                  </div>
                 </div>
               </div>
 
@@ -683,7 +759,8 @@ const PayrollManagement: React.FC = () => {
                       editingPayroll.unemploymentInsurance -
                       editingPayroll.personalIncomeTax -
                       editingPayroll.kpiDeduction -
-                      editingPayroll.leaveDeduction
+                      editingPayroll.leaveDeduction +
+                      (editingPayroll.overtimePay ?? 0)
                     ).toLocaleString('vi-VN')}{' '}
                     ₫
                   </span>
@@ -706,6 +783,72 @@ const PayrollManagement: React.FC = () => {
                   Lưu
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
+            <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b rounded-t-lg">
+              <h3 className="text-lg font-bold">Cài đặt Bảng Lương</h3>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Số ngày công chuẩn / tháng</label>
+                <input
+                  type="number"
+                  value={settingsForm.standardWorkDays}
+                  onChange={e => setSettingsForm({ ...settingsForm, standardWorkDays: parseNumberInput(e.target.value) })}
+                  min={1}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+                <p className="text-xs text-gray-500 mt-1">Dùng để tính khấu trừ ngày nghỉ = Lương cơ bản / ngày công chuẩn × số ngày nghỉ</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Giá tiền OT (₫/giờ)</label>
+                <input
+                  type="number"
+                  value={settingsForm.overtimeRate}
+                  onChange={e => setSettingsForm({ ...settingsForm, overtimeRate: parseNumberInput(e.target.value) })}
+                  min={0}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+                <p className="text-xs text-gray-500 mt-1">Tiền OT = Giá OT × Số giờ OT</p>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t flex justify-end gap-3">
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await updateSettingsMutation.mutateAsync(settingsForm);
+                    setShowSettingsModal(false);
+                    queryClient.invalidateQueries({ queryKey: payrollKeys.lists() });
+                    alert('Cập nhật cài đặt thành công');
+                  } catch (err) {
+                    alert('Lỗi khi cập nhật cài đặt');
+                  }
+                }}
+                disabled={updateSettingsMutation.isPending}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-2"
+              >
+                <Save size={18} />
+                {updateSettingsMutation.isPending ? 'Đang lưu...' : 'Lưu'}
+              </button>
             </div>
           </div>
         </div>

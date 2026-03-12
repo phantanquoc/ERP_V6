@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Search, Filter, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Filter, Download, Settings } from 'lucide-react';
 import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import DatePicker from './DatePicker';
+import WorkShiftSettingsModal from './WorkShiftSettingsModal';
 
 interface AttendanceRecord {
   stt: number;
@@ -15,7 +16,7 @@ interface AttendanceRecord {
   checkInTime: string | null;
   checkOutTime: string | null;
   workHours: number;
-  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EARLY' | 'ON_LEAVE';
+  status: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME';
   notes: string | null;
 }
 
@@ -26,6 +27,7 @@ const AttendanceManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [showModal, setShowModal] = useState(false);
+  const [showShiftSettings, setShowShiftSettings] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedEmployeeName, setSelectedEmployeeName] = useState('');
   const [formData, setFormData] = useState({
@@ -160,14 +162,14 @@ const AttendanceManagement: React.FC = () => {
     switch (status) {
       case 'PRESENT':
         return 'text-green-700 font-medium';
-      case 'ABSENT':
-        return 'text-red-700 font-medium';
       case 'LATE':
         return 'text-yellow-700 font-medium';
-      case 'EARLY':
-        return 'text-blue-700 font-medium';
+      case 'ABSENT':
+        return 'text-red-700 font-medium';
       case 'ON_LEAVE':
         return 'text-purple-700 font-medium';
+      case 'OVERTIME':
+        return 'text-blue-700 font-medium';
       default:
         return 'text-gray-700 font-medium';
     }
@@ -176,10 +178,10 @@ const AttendanceManagement: React.FC = () => {
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       PRESENT: 'Có mặt',
-      ABSENT: 'Vắng mặt',
       LATE: 'Muộn',
-      EARLY: 'Sớm',
+      ABSENT: 'Vắng mặt',
       ON_LEAVE: 'Nghỉ phép',
+      OVERTIME: 'Tăng ca',
     };
     return labels[status] || status;
   };
@@ -210,13 +212,23 @@ const AttendanceManagement: React.FC = () => {
       <div className="p-6 border-b border-gray-200">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-gray-800">Bảng Điểm Danh Nhân Viên</h2>
-          <button
-            onClick={handleAddNew}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Plus className="w-4 h-4" />
-            Thêm mới
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowShiftSettings(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              title="Cài đặt ca làm việc"
+            >
+              <Settings className="w-4 h-4" />
+              Cài đặt ca
+            </button>
+            <button
+              onClick={handleAddNew}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm mới
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -480,10 +492,10 @@ const AttendanceManagement: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="PRESENT">Có mặt</option>
-                  <option value="ABSENT">Vắng mặt</option>
                   <option value="LATE">Muộn</option>
-                  <option value="EARLY">Sớm</option>
+                  <option value="ABSENT">Vắng mặt</option>
                   <option value="ON_LEAVE">Nghỉ phép</option>
+                  <option value="OVERTIME">Tăng ca</option>
                 </select>
               </div>
 
@@ -516,6 +528,10 @@ const AttendanceManagement: React.FC = () => {
           </div>
         </div>
       )}
+      <WorkShiftSettingsModal
+        isOpen={showShiftSettings}
+        onClose={() => setShowShiftSettings(false)}
+      />
     </div>
   );
 };

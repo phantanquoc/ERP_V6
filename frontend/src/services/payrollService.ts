@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { downloadFile } from '../utils/downloadFile';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
 
@@ -53,6 +54,13 @@ export interface PayrollDetail {
   workDays: number;
   leaveDays: number;
   overtimeHours: number;
+  overtimePay: number;
+}
+
+export interface PayrollSettings {
+  id: string;
+  standardWorkDays: number;
+  overtimeRate: number;
 }
 
 class PayrollService {
@@ -108,24 +116,55 @@ class PayrollService {
     }
   }
 
+  async getPayrollSettings(): Promise<PayrollSettings> {
+    try {
+      const response = await apiClient.get('/payrolls/settings');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching payroll settings:', error);
+      throw error;
+    }
+  }
+
+  async updatePayrollSettings(data: { standardWorkDays?: number; overtimeRate?: number }): Promise<PayrollSettings> {
+    try {
+      const response = await apiClient.put('/payrolls/settings', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating payroll settings:', error);
+      throw error;
+    }
+  }
+
   async exportToExcel(filters?: { search?: string; month?: number; year?: number }): Promise<void> {
-    const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
     if (filters?.month) params.append('month', filters.month.toString());
     if (filters?.year) params.append('year', filters.year.toString());
     const url = `${API_BASE_URL}/payrolls/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!response.ok) throw new Error('Failed to export to Excel');
-    const blob = await response.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `bang-luong-${Date.now()}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(downloadUrl);
+    await downloadFile(url, `bang-luong-${Date.now()}.xlsx`);
+  }
+
+  async sendPayrollNotifications(month: number, year: number): Promise<{ count: number }> {
+    try {
+      const response = await apiClient.post('/payrolls/send-notifications', { month, year });
+      return response.data;
+    } catch (error) {
+      console.error('Error sending payroll notifications:', error);
+      throw error;
+    }
+  }
+
+  async getMyPayroll(month: number, year: number): Promise<PayrollDetail> {
+    try {
+      const response = await apiClient.get('/payrolls/my-payroll', {
+        params: { month, year },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching my payroll:', error);
+      throw error;
+    }
   }
 }
 

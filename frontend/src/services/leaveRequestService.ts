@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { downloadFile } from '../utils/downloadFile';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -113,7 +114,6 @@ class LeaveRequestService {
   }
 
   async exportToExcel(filters?: { status?: string; employeeId?: string; leaveType?: string }): Promise<void> {
-    const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
 
     if (filters?.status) params.append('status', filters.status);
@@ -121,32 +121,7 @@ class LeaveRequestService {
     if (filters?.leaveType) params.append('leaveType', filters.leaveType);
 
     const url = `${API_BASE_URL}${this.baseURL}/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
-
-    console.log('📤 Exporting to:', url);
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    console.log('📥 Response status:', response.status);
-
-    if (!response.ok) {
-      throw new Error('Failed to export to Excel');
-    }
-
-    const blob = await response.blob();
-    console.log('📦 Blob size:', blob.size, 'type:', blob.type);
-
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `danh-sach-don-nghi-phep-${Date.now()}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(downloadUrl);
+    await downloadFile(url, `danh-sach-don-nghi-phep-${Date.now()}.xlsx`);
   }
 }
 

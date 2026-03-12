@@ -337,22 +337,11 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
 
       if (hasFlowchartData) {
         try {
-          // Check if flowchart exists
-          const existingFlowchart = await processService.getFlowchart(processId);
-          if (existingFlowchart.data) {
-            // Update existing flowchart
-            await processService.updateFlowchart(processId, flowchartSections);
-          } else {
-            // Create new flowchart
-            await processService.createFlowchart(processId, flowchartSections);
-          }
-        } catch (error: any) {
-          if (error.response?.status === 404) {
-            // Flowchart doesn't exist, create new
-            await processService.createFlowchart(processId, flowchartSections);
-          } else {
-            throw error;
-          }
+          // Try update first (works if flowchart already exists)
+          await processService.updateFlowchart(processId, flowchartSections);
+        } catch {
+          // If update fails (flowchart doesn't exist), create new
+          await processService.createFlowchart(processId, flowchartSections);
         }
       }
 

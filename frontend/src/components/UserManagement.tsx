@@ -375,7 +375,7 @@ const UserManagement: React.FC = () => {
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Email</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vai trò</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Phòng ban</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
@@ -698,7 +698,7 @@ const UserManagement: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phòng ban</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label>
                   <select
                     name="subDepartmentId"
                     value={formData.subDepartmentId}
@@ -706,7 +706,7 @@ const UserManagement: React.FC = () => {
                     disabled={!formData.departmentId}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                   >
-                    <option value="">-- Chọn phòng ban --</option>
+                    <option value="">-- Chọn bộ phận --</option>
                     {filteredSubDepartments.map((subDept) => (
                       <option key={subDept.id} value={subDept.id}>
                         {subDept.name}

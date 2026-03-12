@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
 
 interface AllNotificationsModalProps {
@@ -49,6 +49,8 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
         return <CheckCircle className="w-4 h-4 text-green-600" />;
       case 'TASK':
         return <Target className="w-4 h-4 text-indigo-600" />;
+      case 'PAYROLL':
+        return <DollarSign className="w-4 h-4 text-green-600" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }

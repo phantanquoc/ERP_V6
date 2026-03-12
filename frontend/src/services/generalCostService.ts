@@ -1,4 +1,5 @@
  import apiClient from './apiClient';
+import { downloadFile } from '../utils/downloadFile';
 
 export interface GeneralCost {
   id: string;
@@ -82,29 +83,9 @@ class GeneralCostService {
   }
 
   async exportToExcel(): Promise<void> {
-    const token = localStorage.getItem('accessToken');
-     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-     const url = `${API_BASE_URL}/general-costs/export/excel`;
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to export to Excel');
-    }
-
-    const blob = await response.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `chi-phi-chung-${Date.now()}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(downloadUrl);
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const url = `${API_BASE_URL}/general-costs/export/excel`;
+    await downloadFile(url, `chi-phi-chung-${Date.now()}.xlsx`);
   }
 }
 

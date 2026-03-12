@@ -14,6 +14,12 @@ export interface MaterialStandardItem {
   tiLe: number;
 }
 
+export interface MaterialStandardInputItem {
+  id?: string;
+  tenNguyenLieu: string;
+  tiLe: number;
+}
+
 export interface MaterialStandard {
   id: string;
   maDinhMuc: string;
@@ -24,6 +30,7 @@ export interface MaterialStandard {
   createdAt: string;
   updatedAt: string;
   items?: MaterialStandardItem[];
+  inputItems?: MaterialStandardInputItem[];
 }
 
 interface CreateMaterialStandardRequest {
@@ -33,6 +40,7 @@ interface CreateMaterialStandardRequest {
   tiLeThuHoi?: number;
   ghiChu?: string;
   items?: MaterialStandardItem[];
+  inputItems?: MaterialStandardInputItem[];
 }
 
 interface UpdateMaterialStandardRequest {
@@ -41,6 +49,7 @@ interface UpdateMaterialStandardRequest {
   tiLeThuHoi?: number;
   ghiChu?: string;
   items?: MaterialStandardItem[];
+  inputItems?: MaterialStandardInputItem[];
 }
 
 class MaterialStandardService {
@@ -106,5 +115,5 @@ class MaterialStandardService {
 }
 
 export default new MaterialStandardService();
-export type { MaterialStandard, MaterialStandardItem, CreateMaterialStandardRequest, UpdateMaterialStandardRequest };
+export type { MaterialStandard, MaterialStandardItem, MaterialStandardInputItem, CreateMaterialStandardRequest, UpdateMaterialStandardRequest };
 

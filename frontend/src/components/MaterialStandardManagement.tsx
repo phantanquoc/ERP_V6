@@ -3,6 +3,7 @@ import { Plus, Edit, Eye, Trash2, X, ChevronDown } from 'lucide-react';
 import materialStandardService, {
   MaterialStandard,
   MaterialStandardItem,
+  MaterialStandardInputItem,
   CreateMaterialStandardRequest
 } from '../services/materialStandardService';
 import { internationalProductService, InternationalProduct } from '../services/internationalProductService';
@@ -14,6 +15,7 @@ interface FormData {
   loaiDinhMuc: 'RAW_MATERIAL' | 'EQUIPMENT';
   tiLeThuHoi: string;
   ghiChu: string;
+  inputItems: MaterialStandardInputItem[];
   items: MaterialStandardItem[];
 }
 
@@ -39,15 +41,22 @@ const MaterialStandardManagement: React.FC = () => {
     loaiDinhMuc: 'RAW_MATERIAL',
     tiLeThuHoi: '',
     ghiChu: '',
+    inputItems: [],
     items: [],
   });
 
-  // Product selector state
+  // Product selector state (for output items)
   const [allProducts, setAllProducts] = useState<InternationalProduct[]>([]);
   const [productSearchTerms, setProductSearchTerms] = useState<Record<number, string>>({});
   const [productFilterType, setProductFilterType] = useState<Record<number, string>>({});
   const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
   const dropdownRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  // Product selector state (for input items)
+  const [inputProductSearchTerms, setInputProductSearchTerms] = useState<Record<number, string>>({});
+  const [inputProductFilterType, setInputProductFilterType] = useState<Record<number, string>>({});
+  const [openInputDropdownIndex, setOpenInputDropdownIndex] = useState<number | null>(null);
+  const inputDropdownRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   useEffect(() => {
     loadStandards();
@@ -86,17 +95,46 @@ const MaterialStandardManagement: React.FC = () => {
           setOpenDropdownIndex(null);
         }
       }
+      if (openInputDropdownIndex !== null) {
+        const ref = inputDropdownRefs.current[openInputDropdownIndex];
+        if (ref && !ref.contains(event.target as Node)) {
+          setOpenInputDropdownIndex(null);
+        }
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openDropdownIndex]);
+  }, [openDropdownIndex, openInputDropdownIndex]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const handleAddInputItem = () => {
+    setFormData(prev => ({
+      ...prev,
+      inputItems: [...prev.inputItems, { tenNguyenLieu: '', tiLe: 0 }]
+    }));
+  };
+
+  const handleRemoveInputItem = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      inputItems: prev.inputItems.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleInputItemChange = (index: number, field: 'tenNguyenLieu' | 'tiLe', value: string | number) => {
+    setFormData(prev => ({
+      ...prev,
+      inputItems: prev.inputItems.map((item, i) =>
+        i === index ? { ...item, [field]: field === 'tiLe' ? parseNumberInput(value as string) : value } : item
+      )
     }));
   };
 
@@ -135,6 +173,7 @@ const MaterialStandardManagement: React.FC = () => {
           loaiDinhMuc: formData.loaiDinhMuc,
           tiLeThuHoi: formData.tiLeThuHoi ? parseFloat(formData.tiLeThuHoi) : undefined,
           ghiChu: formData.ghiChu,
+          inputItems: formData.inputItems,
           items: formData.items,
         });
         setSuccess('Cập nhật định mức thành công');
@@ -145,6 +184,7 @@ const MaterialStandardManagement: React.FC = () => {
           loaiDinhMuc: formData.loaiDinhMuc,
           tiLeThuHoi: formData.tiLeThuHoi ? parseFloat(formData.tiLeThuHoi) : undefined,
           ghiChu: formData.ghiChu,
+          inputItems: formData.inputItems,
           items: formData.items,
         };
         await materialStandardService.createMaterialStandard(createData);
@@ -182,6 +222,7 @@ const MaterialStandardManagement: React.FC = () => {
         loaiDinhMuc: 'RAW_MATERIAL',
         tiLeThuHoi: '',
         ghiChu: '',
+        inputItems: [],
         items: [],
       });
       setIsFormModalOpen(true);
@@ -199,6 +240,7 @@ const MaterialStandardManagement: React.FC = () => {
       loaiDinhMuc: standard.loaiDinhMuc,
       tiLeThuHoi: standard.tiLeThuHoi?.toString() || '',
       ghiChu: standard.ghiChu || '',
+      inputItems: standard.inputItems || [],
       items: standard.items || [],
     });
     setIsFormModalOpen(true);
@@ -477,6 +519,123 @@ const MaterialStandardManagement: React.FC = () => {
                 </div>
               </div>
 
+              {/* Nguyên liệu đầu vào */}
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Nguyên liệu đầu vào</h3>
+                  <button
+                    type="button"
+                    onClick={handleAddInputItem}
+                    className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Thêm nguyên liệu
+                  </button>
+                </div>
+
+                {formData.inputItems.length === 0 ? (
+                  <p className="text-gray-500 text-sm italic">Chưa có nguyên liệu nào</p>
+                ) : (
+                  <div className="space-y-3">
+                    {formData.inputItems.map((item, index) => (
+                      <div key={index} className="flex gap-3 items-start p-3 bg-gray-50 rounded-md">
+                        <div className="flex-1 relative" ref={(el) => { inputDropdownRefs.current[index] = el; }}>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Tên nguyên liệu</label>
+                          <div
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md cursor-pointer bg-white flex items-center justify-between hover:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500"
+                            onClick={() => setOpenInputDropdownIndex(openInputDropdownIndex === index ? null : index)}
+                          >
+                            <span className={item.tenNguyenLieu ? 'text-gray-900' : 'text-gray-400'}>
+                              {item.tenNguyenLieu || 'Chọn nguyên liệu...'}
+                            </span>
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          </div>
+                          {openInputDropdownIndex === index && (
+                            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-hidden">
+                              <div className="p-2 space-y-1.5 border-b border-gray-200">
+                                <select
+                                  value={inputProductFilterType[index] || ''}
+                                  onChange={(e) => setInputProductFilterType(prev => ({ ...prev, [index]: e.target.value }))}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                                >
+                                  <option value="">-- Tất cả loại sản phẩm --</option>
+                                  {[...new Set(allProducts.map(p => p.loaiSanPham).filter(Boolean))].map(type => (
+                                    <option key={type} value={type}>{type}</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  placeholder="Tìm nguyên liệu..."
+                                  value={inputProductSearchTerms[index] || ''}
+                                  onChange={(e) => setInputProductSearchTerms(prev => ({ ...prev, [index]: e.target.value }))}
+                                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  onClick={(e) => e.stopPropagation()}
+                                  autoFocus
+                                />
+                              </div>
+                              <div className="overflow-y-auto max-h-48">
+                                {allProducts
+                                  .filter(p => {
+                                    const typeFilter = inputProductFilterType[index] || '';
+                                    if (typeFilter && p.loaiSanPham !== typeFilter) return false;
+                                    const search = (inputProductSearchTerms[index] || '').toLowerCase();
+                                    return !search || p.tenSanPham.toLowerCase().includes(search) || p.maSanPham.toLowerCase().includes(search);
+                                  })
+                                  .map(product => (
+                                    <div
+                                      key={product.id}
+                                      className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 ${
+                                        item.tenNguyenLieu === product.tenSanPham ? 'bg-blue-100 font-medium' : ''
+                                      }`}
+                                      onClick={() => {
+                                        handleInputItemChange(index, 'tenNguyenLieu', product.tenSanPham);
+                                        setOpenInputDropdownIndex(null);
+                                        setInputProductSearchTerms(prev => ({ ...prev, [index]: '' }));
+                                      }}
+                                    >
+                                      <span className="text-blue-600 mr-2">{product.maSanPham}</span>
+                                      {product.tenSanPham}
+                                      {product.loaiSanPham && <span className="text-gray-400 ml-1 text-xs">({product.loaiSanPham})</span>}
+                                    </div>
+                                  ))}
+                                {allProducts.filter(p => {
+                                  const typeFilter = inputProductFilterType[index] || '';
+                                  if (typeFilter && p.loaiSanPham !== typeFilter) return false;
+                                  const search = (inputProductSearchTerms[index] || '').toLowerCase();
+                                  return !search || p.tenSanPham.toLowerCase().includes(search) || p.maSanPham.toLowerCase().includes(search);
+                                }).length === 0 && (
+                                  <div className="px-3 py-2 text-sm text-gray-400 italic">Không tìm thấy sản phẩm</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="w-32">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Tỉ lệ (%)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={item.tiLe}
+                            onChange={(e) => handleInputItemChange(index, 'tiLe', e.target.value)}
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveInputItem(index)}
+                          className="mt-6 text-red-600 hover:text-red-800"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Thành phẩm đầu ra */}
               <div>
                 <div className="flex justify-between items-center mb-4">
@@ -683,6 +842,35 @@ const MaterialStandardManagement: React.FC = () => {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Nguyên liệu đầu vào */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Nguyên liệu đầu vào</h3>
+                {!selectedStandard.inputItems || selectedStandard.inputItems.length === 0 ? (
+                  <p className="text-gray-500 text-sm italic">Chưa có nguyên liệu nào</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên nguyên liệu</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tỉ lệ (%)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {selectedStandard.inputItems.map((item, index) => (
+                          <tr key={index}>
+                            <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.tenNguyenLieu}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.tiLe}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               {/* Thành phẩm đầu ra */}

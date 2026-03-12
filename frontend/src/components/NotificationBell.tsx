@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList } from 'lucide-react';
+import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
 import TaskListModal from './TaskListModal';
 import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
 import AllNotificationsModal from './AllNotificationsModal';
+import EmployeePayrollModal from './EmployeePayrollModal';
 
 const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -13,6 +14,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [selectedEvaluationNotification, setSelectedEvaluationNotification] = useState<Notification | null>(null);
   const [isAllNotificationsOpen, setIsAllNotificationsOpen] = useState(false);
+  const [isPayrollModalOpen, setIsPayrollModalOpen] = useState(false);
+  const [selectedPayrollNotification, setSelectedPayrollNotification] = useState<Notification | null>(null);
 
   useEffect(() => {
     loadNotifications();
@@ -51,6 +54,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     } else if (['EVALUATION', 'EVALUATION_SUPERVISOR1', 'EVALUATION_SUPERVISOR2', 'EVALUATION_COMPLETED'].includes(notification.type)) {
       setSelectedEvaluationNotification(notification);
       setIsEvaluationModalOpen(true);
+    } else if (notification.type === 'PAYROLL') {
+      setSelectedPayrollNotification(notification);
+      setIsPayrollModalOpen(true);
     }
     if (onNotificationClick) {
       onNotificationClick(notification);
@@ -71,6 +77,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         return <CheckCircle className="w-4 h-4 text-green-600" />;
       case 'TASK':
         return <Target className="w-4 h-4 text-indigo-600" />;
+      case 'PAYROLL':
+        return <DollarSign className="w-4 h-4 text-green-600" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }
@@ -192,6 +200,16 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
           setIsAllNotificationsOpen(false);
           handleNotificationClick(notification);
         }}
+      />
+
+      {/* Payroll Modal - opened when clicking PAYROLL notification */}
+      <EmployeePayrollModal
+        isOpen={isPayrollModalOpen}
+        onClose={() => {
+          setIsPayrollModalOpen(false);
+          setSelectedPayrollNotification(null);
+        }}
+        period={selectedPayrollNotification?.period}
       />
     </>
   );

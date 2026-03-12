@@ -3,20 +3,18 @@ import {
   Calculator,
   FileText,
   ShoppingCart,
-  DollarSign,
-  Plane
+  DollarSign
 } from 'lucide-react';
 import QuotationRequestManagement from '../../components/QuotationRequestManagement';
 import QuotationManagement from '../../components/QuotationManagement';
 import OrderManagement from '../../components/OrderManagement';
-import GeneralCostManagement from '../../components/GeneralCostManagement';
 import ExportCostManagement from '../../components/ExportCostManagement';
 import { quotationService } from '../../services/quotationService';
 import { quotationRequestService } from '../../services/quotationRequestService';
 import { orderService } from '../../services/orderService';
 
 const GeneralPricing = () => {
-  const [activeTab, setActiveTab] = useState<'requests' | 'quotes' | 'orders' | 'general-cost' | 'export-cost'>('requests');
+  const [activeTab, setActiveTab] = useState<'requests' | 'quotes' | 'orders' | 'costs'>('requests');
 
   // Stats overview
   const [requestStats, setRequestStats] = useState({
@@ -92,8 +90,7 @@ const GeneralPricing = () => {
     { id: 'requests', name: 'Danh sách YCBG', icon: <FileText className="w-4 h-4" /> },
     { id: 'quotes', name: 'Danh sách báo giá', icon: <Calculator className="w-4 h-4" /> },
     { id: 'orders', name: 'Danh sách đơn hàng', icon: <ShoppingCart className="w-4 h-4" /> },
-    { id: 'general-cost', name: 'Chi phí chung', icon: <DollarSign className="w-4 h-4" /> },
-    { id: 'export-cost', name: 'Chi phí xuất khẩu', icon: <Plane className="w-4 h-4" /> }
+    { id: 'costs', name: 'Chi phí', icon: <DollarSign className="w-4 h-4" /> }
   ];
 
   return (
@@ -240,13 +237,8 @@ const GeneralPricing = () => {
             </div>
           )}
 
-          {/* CHI PHÍ CHUNG */}
-          {activeTab === 'general-cost' && (
-            <GeneralCostManagement />
-          )}
-
-          {/* CHI PHÍ XUẤT KHẨU */}
-          {activeTab === 'export-cost' && (
+          {/* CHI PHÍ */}
+          {activeTab === 'costs' && (
             <ExportCostManagement />
           )}
         </div>

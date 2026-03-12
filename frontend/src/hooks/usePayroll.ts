@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import payrollService, { PayrollItem, PayrollDetail } from '../services/payrollService';
+import payrollService, { PayrollItem, PayrollDetail, PayrollSettings } from '../services/payrollService';
 
 // Query keys for cache management
 export const payrollKeys = {
@@ -8,6 +8,7 @@ export const payrollKeys = {
   list: (month: number, year: number) => [...payrollKeys.lists(), { month, year }] as const,
   details: () => [...payrollKeys.all, 'detail'] as const,
   detail: (id: string) => [...payrollKeys.details(), id] as const,
+  settings: () => [...payrollKeys.all, 'settings'] as const,
 };
 
 // Hook to get payroll by month and year
@@ -50,6 +51,27 @@ export const useUpdatePayroll = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: payrollKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: payrollKeys.lists() });
+    },
+  });
+};
+
+// Hook to get payroll settings
+export const usePayrollSettings = () => {
+  return useQuery({
+    queryKey: payrollKeys.settings(),
+    queryFn: () => payrollService.getPayrollSettings(),
+  });
+};
+
+// Hook to update payroll settings
+export const useUpdatePayrollSettings = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { standardWorkDays?: number; overtimeRate?: number }) =>
+      payrollService.updatePayrollSettings(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: payrollKeys.settings() });
     },
   });
 };

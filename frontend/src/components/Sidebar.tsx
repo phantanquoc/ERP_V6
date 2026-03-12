@@ -104,6 +104,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
       subItems: [
         { path: '/production/management', name: 'Phòng QLSX', subModule: 'management' },
         { path: '/production/warehouse', name: 'Quản lý kho', subModule: 'warehouse' },
+        { path: '/production/data', name: 'Dữ liệu sản xuất', subModule: 'data' },
       ],
       module: 'production'
     },

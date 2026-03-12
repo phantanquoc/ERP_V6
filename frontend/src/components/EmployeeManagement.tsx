@@ -23,7 +23,7 @@ interface Employee {
   dateOfBirth?: string;
   phoneNumber?: string;
   address?: string;
-  positionId: string;
+  positionId?: string;
   positionLevelId?: string;
   subDepartmentId?: string;
   status: string;
@@ -83,7 +83,7 @@ interface PositionLevel {
 interface FormData {
   employeeCode: string;
   userId?: string;
-  positionId: string;
+  positionId?: string;
   positionLevelId?: string;
   status: string;
   hireDate: string;
@@ -227,12 +227,6 @@ const EmployeeManagement: React.FC = () => {
     setError('');
     setSuccess('');
 
-    // Validate required fields
-    if (!formData.positionId) {
-      setError('Vui lòng chọn chức vụ');
-      return;
-    }
-
     try {
       if (selectedEmployee) {
         await employeeService.updateEmployee(selectedEmployee.id, formData);
@@ -263,7 +257,7 @@ const EmployeeManagement: React.FC = () => {
     setSelectedEmployee(employee);
     setFormData({
       employeeCode: employee.employeeCode,
-      positionId: employee.positionId,
+      positionId: employee.positionId || '',
       positionLevelId: employee.positionLevelId,
       status: employee.status,
       hireDate: employee.hireDate.split('T')[0],
@@ -381,8 +375,8 @@ const EmployeeManagement: React.FC = () => {
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Họ tên</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Email</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Chức vụ</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Phòng ban</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vị trí</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
@@ -522,15 +516,14 @@ const EmployeeManagement: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Chức vụ *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí</label>
                     <select
                       name="positionId"
-                      value={formData.positionId}
+                      value={formData.positionId || ''}
                       onChange={handleInputChange}
-                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">Chọn chức vụ</option>
+                      <option value="">Chọn vị trí</option>
                       {positions.map(position => (
                         <option key={position.id} value={position.id}>
                           {position.name}
@@ -866,11 +859,11 @@ const EmployeeManagement: React.FC = () => {
                     <p className="text-gray-900">{selectedEmployee.user?.email}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Chức vụ</label>
+                    <label className="block text-sm font-medium text-gray-700">Vị trí</label>
                     <p className="text-gray-900">{selectedEmployee.position?.name}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Phòng ban</label>
+                    <label className="block text-sm font-medium text-gray-700">Bộ phận</label>
                     <p className="text-gray-900">{getDepartmentName(selectedEmployee.user?.departmentId)}</p>
                   </div>
                   <div>

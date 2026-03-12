@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { downloadFile } from '../utils/downloadFile';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -12,7 +13,7 @@ export interface AttendanceRecord {
   checkInTime: string | null;
   checkOutTime: string | null;
   workHours: number;
-  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EARLY' | 'ON_LEAVE';
+  status: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME';
   notes: string | null;
 }
 
@@ -64,6 +65,26 @@ class AttendanceService {
     }
   }
 
+  async overtimeCheckIn(employeeId: string): Promise<any> {
+    try {
+      const response = await apiClient.post('/attendances/overtime-check-in', { employeeId });
+      return response.data;
+    } catch (error) {
+      console.error('Error overtime check-in:', error);
+      throw error;
+    }
+  }
+
+  async overtimeCheckOut(employeeId: string): Promise<any> {
+    try {
+      const response = await apiClient.post('/attendances/overtime-check-out', { employeeId });
+      return response.data;
+    } catch (error) {
+      console.error('Error overtime check-out:', error);
+      throw error;
+    }
+  }
+
   async getTodayAttendance(employeeId: string): Promise<AttendanceRecord | null> {
     try {
       const today = new Date();
@@ -82,6 +103,26 @@ class AttendanceService {
     } catch (error) {
       console.error('Error fetching today attendance:', error);
       return null;
+    }
+  }
+
+  async getTodayAttendances(employeeId: string): Promise<AttendanceRecord[]> {
+    try {
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0).toISOString();
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).toISOString();
+
+      const response = await apiClient.get(`/attendances/employee/${employeeId}`, {
+        params: {
+          startDate: startOfDay,
+          endDate: endOfDay,
+        },
+      });
+
+      return response.data || [];
+    } catch (error) {
+      console.error('Error fetching today attendances:', error);
+      return [];
     }
   }
 
@@ -145,21 +186,10 @@ class AttendanceService {
   }
 
   async exportToExcel(filters?: { search?: string }): Promise<void> {
-    const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
     const url = `${API_BASE_URL}/attendances/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!response.ok) throw new Error('Failed to export to Excel');
-    const blob = await response.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `bang-cham-cong-${Date.now()}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(downloadUrl);
+    await downloadFile(url, `bang-cham-cong-${Date.now()}.xlsx`);
   }
 }
 
