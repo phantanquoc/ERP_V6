@@ -33,7 +33,7 @@ class WorkShiftController {
 
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const shift = await workShiftService.updateShift(id, req.body);
       res.json({ success: true, data: shift });
     } catch (error) {
@@ -43,7 +43,7 @@ class WorkShiftController {
 
   async delete(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await workShiftService.deleteShift(id);
       res.json({ success: true, message: 'Deleted' });
     } catch (error) {
