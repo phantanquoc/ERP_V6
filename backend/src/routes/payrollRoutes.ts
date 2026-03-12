@@ -51,6 +51,20 @@ router.get(
   payrollController.getPayrollByMonthYear
 );
 
+router.get(
+  '/settings',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  payrollController.getPayrollSettings
+);
+
+router.put(
+  '/settings',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  payrollController.updatePayrollSettings
+);
+
 /**
  * @swagger
  * /api/payrolls/export/excel:
@@ -86,6 +100,19 @@ router.get(
   authenticate,
   authorize('ADMIN', 'DEPARTMENT_HEAD'),
   payrollController.exportToExcel
+);
+
+router.post(
+  '/send-notifications',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  payrollController.sendPayrollNotifications
+);
+
+router.get(
+  '/my-payroll',
+  authenticate,
+  payrollController.getMyPayroll
 );
 
 /**

@@ -198,7 +198,7 @@ model Employee {
   dateOfBirth        DateTime?
   phoneNumber        String?
   address            String?
-  positionId         String
+  positionId         String?
   positionLevelId    String?
   subDepartmentId    String?
   status             EmployeeStatus          @default(ACTIVE)
@@ -225,7 +225,7 @@ model Employee {
   supplyRequests     SupplyRequest[]
   attendances        Attendance[]
   profile            EmployeeProfile?
-  position           Position                @relation(fields: [positionId], references: [id])
+  position           Position?               @relation(fields: [positionId], references: [id])
   positionLevel      PositionLevel?          @relation(fields: [positionLevelId], references: [id])
   subDepartment      SubDepartment?          @relation(fields: [subDepartmentId], references: [id])
   user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -594,13 +594,27 @@ model Attendance {
   checkOutTime   DateTime?
   workHours      Float            @default(0)
   status         AttendanceStatus @default(PRESENT)
+  isOvertime     Boolean          @default(false)
   notes          String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
-  @@unique([employeeId, attendanceDate])
+  @@unique([employeeId, attendanceDate, isOvertime])
   @@map("attendances")
+  @@schema("common")
+}
+
+model WorkShift {
+  id        String   @id @default(cuid())
+  name      String   // e.g. "Ca 1", "Ca 2", "Ca 3"
+  startTime String   // format "HH:mm" e.g. "06:00"
+  endTime   String   // format "HH:mm" e.g. "14:00"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("work_shifts")
   @@schema("common")
 }
 
@@ -684,6 +698,7 @@ model MaterialStandard {
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
   items               MaterialStandardItem[]
+  inputItems          MaterialStandardInputItem[] @relation("MaterialStandardInputItems")
   productionProcesses ProductionProcess[]
 
   @@map("material_standards")
@@ -700,6 +715,19 @@ model MaterialStandardItem {
   materialStandard   MaterialStandard @relation(fields: [materialStandardId], references: [id], onDelete: Cascade)
 
   @@map("material_standard_items")
+  @@schema("common")
+}
+
+model MaterialStandardInputItem {
+  id                 String           @id @default(cuid())
+  materialStandardId String
+  tenNguyenLieu      String
+  tiLe               Float            @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  materialStandard   MaterialStandard @relation("MaterialStandardInputItems", fields: [materialStandardId], references: [id], onDelete: Cascade)
+
+  @@map("material_standard_input_items")
   @@schema("common")
 }
 
@@ -1349,11 +1377,11 @@ enum ViolationLevel {
 }
 
 enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  LATE
-  EARLY
-  ON_LEAVE
+  PRESENT        // Đúng giờ
+  LATE           // Muộn
+  ABSENT         // Vắng mặt
+  ON_LEAVE       // Nghỉ phép
+  OVERTIME       // Tăng ca
 
   @@schema("common")
 }
@@ -1996,5 +2024,17 @@ model AcceptanceHandover {
   repairRequest           RepairRequest  @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
 
   @@map("acceptance_handovers")
+  @@schema("common")
+}
+
+
+model PayrollSettings {
+  id                String   @id @default(cuid())
+  standardWorkDays  Int      @default(26)
+  overtimeRate      Float    @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("payroll_settings")
   @@schema("common")
 }

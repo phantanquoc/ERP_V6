@@ -103,6 +103,63 @@ export class PayrollController {
       next(error);
     }
   }
+
+  async getPayrollSettings(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const settings = await payrollService.getPayrollSettings();
+      res.json({
+        success: true,
+        data: settings,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updatePayrollSettings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const settings = await payrollService.updatePayrollSettings(req.body);
+      res.json({
+        success: true,
+        data: settings,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async sendPayrollNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { month, year } = req.body;
+      if (!month || !year) {
+        res.status(400).json({ success: false, message: 'Month and year are required' });
+        return;
+      }
+      const result = await payrollService.sendPayrollNotifications(Number(month), Number(year));
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMyPayroll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+      const { month, year } = req.query;
+      if (!month || !year) {
+        res.status(400).json({ success: false, message: 'Month and year are required' });
+        return;
+      }
+      const payroll = await payrollService.getMyPayroll(userId, Number(month), Number(year));
+      res.json({ success: true, data: payroll });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new PayrollController();

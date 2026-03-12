@@ -111,7 +111,7 @@ export class EmployeeEvaluationService {
     }
 
     // Get all responsibilities for the position
-    const responsibilities = evaluation.employee.position.responsibilities;
+    const responsibilities = evaluation.employee.position?.responsibilities || [];
 
     // Map responsibilities with evaluation details
     const details = responsibilities.map((resp, index) => {
@@ -173,9 +173,11 @@ export class EmployeeEvaluationService {
       });
 
       // Create evaluation details for all position responsibilities
-      const responsibilities = await prisma.positionResponsibility.findMany({
-        where: { positionId: employee.positionId },
-      });
+      const responsibilities = employee.positionId
+        ? await prisma.positionResponsibility.findMany({
+            where: { positionId: employee.positionId },
+          })
+        : [];
 
       for (const resp of responsibilities) {
         await prisma.evaluationDetail.create({

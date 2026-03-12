@@ -1,9 +1,14 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
+import notificationService from './notificationService';
 
 export class PayrollService {
   async getPayrollByMonthYear(month: number, year: number): Promise<any[]> {
+    // Date range for the month
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
     // Get all ACTIVE employees with their payroll data for the specified month/year (if exists)
     const employees = await prisma.employee.findMany({
       where: {
@@ -23,14 +28,34 @@ export class PayrollService {
             year,
           },
         },
+        attendances: {
+          where: {
+            attendanceDate: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+        },
       },
       orderBy: {
         employeeCode: 'asc',
       },
     });
 
+    // Fetch overtime rate from settings
+    const settings = await prisma.payrollSettings.findFirst();
+    const globalOvertimeRate = settings?.overtimeRate ?? 0;
+
     return employees.map((employee, index) => {
       const payroll = employee.payrolls[0];
+
+      // Always calculate workDays and leaveDays from attendance records
+      const attendanceLeaveDays = employee.attendances.filter(
+        a => a.status === 'ABSENT' || a.status === 'ON_LEAVE'
+      ).length;
+      const attendanceWorkDays = employee.attendances.filter(
+        a => a.status === 'PRESENT' || a.status === 'LATE'
+      ).length;
 
       // Get kpiSalary from positionLevel or first level of position
       const defaultKpiSalary =
@@ -47,10 +72,14 @@ export class PayrollService {
       const healthInsurance = payroll?.healthInsurance ?? 0;
       const unemploymentInsurance = payroll?.unemploymentInsurance ?? 0;
       const personalIncomeTax = payroll?.personalIncomeTax ?? 0;
+      const leaveDays = attendanceLeaveDays;
       const kpiDeduction = payroll?.kpiDeduction ?? 0;
-      const leaveDeduction = payroll?.leaveDeduction ?? 0;
+      // Luôn tính lại leaveDeduction từ attendance mới thay vì dùng giá trị cũ từ DB
+      const standardWorkDays = settings?.standardWorkDays ?? 26;
+      const leaveDeduction =
+        baseSalary > 0 && leaveDays > 0 ? Math.round((baseSalary / standardWorkDays) * leaveDays) : 0;
+      // Luôn tính lại totalDeductions và netSalary để phản ánh dữ liệu attendance mới nhất
       const totalDeductions =
-        payroll?.totalDeductions ??
         socialInsurance +
           healthInsurance +
           unemploymentInsurance +
@@ -58,7 +87,11 @@ export class PayrollService {
           kpiDeduction +
           leaveDeduction;
 
-      const netSalary = payroll?.netSalary ?? totalIncome - totalDeductions;
+      const employeeOvertimeHours = employee.attendances
+          .filter(a => a.status === 'OVERTIME')
+          .reduce((sum, a) => sum + (Number(a.workHours) || 0), 0);
+      const employeeOvertimePay = Math.round(employeeOvertimeHours * globalOvertimeRate);
+      const netSalary = totalIncome - totalDeductions + employeeOvertimePay;
 
       const fullName = employee.user
         ? `${employee.user.firstName} ${employee.user.lastName}`.trim()
@@ -85,9 +118,9 @@ export class PayrollService {
         leaveDeduction,
         totalDeductions,
         netSalary,
-        workDays: payroll?.workDays ?? 0,
-        leaveDays: payroll?.leaveDays ?? 0,
-        overtimeHours: payroll?.overtimeHours ?? 0,
+        workDays: attendanceWorkDays,
+        leaveDays,
+        overtimeHours: employeeOvertimeHours,
         payrollId: payroll?.id || null,
       };
     });
@@ -110,6 +143,34 @@ export class PayrollService {
       throw new NotFoundError('Payroll not found');
     }
 
+    // Calculate workDays, leaveDays, overtimeHours from actual attendance data
+    const startDate = new Date(payroll.year, payroll.month - 1, 1);
+    const endDate = new Date(payroll.year, payroll.month, 0, 23, 59, 59, 999);
+
+    const attendances = await prisma.attendance.findMany({
+      where: {
+        employeeId: payroll.employeeId,
+        attendanceDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
+
+    const workDays = attendances.filter(
+      a => a.status === 'PRESENT' || a.status === 'LATE'
+    ).length;
+    const leaveDays = attendances.filter(
+      a => a.status === 'ABSENT' || a.status === 'ON_LEAVE'
+    ).length;
+    const overtimeHours = attendances
+      .filter(a => a.status === 'OVERTIME')
+      .reduce((sum, a) => sum + (Number(a.workHours) || 0), 0);
+
+    const detailSettings = await prisma.payrollSettings.findFirst();
+    const detailOvertimeRate = detailSettings?.overtimeRate ?? 0;
+    const overtimePay = Math.round(overtimeHours * detailOvertimeRate);
+
     return {
       id: payroll.id,
       employeeId: payroll.employeeId,
@@ -131,9 +192,10 @@ export class PayrollService {
       leaveDeduction: payroll.leaveDeduction,
       totalDeductions: payroll.totalDeductions,
       netSalary: payroll.netSalary,
-      workDays: payroll.workDays,
-      leaveDays: payroll.leaveDays,
-      overtimeHours: payroll.overtimeHours,
+      workDays,
+      leaveDays,
+      overtimeHours,
+      overtimePay,
     };
   }
 
@@ -187,8 +249,12 @@ export class PayrollService {
       kpiDeduction +
       leaveDeduction;
 
-    // Calculate net salary
-    const netSalary = totalIncome - totalDeductions;
+    // Calculate net salary (include overtime pay)
+    const settings = await prisma.payrollSettings.findFirst();
+    const overtimeRate = settings?.overtimeRate ?? 0;
+    const overtimeHours = data.overtimeHours ?? 0;
+    const overtimePay = Math.round(overtimeHours * overtimeRate);
+    const netSalary = totalIncome - totalDeductions + overtimePay;
 
     const payroll = await prisma.payroll.upsert({
       where: {
@@ -291,7 +357,14 @@ export class PayrollService {
       personalIncomeTax +
       kpiDeduction +
       leaveDeduction;
-    const netSalary = totalIncome - totalDeductions;
+
+    // Include overtime pay in net salary
+    const settings = await prisma.payrollSettings.findFirst();
+    const currentOvertimeRate = settings?.overtimeRate ?? 0;
+    const currentOvertimeHours =
+      data.overtimeHours !== undefined ? data.overtimeHours : payroll.overtimeHours;
+    const currentOvertimePay = Math.round(currentOvertimeHours * currentOvertimeRate);
+    const netSalary = totalIncome - totalDeductions + currentOvertimePay;
 
     const updated = await prisma.payroll.update({
       where: { id: payrollId },
@@ -444,6 +517,142 @@ export class PayrollService {
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as any;
+  }
+
+  async getPayrollSettings(): Promise<any> {
+    let settings = await prisma.payrollSettings.findFirst();
+    if (!settings) {
+      settings = await prisma.payrollSettings.create({
+        data: {
+          standardWorkDays: 26,
+          overtimeRate: 0,
+        },
+      });
+    }
+    return settings;
+  }
+
+  async updatePayrollSettings(data: { standardWorkDays?: number; overtimeRate?: number }): Promise<any> {
+    let settings = await prisma.payrollSettings.findFirst();
+    if (!settings) {
+      settings = await prisma.payrollSettings.create({
+        data: {
+          standardWorkDays: data.standardWorkDays ?? 26,
+          overtimeRate: data.overtimeRate ?? 0,
+        },
+      });
+    } else {
+      settings = await prisma.payrollSettings.update({
+        where: { id: settings.id },
+        data: {
+          standardWorkDays: data.standardWorkDays ?? settings.standardWorkDays,
+          overtimeRate: data.overtimeRate ?? settings.overtimeRate,
+        },
+      });
+    }
+    return settings;
+  }
+
+  async sendPayrollNotifications(month: number, year: number): Promise<{ count: number }> {
+    const payrolls = await prisma.payroll.findMany({
+      where: { month, year },
+      include: { employee: true },
+    });
+
+    if (payrolls.length === 0) {
+      throw new ValidationError('Không có bảng lương nào cho tháng/năm này');
+    }
+
+    const employeeIds = payrolls.map((p) => p.employeeId);
+    const period = `${year}-${String(month).padStart(2, '0')}`;
+
+    await notificationService.createPayrollNotifications(employeeIds, month, year, period);
+
+    return { count: employeeIds.length };
+  }
+
+  async getMyPayroll(userId: string, month: number, year: number): Promise<any> {
+    const employee = await prisma.employee.findUnique({
+      where: { userId },
+    });
+
+    if (!employee) {
+      throw new NotFoundError('Không tìm thấy nhân viên');
+    }
+
+    const payroll = await prisma.payroll.findFirst({
+      where: { employeeId: employee.id, month, year },
+    });
+
+    if (!payroll) {
+      throw new NotFoundError('Không tìm thấy bảng lương');
+    }
+
+    // Calculate workDays, leaveDays, overtimeHours from actual attendance data
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const attendances = await prisma.attendance.findMany({
+      where: {
+        employeeId: employee.id,
+        attendanceDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
+
+    const workDays = attendances.filter(
+      (a) => a.status === 'PRESENT' || a.status === 'LATE'
+    ).length;
+    const leaveDays = attendances.filter(
+      (a) => a.status === 'ABSENT' || a.status === 'ON_LEAVE'
+    ).length;
+    const overtimeHours = attendances
+      .filter((a) => a.status === 'OVERTIME')
+      .reduce((sum, a) => sum + (Number(a.workHours) || 0), 0);
+
+    const payrollSettings = await prisma.payrollSettings.findFirst();
+    const overtimeRate = payrollSettings?.overtimeRate ?? 0;
+    const overtimePay = Math.round(overtimeHours * overtimeRate);
+
+    // Get employee with user and position info
+    const employeeWithDetails = await prisma.employee.findUnique({
+      where: { id: employee.id },
+      include: {
+        user: true,
+        position: true,
+      },
+    });
+
+    return {
+      id: payroll.id,
+      employeeId: payroll.employeeId,
+      employeeCode: employeeWithDetails?.employeeCode,
+      employeeName: employeeWithDetails?.user
+        ? `${employeeWithDetails.user.firstName} ${employeeWithDetails.user.lastName}`.trim()
+        : '',
+      positionName: employeeWithDetails?.position?.name || '',
+      month: payroll.month,
+      year: payroll.year,
+      baseSalary: payroll.baseSalary,
+      kpiBonus: payroll.kpiBonus,
+      positionAllowance: payroll.positionAllowance,
+      otherAllowances: payroll.otherAllowances,
+      totalIncome: payroll.totalIncome,
+      socialInsurance: payroll.socialInsurance,
+      healthInsurance: payroll.healthInsurance,
+      unemploymentInsurance: payroll.unemploymentInsurance,
+      personalIncomeTax: payroll.personalIncomeTax,
+      kpiDeduction: payroll.kpiDeduction,
+      leaveDeduction: payroll.leaveDeduction,
+      totalDeductions: payroll.totalDeductions,
+      netSalary: payroll.netSalary,
+      workDays,
+      leaveDays,
+      overtimeHours,
+      overtimePay,
+    };
   }
 }
 

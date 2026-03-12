@@ -32,8 +32,8 @@ export interface AuthResponse {
     dateOfBirth?: Date | null;
     phoneNumber?: string | null;
     address?: string | null;
-    positionId: string;
-    position?: { id: string; name: string };
+    positionId?: string | null;
+    position?: { id: string; name: string } | null;
     positionLevelId?: string | null;
     positionLevel?: { id: string; level: string; baseSalary: number; kpiSalary: number } | null;
     subDepartmentId?: string | null;

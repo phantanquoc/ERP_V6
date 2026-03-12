@@ -126,6 +126,38 @@ router.post('/check-out', authenticate, (req, res, next) => attendanceController
 
 /**
  * @swagger
+ * /api/attendances/overtime-check-in:
+ *   post:
+ *     tags: [Attendances]
+ *     summary: Chấm công tăng ca vào
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Chấm công tăng ca vào thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ */
+router.post('/overtime-check-in', authenticate, (req, res, next) => attendanceController.overtimeCheckIn(req, res, next));
+
+/**
+ * @swagger
+ * /api/attendances/overtime-check-out:
+ *   post:
+ *     tags: [Attendances]
+ *     summary: Chấm công tăng ca ra
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Chấm công tăng ca ra thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ */
+router.post('/overtime-check-out', authenticate, (req, res, next) => attendanceController.overtimeCheckOut(req, res, next));
+
+/**
+ * @swagger
  * /api/attendances:
  *   post:
  *     tags: [Attendances]

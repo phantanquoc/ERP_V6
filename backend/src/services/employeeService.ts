@@ -1,5 +1,5 @@
 import prisma from '@config/database';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { NotFoundError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
@@ -180,7 +180,7 @@ export class EmployeeService {
         dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
         phoneNumber: data.phoneNumber,
         address: data.address,
-        positionId: data.positionId,
+        positionId: data.positionId || null,
         positionLevelId: data.positionLevelId,
         subDepartmentId: data.subDepartmentId,
         status: data.status || 'ACTIVE',
@@ -226,9 +226,9 @@ export class EmployeeService {
       throw new NotFoundError('Employee not found');
     }
 
-    // Validate positionId - if provided, must not be empty
-    if (data.positionId !== undefined && !data.positionId) {
-      throw new ValidationError('Chức vụ là bắt buộc');
+    // Allow positionId to be explicitly set to null/empty (optional field)
+    if (data.positionId === '') {
+      data.positionId = null;
     }
 
     const updated = await prisma.employee.update({
@@ -325,8 +325,8 @@ export class EmployeeService {
       { header: 'Mã NV', key: 'employeeCode', width: 15 },
       { header: 'Họ tên', key: 'fullName', width: 25 },
       { header: 'Email', key: 'email', width: 30 },
-      { header: 'Chức vụ', key: 'position', width: 20 },
-      { header: 'Phòng ban', key: 'department', width: 25 },
+      { header: 'Vị trí', key: 'position', width: 20 },
+      { header: 'Bộ phận', key: 'department', width: 25 },
       { header: 'Ngày vào làm', key: 'hireDate', width: 18 },
       { header: 'Trạng thái', key: 'status', width: 15 },
     ];

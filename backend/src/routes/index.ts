@@ -57,6 +57,7 @@ const ROUTE_MAP: Record<string, string> = {
   purchaseRequest: '/api/purchase-requests',
   supplier: '/api/suppliers',
   acceptanceHandover: '/api/acceptance-handovers',
+  workShift: '/api/work-shifts',
 };
 
 export const registerRoutes = (app: Express): void => {

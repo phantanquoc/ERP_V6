@@ -206,6 +206,27 @@ export class NotificationService {
       },
     });
   }
+  async createPayrollNotifications(
+    employeeIds: string[],
+    month: number,
+    year: number,
+    period: string
+  ): Promise<void> {
+    if (employeeIds.length === 0) return;
+
+    const notifications = employeeIds.map((employeeId) => ({
+      employeeId,
+      type: NotificationType.PAYROLL,
+      title: `Bảng lương tháng ${month}/${year}`,
+      message: `Bảng lương tháng ${month}/${year} của bạn đã sẵn sàng. Nhấn để xem chi tiết.`,
+      period,
+      isRead: false,
+    }));
+
+    await prisma.notification.createMany({
+      data: notifications,
+    });
+  }
 }
 
 export default new NotificationService();

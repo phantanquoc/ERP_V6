@@ -42,6 +42,7 @@ export class MaterialStandardService {
         take: limit,
         include: {
           items: true,
+          inputItems: true,
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -62,6 +63,7 @@ export class MaterialStandardService {
       where: { id },
       include: {
         items: true,
+        inputItems: true,
       },
     });
 
@@ -86,9 +88,16 @@ export class MaterialStandardService {
             tiLe: parseFloat(item.tiLe),
           })),
         } : undefined,
+        inputItems: data.inputItems ? {
+          create: data.inputItems.map((item: any) => ({
+            tenNguyenLieu: item.tenNguyenLieu,
+            tiLe: parseFloat(item.tiLe) || 0,
+          })),
+        } : undefined,
       },
       include: {
         items: true,
+        inputItems: true,
       },
     });
 
@@ -98,7 +107,7 @@ export class MaterialStandardService {
   async updateMaterialStandard(id: string, data: any): Promise<any> {
     const standard = await prisma.materialStandard.findUnique({ 
       where: { id },
-      include: { items: true },
+      include: { items: true, inputItems: true },
     });
 
     if (!standard) {
@@ -108,6 +117,12 @@ export class MaterialStandardService {
     // Delete existing items if new items are provided
     if (data.items) {
       await prisma.materialStandardItem.deleteMany({
+        where: { materialStandardId: id },
+      });
+    }
+
+    if (data.inputItems) {
+      await prisma.materialStandardInputItem.deleteMany({
         where: { materialStandardId: id },
       });
     }
@@ -127,9 +142,18 @@ export class MaterialStandardService {
             })),
           },
         }),
+        ...(data.inputItems && {
+          inputItems: {
+            create: data.inputItems.map((item: any) => ({
+              tenNguyenLieu: item.tenNguyenLieu,
+              tiLe: parseFloat(item.tiLe) || 0,
+            })),
+          },
+        }),
       },
       include: {
         items: true,
+        inputItems: true,
       },
     });
 

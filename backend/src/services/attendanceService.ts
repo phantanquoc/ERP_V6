@@ -2,8 +2,33 @@ import prisma from '@config/database';
 import { NotFoundError } from '@utils/errors';
 import { AttendanceStatus } from '@prisma/client';
 import ExcelJS from 'exceljs';
+import workShiftService from './workShiftService';
 
 export class AttendanceService {
+  /**
+   * Tính số giờ làm việc giữa checkIn và checkOut.
+   * Dùng cùng ngày calendar (local) để tránh lệch 24h do timezone.
+   */
+  private calculateWorkHours(checkInTime: Date | null, checkOutTime: Date): number {
+    if (!checkInTime) return 0;
+
+    // Đảm bảo so sánh cùng ngày: lấy giờ/phút/giây local
+    const inDate = new Date(checkInTime);
+    const outDate = new Date(checkOutTime);
+
+    // Nếu checkIn và checkOut khác ngày calendar (local), chỉ tính từ 00:00 ngày checkOut
+    const sameDay =
+      inDate.getFullYear() === outDate.getFullYear() &&
+      inDate.getMonth() === outDate.getMonth() &&
+      inDate.getDate() === outDate.getDate();
+
+    const effectiveCheckIn = sameDay ? inDate : new Date(outDate.getFullYear(), outDate.getMonth(), outDate.getDate(), 0, 0, 0, 0);
+
+    const diffMs = outDate.getTime() - effectiveCheckIn.getTime();
+    const hours = Math.max(0, diffMs / (1000 * 60 * 60));
+    return Math.round(hours * 100) / 100; // Round to 2 decimal places
+  }
+
   async getAttendanceByDateRange(startDate: Date, endDate: Date): Promise<any[]> {
     const attendances = await prisma.attendance.findMany({
       where: {
@@ -71,11 +96,15 @@ export class AttendanceService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Determine work shift based on check-in time
+    const shiftName = await workShiftService.determineShift(checkInTime);
+
     let attendance = await prisma.attendance.findUnique({
       where: {
-        employeeId_attendanceDate: {
+        employeeId_attendanceDate_isOvertime: {
           employeeId,
           attendanceDate: today,
+          isOvertime: false,
         },
       },
     });
@@ -87,6 +116,7 @@ export class AttendanceService {
           attendanceDate: today,
           checkInTime,
           status: AttendanceStatus.PRESENT,
+          notes: shiftName || undefined,
         },
       });
     } else {
@@ -95,6 +125,7 @@ export class AttendanceService {
         data: {
           checkInTime,
           status: AttendanceStatus.PRESENT,
+          notes: shiftName || attendance.notes,
         },
       });
     }
@@ -108,9 +139,10 @@ export class AttendanceService {
 
     const attendance = await prisma.attendance.findUnique({
       where: {
-        employeeId_attendanceDate: {
+        employeeId_attendanceDate_isOvertime: {
           employeeId,
           attendanceDate: today,
+          isOvertime: false,
         },
       },
     });
@@ -120,12 +152,74 @@ export class AttendanceService {
     }
 
     const checkInTime = attendance.checkInTime;
-    let workHours = 0;
+    const workHours = this.calculateWorkHours(checkInTime, checkOutTime);
 
-    if (checkInTime) {
-      const diffMs = checkOutTime.getTime() - checkInTime.getTime();
-      workHours = diffMs / (1000 * 60 * 60); // Convert to hours
+    return await prisma.attendance.update({
+      where: { id: attendance.id },
+      data: {
+        checkOutTime,
+        workHours,
+      },
+    });
+  }
+
+  async overtimeCheckIn(employeeId: string, checkInTime: Date): Promise<any> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let attendance = await prisma.attendance.findUnique({
+      where: {
+        employeeId_attendanceDate_isOvertime: {
+          employeeId,
+          attendanceDate: today,
+          isOvertime: true,
+        },
+      },
+    });
+
+    if (!attendance) {
+      attendance = await prisma.attendance.create({
+        data: {
+          employeeId,
+          attendanceDate: today,
+          checkInTime,
+          isOvertime: true,
+          status: AttendanceStatus.OVERTIME,
+        },
+      });
+    } else {
+      attendance = await prisma.attendance.update({
+        where: { id: attendance.id },
+        data: {
+          checkInTime,
+          status: AttendanceStatus.OVERTIME,
+        },
+      });
     }
+
+    return attendance;
+  }
+
+  async overtimeCheckOut(employeeId: string, checkOutTime: Date): Promise<any> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const attendance = await prisma.attendance.findUnique({
+      where: {
+        employeeId_attendanceDate_isOvertime: {
+          employeeId,
+          attendanceDate: today,
+          isOvertime: true,
+        },
+      },
+    });
+
+    if (!attendance) {
+      throw new NotFoundError('Chưa chấm công tăng ca vào. Vui lòng chấm công tăng ca vào trước.');
+    }
+
+    const checkInTime = attendance.checkInTime;
+    const workHours = this.calculateWorkHours(checkInTime, checkOutTime);
 
     return await prisma.attendance.update({
       where: { id: attendance.id },
@@ -187,6 +281,17 @@ export class AttendanceService {
 
     if (!attendance) {
       throw new NotFoundError('Attendance record not found');
+    }
+
+    // Recalculate workHours if checkInTime or checkOutTime is being updated
+    if (data.checkInTime !== undefined || data.checkOutTime !== undefined) {
+      const finalCheckIn = data.checkInTime ?? attendance.checkInTime;
+      const finalCheckOut = data.checkOutTime ?? attendance.checkOutTime;
+
+      if (finalCheckIn && finalCheckOut) {
+        const diffMs = new Date(finalCheckOut).getTime() - new Date(finalCheckIn).getTime();
+        data.workHours = diffMs / (1000 * 60 * 60);
+      }
     }
 
     const updated = await prisma.attendance.update({
@@ -285,11 +390,11 @@ export class AttendanceService {
 
       let statusText = '';
       switch (att.status) {
-        case 'PRESENT': statusText = 'Có mặt'; break;
-        case 'ABSENT': statusText = 'Vắng'; break;
-        case 'LATE': statusText = 'Đi trễ'; break;
-        case 'EARLY': statusText = 'Về sớm'; break;
+        case 'PRESENT': statusText = 'Đúng giờ'; break;
+        case 'LATE': statusText = 'Muộn'; break;
+        case 'ABSENT': statusText = 'Vắng mặt'; break;
         case 'ON_LEAVE': statusText = 'Nghỉ phép'; break;
+        case 'OVERTIME': statusText = 'Tăng ca'; break;
         default: statusText = att.status;
       }
 

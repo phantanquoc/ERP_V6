@@ -378,62 +378,47 @@ export class UserService {
 
       // Auto-create employee for all users (including ADMIN)
       try {
-        // Get default position (first position in database)
-        const defaultPosition = await tx.position.findFirst({
-          orderBy: { createdAt: 'asc' },
+        // Generate employee code: NV001, NV002, NV003, ...
+        // Get the last employee code to avoid duplicates
+        const lastEmployee = await tx.employee.findFirst({
+          where: {
+            employeeCode: {
+              startsWith: 'NV',
+            },
+          },
+          orderBy: {
+            employeeCode: 'desc',
+          },
         });
 
-        if (defaultPosition) {
-          // Get default position level (first level for this position)
-          const defaultPositionLevel = await tx.positionLevel.findFirst({
-            where: { positionId: defaultPosition.id },
-            orderBy: { baseSalary: 'asc' },
-          });
-
-          // Generate employee code: NV001, NV002, NV003, ...
-          // Get the last employee code to avoid duplicates
-          const lastEmployee = await tx.employee.findFirst({
-            where: {
-              employeeCode: {
-                startsWith: 'NV',
-              },
-            },
-            orderBy: {
-              employeeCode: 'desc',
-            },
-          });
-
-          let employeeCode: string;
-          if (lastEmployee && lastEmployee.employeeCode) {
-            const lastNumber = parseInt(lastEmployee.employeeCode.replace('NV', ''));
-            employeeCode = `NV${String(lastNumber + 1).padStart(3, '0')}`;
-          } else {
-            employeeCode = 'NV001';
-          }
-
-          // Create employee
-          await tx.employee.create({
-            data: {
-              employeeCode: employeeCode,
-              userId: newUser.id,
-              positionId: defaultPosition.id,
-              positionLevelId: defaultPositionLevel?.id,
-              subDepartmentId: data.subDepartmentId || null,
-              status: 'ACTIVE',
-              hireDate: new Date(),
-              contractType: 'PERMANENT',
-              baseSalary: defaultPositionLevel?.baseSalary || 0,
-              gender: 'MALE', // Default value, can be updated later
-              dateOfBirth: new Date('1990-01-01'), // Default value
-              phoneNumber: '', // Can be updated later
-              address: '', // Can be updated later
-            },
-          });
-
-          logger.info(`✅ Auto-created employee ${employeeCode} for user ${newUser.email} (role: ${data.role})`);
+        let employeeCode: string;
+        if (lastEmployee && lastEmployee.employeeCode) {
+          const lastNumber = parseInt(lastEmployee.employeeCode.replace('NV', ''));
+          employeeCode = `NV${String(lastNumber + 1).padStart(3, '0')}`;
         } else {
-          logger.warn('⚠️ No default position found, skipping employee creation');
+          employeeCode = 'NV001';
         }
+
+        // Create employee without requiring a default position
+        await tx.employee.create({
+          data: {
+            employeeCode: employeeCode,
+            userId: newUser.id,
+            positionId: null,
+            positionLevelId: null,
+            subDepartmentId: data.subDepartmentId || null,
+            status: 'ACTIVE',
+            hireDate: new Date(),
+            contractType: 'PERMANENT',
+            baseSalary: 0,
+            gender: 'MALE', // Default value, can be updated later
+            dateOfBirth: new Date('1990-01-01'), // Default value
+            phoneNumber: '', // Can be updated later
+            address: '', // Can be updated later
+          },
+        });
+
+        logger.info(`✅ Auto-created employee ${employeeCode} for user ${newUser.email} (role: ${data.role})`);
       } catch (employeeError) {
         logger.warn('⚠️ Failed to auto-create employee:', employeeError);
         // Don't fail the transaction if employee creation fails

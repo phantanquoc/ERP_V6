@@ -225,6 +225,17 @@ async function main(): Promise<void> {
     },
   });
 
+  await prisma.subDepartment.upsert({
+    where: { code: 'SUBDEPT_PRODUCTION_DATA' },
+    update: {},
+    create: {
+      code: 'SUBDEPT_PRODUCTION_DATA',
+      name: 'Dữ liệu sản xuất',
+      description: 'Dữ liệu sản xuất',
+      departmentId: productionDept.id,
+    },
+  });
+
   // Technical sub-departments
   await prisma.subDepartment.upsert({
     where: { code: 'SUBDEPT_TECHNICAL_QUALITY' },
@@ -384,7 +395,7 @@ async function main(): Promise<void> {
   console.log('\n👤 Creating users...');
   const admin = await prisma.user.upsert({
     where: { email: 'admin@example.com' },
-    update: { password: adminPassword }, // Update password
+    update: { password: adminPassword },
     create: {
       email: 'admin@example.com',
       password: adminPassword,
@@ -393,30 +404,33 @@ async function main(): Promise<void> {
       role: 'ADMIN' as any,
       isActive: true,
       departmentId: generalDept.id,
-      employees: {
-        create: {
-          employeeCode: 'NV000',
-          gender: 'MALE',
-          dateOfBirth: new Date('1985-01-01'),
-          phoneNumber: '0900000000',
-          address: 'TP.HCM',
-          positionId: qcStaffPos.id, // Will use a proper admin position
-          hireDate: new Date('2020-01-01'),
-          contractType: 'PERMANENT',
-          educationLevel: 'MASTER',
-          specialization: 'Quản trị hệ thống',
-          baseSalary: 30000000,
-          kpiLevel: 100,
-          weight: 70,
-          height: 175,
-          shirtSize: 'L',
-          pantSize: '32',
-          shoeSize: '42',
-          bankAccount: '0000000000',
-          lockerNumber: 'L000',
-          notes: 'Quản trị viên hệ thống',
-        },
-      },
+    },
+  });
+  await prisma.employee.upsert({
+    where: { employeeCode: 'NV000' },
+    update: { userId: admin.id },
+    create: {
+      userId: admin.id,
+      employeeCode: 'NV000',
+      gender: 'MALE',
+      dateOfBirth: new Date('1985-01-01'),
+      phoneNumber: '0900000000',
+      address: 'TP.HCM',
+      positionId: qcStaffPos.id,
+      hireDate: new Date('2020-01-01'),
+      contractType: 'PERMANENT',
+      educationLevel: 'MASTER',
+      specialization: 'Quản trị hệ thống',
+      baseSalary: 30000000,
+      kpiLevel: 100,
+      weight: 70,
+      height: 175,
+      shirtSize: 'L',
+      pantSize: '32',
+      shoeSize: '42',
+      bankAccount: '0000000000',
+      lockerNumber: 'L000',
+      notes: 'Quản trị viên hệ thống',
     },
   });
 
@@ -425,7 +439,7 @@ async function main(): Promise<void> {
   // Create QC staff user (Nguyễn Văn An)
   const qcStaff = await prisma.user.upsert({
     where: { email: 'an.nguyen@company.com' },
-    update: { password: userPassword }, // Update password
+    update: { password: userPassword },
     create: {
       email: 'an.nguyen@company.com',
       password: userPassword,
@@ -435,32 +449,35 @@ async function main(): Promise<void> {
       isActive: true,
       departmentId: qualityDept.id,
       subDepartmentId: qualityPersonnelSubDept.id,
-      employees: {
-        create: {
-          employeeCode: 'NV001',
-          gender: 'MALE',
-          dateOfBirth: new Date('1990-05-15'),
-          phoneNumber: '0901234567',
-          address: '123 Nguyễn Văn Linh, Q.7, TP.HCM',
-          positionId: qcStaffPos.id,
-          subDepartmentId: qualityPersonnelSubDept.id,
-          hireDate: new Date('2022-01-15'),
-          contractType: 'PERMANENT',
-          educationLevel: 'BACHELOR',
-          specialization: 'Kiểm tra chất lượng thực phẩm',
-          specialSkills: 'HACCP, ISO 22000',
-          baseSalary: 15000000,
-          kpiLevel: 100,
-          weight: 65,
-          height: 170,
-          shirtSize: 'M',
-          pantSize: '32',
-          shoeSize: '42',
-          bankAccount: '1234567890',
-          lockerNumber: 'L001',
-          notes: 'Nhân viên tích cực, có kinh nghiệm',
-        },
-      },
+    },
+  });
+  await prisma.employee.upsert({
+    where: { employeeCode: 'NV001' },
+    update: { userId: qcStaff.id },
+    create: {
+      userId: qcStaff.id,
+      employeeCode: 'NV001',
+      gender: 'MALE',
+      dateOfBirth: new Date('1990-05-15'),
+      phoneNumber: '0901234567',
+      address: '123 Nguyễn Văn Linh, Q.7, TP.HCM',
+      positionId: qcStaffPos.id,
+      subDepartmentId: qualityPersonnelSubDept.id,
+      hireDate: new Date('2022-01-15'),
+      contractType: 'PERMANENT',
+      educationLevel: 'BACHELOR',
+      specialization: 'Kiểm tra chất lượng thực phẩm',
+      specialSkills: 'HACCP, ISO 22000',
+      baseSalary: 15000000,
+      kpiLevel: 100,
+      weight: 65,
+      height: 170,
+      shirtSize: 'M',
+      pantSize: '32',
+      shoeSize: '42',
+      bankAccount: '1234567890',
+      lockerNumber: 'L001',
+      notes: 'Nhân viên tích cực, có kinh nghiệm',
     },
   });
 
@@ -469,7 +486,7 @@ async function main(): Promise<void> {
   // Create QC lead user (Trần Thị Bình)
   const qcLead = await prisma.user.upsert({
     where: { email: 'binh.tran@company.com' },
-    update: { password: userPassword }, // Update password
+    update: { password: userPassword },
     create: {
       email: 'binh.tran@company.com',
       password: userPassword,
@@ -479,32 +496,35 @@ async function main(): Promise<void> {
       isActive: true,
       departmentId: qualityDept.id,
       subDepartmentId: qualityProcessSubDept.id,
-      employees: {
-        create: {
-          employeeCode: 'NV002',
-          gender: 'FEMALE',
-          dateOfBirth: new Date('1992-08-20'),
-          phoneNumber: '0902345678',
-          address: '456 Lê Văn Việt, Q.9, TP.HCM',
-          positionId: qcLeadPos.id,
-          subDepartmentId: qualityProcessSubDept.id,
-          hireDate: new Date('2021-03-10'),
-          contractType: 'PERMANENT',
-          educationLevel: 'MASTER',
-          specialization: 'Quản lý chất lượng',
-          specialSkills: 'Six Sigma, Lean Manufacturing',
-          baseSalary: 20000000,
-          kpiLevel: 120,
-          weight: 58,
-          height: 165,
-          shirtSize: 'S',
-          pantSize: '28',
-          shoeSize: '38',
-          bankAccount: '0987654321',
-          lockerNumber: 'L002',
-          notes: 'Lãnh đạo tốt, có tầm nhìn',
-        },
-      },
+    },
+  });
+  await prisma.employee.upsert({
+    where: { employeeCode: 'NV002' },
+    update: { userId: qcLead.id },
+    create: {
+      userId: qcLead.id,
+      employeeCode: 'NV002',
+      gender: 'FEMALE',
+      dateOfBirth: new Date('1992-08-20'),
+      phoneNumber: '0902345678',
+      address: '456 Lê Văn Việt, Q.9, TP.HCM',
+      positionId: qcLeadPos.id,
+      subDepartmentId: qualityProcessSubDept.id,
+      hireDate: new Date('2021-03-10'),
+      contractType: 'PERMANENT',
+      educationLevel: 'MASTER',
+      specialization: 'Quản lý chất lượng',
+      specialSkills: 'Six Sigma, Lean Manufacturing',
+      baseSalary: 20000000,
+      kpiLevel: 120,
+      weight: 58,
+      height: 165,
+      shirtSize: 'S',
+      pantSize: '28',
+      shoeSize: '38',
+      bankAccount: '0987654321',
+      lockerNumber: 'L002',
+      notes: 'Lãnh đạo tốt, có tầm nhìn',
     },
   });
 
@@ -513,7 +533,7 @@ async function main(): Promise<void> {
   // Create production worker user
   const prodWorker = await prisma.user.upsert({
     where: { email: 'employee@example.com' },
-    update: { password: userPassword }, // Update password
+    update: { password: userPassword },
     create: {
       email: 'employee@example.com',
       password: userPassword,
@@ -523,29 +543,32 @@ async function main(): Promise<void> {
       isActive: true,
       departmentId: productionDept.id,
       subDepartmentId: productionManagementSubDept.id,
-      employees: {
-        create: {
-          employeeCode: 'NV003',
-          gender: 'MALE',
-          dateOfBirth: new Date('1995-03-10'),
-          phoneNumber: '0903456789',
-          address: '789 Trần Hưng Đạo, Q.1, TP.HCM',
-          positionId: prodWorkerPos.id,
-          subDepartmentId: productionManagementSubDept.id,
-          hireDate: new Date('2023-06-01'),
-          contractType: 'PERMANENT',
-          educationLevel: 'HIGH_SCHOOL',
-          baseSalary: 12000000,
-          kpiLevel: 100,
-          weight: 70,
-          height: 175,
-          shirtSize: 'L',
-          pantSize: '34',
-          shoeSize: '44',
-          bankAccount: '1111111111',
-          lockerNumber: 'L003',
-        },
-      },
+    },
+  });
+  await prisma.employee.upsert({
+    where: { employeeCode: 'NV003' },
+    update: { userId: prodWorker.id },
+    create: {
+      userId: prodWorker.id,
+      employeeCode: 'NV003',
+      gender: 'MALE',
+      dateOfBirth: new Date('1995-03-10'),
+      phoneNumber: '0903456789',
+      address: '789 Trần Hưng Đạo, Q.1, TP.HCM',
+      positionId: prodWorkerPos.id,
+      subDepartmentId: productionManagementSubDept.id,
+      hireDate: new Date('2023-06-01'),
+      contractType: 'PERMANENT',
+      educationLevel: 'HIGH_SCHOOL',
+      baseSalary: 12000000,
+      kpiLevel: 100,
+      weight: 70,
+      height: 175,
+      shirtSize: 'L',
+      pantSize: '34',
+      shoeSize: '44',
+      bankAccount: '1111111111',
+      lockerNumber: 'L003',
     },
   });
 
@@ -1014,9 +1037,12 @@ async function main(): Promise<void> {
     const inspectionDate = new Date();
     inspectionDate.setDate(inspectionDate.getDate() - i);
 
-    await prisma.internalInspection.create({
-      data: {
-        inspectionCode: `KTN-${new Date().getFullYear()}-${String(i + 1).padStart(5, '0')}`,
+    const inspectionCode = `KTN-${new Date().getFullYear()}-${String(i + 1).padStart(5, '0')}`;
+    await prisma.internalInspection.upsert({
+      where: { inspectionCode },
+      update: {},
+      create: {
+        inspectionCode,
         inspectionDate,
         inspectionPlanCode: `KH-${new Date().getFullYear()}-${String(i + 1).padStart(3, '0')}`,
         inspectionPlanId: `plan-${i}`,
@@ -1055,14 +1081,15 @@ async function main(): Promise<void> {
     checkOutTime.setHours(17, 0, 0, 0);
 
     const workHours = 8;
-    const statuses = ['PRESENT', 'ABSENT', 'LATE', 'EARLY', 'ON_LEAVE'];
+    const statuses = ['PRESENT', 'LATE', 'ABSENT', 'ON_LEAVE', 'OVERTIME'];
     const status = statuses[i % statuses.length];
 
     await prisma.attendance.upsert({
       where: {
-        employeeId_attendanceDate: {
+        employeeId_attendanceDate_isOvertime: {
           employeeId: employee.id,
           attendanceDate: attendanceDate,
+          isOvertime: false,
         },
       },
       update: {},
@@ -1073,7 +1100,7 @@ async function main(): Promise<void> {
         checkOutTime: status === 'ABSENT' || status === 'ON_LEAVE' ? null : checkOutTime,
         workHours: status === 'ABSENT' || status === 'ON_LEAVE' ? 0 : workHours,
         status: status as any,
-        notes: status === 'LATE' ? 'Đến muộn 30 phút' : status === 'EARLY' ? 'Về sớm 1 giờ' : null,
+        notes: status === 'LATE' ? 'Đến muộn 30 phút' : null,
       },
     });
   }

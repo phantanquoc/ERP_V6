@@ -93,6 +93,44 @@ export class AttendanceController {
     }
   }
 
+  async overtimeCheckIn(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { employeeId } = req.body;
+
+      if (!employeeId) {
+        throw new ValidationError('employeeId is required');
+      }
+
+      const attendance = await attendanceService.overtimeCheckIn(employeeId, new Date());
+      res.json({
+        success: true,
+        data: attendance,
+        message: 'Chấm công tăng ca vào thành công',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async overtimeCheckOut(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { employeeId } = req.body;
+
+      if (!employeeId) {
+        throw new ValidationError('employeeId is required');
+      }
+
+      const attendance = await attendanceService.overtimeCheckOut(employeeId, new Date());
+      res.json({
+        success: true,
+        data: attendance,
+        message: 'Chấm công tăng ca ra thành công',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async createAttendance(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { employeeId, attendanceDate, checkInTime, checkOutTime, workHours, status, notes } = req.body;
