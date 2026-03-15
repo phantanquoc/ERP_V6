@@ -214,6 +214,48 @@ export class InternationalProductService {
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as any;
   }
+  async getCategories(): Promise<string[]> {
+    const products = await prisma.internationalProduct.findMany({
+      where: {
+        loaiSanPham: { not: null },
+      },
+      select: {
+        loaiSanPham: true,
+      },
+      distinct: ['loaiSanPham'],
+      orderBy: {
+        loaiSanPham: 'asc',
+      },
+    });
+
+    return products.map(p => p.loaiSanPham!).filter(Boolean);
+  }
+
+  async renameCategory(oldName: string, newName: string): Promise<number> {
+    if (!oldName || !newName) {
+      throw new ValidationError('Tên loại hàng hóa không được để trống');
+    }
+
+    const result = await prisma.internationalProduct.updateMany({
+      where: { loaiSanPham: oldName },
+      data: { loaiSanPham: newName },
+    });
+
+    return result.count;
+  }
+
+  async deleteCategory(name: string): Promise<number> {
+    if (!name) {
+      throw new ValidationError('Tên loại hàng hóa không được để trống');
+    }
+
+    const result = await prisma.internationalProduct.updateMany({
+      where: { loaiSanPham: name },
+      data: { loaiSanPham: null },
+    });
+
+    return result.count;
+  }
 }
 
 export default new InternationalProductService();

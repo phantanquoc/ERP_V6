@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign } from 'lucide-react';
+import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
 import TaskListModal from './TaskListModal';
 import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
 import AllNotificationsModal from './AllNotificationsModal';
 import EmployeePayrollModal from './EmployeePayrollModal';
+import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 
 const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -16,6 +17,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [isAllNotificationsOpen, setIsAllNotificationsOpen] = useState(false);
   const [isPayrollModalOpen, setIsPayrollModalOpen] = useState(false);
   const [selectedPayrollNotification, setSelectedPayrollNotification] = useState<Notification | null>(null);
+  const [isAcceptanceModalOpen, setIsAcceptanceModalOpen] = useState(false);
+  const [selectedAcceptanceHandoverId, setSelectedAcceptanceHandoverId] = useState<string | null>(null);
+  const [selectedAcceptanceMessage, setSelectedAcceptanceMessage] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     loadNotifications();
@@ -57,6 +61,10 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     } else if (notification.type === 'PAYROLL') {
       setSelectedPayrollNotification(notification);
       setIsPayrollModalOpen(true);
+    } else if (notification.type === 'ACCEPTANCE_HANDOVER') {
+      setSelectedAcceptanceHandoverId(notification.acceptanceHandoverId || null);
+      setSelectedAcceptanceMessage(notification.message);
+      setIsAcceptanceModalOpen(true);
     }
     if (onNotificationClick) {
       onNotificationClick(notification);
@@ -79,6 +87,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         return <Target className="w-4 h-4 text-indigo-600" />;
       case 'PAYROLL':
         return <DollarSign className="w-4 h-4 text-green-600" />;
+      case 'ACCEPTANCE_HANDOVER':
+        return <PackageCheck className="w-4 h-4 text-teal-600" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }
@@ -210,6 +220,18 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
           setSelectedPayrollNotification(null);
         }}
         period={selectedPayrollNotification?.period}
+      />
+
+      {/* Acceptance Handover Modal - opened when clicking ACCEPTANCE_HANDOVER notification */}
+      <AcceptanceHandoverViewModal
+        isOpen={isAcceptanceModalOpen}
+        onClose={() => {
+          setIsAcceptanceModalOpen(false);
+          setSelectedAcceptanceHandoverId(null);
+          setSelectedAcceptanceMessage(undefined);
+        }}
+        acceptanceHandoverId={selectedAcceptanceHandoverId}
+        notificationMessage={selectedAcceptanceMessage}
       />
     </>
   );

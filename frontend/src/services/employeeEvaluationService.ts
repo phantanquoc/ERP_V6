@@ -1,4 +1,4 @@
-import apiClient from './apiClient';
+import apiClient, { ApiError } from './apiClient';
 
 export interface EvaluationDetail {
   stt: number;
@@ -56,7 +56,7 @@ class EmployeeEvaluationService {
         return response.data;
       } catch (error: any) {
         // If 403, try the manager endpoint
-        if (error.message?.includes('403')) {
+        if (error instanceof ApiError && error.statusCode === 403) {
           const response = await apiClient.get(
             `/employee-evaluations/evaluations/${evaluationId}/details`
           );
@@ -103,7 +103,7 @@ class EmployeeEvaluationService {
         return response.data;
       } catch (error: any) {
         // If 403, try the manager endpoint
-        if (error.message?.includes('403')) {
+        if (error instanceof ApiError && error.statusCode === 403) {
           const response = await apiClient.patch(
             `/employee-evaluations/evaluations/details/${detailId}`,
             body

@@ -31,11 +31,12 @@ export interface CreateWarehouseReceiptData {
   tenKho: string;
   lotId: string;
   tenLo: string;
-  lotProductId: string;
+  lotProductId?: string;
   tenSanPham: string;
   soLuongNhap: number;
   donViTinh: string;
   ghiChu?: string;
+  supplyRequestId?: string;
 }
 
 const warehouseReceiptService = {

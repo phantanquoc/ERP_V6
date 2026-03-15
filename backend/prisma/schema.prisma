@@ -305,18 +305,19 @@ model EvaluationDetail {
 }
 
 model Notification {
-  id           String   @id @default(cuid())
-  employeeId   String
-  type         String
-  title        String
-  message      String
-  period       String?
-  evaluationId String?
-  taskId       String?
-  isRead       Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id                    String   @id @default(cuid())
+  employeeId            String
+  type                  String
+  title                 String
+  message               String
+  period                String?
+  evaluationId          String?
+  taskId                String?
+  acceptanceHandoverId  String?
+  isRead                Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
   @@schema("common")
@@ -1071,8 +1072,9 @@ model SupplyRequest {
   fileKemTheo   String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
-  employee         Employee          @relation(fields: [employeeId], references: [id])
-  purchaseRequests PurchaseRequest[]
+  employee          Employee           @relation(fields: [employeeId], references: [id])
+  purchaseRequests  PurchaseRequest[]
+  warehouseReceipts WarehouseReceipt[]
 
   @@map("supply_requests")
   @@schema("business")
@@ -1230,25 +1232,27 @@ model Debt {
 }
 
 model WarehouseReceipt {
-  id           String   @id @default(cuid())
-  maPhieuNhap  String   @unique
-  ngayNhap     DateTime @default(now())
-  employeeId   String
-  maNhanVien   String
-  tenNhanVien  String
-  warehouseId  String
-  tenKho       String
-  lotId        String
-  tenLo        String
-  lotProductId String
-  tenSanPham   String
-  soLuongTruoc Float    @default(0) // Số lượng tồn kho trước khi nhập
-  soLuongNhap  Float
-  soLuongSau   Float    @default(0) // Số lượng tồn kho sau khi nhập
-  donViTinh    String
-  ghiChu       String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String         @id @default(cuid())
+  maPhieuNhap     String         @unique
+  ngayNhap        DateTime       @default(now())
+  employeeId      String
+  maNhanVien      String
+  tenNhanVien     String
+  warehouseId     String
+  tenKho          String
+  lotId           String
+  tenLo           String
+  lotProductId    String
+  tenSanPham      String
+  soLuongTruoc    Float          @default(0) // Số lượng tồn kho trước khi nhập
+  soLuongNhap     Float
+  soLuongSau      Float          @default(0) // Số lượng tồn kho sau khi nhập
+  donViTinh       String
+  ghiChu          String?
+  supplyRequestId String?
+  supplyRequest   SupplyRequest? @relation(fields: [supplyRequestId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@map("warehouse_receipts")
   @@schema("business")
@@ -2016,6 +2020,7 @@ model AcceptanceHandover {
   tinhTrangSauSuaChua     String         @db.Text // Tình trạng sau khi sửa chữa
   nguoiBanGiao            String         // Người bàn giao (người sửa chữa)
   nguoiNhan               String         // Người nhận (người yêu cầu)
+  nguoiNhanId             String?        // ID nhân viên người nhận (cho thông báo)
   fileDinhKem             String?        // File đính kèm
   ghiChu                  String?        @db.Text
   createdAt               DateTime       @default(now())

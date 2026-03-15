@@ -97,6 +97,19 @@ class ProductionProcessController {
     }
   }
 
+  // Export production process to Excel
+  async exportToExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const buffer = await productionProcessService.exportToExcel(id);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=quy-trinh-san-xuat-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Upload file for flowchart section
   async uploadFile(req: Request, res: Response, next: NextFunction) {
     try {

@@ -1,6 +1,6 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError } from '@utils/errors';
+import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 
 interface CreateSupplyRequestRequest {
@@ -85,6 +85,8 @@ class SupplyRequestService {
               position: true,
             },
           },
+          purchaseRequests: true,
+          warehouseReceipts: true,
         },
       }),
       prisma.supplyRequest.count({ where }),
@@ -111,6 +113,7 @@ class SupplyRequestService {
             position: true,
           },
         },
+        purchaseRequests: true,
       },
     });
 
@@ -122,6 +125,14 @@ class SupplyRequestService {
   }
 
   async createSupplyRequest(data: CreateSupplyRequestRequest) {
+    // Validate employeeId exists
+    const employee = await prisma.employee.findUnique({
+      where: { id: data.employeeId },
+    });
+    if (!employee) {
+      throw new ValidationError('Không tìm thấy thông tin nhân viên. Vui lòng đăng nhập lại.');
+    }
+
     const maYeuCau = await this.generateSupplyRequestCode();
 
     const supplyRequest = await prisma.supplyRequest.create({
@@ -148,6 +159,7 @@ class SupplyRequestService {
             position: true,
           },
         },
+        purchaseRequests: true,
       },
     });
 

@@ -4,10 +4,12 @@ import {
   FileText,
   X,
   ClipboardList,
-  Package
+  Package,
+  ShieldCheck
 } from 'lucide-react';
 import ProcessManagement from '../../components/ProcessManagement';
 import OrderManagement from '../../components/OrderManagement';
+import InternalInspectionManagement from '../../components/InternalInspectionManagement';
 import { processService } from '../../services/processService';
 import { internationalProductService } from '../../services/internationalProductService';
 
@@ -52,7 +54,7 @@ interface Process {
 }
 
 const QualityProcess = () => {
-  const [activeTab, setActiveTab] = useState<'processList' | 'orderList'>('processList');
+  const [activeTab, setActiveTab] = useState<'processList' | 'orderList' | 'inspection'>('processList');
 
   // State for Process List
   const [processDetails, setProcessDetails] = useState<ProcessDetail[]>([]);
@@ -291,7 +293,8 @@ const QualityProcess = () => {
 
   const tabs = [
     { id: 'processList', name: 'Danh sách quy trình', icon: <FileText className="w-4 h-4" /> },
-    { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> }
+    { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
+    { id: 'inspection', name: 'Kiểm tra nội bộ', icon: <ShieldCheck className="w-4 h-4" /> }
   ];
 
   return (
@@ -451,6 +454,13 @@ const QualityProcess = () => {
           {activeTab === 'orderList' && (
             <div className="p-6">
               <OrderManagement hideHeader={true} />
+            </div>
+          )}
+
+          {/* KIỂM TRA NỘI BỘ */}
+          {activeTab === 'inspection' && (
+            <div className="p-6">
+              <InternalInspectionManagement />
             </div>
           )}
 

@@ -102,6 +102,20 @@ router.get('/export/excel', internationalProductController.exportToExcel);
  */
 router.get('/code/:code', internationalProductController.getProductByCode);
 
+router.get('/categories', internationalProductController.getCategories);
+
+router.put(
+  '/categories/rename',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  internationalProductController.renameCategory
+);
+
+router.post(
+  '/categories/delete',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  internationalProductController.deleteCategory
+);
+
 /**
  * @swagger
  * /api/international-products/{id}:

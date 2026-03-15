@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import supplyRequestService from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
+import { internationalProductService, InternationalProduct } from '../services/internationalProductService';
 
 interface SupplyRequestModalProps {
   isOpen: boolean;
@@ -12,8 +13,11 @@ interface SupplyRequestModalProps {
 const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<InternationalProduct[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<InternationalProduct[]>([]);
   const [formData, setFormData] = useState({
-    phanLoai: 'Nguyên liệu',
+    phanLoai: '',
     tenGoi: '',
     soLuong: 0,
     donViTinh: 'Kg',
@@ -21,6 +25,57 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
     mucDoUuTien: 'Trung bình',
     ghiChu: '',
   });
+
+  // Fetch products on mount
+  useEffect(() => {
+    if (isOpen) {
+      fetchProducts();
+    }
+  }, [isOpen]);
+
+  // Filter products when category changes
+  useEffect(() => {
+    if (formData.phanLoai) {
+      const filtered = products.filter(p => p.loaiSanPham === formData.phanLoai);
+      setFilteredProducts(filtered);
+    } else {
+      setFilteredProducts([]);
+    }
+  }, [formData.phanLoai, products]);
+
+  const handleCategoryChange = (phanLoai: string) => {
+    setFormData(prev => ({ ...prev, phanLoai, tenGoi: '', donViTinh: 'Kg' }));
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const response = await internationalProductService.getAllProducts(1, 10000);
+      const allProducts = response.data || [];
+      setProducts(allProducts);
+
+      // Extract unique categories
+      const uniqueCategories = [...new Set(
+        allProducts.map(p => p.loaiSanPham).filter((c): c is string => !!c)
+      )].sort();
+      setCategories(uniqueCategories);
+
+      // Set default category if available
+      if (uniqueCategories.length > 0 && !formData.phanLoai) {
+        setFormData(prev => ({ ...prev, phanLoai: uniqueCategories[0] }));
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    }
+  };
+
+  const handleProductChange = (tenSanPham: string) => {
+    const selectedProduct = products.find(p => p.tenSanPham === tenSanPham);
+    setFormData(prev => ({
+      ...prev,
+      tenGoi: tenSanPham,
+      donViTinh: selectedProduct?.donViTinh || prev.donViTinh,
+    }));
+  };
 
   if (!isOpen) return null;
 
@@ -46,7 +101,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
       
       // Reset form
       setFormData({
-        phanLoai: 'Nguyên liệu',
+        phanLoai: categories.length > 0 ? categories[0] : '',
         tenGoi: '',
         soLuong: 0,
         donViTinh: 'Kg',
@@ -98,19 +153,23 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
               {/* Phân loại */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phân loại <span className="text-red-500">*</span></label>
-                <select value={formData.phanLoai} onChange={(e) => setFormData({ ...formData, phanLoai: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="Nguyên liệu">Nguyên liệu</option>
-                  <option value="Phụ liệu">Phụ liệu</option>
-                  <option value="Hệ thống">Hệ thống</option>
-                  <option value="Thiết bị">Thiết bị</option>
-                  <option value="Vật tư">Vật tư</option>
+                <select value={formData.phanLoai} onChange={(e) => handleCategoryChange(e.target.value)} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">-- Chọn phân loại --</option>
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
               </div>
 
               {/* Tên gọi */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tên gọi <span className="text-red-500">*</span></label>
-                <input type="text" value={formData.tenGoi} onChange={(e) => setFormData({ ...formData, tenGoi: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nhập tên gọi" />
+                <select value={formData.tenGoi} onChange={(e) => handleProductChange(e.target.value)} required className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={!formData.phanLoai}>
+                  <option value="">-- Chọn hàng hóa --</option>
+                  {filteredProducts.map(p => (
+                    <option key={p.id} value={p.tenSanPham}>{p.tenSanPham}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

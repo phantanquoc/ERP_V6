@@ -22,6 +22,8 @@ export interface SupplyRequest {
   fileKemTheo?: string;
   createdAt: string;
   updatedAt: string;
+  purchaseRequests?: { id: string; trangThai: string; maYeuCau: string }[];
+  warehouseReceipts?: { id: string; maPhieuNhap: string }[];
 }
 
 export interface CreateSupplyRequestRequest {

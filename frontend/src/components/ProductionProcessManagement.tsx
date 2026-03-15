@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Eye, X, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, RefreshCw, Download } from 'lucide-react';
 import productionProcessService, { ProductionProcess, CreateProductionProcessData, ProductionFlowchartSection } from '../services/productionProcessService';
 import processService, { Process } from '../services/processService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
@@ -867,6 +867,23 @@ const ProductionProcessManagement: React.FC = () => {
               </div>
               <button onClick={handleCloseViewModal} className="text-gray-500 hover:text-gray-700">
                 <X className="w-6 h-6" />
+              </button>
+            </div>
+            {/* Nút xuất Excel */}
+            <div className="sticky top-[68px] bg-white border-b border-gray-200 px-6 py-2 flex justify-end">
+              <button
+                onClick={async () => {
+                  try {
+                    await productionProcessService.exportToExcel(viewingProcess.id);
+                  } catch (error) {
+                    console.error('Error exporting to Excel:', error);
+                    alert('Lỗi khi xuất file Excel');
+                  }
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
+              >
+                <Download className="w-4 h-4" />
+                Xuất Excel
               </button>
             </div>
 

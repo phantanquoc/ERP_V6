@@ -25,6 +25,7 @@ export interface CreateAcceptanceHandoverRequest {
   tinhTrangSauSuaChua: string;
   nguoiBanGiao: string;
   nguoiNhan: string;
+  nguoiNhanId?: string;
   fileDinhKem?: string;
   ghiChu?: string;
 }

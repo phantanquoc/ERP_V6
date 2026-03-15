@@ -21,7 +21,8 @@ import {
   List,
   X,
   Globe,
-  Building2
+  Building2,
+  CheckCircle
 } from 'lucide-react';
 import FileUpload from '../../components/FileUpload';
 import OrderManagement from '../../components/OrderManagement';
@@ -294,6 +295,23 @@ const PurchasingMaterials = () => {
       fetchPurchaseRequests();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi xóa');
+    }
+  };
+
+  const handleCompletePurchaseRequest = async (item: any) => {
+    if (item.trangThai === 'Hoàn thành') {
+      alert('Yêu cầu mua hàng này đã hoàn thành');
+      return;
+    }
+    if (!window.confirm('Bạn có chắc chắn muốn đánh dấu hoàn thành yêu cầu mua hàng này?')) {
+      return;
+    }
+    try {
+      await purchaseRequestService.updatePurchaseRequest(item.id, { trangThai: 'Hoàn thành' });
+      alert('Đã đánh dấu hoàn thành yêu cầu mua hàng!');
+      fetchPurchaseRequests();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Lỗi khi cập nhật trạng thái');
     }
   };
 
@@ -620,6 +638,7 @@ const PurchasingMaterials = () => {
                               item.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' :
                               item.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' :
                               item.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' :
+                              item.trangThai === 'Hoàn thành' ? 'bg-emerald-100 text-emerald-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
                               {item.trangThai}
@@ -647,6 +666,13 @@ const PurchasingMaterials = () => {
                                 title="Xóa"
                               >
                                 <Trash2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleCompletePurchaseRequest(item)}
+                                className="text-emerald-600 hover:text-emerald-800"
+                                title="Hoàn thành"
+                              >
+                                <CheckCircle className="w-4 h-4" />
                               </button>
                             </div>
                           </td>

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Trash2, Eye, FileText, Edit, Package, ShoppingCart, Download } from 'lucide-react';
+import { Search, Trash2, Eye, FileText, Edit, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus } from 'lucide-react';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
 import CreatePurchaseRequestModal from './CreatePurchaseRequestModal';
+import CreateWarehouseReceiptModal from './CreateWarehouseReceiptModal';
 import { parseNumberInput } from '../utils/numberInput';
+import warehouseService from '../services/warehouseService';
 
 interface SupplyRequestManagementProps {
   onClose?: () => void;
@@ -20,6 +22,13 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const [selectedRequest, setSelectedRequest] = useState<SupplyRequest | null>(null);
   const [showWarehouseIssueModal, setShowWarehouseIssueModal] = useState(false);
   const [showPurchaseRequestModal, setShowPurchaseRequestModal] = useState(false);
+  const [showWarehouseReceiptModal, setShowWarehouseReceiptModal] = useState(false);
+  const [inventoryCheckResult, setInventoryCheckResult] = useState<{
+    show: boolean;
+    loading: boolean;
+    productName: string;
+    items: { tenKho: string; tenLo: string; soLuong: number; giaThanh: number; donViTinh: string }[];
+  }>({ show: false, loading: false, productName: '', items: [] });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -146,6 +155,37 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     }
   };
 
+  const handleCheckInventory = async (productName: string) => {
+    if (!productName) {
+      alert('Không có tên sản phẩm để kiểm tra tồn kho');
+      return;
+    }
+
+    setInventoryCheckResult({ show: true, loading: true, productName, items: [] });
+
+    try {
+      const response = await warehouseService.getAllLotProducts();
+      const lotProducts = response.data?.data || response.data || [];
+
+      const matched = lotProducts.filter(
+        (lp: any) => lp.internationalProduct?.tenSanPham === productName
+      );
+
+      const items = matched.map((lp: any) => ({
+        tenKho: lp.lot?.warehouse?.tenKho || 'N/A',
+        tenLo: lp.lot?.tenLo || 'N/A',
+        soLuong: lp.soLuong || 0,
+        giaThanh: lp.giaThanh || 0,
+        donViTinh: lp.donViTinh || 'KG',
+      }));
+
+      setInventoryCheckResult({ show: true, loading: false, productName, items });
+    } catch (error) {
+      console.error('Lỗi kiểm tra tồn kho:', error);
+      setInventoryCheckResult({ show: true, loading: false, productName, items: [] });
+    }
+  };
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -259,6 +299,28 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
+
+                        {request.purchaseRequests?.some(pr => pr.trangThai === 'Hoàn thành') && (() => {
+                          const daNhapKho = request.warehouseReceipts && request.warehouseReceipts.length > 0;
+                          return (
+                            <button
+                              onClick={() => {
+                                if (!daNhapKho) {
+                                  setSelectedRequest(request);
+                                  setShowWarehouseReceiptModal(true);
+                                }
+                              }}
+                              disabled={daNhapKho}
+                              className={daNhapKho
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-green-600 hover:text-green-800"
+                              }
+                              title={daNhapKho ? "Đã nhập kho" : "Nhập kho"}
+                            >
+                              <PackagePlus className="h-4 w-4" />
+                            </button>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>
@@ -460,16 +522,28 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                 <div className="mt-6 flex justify-between items-center">
                   {/* Left side - Action buttons (only in view mode) */}
                   {modalMode === 'view' && (
-                    <div className="flex gap-3">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedRequest) {
+                            handleCheckInventory(selectedRequest.tenGoi);
+                          }
+                        }}
+                        className="px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-700 flex items-center gap-1.5"
+                      >
+                        <ClipboardCheck className="h-3.5 w-3.5" />
+                        Kiểm tra tồn kho
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
                           setShowModal(false);
                           setShowWarehouseIssueModal(true);
                         }}
-                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
+                        className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-1.5"
                       >
-                        <Package className="h-4 w-4" />
+                        <Package className="h-3.5 w-3.5" />
                         Tạo xuất kho
                       </button>
                       <button
@@ -478,9 +552,9 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           setShowModal(false);
                           setShowPurchaseRequestModal(true);
                         }}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                        className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-1.5"
                       >
-                        <ShoppingCart className="h-4 w-4" />
+                        <ShoppingCart className="h-3.5 w-3.5" />
                         Tạo yêu cầu mua hàng
                       </button>
                     </div>
@@ -531,6 +605,100 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
           fetchRequests();
         }}
       />
+
+      {/* Warehouse Receipt Modal */}
+      <CreateWarehouseReceiptModal
+        isOpen={showWarehouseReceiptModal}
+        onClose={() => setShowWarehouseReceiptModal(false)}
+        supplyRequest={selectedRequest}
+        onSuccess={() => {
+          fetchRequests();
+        }}
+      />
+
+      {/* Popup kiểm tra tồn kho */}
+      {inventoryCheckResult.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-[700px] max-w-[90vw] max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <Package className="w-5 h-5 text-teal-600" />
+                Kiểm tra tồn kho
+              </h3>
+              <button
+                onClick={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {inventoryCheckResult.loading ? (
+              <div className="text-center py-6 text-gray-500">Đang tải...</div>
+            ) : (
+              <div className="overflow-auto flex-1">
+                <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                  <span className="text-xs text-gray-500">Sản phẩm</span>
+                  <p className="text-sm font-medium text-gray-800">{inventoryCheckResult.productName}</p>
+                </div>
+                {inventoryCheckResult.items.length === 0 ? (
+                  <p className="text-sm text-orange-600 text-center py-4">Không tìm thấy tồn kho cho sản phẩm này</p>
+                ) : (
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-teal-100">
+                        <th className="px-3 py-2 text-left border border-gray-200 font-medium text-gray-700">Kho</th>
+                        <th className="px-3 py-2 text-left border border-gray-200 font-medium text-gray-700">Lô</th>
+                        <th className="px-3 py-2 text-right border border-gray-200 font-medium text-gray-700">Số lượng</th>
+                        <th className="px-3 py-2 text-right border border-gray-200 font-medium text-gray-700">Giá thành</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inventoryCheckResult.items.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 border border-gray-200">{item.tenKho}</td>
+                          <td className="px-3 py-2 border border-gray-200">{item.tenLo}</td>
+                          <td className="px-3 py-2 border border-gray-200 text-right font-medium text-blue-700">
+                            {item.soLuong.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} {item.donViTinh}
+                          </td>
+                          <td className="px-3 py-2 border border-gray-200 text-right font-medium text-green-700">
+                            {item.giaThanh > 0
+                              ? `${item.giaThanh.toLocaleString('vi-VN', { maximumFractionDigits: 0 })} VNĐ`
+                              : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="bg-teal-50 font-semibold">
+                        <td colSpan={2} className="px-3 py-2 border border-gray-200 text-right">Tổng cộng</td>
+                        <td className="px-3 py-2 border border-gray-200 text-right text-blue-800">
+                          {inventoryCheckResult.items.reduce((s, i) => s + i.soLuong, 0).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} {inventoryCheckResult.items[0]?.donViTinh || ''}
+                        </td>
+                        <td className="px-3 py-2 border border-gray-200 text-right text-green-800">
+                          {(() => {
+                            const withPrice = inventoryCheckResult.items.filter(i => i.giaThanh > 0);
+                            if (withPrice.length === 0) return '-';
+                            const avg = withPrice.reduce((s, i) => s + i.giaThanh, 0) / withPrice.length;
+                            return `${avg.toLocaleString('vi-VN', { maximumFractionDigits: 0 })} VNĐ (TB)`;
+                          })()}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
+            <div className="mt-4 text-right">
+              <button
+                onClick={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))}
+                className="px-4 py-2 bg-teal-600 text-white text-sm rounded-md hover:bg-teal-700"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

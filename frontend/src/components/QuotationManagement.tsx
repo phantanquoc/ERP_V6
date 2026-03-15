@@ -251,10 +251,22 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                       <div className="space-y-1">
                         {quotation.quotationRequest.calculator.products.map((product: any, idx: number) => {
                           const giaBaoKhach = (product.giaHoaVon || 0) + (product.loiNhuanCongThem || 0);
+                          const tiGiaUSD = product.tiGiaUSD || 0;
+                          const giaBaoKhachUSD = tiGiaUSD > 0 ? giaBaoKhach / tiGiaUSD : 0;
                           return (
-                            <div key={idx} className="flex items-center gap-1.5">
+                            <div key={idx}>
                               <span className="text-gray-600 text-xs">{product.tenSanPham}:</span>
-                              <span className="font-semibold text-green-600">{formatCurrency(giaBaoKhach)}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-green-600">{formatCurrency(giaBaoKhach)}</span>
+                                {tiGiaUSD > 0 && (
+                                  <>
+                                    <span className="text-gray-400">-</span>
+                                    <span className="font-semibold text-blue-600">
+                                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(giaBaoKhachUSD)}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           );
                         })}

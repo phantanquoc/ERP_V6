@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { downloadFile } from '../utils/downloadFile';
 
 export interface ProductionFlowchartCost {
   id?: string;
@@ -109,6 +110,13 @@ class ProductionProcessService {
   async syncFromTemplate(id: string) {
     const response = await apiClient.post(`/production-processes/${id}/sync`, {});
     return response;
+  }
+
+  // Export production process to Excel
+  async exportToExcel(id: string): Promise<void> {
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const url = `${API_BASE_URL}/production-processes/export/excel/${id}`;
+    await downloadFile(url, `quy-trinh-san-xuat-${id}.xlsx`);
   }
 
   // Upload file for flowchart section

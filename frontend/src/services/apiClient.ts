@@ -8,6 +8,20 @@ import AuthService from './authService';
 // Use environment variable for API URL, fallback to localhost for development
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+/**
+ * Custom error class that preserves HTTP status code
+ */
+export class ApiError extends Error {
+  public statusCode: number;
+
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+    this.name = 'ApiError';
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   message?: string;
@@ -94,7 +108,7 @@ class ApiClient {
       const data: ApiResponse<T> = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || `HTTP ${response.status}`);
+        throw new ApiError(response.status, data.message || `HTTP ${response.status}`);
       }
 
       return data;

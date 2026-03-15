@@ -92,6 +92,37 @@ router.post('/upload-file', uploadProductionProcessFile, productionProcessContro
 
 /**
  * @swagger
+ * /api/production-processes/export/excel/{id}:
+ *   get:
+ *     tags: [Production Processes]
+ *     summary: Xuất chi tiết quy trình sản xuất ra Excel
+ *     description: Xuất chi tiết quy trình sản xuất ra file Excel theo ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của quy trình sản xuất
+ *     responses:
+ *       200:
+ *         description: Xuất file Excel thành công
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: Không có quyền truy cập
+ *       404:
+ *         description: Không tìm thấy quy trình sản xuất
+ */
+router.get('/export/excel/:id', productionProcessController.exportToExcel);
+
+/**
+ * @swagger
  * /api/production-processes/{id}:
  *   get:
  *     tags: [Production Processes]

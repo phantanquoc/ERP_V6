@@ -177,7 +177,7 @@ const AttendanceManagement: React.FC = () => {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      PRESENT: 'Có mặt',
+      PRESENT: 'Đúng giờ',
       LATE: 'Muộn',
       ABSENT: 'Vắng mặt',
       ON_LEAVE: 'Nghỉ phép',
@@ -491,7 +491,7 @@ const AttendanceManagement: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="PRESENT">Có mặt</option>
+                  <option value="PRESENT">Đúng giờ</option>
                   <option value="LATE">Muộn</option>
                   <option value="ABSENT">Vắng mặt</option>
                   <option value="ON_LEAVE">Nghỉ phép</option>

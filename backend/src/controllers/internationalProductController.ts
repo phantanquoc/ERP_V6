@@ -140,6 +140,48 @@ export class InternationalProductController {
       next(error);
     }
   }
+  async getCategories(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const categories = await internationalProductService.getCategories();
+
+      res.json({
+        success: true,
+        data: categories,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async renameCategory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { oldName, newName } = req.body;
+      const count = await internationalProductService.renameCategory(oldName, newName);
+
+      res.json({
+        success: true,
+        data: { count },
+        message: `Đã cập nhật ${count} sản phẩm`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteCategory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { name } = req.body;
+      const count = await internationalProductService.deleteCategory(name);
+
+      res.json({
+        success: true,
+        data: { count },
+        message: `Đã xóa loại hàng hóa và cập nhật ${count} sản phẩm`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new InternationalProductController();

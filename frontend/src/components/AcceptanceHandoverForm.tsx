@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import FileUpload from './FileUpload';
 import acceptanceHandoverService, { CreateAcceptanceHandoverRequest } from '../services/acceptanceHandoverService';
 import { useAuth } from '../contexts/AuthContext';
+import apiClient from '../services/apiClient';
 
 interface RepairRequest {
   id: number;
@@ -18,11 +19,24 @@ interface AcceptanceHandoverFormProps {
   onSuccess: () => void;
 }
 
+interface Employee {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  employeeCode: string;
+  department: string;
+}
+
 const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: AcceptanceHandoverFormProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
 
   const [formData, setFormData] = useState<CreateAcceptanceHandoverRequest>({
     repairRequestId: repairRequest.id,
@@ -32,8 +46,47 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
     tinhTrangSauSuaChua: '',
     nguoiBanGiao: user?.fullName || user?.username || '',
     nguoiNhan: '',
+    nguoiNhanId: '',
     ghiChu: '',
   });
+
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  useEffect(() => {
+    if (selectedDepartment) {
+      setFilteredEmployees(employees.filter(emp => emp.department === selectedDepartment));
+    } else {
+      setFilteredEmployees(employees);
+    }
+  }, [selectedDepartment, employees]);
+
+  const fetchEmployees = async () => {
+    setLoadingEmployees(true);
+    try {
+      const response = await apiClient.get('/employees/for-assignment', { params: { limit: 1000 } });
+      let employeeList: any[] = [];
+      if (response.data) {
+        employeeList = Array.isArray(response.data) ? response.data : (response.data as any).data || [];
+      }
+      const transformedEmployees = employeeList.map((emp: any) => ({
+        _id: emp.id || emp._id,
+        firstName: emp.user?.firstName || emp.firstName || '',
+        lastName: emp.user?.lastName || emp.lastName || '',
+        employeeCode: emp.employeeCode || '',
+        department: emp.departmentName || emp.subDepartmentName || 'Chưa xác định',
+      }));
+      setEmployees(transformedEmployees);
+      setFilteredEmployees(transformedEmployees);
+      const uniqueDepts = Array.from(new Set(transformedEmployees.map((emp: Employee) => emp.department).filter(Boolean)));
+      setDepartments(uniqueDepts as string[]);
+    } catch (err: any) {
+      console.error('Error fetching employees:', err);
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -56,8 +109,8 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
       return;
     }
     
-    if (!formData.nguoiNhan.trim()) {
-      setError('Vui lòng nhập người nhận');
+    if (!formData.nguoiNhanId) {
+      setError('Vui lòng chọn người nhận');
       return;
     }
 
@@ -146,20 +199,50 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
               />
             </div>
 
+            {/* Phòng ban */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phòng ban
+              </label>
+              <select
+                value={selectedDepartment}
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Tất cả phòng ban</option>
+                {departments.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Người nhận */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Người nhận <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                name="nguoiNhan"
-                value={formData.nguoiNhan}
-                onChange={handleChange}
+              <select
+                value={formData.nguoiNhanId || ''}
+                onChange={(e) => {
+                  const empId = e.target.value;
+                  const emp = employees.find(em => em._id === empId);
+                  setFormData(prev => ({
+                    ...prev,
+                    nguoiNhanId: empId,
+                    nguoiNhan: emp ? `${emp.firstName} ${emp.lastName}` : '',
+                  }));
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Nhập tên người nhận"
                 required
-              />
+              >
+                <option value="">Chọn người nhận</option>
+                {filteredEmployees.map((emp) => (
+                  <option key={emp._id} value={emp._id}>
+                    {emp.firstName} {emp.lastName} ({emp.employeeCode})
+                  </option>
+                ))}
+              </select>
+              {loadingEmployees && <p className="text-xs text-gray-400 mt-1">Đang tải danh sách...</p>}
             </div>
 
             {/* Tình trạng trước khi sửa chữa */}

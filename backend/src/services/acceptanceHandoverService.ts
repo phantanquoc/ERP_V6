@@ -11,6 +11,7 @@ interface CreateAcceptanceHandoverRequest {
   tinhTrangSauSuaChua: string;
   nguoiBanGiao: string;
   nguoiNhan: string;
+  nguoiNhanId?: string;
   fileDinhKem?: string;
   ghiChu?: string;
 }
@@ -115,6 +116,7 @@ class AcceptanceHandoverService {
         tinhTrangSauSuaChua: data.tinhTrangSauSuaChua,
         nguoiBanGiao: data.nguoiBanGiao,
         nguoiNhan: data.nguoiNhan,
+        nguoiNhanId: data.nguoiNhanId,
         fileDinhKem: data.fileDinhKem,
         ghiChu: data.ghiChu,
       },

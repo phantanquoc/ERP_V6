@@ -27,7 +27,8 @@ export const errorHandler = (
     // Handle foreign key constraint errors (P2003)
     if (prismaError.code === 'P2003') {
       const constraint = prismaError.meta?.constraint || '';
-      let message = 'Không thể xóa bản ghi này vì đang được sử dụng';
+      const fieldName = prismaError.meta?.field_name || '';
+      let message = 'Dữ liệu tham chiếu không hợp lệ hoặc không tồn tại';
 
       // Customize message based on constraint
       if (constraint.includes('quotation_request_items')) {
@@ -36,6 +37,8 @@ export const errorHandler = (
         message = 'Không thể xóa sản phẩm này vì đang có trong kho hàng';
       } else if (constraint.includes('order_items')) {
         message = 'Không thể xóa sản phẩm này vì đang được sử dụng trong đơn hàng';
+      } else if (fieldName.includes('employeeId') || constraint.includes('employee')) {
+        message = 'Không tìm thấy thông tin nhân viên. Vui lòng đăng nhập lại.';
       }
 
       res.status(400).json({

@@ -227,6 +227,25 @@ export class NotificationService {
       data: notifications,
     });
   }
+
+  async createAcceptanceHandoverNotification(
+    employeeId: string,
+    maNghiemThu: string,
+    tenThietBi: string,
+    nguoiBanGiao: string,
+    acceptanceHandoverId: string
+  ): Promise<void> {
+    await prisma.notification.create({
+      data: {
+        employeeId,
+        type: NotificationType.ACCEPTANCE_HANDOVER,
+        title: 'Nghiệm thu bàn giao mới',
+        message: `${nguoiBanGiao} đã tạo nghiệm thu bàn giao ${maNghiemThu} cho thiết bị "${tenThietBi}". Vui lòng kiểm tra và xác nhận.`,
+        acceptanceHandoverId,
+        isRead: false,
+      },
+    });
+  }
 }
 
 export default new NotificationService();

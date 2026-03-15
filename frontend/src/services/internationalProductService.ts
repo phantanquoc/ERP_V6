@@ -108,6 +108,20 @@ export const internationalProductService = {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
   },
+  async getCategories(): Promise<{ success: boolean; data: string[] }> {
+    const response = await apiClient.get('/international-products/categories');
+    return response as unknown as { success: boolean; data: string[] };
+  },
+
+  async renameCategory(oldName: string, newName: string): Promise<{ success: boolean; data: { count: number }; message: string }> {
+    const response = await apiClient.put('/international-products/categories/rename', { oldName, newName });
+    return response as unknown as { success: boolean; data: { count: number }; message: string };
+  },
+
+  async deleteCategory(name: string): Promise<{ success: boolean; data: { count: number }; message: string }> {
+    const response = await apiClient.post('/international-products/categories/delete', { name });
+    return response as unknown as { success: boolean; data: { count: number }; message: string };
+  },
 };
 
 export default internationalProductService;

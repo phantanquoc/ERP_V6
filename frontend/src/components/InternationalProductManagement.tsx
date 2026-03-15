@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X, Download } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Search, Edit, Trash2, Eye, X, Download, Settings } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 import { useProducts, productKeys } from '../hooks/useProducts';
@@ -19,6 +19,27 @@ const InternationalProductManagement: React.FC = () => {
     moTaSanPham: '',
     loaiSanPham: '',
   });
+
+  // Category management state
+  const [categories, setCategories] = useState<string[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState('');
+  const [categoryLoading, setCategoryLoading] = useState(false);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await internationalProductService.getCategories();
+      setCategories(response.data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
   const queryClient = useQueryClient();
   const { data: productsResponse, isLoading: loading } = useProducts({
@@ -141,7 +162,7 @@ const InternationalProductManagement: React.FC = () => {
     setMaSanPhamError('');
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -202,6 +223,14 @@ const InternationalProductManagement: React.FC = () => {
             />
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => { fetchCategories(); setShowCategoryModal(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              title="Cài đặt loại hàng hóa"
+            >
+              <Settings className="w-4 h-4" />
+              Cài đặt
+            </button>
             <button
               onClick={async () => {
                 try {
@@ -413,15 +442,9 @@ const InternationalProductManagement: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">-- Chọn loại hàng hóa --</option>
-                    <option value="Nguyên liệu tươi">Nguyên liệu tươi</option>
-                    <option value="Nguyên liệu đông">Nguyên liệu đông</option>
-                    <option value="Phụ liệu">Phụ liệu</option>
-                    <option value="Sản phẩm khô">Sản phẩm khô</option>
-                    <option value="Sản phẩm đông">Sản phẩm đông</option>
-                    <option value="Hệ thống">Hệ thống</option>
-                    <option value="Thiết bị">Thiết bị</option>
-                    <option value="Vật tư">Vật tư</option>
-                    <option value="Khác">Khác</option>
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -507,6 +530,144 @@ const InternationalProductManagement: React.FC = () => {
                     </p>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Settings Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Cài đặt loại hàng hóa</h2>
+                <button onClick={() => { setShowCategoryModal(false); setEditingCategory(null); setNewCategoryName(''); }} className="text-gray-500 hover:text-gray-700">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Add new category */}
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Nhập tên loại hàng hóa mới..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+                <button
+                  onClick={() => {
+                    const name = newCategoryName.trim();
+                    if (!name) return;
+                    if (categories.includes(name)) {
+                      alert('Loại hàng hóa này đã tồn tại!');
+                      return;
+                    }
+                    setCategories(prev => [...prev, name].sort());
+                    setNewCategoryName('');
+                  }}
+                  disabled={!newCategoryName.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Category list */}
+              <div className="space-y-2">
+                {categories.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">Chưa có loại hàng hóa nào</p>
+                ) : (
+                  categories.map((cat) => (
+                    <div key={cat} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                      {editingCategory === cat ? (
+                        <input
+                          type="text"
+                          value={editCategoryName}
+                          onChange={(e) => setEditCategoryName(e.target.value)}
+                          className="flex-1 px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none mr-2"
+                          autoFocus
+                        />
+                      ) : (
+                        <span className="text-sm text-gray-900">{cat}</span>
+                      )}
+                      <div className="flex items-center gap-1">
+                        {editingCategory === cat ? (
+                          <>
+                            <button
+                              onClick={async () => {
+                                const newName = editCategoryName.trim();
+                                if (!newName || newName === cat) {
+                                  setEditingCategory(null);
+                                  return;
+                                }
+                                if (categories.includes(newName)) {
+                                  alert('Loại hàng hóa này đã tồn tại!');
+                                  return;
+                                }
+                                setCategoryLoading(true);
+                                try {
+                                  await internationalProductService.renameCategory(cat, newName);
+                                  await fetchCategories();
+                                  queryClient.invalidateQueries({ queryKey: productKeys.lists() });
+                                  setEditingCategory(null);
+                                } catch (error: any) {
+                                  alert(error.response?.data?.message || 'Lỗi khi đổi tên');
+                                } finally {
+                                  setCategoryLoading(false);
+                                }
+                              }}
+                              disabled={categoryLoading}
+                              className="p-1 text-green-600 hover:bg-green-100 rounded"
+                              title="Lưu"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => setEditingCategory(null)}
+                              className="p-1 text-gray-500 hover:bg-gray-200 rounded"
+                              title="Hủy"
+                            >
+                              ✕
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => { setEditingCategory(cat); setEditCategoryName(cat); }}
+                              className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                              title="Sửa"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm(`Xóa loại "${cat}"? Các sản phẩm thuộc loại này sẽ bị bỏ trống loại hàng hóa.`)) return;
+                                setCategoryLoading(true);
+                                try {
+                                  await internationalProductService.deleteCategory(cat);
+                                  await fetchCategories();
+                                  queryClient.invalidateQueries({ queryKey: productKeys.lists() });
+                                } catch (error: any) {
+                                  alert(error.response?.data?.message || 'Lỗi khi xóa');
+                                } finally {
+                                  setCategoryLoading(false);
+                                }
+                              }}
+                              disabled={categoryLoading}
+                              className="p-1 text-red-600 hover:bg-red-100 rounded"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

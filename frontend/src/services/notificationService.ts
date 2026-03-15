@@ -9,6 +9,7 @@ export interface Notification {
   period?: string;
   evaluationId?: string;
   taskId?: string;
+  acceptanceHandoverId?: string;
   isRead: boolean;
   createdAt: string;
   updatedAt: string;

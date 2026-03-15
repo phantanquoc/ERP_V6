@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import acceptanceHandoverService from '@services/acceptanceHandoverService';
 import { getFileUrl } from '@middlewares/upload';
+import { NotificationService } from '@services/notificationService';
+
+const notificationService = new NotificationService();
 
 class AcceptanceHandoverController {
   async getAllAcceptanceHandovers(req: Request, res: Response, next: NextFunction) {
@@ -46,6 +49,21 @@ class AcceptanceHandoverController {
       };
 
       const handover = await acceptanceHandoverService.createAcceptanceHandover(data);
+
+      // Gửi thông báo đến người nhận
+      if (data.nguoiNhanId) {
+        try {
+          await notificationService.createAcceptanceHandoverNotification(
+            data.nguoiNhanId,
+            handover.maNghiemThu,
+            data.tenHeThongThietBi,
+            data.nguoiBanGiao,
+            handover.id
+          );
+        } catch (notifError) {
+          console.error('Lỗi gửi thông báo nghiệm thu:', notifError);
+        }
+      }
 
       return res.status(201).json({
         success: true,
