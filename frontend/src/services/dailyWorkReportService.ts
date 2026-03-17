@@ -74,6 +74,17 @@ export interface ReportStatistics {
 }
 
 class DailyWorkReportService {
+  async getAllReports(page: number = 1, limit: number = 10): Promise<any> {
+    try {
+      const response = await apiClient.get('/daily-work-reports', {
+        params: { page, limit },
+      });
+      return response;
+    } catch (error: any) {
+      throw new Error(error instanceof Error ? error.message : 'Không thể tải báo cáo');
+    }
+  }
+
   async getMyReports(page: number = 1, limit: number = 10): Promise<any> {
     try {
        const response = await apiClient.get('/daily-work-reports/my-reports', {

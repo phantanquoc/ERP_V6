@@ -62,7 +62,7 @@ const getPersonalStats = (user: any, evaluationNotification?: Notification | nul
       label: "Đánh giá",
       value: user?.evaluationScore ? user.evaluationScore.toFixed(1) : "Chưa có thông tin",
       total: user?.evaluationScore ? "5.0" : "",
-      subtitle: evaluationNotification ? evaluationNotification.message : undefined,
+      subtitle: evaluationNotification?.period ? `Đánh giá tháng ${new Date(evaluationNotification.period + '-01').toLocaleDateString('vi-VN', { month: 'numeric', year: 'numeric' })}` : undefined,
       icon: <Award className="w-5 h-5" />,
       color: evaluationNotification ? "from-red-500 to-red-600" : "from-purple-500 to-purple-600",
       textColor: evaluationNotification ? "text-red-600" : "text-purple-600",

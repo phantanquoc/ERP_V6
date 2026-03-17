@@ -8,7 +8,6 @@ async function main(): Promise<void> {
 
   // Hash passwords
   const adminPassword = await bcrypt.hash('admin123', 10);
-  const userPassword = await bcrypt.hash('password123', 10);
 
   // Create Departments (7 departments)
   console.log('\n📋 Creating departments...');
@@ -111,7 +110,7 @@ async function main(): Promise<void> {
   });
 
   // Quality sub-departments
-  const qualityPersonnelSubDept = await prisma.subDepartment.upsert({
+  await prisma.subDepartment.upsert({
     where: { code: 'SUBDEPT_QUALITY_PERSONNEL' },
     update: {},
     create: {
@@ -122,7 +121,7 @@ async function main(): Promise<void> {
     },
   });
 
-  const qualityProcessSubDept = await prisma.subDepartment.upsert({
+  await prisma.subDepartment.upsert({
     where: { code: 'SUBDEPT_QUALITY_PROCESS' },
     update: {},
     create: {
@@ -203,7 +202,7 @@ async function main(): Promise<void> {
   });
 
   // Production sub-departments
-  const productionManagementSubDept = await prisma.subDepartment.upsert({
+  await prisma.subDepartment.upsert({
     where: { code: 'SUBDEPT_PRODUCTION_MANAGEMENT' },
     update: {},
     create: {
@@ -273,7 +272,7 @@ async function main(): Promise<void> {
     },
   });
 
-  const qcLeadPos = await prisma.position.upsert({
+  await prisma.position.upsert({
     where: { code: 'POS_QC_LEAD' },
     update: {},
     create: {
@@ -283,7 +282,7 @@ async function main(): Promise<void> {
     },
   });
 
-  const prodWorkerPos = await prisma.position.upsert({
+  await prisma.position.upsert({
     where: { code: 'POS_PROD_WORKER' },
     update: {},
     create: {
@@ -435,160 +434,6 @@ async function main(): Promise<void> {
   });
 
   console.log('✅ Admin user created:', admin.email);
-
-  // Create QC staff user (Nguyễn Văn An)
-  const qcStaff = await prisma.user.upsert({
-    where: { email: 'an.nguyen@company.com' },
-    update: { password: userPassword },
-    create: {
-      email: 'an.nguyen@company.com',
-      password: userPassword,
-      firstName: 'Nguyễn',
-      lastName: 'Văn An',
-      role: 'TEAM_LEAD' as any,
-      isActive: true,
-      departmentId: qualityDept.id,
-      subDepartmentId: qualityPersonnelSubDept.id,
-    },
-  });
-  await prisma.employee.upsert({
-    where: { employeeCode: 'NV001' },
-    update: { userId: qcStaff.id },
-    create: {
-      userId: qcStaff.id,
-      employeeCode: 'NV001',
-      gender: 'MALE',
-      dateOfBirth: new Date('1990-05-15'),
-      phoneNumber: '0901234567',
-      address: '123 Nguyễn Văn Linh, Q.7, TP.HCM',
-      positionId: qcStaffPos.id,
-      subDepartmentId: qualityPersonnelSubDept.id,
-      hireDate: new Date('2022-01-15'),
-      contractType: 'PERMANENT',
-      educationLevel: 'BACHELOR',
-      specialization: 'Kiểm tra chất lượng thực phẩm',
-      specialSkills: 'HACCP, ISO 22000',
-      baseSalary: 15000000,
-      kpiLevel: 100,
-      weight: 65,
-      height: 170,
-      shirtSize: 'M',
-      pantSize: '32',
-      shoeSize: '42',
-      bankAccount: '1234567890',
-      lockerNumber: 'L001',
-      notes: 'Nhân viên tích cực, có kinh nghiệm',
-    },
-  });
-
-  console.log('✅ QC staff user created:', qcStaff.email);
-
-  // Create QC lead user (Trần Thị Bình)
-  const qcLead = await prisma.user.upsert({
-    where: { email: 'binh.tran@company.com' },
-    update: { password: userPassword },
-    create: {
-      email: 'binh.tran@company.com',
-      password: userPassword,
-      firstName: 'Trần',
-      lastName: 'Thị Bình',
-      role: 'DEPARTMENT_HEAD' as any,
-      isActive: true,
-      departmentId: qualityDept.id,
-      subDepartmentId: qualityProcessSubDept.id,
-    },
-  });
-  await prisma.employee.upsert({
-    where: { employeeCode: 'NV002' },
-    update: { userId: qcLead.id },
-    create: {
-      userId: qcLead.id,
-      employeeCode: 'NV002',
-      gender: 'FEMALE',
-      dateOfBirth: new Date('1992-08-20'),
-      phoneNumber: '0902345678',
-      address: '456 Lê Văn Việt, Q.9, TP.HCM',
-      positionId: qcLeadPos.id,
-      subDepartmentId: qualityProcessSubDept.id,
-      hireDate: new Date('2021-03-10'),
-      contractType: 'PERMANENT',
-      educationLevel: 'MASTER',
-      specialization: 'Quản lý chất lượng',
-      specialSkills: 'Six Sigma, Lean Manufacturing',
-      baseSalary: 20000000,
-      kpiLevel: 120,
-      weight: 58,
-      height: 165,
-      shirtSize: 'S',
-      pantSize: '28',
-      shoeSize: '38',
-      bankAccount: '0987654321',
-      lockerNumber: 'L002',
-      notes: 'Lãnh đạo tốt, có tầm nhìn',
-    },
-  });
-
-  console.log('✅ QC lead user created:', qcLead.email);
-
-  // Create production worker user
-  const prodWorker = await prisma.user.upsert({
-    where: { email: 'employee@example.com' },
-    update: { password: userPassword },
-    create: {
-      email: 'employee@example.com',
-      password: userPassword,
-      firstName: 'Employee',
-      lastName: 'User',
-      role: 'EMPLOYEE' as any,
-      isActive: true,
-      departmentId: productionDept.id,
-      subDepartmentId: productionManagementSubDept.id,
-    },
-  });
-  await prisma.employee.upsert({
-    where: { employeeCode: 'NV003' },
-    update: { userId: prodWorker.id },
-    create: {
-      userId: prodWorker.id,
-      employeeCode: 'NV003',
-      gender: 'MALE',
-      dateOfBirth: new Date('1995-03-10'),
-      phoneNumber: '0903456789',
-      address: '789 Trần Hưng Đạo, Q.1, TP.HCM',
-      positionId: prodWorkerPos.id,
-      subDepartmentId: productionManagementSubDept.id,
-      hireDate: new Date('2023-06-01'),
-      contractType: 'PERMANENT',
-      educationLevel: 'HIGH_SCHOOL',
-      baseSalary: 12000000,
-      kpiLevel: 100,
-      weight: 70,
-      height: 175,
-      shirtSize: 'L',
-      pantSize: '34',
-      shoeSize: '44',
-      bankAccount: '1111111111',
-      lockerNumber: 'L003',
-    },
-  });
-
-  console.log('✅ Production worker user created:', prodWorker.email);
-
-  // Create HR user (with ADMIN role)
-  const hr = await prisma.user.upsert({
-    where: { email: 'hr@example.com' },
-    update: { password: userPassword }, // Update password
-    create: {
-      email: 'hr@example.com',
-      password: userPassword,
-      firstName: 'HR',
-      lastName: 'Staff',
-      role: 'ADMIN' as any,
-      isActive: true,
-    },
-  });
-
-  console.log('✅ HR user created:', hr.email);
 
   // Create Roles
   console.log('\n🔐 Creating roles...');
@@ -794,382 +639,7 @@ async function main(): Promise<void> {
     },
   });
 
-  await prisma.userRoleAssignment.upsert({
-    where: { userId_roleId: { userId: qcStaff.id, roleId: teamLeadRole.id } },
-    update: {},
-    create: {
-      userId: qcStaff.id,
-      roleId: teamLeadRole.id,
-    },
-  });
-
-  await prisma.userRoleAssignment.upsert({
-    where: { userId_roleId: { userId: qcLead.id, roleId: deptHeadRole.id } },
-    update: {},
-    create: {
-      userId: qcLead.id,
-      roleId: deptHeadRole.id,
-    },
-  });
-
-  await prisma.userRoleAssignment.upsert({
-    where: { userId_roleId: { userId: prodWorker.id, roleId: employeeRole.id } },
-    update: {},
-    create: {
-      userId: prodWorker.id,
-      roleId: employeeRole.id,
-    },
-  });
-
-  await prisma.userRoleAssignment.upsert({
-    where: { userId_roleId: { userId: hr.id, roleId: adminRole.id } },
-    update: {},
-    create: {
-      userId: hr.id,
-      roleId: adminRole.id,
-    },
-  });
-
   console.log('✅ Roles assigned to users');
-
-  // Create Evaluations for current month
-  console.log('\n📊 Creating evaluations...');
-  const currentDate = new Date();
-  const period = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-
-  // Get QC Staff employee
-  const qcStaffEmployee = await prisma.employee.findFirst({
-    where: { userId: qcStaff.id },
-  });
-
-  if (qcStaffEmployee) {
-    // Create evaluation for QC Staff
-    const evaluation = await prisma.evaluation.upsert({
-      where: {
-        employeeId_period: {
-          employeeId: qcStaffEmployee.id,
-          period,
-        },
-      },
-      update: {},
-      create: {
-        employeeId: qcStaffEmployee.id,
-        period,
-        score: 0,
-      },
-    });
-
-    // Get QC Staff position responsibilities
-    const qcStaffPosition = await prisma.position.findFirst({
-      where: { code: 'POS_QC_STAFF' },
-      include: { responsibilities: true },
-    });
-
-    if (qcStaffPosition && qcStaffPosition.responsibilities.length > 0) {
-      // Create evaluation details for each responsibility
-      for (const resp of qcStaffPosition.responsibilities) {
-        await prisma.evaluationDetail.upsert({
-          where: {
-            evaluationId_positionResponsibilityId: {
-              evaluationId: evaluation.id,
-              positionResponsibilityId: resp.id,
-            },
-          },
-          update: {},
-          create: {
-            evaluationId: evaluation.id,
-            positionResponsibilityId: resp.id,
-            selfScore: 80 + Math.random() * 20, // Random score between 80-100
-            supervisorScore1: 75 + Math.random() * 25, // Random score between 75-100
-            supervisorScore2: 78 + Math.random() * 22, // Random score between 78-100
-          },
-        });
-      }
-    }
-  }
-
-  console.log('✅ Evaluations created');
-
-  // Create Payroll data for current month
-  console.log('\n💰 Creating payroll data...');
-
-  const currentMonth = currentDate.getMonth() + 1;
-  const currentYear = currentDate.getFullYear();
-
-  // Get all employees
-  const allEmployees = await prisma.employee.findMany({
-    include: {
-      position: {
-        include: {
-          levels: true,
-        },
-      },
-    },
-  });
-
-  // Create payroll for each employee
-  for (const employee of allEmployees) {
-    // Get position level (default to first level if exists)
-    const positionLevel = employee.position?.levels?.[0];
-    const baseSalary = positionLevel?.baseSalary || employee.baseSalary || 5000000;
-    const kpiSalary = positionLevel?.kpiSalary || 1000000;
-
-    // Get evaluation score for KPI bonus calculation
-    const evaluation = await prisma.evaluation.findFirst({
-      where: {
-        employeeId: employee.id,
-        period,
-      },
-      include: {
-        details: true,
-      },
-    });
-
-    // Calculate average evaluation score
-    let evaluationScore = 0;
-    if (evaluation && evaluation.details.length > 0) {
-      const avgSelfScore =
-        evaluation.details.reduce((sum, d) => sum + (d.selfScore || 0), 0) / evaluation.details.length;
-      const avgSupervisor1 =
-        evaluation.details.reduce((sum, d) => sum + (d.supervisorScore1 || 0), 0) / evaluation.details.length;
-      const avgSupervisor2 =
-        evaluation.details.reduce((sum, d) => sum + (d.supervisorScore2 || 0), 0) / evaluation.details.length;
-      evaluationScore = (avgSelfScore + avgSupervisor1 + avgSupervisor2) / 3 / 100; // Convert to percentage
-    } else {
-      evaluationScore = 0.8; // Default 80% if no evaluation
-    }
-
-    // Calculate KPI bonus based on evaluation score
-    const kpiBonus = kpiSalary * evaluationScore;
-
-    // Calculate other values
-    const positionAllowance = baseSalary * 0.05; // 5% position allowance
-    const otherAllowances = 0;
-    const totalIncome = baseSalary + kpiBonus + positionAllowance + otherAllowances;
-
-    // Calculate deductions (Vietnamese standard)
-    const socialInsurance = baseSalary * 0.08; // 8%
-    const healthInsurance = baseSalary * 0.015; // 1.5%
-    const unemploymentInsurance = baseSalary * 0.01; // 1%
-    const personalIncomeTax = Math.max(0, (totalIncome - 11000000) * 0.1); // 10% on income above 11M
-    const totalDeductions = socialInsurance + healthInsurance + unemploymentInsurance + personalIncomeTax;
-
-    // Calculate net salary
-    const netSalary = totalIncome - totalDeductions;
-
-    // Create payroll
-    await prisma.payroll.upsert({
-      where: {
-        employeeId_month_year: {
-          employeeId: employee.id,
-          month: currentMonth,
-          year: currentYear,
-        },
-      },
-      update: {
-        baseSalary,
-        kpiBonus,
-        positionAllowance,
-        otherAllowances,
-        totalIncome,
-        socialInsurance,
-        healthInsurance,
-        unemploymentInsurance,
-        personalIncomeTax,
-        totalDeductions,
-        netSalary,
-        workDays: 22,
-        leaveDays: 0,
-        overtimeHours: 0,
-      },
-      create: {
-        employeeId: employee.id,
-        month: currentMonth,
-        year: currentYear,
-        baseSalary,
-        kpiBonus,
-        positionAllowance,
-        otherAllowances,
-        totalIncome,
-        socialInsurance,
-        healthInsurance,
-        unemploymentInsurance,
-        personalIncomeTax,
-        totalDeductions,
-        netSalary,
-        workDays: 22,
-        leaveDays: 0,
-        overtimeHours: 0,
-      },
-    });
-  }
-
-  console.log('✅ Payroll data created');
-
-  // Create Internal Inspection data
-  console.log('\n🔍 Creating internal inspection data...');
-  const inspectionViolations = [
-    {
-      violationCode: 'VI-001',
-      violationContent: 'Vi phạm quy định vệ sinh',
-      violationLevel: 'Quy định',
-      violationCategory: 'Vệ sinh',
-      violationDescription: 'Khu vực sản xuất không đạt tiêu chuẩn vệ sinh',
-    },
-    {
-      violationCode: 'VI-002',
-      violationContent: 'Vi phạm quy trình kiểm tra',
-      violationLevel: 'Quy phạm quản lý',
-      violationCategory: 'Quy trình',
-      violationDescription: 'Không thực hiện đúng quy trình kiểm tra chất lượng',
-    },
-    {
-      violationCode: 'VI-003',
-      violationContent: 'Vi phạm an toàn lao động',
-      violationLevel: 'Quy định',
-      violationCategory: 'An toàn',
-      violationDescription: 'Không đeo đầy đủ trang bị bảo vệ cá nhân',
-    },
-  ];
-
-  for (let i = 0; i < 5; i++) {
-    const violation = inspectionViolations[i % inspectionViolations.length];
-    const inspectionDate = new Date();
-    inspectionDate.setDate(inspectionDate.getDate() - i);
-
-    const inspectionCode = `KTN-${new Date().getFullYear()}-${String(i + 1).padStart(5, '0')}`;
-    await prisma.internalInspection.upsert({
-      where: { inspectionCode },
-      update: {},
-      create: {
-        inspectionCode,
-        inspectionDate,
-        inspectionPlanCode: `KH-${new Date().getFullYear()}-${String(i + 1).padStart(3, '0')}`,
-        inspectionPlanId: `plan-${i}`,
-        violationCode: violation.violationCode,
-        violationContent: violation.violationContent,
-        violationLevel: violation.violationLevel,
-        violationCategory: violation.violationCategory,
-        violationDescription: violation.violationDescription,
-        inspectedBy: 'Nguyễn Văn An',
-        inspectedByCode: 'NV001',
-        verifiedBy1: 'Trần Thị Bình',
-        verifiedBy1Code: 'NV002',
-        verifiedBy2: 'Lê Văn Cường',
-        verifiedBy2Code: 'NV003',
-        status: i % 3 === 0 ? 'PENDING' : i % 3 === 1 ? 'VERIFIED' : 'CLOSED',
-        notes: `Ghi chú kiểm tra ${i + 1}`,
-      },
-    });
-  }
-
-  console.log('✅ Internal inspection data created');
-
-  // Create Attendance data
-  console.log('\n📅 Creating attendance data...');
-  const employees = await prisma.employee.findMany({ take: 10 });
-
-  for (let i = 0; i < 30; i++) {
-    const employee = employees[i % employees.length];
-    const attendanceDate = new Date();
-    attendanceDate.setDate(attendanceDate.getDate() - (30 - i));
-
-    const checkInTime = new Date(attendanceDate);
-    checkInTime.setHours(8, 0, 0, 0);
-
-    const checkOutTime = new Date(attendanceDate);
-    checkOutTime.setHours(17, 0, 0, 0);
-
-    const workHours = 8;
-    const statuses = ['PRESENT', 'LATE', 'ABSENT', 'ON_LEAVE', 'OVERTIME'];
-    const status = statuses[i % statuses.length];
-
-    await prisma.attendance.upsert({
-      where: {
-        employeeId_attendanceDate_isOvertime: {
-          employeeId: employee.id,
-          attendanceDate: attendanceDate,
-          isOvertime: false,
-        },
-      },
-      update: {},
-      create: {
-        employeeId: employee.id,
-        attendanceDate: attendanceDate,
-        checkInTime: status === 'ABSENT' || status === 'ON_LEAVE' ? null : checkInTime,
-        checkOutTime: status === 'ABSENT' || status === 'ON_LEAVE' ? null : checkOutTime,
-        workHours: status === 'ABSENT' || status === 'ON_LEAVE' ? 0 : workHours,
-        status: status as any,
-        notes: status === 'LATE' ? 'Đến muộn 30 phút' : null,
-      },
-    });
-  }
-
-  console.log('✅ Attendance data created');
-
-  // ─── International Products ───────────────────────────────────────────────
-  console.log('\n📦 Creating international products...');
-  const internationalProducts = [
-    { maSanPham: 'SP-001', tenSanPham: 'Khoai tây chiên đông lạnh', moTaSanPham: 'Khoai tây cắt lát, chiên sơ và đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-002', tenSanPham: 'Cà rốt xay nhuyễn', moTaSanPham: 'Cà rốt tươi xay nhuyễn, đóng gói hút chân không', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
-    { maSanPham: 'SP-003', tenSanPham: 'Bắp ngô ngọt đông lạnh', moTaSanPham: 'Hạt bắp ngô ngọt tách hạt, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-004', tenSanPham: 'Đậu Hà Lan đông lạnh', moTaSanPham: 'Đậu Hà Lan tươi, đông lạnh nhanh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-005', tenSanPham: 'Ớt chuông đỏ cắt lát', moTaSanPham: 'Ớt chuông đỏ cắt lát mỏng, đông lạnh', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-006', tenSanPham: 'Cải bó xôi xay nhuyễn', moTaSanPham: 'Cải bó xôi tươi xay nhuyễn, đóng túi 1kg', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
-    { maSanPham: 'SP-007', tenSanPham: 'Bông cải xanh đông lạnh', moTaSanPham: 'Bông cải xanh cắt bông, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-008', tenSanPham: 'Cà chua bi đông lạnh', moTaSanPham: 'Cà chua bi nguyên quả, đông lạnh', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-009', tenSanPham: 'Hành tây cắt hạt lựu', moTaSanPham: 'Hành tây cắt hạt lựu 1cm, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-010', tenSanPham: 'Tỏi băm đông lạnh', moTaSanPham: 'Tỏi tươi băm nhỏ, đông lạnh, đóng gói 500g', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-011', tenSanPham: 'Gừng xay nhuyễn', moTaSanPham: 'Gừng tươi xay nhuyễn, đóng hũ 200g', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
-    { maSanPham: 'SP-012', tenSanPham: 'Khoai lang đông lạnh', moTaSanPham: 'Khoai lang cắt khối vuông, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-013', tenSanPham: 'Bí đỏ xay nhuyễn', moTaSanPham: 'Bí đỏ hấp chín và xay nhuyễn, đóng túi 1kg', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
-    { maSanPham: 'SP-014', tenSanPham: 'Đậu bắp cắt khúc đông lạnh', moTaSanPham: 'Đậu bắp tươi cắt khúc 2cm, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-015', tenSanPham: 'Nấm rơm đông lạnh', moTaSanPham: 'Nấm rơm nguyên tai, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-016', tenSanPham: 'Nấm hương sấy khô', moTaSanPham: 'Nấm hương sấy khô nguyên tai, đóng gói 200g', loaiSanPham: 'Sấy khô', donViTinh: 'kg' },
-    { maSanPham: 'SP-017', tenSanPham: 'Măng tây đông lạnh', moTaSanPham: 'Măng tây xanh cắt khúc 5cm, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-018', tenSanPham: 'Cần tây cắt nhỏ đông lạnh', moTaSanPham: 'Cần tây cắt nhỏ 1cm, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-019', tenSanPham: 'Dứa cắt miếng đông lạnh', moTaSanPham: 'Dứa tươi cắt miếng tam giác, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-020', tenSanPham: 'Xoài cắt miếng đông lạnh', moTaSanPham: 'Xoài chín cắt miếng, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-021', tenSanPham: 'Thanh long ruột đỏ đông lạnh', moTaSanPham: 'Thanh long ruột đỏ cắt khối, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-022', tenSanPham: 'Chanh dây xay nhuyễn', moTaSanPham: 'Chanh dây tươi xay nhuyễn, lọc hạt, đóng túi 1kg', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
-    { maSanPham: 'SP-023', tenSanPham: 'Chuối xay nhuyễn đông lạnh', moTaSanPham: 'Chuối chín xay nhuyễn, đông lạnh, đóng túi 1kg', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
-    { maSanPham: 'SP-024', tenSanPham: 'Ổi xay nhuyễn', moTaSanPham: 'Ổi tươi xay nhuyễn, lọc hạt, đóng túi 1kg', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
-    { maSanPham: 'SP-025', tenSanPham: 'Mãng cầu xay nhuyễn', moTaSanPham: 'Mãng cầu xiêm xay nhuyễn, đóng túi 500g', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
-    { maSanPham: 'SP-026', tenSanPham: 'Sầu riêng đông lạnh', moTaSanPham: 'Múi sầu riêng Monthong đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-027', tenSanPham: 'Vải thiều đông lạnh', moTaSanPham: 'Vải thiều bóc vỏ, bỏ hạt, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-028', tenSanPham: 'Nhãn đông lạnh', moTaSanPham: 'Nhãn bóc vỏ, bỏ hạt, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-029', tenSanPham: 'Chôm chôm đông lạnh', moTaSanPham: 'Chôm chôm bóc vỏ, bỏ hạt, đông lạnh IQF', loaiSanPham: 'Đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-030', tenSanPham: 'Bơ xay nhuyễn đông lạnh', moTaSanPham: 'Bơ chín xay nhuyễn, đông lạnh, đóng túi 500g', loaiSanPham: 'Xay nhuyễn', donViTinh: 'kg' },
-    { maSanPham: 'SP-031', tenSanPham: 'Tôm thẻ đông lạnh', moTaSanPham: 'Tôm thẻ chân trắng bóc vỏ, bỏ đầu, đông lạnh IQF', loaiSanPham: 'Hải sản đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-032', tenSanPham: 'Mực ống đông lạnh', moTaSanPham: 'Mực ống làm sạch, cắt khoanh, đông lạnh IQF', loaiSanPham: 'Hải sản đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-033', tenSanPham: 'Cá tra phi lê đông lạnh', moTaSanPham: 'Cá tra phi lê, cắt miếng, đông lạnh IQF', loaiSanPham: 'Hải sản đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-034', tenSanPham: 'Cua thịt đông lạnh', moTaSanPham: 'Thịt cua tách sẵn, đông lạnh, đóng hộp 500g', loaiSanPham: 'Hải sản đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-035', tenSanPham: 'Nghêu luộc đông lạnh', moTaSanPham: 'Nghêu luộc chín, tách vỏ, đông lạnh IQF', loaiSanPham: 'Hải sản đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-036', tenSanPham: 'Thịt heo xay đông lạnh', moTaSanPham: 'Thịt heo nạc xay, đông lạnh, đóng gói 500g', loaiSanPham: 'Thịt đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-037', tenSanPham: 'Thịt gà phi lê đông lạnh', moTaSanPham: 'Ức gà phi lê, đông lạnh IQF, đóng gói 1kg', loaiSanPham: 'Thịt đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-038', tenSanPham: 'Thịt bò xay đông lạnh', moTaSanPham: 'Thịt bò nạc xay, đông lạnh, đóng gói 500g', loaiSanPham: 'Thịt đông lạnh', donViTinh: 'kg' },
-    { maSanPham: 'SP-039', tenSanPham: 'Lạp xưởng tươi', moTaSanPham: 'Lạp xưởng tươi truyền thống, đóng gói 500g', loaiSanPham: 'Chế biến', donViTinh: 'kg' },
-    { maSanPham: 'SP-040', tenSanPham: 'Chả giò đông lạnh', moTaSanPham: 'Chả giò nhân thịt heo và rau củ, đông lạnh', loaiSanPham: 'Chế biến', donViTinh: 'thùng' },
-    { maSanPham: 'SP-041', tenSanPham: 'Bánh mì đông lạnh', moTaSanPham: 'Bánh mì baguette nướng sơ, đông lạnh, đóng túi 5 cái', loaiSanPham: 'Chế biến', donViTinh: 'thùng' },
-    { maSanPham: 'SP-042', tenSanPham: 'Nước cốt dừa đóng hộp', moTaSanPham: 'Nước cốt dừa tươi nguyên chất, đóng hộp 400ml', loaiSanPham: 'Đồ hộp', donViTinh: 'thùng' },
-    { maSanPham: 'SP-043', tenSanPham: 'Cà chua nghiền đóng hộp', moTaSanPham: 'Cà chua chín nghiền, đóng hộp 400g', loaiSanPham: 'Đồ hộp', donViTinh: 'thùng' },
-    { maSanPham: 'SP-044', tenSanPham: 'Đậu đỏ đóng hộp', moTaSanPham: 'Đậu đỏ luộc chín, đóng hộp 400g', loaiSanPham: 'Đồ hộp', donViTinh: 'thùng' },
-    { maSanPham: 'SP-045', tenSanPham: 'Ngô ngọt đóng hộp', moTaSanPham: 'Hạt ngô ngọt luộc chín, đóng hộp 340g', loaiSanPham: 'Đồ hộp', donViTinh: 'thùng' },
-    { maSanPham: 'SP-046', tenSanPham: 'Gạo Jasmine xuất khẩu', moTaSanPham: 'Gạo Jasmine thơm, hạt dài, đóng bao 25kg', loaiSanPham: 'Ngũ cốc', donViTinh: 'tấn' },
-    { maSanPham: 'SP-047', tenSanPham: 'Gạo ST25 xuất khẩu', moTaSanPham: 'Gạo ST25 ngon nhất thế giới, đóng bao 5kg', loaiSanPham: 'Ngũ cốc', donViTinh: 'tấn' },
-    { maSanPham: 'SP-048', tenSanPham: 'Hạt điều rang muối', moTaSanPham: 'Hạt điều W240 rang muối, đóng gói 500g', loaiSanPham: 'Hạt khô', donViTinh: 'kg' },
-    { maSanPham: 'SP-049', tenSanPham: 'Hạt tiêu đen xuất khẩu', moTaSanPham: 'Hạt tiêu đen Phú Quốc, đóng gói 1kg', loaiSanPham: 'Gia vị', donViTinh: 'kg' },
-    { maSanPham: 'SP-050', tenSanPham: 'Cà phê Robusta xuất khẩu', moTaSanPham: 'Cà phê Robusta Tây Nguyên rang xay, đóng gói 500g', loaiSanPham: 'Đồ uống', donViTinh: 'kg' },
-  ];
-
-  for (const product of internationalProducts) {
-    await prisma.internationalProduct.upsert({
-      where: { maSanPham: product.maSanPham },
-      update: {},
-      create: product,
-    });
-  }
-  console.log(`✅ Created ${internationalProducts.length} international products`);
 
   console.log('✨ Database seeding completed!');
 }

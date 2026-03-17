@@ -54,7 +54,7 @@ export class NotificationService {
         employeeId,
         type: NotificationType.EVALUATION,
         title: `Đánh giá tháng ${monthName}`,
-        message: `Bạn có một bản đánh giá mới cho tháng ${monthName}. Vui lòng hoàn thành đánh giá của bạn.`,
+        message: `Bạn có 1 đánh giá mới`,
         period,
         evaluationId,
         isRead: false,

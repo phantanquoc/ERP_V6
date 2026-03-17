@@ -2,7 +2,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
-import { env } from '@config/env';
+import { env, isProduction } from '@config/env';
 import logger from '@config/logger';
 import { swaggerSpec } from '@config/swagger';
 import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
@@ -14,9 +14,11 @@ const app: Express = express();
 app.use(helmet());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+// CORS — hỗ trợ nhiều origin (phân cách bằng dấu phẩy trong CORS_ORIGIN)
+const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
 app.use(
   cors({
-    origin: env.CORS_ORIGIN,
+    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
   })
 );
@@ -40,15 +42,17 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Swagger API Documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'ERP System - API Documentation',
-}));
-app.get('/api-docs.json', (_req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
-});
+// Swagger API Documentation (chỉ bật ở development)
+if (!isProduction) {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'ERP System - API Documentation',
+  }));
+  app.get('/api-docs.json', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+}
 
 // API Routes
 registerRoutes(app);

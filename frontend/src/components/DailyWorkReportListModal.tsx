@@ -20,11 +20,13 @@ import DailyWorkReportModal from './DailyWorkReportModal';
 interface DailyWorkReportListModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isAdmin?: boolean;
 }
 
 const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
   isOpen,
   onClose,
+  isAdmin = false,
 }) => {
   const [reports, setReports] = useState<DailyWorkReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,9 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
     try {
       setLoading(true);
       setError(null);
-      const response = await dailyWorkReportService.getMyReports(page, 5);
+      const response = isAdmin
+        ? await dailyWorkReportService.getAllReports(page, 5)
+        : await dailyWorkReportService.getMyReports(page, 5);
       setReports(response.data);
       setTotalPages(response.pagination.totalPages);
     } catch (error: any) {
@@ -93,16 +97,20 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <FileText className="w-6 h-6 text-white" />
-                <h2 className="text-xl font-bold text-white">Báo cáo công việc hàng ngày</h2>
+                <h2 className="text-xl font-bold text-white">
+                  {isAdmin ? 'Danh sách báo cáo công việc' : 'Báo cáo công việc hàng ngày'}
+                </h2>
               </div>
               <div className="flex items-center space-x-3">
-                <button
-                  onClick={handleCreate}
-                  className="flex items-center space-x-2 px-4 py-2 bg-white text-green-600 rounded-lg hover:bg-gray-100 transition-colors font-medium"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Tạo báo cáo mới</span>
-                </button>
+                {!isAdmin && (
+                  <button
+                    onClick={handleCreate}
+                    className="flex items-center space-x-2 px-4 py-2 bg-white text-green-600 rounded-lg hover:bg-gray-100 transition-colors font-medium"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Tạo báo cáo mới</span>
+                  </button>
+                )}
                 <button
                   onClick={onClose}
                   className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-colors text-white"
@@ -137,14 +145,18 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
                   <FileText className="w-10 h-10 text-gray-400" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Chưa có báo cáo nào</h3>
-                <p className="text-gray-600 mb-6">Bắt đầu tạo báo cáo công việc hàng ngày của bạn</p>
-                <button
-                  onClick={handleCreate}
-                  className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg hover:from-green-700 hover:to-teal-700 transition-all shadow-md hover:shadow-lg"
-                >
-                  <Plus className="w-5 h-5" />
-                  <span className="font-medium">Tạo báo cáo đầu tiên</span>
-                </button>
+                <p className="text-gray-600 mb-6">
+                  {isAdmin ? 'Chưa có nhân viên nào gửi báo cáo' : 'Bắt đầu tạo báo cáo công việc hàng ngày của bạn'}
+                </p>
+                {!isAdmin && (
+                  <button
+                    onClick={handleCreate}
+                    className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg hover:from-green-700 hover:to-teal-700 transition-all shadow-md hover:shadow-lg"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span className="font-medium">Tạo báo cáo đầu tiên</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
@@ -167,6 +179,17 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
                           </span>
                           {getStatusBadge(report.status)}
                         </div>
+
+                        {isAdmin && report.employee && (
+                          <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+                            <span className="font-medium text-gray-800">
+                              {report.employee.user?.lastName} {report.employee.user?.firstName}
+                            </span>
+                            {report.employee.position && (
+                              <span className="text-gray-400">— {report.employee.position.name}</span>
+                            )}
+                          </div>
+                        )}
 
                         <div className="space-y-2 mb-4">
                           <div className="flex items-center space-x-2 text-sm text-gray-600">

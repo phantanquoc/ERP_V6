@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -21,17 +19,25 @@ services:
       - "-c"
       - "checkpoint_timeout=15min"
       - "-c"
-      - "max_connections=100"
+      - "max_connections=350"
       - "-c"
-      - "shared_buffers=256MB"
+      - "shared_buffers=1GB"
       - "-c"
-      - "work_mem=4MB"
+      - "work_mem=8MB"
       - "-c"
-      - "maintenance_work_mem=128MB"
+      - "maintenance_work_mem=256MB"
       - "-c"
-      - "effective_cache_size=512MB"
+      - "effective_cache_size=3GB"
       - "-c"
       - "log_min_duration_statement=1000"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "max_wal_size=2GB"
+      - "-c"
+      - "min_wal_size=512MB"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -45,6 +51,14 @@ services:
       retries: 5
     networks:
       - erp_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
 
   # Backend API
   backend:
@@ -56,13 +70,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-erp_user}:${POSTGRES_PASSWORD:-erp_password_change_me}@postgres:5432/${POSTGRES_DB:-erp_database}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-erp_user}:${POSTGRES_PASSWORD:-erp_password_change_me}@postgres:5432/${POSTGRES_DB:-erp_database}?schema=public&connection_limit=30
       JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_me}
       JWT_EXPIRE: ${JWT_EXPIRE:-7d}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your_super_secret_refresh_key_change_me}
       JWT_REFRESH_EXPIRE: ${JWT_REFRESH_EXPIRE:-30d}
-      CORS_ORIGIN: ${CORS_ORIGIN:-https://erp.yourdomain.com}
-      API_URL: ${API_URL:-https://erp.yourdomain.com/api}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://anbinhfoods.net,https://www.anbinhfoods.net}
+      API_URL: ${API_URL:-https://anbinhfoods.net/api}
+      LOG_LEVEL: warn
     volumes:
       - backend_uploads:/app/uploads
       - backend_logs:/app/logs
@@ -76,6 +91,14 @@ services:
       retries: 3
     networks:
       - erp_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
   # Frontend React App
   frontend:
@@ -83,15 +106,23 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://erp.yourdomain.com/api}
+        VITE_API_URL: ${VITE_API_URL:-https://anbinhfoods.net/api}
     container_name: erp_frontend
     restart: unless-stopped
     environment:
-      VITE_API_URL: ${VITE_API_URL:-https://erp.yourdomain.com/api}
+      VITE_API_URL: ${VITE_API_URL:-https://anbinhfoods.net/api}
     depends_on:
       - backend
     networks:
       - erp_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
   # Nginx Reverse Proxy
   nginx:
@@ -110,6 +141,14 @@ services:
       - backend
     networks:
       - erp_network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
 volumes:
   postgres_data:

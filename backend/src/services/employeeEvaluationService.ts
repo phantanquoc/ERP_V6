@@ -295,7 +295,7 @@ export class EmployeeEvaluationService {
                 userId: employee.user!.supervisor1Id!,
                 type: NotificationType.EVALUATION_SUPERVISOR1,
                 title: 'Đánh giá cấp trên 1',
-                message: `${employee.user!.firstName} ${employee.user!.lastName} đã hoàn thành tự đánh giá. Vui lòng đánh giá.`,
+                message: `Bạn có 1 đánh giá mới`,
                 evaluationId: detail.evaluation.id,
                 period: detail.evaluation.period,
               });
@@ -312,7 +312,7 @@ export class EmployeeEvaluationService {
                 userId: employee.user!.supervisor2Id!,
                 type: NotificationType.EVALUATION_SUPERVISOR2,
                 title: 'Đánh giá cấp trên 2',
-                message: `${employee.user!.firstName} ${employee.user!.lastName} đã hoàn thành tự đánh giá. Vui lòng đánh giá.`,
+                message: `Bạn có 1 đánh giá mới`,
                 evaluationId: detail.evaluation.id,
                 period: detail.evaluation.period,
               });
@@ -350,7 +350,7 @@ export class EmployeeEvaluationService {
                 userId: employee.user!.supervisor2Id!,
                 type: NotificationType.EVALUATION_SUPERVISOR2,
                 title: 'Đánh giá cấp trên 2',
-                message: `${employee.user!.firstName} ${employee.user!.lastName} đã được đánh giá bởi cấp trên 1. Vui lòng đánh giá.`,
+                message: `Bạn có 1 đánh giá mới`,
                 evaluationId: detail.evaluation.id,
                 period: detail.evaluation.period,
               });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ShoppingCart,
   ShieldCheck,
@@ -15,7 +15,9 @@ import {
   AlertTriangle,
   Check,
   X,
-  Eye
+  Eye,
+  Award,
+  FileText
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { getDepartmentDisplayName, isAdmin } from "../utils/permissions";
@@ -24,6 +26,9 @@ import purchaseRequestService from "../services/purchaseRequestService";
 import TaskListModal from "../components/TaskListModal";
 import FeedbackListModal from "../components/FeedbackListModal";
 import WorkPlanListModal from "../components/WorkPlanListModal";
+import DailyWorkReportListModal from "../components/DailyWorkReportListModal";
+import EmployeeSelfEvaluationModal from "../components/EmployeeSelfEvaluationModal";
+import notificationService, { Notification } from "../services/notificationService";
 import { useTasksCount, usePrivateFeedbackStats } from "../hooks";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { orderService } from "../services/orderService";
@@ -45,11 +50,13 @@ import qualityEvaluationService from "../services/qualityEvaluationService";
 import { workPlanService } from "../services/workPlanService";
 
 // Quick Stats for Overview
-const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0) => [
+const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0, evaluationNotification?: Notification | null) => [
   { label: "Yêu cầu mua hàng", value: purchaseRequestCount.toString(), change: `Chờ duyệt: ${purchaseRequestPendingCount}`, icon: <ShoppingCart className="h-5 w-5" />, color: "text-blue-600", clickable: true, type: 'purchaseRequests' },
   { label: "Danh sách nhiệm vụ", value: tasksCount.toString(), change: `Nhiệm vụ: ${tasksCount}`, icon: <CheckSquare className="h-5 w-5" />, color: "text-green-600", clickable: true, type: 'tasks' },
   { label: "Danh sách kế hoạch", value: workPlanCount.toString(), change: `Đã lên kế hoạch: ${workPlanCount}`, icon: <Calendar className="h-5 w-5" />, color: "text-purple-600", clickable: true, type: 'workPlans' },
-  { label: "Danh sách khó khăn và góp ý", value: feedbackCount.toString(), change: `Góp ý & Khó khăn: ${feedbackCount}`, icon: <AlertTriangle className="h-5 w-5" />, color: "text-orange-600", clickable: true, type: 'feedbacks' }
+  { label: "Danh sách khó khăn và góp ý", value: feedbackCount.toString(), change: `Góp ý & Khó khăn: ${feedbackCount}`, icon: <AlertTriangle className="h-5 w-5" />, color: "text-orange-600", clickable: true, type: 'feedbacks' },
+  { label: "Đánh giá", value: evaluationNotification ? "Cần đánh giá" : "Không có", change: evaluationNotification?.period ? `Đánh giá tháng ${new Date(evaluationNotification.period + '-01').toLocaleDateString('vi-VN', { month: 'numeric', year: 'numeric' })}` : "Không có đánh giá mới", icon: <Award className="h-5 w-5" />, color: evaluationNotification ? "text-red-600" : "text-gray-600", clickable: true, type: 'evaluation', hasNotification: !!evaluationNotification && !evaluationNotification.isRead },
+  { label: "Báo cáo công việc", value: "Xem", change: "Báo cáo hàng ngày", icon: <FileText className="h-5 w-5" />, color: "text-teal-600", clickable: true, type: 'dailyReports' }
 ];
 
 // Component for Department Card
@@ -96,13 +103,16 @@ const QuickStatCard: React.FC<{
   onClick?: () => void;
 }> = ({ stat, onClick }) => (
   <div
-    className={`bg-white rounded-lg shadow-md p-6 border border-gray-100 ${stat.clickable ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+    className={`bg-white rounded-lg shadow-md p-6 border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-100'} ${stat.clickable ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''} relative`}
     onClick={stat.clickable ? onClick : undefined}
   >
+    {stat.hasNotification && (
+      <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+    )}
     <div className="flex items-center justify-between">
       <div>
         <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-        <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+        <p className={`text-2xl font-bold ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</p>
         <p className={`text-sm font-medium ${stat.color}`}>{stat.change}</p>
       </div>
       <div className={`p-3 rounded-full bg-blue-50 ${stat.color}`}>
@@ -135,6 +145,9 @@ const Dashboard1: React.FC = () => {
   const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
   const [isPurchaseRequestModalOpen, setIsPurchaseRequestModalOpen] = useState(false);
   const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState(false);
+  const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
+  const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
+  const [latestEvaluationNotification, setLatestEvaluationNotification] = useState<Notification | null>(null);
   const [approveLoading, setApproveLoading] = useState<string | null>(null);
 
   const userIsAdmin = user ? isAdmin(user.department) : false;
@@ -143,6 +156,19 @@ const Dashboard1: React.FC = () => {
   const { data: tasksCount = 0 } = useTasksCount();
   const { data: feedbackStats } = usePrivateFeedbackStats();
   const feedbackCount = feedbackStats?.data?.total || 0;
+
+  // Load evaluation notification
+  useEffect(() => {
+    const loadLatestEvaluationNotification = async () => {
+      try {
+        const notification = await notificationService.getLatestEvaluationNotification();
+        setLatestEvaluationNotification(notification);
+      } catch (error) {
+        console.error('Error loading evaluation notification:', error);
+      }
+    };
+    loadLatestEvaluationNotification();
+  }, []);
 
   // Purchase requests query
   const { data: purchaseRequestsData } = useQuery({
@@ -323,7 +349,7 @@ const Dashboard1: React.FC = () => {
 
   // Nếu là admin, hiển thị Admin Dashboard
   const departmentName = getDepartmentDisplayName(user.department);
-  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount);
+  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, latestEvaluationNotification);
 
   const departmentStats = {
     general: {
@@ -451,7 +477,7 @@ const Dashboard1: React.FC = () => {
         </div>
 
         {/* Quick Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
           {quickStats.map((stat, index) => (
             <QuickStatCard
               key={index}
@@ -465,6 +491,10 @@ const Dashboard1: React.FC = () => {
                   setIsPurchaseRequestModalOpen(true);
                 } else if (stat.type === 'workPlans') {
                   setIsWorkPlanModalOpen(true);
+                } else if (stat.type === 'evaluation') {
+                  setIsEvaluationModalOpen(true);
+                } else if (stat.type === 'dailyReports') {
+                  setIsDailyReportModalOpen(true);
                 }
               } : undefined}
             />
@@ -585,6 +615,22 @@ const Dashboard1: React.FC = () => {
         isOpen={isWorkPlanModalOpen}
         onClose={() => setIsWorkPlanModalOpen(false)}
         isAdmin={userIsAdmin}
+      />
+
+      {/* Employee Self Evaluation Modal */}
+      <EmployeeSelfEvaluationModal
+        isOpen={isEvaluationModalOpen}
+        onClose={() => setIsEvaluationModalOpen(false)}
+        evaluationId={latestEvaluationNotification?.evaluationId || null}
+        notificationId={latestEvaluationNotification?.id}
+        evaluationPeriod={latestEvaluationNotification?.period || null}
+      />
+
+      {/* Daily Work Report List Modal */}
+      <DailyWorkReportListModal
+        isOpen={isDailyReportModalOpen}
+        onClose={() => setIsDailyReportModalOpen(false)}
+        isAdmin={true}
       />
 
       {/* Purchase Request Modal */}

@@ -108,9 +108,9 @@ JWT_SECRET=chuoi-ngau-nhien-dai-64-ky-tu-tro-len-cho-bao-mat
 JWT_REFRESH_SECRET=chuoi-ngau-nhien-khac-cho-refresh-token
 
 # Domain của bạn
-CORS_ORIGIN=https://erp.yourdomain.com
-API_URL=https://erp.yourdomain.com/api
-VITE_API_URL=https://erp.yourdomain.com/api
+CORS_ORIGIN=https://anbinhfoods.net,https://www.anbinhfoods.net
+API_URL=https://anbinhfoods.net/api
+VITE_API_URL=https://anbinhfoods.net/api
 ```
 
 ---
@@ -136,7 +136,7 @@ Copy file certificate vào `nginx\ssl\`:
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout nginx/ssl/key.pem \
   -out nginx/ssl/cert.pem \
-  -subj "/CN=erp.yourdomain.com"
+  -subj "/CN=anbinhfoods.net"
 ```
 
 ---
@@ -176,7 +176,7 @@ curl http://localhost/api/health
 
 ### 6.2 Test từ trình duyệt
 
-Truy cập: `https://erp.yourdomain.com`
+Truy cập: `https://anbinhfoods.net`
 
 ---
 
@@ -272,6 +272,57 @@ docker-compose up -d
 # Chạy migration nếu có thay đổi database
 docker-compose exec backend npx prisma migrate deploy
 ```
+
+---
+
+## 💾 Bước 7: Cấu Hình Backup Tự Động
+
+### 7.1 Setup backup hàng ngày (Windows)
+
+Chạy với quyền Administrator:
+
+```powershell
+cd C:\ERP
+
+# Đăng ký Task Scheduler — backup mỗi ngày lúc 2h sáng
+powershell -ExecutionPolicy Bypass -File scripts\setup-backup-task.ps1 -ProjectDir "C:\ERP"
+```
+
+### 7.2 Kiểm tra backup
+
+```powershell
+# Chạy backup thủ công để test
+powershell -ExecutionPolicy Bypass -File scripts\backup.ps1 -ProjectDir "C:\ERP"
+
+# Xem backup đã tạo
+dir C:\ERP\backups\daily
+```
+
+### 7.3 Restore từ backup
+
+```powershell
+# Restore database từ file backup
+docker-compose exec -T postgres pg_restore -U erp_user -d erp_database --clean --if-exists --no-owner < C:\ERP\backups\daily\db_20260316_020000.sql
+```
+
+### 7.4 Backup trên Linux
+
+```bash
+# Thêm cron job — backup mỗi ngày lúc 2h sáng
+chmod +x /opt/erp/scripts/backup.sh
+echo "0 2 * * * /opt/erp/scripts/backup.sh >> /opt/erp-backups/cron.log 2>&1" | crontab -
+
+# Kiểm tra cron
+crontab -l
+```
+
+### 7.5 Chính sách lưu trữ
+
+| Loại | Tần suất | Giữ lại |
+|---|---|---|
+| Daily | Mỗi ngày | 7 ngày |
+| Weekly | Chủ nhật | 30 ngày |
+| Monthly | Ngày 1 | 365 ngày |
 
 ---
 
