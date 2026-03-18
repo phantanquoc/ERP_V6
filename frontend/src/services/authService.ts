@@ -1,7 +1,5 @@
 import { LoginRequest, RegisterRequest, AuthResponse, User, UserRole } from '../types/auth';
-
-// API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '';
+import { API_BASE_URL } from '../config/api';
 
 class AuthService {
   static async login(credentials: LoginRequest): Promise<AuthResponse> {
@@ -142,7 +140,7 @@ class AuthService {
     } catch (error) {
       console.error('❌ Login error:', error);
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy tại http://localhost:5000');
+        throw new Error(`Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy tại ${API_BASE_URL}`);
       }
       throw error;
     }

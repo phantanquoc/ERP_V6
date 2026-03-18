@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, FileText, Eye, Clock, User, Users, Flag, AlertCircle, Download } from 'lucide-react';
 import { workPlanService, WorkPlan, WorkPlanPriority, WorkPlanStatus } from '../services/workPlanService';
 import Modal from './Modal';
+import { getFileUrl } from '../config/api';
 
 interface WorkPlanListModalProps {
   isOpen: boolean;
@@ -134,7 +135,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                       </td>
                       <td className="px-3 py-3 text-sm">
                         {plan.files && plan.files.length > 0 ? plan.files.map((file, i) => (
-                          <a key={i} href={`http://localhost:5000${file}`} target="_blank" rel="noopener noreferrer"
+                          <a key={i} href={getFileUrl(file)} target="_blank" rel="noopener noreferrer"
                             className="flex items-center gap-1 text-blue-600 hover:underline text-xs">
                             <FileText className="w-3 h-3" /><span className="truncate max-w-[80px]">{file.split('/').pop()}</span>
                           </a>
@@ -289,7 +290,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-2">File đính kèm</label>
                   <div className="space-y-2">
                     {viewPlan.files.map((file, i) => (
-                      <a key={i} href={`http://localhost:5000${file}`} target="_blank" rel="noopener noreferrer"
+                      <a key={i} href={getFileUrl(file)} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm text-blue-600">
                         <Download className="w-4 h-4 flex-shrink-0" />
                         <span className="truncate">{file.split('/').pop()}</span>

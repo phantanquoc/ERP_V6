@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Download } from 'lucide-react';
 import FileUpload from './FileUpload';
+import { API_BASE_URL, getFileUrl } from '../config/api';
 
 interface MachineSystem {
   id: number;
@@ -46,7 +47,7 @@ const MachineSystemList = () => {
 
   const fetchSystems = async () => {
     try {
-      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/machine-systems');
+      const response = await fetch(API_BASE_URL + '/machine-systems');
       if (response.ok) {
         const data = await response.json();
         setSystems(data);
@@ -67,9 +68,9 @@ const MachineSystemList = () => {
     }
 
     try {
-      const url = editingSystem 
-        ? `http://localhost:5000/api/machine-systems/${editingSystem.id}`
-        : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/machine-systems';
+      const url = editingSystem
+        ? `${API_BASE_URL}/machine-systems/${editingSystem.id}`
+        : API_BASE_URL + '/machine-systems';
       const method = editingSystem ? 'PUT' : 'POST';
       
       const response = await fetch(url, { method, body: formDataToSend });
@@ -85,7 +86,7 @@ const MachineSystemList = () => {
   const handleDelete = async (id: number) => {
     if (!confirm('Bạn có chắc muốn xóa?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/machine-systems/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}/machine-systems/${id}`, { method: 'DELETE' });
       if (response.ok) {
         fetchSystems();
       }
@@ -148,8 +149,7 @@ const MachineSystemList = () => {
 
   const handleExportExcel = async () => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const url = `${API_URL}/machine-systems/export/excel`;
+      const url = `${API_BASE_URL}/machine-systems/export/excel`;
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to export');
       const blob = await response.blob();
@@ -221,7 +221,7 @@ const MachineSystemList = () => {
                 <td className="px-4 py-4 text-sm text-gray-900">{system.nguoiThucHien}</td>
                 <td className="px-4 py-4 text-sm text-gray-900">
                   {system.fileDinhKem && (
-                    <a href={`http://localhost:5000${system.fileDinhKem}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    <a href={getFileUrl(system.fileDinhKem)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                       Xem file
                     </a>
                   )}

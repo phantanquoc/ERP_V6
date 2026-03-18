@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import dailyWorkReportService, { DailyWorkReport } from '../services/dailyWorkReportService';
 import DailyWorkReportModal from './DailyWorkReportModal';
+import { getFileUrl } from '../config/api';
 
 const DailyWorkReportList: React.FC = () => {
   const [reports, setReports] = useState<DailyWorkReport[]>([]);
@@ -355,7 +356,7 @@ const DailyWorkReportList: React.FC = () => {
                               )}
                             </div>
                             {attachment.fileUrl && (
-                              <a href={`http://localhost:5000${attachment.fileUrl}`} download target="_blank" rel="noopener noreferrer" className="ml-2 p-1 text-green-600 hover:bg-green-50 rounded transition-colors flex-shrink-0">
+                              <a href={getFileUrl(attachment.fileUrl)} download target="_blank" rel="noopener noreferrer" className="ml-2 p-1 text-green-600 hover:bg-green-50 rounded transition-colors flex-shrink-0">
                                 <Download className="w-4 h-4" />
                               </a>
                             )}

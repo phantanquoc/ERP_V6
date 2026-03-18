@@ -16,6 +16,7 @@ import {
 import Modal from './Modal';
 import dailyWorkReportService, { DailyWorkReport } from '../services/dailyWorkReportService';
 import DailyWorkReportModal from './DailyWorkReportModal';
+import { getFileUrl } from '../config/api';
 
 interface DailyWorkReportListModalProps {
   isOpen: boolean;
@@ -356,7 +357,7 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
                             </div>
                             {attachment.fileUrl && (
                               <a
-                                href={`http://localhost:5000${attachment.fileUrl}`}
+                                href={getFileUrl(attachment.fileUrl)}
                                 download
                                 target="_blank"
                                 rel="noopener noreferrer"

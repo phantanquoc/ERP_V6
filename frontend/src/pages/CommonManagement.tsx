@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE_URL } from '../config/api';
 import FileUpload from '../components/FileUpload';
 import Modal from '../components/Modal';
 import SupplyRequestModal from '../components/SupplyRequestModal';
@@ -245,7 +246,7 @@ const CommonManagement = () => {
       }
 
       const token = localStorage.getItem('accessToken');
-      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/repair-requests', {
+      const response = await fetch(API_BASE_URL + '/repair-requests', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

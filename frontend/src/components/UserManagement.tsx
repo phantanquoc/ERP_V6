@@ -8,12 +8,14 @@ import {
   Edit,
   Eye,
   Trash2,
+
   Lock,
   Unlock,
   AlertCircle,
   CheckCircle
 } from 'lucide-react';
 import userService from '@services/userService';
+import { API_BASE_URL } from '../config/api';
 import { useUsers, userKeys, useDepartments } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -135,7 +137,7 @@ const UserManagement: React.FC = () => {
 
   const fetchSubDepartments = async () => {
     try {
-      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/departments/public/all');
+      const response = await fetch(API_BASE_URL + '/departments/public/all');
       if (!response.ok) throw new Error('Failed to fetch departments');
       const data = await response.json();
 

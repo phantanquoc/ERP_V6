@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { API_BASE_URL } from '../config/api';
 
 export interface Machine {
   id: string;
@@ -93,7 +94,6 @@ class MachineService {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const url = `${API_BASE_URL}/machines/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!response.ok) throw new Error('Failed to export to Excel');

@@ -1,5 +1,6 @@
  import apiClient from './apiClient';
 import { downloadFile } from '../utils/downloadFile';
+import { API_BASE_URL } from '../config/api';
 
 // Flowchart interfaces (defined first to be used in Process)
 export interface ProcessFlowchartCost {
@@ -167,7 +168,6 @@ export const processService = {
   },
 
   async exportToExcel(): Promise<void> {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const url = `${API_BASE_URL}/processes/export/excel`;
     await downloadFile(url, `danh-sach-quy-trinh-${Date.now()}.xlsx`);
   },

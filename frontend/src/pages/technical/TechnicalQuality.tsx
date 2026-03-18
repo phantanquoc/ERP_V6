@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getFileUrl } from '../../config/api';
 import {
   Activity,
   Wrench,
@@ -199,7 +200,7 @@ const TechnicalQuality = () => {
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                             {item.fileDinhKem ? (
                               <a
-                                href={`http://localhost:5000${item.fileDinhKem}`}
+                                href={getFileUrl(item.fileDinhKem)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:text-blue-800"
@@ -315,7 +316,7 @@ const TechnicalQuality = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">File đính kèm</label>
                   <a
-                    href={`http://localhost:5000${selectedAcceptance.fileDinhKem}`}
+                    href={getFileUrl(selectedAcceptance.fileDinhKem)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-800 underline"

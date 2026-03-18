@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Target, Eye, Check, XCircle, FileText, ChevronLeft } from 'lucide-react';
 import { taskService, Task, TaskPriority, TaskAcceptanceStatus } from '../services/taskService';
 import { useAuth } from '../contexts/AuthContext';
+import { getFileUrl } from '../config/api';
 
 interface TaskListModalProps {
   isOpen: boolean;
@@ -175,7 +176,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
                 {selectedTask.files.map((file, i) => {
                   const fileName = file.split('/').pop() || file;
                   return (
-                    <a key={i} href={`http://localhost:5000${file}`} target="_blank" rel="noopener noreferrer"
+                    <a key={i} href={getFileUrl(file)} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-sm">
                       <FileText className="w-4 h-4" /> {fileName}
                     </a>

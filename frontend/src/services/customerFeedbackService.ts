@@ -1,5 +1,6 @@
 import api from './apiClient';
 import { downloadFile } from '../utils/downloadFile';
+import { API_BASE_URL } from '../config/api';
 
 export interface CustomerFeedback {
   id: string;
@@ -74,8 +75,7 @@ class CustomerFeedbackService {
     if (filters?.search) params.append('search', filters.search);
     if (filters?.customerType) params.append('customerType', filters.customerType);
 
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const url = `${API_URL}/customer-feedbacks/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
+    const url = `${API_BASE_URL}/customer-feedbacks/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     await downloadFile(url, `danh-sach-phan-hoi-khach-hang-${Date.now()}.xlsx`);
   }
 }

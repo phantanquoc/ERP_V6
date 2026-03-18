@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Edit, Eye, Trash2, X, CheckCircle, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE_URL, getFileUrl } from '../config/api';
 import FileUpload from './FileUpload';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
 
@@ -51,7 +52,7 @@ const RepairRequestList = () => {
   const fetchRequests = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/repair-requests', {
+      const response = await fetch(API_BASE_URL + '/repair-requests', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -84,8 +85,8 @@ const RepairRequestList = () => {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingRequest
-        ? `http://localhost:5000/api/repair-requests/${editingRequest.id}`
-        : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/repair-requests';
+        ? `${API_BASE_URL}/repair-requests/${editingRequest.id}`
+        : API_BASE_URL + '/repair-requests';
 
       const method = editingRequest ? 'PUT' : 'POST';
 
@@ -111,7 +112,7 @@ const RepairRequestList = () => {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:5000/api/repair-requests/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/repair-requests/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -182,7 +183,7 @@ const RepairRequestList = () => {
         return;
       }
 
-      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/repair-requests/generate-code', {
+      const response = await fetch(API_BASE_URL + '/repair-requests/generate-code', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -265,7 +266,7 @@ const RepairRequestList = () => {
   const handleExportExcel = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const API_URL = API_BASE_URL;
       const url = `${API_URL}/repair-requests/export/excel`;
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -593,7 +594,7 @@ const RepairRequestList = () => {
                       files={selectedFile ? [selectedFile] : []}
                       onChange={(files) => setSelectedFile(files[0] || null)}
                       accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                      existingFileUrl={editingRequest?.fileDinhKem ? `http://localhost:5000${editingRequest.fileDinhKem}` : undefined}
+                      existingFileUrl={editingRequest?.fileDinhKem ? getFileUrl(editingRequest.fileDinhKem) : undefined}
                       existingFileName={editingRequest?.fileDinhKem ? 'File hiện tại' : undefined}
                     />
                   </div>
@@ -606,7 +607,7 @@ const RepairRequestList = () => {
                       File đính kèm
                     </label>
                     <a
-                      href={`http://localhost:5000${editingRequest.fileDinhKem}`}
+                      href={getFileUrl(editingRequest.fileDinhKem)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline"

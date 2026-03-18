@@ -1,5 +1,6 @@
  import apiClient from './apiClient';
 import { downloadFile } from '../utils/downloadFile';
+import { API_BASE_URL } from '../config/api';
 
 export interface ExportCost {
   id: string;
@@ -81,7 +82,6 @@ class ExportCostService {
   }
 
   async exportToExcel(): Promise<void> {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const url = `${API_BASE_URL}/export-costs/export/excel`;
     await downloadFile(url, `chi-phi-xuat-khau-${Date.now()}.xlsx`);
   }

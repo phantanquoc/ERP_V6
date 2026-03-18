@@ -8,9 +8,11 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle,
+
   X
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { API_BASE_URL } from '../config/api';
 import { useEmployees, useDepartments, usePositions, usePositionLevelsByPosition, employeeKeys } from '../hooks';
 import employeeService from '@services/employeeService';
 import { parseNumberInput } from '../utils/numberInput';
@@ -168,7 +170,7 @@ const EmployeeManagement: React.FC = () => {
 
   const loadUsers = async () => {
     try {
-      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/users', {
+      const response = await fetch(API_BASE_URL + '/users', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
         },

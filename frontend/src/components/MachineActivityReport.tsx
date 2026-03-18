@@ -3,6 +3,7 @@ import { Plus, Edit, Eye, Trash2, X, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
 import { parseNumberInput } from '../utils/numberInput';
+import { API_BASE_URL } from '../config/api';
 
 interface MachineActivityReport {
   id: number;
@@ -60,7 +61,7 @@ const MachineActivityReport = () => {
 
   const fetchReports = async () => {
     try {
-      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/machine-activity-reports');
+      const response = await fetch(API_BASE_URL + '/machine-activity-reports');
       const data = await response.json();
       setReports(data);
     } catch (error) {
@@ -82,8 +83,8 @@ const MachineActivityReport = () => {
 
     try {
       const url = editingReport
-        ? `http://localhost:5000/api/machine-activity-reports/${editingReport.id}`
-        : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/machine-activity-reports';
+        ? `${API_BASE_URL}/machine-activity-reports/${editingReport.id}`
+        : API_BASE_URL + '/machine-activity-reports';
 
       const method = editingReport ? 'PUT' : 'POST';
 
@@ -105,7 +106,7 @@ const MachineActivityReport = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa báo cáo này?')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/machine-activity-reports/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/machine-activity-reports/${id}`, {
         method: 'DELETE',
       });
 
@@ -184,8 +185,7 @@ const MachineActivityReport = () => {
 
   const handleExportExcel = async () => {
     try {
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const url = `${API_BASE}/machine-activity-reports/export/excel`;
+      const url = `${API_BASE_URL}/machine-activity-reports/export/excel`;
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to export');
       const blob = await response.blob();

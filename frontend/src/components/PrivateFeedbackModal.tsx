@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, FileText, Loader2 } from 'lucide-react';
 import { privateFeedbackService, FeedbackType } from '../services/privateFeedbackService';
+import { API_BASE_URL } from '../config/api';
 import FileUpload from './FileUpload';
 
 interface PrivateFeedbackModalProps {
@@ -91,7 +92,7 @@ const PrivateFeedbackModal: React.FC<PrivateFeedbackModalProps> = ({
         throw new Error('Vui lòng đăng nhập lại');
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + ''}/private-feedbacks`, {
+      const response = await fetch(`${API_BASE_URL}/private-feedbacks`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

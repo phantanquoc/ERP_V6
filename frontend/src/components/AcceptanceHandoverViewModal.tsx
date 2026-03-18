@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import acceptanceHandoverService, { AcceptanceHandover } from '../services/acceptanceHandoverService';
+import { getFileUrl } from '../config/api';
 
 interface AcceptanceHandoverViewModalProps {
   isOpen: boolean;
@@ -124,7 +125,7 @@ const AcceptanceHandoverViewModal = ({ isOpen, onClose, acceptanceHandoverId, no
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">File đính kèm</label>
                   <a
-                    href={`http://localhost:5000${data.fileDinhKem}`}
+                    href={getFileUrl(data.fileDinhKem)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-800 underline"
