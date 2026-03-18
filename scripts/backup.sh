@@ -8,8 +8,8 @@
 set -euo pipefail
 
 # === CẤU HÌNH ===
-BACKUP_DIR="/opt/erp-backups"
-PROJECT_DIR="/opt/erp"
+BACKUP_DIR="/backup/erp-backups"
+PROJECT_DIR="/home/erp/ERP_V6"
 DATE=$(date +%Y%m%d_%H%M%S)
 DAY_OF_WEEK=$(date +%u)   # 1=Thứ 2, 7=Chủ nhật
 DAY_OF_MONTH=$(date +%d)

@@ -1,8 +1,8 @@
 # Frontend Dockerfile - React + Vite
 # Multi-stage build for production
 
-# Stage 1: Build stage
-FROM node:20-alpine AS builder
+# Stage 1: Build stage (dùng slim/glibc thay alpine/musl để tránh lỗi rollup native module)
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
