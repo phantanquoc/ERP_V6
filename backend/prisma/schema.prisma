@@ -601,7 +601,7 @@ model Attendance {
   updatedAt      DateTime         @updatedAt
   employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
-  @@unique([employeeId, attendanceDate, isOvertime])
+  @@index([employeeId, attendanceDate, isOvertime])
   @@map("attendances")
   @@schema("common")
 }

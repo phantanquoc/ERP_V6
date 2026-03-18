@@ -2,6 +2,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
+import path from 'path';
 import { env, isProduction } from '@config/env';
 import logger from '@config/logger';
 import { swaggerSpec } from '@config/swagger';
@@ -34,8 +35,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// Serve static files from uploads directory
-app.use('/uploads', express.static('uploads'));
+// Serve static files from uploads directory (use absolute path for production)
+const uploadsPath = path.resolve(process.cwd(), 'uploads');
+app.use('/uploads', express.static(uploadsPath));
 
 // Health check
 app.get('/health', (_req, res) => {

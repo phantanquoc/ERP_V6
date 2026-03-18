@@ -48,22 +48,75 @@ export class AttendanceService {
       orderBy: [
         { attendanceDate: 'desc' },
         { employee: { employeeCode: 'asc' } },
+        { checkInTime: 'asc' },
       ],
     });
 
-    return attendances.map((attendance, index) => ({
+    // Group by employeeId + attendanceDate so that 1 employee + 1 day = 1 row
+    const statusPriority: Record<string, number> = {
+      ABSENT: 5,
+      LATE: 4,
+      ON_LEAVE: 3,
+      OVERTIME: 2,
+      PRESENT: 1,
+    };
+
+    const groupMap = new Map<string, any>();
+
+    for (const attendance of attendances) {
+      const key = `${attendance.employeeId}_${attendance.attendanceDate.toISOString().split('T')[0]}`;
+
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          id: attendance.id,
+          ids: [attendance.id],
+          employeeCode: attendance.employee.employeeCode,
+          employeeName: `${attendance.employee.user.firstName} ${attendance.employee.user.lastName}`.trim(),
+          positionName: attendance.employee.position?.name || '',
+          attendanceDate: attendance.attendanceDate,
+          checkInTimes: attendance.checkInTime ? [attendance.checkInTime] : [],
+          checkOutTimes: attendance.checkOutTime ? [attendance.checkOutTime] : [],
+          workHours: attendance.workHours || 0,
+          status: attendance.status,
+          notes: attendance.notes ? [attendance.notes] : [],
+        });
+      } else {
+        const group = groupMap.get(key)!;
+        group.ids.push(attendance.id);
+        if (attendance.checkInTime) {
+          group.checkInTimes.push(attendance.checkInTime);
+        }
+        if (attendance.checkOutTime) {
+          group.checkOutTimes.push(attendance.checkOutTime);
+        }
+        group.workHours += attendance.workHours || 0;
+        // Take the most significant status
+        if ((statusPriority[attendance.status] || 0) > (statusPriority[group.status] || 0)) {
+          group.status = attendance.status;
+        }
+        if (attendance.notes) {
+          group.notes.push(attendance.notes);
+        }
+      }
+    }
+
+    // Convert Map values to array, sort times, join notes, assign stt
+    const result = Array.from(groupMap.values()).map((group, index) => ({
       stt: index + 1,
-      id: attendance.id,
-      employeeCode: attendance.employee.employeeCode,
-      employeeName: `${attendance.employee.user.firstName} ${attendance.employee.user.lastName}`.trim(),
-      positionName: attendance.employee.position?.name || '',
-      attendanceDate: attendance.attendanceDate,
-      checkInTime: attendance.checkInTime,
-      checkOutTime: attendance.checkOutTime,
-      workHours: attendance.workHours,
-      status: attendance.status,
-      notes: attendance.notes,
+      id: group.id,
+      ids: group.ids,
+      employeeCode: group.employeeCode,
+      employeeName: group.employeeName,
+      positionName: group.positionName,
+      attendanceDate: group.attendanceDate,
+      checkInTimes: group.checkInTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime()),
+      checkOutTimes: group.checkOutTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime()),
+      workHours: Math.round(group.workHours * 100) / 100,
+      status: group.status,
+      notes: group.notes.length > 0 ? group.notes.join('; ') : null,
     }));
+
+    return result;
   }
 
   async getEmployeeAttendance(employeeId: string, startDate: Date, endDate: Date): Promise<any[]> {
@@ -99,56 +152,58 @@ export class AttendanceService {
     // Determine work shift based on check-in time
     const shiftName = await workShiftService.determineShift(checkInTime);
 
-    let attendance = await prisma.attendance.findUnique({
+    // Tìm ca đang mở (chưa checkout) trong ngày
+    const openAttendance = await prisma.attendance.findFirst({
       where: {
-        employeeId_attendanceDate_isOvertime: {
-          employeeId,
-          attendanceDate: today,
-          isOvertime: false,
-        },
+        employeeId,
+        attendanceDate: today,
+        isOvertime: false,
+        checkOutTime: null,
       },
+      orderBy: { createdAt: 'desc' },
     });
 
-    if (!attendance) {
-      attendance = await prisma.attendance.create({
-        data: {
-          employeeId,
-          attendanceDate: today,
-          checkInTime,
-          status: AttendanceStatus.PRESENT,
-          notes: shiftName || undefined,
-        },
-      });
-    } else {
-      attendance = await prisma.attendance.update({
-        where: { id: attendance.id },
+    if (openAttendance) {
+      // Có ca đang mở → cập nhật giờ checkin
+      return await prisma.attendance.update({
+        where: { id: openAttendance.id },
         data: {
           checkInTime,
           status: AttendanceStatus.PRESENT,
-          notes: shiftName || attendance.notes,
+          notes: shiftName || openAttendance.notes,
         },
       });
     }
 
-    return attendance;
+    // Không có ca đang mở → tạo ca mới (cho phép nhiều ca trong ngày)
+    return await prisma.attendance.create({
+      data: {
+        employeeId,
+        attendanceDate: today,
+        checkInTime,
+        status: AttendanceStatus.PRESENT,
+        notes: shiftName || undefined,
+      },
+    });
   }
 
   async checkOut(employeeId: string, checkOutTime: Date): Promise<any> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const attendance = await prisma.attendance.findUnique({
+    // Tìm ca đang mở (chưa checkout) trong ngày
+    const attendance = await prisma.attendance.findFirst({
       where: {
-        employeeId_attendanceDate_isOvertime: {
-          employeeId,
-          attendanceDate: today,
-          isOvertime: false,
-        },
+        employeeId,
+        attendanceDate: today,
+        isOvertime: false,
+        checkOutTime: null,
       },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (!attendance) {
-      throw new NotFoundError('Attendance record not found for today');
+      throw new NotFoundError('Không tìm thấy ca đang mở. Vui lòng chấm công vào trước.');
     }
 
     const checkInTime = attendance.checkInTime;
@@ -167,29 +222,21 @@ export class AttendanceService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    let attendance = await prisma.attendance.findUnique({
+    // Tìm ca tăng ca đang mở (chưa checkout)
+    const openAttendance = await prisma.attendance.findFirst({
       where: {
-        employeeId_attendanceDate_isOvertime: {
-          employeeId,
-          attendanceDate: today,
-          isOvertime: true,
-        },
+        employeeId,
+        attendanceDate: today,
+        isOvertime: true,
+        checkOutTime: null,
       },
+      orderBy: { createdAt: 'desc' },
     });
 
-    if (!attendance) {
-      attendance = await prisma.attendance.create({
-        data: {
-          employeeId,
-          attendanceDate: today,
-          checkInTime,
-          isOvertime: true,
-          status: AttendanceStatus.OVERTIME,
-        },
-      });
-    } else {
-      attendance = await prisma.attendance.update({
-        where: { id: attendance.id },
+    if (openAttendance) {
+      // Cập nhật ca tăng ca đang mở
+      return await prisma.attendance.update({
+        where: { id: openAttendance.id },
         data: {
           checkInTime,
           status: AttendanceStatus.OVERTIME,
@@ -197,21 +244,31 @@ export class AttendanceService {
       });
     }
 
-    return attendance;
+    // Tạo ca tăng ca mới
+    return await prisma.attendance.create({
+      data: {
+        employeeId,
+        attendanceDate: today,
+        checkInTime,
+        isOvertime: true,
+        status: AttendanceStatus.OVERTIME,
+      },
+    });
   }
 
   async overtimeCheckOut(employeeId: string, checkOutTime: Date): Promise<any> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const attendance = await prisma.attendance.findUnique({
+    // Tìm ca tăng ca đang mở (chưa checkout)
+    const attendance = await prisma.attendance.findFirst({
       where: {
-        employeeId_attendanceDate_isOvertime: {
-          employeeId,
-          attendanceDate: today,
-          isOvertime: true,
-        },
+        employeeId,
+        attendanceDate: today,
+        isOvertime: true,
+        checkOutTime: null,
       },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (!attendance) {

@@ -9,15 +9,25 @@ import WorkShiftSettingsModal from './WorkShiftSettingsModal';
 interface AttendanceRecord {
   stt: number;
   id: string;
+  ids: string[];
   employeeCode: string;
   employeeName: string;
   positionName: string;
   attendanceDate: string;
-  checkInTime: string | null;
-  checkOutTime: string | null;
+  checkInTimes: string[];
+  checkOutTimes: string[];
   workHours: number;
   status: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME';
   notes: string | null;
+}
+
+// Each individual attendance entry in the edit modal
+interface EditEntry {
+  id: string;
+  checkInTime: string;
+  checkOutTime: string;
+  status: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME';
+  notes: string;
 }
 
 const AttendanceManagement: React.FC = () => {
@@ -29,6 +39,7 @@ const AttendanceManagement: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [showShiftSettings, setShowShiftSettings] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editEntries, setEditEntries] = useState<EditEntry[]>([]);
   const [selectedEmployeeName, setSelectedEmployeeName] = useState('');
   const [formData, setFormData] = useState({
     employeeCode: '',
@@ -49,6 +60,7 @@ const AttendanceManagement: React.FC = () => {
 
   const handleAddNew = () => {
     setEditingId(null);
+    setEditEntries([]);
     setSelectedEmployeeName('');
     setFormData({
       employeeCode: '',
@@ -85,7 +97,7 @@ const AttendanceManagement: React.FC = () => {
     setSelectedEmployeeName(record.employeeName);
 
     // Convert UTC time to local time for editing
-    const getLocalTimeString = (dateTimeString: string | null) => {
+    const getLocalTimeString = (dateTimeString: string | null | undefined) => {
       if (!dateTimeString) return '';
       const date = new Date(dateTimeString);
       const hours = date.getHours().toString().padStart(2, '0');
@@ -93,13 +105,32 @@ const AttendanceManagement: React.FC = () => {
       return `${hours}:${minutes}`;
     };
 
+    // Build entries for each record id
+    const entries: EditEntry[] = record.ids.map((id, index) => ({
+      id,
+      checkInTime: getLocalTimeString(record.checkInTimes[index] ?? null),
+      checkOutTime: getLocalTimeString(record.checkOutTimes[index] ?? null),
+      status: record.status,
+      notes: '',
+    }));
+
+    // Parse notes - the backend joins them with '; '
+    if (record.notes) {
+      const notesParts = record.notes.split('; ');
+      entries.forEach((entry, index) => {
+        entry.notes = notesParts[index] || '';
+      });
+    }
+
+    setEditEntries(entries);
+
     setFormData({
       employeeCode: record.employeeCode,
       attendanceDate: record.attendanceDate.split('T')[0],
-      checkInTime: getLocalTimeString(record.checkInTime),
-      checkOutTime: getLocalTimeString(record.checkOutTime),
+      checkInTime: '',
+      checkOutTime: '',
       status: record.status,
-      notes: record.notes || '',
+      notes: '',
     });
     setShowModal(true);
   };
@@ -113,15 +144,18 @@ const AttendanceManagement: React.FC = () => {
         return;
       }
 
-      if (editingId) {
-        const updateData = {
-          checkInTime: formData.checkInTime ? `${formData.attendanceDate}T${formData.checkInTime}:00` : undefined,
-          checkOutTime: formData.checkOutTime ? `${formData.attendanceDate}T${formData.checkOutTime}:00` : undefined,
-          status: formData.status,
-          notes: formData.notes || undefined,
-        };
-        console.log('Updating attendance:', updateData);
-        await attendanceService.updateAttendance(editingId, updateData);
+      if (editingId && editEntries.length > 0) {
+        // Update each record individually
+        for (const entry of editEntries) {
+          const updateData = {
+            checkInTime: entry.checkInTime ? `${formData.attendanceDate}T${entry.checkInTime}:00` : undefined,
+            checkOutTime: entry.checkOutTime ? `${formData.attendanceDate}T${entry.checkOutTime}:00` : undefined,
+            status: entry.status,
+            notes: entry.notes || undefined,
+          };
+          console.log('Updating attendance:', entry.id, updateData);
+          await attendanceService.updateAttendance(entry.id, updateData);
+        }
         alert('Cập nhật điểm danh thành công');
       } else {
         const createData = {
@@ -186,14 +220,16 @@ const AttendanceManagement: React.FC = () => {
     return labels[status] || status;
   };
 
-  const formatTime = (dateTimeString: string | null) => {
-    if (!dateTimeString) return '-';
-    const date = new Date(dateTimeString);
-    return date.toLocaleTimeString('vi-VN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
+  const formatTimes = (times: string[]) => {
+    if (!times || times.length === 0) return '-';
+    return times.map(t => {
+      const date = new Date(t);
+      return date.toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    }).join(', ');
   };
 
   const filteredAttendances = attendances.filter(
@@ -329,10 +365,10 @@ const AttendanceManagement: React.FC = () => {
                       {new Date(record.attendanceDate).toLocaleDateString('vi-VN')}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {formatTime(record.checkInTime)}
+                      {formatTimes(record.checkInTimes)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {formatTime(record.checkOutTime)}
+                      {formatTimes(record.checkOutTimes)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                       {record.workHours.toFixed(2)}
@@ -410,7 +446,7 @@ const AttendanceManagement: React.FC = () => {
       )}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div className={`bg-white rounded-lg shadow-xl w-full mx-4 ${editingId && editEntries.length > 0 ? 'max-w-2xl' : 'max-w-md'}`}>
             <div className="bg-blue-600 px-6 py-4 flex justify-between items-center">
               <h3 className="text-xl font-bold text-white">
                 {editingId ? 'Chỉnh sửa điểm danh' : 'Thêm điểm danh'}
@@ -460,55 +496,139 @@ const AttendanceManagement: React.FC = () => {
                   onChange={(date) => setFormData({ ...formData, attendanceDate: date })}
                   placeholder="Chọn ngày điểm danh"
                   required
+                  disabled={!!editingId}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Giờ vào</label>
-                  <input
-                    type="time"
-                    value={formData.checkInTime}
-                    onChange={(e) => setFormData({ ...formData, checkInTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+              {/* Edit mode: show all entries */}
+              {editingId && editEntries.length > 0 ? (
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Các lần chấm công ({editEntries.length} lần)
+                  </label>
+                  <div className="max-h-80 overflow-y-auto space-y-3 pr-1">
+                    {editEntries.map((entry, index) => (
+                      <div key={entry.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-semibold text-blue-600">Lần {index + 1}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 mb-2">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Giờ vào</label>
+                            <input
+                              type="time"
+                              value={entry.checkInTime}
+                              onChange={(e) => {
+                                const updated = [...editEntries];
+                                updated[index] = { ...updated[index], checkInTime: e.target.value };
+                                setEditEntries(updated);
+                              }}
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Giờ ra</label>
+                            <input
+                              type="time"
+                              value={entry.checkOutTime}
+                              onChange={(e) => {
+                                const updated = [...editEntries];
+                                updated[index] = { ...updated[index], checkOutTime: e.target.value };
+                                setEditEntries(updated);
+                              }}
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Trạng thái</label>
+                            <select
+                              value={entry.status}
+                              onChange={(e) => {
+                                const updated = [...editEntries];
+                                updated[index] = { ...updated[index], status: e.target.value as any };
+                                setEditEntries(updated);
+                              }}
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="PRESENT">Đúng giờ</option>
+                              <option value="LATE">Muộn</option>
+                              <option value="ABSENT">Vắng mặt</option>
+                              <option value="ON_LEAVE">Nghỉ phép</option>
+                              <option value="OVERTIME">Tăng ca</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Ghi chú</label>
+                            <input
+                              type="text"
+                              value={entry.notes}
+                              onChange={(e) => {
+                                const updated = [...editEntries];
+                                updated[index] = { ...updated[index], notes: e.target.value };
+                                setEditEntries(updated);
+                              }}
+                              placeholder="Ghi chú"
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Giờ ra</label>
-                  <input
-                    type="time"
-                    value={formData.checkOutTime}
-                    onChange={(e) => setFormData({ ...formData, checkOutTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
+              ) : (
+                /* Add mode: single entry */
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Giờ vào</label>
+                      <input
+                        type="time"
+                        value={formData.checkInTime}
+                        onChange={(e) => setFormData({ ...formData, checkInTime: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Giờ ra</label>
+                      <input
+                        type="time"
+                        value={formData.checkOutTime}
+                        onChange={(e) => setFormData({ ...formData, checkOutTime: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="PRESENT">Đúng giờ</option>
-                  <option value="LATE">Muộn</option>
-                  <option value="ABSENT">Vắng mặt</option>
-                  <option value="ON_LEAVE">Nghỉ phép</option>
-                  <option value="OVERTIME">Tăng ca</option>
-                </select>
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="PRESENT">Đúng giờ</option>
+                      <option value="LATE">Muộn</option>
+                      <option value="ABSENT">Vắng mặt</option>
+                      <option value="ON_LEAVE">Nghỉ phép</option>
+                      <option value="OVERTIME">Tăng ca</option>
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Nhập ghi chú (nếu có)"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                    <textarea
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      placeholder="Nhập ghi chú (nếu có)"
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <button

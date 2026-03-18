@@ -6,14 +6,30 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 export interface AttendanceRecord {
   stt: number;
   id: string;
+  ids: string[];
   employeeCode: string;
   employeeName: string;
   positionName: string;
+  attendanceDate: string;
+  checkInTimes: string[];
+  checkOutTimes: string[];
+  workHours: number;
+  status: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME';
+  notes: string | null;
+}
+
+export interface IndividualAttendanceRecord {
+  stt: number;
+  id: string;
+  employeeCode?: string;
+  employeeName?: string;
+  positionName?: string;
   attendanceDate: string;
   checkInTime: string | null;
   checkOutTime: string | null;
   workHours: number;
   status: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME';
+  isOvertime?: boolean;
   notes: string | null;
 }
 
@@ -30,7 +46,7 @@ class AttendanceService {
     }
   }
 
-  async getEmployeeAttendance(employeeId: string, startDate: string, endDate: string): Promise<AttendanceRecord[]> {
+  async getEmployeeAttendance(employeeId: string, startDate: string, endDate: string): Promise<IndividualAttendanceRecord[]> {
     try {
       const response = await apiClient.get(`/attendances/employee/${employeeId}`, {
         params: {
@@ -85,7 +101,7 @@ class AttendanceService {
     }
   }
 
-  async getTodayAttendance(employeeId: string): Promise<AttendanceRecord | null> {
+  async getTodayAttendance(employeeId: string): Promise<IndividualAttendanceRecord | null> {
     try {
       const today = new Date();
       const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
@@ -106,7 +122,7 @@ class AttendanceService {
     }
   }
 
-  async getTodayAttendances(employeeId: string): Promise<AttendanceRecord[]> {
+  async getTodayAttendances(employeeId: string): Promise<IndividualAttendanceRecord[]> {
     try {
       const today = new Date();
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0).toISOString();
@@ -133,7 +149,7 @@ class AttendanceService {
     checkOutTime?: string;
     status: string;
     notes?: string;
-  }): Promise<AttendanceRecord> {
+  }): Promise<any> {
     try {
       // Create date at start of day in local timezone
       const attendanceDate = new Date(data.attendanceDate + 'T00:00:00');
@@ -161,7 +177,7 @@ class AttendanceService {
       status?: string;
       notes?: string;
     }
-  ): Promise<AttendanceRecord> {
+  ): Promise<any> {
     try {
       const response = await apiClient.put(`/attendances/${attendanceId}`, {
         checkInTime: data.checkInTime ? new Date(data.checkInTime).toISOString() : undefined,

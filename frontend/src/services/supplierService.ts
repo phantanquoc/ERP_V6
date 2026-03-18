@@ -59,6 +59,7 @@ export interface UpdateSupplierData {
   khaNang?: string;
   loaiHinh?: string;
   trangThai?: string;
+  phanLoaiNCC?: string;
   doanhChi?: number;
 }
 
