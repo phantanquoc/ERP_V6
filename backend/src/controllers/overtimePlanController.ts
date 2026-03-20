@@ -44,7 +44,7 @@ class OvertimePlanController {
 
   async getById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const plan = await overtimePlanService.getById(req.params.id);
+      const plan = await overtimePlanService.getById(req.params.id as string);
       res.json({ success: true, data: plan } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
@@ -58,7 +58,7 @@ class OvertimePlanController {
       const files = req.files as Express.Multer.File[] | undefined;
       const filePaths = files?.map(file => getFileUrl('overtime-plans', file.filename)) || [];
 
-      const plan = await overtimePlanService.update(req.params.id, data, userId, filePaths);
+      const plan = await overtimePlanService.update(req.params.id as string, data, userId, filePaths);
 
       res.json({ success: true, data: plan, message: 'Cập nhật kế hoạch tăng ca thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
@@ -69,7 +69,7 @@ class OvertimePlanController {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      await overtimePlanService.delete(req.params.id, userId);
+      await overtimePlanService.delete(req.params.id as string, userId);
       res.json({ success: true, message: 'Xóa kế hoạch tăng ca thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
@@ -100,7 +100,7 @@ class OvertimePlanController {
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
       const data: AcceptOvertimePlanRequest = req.body;
-      const plan = await overtimePlanService.acceptPlan(req.params.id, userId, data);
+      const plan = await overtimePlanService.acceptPlan(req.params.id as string, userId, data);
 
       res.json({
         success: true,
@@ -116,7 +116,7 @@ class OvertimePlanController {
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
       const data: ApproveOvertimePlanRequest = req.body;
-      const plan = await overtimePlanService.approvePlan(req.params.id, userId, data);
+      const plan = await overtimePlanService.approvePlan(req.params.id as string, userId, data);
 
       res.json({
         success: true,
