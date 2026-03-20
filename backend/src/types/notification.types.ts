@@ -11,6 +11,8 @@ export const NotificationType = {
   LEAVE_REQUEST_RESPONSE: 'LEAVE_REQUEST_RESPONSE',
   PAYROLL: 'PAYROLL',
   ACCEPTANCE_HANDOVER: 'ACCEPTANCE_HANDOVER',
+  OVERTIME_PLAN: 'OVERTIME_PLAN',
+  OVERTIME_PLAN_APPROVAL: 'OVERTIME_PLAN_APPROVAL',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];

@@ -153,6 +153,21 @@ export class InternationalProductController {
     }
   }
 
+  async addCategory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { name } = req.body;
+      const category = await internationalProductService.addCategory(name);
+
+      res.status(201).json({
+        success: true,
+        data: category,
+        message: 'Đã thêm loại hàng hóa',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async renameCategory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { oldName, newName } = req.body;

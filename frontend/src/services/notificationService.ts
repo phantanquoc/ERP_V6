@@ -10,6 +10,7 @@ export interface Notification {
   evaluationId?: string;
   taskId?: string;
   acceptanceHandoverId?: string;
+  leaveRequestId?: string;
   isRead: boolean;
   createdAt: string;
   updatedAt: string;

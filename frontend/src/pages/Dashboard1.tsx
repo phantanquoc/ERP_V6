@@ -25,8 +25,9 @@ import EmployeeDashboard from "./EmployeeDashboard";
 import purchaseRequestService from "../services/purchaseRequestService";
 import TaskListModal from "../components/TaskListModal";
 import FeedbackListModal from "../components/FeedbackListModal";
-import WorkPlanListModal from "../components/WorkPlanListModal";
 import DailyWorkReportListModal from "../components/DailyWorkReportListModal";
+import PlanCombinedModal from "../components/PlanCombinedModal";
+import { overtimePlanService, OvertimePlanStatus } from "../services/overtimePlanService";
 import EmployeeSelfEvaluationModal from "../components/EmployeeSelfEvaluationModal";
 import notificationService, { Notification } from "../services/notificationService";
 import { useTasksCount, usePrivateFeedbackStats } from "../hooks";
@@ -50,10 +51,10 @@ import qualityEvaluationService from "../services/qualityEvaluationService";
 import { workPlanService } from "../services/workPlanService";
 
 // Quick Stats for Overview
-const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0, evaluationNotification?: Notification | null) => [
+const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0, evaluationNotification?: Notification | null, overtimeCount: number = 0, overtimePendingCount: number = 0) => [
   { label: "Yêu cầu mua hàng", value: purchaseRequestCount.toString(), change: `Chờ duyệt: ${purchaseRequestPendingCount}`, icon: <ShoppingCart className="h-5 w-5" />, color: "text-blue-600", clickable: true, type: 'purchaseRequests' },
   { label: "Danh sách nhiệm vụ", value: tasksCount.toString(), change: `Nhiệm vụ: ${tasksCount}`, icon: <CheckSquare className="h-5 w-5" />, color: "text-green-600", clickable: true, type: 'tasks' },
-  { label: "Danh sách kế hoạch", value: workPlanCount.toString(), change: `Đã lên kế hoạch: ${workPlanCount}`, icon: <Calendar className="h-5 w-5" />, color: "text-purple-600", clickable: true, type: 'workPlans' },
+  { label: "Kế hoạch", value: (workPlanCount + overtimeCount).toString(), change: `Tăng ca chờ duyệt: ${overtimePendingCount}`, icon: <Calendar className="h-5 w-5" />, color: overtimePendingCount > 0 ? "text-red-600" : "text-purple-600", clickable: true, type: 'plans', hasNotification: overtimePendingCount > 0 },
   { label: "Danh sách khó khăn và góp ý", value: feedbackCount.toString(), change: `Góp ý & Khó khăn: ${feedbackCount}`, icon: <AlertTriangle className="h-5 w-5" />, color: "text-orange-600", clickable: true, type: 'feedbacks' },
   { label: "Đánh giá", value: evaluationNotification ? "Cần đánh giá" : "Không có", change: evaluationNotification?.period ? `Đánh giá tháng ${new Date(evaluationNotification.period + '-01').toLocaleDateString('vi-VN', { month: 'numeric', year: 'numeric' })}` : "Không có đánh giá mới", icon: <Award className="h-5 w-5" />, color: evaluationNotification ? "text-red-600" : "text-gray-600", clickable: true, type: 'evaluation', hasNotification: !!evaluationNotification && !evaluationNotification.isRead },
   { label: "Báo cáo công việc", value: "Xem", change: "Báo cáo hàng ngày", icon: <FileText className="h-5 w-5" />, color: "text-teal-600", clickable: true, type: 'dailyReports' }
@@ -144,7 +145,7 @@ const Dashboard1: React.FC = () => {
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
   const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
   const [isPurchaseRequestModalOpen, setIsPurchaseRequestModalOpen] = useState(false);
-  const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState(false);
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
   const [latestEvaluationNotification, setLatestEvaluationNotification] = useState<Notification | null>(null);
@@ -286,6 +287,18 @@ const Dashboard1: React.FC = () => {
     enabled: userIsAdmin,
   });
 
+  const { data: overtimePlansData } = useQuery({
+    queryKey: ['dashboard', 'overtimePlans'],
+    queryFn: () => overtimePlanService.getAll({ page: 1, limit: 1 }),
+    enabled: userIsAdmin,
+  });
+
+  const { data: overtimePlansPendingData } = useQuery({
+    queryKey: ['dashboard', 'overtimePlansPending'],
+    queryFn: () => overtimePlanService.getAll({ page: 1, limit: 1, trangThai: OvertimePlanStatus.CHO_DUYET }),
+    enabled: userIsAdmin,
+  });
+
   // Compute department stats from real data
   const orders = ordersData?.data || [];
   const quotations = quotationsData?.data || [];
@@ -305,6 +318,8 @@ const Dashboard1: React.FC = () => {
   const supplyRequests = supplyRequestsData?.data || [];
   const workPlans = workPlansData?.data || [];
   const workPlanCount = workPlans.length;
+  const overtimeCount = overtimePlansData?.total ?? 0;
+  const overtimePendingCount = overtimePlansPendingData?.total ?? 0;
 
   // Mutation for approving/rejecting purchase requests
   const approveMutation = useMutation({
@@ -349,7 +364,7 @@ const Dashboard1: React.FC = () => {
 
   // Nếu là admin, hiển thị Admin Dashboard
   const departmentName = getDepartmentDisplayName(user.department);
-  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, latestEvaluationNotification);
+  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, latestEvaluationNotification, overtimeCount, overtimePendingCount);
 
   const departmentStats = {
     general: {
@@ -489,8 +504,8 @@ const Dashboard1: React.FC = () => {
                   setIsFeedbackListModalOpen(true);
                 } else if (stat.type === 'purchaseRequests') {
                   setIsPurchaseRequestModalOpen(true);
-                } else if (stat.type === 'workPlans') {
-                  setIsWorkPlanModalOpen(true);
+                } else if (stat.type === 'plans') {
+                  setIsPlanModalOpen(true);
                 } else if (stat.type === 'evaluation') {
                   setIsEvaluationModalOpen(true);
                 } else if (stat.type === 'dailyReports') {
@@ -610,10 +625,10 @@ const Dashboard1: React.FC = () => {
         onClose={() => setIsFeedbackListModalOpen(false)}
       />
 
-      {/* Work Plan List Modal */}
-      <WorkPlanListModal
-        isOpen={isWorkPlanModalOpen}
-        onClose={() => setIsWorkPlanModalOpen(false)}
+      {/* Combined Plan Modal (Kế hoạch công việc + Tăng ca) */}
+      <PlanCombinedModal
+        isOpen={isPlanModalOpen}
+        onClose={() => setIsPlanModalOpen(false)}
         isAdmin={userIsAdmin}
       />
 
@@ -632,6 +647,8 @@ const Dashboard1: React.FC = () => {
         onClose={() => setIsDailyReportModalOpen(false)}
         isAdmin={true}
       />
+
+
 
       {/* Purchase Request Modal */}
       {isPurchaseRequestModalOpen && (

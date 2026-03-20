@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck } from 'lucide-react';
+import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck, CalendarDays } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
+import { useAuth } from '../contexts/AuthContext';
+import { isAdmin } from '../utils/permissions';
 import TaskListModal from './TaskListModal';
 import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
 import AllNotificationsModal from './AllNotificationsModal';
 import EmployeePayrollModal from './EmployeePayrollModal';
 import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
+import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
+import OvertimePlanListModal from './OvertimePlanListModal';
 
 const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
+  const { user } = useAuth();
+  const userIsAdmin = user ? isAdmin(user.department) : false;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -20,6 +26,10 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [isAcceptanceModalOpen, setIsAcceptanceModalOpen] = useState(false);
   const [selectedAcceptanceHandoverId, setSelectedAcceptanceHandoverId] = useState<string | null>(null);
   const [selectedAcceptanceMessage, setSelectedAcceptanceMessage] = useState<string | undefined>(undefined);
+  const [isLeaveRequestModalOpen, setIsLeaveRequestModalOpen] = useState(false);
+  const [selectedLeaveRequestId, setSelectedLeaveRequestId] = useState<string | null>(null);
+  const [selectedLeaveRequestMessage, setSelectedLeaveRequestMessage] = useState<string | undefined>(undefined);
+  const [isOvertimePlanModalOpen, setIsOvertimePlanModalOpen] = useState(false);
 
   useEffect(() => {
     loadNotifications();
@@ -65,6 +75,12 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setSelectedAcceptanceHandoverId(notification.acceptanceHandoverId || null);
       setSelectedAcceptanceMessage(notification.message);
       setIsAcceptanceModalOpen(true);
+    } else if (notification.type === 'LEAVE_REQUEST') {
+      setSelectedLeaveRequestId(notification.leaveRequestId || null);
+      setSelectedLeaveRequestMessage(notification.message);
+      setIsLeaveRequestModalOpen(true);
+    } else if (notification.type === 'OVERTIME_PLAN' || notification.type === 'OVERTIME_PLAN_APPROVAL') {
+      setIsOvertimePlanModalOpen(true);
     }
     if (onNotificationClick) {
       onNotificationClick(notification);
@@ -89,6 +105,13 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         return <DollarSign className="w-4 h-4 text-green-600" />;
       case 'ACCEPTANCE_HANDOVER':
         return <PackageCheck className="w-4 h-4 text-teal-600" />;
+      case 'LEAVE_REQUEST':
+        return <CalendarDays className="w-4 h-4 text-purple-600" />;
+      case 'LEAVE_REQUEST_RESPONSE':
+        return <CalendarDays className="w-4 h-4 text-purple-600" />;
+      case 'OVERTIME_PLAN':
+      case 'OVERTIME_PLAN_APPROVAL':
+        return <Clock className="w-4 h-4 text-orange-600" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }
@@ -232,6 +255,26 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         }}
         acceptanceHandoverId={selectedAcceptanceHandoverId}
         notificationMessage={selectedAcceptanceMessage}
+      />
+
+      {/* Leave Request Modal - opened when clicking LEAVE_REQUEST notification */}
+      <LeaveRequestApprovalModal
+        isOpen={isLeaveRequestModalOpen}
+        onClose={() => {
+          setIsLeaveRequestModalOpen(false);
+          setSelectedLeaveRequestId(null);
+          setSelectedLeaveRequestMessage(undefined);
+        }}
+        leaveRequestId={selectedLeaveRequestId}
+        notificationMessage={selectedLeaveRequestMessage}
+      />
+
+      {/* Overtime Plan Modal - opened when clicking OVERTIME_PLAN notification */}
+      {/* #3 Fix: Pass isAdmin prop so admin sees all plans with approve buttons */}
+      <OvertimePlanListModal
+        isOpen={isOvertimePlanModalOpen}
+        onClose={() => setIsOvertimePlanModalOpen(false)}
+        isAdmin={userIsAdmin}
       />
     </>
   );

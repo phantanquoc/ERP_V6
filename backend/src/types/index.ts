@@ -106,3 +106,6 @@ export * from './task.types';
 
 // Export notification types
 export * from './notification.types';
+
+// Export overtime plan types
+export * from './overtimePlan.types';

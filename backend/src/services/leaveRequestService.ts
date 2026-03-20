@@ -268,7 +268,8 @@ export class LeaveRequestService {
     await notificationService.createLeaveRequestNotification(
       employeeIds,
       employeeName,
-      leaveTypeLabel
+      leaveTypeLabel,
+      leaveRequest.id
     );
   }
 

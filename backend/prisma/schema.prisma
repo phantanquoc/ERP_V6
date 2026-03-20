@@ -314,6 +314,7 @@ model Notification {
   evaluationId          String?
   taskId                String?
   acceptanceHandoverId  String?
+  leaveRequestId        String?
   isRead                Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -617,6 +618,15 @@ model WorkShift {
 
   @@map("work_shifts")
   @@schema("common")
+}
+
+model ProductCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("product_categories")
+  @@schema("business")
 }
 
 model InternationalProduct {
@@ -2032,6 +2042,38 @@ model AcceptanceHandover {
   @@schema("common")
 }
 
+
+// ==================== OVERTIME PLAN (Kế hoạch tăng ca) ====================
+model OvertimePlan {
+  id                 String              @id @default(cuid())
+  ngayTao            DateTime            @default(now())
+  nguoiTaoId         String              // User ID người tạo
+  nguoiThamGiaIds    String[]            // Array of employee IDs tham gia tăng ca
+  noiDung            String              // Nội dung công việc tăng ca
+  ngayTangCa         DateTime            // Ngày thực hiện tăng ca
+  gioBatDau          String              // Giờ bắt đầu (format "HH:mm")
+  gioKetThuc         String              // Giờ kết thúc (format "HH:mm")
+  ghiChu             String?
+  files              String[]            @default([])
+  mucDoUuTien        TaskPriority        // Reuse TaskPriority enum
+  trangThai          OvertimePlanStatus  @default(CHO_DUYET)
+  trangThaiTiepNhan  Json                @default("{}") // Map of userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@map("overtime_plans")
+  @@schema("common")
+}
+
+enum OvertimePlanStatus {
+  CHO_DUYET
+  DA_DUYET
+  TU_CHOI
+  HOAN_THANH
+  HUY
+
+  @@schema("common")
+}
 
 model PayrollSettings {
   id                String   @id @default(cuid())

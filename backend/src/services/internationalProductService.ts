@@ -215,6 +215,13 @@ export class InternationalProductService {
     return buffer as any;
   }
   async getCategories(): Promise<string[]> {
+    // Lấy categories từ bảng ProductCategory
+    const storedCategories = await prisma.productCategory.findMany({
+      orderBy: { name: 'asc' },
+    });
+    const storedNames = storedCategories.map(c => c.name);
+
+    // Lấy categories từ distinct loaiSanPham (backward compatibility)
     const products = await prisma.internationalProduct.findMany({
       where: {
         loaiSanPham: { not: null },
@@ -227,8 +234,31 @@ export class InternationalProductService {
         loaiSanPham: 'asc',
       },
     });
+    const productCategories = products.map(p => p.loaiSanPham!).filter(Boolean);
 
-    return products.map(p => p.loaiSanPham!).filter(Boolean);
+    // Merge và deduplicate
+    const allCategories = Array.from(new Set([...storedNames, ...productCategories]));
+    allCategories.sort((a, b) => a.localeCompare(b, 'vi'));
+    return allCategories;
+  }
+
+  async addCategory(name: string): Promise<any> {
+    if (!name || !name.trim()) {
+      throw new ValidationError('Tên loại hàng hóa không được để trống');
+    }
+    const trimmed = name.trim();
+
+    // Check if already exists
+    const existing = await prisma.productCategory.findUnique({
+      where: { name: trimmed },
+    });
+    if (existing) {
+      throw new ValidationError('Loại hàng hóa này đã tồn tại');
+    }
+
+    return prisma.productCategory.create({
+      data: { name: trimmed },
+    });
   }
 
   async renameCategory(oldName: string, newName: string): Promise<number> {
@@ -236,6 +266,13 @@ export class InternationalProductService {
       throw new ValidationError('Tên loại hàng hóa không được để trống');
     }
 
+    // Update in ProductCategory table
+    await prisma.productCategory.updateMany({
+      where: { name: oldName },
+      data: { name: newName },
+    });
+
+    // Update in products table
     const result = await prisma.internationalProduct.updateMany({
       where: { loaiSanPham: oldName },
       data: { loaiSanPham: newName },
@@ -249,6 +286,12 @@ export class InternationalProductService {
       throw new ValidationError('Tên loại hàng hóa không được để trống');
     }
 
+    // Delete from ProductCategory table
+    await prisma.productCategory.deleteMany({
+      where: { name },
+    });
+
+    // Clear loaiSanPham in products
     const result = await prisma.internationalProduct.updateMany({
       where: { loaiSanPham: name },
       data: { loaiSanPham: null },

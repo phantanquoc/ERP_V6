@@ -170,7 +170,8 @@ export class NotificationService {
   async createLeaveRequestNotification(
     employeeIds: string[],
     employeeName: string,
-    leaveTypeLabel: string
+    leaveTypeLabel: string,
+    leaveRequestId?: string
   ): Promise<void> {
     if (employeeIds.length === 0) return;
 
@@ -179,6 +180,7 @@ export class NotificationService {
       type: NotificationType.LEAVE_REQUEST,
       title: 'Đơn nghỉ phép mới',
       message: `${employeeName} đã gửi đơn nghỉ phép ${leaveTypeLabel}`,
+      leaveRequestId,
       isRead: false,
     }));
 

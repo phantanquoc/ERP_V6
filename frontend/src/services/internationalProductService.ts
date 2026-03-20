@@ -112,6 +112,11 @@ export const internationalProductService = {
     return response as unknown as { success: boolean; data: string[] };
   },
 
+  async addCategory(name: string): Promise<{ success: boolean; data: any; message: string }> {
+    const response = await apiClient.post('/international-products/categories', { name });
+    return response as unknown as { success: boolean; data: any; message: string };
+  },
+
   async renameCategory(oldName: string, newName: string): Promise<{ success: boolean; data: { count: number }; message: string }> {
     const response = await apiClient.put('/international-products/categories/rename', { oldName, newName });
     return response as unknown as { success: boolean; data: { count: number }; message: string };

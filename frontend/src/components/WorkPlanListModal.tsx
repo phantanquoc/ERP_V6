@@ -8,9 +8,10 @@ interface WorkPlanListModalProps {
   isOpen: boolean;
   onClose: () => void;
   isAdmin?: boolean;
+  embedded?: boolean;
 }
 
-const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, isAdmin = false }) => {
+const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, isAdmin = false, embedded = false }) => {
   const [plans, setPlans] = useState<WorkPlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -61,21 +62,9 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
 
   if (!isOpen) return null;
 
-  return (
+  const tableContent = (
     <>
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden">
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Calendar className="w-6 h-6 text-white" />
-            <h2 className="text-xl font-bold text-white">Danh sách kế hoạch công việc</h2>
-          </div>
-          <button onClick={onClose} className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="p-6 overflow-x-auto max-h-[calc(90vh-200px)]">
+        <div className={embedded ? "p-4 overflow-x-auto max-h-[calc(90vh-220px)]" : "p-6 overflow-x-auto max-h-[calc(90vh-200px)]"}>
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
@@ -183,12 +172,11 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </>
+  );
 
-    {/* Detail Modal */}
-    {viewPlan && (
-      <Modal isOpen={true} onClose={() => setViewPlan(null)}>
+  const detailModal = viewPlan ? (
+    <Modal isOpen={true} onClose={() => setViewPlan(null)}>
         <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
           <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
             <div className="flex items-center justify-between">
@@ -309,7 +297,34 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
           </div>
         </div>
       </Modal>
-    )}
+  ) : null;
+
+  if (embedded) {
+    return (
+      <>
+        {tableContent}
+        {detailModal}
+      </>
+    );
+  }
+
+  return (
+    <>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden">
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Calendar className="w-6 h-6 text-white" />
+            <h2 className="text-xl font-bold text-white">Danh sách kế hoạch công việc</h2>
+          </div>
+          <button onClick={onClose} className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        {tableContent}
+      </div>
+    </div>
+    {detailModal}
     </>
   );
 };

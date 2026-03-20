@@ -1,0 +1,468 @@
+import React, { useState, useEffect } from 'react';
+import { X, Clock, Eye, Check, XCircle, FileText, ChevronLeft, Users, Calendar, Plus, ShieldCheck } from 'lucide-react';
+import { overtimePlanService, OvertimePlan, OvertimePlanStatus } from '../services/overtimePlanService';
+import { TaskPriority } from '../services/taskService';
+import { useAuth } from '../contexts/AuthContext';
+import { isAdmin as checkIsAdmin } from '../utils/permissions';
+import { getFileUrl } from '../config/api';
+import CreateOvertimePlanModal from './CreateOvertimePlanModal';
+
+interface OvertimePlanListModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isAdmin?: boolean;
+  embedded?: boolean;
+}
+
+const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, onClose, isAdmin = false, embedded = false }) => {
+  const { user } = useAuth();
+  const [plans, setPlans] = useState<OvertimePlan[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [selectedPlan, setSelectedPlan] = useState<OvertimePlan | null>(null);
+  const [approvingPlanId, setApprovingPlanId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    if (isOpen) {
+      loadPlans();
+    }
+  }, [isOpen, currentPage, isAdmin]);
+
+  const loadPlans = async () => {
+    try {
+      setLoading(true);
+      const params: any = { page: currentPage, limit: itemsPerPage };
+      const response = isAdmin
+        ? await overtimePlanService.getAll(params)
+        : await overtimePlanService.getMyPlans(params);
+      setPlans(response.data);
+      setTotalPages(response.totalPages);
+      setTotalItems(response.total || response.data.length);
+    } catch (error) {
+      console.error('Error loading overtime plans:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTrangThaiBadge = (trangThai: OvertimePlanStatus) => {
+    const map: Record<OvertimePlanStatus, { label: string; class: string }> = {
+      [OvertimePlanStatus.CHO_DUYET]:  { label: 'Chờ duyệt',   class: 'bg-yellow-100 text-yellow-700' },
+      [OvertimePlanStatus.DA_DUYET]:   { label: 'Đã duyệt',    class: 'bg-green-100 text-green-700' },
+      [OvertimePlanStatus.TU_CHOI]:    { label: 'Từ chối',     class: 'bg-red-100 text-red-700' },
+      [OvertimePlanStatus.HOAN_THANH]: { label: 'Hoàn thành',  class: 'bg-blue-100 text-blue-700' },
+      [OvertimePlanStatus.HUY]:        { label: 'Đã hủy',      class: 'bg-gray-100 text-gray-500' },
+    };
+    return map[trangThai] ?? { label: trangThai, class: 'bg-gray-100 text-gray-500' };
+  };
+
+  const getPriorityBadge = (priority: string) => {
+    const badges: Record<string, { label: string; class: string }> = {
+      'KHAN_CAP': { label: 'Khẩn cấp', class: 'bg-red-100 text-red-700' },
+      'CAO': { label: 'Cao', class: 'bg-orange-100 text-orange-700' },
+      'TRUNG_BINH': { label: 'Trung bình', class: 'bg-yellow-100 text-yellow-700' },
+      'THAP': { label: 'Thấp', class: 'bg-gray-100 text-gray-700' },
+    };
+    return badges[priority] || badges['TRUNG_BINH'];
+  };
+
+  // #1: Removed acceptance-related functions - employees just receive notifications
+
+  // #2: Check permission for creating plans
+  const canCreatePlan = (): boolean => {
+    if (!user) return false;
+    // Admin or department head (trưởng bộ phận) can create
+    if (checkIsAdmin(user.department)) return true;
+    if (user.role === 'manager') return true; // DEPARTMENT_HEAD mapped to manager role
+    return false;
+  };
+
+  const handleCreateClick = () => {
+    if (canCreatePlan()) {
+      setIsCreateModalOpen(true);
+    } else {
+      alert('Bạn không có quyền truy cập. Chỉ Admin và Trưởng bộ phận mới có thể tạo kế hoạch tăng ca.');
+    }
+  };
+
+  const handleApprovePlan = async (planId: string, status: 'DA_DUYET' | 'TU_CHOI') => {
+    try {
+      setApprovingPlanId(planId);
+      const updatedPlan = await overtimePlanService.approvePlan(planId, status, status === 'TU_CHOI' ? rejectReason : undefined);
+      setRejectReason('');
+      setShowRejectInput(false);
+      await loadPlans();
+      if (selectedPlan?.id === planId && updatedPlan) {
+        setSelectedPlan(updatedPlan);
+      }
+    } catch (error) {
+      console.error('Error approving overtime plan:', error);
+    } finally {
+      setApprovingPlanId(null);
+    }
+  };
+
+  if (!isOpen) return null;
+  // Detail view for a selected plan
+  const renderDetailView = () => {
+    if (!selectedPlan) return null;
+    const priorityBadge = getPriorityBadge(selectedPlan.mucDoUuTien);
+    const trangThaiBadge = getTrangThaiBadge(selectedPlan.trangThai);
+    const canAdminApprove = isAdmin && selectedPlan.trangThai === OvertimePlanStatus.CHO_DUYET;
+
+    return (
+      <div className={`p-6 overflow-y-auto ${embedded ? 'max-h-[calc(90vh-170px)]' : 'max-h-[calc(90vh-80px)]'}`}>
+        <button onClick={() => setSelectedPlan(null)} className="flex items-center gap-1 text-orange-600 hover:text-orange-800 mb-4 text-sm">
+          <ChevronLeft className="w-4 h-4" /> Quay lại danh sách
+        </button>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-gray-500 uppercase">Nội dung</label>
+            <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{selectedPlan.noiDung}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Người tạo</label>
+              <p className="mt-1 text-sm text-gray-900">
+                {selectedPlan.nguoiTao ? `${selectedPlan.nguoiTao.firstName} ${selectedPlan.nguoiTao.lastName}` : 'N/A'}
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Ngày tạo</label>
+              <p className="mt-1 text-sm text-gray-900">{new Date(selectedPlan.ngayTao).toLocaleDateString('vi-VN')}</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Ngày tăng ca</label>
+              <p className="mt-1 text-sm text-gray-900">{new Date(selectedPlan.ngayTangCa).toLocaleDateString('vi-VN')}</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Giờ tăng ca</label>
+              <p className="mt-1 text-sm text-gray-900">{selectedPlan.gioBatDau} - {selectedPlan.gioKetThuc}</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Mức độ ưu tiên</label>
+              <p className="mt-1">
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${priorityBadge.class}`}>{priorityBadge.label}</span>
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Trạng thái phê duyệt</label>
+              <p className="mt-1">
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${trangThaiBadge.class}`}>{trangThaiBadge.label}</span>
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500 uppercase">Người tham gia</label>
+            <div className="mt-1 space-y-1">
+              {selectedPlan.nguoiThamGia?.map(n => (
+                  <div key={n.id} className="flex items-center text-sm">
+                    <span className="text-gray-900">{n.firstName} {n.lastName}</span>
+                  </div>
+              ))}
+            </div>
+          </div>
+          {selectedPlan.ghiChu && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Ghi chú</label>
+              <p className="mt-1 text-sm text-gray-700">{selectedPlan.ghiChu}</p>
+            </div>
+          )}
+          {selectedPlan.files && selectedPlan.files.length > 0 && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">File đính kèm</label>
+              <div className="mt-1 space-y-1">
+                {selectedPlan.files.map((file, i) => {
+                  const fileName = file.split('/').pop() || file;
+                  return (
+                    <a key={i} href={getFileUrl(file)} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-sm">
+                      <FileText className="w-4 h-4" /> {fileName}
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {/* #1: Removed acceptance buttons - employees just receive notifications */}
+
+          {/* Approve/Reject buttons for Admin */}
+          {canAdminApprove && (
+            <div className="pt-4 border-t space-y-3">
+              <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-orange-500" /> Phê duyệt kế hoạch tăng ca
+              </p>
+              {showRejectInput && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Lý do từ chối</label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-red-400 focus:border-red-400"
+                    placeholder="Nhập lý do từ chối..."
+                  />
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleApprovePlan(selectedPlan.id, 'DA_DUYET')}
+                  disabled={approvingPlanId === selectedPlan.id}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm font-medium"
+                >
+                  <Check className="w-4 h-4" /> Phê duyệt
+                </button>
+                {!showRejectInput ? (
+                  <button
+                    onClick={() => setShowRejectInput(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+                  >
+                    <XCircle className="w-4 h-4" /> Từ chối
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleApprovePlan(selectedPlan.id, 'TU_CHOI')}
+                      disabled={approvingPlanId === selectedPlan.id}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-medium"
+                    >
+                      <XCircle className="w-4 h-4" /> Xác nhận từ chối
+                    </button>
+                    <button
+                      onClick={() => { setShowRejectInput(false); setRejectReason(''); }}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 text-sm"
+                    >
+                      Hủy
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const bodyContent = selectedPlan ? renderDetailView() : (
+          <>
+            {/* Table Content */}
+            <div className={`p-6 overflow-x-auto ${embedded ? 'max-h-[calc(90vh-220px)]' : 'max-h-[calc(90vh-200px)]'}`}>
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Đang tải...</p>
+                </div>
+              ) : plans.length === 0 ? (
+                <div className="text-center py-12">
+                  <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg">Không có kế hoạch tăng ca nào</p>
+                </div>
+              ) : (
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nội dung</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người tạo</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người tham gia</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tăng ca</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giờ</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ưu tiên</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phê duyệt</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {plans.map((plan, index) => {
+                      const priorityBadge = getPriorityBadge(plan.mucDoUuTien);
+                      const trangThaiBadge = getTrangThaiBadge(plan.trangThai);
+                      return (
+                        <tr key={plan.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {(currentPage - 1) * itemsPerPage + index + 1}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-gray-900 max-w-[200px]">
+                            <div className="line-clamp-2" title={plan.noiDung}>{plan.noiDung}</div>
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {plan.nguoiTao ? `${plan.nguoiTao.firstName} ${plan.nguoiTao.lastName}` : 'N/A'}
+                          </td>
+                      <td className="px-3 py-3 text-sm text-gray-900">
+                        {plan.nguoiThamGia && plan.nguoiThamGia.length > 0 ? (
+                          <div className="max-w-[120px]">
+                            <span className="text-orange-600 font-medium">{plan.nguoiThamGia.length} người</span>
+                            <div className="text-xs text-gray-500 truncate" title={plan.nguoiThamGia.map(n => `${n.firstName} ${n.lastName}`).join(', ')}>
+                              {plan.nguoiThamGia.map(n => `${n.firstName} ${n.lastName}`).join(', ')}
+                            </div>
+                          </div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(plan.ngayTangCa).toLocaleDateString('vi-VN')}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {plan.gioBatDau} - {plan.gioKetThuc}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${priorityBadge.class}`}>
+                          {priorityBadge.label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${trangThaiBadge.class}`}>
+                          {trangThaiBadge.label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setSelectedPlan(plan)}
+                            className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-md transition-colors"
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          {/* Quick approve/reject icons for Admin */}
+                          {isAdmin && plan.trangThai === OvertimePlanStatus.CHO_DUYET && (
+                            <>
+                              <button
+                                onClick={() => handleApprovePlan(plan.id, 'DA_DUYET')}
+                                disabled={approvingPlanId === plan.id}
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-md transition-colors disabled:opacity-50"
+                                title="Phê duyệt"
+                              >
+                                <ShieldCheck className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => { setSelectedPlan(plan); setShowRejectInput(true); }}
+                                disabled={approvingPlanId === plan.id}
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                                title="Từ chối"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Pagination */}
+        {!loading && plans.length > 0 && totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">
+                Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                  .map((page, idx, arr) => (
+                    <React.Fragment key={page}>
+                      {idx > 0 && arr[idx - 1] !== page - 1 && (
+                        <span className="px-1 text-gray-400">...</span>
+                      )}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-sm rounded-md ${
+                          page === currentPage
+                            ? 'bg-orange-500 text-white'
+                            : 'border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  ))}
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+          </>
+  );
+
+  const createModal = (
+    <CreateOvertimePlanModal
+      isOpen={isCreateModalOpen}
+      onClose={() => setIsCreateModalOpen(false)}
+      onSuccess={() => { setIsCreateModalOpen(false); loadPlans(); }}
+    />
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {!selectedPlan && (
+          <div className="px-6 pt-3 pb-1 flex justify-end">
+            <button
+              onClick={handleCreateClick}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" /> Tạo kế hoạch tăng ca
+            </button>
+          </div>
+        )}
+        {bodyContent}
+        {createModal}
+      </>
+    );
+  }
+
+  return (
+    <>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Clock className="w-6 h-6 text-white" />
+            <h2 className="text-xl font-bold text-white">
+              {selectedPlan ? 'Chi tiết kế hoạch tăng ca' : (isAdmin ? 'Danh sách kế hoạch tăng ca (Tất cả)' : 'Danh sách kế hoạch tăng ca')}
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            {!selectedPlan && (
+              <button onClick={handleCreateClick} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-sm font-medium">
+                <Plus className="w-4 h-4" /> Tạo kế hoạch
+              </button>
+            )}
+            <button onClick={onClose} className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        {bodyContent}
+      </div>
+    </div>
+    {createModal}
+    </>
+  );
+};
+
+export default OvertimePlanListModal;

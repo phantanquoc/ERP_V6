@@ -53,6 +53,9 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
         return <DollarSign className="w-4 h-4 text-green-600" />;
       case 'ACCEPTANCE_HANDOVER':
         return <PackageCheck className="w-4 h-4 text-teal-600" />;
+      case 'OVERTIME_PLAN':
+      case 'OVERTIME_PLAN_APPROVAL':
+        return <Clock className="w-4 h-4 text-orange-600" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }

@@ -104,6 +104,12 @@ router.get('/code/:code', internationalProductController.getProductByCode);
 
 router.get('/categories', internationalProductController.getCategories);
 
+router.post(
+  '/categories',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  internationalProductController.addCategory
+);
+
 router.put(
   '/categories/rename',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),

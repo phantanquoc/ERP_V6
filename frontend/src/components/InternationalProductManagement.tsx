@@ -558,17 +558,25 @@ const InternationalProductManagement: React.FC = () => {
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     const name = newCategoryName.trim();
                     if (!name) return;
                     if (categories.includes(name)) {
                       alert('Loại hàng hóa này đã tồn tại!');
                       return;
                     }
-                    setCategories(prev => [...prev, name].sort());
-                    setNewCategoryName('');
+                    setCategoryLoading(true);
+                    try {
+                      await internationalProductService.addCategory(name);
+                      await fetchCategories();
+                      setNewCategoryName('');
+                    } catch (error: any) {
+                      alert(error.response?.data?.message || 'Lỗi khi thêm loại hàng hóa');
+                    } finally {
+                      setCategoryLoading(false);
+                    }
                   }}
-                  disabled={!newCategoryName.trim()}
+                  disabled={!newCategoryName.trim() || categoryLoading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
                   <Plus className="w-4 h-4" />

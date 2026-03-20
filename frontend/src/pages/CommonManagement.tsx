@@ -9,6 +9,7 @@ import SupplyRequestModal from '../components/SupplyRequestModal';
 import ProcessListModal from '../components/ProcessListModal';
 import CreateTaskModal from '../components/CreateTaskModal';
 import CreateWorkPlanModal from '../components/CreateWorkPlanModal';
+import OvertimePlanListModal from '../components/OvertimePlanListModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
 import {
   FileText,
@@ -33,7 +34,7 @@ import {
 import { FeedbackType } from '../services/privateFeedbackService';
 
 // Types for different request types
-type RequestType = 'yeu_cau_sua_chua' | 'yeu_cau_bo_sung' | 'de_nghi_dieu_chinh' | 'de_nghi_mua_hang' | 'nhiem_vu' | 'ke_hoach' | 'gop_y' | 'neu_kho_khan';
+type RequestType = 'yeu_cau_sua_chua' | 'yeu_cau_bo_sung' | 'de_nghi_dieu_chinh' | 'ke_hoach_tang_ca' | 'nhiem_vu' | 'ke_hoach' | 'gop_y' | 'neu_kho_khan';
 
 const CommonManagement = () => {
   const { user } = useAuth();
@@ -42,6 +43,7 @@ const CommonManagement = () => {
   const [isProcessListOpen, setIsProcessListOpen] = useState<boolean>(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState<boolean>(false);
   const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState<boolean>(false);
+  const [isOvertimePlanListOpen, setIsOvertimePlanListOpen] = useState<boolean>(false);
 
   // Private Feedback Modal states
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState<boolean>(false);
@@ -73,6 +75,8 @@ const CommonManagement = () => {
   });
 
   if (!user) return <div>Loading...</div>;
+
+  const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'manager';
 
   const categories = [
         {
@@ -118,13 +122,13 @@ const CommonManagement = () => {
           color: 'bg-purple-500',
           description: 'Đề xuất thay đổi hoặc cải tiến quy trình làm việc'
         },
-        {
-          id: 'de_nghi_mua_hang',
-          title: 'Tạo kế hoạch cuộc họp',
+        ...(isManagerOrAdmin ? [{
+          id: 'ke_hoach_tang_ca',
+          title: 'Tạo kế hoạch tăng ca',
           icon: <Briefcase className="h-6 w-6" />,
           color: 'bg-orange-500',
-          description: 'Lập kế hoạch và tổ chức cuộc họp'
-        }
+          description: 'Lập kế hoạch tăng ca cho nhân viên'
+        }] : [])
       ]
     },
     {
@@ -182,6 +186,12 @@ const CommonManagement = () => {
     // Xử lý "Tạo nhiệm vụ"
     if (categoryId === 'nhiem_vu') {
       setIsTaskModalOpen(true);
+      return;
+    }
+
+    // Xử lý "Tạo kế hoạch tăng ca"
+    if (categoryId === 'ke_hoach_tang_ca') {
+      setIsOvertimePlanListOpen(true);
       return;
     }
 
@@ -641,6 +651,12 @@ const CommonManagement = () => {
         onSuccess={() => {
           console.log('Work plan created successfully');
         }}
+      />
+
+      {/* Overtime Plan List Modal */}
+      <OvertimePlanListModal
+        isOpen={isOvertimePlanListOpen}
+        onClose={() => setIsOvertimePlanListOpen(false)}
       />
 
       {/* Private Feedback Modal (Góp ý riêng / Nêu khó khăn) */}
