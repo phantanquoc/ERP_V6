@@ -7,7 +7,7 @@ async function main(): Promise<void> {
   console.log('🌱 Seeding database...');
 
   // Hash passwords
-  const adminPassword = await bcrypt.hash('admin123', 10);
+  const adminPassword = await bcrypt.hash('123123', 10);
 
   // Create Departments (7 departments)
   console.log('\n📋 Creating departments...');
@@ -393,10 +393,10 @@ async function main(): Promise<void> {
   // Create admin user
   console.log('\n👤 Creating users...');
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
+    where: { email: 'admin@gmail.com' },
     update: { password: adminPassword },
     create: {
-      email: 'admin@example.com',
+      email: 'admin@gmail.com',
       password: adminPassword,
       firstName: 'Admin',
       lastName: 'User',

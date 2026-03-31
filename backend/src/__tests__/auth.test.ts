@@ -155,7 +155,7 @@ describe('authenticate middleware', () => {
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith({
       success: false,
-      message: 'Token không hợp lệ',
+      message: 'Token không hợp lệ hoặc đã hết hạn',
     });
   });
 
@@ -196,7 +196,7 @@ describe('authorize middleware', () => {
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
       success: false,
-      message: 'Truy cập bị từ chối',
+      message: 'Bạn không có quyền thực hiện thao tác này',
     });
     expect(mockNext).not.toHaveBeenCalled();
   });
@@ -210,7 +210,7 @@ describe('authorize middleware', () => {
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith({
       success: false,
-      message: 'Chưa xác thực',
+      message: 'Chưa xác thực — vui lòng đăng nhập trước',
     });
     expect(mockNext).not.toHaveBeenCalled();
   });

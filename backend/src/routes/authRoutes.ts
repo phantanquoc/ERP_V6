@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import authController from '@controllers/authController';
 import { validate } from '@middlewares/validation';
+import { ipBlockCheck } from '@middlewares/ipBlock';
+import { loginRateLimiter } from '@middlewares/rateLimiter';
+import { authenticate, authorize } from '@middlewares/auth';
 
 const router = Router();
 
@@ -72,6 +75,8 @@ router.post(
  */
 router.post(
   '/login',
+  ipBlockCheck,
+  loginRateLimiter,
   validate([
     { field: 'email', required: true, type: 'email' },
     { field: 'password', required: true, type: 'string' },
@@ -118,6 +123,58 @@ router.post(
  *         description: Đăng xuất thành công
  */
 router.post('/logout', (req, res, next) => authController.logout(req, res, next));
+
+/**
+ * @swagger
+ * /api/auth/admin/blocked-ips:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Lấy danh sách IP bị khóa (Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Danh sách IP bị khóa
+ *       401:
+ *         description: Không có quyền truy cập
+ */
+router.get(
+  '/admin/blocked-ips',
+  authenticate,
+  authorize('ADMIN'),
+  (_req, res, next) => authController.getBlockedIps(_req, res, next)
+);
+
+/**
+ * @swagger
+ * /api/auth/admin/unblock:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Mở khóa IP bị chặn (Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [ipAddress]
+ *             properties:
+ *               ipAddress:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Mở khóa thành công
+ *       401:
+ *         description: Không có quyền
+ */
+router.post(
+  '/admin/unblock',
+  authenticate,
+  authorize('ADMIN'),
+  (req, res, next) => authController.unblockIp(req, res, next)
+);
 
 export default router;
 

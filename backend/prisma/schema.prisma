@@ -116,6 +116,47 @@ model UserRoleAssignment {
   @@schema("auth")
 }
 
+// ============================================
+// Security: Login Attempts & IP Blocking
+// ============================================
+enum BlockReason {
+  TOO_MANY_FAILED_ATTEMPTS
+  MANUAL
+  OTHER
+
+  @@schema("auth")
+}
+
+model LoginAttempt {
+  id          String    @id @default(cuid())
+  ipAddress   String
+  email       String?
+  success     Boolean   @default(false)
+  attemptedAt DateTime  @default(now())
+  expiresAt   DateTime
+
+  @@index([ipAddress])
+  @@index([expiresAt])
+  @@map("login_attempts")
+  @@schema("auth")
+}
+
+model BlockedIp {
+  id         String     @id @default(cuid())
+  ipAddress  String     @unique
+  reason     BlockReason @default(TOO_MANY_FAILED_ATTEMPTS)
+  blockedAt  DateTime   @default(now())
+  expiresAt  DateTime
+  unblockedAt DateTime?
+  unblockedBy String?
+  isActive   Boolean    @default(true)
+
+  @@index([ipAddress])
+  @@index([expiresAt])
+  @@map("blocked_ips")
+  @@schema("auth")
+}
+
 model Department {
   id             String          @id @default(cuid())
   code           String          @unique

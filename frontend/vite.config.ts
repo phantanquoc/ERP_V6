@@ -17,12 +17,18 @@ export default defineConfig({
       '@schemas': path.resolve(__dirname, './src/schemas'),
     }
   },
-  optimizeDeps: {
-    exclude: ['lucide-react'],
-  },
   server: {
-    allowedHosts: [
-      '.csb.app'
-    ]
+    port: 5173,
+    proxy: {
+      // Proxy /api requests to backend container (không dùng localhost vì đang chạy trong Docker)
+      '/api': {
+        target: 'http://erp_backend_local:5001',
+        changeOrigin: true,
+      },
+      '/uploads': {
+        target: 'http://erp_backend_local:5001',
+        changeOrigin: true,
+      },
+    }
   }
 })
