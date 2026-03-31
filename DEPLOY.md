@@ -211,8 +211,6 @@ docker-compose down -v
 docker-compose up -d
 ```
 
----
-
 ## 🐛 Xử Lý Lỗi Thường Gặp
 
 ### Lỗi: "Cannot connect to database"

@@ -11,6 +11,7 @@ export enum OvertimePlanStatus {
 export interface OvertimePlan {
   id: string;
   ngayTao: string;
+  nguoiTaoId: string;
   nguoiTao: {
     id: string;
     firstName: string;
@@ -18,6 +19,7 @@ export interface OvertimePlan {
     employeeCode: string;
     department: string;
   };
+  nguoiThamGiaIds: string[];
   nguoiThamGia: Array<{
     id: string;
     firstName: string;
@@ -34,6 +36,7 @@ export interface OvertimePlan {
   mucDoUuTien: string;
   trangThai: OvertimePlanStatus;
   trangThaiTiepNhan?: Record<string, string>;
+  gioThucTe?: Record<string, { gioVao: string; gioRa: string }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -45,99 +48,81 @@ export interface CreateOvertimePlanData {
   gioBatDau: string;
   gioKetThuc: string;
   ghiChu?: string;
-  mucDoUuTien: string;
+  mucDoUuTien?: string;
   files?: File[];
 }
 
+const extractData = (response: any): any => {
+  if (response?.data?.data) return response.data.data;
+  if (response?.data) return response.data;
+  return response;
+};
+
+const extractPaginated = (response: any): any => {
+  const d = response?.data || response;
+  const pagination = d.pagination || {};
+  return {
+    data: d.data || [],
+    total: pagination.total || d.total || 0,
+    page: pagination.page || d.page || 1,
+    totalPages: pagination.totalPages || d.totalPages || 1,
+  };
+};
+
+const buildFormData = (data: CreateOvertimePlanData): FormData => {
+  const fd = new FormData();
+  data.nguoiThamGia.forEach(id => fd.append('nguoiThamGia', id));
+  fd.append('noiDung', data.noiDung);
+  fd.append('ngayTangCa', data.ngayTangCa);
+  fd.append('gioBatDau', data.gioBatDau);
+  fd.append('gioKetThuc', data.gioKetThuc);
+  if (data.ghiChu) fd.append('ghiChu', data.ghiChu);
+  if (data.mucDoUuTien) fd.append('mucDoUuTien', data.mucDoUuTien);
+  if (data.files) data.files.forEach(file => fd.append('files', file));
+  return fd;
+};
+
 export const overtimePlanService = {
   async create(data: CreateOvertimePlanData): Promise<OvertimePlan> {
-    const formData = new FormData();
-    data.nguoiThamGia.forEach(id => {
-      formData.append('nguoiThamGia[]', id);
+    const response = await apiClient.post('/overtime-plans', buildFormData(data), {
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
-    formData.append('noiDung', data.noiDung);
-    formData.append('ngayTangCa', data.ngayTangCa);
-    formData.append('gioBatDau', data.gioBatDau);
-    formData.append('gioKetThuc', data.gioKetThuc);
-    formData.append('mucDoUuTien', data.mucDoUuTien);
-    if (data.ghiChu) formData.append('ghiChu', data.ghiChu);
-    if (data.files && data.files.length > 0) {
-      data.files.forEach(file => {
-        formData.append('files', file);
-      });
-    }
-    const response = await apiClient.post('/overtime-plans', formData);
-    return response.data;
+    return extractData(response);
   },
-
-  async getAll(params?: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    mucDoUuTien?: string;
-    trangThai?: OvertimePlanStatus;
-    department?: string;
-  }): Promise<{ data: OvertimePlan[]; total: number; page: number; totalPages: number }> {
-    const response = await apiClient.get<OvertimePlan[]>('/overtime-plans', { params });
-    return {
-      data: response.data ?? [],
-      total: response.pagination?.total ?? 0,
-      page: response.pagination?.page ?? 1,
-      totalPages: response.pagination?.totalPages ?? 1,
-    };
+  async update(id: string, data: CreateOvertimePlanData): Promise<OvertimePlan> {
+    const response = await apiClient.put(`/overtime-plans/${id}`, buildFormData(data), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return extractData(response);
   },
-
-  async getMyPlans(params?: {
-    page?: number;
-    limit?: number;
-  }): Promise<{ data: OvertimePlan[]; total: number; page: number; totalPages: number }> {
-    const response = await apiClient.get<OvertimePlan[]>('/overtime-plans/my-plans', { params });
-    return {
-      data: response.data ?? [],
-      total: response.pagination?.total ?? 0,
-      page: response.pagination?.page ?? 1,
-      totalPages: response.pagination?.totalPages ?? 1,
-    };
+  async getAll(params?: any): Promise<any> {
+    const response = await apiClient.get('/overtime-plans', { params });
+    return extractPaginated(response);
   },
-
+  async getMyPlans(params?: any): Promise<any> {
+    const response = await apiClient.get('/overtime-plans/my-plans', { params });
+    return extractPaginated(response);
+  },
   async getById(id: string): Promise<OvertimePlan> {
     const response = await apiClient.get(`/overtime-plans/${id}`);
-    return response.data;
+    return extractData(response);
   },
-
-  async update(id: string, data: Partial<CreateOvertimePlanData>): Promise<OvertimePlan> {
-    const formData = new FormData();
-    if (data.nguoiThamGia) {
-      data.nguoiThamGia.forEach(id => {
-        formData.append('nguoiThamGia[]', id);
-      });
-    }
-    if (data.noiDung) formData.append('noiDung', data.noiDung);
-    if (data.ngayTangCa) formData.append('ngayTangCa', data.ngayTangCa);
-    if (data.gioBatDau) formData.append('gioBatDau', data.gioBatDau);
-    if (data.gioKetThuc) formData.append('gioKetThuc', data.gioKetThuc);
-    if (data.mucDoUuTien) formData.append('mucDoUuTien', data.mucDoUuTien);
-    if (data.ghiChu !== undefined) formData.append('ghiChu', data.ghiChu || '');
-    if (data.files && data.files.length > 0) {
-      data.files.forEach(file => {
-        formData.append('files', file);
-      });
-    }
-    const response = await apiClient.put(`/overtime-plans/${id}`, formData);
-    return response.data;
-  },
-
   async delete(id: string): Promise<void> {
     await apiClient.delete(`/overtime-plans/${id}`);
   },
-
-  async acceptPlan(id: string, trangThai: 'DA_TIEP_NHAN' | 'TU_CHOI'): Promise<OvertimePlan> {
-    const response = await apiClient.patch<OvertimePlan>(`/overtime-plans/${id}/accept`, { trangThai });
-    return response.data!;
-  },
-
   async approvePlan(id: string, trangThai: 'DA_DUYET' | 'TU_CHOI', lyDoTuChoi?: string): Promise<OvertimePlan> {
-    const response = await apiClient.patch<OvertimePlan>(`/overtime-plans/${id}/approve`, { trangThai, lyDoTuChoi });
-    return response.data!;
+    const response = await apiClient.patch(`/overtime-plans/${id}/approve`, { trangThai, lyDoTuChoi });
+    return extractData(response);
+  },
+  async acceptPlan(id: string, trangThai: string): Promise<OvertimePlan> {
+    const response = await apiClient.patch(`/overtime-plans/${id}/accept`, { trangThai });
+    return extractData(response);
+  },
+  async updateActualTime(id: string, actualTimes: Record<string, { gioVao: string; gioRa: string }>): Promise<OvertimePlan> {
+    const response = await apiClient.patch(`/overtime-plans/${id}/actual-time`, { actualTimes });
+    return extractData(response);
   },
 };
+
+export default overtimePlanService;
+

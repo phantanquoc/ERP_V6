@@ -122,13 +122,13 @@ const CommonManagement = () => {
           color: 'bg-purple-500',
           description: 'Đề xuất thay đổi hoặc cải tiến quy trình làm việc'
         },
-        ...(isManagerOrAdmin ? [{
+        {
           id: 'ke_hoach_tang_ca',
-          title: 'Tạo kế hoạch tăng ca',
+          title: isManagerOrAdmin ? 'Tạo kế hoạch tăng ca' : 'Kế hoạch tăng ca',
           icon: <Briefcase className="h-6 w-6" />,
           color: 'bg-orange-500',
-          description: 'Lập kế hoạch tăng ca cho nhân viên'
-        }] : [])
+          description: isManagerOrAdmin ? 'Lập kế hoạch tăng ca cho nhân viên' : 'Xem danh sách kế hoạch tăng ca'
+        }
       ]
     },
     {
@@ -657,6 +657,7 @@ const CommonManagement = () => {
       <OvertimePlanListModal
         isOpen={isOvertimePlanListOpen}
         onClose={() => setIsOvertimePlanListOpen(false)}
+        isAdmin={user?.role === 'admin' || user?.department === 'admin'}
       />
 
       {/* Private Feedback Modal (Góp ý riêng / Nêu khó khăn) */}

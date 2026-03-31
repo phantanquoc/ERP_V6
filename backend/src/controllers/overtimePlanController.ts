@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest, CreateOvertimePlanRequest, UpdateOvertimePlanRequest, AcceptOvertimePlanRequest, ApproveOvertimePlanRequest, OvertimePlanListQuery, ApiResponse } from '@types';
+import { AuthenticatedRequest, ApiResponse } from '@types';
 import overtimePlanService from '@services/overtimePlanService';
 import { getFileUrl } from '@middlewares/upload';
 
@@ -8,37 +8,42 @@ class OvertimePlanController {
     try {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
-
-      const data: CreateOvertimePlanRequest = req.body;
+      const nguoiThamGia = req.body['nguoiThamGia[]'] || req.body.nguoiThamGia || [];
+      const nguoiThamGiaArray = Array.isArray(nguoiThamGia) ? nguoiThamGia : [nguoiThamGia];
       const files = req.files as Express.Multer.File[] | undefined;
       const filePaths = files?.map(file => getFileUrl('overtime-plans', file.filename)) || [];
-
-      const plan = await overtimePlanService.create(data, userId, filePaths);
-
+      const { noiDung, ngayTangCa, gioBatDau, gioKetThuc, ghiChu, mucDoUuTien } = req.body;
+      const plan = await overtimePlanService.create(
+        { nguoiThamGia: nguoiThamGiaArray, noiDung, ngayTangCa, gioBatDau, gioKetThuc, ghiChu, mucDoUuTien },
+        userId, filePaths
+      );
       res.status(201).json({ success: true, data: plan, message: 'Tạo kế hoạch tăng ca thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
 
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const query: OvertimePlanListQuery = {
-        page: req.query.page ? parseInt(req.query.page as string) : 1,
-        limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
+      const page = req.query.page ? parseInt(req.query.page as string) : 1;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+      const result = await overtimePlanService.getAll({
+        page, limit,
         search: req.query.search as string,
         mucDoUuTien: req.query.mucDoUuTien as string,
         trangThai: req.query.trangThai as any,
-        nguoiTao: req.query.nguoiTao as string,
-        nguoiThamGia: req.query.nguoiThamGia as string,
         department: req.query.department as string,
-      };
+      });
+      res.json({ success: true, data: result.plans, pagination: { page: result.page, limit, total: result.total, totalPages: result.totalPages } } as ApiResponse<any>);
+    } catch (error) { next(error); }
+  }
 
-      const result = await overtimePlanService.getAll(query);
-
-      res.json({
-        success: true,
-        data: result.plans,
-        pagination: { total: result.total, page: result.page, totalPages: result.totalPages, limit: query.limit },
-      } as ApiResponse<any>);
+  async getMyPlans(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
+      const page = req.query.page ? parseInt(req.query.page as string) : 1;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+      const result = await overtimePlanService.getMyPlans(userId, { page, limit });
+      res.json({ success: true, data: result.plans, pagination: { page: result.page, limit, total: result.total, totalPages: result.totalPages } } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
 
@@ -53,13 +58,16 @@ class OvertimePlanController {
     try {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
-
-      const data: UpdateOvertimePlanRequest = req.body;
+      const nguoiThamGia = req.body['nguoiThamGia[]'] || req.body.nguoiThamGia;
+      const nguoiThamGiaArray = nguoiThamGia ? (Array.isArray(nguoiThamGia) ? nguoiThamGia : [nguoiThamGia]) : undefined;
       const files = req.files as Express.Multer.File[] | undefined;
-      const filePaths = files?.map(file => getFileUrl('overtime-plans', file.filename)) || [];
-
-      const plan = await overtimePlanService.update(req.params.id as string, data, userId, filePaths);
-
+      const filePaths = files?.map(file => getFileUrl('overtime-plans', file.filename));
+      const { noiDung, ngayTangCa, gioBatDau, gioKetThuc, ghiChu, mucDoUuTien } = req.body;
+      const plan = await overtimePlanService.update(
+        req.params.id as string,
+        { nguoiThamGia: nguoiThamGiaArray, noiDung, ngayTangCa, gioBatDau, gioKetThuc, ghiChu, mucDoUuTien },
+        userId, filePaths
+      );
       res.json({ success: true, data: plan, message: 'Cập nhật kế hoạch tăng ca thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
@@ -68,29 +76,8 @@ class OvertimePlanController {
     try {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
-
       await overtimePlanService.delete(req.params.id as string, userId);
       res.json({ success: true, message: 'Xóa kế hoạch tăng ca thành công' } as ApiResponse<any>);
-    } catch (error) { next(error); }
-  }
-
-  async getMyPlans(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const userId = req.user?.id;
-      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
-
-      const query: OvertimePlanListQuery = {
-        page: req.query.page ? parseInt(req.query.page as string) : 1,
-        limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
-      };
-
-      const result = await overtimePlanService.getMyPlans(userId, query);
-
-      res.json({
-        success: true,
-        data: result.plans,
-        pagination: { total: result.total, page: result.page, totalPages: result.totalPages, limit: query.limit },
-      } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
 
@@ -98,15 +85,8 @@ class OvertimePlanController {
     try {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
-
-      const data: AcceptOvertimePlanRequest = req.body;
-      const plan = await overtimePlanService.acceptPlan(req.params.id as string, userId, data);
-
-      res.json({
-        success: true,
-        data: plan,
-        message: data.trangThai === 'DA_TIEP_NHAN' ? 'Đã tiếp nhận kế hoạch tăng ca' : 'Đã từ chối kế hoạch tăng ca',
-      } as ApiResponse<any>);
+      const plan = await overtimePlanService.acceptPlan(req.params.id as string, userId, req.body);
+      res.json({ success: true, data: plan, message: 'Cập nhật trạng thái tiếp nhận thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
 
@@ -114,17 +94,22 @@ class OvertimePlanController {
     try {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
+      const plan = await overtimePlanService.approvePlan(req.params.id as string, userId, req.body);
+      res.json({ success: true, data: plan, message: 'Phê duyệt kế hoạch tăng ca thành công' } as ApiResponse<any>);
+    } catch (error) { next(error); }
+  }
 
-      const data: ApproveOvertimePlanRequest = req.body;
-      const plan = await overtimePlanService.approvePlan(req.params.id as string, userId, data);
-
-      res.json({
-        success: true,
-        data: plan,
-        message: data.trangThai === 'DA_DUYET' ? 'Đã phê duyệt kế hoạch tăng ca' : 'Đã từ chối kế hoạch tăng ca',
-      } as ApiResponse<any>);
+  async updateActualTime(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
+      const isUserAdmin = req.user?.role === 'ADMIN';
+      const { actualTimes } = req.body;
+      const plan = await overtimePlanService.updateActualTime(req.params.id as string, userId, actualTimes, isUserAdmin);
+      res.json({ success: true, data: plan, message: 'Cập nhật giờ thực tế thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
 }
 
 export default new OvertimePlanController();
+
