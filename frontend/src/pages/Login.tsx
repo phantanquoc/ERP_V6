@@ -41,7 +41,8 @@ function formatCountdown(secs: number): string {
 }
 
 const MAX_ATTEMPTS_BEFORE_WARN = 2; // cảnh báo sau lần thứ 2
-const MAX_ATTEMPTS = 3;             // backend block sau lần thứ 3
+const MAX_ATTEMPTS = 3;             // tự block phía frontend sau lần thứ 3
+const BLOCK_SECONDS = 60;           // khóa 1 phút
 
 const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -99,7 +100,12 @@ const Login: React.FC = () => {
       setFailCount(newFailCount);
       const attemptsLeft = MAX_ATTEMPTS - newFailCount;
 
-      if (newFailCount >= MAX_ATTEMPTS_BEFORE_WARN && attemptsLeft > 0) {
+      if (newFailCount >= MAX_ATTEMPTS) {
+        // Đã đạt giới hạn → tự block phía frontend luôn
+        setIsBlocked(true);
+        startCountdown(BLOCK_SECONDS);
+        setApiError('');
+      } else if (newFailCount >= MAX_ATTEMPTS_BEFORE_WARN && attemptsLeft > 0) {
         setApiError(
           `Sai mật khẩu. Còn ${attemptsLeft} lần thử — nếu sai tiếp sẽ bị khóa 1 phút.`
         );
@@ -215,24 +221,6 @@ const Login: React.FC = () => {
                     <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
                   )}
                 </div>
-
-                {/* Attempt indicator dots */}
-                {failCount > 0 && !isBlocked && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-gray-500">Số lần sai:</span>
-                    {Array.from({ length: MAX_ATTEMPTS }).map((_, i) => (
-                      <span
-                        key={i}
-                        className={`w-2.5 h-2.5 rounded-full transition-colors ${
-                          i < failCount ? 'bg-red-500' : 'bg-gray-200'
-                        }`}
-                      />
-                    ))}
-                    <span className="text-xs text-gray-500 ml-1">
-                      ({failCount}/{MAX_ATTEMPTS})
-                    </span>
-                  </div>
-                )}
 
                 <Button
                   type="submit"
