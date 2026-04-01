@@ -64,7 +64,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themes, setThemes]             = useState<Theme[]>([]);
   const [isEventTheme, setIsEventTheme] = useState(false);
 
-  // Dùng ref để tránh stale closure trong callbacks
+  // Guard: chỉ chạy init() 1 lần — chặn React StrictMode double-invoke & re-render loop
+  const initDoneRef    = useRef(false);
+  // Dùng ref để tránh stale closure trong async callbacks
   const isEventThemeRef = useRef(false);
 
   // ── Apply theme → CSS vars + per-user localStorage ─────────────────────────
@@ -102,6 +104,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // ── On mount: (1) fetch active theme từ server, (2) load danh sách ─────────
   useEffect(() => {
+    if (initDoneRef.current) return; // chặn React StrictMode double-invoke
+    initDoneRef.current = true;
+
     const init = async () => {
       // Bước 1: xác định theme của hôm nay (event hay default)
       try {

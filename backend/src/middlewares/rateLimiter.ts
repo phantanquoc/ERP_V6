@@ -5,7 +5,7 @@
  * attacks, and accidental resource exhaustion.
  *
  * Tiers:
- *   1. Global    → 100 requests / minute / IP   (all endpoints)
+ *   1. Global    → 100 req/min/IP in prod, 1000/min in dev (all endpoints)
  *   2. Login     →   5 requests / minute / IP   (login endpoint only)
  *   3. API       →  60 requests / minute / IP   (general API endpoints)
  *
@@ -61,7 +61,7 @@ export function getClientIp(req: Request): string {
    ───────────────────────────────────────────────────────────────────────────── */
 
 const WINDOW_MS        = 60 * 1000;   // 1-minute sliding window
-const GLOBAL_MAX       = 100;         // requests per window (global)
+const GLOBAL_MAX       = isDevelopment ? 1000 : 100;  // relax in dev to avoid false positives
 const LOGIN_MAX        = 5;           // login attempts per window (brute-force protection)
 const API_MAX          = 60;          // API requests per window
 
@@ -95,11 +95,13 @@ function buildRateLimitHandler(scope: string, retrySecs: number) {
 /**
  * Global rate limiter applied to ALL routes via `app.use(globalRateLimiter)`.
  *
- * Limits: 100 requests / minute / unique IP
+ * Limits: 100 requests / minute / unique IP (production), 1000/min in development
  *
  * Skipped:
- *   • GET /health  — health checks should never be rate-limited (load balancer
- *                   probes rely on it to determine container health).
+ *   • GET /health        — health checks should never be rate-limited (load balancer
+ *                          probes rely on it to determine container health).
+ *   • /api/themes/*      — public static data fetched on every page load; exempt
+ *                          to prevent false rate-limit blocks on normal usage.
  */
 export const globalRateLimiter = rateLimit({
   windowMs:  WINDOW_MS,
@@ -115,8 +117,10 @@ export const globalRateLimiter = rateLimit({
   // 429 response format
   handler: buildRateLimitHandler('Global', 60),
 
-  // Bypass rate limiting for the health endpoint
-  skip: (req: Request) => req.originalUrl === '/health',
+  // Bypass rate limiting for lightweight/public endpoints
+  skip: (req: Request) =>
+    req.originalUrl === '/health' ||
+    req.originalUrl.startsWith('/api/themes'),
 });
 
 /* ─────────────────────────────────────────────────────────────────────────────
