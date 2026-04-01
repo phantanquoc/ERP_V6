@@ -9,53 +9,70 @@ interface Props {
 }
 
 export default function ThemePickerModal({ isOpen, onClose }: Props) {
-  const { themes: ctxThemes, activeTheme, isEventTheme, applyTheme, refreshThemes } = useTheme();
-  const [selected, setSelected] = useState<Theme | null>(activeTheme);
-  // Dùng local list — context đã load sẵn, nếu chưa có thì tự fetch
-  const [localThemes, setLocalThemes] = useState<Theme[]>(ctxThemes);
-  const [loading, setLoading] = useState(false);
+  const {
+    themes: ctxThemes,
+    activeTheme,        // theme đang được lưu (persisted)
+    isEventTheme,
+    applyTheme,         // áp dụng + lưu localStorage
+    previewTheme,       // chỉ đổi CSS vars, không lưu
+    revertPreview,      // khôi phục CSS vars về activeTheme
+    refreshThemes,
+  } = useTheme();
 
-  // Sync từ context khi có data
+  // Theme người dùng đang hover/click để xem preview (chưa lưu)
+  const [previewing, setPreviewing] = useState<Theme | null>(null);
+  // Danh sách themes hiển thị trong modal
+  const [localThemes, setLocalThemes] = useState<Theme[]>(ctxThemes);
+  const [loading, setLoading]         = useState(false);
+
+  // Khi modal mở: reset preview về theme hiện tại + sync list
+  useEffect(() => {
+    if (!isOpen) return;
+    setPreviewing(activeTheme); // mặc định "đang chọn" = theme đang lưu
+
+    if (ctxThemes.length > 0) {
+      setLocalThemes(ctxThemes);
+    } else {
+      setLoading(true);
+      getAllThemes()
+        .then((data) => { setLocalThemes(data); refreshThemes(); })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Sync list khi context cập nhật
   useEffect(() => {
     if (ctxThemes.length > 0) setLocalThemes(ctxThemes);
   }, [ctxThemes]);
 
-  // Khi modal mở: nếu chưa có themes → fetch trực tiếp (không qua context)
-  useEffect(() => {
-    if (!isOpen) return;
-    if (ctxThemes.length > 0) {
-      setLocalThemes(ctxThemes);
-      return;
-    }
-    // Fallback: fetch thẳng
-    setLoading(true);
-    getAllThemes()
-      .then((data) => {
-        setLocalThemes(data);
-        refreshThemes(); // đồng bộ lại context
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Sync selected với activeTheme
-  useEffect(() => {
-    setSelected(activeTheme);
-  }, [activeTheme]);
-
   if (!isOpen) return null;
 
-  const handleApply = () => {
-    if (selected) applyTheme(selected);
+  // Người dùng click vào 1 theme → preview ngay lập tức
+  const handleSelect = (theme: Theme) => {
+    setPreviewing(theme);
+    previewTheme(theme); // đổi CSS vars ngay, không lưu
+  };
+
+  // Lưu: persist theme đang preview
+  const handleSave = () => {
+    if (previewing) applyTheme(previewing); // lưu vào localStorage
+    onClose();
+  };
+
+  // Hủy: revert CSS vars về theme đã lưu trước đó
+  const handleCancel = () => {
+    revertPreview(); // khôi phục CSS vars
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
+      {/* Backdrop — click backdrop = hủy */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={handleCancel}
       />
 
       {/* Modal */}
@@ -65,11 +82,11 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
           <div>
             <h2 className="text-lg font-semibold text-gray-800">Chọn giao diện</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              Tuỳ chỉnh màu sắc cho trải nghiệm của bạn
+              Click để xem trước, nhấn <strong>Lưu</strong> để áp dụng
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <X className="w-5 h-5 text-gray-500" />
@@ -97,19 +114,22 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {localThemes.map((theme: Theme) => {
-                const isSelected = selected?.id === theme.id;
-                const isEvent    = !theme.isDefault && !!theme.startDate;
+                // Đang preview theme này?
+                const isPreviewing = previewing?.id === theme.id;
+                // Đây có phải theme đang lưu không (để hiện badge "Đang dùng")?
+                const isSaved = activeTheme?.id === theme.id;
+                const isEvent = !theme.isDefault && !!theme.startDate;
 
                 return (
                   <button
                     key={theme.id}
-                    onClick={() => setSelected(theme)}
+                    onClick={() => handleSelect(theme)}
                     className={`
                       relative flex items-center gap-4 p-4 rounded-xl border-2 text-left
                       transition-all duration-200 cursor-pointer
-                      ${isSelected
-                        ? 'border-blue-500 shadow-md scale-[1.01]'
-                        : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                      ${isPreviewing
+                        ? 'border-blue-500 shadow-md scale-[1.01] bg-blue-50/30'
+                        : 'border-gray-200 hover:border-blue-300 hover:shadow-sm hover:bg-gray-50'
                       }
                     `}
                   >
@@ -148,6 +168,11 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
                             Mặc định
                           </span>
                         )}
+                        {isSaved && !isPreviewing && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-600">
+                            Đang dùng
+                          </span>
+                        )}
                       </div>
                       {theme.description && (
                         <p className="text-xs text-gray-400 mt-1 line-clamp-1">
@@ -164,8 +189,8 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
                       )}
                     </div>
 
-                    {/* Check mark */}
-                    {isSelected && (
+                    {/* Check mark khi đang preview */}
+                    {isPreviewing && (
                       <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
                         <Check className="w-3.5 h-3.5 text-white" />
                       </div>
@@ -178,23 +203,33 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Huỷ
-          </button>
-          <button
-            onClick={handleApply}
-            disabled={!selected}
-            className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg
-                       hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Áp dụng
-          </button>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50">
+          {/* Hint */}
+          <p className="text-xs text-gray-400">
+            {previewing && previewing.id !== activeTheme?.id
+              ? `Đang xem trước: ${previewing.displayName}`
+              : 'Chọn một giao diện để xem trước'}
+          </p>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleCancel}
+              className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Huỷ
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!previewing || previewing.id === activeTheme?.id}
+              className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg
+                         hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Lưu giao diện
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+

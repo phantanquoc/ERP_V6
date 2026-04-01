@@ -20,10 +20,15 @@ const getUserId = (): string => {
 
 // ─── Context shape ────────────────────────────────────────────────────────────
 interface ThemeContextValue {
-  activeTheme: Theme | null;
+  activeTheme: Theme | null;   // theme đang được lưu (persisted)
   themes: Theme[];
   isEventTheme: boolean;
+  /** Áp dụng CSS vars ngay + lưu vào localStorage */
   applyTheme: (theme: Theme) => void;
+  /** Chỉ áp dụng CSS vars để preview — KHÔNG lưu */
+  previewTheme: (theme: Theme) => void;
+  /** Khôi phục CSS vars về `activeTheme` đã lưu */
+  revertPreview: () => void;
   refreshThemes: () => Promise<void>;
 }
 
@@ -32,6 +37,8 @@ const ThemeContext = createContext<ThemeContextValue>({
   themes: [],
   isEventTheme: false,
   applyTheme: () => {},
+  previewTheme: () => {},
+  revertPreview: () => {},
   refreshThemes: async () => {},
 });
 
@@ -69,7 +76,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Dùng ref để tránh stale closure trong async callbacks
   const isEventThemeRef = useRef(false);
 
-  // ── Apply theme → CSS vars + per-user localStorage ─────────────────────────
+  // ── Apply theme → CSS vars + lưu vào localStorage (persisted) ───────────────
   const applyTheme = (theme: Theme, isEvent = false) => {
     applyCssVars(theme);
     setActiveTheme(theme);
@@ -78,6 +85,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (!isEvent) {
       localStorage.setItem(storageKey(getUserId()), theme.name);
     }
+  };
+
+  // ── Preview: chỉ đổi CSS vars để xem trước — KHÔNG lưu ─────────────────────
+  const previewTheme = (theme: Theme) => {
+    applyCssVars(theme);
+    // Không setActiveTheme, không localStorage
+  };
+
+  // ── Revert: khôi phục CSS vars về theme đã lưu ──────────────────────────────
+  const revertPreview = () => {
+    if (activeTheme) applyCssVars(activeTheme);
   };
 
   // ── Fetch danh sách themes và apply preference đã lưu ──────────────────────
@@ -147,6 +165,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       themes,
       isEventTheme,
       applyTheme: (t) => applyTheme(t, false),
+      previewTheme,
+      revertPreview,
       refreshThemes,
     }}>
       {children}
