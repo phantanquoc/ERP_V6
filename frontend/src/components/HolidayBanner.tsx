@@ -519,13 +519,41 @@ const LiberationBanner: React.FC<Props & { type: 'liberation' | 'labor' }> = ({ 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isLabor = type === 'labor';
 
+  // Mỗi burst dùng một confetti instance riêng trên canvas chung
+  // → animation cũ không bị hủy, burst mới chạy song song
   const fireConfetti = useCallback(() => {
     if (!canvasRef.current) return;
     const shoot = confetti.create(canvasRef.current, { resize: true, useWorker: false });
-    const colors = ['#FFCD00','#FFD700','#FFF176','#ffffff','#FF6B6B'];
-    shoot({ particleCount:38, angle:125, spread:58, origin:{x:0.84,y:0.22}, colors, ticks:200, gravity:0.75, scalar:0.88 });
-    setTimeout(() => shoot({ particleCount:28, angle:112, spread:50, origin:{x:0.91,y:0.55}, colors, ticks:160, gravity:0.85, scalar:0.78 }), 420);
-    setTimeout(() => shoot({ particleCount:20, angle:140, spread:45, origin:{x:0.76,y:0.18}, colors, ticks:140, gravity:0.9,  scalar:0.72 }), 800);
+
+    // Palette đa dạng — mỗi burst chọn ngẫu nhiên subset màu
+    const allColors = ['#FFCD00','#FFD700','#FFF176','#ffffff','#FF6B6B','#FF8F00','#69F0AE','#40C4FF','#EA80FC'];
+    const pickColors = () => allColors.filter(() => Math.random() > 0.35);
+
+    // Sinh một burst với tham số ngẫu nhiên hoàn toàn
+    const randomBurst = (delayMs: number) => {
+      setTimeout(() => {
+        shoot({
+          particleCount: 18 + Math.floor(Math.random() * 30),   // 18–47
+          angle:  100 + Math.random() * 60,                       // 100°–160°
+          spread:  40 + Math.random() * 40,                       // 40°–80°
+          origin: {
+            x: 0.60 + Math.random() * 0.38,                      // 60%–98% ngang
+            y: 0.05 + Math.random() * 0.55,                      // 5%–60% dọc
+          },
+          colors:  pickColors(),
+          ticks:   140 + Math.floor(Math.random() * 100),        // 140–240
+          gravity: 0.65 + Math.random() * 0.45,                  // 0.65–1.1
+          scalar:  0.70 + Math.random() * 0.40,                  // 0.70–1.10
+          drift:   (Math.random() - 0.5) * 0.6,                  // trôi ngang nhẹ
+        });
+      }, delayMs);
+    };
+
+    // 3–5 đợt bắn lệch thời gian → nhìn tự nhiên, không đồng bộ với lần click trước
+    const bursts = 3 + Math.floor(Math.random() * 3);
+    for (let b = 0; b < bursts; b++) {
+      randomBurst(b === 0 ? 0 : 200 + Math.floor(Math.random() * 500) * b);
+    }
   }, []);
 
   useEffect(() => {
