@@ -664,41 +664,59 @@ async function main(): Promise<void> {
 
   await prisma.theme.upsert({
     where: { name: 'liberation-day' },
-    update: {},
+    update: {
+      displayName: 'Giải phóng 30/4 & Quốc tế Lao động 1/5',
+      primaryColor: '#c8102e',     // Đỏ cờ Việt Nam
+      secondaryColor: '#9b0a20',   // Đỏ thắm
+      accentColor: '#FFCD00',      // Vàng sao trên cờ
+      bgColor: '#fff5f5',
+      sidebarColor: '#8B0000',     // Đỏ máu — trang trọng, lịch sử
+      sidebarText: '#FFCD00',      // Chữ vàng sao trên nền đỏ
+      description: 'Kỷ niệm Ngày Giải phóng miền Nam 30/4 & Quốc tế Lao động 1/5 — màu cờ Tổ quốc',
+    },
     create: {
       name: 'liberation-day',
-      displayName: 'Giải phóng 30/4',
-      primaryColor: '#dc2626',
-      secondaryColor: '#b91c1c',
-      accentColor: '#eab308',
-      bgColor: '#fef2f2',
-      sidebarColor: '#7f1d1d',
-      sidebarText: '#fef2f2',
+      displayName: 'Giải phóng 30/4 & Quốc tế Lao động 1/5',
+      primaryColor: '#c8102e',
+      secondaryColor: '#9b0a20',
+      accentColor: '#FFCD00',
+      bgColor: '#fff5f5',
+      sidebarColor: '#8B0000',
+      sidebarText: '#FFCD00',
       isActive: true,
       isDefault: false,
       startDate: new Date('2026-04-30T00:00:00Z'),
       endDate: new Date('2026-05-01T23:59:59Z'),
-      description: 'Kỷ niệm Ngày Giải phóng miền Nam 30/4 — đỏ rực, tự hào',
+      description: 'Kỷ niệm Ngày Giải phóng miền Nam 30/4 & Quốc tế Lao động 1/5 — màu cờ Tổ quốc',
     },
   });
 
   await prisma.theme.upsert({
     where: { name: 'labor-day' },
-    update: {},
+    update: {
+      displayName: 'Quốc tế Lao động 1/5',
+      primaryColor: '#D32F2F',     // Đỏ tươi biểu tượng phong trào lao động
+      secondaryColor: '#B71C1C',   // Đỏ đậm
+      accentColor: '#FFC107',      // Vàng ánh — biểu tượng đoàn kết
+      bgColor: '#fff8f8',
+      sidebarColor: '#7B1F1F',     // Đỏ nâu sâu
+      sidebarText: '#FFF9C4',      // Vàng nhạt dễ đọc
+      description: 'Ngày Quốc tế Lao động 1/5 — vinh danh người lao động Việt Nam',
+    },
     create: {
       name: 'labor-day',
       displayName: 'Quốc tế Lao động 1/5',
-      primaryColor: '#d97706',
-      secondaryColor: '#b45309',
-      accentColor: '#dc2626',
-      bgColor: '#fffbeb',
-      sidebarColor: '#78350f',
-      sidebarText: '#fef3c7',
+      primaryColor: '#D32F2F',
+      secondaryColor: '#B71C1C',
+      accentColor: '#FFC107',
+      bgColor: '#fff8f8',
+      sidebarColor: '#7B1F1F',
+      sidebarText: '#FFF9C4',
       isActive: true,
       isDefault: false,
       startDate: new Date('2026-05-01T00:00:00Z'),
       endDate: new Date('2026-05-01T23:59:59Z'),
-      description: 'Ngày Quốc tế Lao động 1/5 — vinh danh người lao động',
+      description: 'Ngày Quốc tế Lao động 1/5 — vinh danh người lao động Việt Nam',
     },
   });
 
