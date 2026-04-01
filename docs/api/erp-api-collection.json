@@ -1,0 +1,323 @@
+{
+  "info": {
+    "_postman_id": "erp-v6-api-collection",
+    "name": "ERP V6 - An Binh Foods API",
+    "description": "Complete API collection for ERP V6 system. Import vào Postman hoặc Insomnia để test.\n\n## Cách dùng\n1. Import file JSON này vào Postman (File → Import)\n2. Tạo Environment với biến:\n   - `baseUrl`: `http://localhost:5001` (local) hoặc `https://anbinhfoods.net` (production)\n   - `accessToken`: để trống, sẽ tự fill sau khi login\n3. Chạy request **Auth / Login** trước → copy `accessToken` từ response vào biến môi trường\n4. Các request có 🔒 cần `Authorization: Bearer {{accessToken}}` header",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5001", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+          },
+          "response": []
+        },
+        {
+          "name": "WS Status (dev only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/debug/ws-status", "host": ["{{baseUrl}}"], "path": ["api", "debug", "ws-status"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Push Notification to Self (dev only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"TASK\",\n  \"title\": \"Test notification\",\n  \"message\": \"This is a test push from Postman\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/debug/push-notification", "host": ["{{baseUrl}}"], "path": ["api", "debug", "push-notification"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Push to Employee (dev only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"emp-id-here\",\n  \"type\": \"TASK\",\n  \"title\": \"Test\",\n  \"message\": \"Hello from debug route\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/debug/push-to-employee", "host": ["{{baseUrl}}"], "path": ["api", "debug", "push-to-employee"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set('accessToken', json.data.accessToken);",
+                  "  pm.environment.set('refreshToken', json.data.refreshToken);",
+                  "  console.log('Tokens saved to environment');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@anbinhfoods.net\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@anbinhfoods.net\",\n  \"password\": \"password123\",\n  \"firstName\": \"Tên\",\n  \"lastName\": \"Họ\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set('accessToken', json.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Profile 🔒",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications 🔒",
+      "item": [
+        {
+          "name": "Get My Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/notifications?limit=20", "host": ["{{baseUrl}}"], "path": ["api", "notifications"], "query": [{ "key": "limit", "value": "20" }] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Unread Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/notifications/unread", "host": ["{{baseUrl}}"], "path": ["api", "notifications", "unread"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark All as Read",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/notifications/read-all", "host": ["{{baseUrl}}"], "path": ["api", "notifications", "read-all"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Single as Read",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/notifications/:id/read", "host": ["{{baseUrl}}"], "path": ["api", "notifications", ":id", "read"], "variable": [{ "key": "id", "value": "notification-id-here" }] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Departments 🔒",
+      "item": [
+        {
+          "name": "Get All Departments",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/departments", "host": ["{{baseUrl}}"], "path": ["api", "departments"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Department by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/departments/:id", "host": ["{{baseUrl}}"], "path": ["api", "departments", ":id"], "variable": [{ "key": "id", "value": "dept-id-here" }] }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Department (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Phòng Kỹ Thuật\",\n  \"code\": \"KT\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/departments", "host": ["{{baseUrl}}"], "path": ["api", "departments"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Employees 🔒",
+      "item": [
+        {
+          "name": "Get All Employees",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/employees?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["api", "employees"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "20" }] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Employee by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/employees/:id", "host": ["{{baseUrl}}"], "path": ["api", "employees", ":id"], "variable": [{ "key": "id", "value": "emp-id-here" }] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Attendance 🔒",
+      "item": [
+        {
+          "name": "Get Attendance by Date Range",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/attendances?startDate=2026-04-01&endDate=2026-04-30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "attendances"],
+              "query": [{ "key": "startDate", "value": "2026-04-01" }, { "key": "endDate", "value": "2026-04-30" }]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Check In",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"checkInTime\": \"2026-04-01T08:00:00.000Z\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/attendances/check-in", "host": ["{{baseUrl}}"], "path": ["api", "attendances", "check-in"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Check Out",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"checkOutTime\": \"2026-04-01T17:00:00.000Z\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/attendances/check-out", "host": ["{{baseUrl}}"], "path": ["api", "attendances", "check-out"] }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
