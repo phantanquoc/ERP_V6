@@ -236,7 +236,7 @@ const DefaultBanner: React.FC<Props> = ({ user, departmentName }) => {
         }
         @keyframes slide-l { from{opacity:0;transform:translateX(-22px)} to{opacity:1;transform:translateX(0)} }
         @keyframes fade-u  { from{opacity:0;transform:translateY(10px)}  to{opacity:1;transform:translateY(0)} }
-        .fruit-fall    { animation: fruit-fall linear infinite; position: absolute; top: 0; pointer-events: none; }
+        .fruit-fall    { animation: fruit-fall linear infinite; position: absolute; top: 0; pointer-events: auto; cursor: pointer; }
         .fruit-wobble  { animation: fruit-wobble ease-in-out infinite; }
         .leaf-sway     { animation: leaf-sway 4s ease-in-out infinite; transform-origin: 50% 0%; }
         .sl { animation: slide-l 0.5s ease both; }
@@ -263,7 +263,7 @@ const DefaultBanner: React.FC<Props> = ({ user, departmentName }) => {
           const isPopped  = poppedFruits.has(i);
           return (
             <div key={i} className="fruit-fall"
-                 style={{ left: f.left, animationDelay: f.delay, animationDuration: f.duration, pointerEvents: 'auto', cursor: 'pointer' }}
+                 style={{ left: f.left, animationDelay: f.delay, animationDuration: f.duration }}
                  onMouseEnter={() => setHoveredFruit(i)}
                  onMouseLeave={() => setHoveredFruit(null)}
                  onClick={() => handleFruitClick(i)}>
@@ -559,6 +559,9 @@ const LiberationBanner: React.FC<Props & { type: 'liberation' | 'labor' }> = ({ 
         .gold-text { animation:gold-shine 2.5s ease-in-out infinite }
         .sl { animation:slide-l 0.55s ease both }
         .fu { animation:fade-u 0.55s ease both }
+        .flag-clickable { transition: transform 0.18s ease, filter 0.18s ease; }
+        .flag-clickable:hover { transform: scale(1.07) rotate(-1deg); filter: drop-shadow(0 0 12px rgba(255,205,0,0.7)); }
+        .flag-clickable:active { transform: scale(0.96); }
       `}</style>
 
       <div className="absolute inset-0" style={{
@@ -572,8 +575,11 @@ const LiberationBanner: React.FC<Props & { type: 'liberation' | 'labor' }> = ({ 
 
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex:5 }}/>
 
-      {/* Flag SVG */}
-      <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none" style={{ zIndex:4 }}>
+      {/* Flag SVG — click để bắn pháo bông */}
+      <div className="absolute right-6 top-1/2 -translate-y-1/2 flag-clickable"
+           style={{ zIndex: 4, cursor: 'pointer' }}
+           onClick={fireConfetti}
+           title="Nhấn để bắn pháo bông 🎆">
         <svg width="164" height="114" viewBox="0 0 164 114">
           <defs>
             <linearGradient id="pg" x1="0" x2="1" y1="0" y2="0">
