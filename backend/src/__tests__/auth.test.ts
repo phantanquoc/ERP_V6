@@ -1,3 +1,24 @@
+// Mock env TRƯỚC mọi import để tránh lỗi "Missing required environment variable"
+jest.mock('@config/env', () => ({
+  isProduction: false,
+  isDevelopment: true,
+  env: {
+    DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+    JWT_SECRET: 'test-secret-minimum-64-chars-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    JWT_EXPIRE: '7d',
+    JWT_REFRESH_SECRET: 'test-refresh-secret-minimum-64-chars-aaaaaaaaaaaaaaaaaaaaaaaaa',
+    JWT_REFRESH_EXPIRE: '30d',
+    PORT: 5001,
+    CORS_ORIGIN: 'http://localhost:5173',
+    NODE_ENV: 'test',
+  },
+}));
+
+jest.mock('@config/logger', () => ({
+  __esModule: true,
+  default: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
+
 import jwt from 'jsonwebtoken';
 import {
   hashPassword,
