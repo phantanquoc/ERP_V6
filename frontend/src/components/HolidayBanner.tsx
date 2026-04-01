@@ -183,14 +183,16 @@ const FruitSVG: React.FC<{ type: 'watermelon' | 'orange' | 'grape' | 'mango' | '
 
 // Danh sách trái cây rơi (vị trí, loại, delay, tốc độ, size)
 const FALLING_FRUITS: { left: string; delay: string; duration: string; size: number; type: 'watermelon' | 'orange' | 'grape' | 'mango' | 'strawberry'; wobble: string }[] = [
-  { left: '55%',  delay: '0s',   duration: '7s',   size: 28, type: 'watermelon', wobble: '0s'   },
-  { left: '63%',  delay: '1.4s', duration: '8.5s', size: 24, type: 'orange',     wobble: '0.3s' },
-  { left: '71%',  delay: '2.8s', duration: '7.8s', size: 22, type: 'grape',      wobble: '0.6s' },
-  { left: '79%',  delay: '0.7s', duration: '9.2s', size: 26, type: 'mango',      wobble: '1s'   },
-  { left: '87%',  delay: '3.5s', duration: '7.4s', size: 22, type: 'strawberry', wobble: '0.2s' },
-  { left: '59%',  delay: '4.8s', duration: '8.1s', size: 20, type: 'orange',     wobble: '0.8s' },
-  { left: '75%',  delay: '6s',   duration: '7.6s', size: 24, type: 'mango',      wobble: '0.4s' },
-  { left: '91%',  delay: '2s',   duration: '8.8s', size: 20, type: 'grape',      wobble: '1.2s' },
+  { left: '30%',  delay: '0s',   duration: '8s',   size: 52, type: 'watermelon', wobble: '0s'   },
+  { left: '40%',  delay: '1.8s', duration: '9.5s', size: 46, type: 'orange',     wobble: '0.4s' },
+  { left: '50%',  delay: '3.2s', duration: '8.6s', size: 48, type: 'grape',      wobble: '0.7s' },
+  { left: '61%',  delay: '0.9s', duration: '10s',  size: 50, type: 'mango',      wobble: '1.1s' },
+  { left: '72%',  delay: '4s',   duration: '8.2s', size: 44, type: 'strawberry', wobble: '0.3s' },
+  { left: '34%',  delay: '5.5s', duration: '9s',   size: 42, type: 'orange',     wobble: '0.9s' },
+  { left: '56%',  delay: '7s',   duration: '8.8s', size: 46, type: 'mango',      wobble: '0.5s' },
+  { left: '83%',  delay: '2.4s', duration: '9.3s', size: 42, type: 'grape',      wobble: '1.3s' },
+  { left: '45%',  delay: '6.2s', duration: '8.6s', size: 48, type: 'watermelon', wobble: '0.6s' },
+  { left: '92%',  delay: '1.2s', duration: '9.8s', size: 42, type: 'strawberry', wobble: '0.2s' },
 ];
 
 // ─── DEFAULT BANNER ───────────────────────────────────────────────────────────
@@ -198,6 +200,16 @@ const DefaultBanner: React.FC<Props> = ({ user, departmentName }) => {
   const now = useClock();
   const h = now.getHours();
   const greeting = h < 12 ? 'Chào buổi sáng' : h < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+
+  // Mouse interaction state
+  const [hoveredFruit, setHoveredFruit] = useState<number | null>(null);
+  const [poppedFruits, setPoppedFruits] = useState<Set<number>>(new Set());
+
+  const handleFruitClick = (i: number) => {
+    setPoppedFruits(prev => new Set([...prev, i]));
+    // Reset sau 700ms để fruit có thể rơi lại
+    setTimeout(() => setPoppedFruits(prev => { const s = new Set(prev); s.delete(i); return s; }), 700);
+  };
 
   return (
     <div className="relative rounded-2xl overflow-hidden shadow-xl mb-8" style={{ minHeight: 148 }}>
@@ -244,15 +256,38 @@ const DefaultBanner: React.FC<Props> = ({ user, departmentName }) => {
         backgroundSize: '26px 26px',
       }}/>
 
-      {/* ── Falling fruits (right half only) ── */}
-      <div className="absolute right-0 top-0 bottom-0 w-1/2 overflow-hidden pointer-events-none" style={{ zIndex: 2 }}>
-        {FALLING_FRUITS.map((f, i) => (
-          <div key={i} className="fruit-fall" style={{ left: f.left, animationDelay: f.delay, animationDuration: f.duration }}>
-            <div className="fruit-wobble" style={{ animationDelay: f.wobble, animationDuration: f.duration }}>
-              <FruitSVG type={f.type} size={f.size}/>
+      {/* ── Falling fruits (toàn banner, từ giữa ra phải) ── */}
+      <div className="absolute inset-0 overflow-hidden" style={{ zIndex: 2 }}>
+        {FALLING_FRUITS.map((f, i) => {
+          const isHovered = hoveredFruit === i;
+          const isPopped  = poppedFruits.has(i);
+          return (
+            <div key={i} className="fruit-fall"
+                 style={{ left: f.left, animationDelay: f.delay, animationDuration: f.duration, pointerEvents: 'auto', cursor: 'pointer' }}
+                 onMouseEnter={() => setHoveredFruit(i)}
+                 onMouseLeave={() => setHoveredFruit(null)}
+                 onClick={() => handleFruitClick(i)}>
+              <div className="fruit-wobble" style={{
+                animationDelay: f.wobble,
+                animationDuration: f.duration,
+                transform: isPopped
+                  ? 'scale(1.7) rotate(25deg)'
+                  : isHovered
+                    ? 'scale(1.3) rotate(12deg)'
+                    : 'scale(1)',
+                transition: 'transform 0.18s ease, filter 0.18s ease, opacity 0.2s ease',
+                filter: isPopped
+                  ? 'brightness(1.8) drop-shadow(0 0 10px rgba(255,240,100,0.9))'
+                  : isHovered
+                    ? 'brightness(1.25) drop-shadow(0 0 6px rgba(255,255,150,0.6))'
+                    : 'none',
+                opacity: isPopped ? 0 : 1,
+              }}>
+                <FruitSVG type={f.type} size={f.size}/>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Decorative large leaf top-right */}
         <svg className="leaf-sway absolute right-4 top-0 opacity-30" width="60" height="80" viewBox="0 0 60 80">
