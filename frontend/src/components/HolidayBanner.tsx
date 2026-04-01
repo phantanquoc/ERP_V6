@@ -29,23 +29,95 @@ interface Props {
   forceHoliday?: HolidayType;
 }
 
-// ─── Auto-detect holiday ──────────────────────────────────────────────────────
-function detectHoliday(): HolidayType {
+const LS_KEY = 'holidayBannerOverride';
+
+/** Lưu lựa chọn override của user vào localStorage */
+export function saveBannerOverride(v: HolidayType | 'auto'): void {
+  localStorage.setItem(LS_KEY, v);
+}
+
+/** Đọc lựa chọn override ('auto' = không override) */
+export function loadBannerOverride(): HolidayType | 'auto' {
+  return (localStorage.getItem(LS_KEY) as HolidayType | 'auto') ?? 'auto';
+}
+
+// ─── Auto-detect holiday (hiển thị sớm 7 ngày trước mỗi dịp lễ) ─────────────
+export function detectHoliday(): HolidayType {
   const today = new Date();
-  const m = today.getMonth() + 1; // 1-based
-  const d = today.getDate();
+  // Dịch ngày lên 7 ngày để "nhìn trước"
+  const ahead = new Date(today);
+  ahead.setDate(ahead.getDate() + 7);
+  const m = ahead.getMonth() + 1; // 1-based
+  const d = ahead.getDate();
 
-  // Tết Nguyên Đán: ~20 Jan – 15 Feb (window rộng để hiện trước/sau)
-  if ((m === 1 && d >= 15) || (m === 2 && d <= 20)) return 'tet';
+  // Tết Nguyên Đán: window 8 Jan – 20 Feb (bao gồm cả 7 ngày trước)
+  if ((m === 1 && d >= 8) || (m === 2 && d <= 20)) return 'tet';
 
-  // 30/4 Giải phóng: 25/4 – 30/4
-  if (m === 4 && d >= 25) return 'liberation';
+  // 30/4 Giải phóng: 23/4 – 30/4  (7 ngày trước = 23/4)
+  if (m === 4 && d >= 23) return 'liberation';
 
-  // 1/5 Lao động: 1/5 – 3/5
+  // 1/5 Lao động: 1/5 – 3/5  (hiển thị khi 30/4 đã qua nhưng chưa 1/5)
   if (m === 5 && d <= 3) return 'labor';
 
   return 'default';
 }
+
+// ─── Banner Picker — dropdown chọn thủ công để test ─────────────────────────
+const PICKER_OPTIONS: { value: HolidayType | 'auto'; label: string }[] = [
+  { value: 'auto',        label: '🔄 Tự động theo ngày' },
+  { value: 'default',     label: '🏢 Mặc định (bình thường)' },
+  { value: 'tet',         label: '🧧 Tết Nguyên Đán' },
+  { value: 'liberation',  label: '🎆 30/4 Giải phóng' },
+  { value: 'labor',       label: '🌹 1/5 Lao động' },
+];
+
+interface BannerPickerProps {
+  value: HolidayType | 'auto';
+  onChange: (v: HolidayType | 'auto') => void;
+}
+
+const BannerPicker: React.FC<BannerPickerProps> = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const current = PICKER_OPTIONS.find(o => o.value === value) ?? PICKER_OPTIONS[0];
+
+  return (
+    <div className="relative mb-2 flex justify-end" style={{zIndex: 20}}>
+      <button
+        onClick={() => setOpen(p => !p)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shadow-sm border border-white/20 bg-white/10 text-white hover:bg-white/20 transition-colors backdrop-blur-sm"
+        title="Chọn banner để xem trước"
+      >
+        <span>{current.label}</span>
+        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+
+      {open && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0" onClick={() => setOpen(false)}/>
+          <div className="absolute right-0 top-full mt-1 w-52 rounded-xl shadow-2xl border border-white/10 overflow-hidden"
+               style={{background: 'rgba(15,23,42,0.95)', backdropFilter: 'blur(12px)'}}>
+            {PICKER_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => { onChange(opt.value); saveBannerOverride(opt.value); setOpen(false); }}
+                className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-white/10 transition-colors ${
+                  value === opt.value ? 'text-yellow-300 font-semibold bg-white/5' : 'text-white'
+                }`}
+              >
+                {value === opt.value && <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0"/>}
+                {value !== opt.value && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"/>}
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 // ─── Shared CSS animations injected once ─────────────────────────────────────
 const SHARED_CSS = `
@@ -343,15 +415,40 @@ const DefaultBanner: React.FC<Props> = ({ user, departmentName }) => (
 );
 
 // ─── Main export ──────────────────────────────────────────────────────────────
+/**
+ * HolidayBanner — Banner lễ tết tái sử dụng được.
+ *
+ * - Hiển thị sớm 7 ngày trước mỗi dịp lễ (tự động)
+ * - User có thể chọn banner thủ công bằng dropdown góc phải (lưu localStorage)
+ * - `forceHoliday` prop override cả hai (dùng khi test từ ngoài)
+ */
 const HolidayBanner: React.FC<Props> = ({ user, departmentName, forceHoliday }) => {
-  const holiday = forceHoliday ?? detectHoliday();
+  // Đọc override từ localStorage (mặc định 'auto')
+  const [override, setOverride] = useState<HolidayType | 'auto'>(() => loadBannerOverride());
 
-  switch (holiday) {
-    case 'tet':         return <TetBanner user={user} departmentName={departmentName}/>;
-    case 'liberation':  return <LiberationBanner user={user} departmentName={departmentName} type="liberation"/>;
-    case 'labor':       return <LiberationBanner user={user} departmentName={departmentName} type="labor"/>;
-    default:            return <DefaultBanner user={user} departmentName={departmentName}/>;
-  }
+  // Tính holiday thực tế: forceHoliday (prop) > override (localStorage) > auto-detect
+  const holiday: HolidayType = forceHoliday ?? (override === 'auto' ? detectHoliday() : override);
+
+  const bannerProps = { user, departmentName };
+
+  const renderBanner = () => {
+    switch (holiday) {
+      case 'tet':        return <TetBanner {...bannerProps}/>;
+      case 'liberation': return <LiberationBanner {...bannerProps} type="liberation"/>;
+      case 'labor':      return <LiberationBanner {...bannerProps} type="labor"/>;
+      default:           return <DefaultBanner {...bannerProps}/>;
+    }
+  };
+
+  return (
+    <div>
+      {/* Picker chỉ hiện khi không bị force từ prop */}
+      {!forceHoliday && (
+        <BannerPicker value={override} onChange={setOverride}/>
+      )}
+      {renderBanner()}
+    </div>
+  );
 };
 
 export default HolidayBanner;
