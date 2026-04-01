@@ -7,8 +7,18 @@ import React, {
 } from 'react';
 import { getActiveTheme, getAllThemes, Theme } from '../services/themeService';
 
-// ─── Storage key ─────────────────────────────────────────────────────────────
-const STORAGE_KEY = 'erp_theme_name';
+// ─── Storage key (per-user) ───────────────────────────────────────────────────
+const storageKey = (userId?: string) =>
+  userId ? `erp_theme_${userId}` : 'erp_theme_guest';
+
+/** Lấy userId từ localStorage — AuthService lưu user object với key 'user' */
+const getUserId = (): string => {
+  try {
+    const raw = localStorage.getItem('user');
+    if (raw) return JSON.parse(raw)?.id ?? 'guest';
+  } catch { /* ignore */ }
+  return 'guest';
+};
 
 // ─── Context shape ────────────────────────────────────────────────────────────
 interface ThemeContextValue {
@@ -16,7 +26,7 @@ interface ThemeContextValue {
   themes: Theme[];
   isEventTheme: boolean;          // true khi đang dùng theme sự kiện (30/4, 1/5…)
   applyTheme: (theme: Theme) => void;
-  refreshThemes: (token: string) => Promise<void>;
+  refreshThemes: () => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
@@ -57,58 +67,56 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themes, setThemes]           = useState<Theme[]>([]);
   const [isEventTheme, setIsEventTheme] = useState(false);
 
-  // Apply a theme object → CSS vars + localStorage (only for non-event choice)
-  const applyTheme = useCallback((theme: Theme) => {
+  // ── Apply theme → CSS vars + per-user localStorage ─────────────────────────
+  const applyTheme = useCallback((theme: Theme, isEvent = false) => {
     applyCssVars(theme);
     setActiveTheme(theme);
-    setIsEventTheme(!theme.isDefault && !!theme.startDate);
-    // Only persist user manual choice for non-event themes
-    if (theme.isDefault || !theme.startDate) {
-      localStorage.setItem(STORAGE_KEY, theme.name);
+    setIsEventTheme(isEvent);
+    if (!isEvent) {
+      localStorage.setItem(storageKey(getUserId()), theme.name);
     }
   }, []);
 
-  // Fetch all themes for admin picker
-  const refreshThemes = useCallback(async (token: string) => {
+  // ── Fetch all themes (public endpoint) ─────────────────────────────────────
+  const refreshThemes = useCallback(async () => {
     try {
-      const data = await getAllThemes(token);
+      const data = await getAllThemes();
       setThemes(data);
-    } catch {
-      // Non-critical — ignore
-    }
-  }, []);
 
-  // On mount: fetch active theme from API (server auto-detects event vs default)
+      // Apply saved per-user preference nếu không có event theme đang active
+      if (!isEventTheme) {
+        const savedName = localStorage.getItem(storageKey(getUserId()));
+        if (savedName) {
+          const saved = data.find((t) => t.name === savedName);
+          if (saved) {
+            applyCssVars(saved);
+            setActiveTheme(saved);
+          }
+        }
+      }
+    } catch { /* non-critical */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEventTheme]);
+
+  // ── On mount: fetch active theme từ server ──────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
-        // 1. Try to apply saved preference immediately (avoid flash)
-        const saved = localStorage.getItem(STORAGE_KEY);
-
-        // 2. Fetch server-authoritative active theme
         const serverTheme = await getActiveTheme();
-
-        // 3. If server says "event theme" → always honour it (override user pref)
-        if (!serverTheme.isDefault && serverTheme.startDate) {
-          applyTheme(serverTheme);
-          return;
-        }
-
-        // 4. Otherwise honour user's saved preference if it exists
-        if (saved && saved !== serverTheme.name) {
-          // We don't have the full theme object yet; just use server default for now.
-          // Full theme list requires auth — will be populated after login via refreshThemes.
-        }
-
-        applyTheme(serverTheme);
-      } catch {
-        // Backend unreachable — CSS vars stay at :root defaults from index.css
-      }
+        const isEvent = !serverTheme.isDefault && !!serverTheme.startDate;
+        applyTheme(serverTheme, isEvent);
+      } catch { /* giữ :root defaults */ }
     })();
   }, [applyTheme]);
 
   return (
-    <ThemeContext.Provider value={{ activeTheme, themes, isEventTheme, applyTheme, refreshThemes }}>
+    <ThemeContext.Provider value={{
+      activeTheme,
+      themes,
+      isEventTheme,
+      applyTheme: (t) => applyTheme(t, false),
+      refreshThemes,
+    }}>
       {children}
     </ThemeContext.Provider>
   );

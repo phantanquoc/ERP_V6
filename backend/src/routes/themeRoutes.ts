@@ -14,38 +14,19 @@ const router = Router();
 // ─── Public endpoints (không cần auth) ───────────────────────────────────────
 
 /**
- * @swagger
- * /api/themes/active:
- *   get:
- *     summary: Lấy theme đang active hôm nay (auto-detect event themes)
- *     tags: [Themes]
- *     responses:
- *       200:
- *         description: Theme object
+ * GET /api/themes/active — Lấy theme hôm nay (auto-detect event)
  */
 router.get('/active', (req, res, next) => themeController.getActiveTheme(req, res, next));
 
 /**
- * @swagger
- * /api/themes:
- *   get:
- *     summary: Lấy tất cả themes active
- *     tags: [Themes]
- *     security:
- *       - bearerAuth: []
+ * GET /api/themes — Lấy tất cả themes (public, cần để ThemePickerModal hoạt động)
  */
-router.get('/', authenticate, (req, res, next) => themeController.getAllThemes(req, res, next));
+router.get('/', (req, res, next) => themeController.getAllThemes(req, res, next));
 
 /**
- * @swagger
- * /api/themes/{id}:
- *   get:
- *     summary: Lấy theme theo ID
- *     tags: [Themes]
- *     security:
- *       - bearerAuth: []
+ * GET /api/themes/:id
  */
-router.get('/:id', authenticate, (req, res, next) => themeController.getThemeById(req, res, next));
+router.get('/:id', (req, res, next) => themeController.getThemeById(req, res, next));
 
 // ─── Admin-only endpoints ──────────────────────────────────────────────────────
 

@@ -22,7 +22,7 @@ export interface Theme {
 
 /**
  * Fetch the active theme for today (no auth required).
- * Falls back to default theme if no event theme matches today's date.
+ * Server auto-detects: event theme (7 days early preview) → default theme.
  */
 export async function getActiveTheme(): Promise<Theme> {
   const res = await fetch(`${API_BASE_URL}/themes/active`);
@@ -32,12 +32,10 @@ export async function getActiveTheme(): Promise<Theme> {
 }
 
 /**
- * Fetch all themes (requires auth).
+ * Fetch all active themes (no auth required — public).
  */
-export async function getAllThemes(token: string): Promise<Theme[]> {
-  const res = await fetch(`${API_BASE_URL}/themes`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export async function getAllThemes(): Promise<Theme[]> {
+  const res = await fetch(`${API_BASE_URL}/themes`);
   if (!res.ok) throw new Error('Failed to fetch themes');
   const json = await res.json();
   return json.data as Theme[];

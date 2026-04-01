@@ -51,21 +51,27 @@ export class ThemeService {
 
   /**
    * Lấy theme đang active dựa trên ngày hiện tại.
-   * - Nếu hôm nay nằm trong startDate–endDate của event theme → trả về event theme
+   * - Active sớm 7 ngày trước startDate để tạo hiệu ứng dần dần
+   * - Nếu hôm nay nằm trong [startDate - 7 ngày, endDate] của event theme → trả về event theme
    * - Ngược lại trả về theme isDefault = true
    */
   async getActiveTheme(): Promise<ThemeData> {
     const now = new Date();
 
-    // Tìm event theme khớp ngày hôm nay
+    // Cửa sổ preview: active sớm 7 ngày trước startDate
+    const PREVIEW_DAYS = 7;
+    const previewCutoff = new Date(now);
+    previewCutoff.setDate(previewCutoff.getDate() + PREVIEW_DAYS);
+
+    // Tìm event theme: startDate <= now + 7 ngày VÀ endDate >= hôm nay
     const eventTheme = await prisma.theme.findFirst({
       where: {
         isActive: true,
         isDefault: false,
-        startDate: { lte: now },
-        endDate: { gte: now },
+        startDate: { lte: previewCutoff },  // bắt đầu hiển thị 7 ngày trước
+        endDate: { gte: now },              // chưa hết hạn
       },
-      orderBy: { startDate: 'desc' },
+      orderBy: { startDate: 'asc' }, // ưu tiên sự kiện gần nhất
     });
 
     if (eventTheme) {

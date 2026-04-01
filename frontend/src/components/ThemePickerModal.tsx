@@ -12,11 +12,10 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
   const { themes, activeTheme, isEventTheme, applyTheme, refreshThemes } = useTheme();
   const [selected, setSelected] = useState<Theme | null>(activeTheme);
 
-  // Fetch full theme list when modal opens (requires auth token)
+  // Fetch full theme list when modal opens
   useEffect(() => {
     if (!isOpen) return;
-    const token = sessionStorage.getItem('access_token') || localStorage.getItem('access_token') || '';
-    if (token) refreshThemes(token);
+    refreshThemes(); // dùng token từ AuthService.getAccessToken() bên trong context
   }, [isOpen, refreshThemes]);
 
   // Keep local selection in sync with context
