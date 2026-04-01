@@ -10,6 +10,7 @@ import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { registerRoutes } from '@routes/index';
 import { globalRateLimiter } from '@middlewares/rateLimiter';
 import { initWebSocket, closeWebSocket } from '@services/websocket';
+import debugRoutes from '@routes/debugRoutes';
 
 const app: Express = express();
 
@@ -60,6 +61,9 @@ if (!isProduction) {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
   });
+
+  // ⚠️ SECURITY: Debug routes chỉ available trong development — KHÔNG mount production
+  app.use('/api/debug', debugRoutes);
 }
 
 // ─── API Routes ─────────────────────────────────────────────────────────────
