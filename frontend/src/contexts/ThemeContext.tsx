@@ -1,17 +1,15 @@
 import React, {
   createContext,
-  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { getActiveTheme, getAllThemes, Theme } from '../services/themeService';
 
 // ─── Storage key (per-user) ───────────────────────────────────────────────────
-const storageKey = (userId?: string) =>
-  userId ? `erp_theme_${userId}` : 'erp_theme_guest';
+const storageKey = (userId: string) => `erp_theme_${userId}`;
 
-/** Lấy userId từ localStorage — AuthService lưu user object với key 'user' */
 const getUserId = (): string => {
   try {
     const raw = localStorage.getItem('user');
@@ -24,7 +22,7 @@ const getUserId = (): string => {
 interface ThemeContextValue {
   activeTheme: Theme | null;
   themes: Theme[];
-  isEventTheme: boolean;          // true khi đang dùng theme sự kiện (30/4, 1/5…)
+  isEventTheme: boolean;
   applyTheme: (theme: Theme) => void;
   refreshThemes: () => Promise<void>;
 }
@@ -52,7 +50,6 @@ function applyCssVars(theme: Theme) {
   root.style.setProperty('--color-header-text',   theme.sidebarText);
 }
 
-/** Lighten (+) or darken (-) a hex color by `amount` (0-100). */
 function shadeColor(hex: string, amount: number): string {
   const num = parseInt(hex.replace('#', ''), 16);
   const r = Math.min(255, Math.max(0, (num >> 16) + amount));
@@ -63,28 +60,32 @@ function shadeColor(hex: string, amount: number): string {
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [activeTheme, setActiveTheme] = useState<Theme | null>(null);
-  const [themes, setThemes]           = useState<Theme[]>([]);
+  const [activeTheme, setActiveTheme]   = useState<Theme | null>(null);
+  const [themes, setThemes]             = useState<Theme[]>([]);
   const [isEventTheme, setIsEventTheme] = useState(false);
 
+  // Dùng ref để tránh stale closure trong callbacks
+  const isEventThemeRef = useRef(false);
+
   // ── Apply theme → CSS vars + per-user localStorage ─────────────────────────
-  const applyTheme = useCallback((theme: Theme, isEvent = false) => {
+  const applyTheme = (theme: Theme, isEvent = false) => {
     applyCssVars(theme);
     setActiveTheme(theme);
     setIsEventTheme(isEvent);
+    isEventThemeRef.current = isEvent;
     if (!isEvent) {
       localStorage.setItem(storageKey(getUserId()), theme.name);
     }
-  }, []);
+  };
 
-  // ── Fetch all themes (public endpoint) ─────────────────────────────────────
-  const refreshThemes = useCallback(async () => {
+  // ── Fetch danh sách themes và apply preference đã lưu ──────────────────────
+  const refreshThemes = async (): Promise<void> => {
     try {
       const data = await getAllThemes();
       setThemes(data);
 
-      // Apply saved per-user preference nếu không có event theme đang active
-      if (!isEventTheme) {
+      // Nếu không có event theme → tìm và apply theme user đã lưu
+      if (!isEventThemeRef.current) {
         const savedName = localStorage.getItem(storageKey(getUserId()));
         if (savedName) {
           const saved = data.find((t) => t.name === savedName);
@@ -94,20 +95,46 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           }
         }
       }
-    } catch { /* non-critical */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEventTheme]);
+    } catch (e) {
+      console.error('[ThemeContext] refreshThemes failed:', e);
+    }
+  };
 
-  // ── On mount: fetch active theme từ server ──────────────────────────────────
+  // ── On mount: (1) fetch active theme từ server, (2) load danh sách ─────────
   useEffect(() => {
-    (async () => {
+    const init = async () => {
+      // Bước 1: xác định theme của hôm nay (event hay default)
       try {
         const serverTheme = await getActiveTheme();
         const isEvent = !serverTheme.isDefault && !!serverTheme.startDate;
         applyTheme(serverTheme, isEvent);
-      } catch { /* giữ :root defaults */ }
-    })();
-  }, [applyTheme]);
+      } catch (e) {
+        console.error('[ThemeContext] getActiveTheme failed:', e);
+      }
+
+      // Bước 2: load toàn bộ danh sách (để modal có data ngay lúc mở)
+      try {
+        const data = await getAllThemes();
+        setThemes(data);
+        // Apply per-user saved nếu không có event
+        if (!isEventThemeRef.current) {
+          const savedName = localStorage.getItem(storageKey(getUserId()));
+          if (savedName) {
+            const saved = data.find((t) => t.name === savedName);
+            if (saved) {
+              applyCssVars(saved);
+              setActiveTheme(saved);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[ThemeContext] getAllThemes failed:', e);
+      }
+    };
+
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <ThemeContext.Provider value={{

@@ -1,7 +1,7 @@
-import { X, Check, CalendarDays, Lock } from 'lucide-react';
+import { X, Check, CalendarDays } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { Theme } from '../services/themeService';
+import { Theme, getAllThemes } from '../services/themeService';
 
 interface Props {
   isOpen: boolean;
@@ -9,16 +9,36 @@ interface Props {
 }
 
 export default function ThemePickerModal({ isOpen, onClose }: Props) {
-  const { themes, activeTheme, isEventTheme, applyTheme, refreshThemes } = useTheme();
+  const { themes: ctxThemes, activeTheme, isEventTheme, applyTheme, refreshThemes } = useTheme();
   const [selected, setSelected] = useState<Theme | null>(activeTheme);
+  // Dùng local list — context đã load sẵn, nếu chưa có thì tự fetch
+  const [localThemes, setLocalThemes] = useState<Theme[]>(ctxThemes);
+  const [loading, setLoading] = useState(false);
 
-  // Fetch full theme list when modal opens
+  // Sync từ context khi có data
+  useEffect(() => {
+    if (ctxThemes.length > 0) setLocalThemes(ctxThemes);
+  }, [ctxThemes]);
+
+  // Khi modal mở: nếu chưa có themes → fetch trực tiếp (không qua context)
   useEffect(() => {
     if (!isOpen) return;
-    refreshThemes(); // dùng token từ AuthService.getAccessToken() bên trong context
-  }, [isOpen, refreshThemes]);
+    if (ctxThemes.length > 0) {
+      setLocalThemes(ctxThemes);
+      return;
+    }
+    // Fallback: fetch thẳng
+    setLoading(true);
+    getAllThemes()
+      .then((data) => {
+        setLocalThemes(data);
+        refreshThemes(); // đồng bộ lại context
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep local selection in sync with context
+  // Sync selected với activeTheme
   useEffect(() => {
     setSelected(activeTheme);
   }, [activeTheme]);
@@ -61,39 +81,36 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
           {/* Event theme notice */}
           {isEventTheme && activeTheme && (
             <div className="mb-4 flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
-              <Lock className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <CalendarDays className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-amber-700">
-                Hôm nay đang áp dụng theme sự kiện{' '}
-                <strong>"{activeTheme.displayName}"</strong>.
-                Trong thời gian sự kiện, giao diện tự động chuyển theo lịch.
+                Đang áp dụng theme sự kiện{' '}
+                <strong>"{activeTheme.displayName}"</strong> — bạn vẫn có thể chọn theme khác cho riêng mình.
               </p>
             </div>
           )}
 
-          {themes.length === 0 ? (
+          {loading || localThemes.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
-              <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-primary rounded-full mx-auto mb-3" />
+              <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full mx-auto mb-3" />
               Đang tải danh sách giao diện…
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {themes.map((theme) => {
+              {localThemes.map((theme: Theme) => {
                 const isSelected = selected?.id === theme.id;
                 const isEvent    = !theme.isDefault && !!theme.startDate;
 
                 return (
                   <button
                     key={theme.id}
-                    onClick={() => !isEventTheme && setSelected(theme)}
-                    disabled={isEventTheme}
+                    onClick={() => setSelected(theme)}
                     className={`
                       relative flex items-center gap-4 p-4 rounded-xl border-2 text-left
-                      transition-all duration-200
+                      transition-all duration-200 cursor-pointer
                       ${isSelected
-                        ? 'border-primary shadow-md scale-[1.01]'
+                        ? 'border-blue-500 shadow-md scale-[1.01]'
                         : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
                       }
-                      ${isEventTheme ? 'opacity-70 cursor-default' : 'cursor-pointer'}
                     `}
                   >
                     {/* Color swatches */}
@@ -116,7 +133,7 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-gray-800 truncate">
                           {theme.displayName}
                         </span>
@@ -149,7 +166,7 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
 
                     {/* Check mark */}
                     {isSelected && (
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
                         <Check className="w-3.5 h-3.5 text-white" />
                       </div>
                     )}
@@ -170,9 +187,9 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
           </button>
           <button
             onClick={handleApply}
-            disabled={!selected || isEventTheme}
-            className="px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg
-                       hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={!selected}
+            className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg
+                       hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Áp dụng
           </button>
