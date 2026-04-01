@@ -12,7 +12,7 @@ import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import OvertimePlanListModal from './OvertimePlanListModal';
 
 const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
-  const { user } = useAuth();
+  const { user, subscribeToNotifications } = useAuth();
   const userIsAdmin = user ? isAdmin(user.department) : false;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -33,10 +33,15 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 
   useEffect(() => {
     loadNotifications();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
-  }, []);
+
+    // Subscribe to real-time notifications via WebSocket (replaces 30s polling)
+    const unsubscribe = subscribeToNotifications(() => {
+      // Refresh the list whenever a new notification is pushed
+      loadNotifications();
+    });
+
+    return unsubscribe;
+  }, [subscribeToNotifications]);
 
   const loadNotifications = async () => {
     try {

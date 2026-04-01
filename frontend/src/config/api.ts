@@ -1,6 +1,11 @@
 // API Configuration
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// WebSocket URL — same host as API, drop /api suffix, swap http(s) → ws(s)
+export const WS_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api')
+  .replace(/\/api\/?$/, '')
+  .replace(/^http/, 'ws');
+
 // Server base URL (without /api suffix) - used for file/upload links
 export const SERVER_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
 

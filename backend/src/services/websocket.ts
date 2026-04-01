@@ -60,10 +60,13 @@ export interface WsNotificationPayload {
    WebSocket Server Instance
    ───────────────────────────────────────────────────────────────────────────── */
 
-let _wss: WebSocketServer | null = null;
-
-/** Exported ref object — lets unit tests inject a mock _wss before calling broadcast/close */
-export const wsState = { _wss };
+/**
+ * Exported mutable ref — the single source of truth for the WS server instance.
+ * Using an object wrapper (instead of `let _wss`) means:
+ *   1. Internal code reads `wsState._wss` → always gets the latest value
+ *   2. Unit tests can inject a mock by setting `wsState._wss = mockServer`
+ */
+export const wsState: { _wss: WebSocketServer | null } = { _wss: null };
 
 /** Map: employeeId → Set of active WebSocket connections (handles multi-tab) */
 export const clientsByEmployee = new Map<string, Set<WSClient>>();
@@ -84,7 +87,7 @@ let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
  */
 function startHeartbeat(): void {
   heartbeatInterval = setInterval(() => {
-    _wss?.clients.forEach((ws: WSClient) => {
+    wsState._wss?.clients.forEach((ws: WSClient) => {
       if (ws.isAlive === false) {
         // Client did not respond to last ping → terminate stale connection
         ws.terminate();
@@ -241,12 +244,12 @@ function removeClient(ws: WSClient): void {
  * ```
  */
 export function initWebSocket(server: HttpServer): void {
-  if (_wss) {
+  if (wsState._wss) {
     logger.warn('WebSocket server already initialized, skipping');
     return;
   }
 
-  _wss = new WebSocketServer({
+  wsState._wss = new WebSocketServer({
     server,           // Attach to existing HTTP server (same port as Express)
     path: '/ws',      // Only accept connections to /ws
     noServer: false,
@@ -259,14 +262,14 @@ export function initWebSocket(server: HttpServer): void {
     // Only handle /ws path — let other upgrade requests pass through
     if (url.pathname !== '/ws') return;
 
-    _wss!.handleUpgrade(req, socket, head, (ws) => {
-      _wss!.emit('connection', ws, req);
+    wsState._wss!.handleUpgrade(req, socket, head, (ws: WebSocket) => {
+      wsState._wss!.emit('connection', ws, req);
     });
   });
 
-  _wss.on('connection', handleConnection);
+  wsState._wss.on('connection', handleConnection);
 
-  _wss.on('error', (err) => {
+  wsState._wss.on('error', (err: Error) => {
     logger.error('WebSocket server error:', err);
   });
 
@@ -330,20 +333,20 @@ export function pushNotification(
  * @param message - The broadcast payload
  */
 export function broadcast(message: Record<string, unknown>): void {
-  if (!_wss) {
+  if (!wsState._wss) {
     logger.warn('WebSocket server not initialized, cannot broadcast');
     return;
   }
 
   const payload = JSON.stringify({ type: 'BROADCAST', payload: message });
 
-  _wss.clients.forEach((ws: WSClient) => {
+  wsState._wss.clients.forEach((ws: WSClient) => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(payload);
     }
   });
 
-  logger.info(`WebSocket broadcast sent to ${_wss.clients.size} clients`);
+  logger.info(`WebSocket broadcast sent to ${wsState._wss.clients.size} clients`);
 }
 
 /**
@@ -364,18 +367,18 @@ export function closeWebSocket(): void {
     heartbeatInterval = null;
   }
 
-  if (!_wss) return;
+  if (!wsState._wss) return;
 
   // Notify all clients before closing
-  _wss.clients.forEach((ws: WSClient) => {
+  wsState._wss.clients.forEach((ws: WSClient) => {
     ws.send(JSON.stringify({ type: 'SERVER_SHUTDOWN', payload: { reason: 'Server restarting' } }));
     ws.close(1001, 'Server shutting down');
   });
 
-  _wss.close(() => {
+  wsState._wss.close(() => {
     logger.info('WebSocket server closed');
   });
 
-  _wss = null;
+  wsState._wss = null;
   clientsByEmployee.clear();
 }

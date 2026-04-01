@@ -55,3 +55,6 @@ deploy_remote.ps1
 .env.local.example   # reference only, create your own .env
 
 docker-compose.local.yml
+
+.github
+.claude

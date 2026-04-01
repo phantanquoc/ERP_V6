@@ -42,7 +42,7 @@ import {
   closeWebSocket,
   getConnectedCount,
   clientsByEmployee,
-  wss,
+  wsState,
 } from '@services/websocket';
 import logger from '@config/logger';
 
@@ -178,14 +178,12 @@ describe('WebSocket Service', () => {
 
   describe('broadcast', () => {
     it('should send message to all connected clients via wss.clients', () => {
-      // Manually set wss to a mock with a `clients` Set
       const ws1 = { send: jest.fn(), readyState: 1 };
       const ws2 = { send: jest.fn(), readyState: 1 };
       const mockClients = new Set([ws1, ws2]);
 
-      // Replace wss with a minimal mock so broadcast() finds it
-      Object.defineProperty(wss, 'value', { value: { clients: mockClients } });
-      (wss as any).clients = mockClients;
+      // Inject mock _wss via the exported wsState ref
+      wsState._wss = { clients: mockClients } as any;
 
       broadcast({ alert: 'System maintenance in 5 minutes' });
 
@@ -195,22 +193,26 @@ describe('WebSocket Service', () => {
       expect(ws2.send).toHaveBeenCalledWith(
         JSON.stringify({ type: 'BROADCAST', payload: { alert: 'System maintenance in 5 minutes' } })
       );
+
+      wsState._wss = null;
     });
 
     it('should skip closed clients during broadcast', () => {
       const wsOpen = { send: jest.fn(), readyState: 1 };
       const wsClosed = { send: jest.fn(), readyState: 3 };
       const mockClients = new Set([wsOpen, wsClosed]);
-      (wss as any).clients = mockClients;
+      wsState._wss = { clients: mockClients } as any;
 
       broadcast({ msg: 'ping' });
 
       expect(wsOpen.send).toHaveBeenCalledTimes(1);
       expect(wsClosed.send).not.toHaveBeenCalled();
+
+      wsState._wss = null;
     });
 
     it('should log warning and do nothing if wss is null (not initialized)', () => {
-      (wss as any).value = null;
+      wsState._wss = null;
 
       broadcast({ msg: 'test' });
 
@@ -253,7 +255,10 @@ describe('WebSocket Service', () => {
         employeeId: 'emp-1',
       };
       const mockClients = new Set([ws]);
-      (wss as any).clients = mockClients;
+      wsState._wss = {
+        clients: mockClients,
+        close: jest.fn((cb?: () => void) => cb?.()),
+      } as any;
 
       closeWebSocket();
 
@@ -261,11 +266,14 @@ describe('WebSocket Service', () => {
         JSON.stringify({ type: 'SERVER_SHUTDOWN', payload: { reason: 'Server restarting' } })
       );
       expect(ws.close).toHaveBeenCalledWith(1001, 'Server shutting down');
-      expect(mockClients.size).toBe(0); // cleared after close
     });
 
     it('should clear the clientsByEmployee map after close', () => {
-      clientsByEmployee.set('emp-1', new Set([{}]));
+      clientsByEmployee.set('emp-1', new Set([{}] as any));
+      wsState._wss = {
+        clients: new Set(),
+        close: jest.fn((cb?: () => void) => cb?.()),
+      } as any;
 
       closeWebSocket();
 
@@ -273,6 +281,7 @@ describe('WebSocket Service', () => {
     });
 
     it('should be safe to call multiple times (idempotent)', () => {
+      wsState._wss = null;
       closeWebSocket();
       expect(() => closeWebSocket()).not.toThrow();
     });

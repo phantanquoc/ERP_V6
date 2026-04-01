@@ -1,3 +1,21 @@
+// Must mock env BEFORE any import that transitively imports @config/env
+jest.mock('@config/env', () => ({
+  isProduction: false,
+  isDevelopment: true,
+  env: {
+    DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+    JWT_SECRET: 'test-secret',
+    PORT: 5001,
+    CORS_ORIGIN: 'http://localhost:5173',
+    NODE_ENV: 'test',
+  },
+}));
+
+jest.mock('@config/logger', () => ({
+  __esModule: true,
+  default: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
+
 import {
   recordFailedAttempt,
   recordSuccessfulLogin,

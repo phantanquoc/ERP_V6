@@ -17,6 +17,11 @@ export default defineConfig({
       '@schemas': path.resolve(__dirname, './src/schemas'),
     }
   },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/__tests__/setup.ts'],
+  },
   server: {
     port: 5173,
     proxy: {
