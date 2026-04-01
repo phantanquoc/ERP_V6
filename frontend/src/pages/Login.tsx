@@ -32,6 +32,38 @@ function useCountdown() {
   return { remaining, start };
 }
 
+/* ─── sessionStorage helpers — persist block state across page reloads ─── */
+const STORAGE_KEY_BLOCKED_UNTIL = 'login_blocked_until'; // Unix ms timestamp
+const STORAGE_KEY_FAIL_COUNT    = 'login_fail_count';
+
+function saveBlockState(unlocksAtMs: number, failCount: number): void {
+  sessionStorage.setItem(STORAGE_KEY_BLOCKED_UNTIL, String(unlocksAtMs));
+  sessionStorage.setItem(STORAGE_KEY_FAIL_COUNT, String(failCount));
+}
+
+function clearBlockState(): void {
+  sessionStorage.removeItem(STORAGE_KEY_BLOCKED_UNTIL);
+  sessionStorage.removeItem(STORAGE_KEY_FAIL_COUNT);
+}
+
+/**
+ * Reads persisted block state.
+ * Returns remaining seconds (> 0) and saved failCount if still blocked,
+ * or null if the block has expired or never existed.
+ */
+function readBlockState(): { remainingSecs: number; failCount: number } | null {
+  const raw = sessionStorage.getItem(STORAGE_KEY_BLOCKED_UNTIL);
+  if (!raw) return null;
+  const unlocksAt = parseInt(raw, 10);
+  const remainingSecs = Math.ceil((unlocksAt - Date.now()) / 1000);
+  if (remainingSecs <= 0) {
+    clearBlockState();
+    return null;
+  }
+  const failCount = parseInt(sessionStorage.getItem(STORAGE_KEY_FAIL_COUNT) ?? '0', 10);
+  return { remainingSecs, failCount };
+}
+
 /** Format seconds → "4 phút 32 giây" hoặc "45 giây" */
 function formatCountdown(secs: number): string {
   const m = Math.floor(secs / 60);
@@ -64,12 +96,24 @@ const Login: React.FC = () => {
     defaultValues: { email: '', password: '' },
   });
 
-  // Khi countdown về 0 → tự động bỏ block
+  // ── Restore block state from sessionStorage on mount (survives page reload) ──
+  useEffect(() => {
+    const saved = readBlockState();
+    if (saved) {
+      setIsBlocked(true);
+      setFailCount(saved.failCount);
+      startCountdown(saved.remainingSecs);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Khi countdown về 0 → tự động bỏ block và xóa storage
   useEffect(() => {
     if (remaining === null && isBlocked) {
       setIsBlocked(false);
       setApiError('');
       setFailCount(0);
+      clearBlockState();
     }
   }, [remaining, isBlocked]);
 
@@ -91,6 +135,7 @@ const Login: React.FC = () => {
         setIsBlocked(true);
         setFailCount(MAX_ATTEMPTS);
         startCountdown(secs);
+        saveBlockState(Date.now() + secs * 1000, MAX_ATTEMPTS);
         setApiError(err.message);
         setIsLoading(false);
         return;
@@ -104,6 +149,7 @@ const Login: React.FC = () => {
         // Đã đạt giới hạn → tự block phía frontend luôn
         setIsBlocked(true);
         startCountdown(BLOCK_SECONDS);
+        saveBlockState(Date.now() + BLOCK_SECONDS * 1000, newFailCount);
         setApiError('');
       } else if (newFailCount >= MAX_ATTEMPTS_BEFORE_WARN && attemptsLeft > 0) {
         setApiError(
