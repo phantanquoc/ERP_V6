@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ─── Theme CSS Custom Properties (default = blue) ──────────────────────── */
+:root {
+  --color-primary:        #1d4ed8;
+  --color-primary-dark:   #1e40af;
+  --color-primary-light:  #3b82f6;
+  --color-secondary:      #0891b2;
+  --color-accent:         #f59e0b;
+  --color-bg:             #f3f4f6;
+  --color-sidebar:        #1e3a5f;
+  --color-sidebar-text:   #ffffff;
+  --color-header:         #1e3a5f;
+  --color-header-text:    #ffffff;
+}
+
+/* Transition mượt khi chuyển theme */
+*, *::before, *::after {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}

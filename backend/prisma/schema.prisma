@@ -365,6 +365,30 @@ model Notification {
   @@schema("common")
 }
 
+// ─── Theme System ─────────────────────────────────────────────────────────────
+model Theme {
+  id             String    @id @default(cuid())
+  name           String    @unique
+  displayName    String
+  primaryColor   String    // hex e.g. "#1d4ed8"
+  secondaryColor String    // hex e.g. "#1e40af"
+  accentColor    String    // hex e.g. "#f59e0b"
+  bgColor        String    @default("#f3f4f6")
+  sidebarColor   String    @default("#1e3a5f")
+  sidebarText    String    @default("#ffffff")
+  logo           String?   // URL or null = use default logo
+  isActive       Boolean   @default(true)
+  isDefault      Boolean   @default(false)
+  startDate      DateTime? // null = always active (non-event themes)
+  endDate        DateTime? // null = always active
+  description    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("themes")
+  @@schema("common")
+}
+
 model Product {
   id            String         @id @default(cuid())
   productCode   String         @unique

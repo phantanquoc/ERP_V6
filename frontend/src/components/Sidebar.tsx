@@ -136,16 +136,16 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
         />
       )}
       <div className={`
-        ${collapsed ? 'w-16' : 'w-64'} bg-gray-900 text-white flex flex-col h-full transition-all duration-300
+        ${collapsed ? 'w-16' : 'w-64'} bg-sidebar text-sidebar-text flex flex-col h-full transition-all duration-300
         fixed md:relative z-50
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
       `}>
       {/* Header with toggle button */}
-      <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+      <div className="p-4 border-b border-white/10 flex items-center justify-between">
         {!collapsed && <h1 className="text-xl font-bold">ABF System</h1>}
         <button
           onClick={onToggle}
-          className="p-1 rounded hover:bg-gray-800 transition-colors"
+          className="p-1 rounded hover:bg-white/10 transition-colors"
           title={collapsed ? 'Mở menu' : 'Thu gọn menu'}
         >
           {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
@@ -159,8 +159,8 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
               {(item.path === '/' || item.path === '/common') ? (
                 <Link
                   to={item.path}
-                  className={`flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors ${
-                    location.pathname === item.path ? 'bg-gray-800 text-white' : ''
+                  className={`flex items-center px-4 py-3 text-sidebar-text/80 hover:bg-white/10 hover:text-sidebar-text transition-colors ${
+                    location.pathname === item.path ? 'bg-white/20 text-sidebar-text' : ''
                   }`}
                   title={collapsed ? item.name : ''}
                 >
@@ -170,8 +170,8 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
               ) : (
                 <>
                   <div
-                    className={`flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer ${
-                      location.pathname.startsWith(item.path) ? 'bg-gray-800 text-white' : ''
+                    className={`flex items-center px-4 py-3 text-sidebar-text/80 hover:bg-white/10 hover:text-sidebar-text transition-colors cursor-pointer ${
+                      location.pathname.startsWith(item.path) ? 'bg-white/20 text-sidebar-text' : ''
                     }`}
                     onClick={() => {
                       navigate(item.path);
@@ -193,7 +193,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
                   </div>
 
                   {!collapsed && expandedItems[item.path] && item.subItems.length > 0 && (
-                    <ul className="bg-gray-800 py-1">
+                    <ul className="bg-black/20 py-1">
                       {item.subItems
                         .filter((subItem: any) => {
                           if (!user) return false;
@@ -209,8 +209,8 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
                           <li key={subItem.path}>
                             <Link
                               to={subItem.path}
-                              className={`flex items-center pl-12 pr-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors ${
-                                location.pathname === subItem.path ? 'bg-gray-700 text-white' : ''
+                              className={`flex items-center pl-12 pr-4 py-2 text-sidebar-text/70 hover:bg-white/10 hover:text-sidebar-text transition-colors ${
+                                location.pathname === subItem.path ? 'bg-white/20 text-sidebar-text' : ''
                               }`}
                             >
                               <span>{subItem.name}</span>

@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Settings, Shield, History, LogOut, ChevronDown } from 'lucide-react';
+import { User, Shield, History, LogOut, ChevronDown, Palette } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import PersonalInfoModal from './PersonalInfoModal';
 import LoginHistoryModal from './LoginHistoryModal';
 import ChangePasswordModal from './ChangePasswordModal';
+import ThemePickerModal from './ThemePickerModal';
+import { useTheme } from '../contexts/ThemeContext';
 
 const UserProfileDropdown: React.FC = () => {
   const { user, logout } = useAuth();
+  const { isEventTheme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -14,6 +17,7 @@ const UserProfileDropdown: React.FC = () => {
   const [isPersonalInfoOpen, setIsPersonalInfoOpen] = useState(false);
   const [isLoginHistoryOpen, setIsLoginHistoryOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -48,6 +52,9 @@ const UserProfileDropdown: React.FC = () => {
         break;
       case 'password':
         setIsChangePasswordOpen(true);
+        break;
+      case 'theme':
+        setIsThemePickerOpen(true);
         break;
       default:
         break;
@@ -157,6 +164,27 @@ const UserProfileDropdown: React.FC = () => {
               </div>
             </button>
 
+            {/* Giao diện */}
+            <button
+              onClick={() => handleMenuClick('theme')}
+              className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-gray-50 transition-colors duration-150"
+            >
+              <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
+                <Palette className="w-4 h-4 text-purple-600" />
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-medium flex items-center gap-2">
+                  Giao diện
+                  {isEventTheme && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-rose-100 text-rose-600">
+                      Sự kiện
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-500">Tuỳ chỉnh màu sắc hệ thống</div>
+              </div>
+            </button>
+
             {/* Divider */}
             <div className="border-t border-gray-100 my-2"></div>
 
@@ -189,6 +217,10 @@ const UserProfileDropdown: React.FC = () => {
       <ChangePasswordModal
         isOpen={isChangePasswordOpen}
         onClose={() => setIsChangePasswordOpen(false)}
+      />
+      <ThemePickerModal
+        isOpen={isThemePickerOpen}
+        onClose={() => setIsThemePickerOpen(false)}
       />
     </div>
   );

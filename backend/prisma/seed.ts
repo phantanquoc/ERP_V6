@@ -641,6 +641,69 @@ async function main(): Promise<void> {
 
   console.log('✅ Roles assigned to users');
 
+  // ─── Seed Themes ─────────────────────────────────────────────────────────────
+  console.log('\n🎨 Seeding themes...');
+
+  await prisma.theme.upsert({
+    where: { name: 'default' },
+    update: {},
+    create: {
+      name: 'default',
+      displayName: 'Mặc định',
+      primaryColor: '#1d4ed8',
+      secondaryColor: '#1e40af',
+      accentColor: '#f59e0b',
+      bgColor: '#f3f4f6',
+      sidebarColor: '#1e3a5f',
+      sidebarText: '#ffffff',
+      isActive: true,
+      isDefault: true,
+      description: 'Giao diện mặc định của hệ thống ERP An Bình Foods',
+    },
+  });
+
+  await prisma.theme.upsert({
+    where: { name: 'liberation-day' },
+    update: {},
+    create: {
+      name: 'liberation-day',
+      displayName: 'Giải phóng 30/4',
+      primaryColor: '#dc2626',
+      secondaryColor: '#b91c1c',
+      accentColor: '#eab308',
+      bgColor: '#fef2f2',
+      sidebarColor: '#7f1d1d',
+      sidebarText: '#fef2f2',
+      isActive: true,
+      isDefault: false,
+      startDate: new Date('2026-04-30T00:00:00Z'),
+      endDate: new Date('2026-05-01T23:59:59Z'),
+      description: 'Kỷ niệm Ngày Giải phóng miền Nam 30/4 — đỏ rực, tự hào',
+    },
+  });
+
+  await prisma.theme.upsert({
+    where: { name: 'labor-day' },
+    update: {},
+    create: {
+      name: 'labor-day',
+      displayName: 'Quốc tế Lao động 1/5',
+      primaryColor: '#d97706',
+      secondaryColor: '#b45309',
+      accentColor: '#dc2626',
+      bgColor: '#fffbeb',
+      sidebarColor: '#78350f',
+      sidebarText: '#fef3c7',
+      isActive: true,
+      isDefault: false,
+      startDate: new Date('2026-05-01T00:00:00Z'),
+      endDate: new Date('2026-05-01T23:59:59Z'),
+      description: 'Ngày Quốc tế Lao động 1/5 — vinh danh người lao động',
+    },
+  });
+
+  console.log('✅ Themes seeded (default, liberation-day, labor-day)');
+
   console.log('✨ Database seeding completed!');
 }
 
