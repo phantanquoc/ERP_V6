@@ -22,7 +22,21 @@ class AuthService {
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
+
+          // Attach rate-limit / IP-block metadata so UI can show countdown
+          if (response.status === 429 || response.status === 403) {
+            const err = new Error(errorMessage) as Error & {
+              retryAfter?: number;
+              blockedUntil?: string;
+              statusCode?: number;
+            };
+            err.retryAfter = errorData.retryAfter ?? null;
+            err.blockedUntil = errorData.blockedUntil ?? null;
+            err.statusCode = response.status;
+            throw err;
+          }
         } catch (e) {
+          if (e instanceof Error && 'statusCode' in e) throw e;
           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
         throw new Error(errorMessage);
