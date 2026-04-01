@@ -1,6 +1,5 @@
 import React, {
   createContext,
-  useContext,
   useEffect,
   useRef,
   useState,
@@ -19,7 +18,7 @@ const getUserId = (): string => {
 };
 
 // ─── Context shape ────────────────────────────────────────────────────────────
-interface ThemeContextValue {
+export interface ThemeContextValue {
   activeTheme: Theme | null;   // theme đang được lưu (persisted)
   themes: Theme[];
   isEventTheme: boolean;
@@ -32,7 +31,8 @@ interface ThemeContextValue {
   refreshThemes: () => Promise<void>;
 }
 
-const ThemeContext = createContext<ThemeContextValue>({
+// Export để useTheme hook có thể import
+export const ThemeContext = createContext<ThemeContextValue>({
   activeTheme: null,
   themes: [],
   isEventTheme: false,
@@ -65,21 +65,26 @@ function shadeColor(hex: string, amount: number): string {
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
+// ─── Provider — only component export in this file ───────────────────────────
+// useTheme hook là file riêng (hooks/useTheme.ts) để Vite Fast Refresh không bị lỗi
+// "export is incompatible" khi mix component + hook trong cùng 1 file.
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [activeTheme, setActiveTheme]   = useState<Theme | null>(null);
   const [themes, setThemes]             = useState<Theme[]>([]);
   const [isEventTheme, setIsEventTheme] = useState(false);
 
-  // Guard: chỉ chạy init() 1 lần — chặn React StrictMode double-invoke & re-render loop
-  const initDoneRef    = useRef(false);
+  // Guard: chỉ chạy init() 1 lần — chặn React StrictMode double-invoke
+  const initDoneRef     = useRef(false);
   // Dùng ref để tránh stale closure trong async callbacks
   const isEventThemeRef = useRef(false);
+  // Ref lưu activeTheme để revertPreview không bị stale closure
+  const activeThemeRef  = useRef<Theme | null>(null);
 
   // ── Apply theme → CSS vars + lưu vào localStorage (persisted) ───────────────
   const applyTheme = (theme: Theme, isEvent = false) => {
     applyCssVars(theme);
     setActiveTheme(theme);
+    activeThemeRef.current = theme;
     setIsEventTheme(isEvent);
     isEventThemeRef.current = isEvent;
     if (!isEvent) {
@@ -90,12 +95,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // ── Preview: chỉ đổi CSS vars để xem trước — KHÔNG lưu ─────────────────────
   const previewTheme = (theme: Theme) => {
     applyCssVars(theme);
-    // Không setActiveTheme, không localStorage
   };
 
-  // ── Revert: khôi phục CSS vars về theme đã lưu ──────────────────────────────
+  // ── Revert: khôi phục CSS vars về theme đã lưu (dùng ref tránh stale) ───────
   const revertPreview = () => {
-    if (activeTheme) applyCssVars(activeTheme);
+    if (activeThemeRef.current) applyCssVars(activeThemeRef.current);
   };
 
   // ── Fetch danh sách themes và apply preference đã lưu ──────────────────────
@@ -103,8 +107,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try {
       const data = await getAllThemes();
       setThemes(data);
-
-      // Nếu không có event theme → tìm và apply theme user đã lưu
       if (!isEventThemeRef.current) {
         const savedName = localStorage.getItem(storageKey(getUserId()));
         if (savedName) {
@@ -112,6 +114,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           if (saved) {
             applyCssVars(saved);
             setActiveTheme(saved);
+            activeThemeRef.current = saved;
           }
         }
       }
@@ -122,11 +125,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // ── On mount: (1) fetch active theme từ server, (2) load danh sách ─────────
   useEffect(() => {
-    if (initDoneRef.current) return; // chặn React StrictMode double-invoke
+    if (initDoneRef.current) return;
     initDoneRef.current = true;
 
     const init = async () => {
-      // Bước 1: xác định theme của hôm nay (event hay default)
       try {
         const serverTheme = await getActiveTheme();
         const isEvent = !serverTheme.isDefault && !!serverTheme.startDate;
@@ -135,11 +137,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         console.error('[ThemeContext] getActiveTheme failed:', e);
       }
 
-      // Bước 2: load toàn bộ danh sách (để modal có data ngay lúc mở)
       try {
         const data = await getAllThemes();
         setThemes(data);
-        // Apply per-user saved nếu không có event
         if (!isEventThemeRef.current) {
           const savedName = localStorage.getItem(storageKey(getUserId()));
           if (savedName) {
@@ -147,6 +147,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             if (saved) {
               applyCssVars(saved);
               setActiveTheme(saved);
+              activeThemeRef.current = saved;
             }
           }
         }
@@ -172,9 +173,4 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       {children}
     </ThemeContext.Provider>
   );
-}
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-export function useTheme() {
-  return useContext(ThemeContext);
 }

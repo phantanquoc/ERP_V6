@@ -1,6 +1,6 @@
 import { X, Check, CalendarDays } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme } from '../hooks/useTheme';
 import { Theme, getAllThemes } from '../services/themeService';
 
 interface Props {
@@ -69,9 +69,9 @@ export default function ThemePickerModal({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop — click backdrop = hủy */}
+      {/* Backdrop — click backdrop = hủy — không blur để thấy preview sidebar/header */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/40"
         onClick={handleCancel}
       />
 

@@ -5,7 +5,7 @@ import PersonalInfoModal from './PersonalInfoModal';
 import LoginHistoryModal from './LoginHistoryModal';
 import ChangePasswordModal from './ChangePasswordModal';
 import ThemePickerModal from './ThemePickerModal';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme } from '../hooks/useTheme';
 
 const UserProfileDropdown: React.FC = () => {
   const { user, logout } = useAuth();
