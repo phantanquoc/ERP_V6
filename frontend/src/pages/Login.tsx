@@ -86,7 +86,7 @@ const Login: React.FC = () => {
 
       // ── Bị block IP (429 rate-limit hoặc 403 IP-block từ backend) ─────────
       if (err.statusCode === 429 || err.statusCode === 403) {
-        const secs = err.retryAfter ?? 300;
+        const secs = err.retryAfter ?? 60;
         setIsBlocked(true);
         setFailCount(MAX_ATTEMPTS);
         startCountdown(secs);
@@ -101,7 +101,7 @@ const Login: React.FC = () => {
 
       if (newFailCount >= MAX_ATTEMPTS_BEFORE_WARN && attemptsLeft > 0) {
         setApiError(
-          `Sai mật khẩu. Còn ${attemptsLeft} lần thử — nếu sai tiếp sẽ bị khóa 5 phút.`
+          `Sai mật khẩu. Còn ${attemptsLeft} lần thử — nếu sai tiếp sẽ bị khóa 1 phút.`
         );
       } else {
         setApiError(err.message || 'Đăng nhập thất bại');

@@ -6,7 +6,7 @@
  *
  * How it works:
  *   1. Every failed login attempt is recorded in the `login_attempts` table.
- *   2. After 3 failed attempts within a 5-minute window → IP is blocked for 5 min.
+ *   2. After 3 failed attempts within a 5-minute window → IP is blocked for 1 min.
  *   3. The block is automatically lifted when it expires (no cron job needed).
  *   4. Admins can manually unblock IPs via the API.
  *
@@ -51,7 +51,7 @@ const ATTEMPT_WINDOW_MS = 5 * 60 * 1000;   // 5 minutes
  * 5 minutes is long enough to frustrate automated attacks without being
  * overly punishing to a legitimate user who genuinely forgot their password.
  */
-const BLOCK_DURATION_MS = 5 * 60 * 1000;     // 5 minutes
+const BLOCK_DURATION_MS = 60 * 1000;          // 1 minute
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Middleware: Check if Client IP is Blocked
