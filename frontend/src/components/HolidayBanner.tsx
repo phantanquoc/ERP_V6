@@ -99,132 +99,344 @@ function useClock() {
   return now;
 }
 
-// ─── Fruit SVGs (An Bình Foods theme) ────────────────────────────────────────
-// Mỗi fruit là một SVG inline nhỏ, render dưới dạng component
-const FruitSVG: React.FC<{ type: 'watermelon' | 'orange' | 'grape' | 'mango' | 'strawberry'; size: number }> = ({ type, size }) => {
-  const s = size;
-  if (type === 'watermelon') return (
-    <svg width={s} height={s} viewBox="0 0 40 40">
-      {/* rind outer */}
-      <path d="M5 20 A15 15 0 0 1 35 20 Z" fill="#4CAF50"/>
-      <path d="M7 20 A13 13 0 0 1 33 20 Z" fill="#81C784"/>
-      {/* flesh */}
-      <path d="M8 20 A12 12 0 0 1 32 20 Z" fill="#EF5350"/>
-      {/* seeds */}
-      <ellipse cx="15" cy="17" rx="1.2" ry="1.8" fill="#1B5E20" transform="rotate(-10 15 17)"/>
-      <ellipse cx="20" cy="15" rx="1.2" ry="1.8" fill="#1B5E20"/>
-      <ellipse cx="25" cy="17" rx="1.2" ry="1.8" fill="#1B5E20" transform="rotate(10 25 17)"/>
-      {/* stem */}
-      <path d="M20 5 Q22 8 20 11" stroke="#388E3C" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-    </svg>
-  );
-  if (type === 'orange') return (
-    <svg width={s} height={s} viewBox="0 0 40 40">
-      <circle cx="20" cy="22" r="14" fill="#FF8F00"/>
-      <circle cx="20" cy="22" r="14" fill="url(#og)" fillOpacity="0.3"/>
-      <defs><radialGradient id="og" cx="35%" cy="30%"><stop offset="0%" stopColor="#fff" stopOpacity="0.5"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/></radialGradient></defs>
-      {/* segments hint */}
-      {[0,60,120,180,240,300].map(a => (
-        <line key={a} x1="20" y1="22" x2={20 + 13 * Math.cos(a * Math.PI/180)} y2={22 + 13 * Math.sin(a * Math.PI/180)}
-              stroke="#E65100" strokeWidth="0.6" opacity="0.4"/>
-      ))}
-      {/* leaf */}
-      <path d="M20 8 Q24 4 26 6 Q22 10 20 8Z" fill="#388E3C"/>
-      <path d="M20 8 Q17 5 15 7 Q18 10 20 8Z" fill="#43A047"/>
-      {/* stem */}
-      <line x1="20" y1="8" x2="20" y2="11" stroke="#5D4037" strokeWidth="1.5"/>
-    </svg>
-  );
-  if (type === 'grape') return (
-    <svg width={s} height={s} viewBox="0 0 40 40">
-      {/* grapes cluster */}
-      {([
-        [20,30],[15,25],[25,25],[11,20],[20,20],[29,20],[15,15],[25,15],[20,10]
-      ] as [number,number][]).map(([x,y],i) => (
-        <circle key={i} cx={x} cy={y} r="5.5" fill="#7B1FA2"/>
-      ))}
-      {([
-        [20,30],[15,25],[25,25],[11,20],[20,20],[29,20],[15,15],[25,15],[20,10]
-      ] as [number,number][]).map(([x,y],i) => (
-        <circle key={i} cx={x-1.5} cy={y-1.5} r="1.8" fill="rgba(255,255,255,0.28)"/>
-      ))}
-      {/* stem + leaf */}
-      <line x1="20" y1="5" x2="20" y2="8" stroke="#5D4037" strokeWidth="1.5"/>
-      <path d="M20 5 Q23 2 25 4 Q22 7 20 5Z" fill="#43A047"/>
-    </svg>
-  );
-  if (type === 'mango') return (
-    <svg width={s} height={s} viewBox="0 0 40 40">
-      <defs><radialGradient id="mg" cx="40%" cy="30%"><stop offset="0%" stopColor="#FFCC02"/><stop offset="60%" stopColor="#FF8F00"/><stop offset="100%" stopColor="#E65100"/></radialGradient></defs>
-      <path d="M20 34 C10 34 6 24 8 16 C10 8 16 6 20 6 C24 6 30 8 32 16 C34 24 30 34 20 34Z" fill="url(#mg)"/>
-      <path d="M14 12 Q17 16 16 22" stroke="rgba(255,255,255,0.3)" strokeWidth="1" fill="none"/>
-      {/* stem */}
-      <line x1="20" y1="6" x2="20" y2="2" stroke="#5D4037" strokeWidth="1.5"/>
-      <path d="M20 3 Q23 1 24 3 Q22 5 20 3Z" fill="#43A047"/>
-    </svg>
-  );
-  // strawberry
-  return (
-    <svg width={s} height={s} viewBox="0 0 40 40">
-      <defs><radialGradient id="sg" cx="40%" cy="30%"><stop offset="0%" stopColor="#FF6B6B"/><stop offset="100%" stopColor="#C62828"/></radialGradient></defs>
-      <path d="M20 35 C12 30 6 22 8 15 C10 8 16 8 20 11 C24 8 30 8 32 15 C34 22 28 30 20 35Z" fill="url(#sg)"/>
-      {/* seeds */}
-      {([[14,22],[19,18],[24,22],[17,28],[23,28]] as [number,number][]).map(([x,y],i) => (
-        <ellipse key={i} cx={x} cy={y} rx="0.9" ry="1.2" fill="rgba(255,255,200,0.8)" transform={`rotate(-10 ${x} ${y})`}/>
-      ))}
-      {/* calyx */}
-      <path d="M17 11 Q20 8 23 11" stroke="#388E3C" strokeWidth="1" fill="none"/>
-      <path d="M20 9 Q20 5 20 4" stroke="#388E3C" strokeWidth="1.2" fill="none"/>
-      <path d="M15 10 Q13 7 14 5" stroke="#43A047" strokeWidth="1.1" fill="none"/>
-      <path d="M25 10 Q27 7 26 5" stroke="#43A047" strokeWidth="1.1" fill="none"/>
-    </svg>
-  );
-};
+// ─── DEFAULT BANNER — Fruit Basket Game ──────────────────────────────────────
+const FRUIT_TYPES = ['watermelon', 'orange', 'grape', 'mango', 'strawberry'] as const;
+type FruitType = typeof FRUIT_TYPES[number];
 
-// Danh sách trái cây rơi (vị trí, loại, delay, tốc độ, size)
-const FALLING_FRUITS: { left: string; delay: string; duration: string; size: number; type: 'watermelon' | 'orange' | 'grape' | 'mango' | 'strawberry'; wobble: string }[] = [
-  { left: '30%',  delay: '0s',   duration: '8s',   size: 52, type: 'watermelon', wobble: '0s'   },
-  { left: '40%',  delay: '1.8s', duration: '9.5s', size: 46, type: 'orange',     wobble: '0.4s' },
-  { left: '50%',  delay: '3.2s', duration: '8.6s', size: 48, type: 'grape',      wobble: '0.7s' },
-  { left: '61%',  delay: '0.9s', duration: '10s',  size: 50, type: 'mango',      wobble: '1.1s' },
-  { left: '72%',  delay: '4s',   duration: '8.2s', size: 44, type: 'strawberry', wobble: '0.3s' },
-  { left: '34%',  delay: '5.5s', duration: '9s',   size: 42, type: 'orange',     wobble: '0.9s' },
-  { left: '56%',  delay: '7s',   duration: '8.8s', size: 46, type: 'mango',      wobble: '0.5s' },
-  { left: '83%',  delay: '2.4s', duration: '9.3s', size: 42, type: 'grape',      wobble: '1.3s' },
-  { left: '45%',  delay: '6.2s', duration: '8.6s', size: 48, type: 'watermelon', wobble: '0.6s' },
-  { left: '92%',  delay: '1.2s', duration: '9.8s', size: 42, type: 'strawberry', wobble: '0.2s' },
-];
+interface GameFruit {
+  id: number;
+  x: number;       // px từ left của banner
+  y: number;       // px từ top
+  vx: number;      // velocity x px/frame
+  vy: number;      // velocity y px/frame
+  size: number;
+  type: FruitType;
+  rotation: number;
+  rotSpeed: number;
+  bounced: boolean; // đã tưng khỏi vùng text chưa
+  caught: boolean;
+  catchFlash: number; // countdown frames cho hiệu ứng bắt được
+}
 
-// ─── DEFAULT BANNER ───────────────────────────────────────────────────────────
+const BASKET_W = 70;
+const BASKET_H = 36;
+const GRAVITY  = 0.09;   // rơi chậm, nhẹ nhàng
+// Vùng text content chiếm ~0–58% width (max-w-[58%])
+const TEXT_ZONE_RIGHT_PCT = 0.58;
+
+let fruitIdCounter = 0;
+
+function spawnFruit(bannerW: number, _bannerH: number): GameFruit {
+  const type = FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
+  const size = 36 + Math.floor(Math.random() * 20); // 36–55px
+  return {
+    id: fruitIdCounter++,
+    x: size + Math.random() * (bannerW - size * 2),
+    y: -size,
+    vx: (Math.random() - 0.5) * 0.8,   // ít lệch ngang khi spawn
+    vy: 0.4 + Math.random() * 0.5,     // rơi chậm: 0.4–0.9 px/frame
+    size,
+    type,
+    rotation: 0,
+    rotSpeed: (Math.random() - 0.5) * 2.5,  // xoay nhẹ hơn
+    bounced: false,
+    caught: false,
+    catchFlash: 0,
+  };
+}
+
 const DefaultBanner: React.FC<Props> = ({ user, departmentName }) => {
   const now = useClock();
   const h = now.getHours();
   const greeting = h < 12 ? 'Chào buổi sáng' : h < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
 
-  // Mouse interaction state
-  const [hoveredFruit, setHoveredFruit] = useState<number | null>(null);
-  const [poppedFruits, setPoppedFruits] = useState<Set<number>>(new Set());
+  const bannerRef  = useRef<HTMLDivElement>(null);
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const rafRef     = useRef<number>(0);
+  const fruitsRef  = useRef<GameFruit[]>([]);
+  const basketXRef = useRef<number>(-999);   // -999 = chuột chưa vào banner
+  const scoreRef   = useRef<number>(0);
+  const [score, setScore]           = useState(0);
+  const [gameActive, setGameActive] = useState(false);
 
-  const handleFruitClick = (i: number) => {
-    setPoppedFruits(prev => new Set([...prev, i]));
-    // Reset sau 700ms để fruit có thể rơi lại
-    setTimeout(() => setPoppedFruits(prev => { const s = new Set(prev); s.delete(i); return s; }), 700);
-  };
+  // Spawn fruit theo interval khi game active
+  const spawnRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startSpawning = useCallback(() => {
+    if (spawnRef.current) return;
+    spawnRef.current = setInterval(() => {
+      const banner = bannerRef.current;
+      if (!banner) return;
+      const { width, height } = banner.getBoundingClientRect();
+      fruitsRef.current.push(spawnFruit(width, height));
+      // Giới hạn tối đa 12 fruit cùng lúc
+      if (fruitsRef.current.length > 12) fruitsRef.current.splice(0, 1);
+    }, 1200);
+  }, []);
+
+  const stopSpawning = useCallback(() => {
+    if (spawnRef.current) { clearInterval(spawnRef.current); spawnRef.current = null; }
+  }, []);
+
+  // Game loop — canvas rendering + physics
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const banner = bannerRef.current;
+    if (!canvas || !banner) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Offscreen SVG → ImageBitmap cache cho mỗi loại+size fruit
+    // Dùng Path2D vẽ trực tiếp trên canvas (đơn giản hơn)
+    const drawFruitOnCanvas = (ctx: CanvasRenderingContext2D, f: GameFruit) => {
+      ctx.save();
+      ctx.translate(f.x + f.size / 2, f.y + f.size / 2);
+      ctx.rotate((f.rotation * Math.PI) / 180);
+      const r = f.size / 2;
+      if (f.catchFlash > 0) {
+        ctx.shadowColor = 'rgba(255,240,80,0.95)';
+        ctx.shadowBlur  = 18;
+        ctx.globalAlpha = 0.5 + (f.catchFlash / 12) * 0.5;
+      }
+      const t = f.type;
+      if (t === 'watermelon') {
+        // rind
+        ctx.beginPath(); ctx.arc(0, 0, r, Math.PI, 0); ctx.fillStyle = '#4CAF50'; ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.85, Math.PI, 0); ctx.fillStyle = '#81C784'; ctx.fill();
+        // flesh
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.75, Math.PI, 0); ctx.fillStyle = '#EF5350'; ctx.fill();
+        // seeds
+        ctx.fillStyle = '#1B5E20';
+        [[-r*0.3, -r*0.25], [0, -r*0.38], [r*0.3, -r*0.25]].forEach(([sx, sy]) => {
+          ctx.beginPath(); ctx.ellipse(sx, sy, r*0.07, r*0.12, -0.18, 0, Math.PI*2); ctx.fill();
+        });
+      } else if (t === 'orange') {
+        const grad = ctx.createRadialGradient(-r*0.25, -r*0.3, 0, 0, 0, r);
+        grad.addColorStop(0, '#FFCA28'); grad.addColorStop(1, '#FF8F00');
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2);
+        ctx.fillStyle = grad; ctx.fill();
+        ctx.strokeStyle = '#E65100'; ctx.lineWidth = 0.5; ctx.globalAlpha *= 0.35;
+        for (let a = 0; a < 6; a++) {
+          ctx.beginPath(); ctx.moveTo(0,0);
+          ctx.lineTo(r * Math.cos(a*60*Math.PI/180), r * Math.sin(a*60*Math.PI/180));
+          ctx.stroke();
+        }
+        ctx.globalAlpha = f.catchFlash > 0 ? 0.5 + (f.catchFlash/12)*0.5 : 1;
+        // leaf
+        ctx.fillStyle = '#388E3C';
+        ctx.beginPath(); ctx.ellipse(r*0.1, -r*0.85, r*0.18, r*0.35, -0.5, 0, Math.PI*2); ctx.fill();
+      } else if (t === 'grape') {
+        const positions = [
+          [0, r*0.45],[r*-0.32,r*0.18],[r*0.32,r*0.18],
+          [r*-0.55,-r*0.1],[0,-r*0.1],[r*0.55,-r*0.1],
+          [r*-0.32,-r*0.38],[r*0.32,-r*0.38],[0,-r*0.55],
+        ];
+        positions.forEach(([gx,gy]) => {
+          ctx.beginPath(); ctx.arc(gx, gy, r*0.28, 0, Math.PI*2);
+          ctx.fillStyle = '#7B1FA2'; ctx.fill();
+          ctx.beginPath(); ctx.arc(gx - r*0.08, gy - r*0.08, r*0.09, 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fill();
+        });
+        ctx.fillStyle = '#43A047';
+        ctx.beginPath(); ctx.ellipse(r*0.2, -r*0.72, r*0.14, r*0.28, 0.6, 0, Math.PI*2); ctx.fill();
+      } else if (t === 'mango') {
+        const grad = ctx.createRadialGradient(-r*0.2, -r*0.3, 0, 0, 0, r);
+        grad.addColorStop(0, '#FFCC02'); grad.addColorStop(0.6, '#FF8F00'); grad.addColorStop(1, '#E65100');
+        ctx.beginPath();
+        ctx.moveTo(0, r);
+        ctx.bezierCurveTo(-r, r, -r*1.1, -r*0.5, 0, -r);
+        ctx.bezierCurveTo(r*1.1, -r*0.5, r, r, 0, r);
+        ctx.fillStyle = grad; ctx.fill();
+        ctx.fillStyle = '#43A047';
+        ctx.beginPath(); ctx.ellipse(r*0.1, -r*0.92, r*0.1, r*0.22, 0.4, 0, Math.PI*2); ctx.fill();
+      } else { // strawberry
+        const grad = ctx.createRadialGradient(-r*0.2, -r*0.25, 0, 0, 0, r);
+        grad.addColorStop(0, '#FF6B6B'); grad.addColorStop(1, '#C62828');
+        ctx.beginPath();
+        ctx.moveTo(0, r);
+        ctx.bezierCurveTo(-r*1.1, r*0.3, -r*1.0, -r*0.3, -r*0.5, -r*0.5);
+        ctx.bezierCurveTo(-r*0.2, -r*0.9, r*0.2, -r*0.9, r*0.5, -r*0.5);
+        ctx.bezierCurveTo(r*1.0, -r*0.3, r*1.1, r*0.3, 0, r);
+        ctx.fillStyle = grad; ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,200,0.75)';
+        [[r*-0.25,r*0.15],[r*0.25,r*0.15],[0,-r*0.1],[r*-0.15,r*0.45],[r*0.15,r*0.45]].forEach(([sx,sy]) => {
+          ctx.beginPath(); ctx.ellipse(sx, sy, r*0.05, r*0.08, -0.18, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.fillStyle = '#388E3C';
+        ctx.beginPath(); ctx.ellipse(0, -r*0.75, r*0.1, r*0.28, 0, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    };
+
+    const drawBasket = (ctx: CanvasRenderingContext2D, bx: number, by: number) => {
+      const w = BASKET_W, h = BASKET_H;
+      ctx.save();
+      ctx.translate(bx, by);
+      // Thân giỏ
+      ctx.beginPath();
+      ctx.moveTo(-w/2, -h/2);
+      ctx.lineTo(-w/2 + 6, h/2);
+      ctx.lineTo(w/2 - 6, h/2);
+      ctx.lineTo(w/2, -h/2);
+      ctx.closePath();
+      // Gradient nan tre
+      const bg = ctx.createLinearGradient(0, -h/2, 0, h/2);
+      bg.addColorStop(0, '#8B5E3C'); bg.addColorStop(1, '#5D3A1A');
+      ctx.fillStyle = bg; ctx.fill();
+      // Đan giỏ — ngang
+      ctx.strokeStyle = 'rgba(255,200,120,0.35)'; ctx.lineWidth = 1;
+      for (let row = 1; row < 4; row++) {
+        const y = -h/2 + (h / 4) * row;
+        const shrink = (row / 4) * 6;
+        ctx.beginPath(); ctx.moveTo(-w/2 + shrink, y); ctx.lineTo(w/2 - shrink, y); ctx.stroke();
+      }
+      // Đan giỏ — chéo
+      ctx.strokeStyle = 'rgba(255,200,120,0.2)'; ctx.lineWidth = 0.8;
+      for (let col = -3; col <= 3; col++) {
+        ctx.beginPath();
+        ctx.moveTo(col * (w/7), -h/2);
+        ctx.lineTo(col * (w/7) - 4, h/2);
+        ctx.stroke();
+      }
+      // Viền miệng giỏ
+      const rimG = ctx.createLinearGradient(-w/2, 0, w/2, 0);
+      rimG.addColorStop(0,'#D4A853'); rimG.addColorStop(0.5,'#F0C878'); rimG.addColorStop(1,'#D4A853');
+      ctx.fillStyle = rimG;
+      ctx.beginPath(); ctx.roundRect(-w/2 - 2, -h/2 - 5, w + 4, 10, 4); ctx.fill();
+      // Quai giỏ
+      ctx.strokeStyle = '#8B5E3C'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-w/4, -h/2 - 4);
+      ctx.quadraticCurveTo(0, -h/2 - 22, w/4, -h/2 - 4);
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    let lastSpawn = 0;
+    const loop = (ts: number) => {
+      const { width, height } = canvas.getBoundingClientRect();
+      canvas.width  = width;
+      canvas.height = height;
+      ctx.clearRect(0, 0, width, height);
+
+      const bx = basketXRef.current;
+      const by = height - 14; // basket y (bottom of banner)
+      const textZoneRight = width * TEXT_ZONE_RIGHT_PCT;
+
+      // Auto-spawn khi game active
+      if (gameActive && ts - lastSpawn > 1400) {
+        fruitsRef.current.push(spawnFruit(width, height));
+        if (fruitsRef.current.length > 14) fruitsRef.current.splice(0, 1);
+        lastSpawn = ts;
+      }
+
+      // Physics update
+      fruitsRef.current = fruitsRef.current.filter(f => {
+        if (f.caught) return false;
+        f.vy += GRAVITY;
+        f.vx *= 0.994;  // cản không khí nhẹ theo chiều ngang
+        f.x  += f.vx;
+        f.y  += f.vy;
+        f.rotation += f.rotSpeed;
+
+        // Wall bounce — giảm tốc một chút mỗi lần chạm tường
+        if (f.x < 0) {
+          f.x  = 0;
+          f.vx = Math.abs(f.vx) * 0.75;
+        }
+        if (f.x + f.size > width) {
+          f.x  = width - f.size;
+          f.vx = -Math.abs(f.vx) * 0.75;
+        }
+
+        // Tưng khỏi vùng text (cạnh phải của khối text ~58% width)
+        // Trái cây chạm vào cạnh phải vùng text → tưng sang PHẢI + nảy lên nhẹ
+        const fruitRight = f.x + f.size;
+        const fruitLeft  = f.x;
+        if (
+          !f.bounced &&
+          fruitRight > textZoneRight && fruitLeft < textZoneRight &&
+          f.y + f.size > height * 0.15 && f.y < height * 0.90 &&
+          f.vx < 0  // đang đi sang trái mới cần đẩy ngược
+        ) {
+          // Đẩy ra khỏi vùng text về phía phải
+          f.x  = textZoneRight - f.size + 1;
+          f.vx = 1.2 + Math.random() * 1.4;     // tưng sang PHẢI
+          f.vy = -(Math.abs(f.vy) * 0.55 + 0.5); // nảy lên nhẹ
+          f.rotSpeed = (Math.random() - 0.3) * 3; // xoay thêm khi va
+          f.bounced = true;
+        }
+
+        // Basket catch — chỉ khi basket hiện (bx >= 0)
+        if (bx >= 0) {
+          const basketTop  = by - BASKET_H / 2;
+          const basketLeft = bx - BASKET_W / 2;
+          const fruitCx    = f.x + f.size / 2;
+          const fruitBot   = f.y + f.size;
+          if (
+            fruitCx > basketLeft && fruitCx < basketLeft + BASKET_W &&
+            fruitBot > basketTop && fruitBot < basketTop + BASKET_H + 8 &&
+            f.vy > 0
+          ) {
+            f.caught = true;
+            scoreRef.current += 1;
+            setScore(scoreRef.current);
+            return false;
+          }
+        }
+
+        // Remove khi rơi ra ngoài
+        return f.y < height + 80;
+      });
+
+      // Draw fruits
+      fruitsRef.current.forEach(f => {
+        if (f.catchFlash > 0) f.catchFlash--;
+        drawFruitOnCanvas(ctx, f);
+      });
+
+      // Draw basket khi chuột trong banner
+      if (bx >= 0) {
+        drawBasket(ctx, bx, by);
+      }
+
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
+    rafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [gameActive]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = bannerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = e.clientX - rect.left;
+    basketXRef.current = x;
+    if (!gameActive) {
+      setGameActive(true);
+      startSpawning();
+    }
+  }, [gameActive, startSpawning]);
+
+  const handleMouseLeave = useCallback(() => {
+    basketXRef.current = -999;
+  }, []);
+
+  useEffect(() => () => {
+    stopSpawning();
+    cancelAnimationFrame(rafRef.current);
+  }, [stopSpawning]);
 
   return (
-    <div className="relative rounded-2xl overflow-hidden shadow-xl mb-8" style={{ minHeight: 148 }}>
+    <div
+      ref={bannerRef}
+      className="relative rounded-2xl overflow-hidden shadow-xl mb-8"
+      style={{ minHeight: 148, cursor: gameActive ? 'none' : 'default' }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
       <style>{`
-        @keyframes fruit-fall {
-          0%   { transform: translateY(-50px) rotate(0deg);   opacity: 0; }
-          8%   { opacity: 0.85; }
-          90%  { opacity: 0.7; }
-          100% { transform: translateY(200px) rotate(340deg); opacity: 0; }
-        }
-        @keyframes fruit-wobble {
-          0%,100% { margin-left: 0px; }
-          25%      { margin-left: 8px; }
-          75%      { margin-left: -8px; }
-        }
         @keyframes leaf-sway {
           0%,100% { transform: rotate(-8deg) scale(1); }
           50%      { transform: rotate(8deg) scale(1.04); }
@@ -236,69 +448,54 @@ const DefaultBanner: React.FC<Props> = ({ user, departmentName }) => {
         }
         @keyframes slide-l { from{opacity:0;transform:translateX(-22px)} to{opacity:1;transform:translateX(0)} }
         @keyframes fade-u  { from{opacity:0;transform:translateY(10px)}  to{opacity:1;transform:translateY(0)} }
-        .fruit-fall    { animation: fruit-fall linear infinite; position: absolute; top: 0; pointer-events: auto; cursor: pointer; }
-        .fruit-wobble  { animation: fruit-wobble ease-in-out infinite; }
-        .leaf-sway     { animation: leaf-sway 4s ease-in-out infinite; transform-origin: 50% 0%; }
+        .leaf-sway { animation: leaf-sway 4s ease-in-out infinite; transform-origin: 50% 0%; }
         .sl { animation: slide-l 0.5s ease both; }
         .fu { animation: fade-u  0.5s ease both; }
       `}</style>
 
-      {/* Background — deep forest green → teal, thương hiệu trái cây */}
+      {/* Background */}
       <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #052e16 0%, #14532d 40%, #166534 70%, #052e16 100%)' }}/>
-      {/* Animated blobs */}
       <div className="absolute -top-20 -left-16 w-72 h-72 rounded-full opacity-20"
            style={{ background: 'radial-gradient(circle, #4ade80 0%, transparent 70%)', animation: 'blob-drift 9s ease-in-out infinite' }}/>
       <div className="absolute -bottom-20 right-20 w-80 h-80 rounded-full opacity-15"
            style={{ background: 'radial-gradient(circle, #fb923c 0%, transparent 70%)', animation: 'blob-drift 12s ease-in-out infinite reverse' }}/>
-      {/* Dot grid */}
       <div className="absolute inset-0" style={{
         backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)',
         backgroundSize: '26px 26px',
       }}/>
 
-      {/* ── Falling fruits (toàn banner, từ giữa ra phải) ── */}
-      <div className="absolute inset-0 overflow-hidden" style={{ zIndex: 2 }}>
-        {FALLING_FRUITS.map((f, i) => {
-          const isHovered = hoveredFruit === i;
-          const isPopped  = poppedFruits.has(i);
-          return (
-            <div key={i} className="fruit-fall"
-                 style={{ left: f.left, animationDelay: f.delay, animationDuration: f.duration }}
-                 onMouseEnter={() => setHoveredFruit(i)}
-                 onMouseLeave={() => setHoveredFruit(null)}
-                 onClick={() => handleFruitClick(i)}>
-              <div className="fruit-wobble" style={{
-                animationDelay: f.wobble,
-                animationDuration: f.duration,
-                transform: isPopped
-                  ? 'scale(1.7) rotate(25deg)'
-                  : isHovered
-                    ? 'scale(1.3) rotate(12deg)'
-                    : 'scale(1)',
-                transition: 'transform 0.18s ease, filter 0.18s ease, opacity 0.2s ease',
-                filter: isPopped
-                  ? 'brightness(1.8) drop-shadow(0 0 10px rgba(255,240,100,0.9))'
-                  : isHovered
-                    ? 'brightness(1.25) drop-shadow(0 0 6px rgba(255,255,150,0.6))'
-                    : 'none',
-                opacity: isPopped ? 0 : 1,
-              }}>
-                <FruitSVG type={f.type} size={f.size}/>
-              </div>
-            </div>
-          );
-        })}
+      {/* Decorative leaf */}
+      <svg className="leaf-sway absolute right-4 top-0 opacity-20 pointer-events-none" width="60" height="80" viewBox="0 0 60 80" style={{ zIndex: 1 }}>
+        <path d="M30 0 Q55 20 50 50 Q40 70 30 80 Q20 70 10 50 Q5 20 30 0Z" fill="#16a34a"/>
+        <path d="M30 0 Q30 30 30 80" stroke="#15803d" strokeWidth="1.5" fill="none" opacity="0.6"/>
+      </svg>
 
-        {/* Decorative large leaf top-right */}
-        <svg className="leaf-sway absolute right-4 top-0 opacity-30" width="60" height="80" viewBox="0 0 60 80">
-          <path d="M30 0 Q55 20 50 50 Q40 70 30 80 Q20 70 10 50 Q5 20 30 0Z" fill="#16a34a"/>
-          <path d="M30 0 Q30 30 30 80" stroke="#15803d" strokeWidth="1.5" fill="none" opacity="0.6"/>
-          <path d="M30 20 Q42 28 50 40" stroke="#15803d" strokeWidth="1" fill="none" opacity="0.5"/>
-          <path d="M30 20 Q18 28 10 40" stroke="#15803d" strokeWidth="1" fill="none" opacity="0.5"/>
-        </svg>
-      </div>
+      {/* Game canvas — fruit + basket render here */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full"
+        style={{ zIndex: 2, pointerEvents: 'none' }}
+      />
 
-      {/* ── Content ── */}
+      {/* Score */}
+      {gameActive && (
+        <div className="absolute top-2 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
+             style={{ zIndex: 10, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(6px)' }}>
+          <span style={{ fontSize: 14 }}>🧺</span>
+          <span className="text-white font-bold tabular-nums text-sm">{score}</span>
+          <span className="text-green-300 text-xs">quả</span>
+        </div>
+      )}
+
+      {/* Hint khi chưa chơi */}
+      {!gameActive && (
+        <div className="absolute bottom-8 right-6 text-xs pointer-events-none"
+             style={{ zIndex: 10, color: 'rgba(134,239,172,0.55)' }}>
+          🧺 Di chuột vào để hứng trái cây
+        </div>
+      )}
+
+      {/* Content — z-10 luôn trên canvas */}
       <div className="relative z-10 p-6 flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0 max-w-[58%]">
           <p className="sl text-xs font-semibold tracking-[0.2em] uppercase mb-2"
