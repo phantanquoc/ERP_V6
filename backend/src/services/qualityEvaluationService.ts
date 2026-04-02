@@ -1,6 +1,8 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
+import notificationService from './notificationService';
+import { broadcast } from './websocket';
 
 export class QualityEvaluationService {
   async getAllQualityEvaluations(page: number = 1, limit: number = 10, tenMay?: string) {
@@ -95,6 +97,31 @@ export class QualityEvaluationService {
       },
     });
 
+    // Notify QC personnel about the new evaluation
+    try {
+      const assignedByName = nguoiThucHien || 'Hệ thống';
+      // Notify all users in QUALITY_PERSONNEL sub-department
+      const qcPersonnel = await prisma.employee.findMany({
+        where: {
+          subDepartment: { code: 'QUALITY_PERSONNEL' },
+        },
+        select: { id: true },
+      });
+      const qcEmployeeIds = qcPersonnel.map(emp => emp.id);
+      await notificationService.createQualityEvaluationNotifications(
+        qcEmployeeIds,
+        evaluation.id,
+        evaluation.maChien,
+        evaluation.tenHangHoa || '',
+        assignedByName
+      );
+      // Broadcast to all connected clients so QC lists refresh
+      broadcast({ type: 'QUALITY_EVALUATION_CHANGED' });
+    } catch (error) {
+      // Log but don't fail evaluation creation
+      console.error('❌ Error sending quality evaluation notification:', error);
+    }
+
     return evaluation;
   }
 
@@ -146,6 +173,9 @@ export class QualityEvaluationService {
       data: updateData,
     });
 
+    // Broadcast to all connected clients so QC lists refresh
+    broadcast({ type: 'QUALITY_EVALUATION_CHANGED' });
+
     return evaluation;
   }
 
@@ -161,6 +191,9 @@ export class QualityEvaluationService {
     await prisma.qualityEvaluation.delete({
       where: { id },
     });
+
+    // Broadcast to all connected clients so QC lists refresh
+    broadcast({ type: 'QUALITY_EVALUATION_CHANGED' });
 
     return { message: 'Đã xóa đánh giá chất lượng thành công' };
   }

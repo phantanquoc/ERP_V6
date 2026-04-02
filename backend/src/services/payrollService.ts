@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 import notificationService from './notificationService';
+import { broadcast } from './websocket';
 
 export class PayrollService {
   async getPayrollByMonthYear(month: number, year: number): Promise<any[]> {
@@ -305,6 +306,9 @@ export class PayrollService {
       },
     });
 
+    // Broadcast to all connected clients so payroll lists refresh
+    broadcast({ type: 'PAYROLL_CHANGED' });
+
     return payroll;
   }
 
@@ -388,6 +392,9 @@ export class PayrollService {
           data.overtimeHours !== undefined ? data.overtimeHours : payroll.overtimeHours,
       },
     });
+
+    // Broadcast to all connected clients so payroll lists refresh
+    broadcast({ type: 'PAYROLL_CHANGED' });
 
     return updated;
   }
@@ -567,6 +574,9 @@ export class PayrollService {
     const period = `${year}-${String(month).padStart(2, '0')}`;
 
     await notificationService.createPayrollNotifications(employeeIds, month, year, period);
+
+    // Broadcast to all connected clients so payroll lists refresh
+    broadcast({ type: 'PAYROLL_CHANGED' });
 
     return { count: employeeIds.length };
   }

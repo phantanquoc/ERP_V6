@@ -172,6 +172,8 @@ export class OvertimePlanService {
         }
         // Auto-create attendance records for all participants
         await this.createOvertimeAttendances(plan);
+        // Broadcast attendance change so overtime attendance list refreshes
+        broadcast({ type: 'ATTENDANCE_CHANGED' });
       }
       // Broadcast to ALL connected WS clients so every open overtime modal refreshes
       broadcast({ type: 'OVERTIME_PLAN_CHANGED' });

@@ -5,6 +5,7 @@ import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 import notificationService from './notificationService';
+import { broadcast } from './websocket';
 import { LeaveRequestStatusConst } from '@types';
 
 export class LeaveRequestService {
@@ -77,6 +78,9 @@ export class LeaveRequestService {
 
     // Create notification for Quality Personnel department
     await this.createNotificationForQualityPersonnel(leaveRequest);
+
+    // Broadcast to all connected clients so leave request lists refresh
+    broadcast({ type: 'LEAVE_REQUEST_CHANGED' });
 
     return leaveRequest;
   }
@@ -206,6 +210,9 @@ export class LeaveRequestService {
     // Create notification for employee
     await this.createNotificationForEmployee(updatedRequest, 'APPROVED');
 
+    // Broadcast to all connected clients so leave request lists refresh
+    broadcast({ type: 'LEAVE_REQUEST_CHANGED' });
+
     return updatedRequest;
   }
 
@@ -244,6 +251,9 @@ export class LeaveRequestService {
 
     // Create notification for employee
     await this.createNotificationForEmployee(updatedRequest, 'REJECTED');
+
+    // Broadcast to all connected clients so leave request lists refresh
+    broadcast({ type: 'LEAVE_REQUEST_CHANGED' });
 
     return updatedRequest;
   }

@@ -3,6 +3,8 @@ import logger from '@config/logger';
 import { TaxReportStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import ExcelJS from 'exceljs';
+import notificationService from './notificationService';
+import { broadcast } from './websocket';
 
 class OrderService {
   // Generate order code
@@ -110,6 +112,9 @@ class OrderService {
       logger.error('⚠️ Failed to create tax report automatically:', error);
       // Don't throw error, just log it - order creation should still succeed
     }
+
+    // Broadcast so all connected clients refresh their order lists
+    broadcast({ type: 'ORDER_CHANGED' });
 
     return order;
   }
@@ -245,6 +250,67 @@ class OrderService {
         items: true,
       },
     });
+
+    // Notify relevant users on production or payment status changes
+    if (data.trangThaiSanXuat && data.trangThaiSanXuat !== order.trangThaiSanXuat) {
+      try {
+        // Notify the assigned employee
+        if (updatedOrder.employeeId) {
+          const employee = await prisma.employee.findUnique({
+            where: { id: updatedOrder.employeeId },
+            select: { id: true, userId: true },
+          });
+          if (employee?.userId) {
+            const user = await prisma.user.findUnique({
+              where: { id: employee.userId },
+              select: { firstName: true, lastName: true },
+            });
+            const updatedByName = user ? `${user.firstName} ${user.lastName}` : 'Hệ thống';
+            await notificationService.createOrderNotifications(
+              [employee.id],
+              updatedOrder.id,
+              updatedOrder.maDonHang,
+              data.trangThaiSanXuat,
+              updatedByName
+            );
+          }
+        }
+        // Broadcast so all connected clients refresh their order lists
+        broadcast({ type: 'ORDER_CHANGED' });
+      } catch (error) {
+        logger.error('❌ Error sending order production status notification:', error);
+      }
+    }
+
+    if (data.trangThaiThanhToan && data.trangThaiThanhToan !== order.trangThaiThanhToan) {
+      try {
+        // Notify the assigned employee
+        if (updatedOrder.employeeId) {
+          const employee = await prisma.employee.findUnique({
+            where: { id: updatedOrder.employeeId },
+            select: { id: true, userId: true },
+          });
+          if (employee?.userId) {
+            const user = await prisma.user.findUnique({
+              where: { id: employee.userId },
+              select: { firstName: true, lastName: true },
+            });
+            const updatedByName = user ? `${user.firstName} ${user.lastName}` : 'Hệ thống';
+            await notificationService.createOrderNotifications(
+              [employee.id],
+              updatedOrder.id,
+              updatedOrder.maDonHang,
+              data.trangThaiThanhToan,
+              updatedByName
+            );
+          }
+        }
+        // Broadcast so all connected clients refresh their order lists
+        broadcast({ type: 'ORDER_CHANGED' });
+      } catch (error) {
+        logger.error('❌ Error sending order payment status notification:', error);
+      }
+    }
 
     return updatedOrder;
   }

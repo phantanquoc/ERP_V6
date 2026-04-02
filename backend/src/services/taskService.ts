@@ -4,6 +4,7 @@ import { CreateTaskRequest, UpdateTaskRequest, TaskListQuery, TaskPriority, Task
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import { Task } from '@prisma/client';
 import notificationService from './notificationService';
+import { broadcast } from './websocket';
 
 class TaskService {
   // Helper function to populate task with user information
@@ -124,6 +125,9 @@ class TaskService {
       // Don't fail the task creation if notification fails
     }
 
+    // Broadcast to all connected clients so task lists refresh
+    broadcast({ type: 'TASK_CHANGED' });
+
     return task;
   }
 
@@ -233,6 +237,9 @@ class TaskService {
       data: updateData,
     });
 
+    // Broadcast to all connected clients so task lists refresh
+    broadcast({ type: 'TASK_CHANGED' });
+
     return updatedTask;
   }
 
@@ -253,6 +260,9 @@ class TaskService {
     await prisma.task.delete({
       where: { id },
     });
+
+    // Broadcast to all connected clients so task lists refresh
+    broadcast({ type: 'TASK_CHANGED' });
   }
 
   async getMyTasks(userId: string, query: TaskListQuery): Promise<{ tasks: Task[]; total: number; page: number; totalPages: number }> {
@@ -311,6 +321,9 @@ class TaskService {
       where: { id: taskId },
       data: { trangThaiTiepNhan: currentStatus },
     });
+
+    // Broadcast to all connected clients so task lists refresh
+    broadcast({ type: 'TASK_CHANGED' });
 
     return this.populateTaskWithUsers(updatedTask);
   }

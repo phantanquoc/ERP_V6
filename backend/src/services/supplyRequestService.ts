@@ -2,6 +2,8 @@ import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
+import notificationService from './notificationService';
+import { broadcast } from './websocket';
 
 interface CreateSupplyRequestRequest {
   employeeId: string;
@@ -163,22 +165,65 @@ class SupplyRequestService {
       },
     });
 
+    // Broadcast so all connected clients refresh their supply request lists
+    broadcast({ type: 'SUPPLY_REQUEST_CHANGED' });
+
     return supplyRequest;
   }
 
   async updateSupplyRequest(id: string, data: UpdateSupplyRequestRequest) {
+    // Fetch existing to detect status changes
+    const existing = await prisma.supplyRequest.findUnique({
+      where: { id },
+      include: {
+        employee: {
+          include: {
+            user: {
+              select: { firstName: true, lastName: true },
+            },
+          },
+        },
+      },
+    });
+    if (!existing) {
+      throw new NotFoundError('Supply request not found');
+    }
+
     const supplyRequest = await prisma.supplyRequest.update({
       where: { id },
       data,
       include: {
         employee: {
           include: {
-            user: true,
+            user: {
+              select: { firstName: true, lastName: true },
+            },
             position: true,
           },
         },
       },
     });
+
+    // Notify the requester when status changes
+    if (data.trangThai && data.trangThai !== existing.trangThai) {
+      try {
+        const updatedByName = supplyRequest.employee?.user
+          ? `${supplyRequest.employee.user.firstName} ${supplyRequest.employee.user.lastName}`
+          : 'Hệ thống';
+        await notificationService.createSupplyRequestNotification(
+          existing.employeeId,
+          supplyRequest.id,
+          supplyRequest.maYeuCau,
+          data.trangThai,
+          updatedByName
+        );
+      } catch (error) {
+        console.error('❌ Error sending supply request notification:', error);
+      }
+    }
+
+    // Broadcast so all connected clients refresh their supply request lists
+    broadcast({ type: 'SUPPLY_REQUEST_CHANGED' });
 
     return supplyRequest;
   }
@@ -187,6 +232,9 @@ class SupplyRequestService {
     await prisma.supplyRequest.delete({
       where: { id },
     });
+
+    // Broadcast so all connected clients refresh their supply request lists
+    broadcast({ type: 'SUPPLY_REQUEST_CHANGED' });
   }
 
   async exportToExcel(filters?: any): Promise<Buffer> {
