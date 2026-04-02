@@ -12,6 +12,7 @@ router.use(authenticate);
 router.get('/my-plans', overtimePlanController.getMyPlans);
 router.get('/', overtimePlanController.getAll);
 router.get('/:id', overtimePlanController.getById);
+router.get('/:id/attendances', overtimePlanController.getPlanAttendances);
 router.post('/', uploadOvertimePlans, overtimePlanController.create);
 router.put('/:id', uploadOvertimePlans, overtimePlanController.update);
 router.delete('/:id', overtimePlanController.delete);

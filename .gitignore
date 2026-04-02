@@ -58,3 +58,4 @@ docker-compose.local.yml
 
 .github
 .claude
+DEPLOY.md

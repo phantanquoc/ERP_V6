@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest, ApiResponse } from '@types';
 import overtimePlanService from '@services/overtimePlanService';
+import attendanceService from '@services/attendanceService';
 import { getFileUrl } from '@middlewares/upload';
 
 class OvertimePlanController {
@@ -107,6 +108,23 @@ class OvertimePlanController {
       const { actualTimes } = req.body;
       const plan = await overtimePlanService.updateActualTime(req.params.id as string, userId, actualTimes, isUserAdmin);
       res.json({ success: true, data: plan, message: 'Cập nhật giờ thực tế thành công' } as ApiResponse<any>);
+    } catch (error) { next(error); }
+  }
+
+  async getPlanAttendances(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const page = req.query.page ? parseInt(req.query.page as string) : 1;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+      const result = await attendanceService.getOvertimeAttendances({
+        planId: req.params.id as string,
+        page,
+        limit,
+      });
+      res.json({
+        success: true,
+        data: result.data,
+        pagination: { page: result.page, limit, total: result.total, totalPages: result.totalPages },
+      } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
 }
