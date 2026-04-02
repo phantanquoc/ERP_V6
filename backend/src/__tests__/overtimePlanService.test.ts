@@ -47,10 +47,12 @@ jest.mock('@services/notificationService', () => ({
 
 jest.mock('@services/websocket', () => ({
   pushNotification: jest.fn(),
+  broadcast: jest.fn(),
 }));
 
 import prisma from '@config/database';
 import notificationService from '@services/notificationService';
+import { broadcast } from '@services/websocket';
 import { OvertimePlanService } from '@services/overtimePlanService';
 import { AttendanceStatus } from '@prisma/client';
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
@@ -58,6 +60,7 @@ import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 const service = new OvertimePlanService();
 const mockedPrisma = prisma as jest.Mocked<typeof prisma>;
 const mockedNotification = notificationService as jest.Mocked<typeof notificationService>;
+const mockedBroadcast = broadcast as jest.Mock;
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -201,6 +204,7 @@ describe('OvertimePlanService', () => {
   // ── approvePlan ──────────────────────────────────────────────────────────
   describe('approvePlan', () => {
     beforeEach(() => {
+      jest.clearAllMocks();
       (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue(ADMIN_USER);
       (mockedPrisma.overtimePlan.findUnique as jest.Mock).mockResolvedValue(PLAN_BASE);
       (mockedPrisma.overtimePlan.update as jest.Mock).mockResolvedValue(UPDATED_PLAN);
@@ -284,6 +288,20 @@ describe('OvertimePlanService', () => {
       await expect(
         service.approvePlan('plan-001', 'admin-user-id', { trangThai: 'DA_DUYET' } as any)
       ).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it('should broadcast OVERTIME_PLAN_CHANGED after successful approval', async () => {
+      await service.approvePlan('plan-001', 'admin-user-id', { trangThai: 'DA_DUYET' } as any);
+
+      expect(mockedBroadcast).toHaveBeenCalledWith({ type: 'OVERTIME_PLAN_CHANGED' });
+    });
+
+    it('should broadcast OVERTIME_PLAN_CHANGED even when plan is rejected', async () => {
+      (mockedPrisma.overtimePlan.update as jest.Mock).mockResolvedValue({ ...PLAN_BASE, trangThai: 'TU_CHOI' });
+
+      await service.approvePlan('plan-001', 'admin-user-id', { trangThai: 'TU_CHOI' } as any);
+
+      expect(mockedBroadcast).toHaveBeenCalledWith({ type: 'OVERTIME_PLAN_CHANGED' });
     });
   });
 });
