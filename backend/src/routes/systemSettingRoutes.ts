@@ -20,4 +20,20 @@ router.put('/banner', authenticate, authorize('ADMIN'), (req, res) =>
   systemSettingController.setBanner(req as any, res)
 );
 
+/**
+ * GET /api/system-settings/slogan
+ * Public — lấy slogan hiện tại (có thể rỗng)
+ */
+router.get('/slogan', (req, res) =>
+  systemSettingController.getSlogan(req as any, res)
+);
+
+/**
+ * PUT /api/system-settings/slogan
+ * Admin only — đổi slogan + broadcast WebSocket realtime. Cho phép value rỗng (xoá slogan).
+ */
+router.put('/slogan', authenticate, authorize('ADMIN'), (req, res) =>
+  systemSettingController.setSlogan(req as any, res)
+);
+
 export default router;

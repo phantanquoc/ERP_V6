@@ -72,6 +72,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             window.dispatchEvent(
               new CustomEvent('systemBannerChanged', { detail: broadcastPayload.value })
             );
+          } else if (broadcastPayload.type === 'SYSTEM_SLOGAN_CHANGED') {
+            window.dispatchEvent(
+              new CustomEvent('systemSloganChanged', { detail: broadcastPayload.value })
+            );
           }
         } else if (msg.type === 'PING') {
           ws.send(JSON.stringify({ type: 'PONG' }));

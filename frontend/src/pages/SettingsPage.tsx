@@ -1,6 +1,6 @@
 /**
  * SettingsPage — Trang cài đặt hệ thống (chỉ ADMIN)
- * Cho phép admin thay đổi banner toàn hệ thống với live preview
+ * Cho phép admin thay đổi banner và slogan toàn hệ thống với live preview
  */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -50,6 +50,24 @@ async function saveBannerToServer(value: HolidayType | 'auto'): Promise<void> {
   });
 }
 
+async function fetchSlogan(): Promise<string> {
+  const res = await fetch(`${API_BASE_URL}/system-settings/slogan`);
+  const json = await res.json();
+  return json?.data?.value ?? '';
+}
+
+async function saveSloganToServer(value: string): Promise<void> {
+  const token = AuthService.getAccessToken();
+  await fetch(`${API_BASE_URL}/system-settings/slogan`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ value }),
+  });
+}
+
 const SettingsPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -58,10 +76,21 @@ const SettingsPage: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Slogan state
+  const [slogan, setSlogan] = useState('');
+  const [sloganInput, setSloganInput] = useState('');
+  const [sloganSaved, setSloganSaved] = useState(false);
+  const [sloganLoading, setSloganLoading] = useState(true);
+
   useEffect(() => {
     fetchBanner().then(val => {
       setSelected(val);
       setLoading(false);
+    });
+    fetchSlogan().then(val => {
+      setSlogan(val);
+      setSloganInput(val);
+      setSloganLoading(false);
     });
   }, []);
 
@@ -91,6 +120,13 @@ const SettingsPage: React.FC = () => {
     setSaved(true);
     // Reset saved indicator sau 3s
     setTimeout(() => setSaved(false), 3000);
+  };
+
+  const handleSloganSave = async () => {
+    await saveSloganToServer(sloganInput);
+    setSlogan(sloganInput);
+    setSloganSaved(true);
+    setTimeout(() => setSloganSaved(false), 3000);
   };
 
   return (
@@ -208,6 +244,85 @@ const SettingsPage: React.FC = () => {
           </div>
 
         </div>
+        {/* ── Slogan Editor ── */}
+        <div className="mt-8 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-800">💬 Slogan hệ thống</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Hiển thị trên trang đăng nhập. Để trống để ẩn slogan.
+            </p>
+          </div>
+
+          {sloganLoading ? (
+            <div className="p-8 flex justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : (
+            <div className="p-6 space-y-4">
+              {/* Current slogan preview */}
+              {slogan ? (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-3">
+                  <p className="text-xs text-blue-500 font-medium mb-1">Slogan hiện tại</p>
+                  <p className="text-sm text-blue-800 italic">"{slogan}"</p>
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-dashed border-gray-300 rounded-xl px-5 py-3">
+                  <p className="text-sm text-gray-400 italic">Chưa có slogan — đang ẩn trên trang đăng nhập</p>
+                </div>
+              )}
+
+              {/* Textarea */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Nội dung slogan mới
+                </label>
+                <textarea
+                  value={sloganInput}
+                  onChange={e => { setSloganInput(e.target.value); setSloganSaved(false); }}
+                  rows={3}
+                  maxLength={300}
+                  placeholder='Ví dụ: "Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình..."'
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+                <div className="flex justify-between mt-1">
+                  <p className="text-xs text-gray-400">Để trống → ẩn slogan trên trang đăng nhập</p>
+                  <p className="text-xs text-gray-400">{sloganInput.length}/300</p>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSloganSave}
+                  disabled={sloganSaved}
+                  className={`flex-1 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                    sloganSaved
+                      ? 'bg-emerald-500 text-white cursor-default'
+                      : 'bg-gray-900 text-white hover:bg-gray-700 active:scale-[0.98] shadow-md'
+                  }`}
+                >
+                  {sloganSaved ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                      </svg>
+                      Đã lưu — đang cập nhật realtime!
+                    </span>
+                  ) : 'Lưu & áp dụng'}
+                </button>
+                {sloganInput && (
+                  <button
+                    onClick={() => { setSloganInput(''); setSloganSaved(false); }}
+                    className="px-4 py-3 rounded-xl text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors"
+                  >
+                    Xoá
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );

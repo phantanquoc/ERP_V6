@@ -6,6 +6,7 @@ import { AlertTriangle, Lock, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/Button';
 import { loginSchema, LoginFormData } from '../schemas/requestSchemas';
+import { API_BASE_URL } from '../config/api';
 
 /** Countdown hook — đếm ngược realtime từ initialSeconds → 0 */
 function useCountdown() {
@@ -83,6 +84,7 @@ const Login: React.FC = () => {
   const [failCount, setFailCount] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const { remaining, start: startCountdown } = useCountdown();
+  const [slogan, setSlogan] = useState('');
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -105,6 +107,18 @@ const Login: React.FC = () => {
       startCountdown(saved.remainingSecs);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Fetch slogan từ API + lắng nghe WebSocket broadcast realtime ──
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/system-settings/slogan`)
+      .then(r => r.json())
+      .then(json => setSlogan(json?.data?.value ?? ''))
+      .catch(() => {/* ignore */});
+
+    const handler = (e: Event) => setSlogan((e as CustomEvent<string>).detail ?? '');
+    window.addEventListener('systemSloganChanged', handler);
+    return () => window.removeEventListener('systemSloganChanged', handler);
   }, []);
 
   // Khi countdown về 0 → tự động bỏ block và xóa storage
@@ -307,6 +321,11 @@ const Login: React.FC = () => {
           <div className="text-center text-white">
             <h2 className="text-4xl font-bold mb-4">Chào mừng đến với ABF System</h2>
             <p className="text-xl text-blue-100 mb-8">Hệ thống quản lý doanh nghiệp toàn diện</p>
+            {slogan && (
+              <div className="mb-8 px-6 py-4 bg-white/10 rounded-2xl border border-white/20 backdrop-blur-sm">
+                <p className="text-base text-white/90 italic leading-relaxed">"{slogan}"</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="bg-white/10 p-4 rounded-lg">
                 <h3 className="font-semibold mb-2">Quản lý Nhân sự</h3>
