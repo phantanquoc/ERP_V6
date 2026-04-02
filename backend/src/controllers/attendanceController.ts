@@ -208,6 +208,44 @@ export class AttendanceController {
       next(error);
     }
   }
+
+  async getDailySummary(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const date = req.query.date ? new Date(req.query.date as string) : new Date();
+      const result = await attendanceService.getDailySummary(date);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getOvertimeAttendances(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { search, page, limit, month, planId } = req.query;
+      const pageNum = page ? parseInt(page as string, 10) : 1;
+      const limitNum = limit ? parseInt(limit as string, 10) : 10;
+      const result = await attendanceService.getOvertimeAttendances({
+        search: search as string,
+        page: pageNum,
+        limit: limitNum,
+        month: month as string,
+        planId: planId as string,
+      });
+      res.status(200).json({
+        success: true,
+        message: 'Lấy danh sách chấm công tăng ca thành công',
+        data: result.data,
+        pagination: {
+          page: result.page,
+          limit: limitNum,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new AttendanceController();

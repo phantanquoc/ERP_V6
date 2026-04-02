@@ -392,6 +392,196 @@ export class AttendanceService {
     });
   }
 
+  async getDailySummary(date: Date) {
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    // Get all active employees
+    const employees = await prisma.employee.findMany({
+      where: { status: 'ACTIVE' },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+        subDepartment: { select: { name: true } },
+        position: { select: { name: true } },
+      },
+    });
+
+    // Get all attendances for this date
+    const attendances = await prisma.attendance.findMany({
+      where: {
+        attendanceDate: { gte: dayStart, lte: dayEnd },
+      },
+      include: {
+        employee: {
+          include: {
+            user: { select: { id: true, firstName: true, lastName: true } },
+            subDepartment: { select: { name: true } },
+            position: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    // Group attendances
+    const present_out: any[] = [];  // has checkOut
+    const present: any[] = [];       // checkIn only
+    const absentIds = new Set(employees.map(e => e.id));
+
+    for (const att of attendances) {
+      absentIds.delete(att.employeeId);
+      if (att.checkOutTime) {
+        present_out.push(this.formatAttendanceCard(att));
+      } else {
+        present.push(this.formatAttendanceCard(att));
+      }
+    }
+
+    const absent = employees
+      .filter(e => absentIds.has(e.id))
+      .map(e => ({
+        employeeId: e.id,
+        employeeCode: e.employeeCode,
+        firstName: e.user.firstName,
+        lastName: e.user.lastName,
+        department: e.subDepartment?.name || '',
+        position: e.position?.name || '',
+        userId: e.user.id,
+      }));
+
+    return {
+      date: date.toISOString().split('T')[0],
+      summary: {
+        totalEmployees: employees.length,
+        present: present.length,
+        present_out: present_out.length,
+        absent: absent.length,
+      },
+      employees: { present, present_out, absent },
+    };
+  }
+
+  private formatAttendanceCard(att: any) {
+    const getTime = (t: Date | string | null) => t ? new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null;
+    return {
+      employeeId: att.employee.id,
+      employeeCode: att.employee.employeeCode,
+      firstName: att.employee.user.firstName,
+      lastName: att.employee.user.lastName,
+      department: att.employee.subDepartment?.name || '',
+      position: att.employee.position?.name || '',
+      checkInTime: getTime(att.checkInTime),
+      checkOutTime: getTime(att.checkOutTime),
+      workHours: att.workHours,
+      lastCheckTime: getTime(att.checkOutTime || att.checkInTime),
+      userId: att.employee.user.id,
+    };
+  }
+
+  async getOvertimeAttendances(query: {
+    search?: string;
+    page?: number;
+    limit?: number;
+    month?: string; // "YYYY-MM"
+    planId?: string;
+  }): Promise<{ data: any[]; total: number; page: number; totalPages: number }> {
+    const pageNum = Math.max(1, parseInt(String(query.page || 1), 10));
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(query.limit || 10), 10)));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: any = {
+      OR: [
+        { status: AttendanceStatus.OVERTIME },
+        { isOvertime: true },
+      ],
+    };
+
+    if (query.planId) {
+      where.overtimePlanId = query.planId;
+    }
+
+    if (query.month) {
+      const [year, month] = query.month.split('-').map(Number);
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+      where.attendanceDate = { gte: startDate, lte: endDate };
+    }
+
+    if (query.search) {
+      where.employee = {
+        OR: [
+          { employeeCode: { contains: query.search, mode: 'insensitive' } },
+          { user: { firstName: { contains: query.search, mode: 'insensitive' } } },
+          { user: { lastName: { contains: query.search, mode: 'insensitive' } } },
+        ],
+      };
+    }
+
+    const [total, records] = await Promise.all([
+      prisma.attendance.count({ where }),
+      prisma.attendance.findMany({
+        where,
+        include: {
+          employee: {
+            include: {
+              user: { select: { firstName: true, lastName: true } },
+              subDepartment: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { attendanceDate: 'desc' },
+        skip,
+        take: limitNum,
+      }),
+    ]);
+
+    const data = records.map((att) => ({
+      id: att.id,
+      employeeCode: (att.employee as any).employeeCode,
+      employeeName: `${(att.employee as any).user.firstName} ${(att.employee as any).user.lastName}`.trim(),
+      subDepartmentName: (att.employee as any).subDepartment?.name || '',
+      attendanceDate: att.attendanceDate,
+      checkInTime: att.checkInTime,
+      checkOutTime: att.checkOutTime,
+      workHours: att.workHours,
+      status: att.status,
+      isOvertime: att.isOvertime,
+      overtimePlanId: att.overtimePlanId,
+      notes: att.notes,
+    }));
+
+    return { data, total, page: pageNum, totalPages: Math.ceil(total / limitNum) };
+  }
+
+  async getAbsentEmployees(date: Date) {
+    const dayStart = new Date(date); dayStart.setHours(0,0,0,0);
+    const dayEnd = new Date(date); dayEnd.setHours(23,59,59,999);
+    const employees = await prisma.employee.findMany({
+      where: { status: 'ACTIVE' },
+      include: { user: true },
+    });
+    const checkedIn = await prisma.attendance.findMany({
+      where: { attendanceDate: { gte: dayStart, lte: dayEnd } },
+      select: { employeeId: true },
+    });
+    const checkedInIds = new Set(checkedIn.map(a => a.employeeId));
+    return employees.filter(e => !checkedInIds.has(e.id));
+  }
+
+  async getPresentNotOutEmployees(date: Date) {
+    const dayStart = new Date(date); dayStart.setHours(0,0,0,0);
+    const dayEnd = new Date(date); dayEnd.setHours(23,59,59,999);
+    return prisma.attendance.findMany({
+      where: {
+        attendanceDate: { gte: dayStart, lte: dayEnd },
+        checkInTime: { not: null },
+        checkOutTime: null,
+      },
+      include: { employee: { include: { user: true } } },
+    });
+  }
+
   async exportToExcel(filters?: any): Promise<Buffer> {
     const where: any = {};
 

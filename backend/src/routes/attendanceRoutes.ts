@@ -4,6 +4,10 @@ import { authenticate } from '@middlewares/auth';
 
 const router = Router();
 
+router.get('/daily-summary', authenticate, (req, res, next) => attendanceController.getDailySummary(req, res, next));
+
+router.get('/overtime', authenticate, (req, res, next) => attendanceController.getOvertimeAttendances(req, res, next));
+
 /**
  * @swagger
  * /api/attendances/date-range:
