@@ -389,6 +389,17 @@ model Theme {
   @@schema("common")
 }
 
+// ==================== SYSTEM SETTINGS (Cài đặt hệ thống toàn cục) ====================
+model SystemSetting {
+  key       String   @id           // e.g. "bannerOverride"
+  value     String                  // e.g. "auto" | "default" | "tet" | "liberation" | "labor"
+  updatedAt DateTime @updatedAt
+  updatedBy String?                 // employeeId hoặc userId của admin đã thay đổi
+
+  @@map("system_settings")
+  @@schema("common")
+}
+
 model Product {
   id            String         @id @default(cuid())
   productCode   String         @unique

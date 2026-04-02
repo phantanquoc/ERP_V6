@@ -65,6 +65,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (msg.type === 'NOTIFICATION' && msg.payload) {
           const payload = msg.payload as WsNotificationPayload;
           notificationListeners.current.forEach((fn) => fn(payload));
+        } else if (msg.type === 'BROADCAST' && msg.payload) {
+          // System-wide broadcasts — dispatch as custom events so any component can listen
+          const broadcastPayload = msg.payload as Record<string, unknown>;
+          if (broadcastPayload.type === 'SYSTEM_BANNER_CHANGED') {
+            window.dispatchEvent(
+              new CustomEvent('systemBannerChanged', { detail: broadcastPayload.value })
+            );
+          }
         } else if (msg.type === 'PING') {
           ws.send(JSON.stringify({ type: 'PONG' }));
         }

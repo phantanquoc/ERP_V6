@@ -1,13 +1,15 @@
 /**
  * HolidayBanner — Banner lễ tết chuyên nghiệp
- * - default    → Corporate mesh gradient + animated blobs
+ * - default    → Corporate mesh gradient + animated blobs + fruit basket game
  * - tet        → Hoa mai SVG + đèn lồng SVG + particles vàng
  * - liberation → Cờ đỏ sao vàng SVG bay + canvas-confetti pháo hoa
  * - labor      → Same red+gold scheme, nội dung Lao động
- * Hiển thị sớm 7 ngày · User override qua dropdown → localStorage
+ * Auto-detect: chỉ Tết + 30/4 (không detect 1/5 vì quá gần 30/4)
+ * Admin override toàn hệ thống qua trang /settings — lưu DB, broadcast WebSocket realtime
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
+import { API_BASE_URL } from '../config/api';
 
 export type HolidayType = 'tet' | 'liberation' | 'labor' | 'default';
 
@@ -23,72 +25,52 @@ export interface BannerUser {
 interface Props {
   user: BannerUser;
   departmentName: string;
+  /** Ép buộc hiển thị banner cụ thể (dùng cho admin settings preview) */
   forceHoliday?: HolidayType;
 }
 
-const LS_KEY = 'holidayBannerOverride';
-export function saveBannerOverride(v: HolidayType | 'auto'): void { localStorage.setItem(LS_KEY, v); }
-export function loadBannerOverride(): HolidayType | 'auto' {
-  return (localStorage.getItem(LS_KEY) as HolidayType | 'auto') ?? 'auto';
+// Custom event name — AuthContext dispatch khi nhận SYSTEM_BANNER_CHANGED từ WebSocket
+const SYSTEM_BANNER_EVENT = 'systemBannerChanged';
+
+/**
+ * Hook lấy banner từ API khi mount, sau đó lắng nghe WebSocket broadcast realtime.
+ * AuthContext → ws.onmessage → dispatch CustomEvent('systemBannerChanged') → hook cập nhật state.
+ */
+function useSystemBanner(): HolidayType | 'auto' {
+  const [value, setValue] = useState<HolidayType | 'auto'>('auto');
+
+  useEffect(() => {
+    // Fetch giá trị ban đầu từ API (không cần auth)
+    fetch(`${API_BASE_URL}/system-settings/banner`)
+      .then(r => r.json())
+      .then(json => {
+        if (json?.data?.value) setValue(json.data.value as HolidayType | 'auto');
+      })
+      .catch(() => {/* fallback: giữ 'auto' */});
+
+    // Lắng nghe realtime từ WebSocket (qua AuthContext → CustomEvent)
+    const onBannerChanged = (e: Event) => {
+      const val = (e as CustomEvent<string>).detail;
+      if (val) setValue(val as HolidayType | 'auto');
+    };
+    window.addEventListener(SYSTEM_BANNER_EVENT, onBannerChanged);
+    return () => window.removeEventListener(SYSTEM_BANNER_EVENT, onBannerChanged);
+  }, []);
+
+  return value;
 }
 
+/** Tự động detect theo ngày — chỉ Tết và 30/4, KHÔNG detect 1/5 (quá gần 30/4) */
 export function detectHoliday(): HolidayType {
   const ahead = new Date();
   ahead.setDate(ahead.getDate() + 7);
   const m = ahead.getMonth() + 1;
   const d = ahead.getDate();
   if ((m === 1 && d >= 8) || (m === 2 && d <= 20)) return 'tet';
-  if (m === 4 && d >= 23) return 'liberation';
-  if (m === 5 && d <= 3) return 'labor';
+  // 30/4: hiển thị từ 23/4 đến 30/4 (8 ngày, không tràn sang 1/5)
+  if (m === 4 && d >= 23 && d <= 30) return 'liberation';
   return 'default';
 }
-
-const PICKER_OPTIONS: { value: HolidayType | 'auto'; label: string }[] = [
-  { value: 'auto',       label: 'Tự động theo ngày' },
-  { value: 'default',    label: 'Mặc định' },
-  { value: 'tet',        label: 'Tết Nguyên Đán' },
-  { value: 'liberation', label: '30/4 Giải phóng' },
-  { value: 'labor',      label: '1/5 Lao động' },
-];
-
-const BannerPicker: React.FC<{ value: HolidayType | 'auto'; onChange: (v: HolidayType | 'auto') => void }> = ({ value, onChange }) => {
-  const [open, setOpen] = useState(false);
-  const label = PICKER_OPTIONS.find(o => o.value === value)?.label ?? 'Tự động';
-  return (
-    <div className="relative mb-1.5 flex justify-end" style={{ zIndex: 30 }}>
-      <button
-        onClick={() => setOpen(p => !p)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/15 bg-black/20 text-white/80 hover:bg-black/30 hover:text-white transition-all backdrop-blur-md"
-      >
-        <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/>
-        </svg>
-        <span>{label}</span>
-        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
-        </svg>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 w-48 rounded-xl overflow-hidden shadow-2xl border border-white/10"
-               style={{ background: 'rgba(10,10,20,0.92)', backdropFilter: 'blur(16px)', zIndex: 50 }}>
-            {PICKER_OPTIONS.map(opt => (
-              <button key={opt.value}
-                onClick={() => { onChange(opt.value); saveBannerOverride(opt.value); setOpen(false); }}
-                className={`w-full text-left px-4 py-2.5 text-xs flex items-center gap-2.5 transition-colors ${
-                  value === opt.value ? 'text-amber-300 font-semibold' : 'text-white/70 hover:text-white'
-                } hover:bg-white/8`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${value === opt.value ? 'bg-amber-400' : 'bg-white/20'}`}/>
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
 
 function useClock() {
   const [now, setNow] = useState(new Date());
@@ -875,24 +857,19 @@ const LiberationBanner: React.FC<Props & { type: 'liberation' | 'labor' }> = ({ 
 };
 
 // ─── Main export ──────────────────────────────────────────────────────────────
+// Banner đọc system override do admin set (localStorage key: systemBannerOverride)
+// User KHÔNG tự thay đổi được — chỉ admin qua trang /settings
+// Realtime: lắng nghe storage event (cross-tab) + custom event (same-tab) → re-render ngay khi admin đổi
 const HolidayBanner: React.FC<Props> = ({ user, departmentName, forceHoliday }) => {
-  const [override, setOverride] = useState<HolidayType | 'auto'>(() => loadBannerOverride());
-  const holiday: HolidayType = forceHoliday ?? (override === 'auto' ? detectHoliday() : override);
+  const systemOverride = useSystemBanner(); // reactive — cập nhật realtime cross-tab & same-tab
+  const holiday: HolidayType = forceHoliday ?? (systemOverride === 'auto' ? detectHoliday() : systemOverride);
   const p = { user, departmentName };
-  const renderBanner = () => {
-    switch (holiday) {
-      case 'tet':        return <TetBanner {...p}/>;
-      case 'liberation': return <LiberationBanner {...p} type="liberation"/>;
-      case 'labor':      return <LiberationBanner {...p} type="labor"/>;
-      default:           return <DefaultBanner {...p}/>;
-    }
-  };
-  return (
-    <div>
-      {!forceHoliday && <BannerPicker value={override} onChange={setOverride}/>}
-      {renderBanner()}
-    </div>
-  );
+  switch (holiday) {
+    case 'tet':        return <TetBanner {...p}/>;
+    case 'liberation': return <LiberationBanner {...p} type="liberation"/>;
+    case 'labor':      return <LiberationBanner {...p} type="labor"/>;
+    default:           return <DefaultBanner {...p}/>;
+  }
 };
 
 export default HolidayBanner;

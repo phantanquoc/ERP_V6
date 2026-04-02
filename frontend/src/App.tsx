@@ -51,6 +51,9 @@ const TechnicalManagement = React.lazy(() => import('./pages/TechnicalManagement
 const TechnicalQuality = React.lazy(() => import('./pages/technical/TechnicalQuality'));
 const TechnicalMechanical = React.lazy(() => import('./pages/technical/TechnicalMechanical'));
 
+// Admin Settings
+const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
+
 function App() {
   return (
     <Router>
@@ -129,6 +132,9 @@ function App() {
           <Route path="/technical" element={<ProtectedLayout><TechnicalManagement /></ProtectedLayout>} />
           <Route path="/technical/quality" element={<ProtectedLayout><TechnicalQuality /></ProtectedLayout>} />
           <Route path="/technical/mechanical" element={<ProtectedLayout><TechnicalMechanical /></ProtectedLayout>} />
+
+          {/* Admin Settings */}
+          <Route path="/settings" element={<ProtectedLayout><SettingsPage /></ProtectedLayout>} />
         </Routes>
         </Suspense>
       </AuthProvider>
