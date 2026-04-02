@@ -49,7 +49,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const connectWebSocket = useCallback(() => {
     const token = AuthService.getAccessToken();
+    // Chỉ skip nếu đang OPEN (readyState=1). CONNECTING(0)/CLOSING(2)/CLOSED(3) → tạo mới
     if (!token || wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    // Đóng connection cũ nếu đang CONNECTING/CLOSING trước khi tạo mới
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      wsRef.current.onclose = null; // tắt handler cũ để không trigger reconnect loop
+      wsRef.current.close();
+    }
+    wsRef.current = null;
 
     const ws = new WebSocket(`${WS_BASE_URL}/ws?token=${encodeURIComponent(token)}`);
     wsRef.current = ws;
@@ -87,6 +95,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     ws.onclose = (event: CloseEvent) => {
       console.debug(`[WS] Closed (code=${event.code})`);
+      // Reset ref để connectWebSocket biết cần tạo mới
+      if (wsRef.current === ws) wsRef.current = null;
 
       // 4001 = auth failure (expired/invalid token) — do not retry
       // 1000 = normal close (logout) — do not retry
@@ -121,6 +131,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       disconnectWebSocket();
     };
   }, [disconnectWebSocket]);
+
+  /* ── Reconnect khi tab được focus lại (sau docker restart / network hiccup) ── */
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isLoggedOutRef.current) {
+        connectWebSocket();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [connectWebSocket]);
 
   useEffect(() => {
     // Check if user is already logged in
