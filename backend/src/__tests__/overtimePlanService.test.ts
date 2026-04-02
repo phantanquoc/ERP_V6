@@ -250,6 +250,26 @@ describe('OvertimePlanService', () => {
       ).rejects.toBeInstanceOf(ApiError);
     });
 
+    it('should allow DEPARTMENT_HEAD to approve', async () => {
+      (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ ...ADMIN_USER, role: 'DEPARTMENT_HEAD' });
+
+      await service.approvePlan('plan-001', 'dept-head-id', { trangThai: 'DA_DUYET' } as any);
+
+      expect(mockedPrisma.overtimePlan.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ trangThai: 'DA_DUYET' }) })
+      );
+    });
+
+    it('should allow TEAM_LEAD to approve', async () => {
+      (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ ...ADMIN_USER, role: 'TEAM_LEAD' });
+
+      await service.approvePlan('plan-001', 'team-lead-id', { trangThai: 'DA_DUYET' } as any);
+
+      expect(mockedPrisma.overtimePlan.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ trangThai: 'DA_DUYET' }) })
+      );
+    });
+
     it('should throw NotFoundError when plan does not exist', async () => {
       (mockedPrisma.overtimePlan.findUnique as jest.Mock).mockResolvedValue(null);
 

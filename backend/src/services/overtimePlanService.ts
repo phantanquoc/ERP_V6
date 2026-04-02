@@ -123,7 +123,12 @@ export class OvertimePlanService {
 
   async approvePlan(planId: string, adminUserId: string, data: ApproveOvertimePlanRequest): Promise<any> {
     const adminUser = await prisma.user.findUnique({ where: { id: adminUserId } });
-    if (!adminUser || adminUser.role !== 'ADMIN') throw new ApiError(403, 'Chỉ admin mới có quyền phê duyệt kế hoạch tăng ca');
+    const canApprove = adminUser && (
+      adminUser.role === 'ADMIN' ||
+      adminUser.role === 'DEPARTMENT_HEAD' ||
+      adminUser.role === 'TEAM_LEAD'
+    );
+    if (!canApprove) throw new ApiError(403, 'Chỉ Admin, Trưởng bộ phận hoặc Trưởng nhóm mới có quyền phê duyệt kế hoạch tăng ca');
     const plan = await prisma.overtimePlan.findUnique({ where: { id: planId } });
     if (!plan) throw new NotFoundError('Không tìm thấy kế hoạch tăng ca');
     if (plan.trangThai !== 'CHO_DUYET') throw new ValidationError('Kế hoạch tăng ca này đã được xử lý');

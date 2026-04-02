@@ -658,7 +658,7 @@ const CommonManagement = () => {
       <OvertimePlanListModal
         isOpen={isOvertimePlanListOpen}
         onClose={() => setIsOvertimePlanListOpen(false)}
-        isAdmin={user?.role === UserRole.ADMIN}
+        isAdmin={user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER}
       />
 
       {/* Private Feedback Modal (Góp ý riêng / Nêu khó khăn) */}
