@@ -7,7 +7,10 @@
  *   EVALUATION, EVALUATION_SUPERVISOR1, EVALUATION_SUPERVISOR2,
  *   TASK, LEAVE_REQUEST, LEAVE_REQUEST_RESPONSE,
  *   PAYROLL, ACCEPTANCE_HANDOVER,
- *   OVERTIME_PLAN, OVERTIME_PLAN_APPROVAL
+ *   OVERTIME_PLAN, OVERTIME_PLAN_APPROVAL,
+ *   ORDER, QUALITY_EVALUATION,
+ *   SUPPLY_REQUEST, WAREHOUSE_RECEIPT,
+ *   ATTENDANCE_REMINDER
  *
  * After saving a notification to the DB, all public methods automatically
  * push it to connected clients via WebSocket (real-time delivery).
@@ -34,6 +37,13 @@ export interface NotificationData {
   taskId?: string | null;
   acceptanceHandoverId?: string | null;
   leaveRequestId?: string | null;
+  payrollId?: string | null;
+  orderId?: string | null;
+  supplyRequestId?: string | null;
+  warehouseReceiptId?: string | null;
+  overtimePlanId?: string | null;
+  meetingId?: string | null;
+  supplyAdjustmentId?: string | null;
   isRead: boolean;
   createdAt: Date;
 }
@@ -366,6 +376,177 @@ export class NotificationService {
     pushAfterCreate(employeeId, notification);
 
     return notification;
+  }
+
+  /* ── Quality Evaluation ─────────────────────────────────────────────────── */
+
+  /**
+   * Batch-creates quality evaluation notifications for QC personnel and pushes via WebSocket.
+   */
+  async createQualityEvaluationNotifications(
+    employeeIds: string[],
+    evaluationId: string,
+    maChien: string,
+    tenHangHoa: string,
+    assignedBy: string
+  ): Promise<void> {
+    if (employeeIds.length === 0) return;
+
+    await prisma.notification.createMany({
+      data: employeeIds.map((employeeId) => ({
+        employeeId,
+        type:          NotificationType.QUALITY_EVALUATION,
+        title:         'Đánh giá chất lượng mới',
+        message:       `${assignedBy} đã tạo đánh giá chất lượng cho mẻ chiên "${maChien}" (${tenHangHoa}). Vui lòng kiểm tra.`,
+        evaluationId,
+        isRead:        false,
+      })),
+    });
+
+    for (const empId of employeeIds) {
+      pushAfterCreate(empId, {
+        id: '',
+        employeeId: empId,
+        type:    NotificationType.QUALITY_EVALUATION,
+        title:   'Đánh giá chất lượng mới',
+        message: `${assignedBy} đã tạo đánh giá chất lượng cho mẻ chiên "${maChien}" (${tenHangHoa}). Vui lòng kiểm tra.`,
+        evaluationId,
+        isRead: false,
+        createdAt: new Date(),
+      });
+    }
+  }
+
+  /**
+   * Notifies a single QC employee about a quality evaluation assignment (legacy single-target version).
+   */
+  async createQualityEvaluationNotification(
+    employeeId: string,
+    evaluationId: string,
+    maChien: string,
+    tenHangHoa: string,
+    assignedBy: string
+  ): Promise<NotificationData> {
+    const notification = await prisma.notification.create({
+      data: {
+        employeeId,
+        type:          NotificationType.QUALITY_EVALUATION,
+        title:         'Đánh giá chất lượng mới',
+        message:       `${assignedBy} đã giao đánh giá chất lượng cho mẻ chiên "${maChien}" (${tenHangHoa}). Vui lòng kiểm tra.`,
+        evaluationId,
+        isRead:        false,
+      },
+    });
+
+    pushAfterCreate(employeeId, notification);
+
+    return notification;
+  }
+
+  /* ── Order ───────────────────────────────────────────────────────────────── */
+
+  /**
+   * Batch-creates order status change notifications and pushes via WebSocket.
+   */
+  async createOrderNotifications(
+    employeeIds: string[],
+    orderId: string,
+    maDonHang: string,
+    status: string,
+    updatedBy: string
+  ): Promise<void> {
+    if (employeeIds.length === 0) return;
+
+    await prisma.notification.createMany({
+      data: employeeIds.map((employeeId) => ({
+        employeeId,
+        type:     NotificationType.ORDER,
+        title:    `Đơn hàng ${maDonHang} cập nhật`,
+        message:  `${updatedBy} đã cập nhật trạng thái đơn hàng ${maDonHang} thành: ${status}`,
+        orderId,
+        isRead:   false,
+      })),
+    });
+
+    for (const empId of employeeIds) {
+      pushAfterCreate(empId, {
+        id: '',
+        employeeId: empId,
+        type:    NotificationType.ORDER,
+        title:   `Đơn hàng ${maDonHang} cập nhật`,
+        message: `${updatedBy} đã cập nhật trạng thái đơn hàng ${maDonHang} thành: ${status}`,
+        orderId,
+        isRead: false,
+        createdAt: new Date(),
+      });
+    }
+  }
+
+  /* ── Supply Request ─────────────────────────────────────────────────────── */
+
+  /**
+   * Notifies the requester when their supply request status changes.
+   */
+  async createSupplyRequestNotification(
+    employeeId: string,
+    supplyRequestId: string,
+    maYeuCau: string,
+    newStatus: string,
+    updatedByName: string
+  ): Promise<NotificationData> {
+    const notification = await prisma.notification.create({
+      data: {
+        employeeId,
+        type:              NotificationType.SUPPLY_REQUEST,
+        title:             `Yêu cầu cung cấp ${maYeuCau} cập nhật`,
+        message:           `${updatedByName} đã cập nhật trạng thái yêu cầu cung cấp ${maYeuCau} thành: ${newStatus}`,
+        supplyRequestId,
+        isRead:            false,
+      },
+    });
+
+    pushAfterCreate(employeeId, notification);
+
+    return notification;
+  }
+
+  /* ── Warehouse Receipt ───────────────────────────────────────────────────── */
+
+  /**
+   * Notifies warehouse staff about a new warehouse receipt.
+   */
+  async createWarehouseReceiptNotification(
+    employeeIds: string[],
+    warehouseReceiptId: string,
+    maPhieuNhap: string,
+    createdByName: string,
+    supplierName?: string
+  ): Promise<void> {
+    if (employeeIds.length === 0) return;
+
+    await prisma.notification.createMany({
+      data: employeeIds.map((employeeId) => ({
+        employeeId,
+        type:                NotificationType.WAREHOUSE_RECEIPT,
+        title:               'Phiếu nhập kho mới',
+        message:             `${createdByName} đã tạo phiếu nhập kho ${maPhieuNhap}${supplierName ? ` từ nhà cung cấp ${supplierName}` : ''}. Vui lòng kiểm tra và xác nhận.`,
+        warehouseReceiptId,
+        isRead:              false,
+      })),
+    });
+
+    for (const empId of employeeIds) {
+      pushAfterCreate(empId, {
+        id: '',
+        employeeId: empId,
+        type:    NotificationType.WAREHOUSE_RECEIPT,
+        title:   'Phiếu nhập kho mới',
+        message: `${createdByName} đã tạo phiếu nhập kho ${maPhieuNhap}${supplierName ? ` từ nhà cung cấp ${supplierName}` : ''}. Vui lòng kiểm tra và xác nhận.`,
+        warehouseReceiptId,
+        isRead: false,
+        createdAt: new Date(),
+      });
+    }
   }
 
   /* ── Read ────────────────────────────────────────────────────────────────── */
