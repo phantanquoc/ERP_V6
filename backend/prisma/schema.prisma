@@ -674,11 +674,14 @@ model Attendance {
   status         AttendanceStatus @default(PRESENT)
   isOvertime     Boolean          @default(false)
   notes          String?
+  overtimePlanId String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  overtimePlan   OvertimePlan?    @relation(fields: [overtimePlanId], references: [id], onDelete: SetNull)
 
   @@index([employeeId, attendanceDate, isOvertime])
+  @@index([overtimePlanId])
   @@map("attendances")
   @@schema("common")
 }
@@ -2136,6 +2139,7 @@ model OvertimePlan {
   trangThaiTiepNhan  Json                @default("{}") // Map of userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+  attendances        Attendance[]
 
   @@map("overtime_plans")
   @@schema("common")

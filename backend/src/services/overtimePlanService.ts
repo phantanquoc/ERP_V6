@@ -3,8 +3,9 @@ import logger from '@config/logger';
 import { CreateOvertimePlanRequest, UpdateOvertimePlanRequest, OvertimePlanListQuery, AcceptOvertimePlanRequest, ApproveOvertimePlanRequest, NotificationType } from '@types';
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import notificationService from './notificationService';
+import { AttendanceStatus } from '@prisma/client';
 
-class OvertimePlanService {
+export class OvertimePlanService {
   private mapUserDto(user: { id: string; firstName: string; lastName: string; departmentId: string | null; employees: { employeeCode: string } | null }) {
     return { id: user.id, firstName: user.firstName, lastName: user.lastName, employeeCode: user.employees?.employeeCode || '', department: user.departmentId || '' };
   }
@@ -136,9 +137,101 @@ class OvertimePlanService {
         for (const uid of plan.nguoiThamGiaIds) {
           if (uid !== plan.nguoiTaoId) { await notificationService.createNotification({ userId: uid, type: NotificationType.OVERTIME_PLAN, title: 'Kế hoạch tăng ca đã được duyệt', message: `Kế hoạch tăng ca "${plan.noiDung}" đã được ${adminName} phê duyệt.` }); }
         }
+        // Auto-create attendance records for all participants
+        await this.createOvertimeAttendances(plan);
       }
     } catch (error) { logger.error('Error sending overtime plan approval notification:', error); }
     return this.populateWithUsers(updated);
+  }
+
+  /**
+   * Parses an "HH:mm" time string and applies it to a given base date.
+   * Returns a new Date object with the time set (UTC-safe: uses local date parts).
+   */
+  parseTimeToDate(baseDate: Date, timeStr: string): Date {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const result = new Date(baseDate);
+    result.setHours(hours, minutes, 0, 0);
+    return result;
+  }
+
+  /**
+   * Auto-creates (or extends) Attendance records for all overtime plan participants.
+   * - If the employee already has attendance on the overtime date, extend checkOutTime.
+   * - Otherwise, create a new OVERTIME attendance record linked to this plan.
+   */
+  async createOvertimeAttendances(plan: {
+    id: string;
+    nguoiTaoId: string;
+    nguoiThamGiaIds: string[];
+    ngayTangCa: Date;
+    gioBatDau: string;
+    gioKetThuc: string;
+    noiDung: string;
+  }): Promise<void> {
+    // All unique userIds (creator + participants)
+    const allUserIds = Array.from(new Set([plan.nguoiTaoId, ...plan.nguoiThamGiaIds]));
+
+    // Resolve userId → Employee
+    const employees = await prisma.employee.findMany({
+      where: { userId: { in: allUserIds } },
+      select: { id: true, userId: true },
+    });
+
+    const checkInTime = this.parseTimeToDate(plan.ngayTangCa, plan.gioBatDau);
+    const checkOutTime = this.parseTimeToDate(plan.ngayTangCa, plan.gioKetThuc);
+
+    // Start-of-day and end-of-day for querying existing attendance
+    const dayStart = new Date(plan.ngayTangCa);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(plan.ngayTangCa);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    for (const employee of employees) {
+      try {
+        // Check if an attendance record already exists for this date
+        const existing = await prisma.attendance.findFirst({
+          where: {
+            employeeId: employee.id,
+            attendanceDate: { gte: dayStart, lte: dayEnd },
+          },
+        });
+
+        if (existing) {
+          // Extend checkOutTime if the overtime end is later
+          const existingCheckOut = existing.checkOutTime;
+          if (!existingCheckOut || checkOutTime > existingCheckOut) {
+            await prisma.attendance.update({
+              where: { id: existing.id },
+              data: {
+                checkOutTime,
+                isOvertime: true,
+                overtimePlanId: plan.id,
+                notes: existing.notes
+                  ? `${existing.notes}; Tăng ca: ${plan.noiDung}`
+                  : `Tăng ca: ${plan.noiDung}`,
+              },
+            });
+          }
+        } else {
+          // Create new attendance record for overtime
+          await prisma.attendance.create({
+            data: {
+              employeeId: employee.id,
+              attendanceDate: plan.ngayTangCa,
+              checkInTime,
+              checkOutTime,
+              status: AttendanceStatus.OVERTIME,
+              isOvertime: true,
+              overtimePlanId: plan.id,
+              notes: `Tăng ca: ${plan.noiDung}`,
+            },
+          });
+        }
+      } catch (error) {
+        logger.error(`Error creating overtime attendance for employee ${employee.id}:`, error);
+      }
+    }
   }
 
   async updateActualTime(planId: string, userId: string, actualTimes: Record<string, { gioVao: string; gioRa: string }>, isUserAdmin: boolean): Promise<any> {
