@@ -59,6 +59,7 @@ const ROUTE_MAP: Record<string, string> = {
   acceptanceHandover: '/api/acceptance-handovers',
   workShift: '/api/work-shifts',
   overtimePlan: '/api/overtime-plans',
+  meeting: '/api/meetings',
   theme: '/api/themes',
   systemSetting: '/api/system-settings',
 };
