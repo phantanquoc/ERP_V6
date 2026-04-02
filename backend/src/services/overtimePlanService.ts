@@ -53,7 +53,7 @@ export class OvertimePlanService {
     if (data.gioBatDau >= data.gioKetThuc) throw new ValidationError('Giờ kết thúc phải sau giờ bắt đầu');
     const trangThaiTiepNhan: Record<string, string> = {};
     nguoiThamGiaUserIds.forEach(uid => { trangThaiTiepNhan[uid] = 'CHUA_TIEP_NHAN'; });
-    const plan = await (prisma.overtimePlan as any).create({ data: { nguoiTaoId, nguoiThamGiaIds: nguoiThamGiaUserIds, noiDung: data.noiDung, ngayTangCa, gioBatDau: data.gioBatDau, gioKetThuc: data.gioKetThuc, ghiChu: data.ghiChu, files: files || [], mucDoUuTien: data.mucDoUuTien as any, trangThaiTiepNhan, gioThucTe: {} } });
+    const plan = await (prisma.overtimePlan as any).create({ data: { nguoiTaoId, nguoiThamGiaIds: nguoiThamGiaUserIds, noiDung: data.noiDung, ngayTangCa, gioBatDau: data.gioBatDau, gioKetThuc: data.gioKetThuc, ghiChu: data.ghiChu, files: files || [], mucDoUuTien: data.mucDoUuTien as any, trangThaiTiepNhan, gioThucTe: undefined } });
     try {
       const creatorName = `${nguoiTao.firstName} ${nguoiTao.lastName}`;
       // Notify all users who can approve (ADMIN, DEPARTMENT_HEAD, TEAM_LEAD)
