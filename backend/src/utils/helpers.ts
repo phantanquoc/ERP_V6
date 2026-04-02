@@ -47,3 +47,49 @@ export const calculateTotalPages = (total: number, limit: number): number => {
   return Math.ceil(total / limit);
 };
 
+/**
+ * Format a Date to Vietnamese date string: "dd/mm/yyyy"
+ * @param date - Date object or ISO string
+ * @returns Formatted string "dd/mm/yyyy"
+ */
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Format a Date (or timestamp) to Vietnamese datetime string: "dd/mm/yyyy HH:mm"
+ * @param date - Date object or ISO string or number timestamp
+ * @returns Formatted string "dd/mm/yyyy HH:mm"
+ */
+export function formatDateTime(date: Date | string | number | null | undefined): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
+/**
+ * Format a number to Vietnamese locale string with thousand separators.
+ * @param value - Numeric value (integer or float)
+ * @param decimals - Number of decimal places (default 0)
+ * @returns Formatted string e.g. "1.000.000"
+ */
+export function formatNumber(value: number | null | undefined, decimals: number = 0): string {
+  if (value === null || value === undefined || isNaN(value)) return '';
+  return value.toLocaleString('vi-VN', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
