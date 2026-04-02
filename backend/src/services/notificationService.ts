@@ -111,6 +111,15 @@ export class NotificationService {
     evaluationId?: string;
     period?: string;
     taskId?: string;
+    leaveRequestId?: string;
+    acceptanceHandoverId?: string;
+    payrollId?: string;
+    orderId?: string;
+    supplyRequestId?: string;
+    warehouseReceiptId?: string;
+    overtimePlanId?: string;
+    meetingId?: string;
+    supplyAdjustmentId?: string;
   }): Promise<NotificationData> {
     // Resolve userId → employeeId
     const user = await prisma.user.findUnique({
@@ -127,13 +136,22 @@ export class NotificationService {
     const notification = await prisma.notification.create({
       data: {
         employeeId,
-        type:       data.type,
-        title:      data.title,
-        message:    data.message,
-        evaluationId: data.evaluationId ?? null,
-        period:     data.period ?? null,
-        taskId:     data.taskId ?? null,
-        isRead:     false,
+        type:                data.type,
+        title:               data.title,
+        message:             data.message,
+        evaluationId:        data.evaluationId        ?? null,
+        period:              data.period              ?? null,
+        taskId:              data.taskId              ?? null,
+        leaveRequestId:      data.leaveRequestId      ?? null,
+        acceptanceHandoverId: data.acceptanceHandoverId ?? null,
+        payrollId:           data.payrollId           ?? null,
+        orderId:             data.orderId             ?? null,
+        supplyRequestId:     data.supplyRequestId     ?? null,
+        warehouseReceiptId:  data.warehouseReceiptId  ?? null,
+        overtimePlanId:      data.overtimePlanId      ?? null,
+        meetingId:           data.meetingId           ?? null,
+        supplyAdjustmentId:  data.supplyAdjustmentId  ?? null,
+        isRead:              false,
       },
     });
 
