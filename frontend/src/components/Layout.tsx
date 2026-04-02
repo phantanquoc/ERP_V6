@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import UserProfileDropdown from './UserProfileDropdown';
 import NotificationBell from './NotificationBell';
 import { Menu } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,6 +12,19 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [slogan, setSlogan] = useState('');
+
+  // Fetch slogan từ API khi mount + lắng nghe WebSocket broadcast realtime
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/system-settings/slogan`)
+      .then(r => r.json())
+      .then(json => setSlogan(json?.data?.value ?? ''))
+      .catch(() => {/* ignore */});
+
+    const handler = (e: Event) => setSlogan((e as CustomEvent<string>).detail ?? '');
+    window.addEventListener('systemSloganChanged', handler);
+    return () => window.removeEventListener('systemSloganChanged', handler);
+  }, []);
 
   const toggleSidebar = () => {
     // On mobile, toggle the mobile overlay
@@ -44,11 +58,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </button>
             </div>
 
-            {/* Centered text with padding to avoid overlap */}
+            {/* Centered slogan — dynamic from DB, hide if empty */}
             <div className="flex-1 px-4 overflow-hidden">
-              <p className="text-sm font-medium text-header-text/90 text-center italic truncate">
-                Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.
-              </p>
+              {slogan && (
+                <p className="text-sm font-medium text-header-text/90 text-center italic truncate">
+                  {slogan}
+                </p>
+              )}
             </div>
 
             {/* Notification Bell and User dropdown - positioned to the right */}
