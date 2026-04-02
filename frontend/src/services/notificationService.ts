@@ -11,6 +11,13 @@ export interface Notification {
   taskId?: string;
   acceptanceHandoverId?: string;
   leaveRequestId?: string;
+  payrollId?: string;
+  orderId?: string;
+  supplyRequestId?: string;
+  warehouseReceiptId?: string;
+  overtimePlanId?: string;
+  meetingId?: string;
+  supplyAdjustmentId?: string;
   isRead: boolean;
   createdAt: string;
   updatedAt: string;

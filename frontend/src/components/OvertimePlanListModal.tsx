@@ -89,7 +89,11 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
     if (!isOpen) return;
     const handler = () => refresh();
     window.addEventListener(OVERTIME_CHANGED_EVENT, handler);
-    return () => window.removeEventListener(OVERTIME_CHANGED_EVENT, handler);
+    window.addEventListener('OVERTIME_PLAN_CHANGED', handler);
+    return () => {
+      window.removeEventListener(OVERTIME_CHANGED_EVENT, handler);
+      window.removeEventListener('OVERTIME_PLAN_CHANGED', handler);
+    };
   }, [isOpen, refresh]);
 
   const getStatusBadge = (status: OvertimePlanStatus) => {
@@ -235,6 +239,12 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadge.class}`}>
                       {statusBadge.label}
                     </span>
+                    {plan.trangThai === OvertimePlanStatus.DA_DUYET && (
+                      <div className="mt-1 flex items-center gap-1 text-xs text-green-600">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>Đã tạo chấm công tự động</span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center gap-2">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck, CalendarDays } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck, CalendarDays, ShoppingCart, Truck } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/permissions';
@@ -10,6 +11,79 @@ import EmployeePayrollModal from './EmployeePayrollModal';
 import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import OvertimePlanListModal from './OvertimePlanListModal';
+
+/**
+ * Returns a human-readable relative time string in Vietnamese.
+ * e.g. "2 phút trước", "1 giờ trước", "Hôm nay", "Hôm qua"
+ */
+function getRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  const diffHours = Math.floor(diffMs / 3_600_000);
+  const diffDays = Math.floor(diffMs / 86_400_000);
+
+  if (diffMinutes < 1) return 'Vừa xong';
+  if (diffMinutes < 60) return `${diffMinutes} phút trước`;
+  if (diffHours < 24) return `${diffHours} giờ trước`;
+  if (diffDays === 1) return 'Hôm qua';
+  if (diffDays < 7) return `${diffDays} ngày trước`;
+
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+/**
+ * Groups notifications by date: "Hôm nay", "Hôm qua", or "Trước đó"
+ */
+function groupByDate(notifications: Notification[]): Array<{ label: string; items: Notification[] }> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const groups: Array<{ label: string; items: Notification[] }> = [];
+  const todayItems: Notification[] = [];
+  const yesterdayItems: Notification[] = [];
+  const earlierItems: Notification[] = [];
+
+  for (const n of notifications) {
+    const notifDate = new Date(n.createdAt);
+    notifDate.setHours(0, 0, 0, 0);
+
+    if (notifDate.getTime() === today.getTime()) {
+      todayItems.push(n);
+    } else if (notifDate.getTime() === yesterday.getTime()) {
+      yesterdayItems.push(n);
+    } else {
+      earlierItems.push(n);
+    }
+  }
+
+  if (todayItems.length > 0) groups.push({ label: 'Hôm nay', items: todayItems });
+  if (yesterdayItems.length > 0) groups.push({ label: 'Hôm qua', items: yesterdayItems });
+  if (earlierItems.length > 0) groups.push({ label: 'Trước đó', items: earlierItems });
+
+  return groups;
+}
+
+/**
+ * Returns a navigation link for clicking on a notification.
+ * Returns null if no specific link is available.
+ */
+function getNotificationLink(notification: Notification): string | null {
+  if (notification.taskId) return `/tasks?highlight=${notification.taskId}`;
+  if (notification.leaveRequestId) return `/leave-requests?highlight=${notification.leaveRequestId}`;
+  if (notification.payrollId) return `/payroll?highlight=${notification.payrollId}`;
+  if (notification.overtimePlanId) return `/overtime-plans?highlight=${notification.overtimePlanId}`;
+  if (notification.meetingId) return `/meetings?highlight=${notification.meetingId}`;
+  if (notification.supplyAdjustmentId) return `/supply-adjustments?highlight=${notification.supplyAdjustmentId}`;
+  if (notification.orderId) return `/orders?highlight=${notification.orderId}`;
+  if (notification.supplyRequestId) return `/supply-requests?highlight=${notification.supplyRequestId}`;
+  if (notification.acceptanceHandoverId) return `/acceptance-handover?highlight=${notification.acceptanceHandoverId}`;
+  if (notification.evaluationId) return `/evaluations?highlight=${notification.evaluationId}`;
+  return null;
+}
 
 const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
   const { user, subscribeToNotifications } = useAuth();
@@ -31,6 +105,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedLeaveRequestMessage, setSelectedLeaveRequestMessage] = useState<string | undefined>(undefined);
   const [isOvertimePlanModalOpen, setIsOvertimePlanModalOpen] = useState(false);
 
+  // Maximum notifications to show in the dropdown
+  const MAX_SHOWN = 50;
+
   useEffect(() => {
     loadNotifications();
 
@@ -46,7 +123,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const loadNotifications = async () => {
     try {
       setLoading(true);
-      const data = await notificationService.getEmployeeNotifications(5);
+      const data = await notificationService.getEmployeeNotifications(MAX_SHOWN);
       setNotifications(data);
     } catch (error) {
       console.error('Error loading notifications:', error);
@@ -68,6 +145,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id);
+
+    // Open contextual modals for certain notification types
     if (notification.type === 'TASK') {
       setIsTaskListModalOpen(true);
     } else if (['EVALUATION', 'EVALUATION_SUPERVISOR1', 'EVALUATION_SUPERVISOR2', 'EVALUATION_COMPLETED'].includes(notification.type)) {
@@ -80,13 +159,14 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setSelectedAcceptanceHandoverId(notification.acceptanceHandoverId || null);
       setSelectedAcceptanceMessage(notification.message);
       setIsAcceptanceModalOpen(true);
-    } else if (notification.type === 'LEAVE_REQUEST') {
+    } else if (notification.type === 'LEAVE_REQUEST' || notification.type === 'LEAVE_REQUEST_RESPONSE') {
       setSelectedLeaveRequestId(notification.leaveRequestId || null);
       setSelectedLeaveRequestMessage(notification.message);
       setIsLeaveRequestModalOpen(true);
     } else if (notification.type === 'OVERTIME_PLAN' || notification.type === 'OVERTIME_PLAN_APPROVAL') {
       setIsOvertimePlanModalOpen(true);
     }
+
     if (onNotificationClick) {
       onNotificationClick(notification);
     }
@@ -111,106 +191,161 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       case 'ACCEPTANCE_HANDOVER':
         return <PackageCheck className="w-4 h-4 text-teal-600" />;
       case 'LEAVE_REQUEST':
-        return <CalendarDays className="w-4 h-4 text-purple-600" />;
       case 'LEAVE_REQUEST_RESPONSE':
         return <CalendarDays className="w-4 h-4 text-purple-600" />;
       case 'OVERTIME_PLAN':
       case 'OVERTIME_PLAN_APPROVAL':
         return <Clock className="w-4 h-4 text-orange-600" />;
+      case 'ORDER':
+        return <ShoppingCart className="w-4 h-4 text-blue-600" />;
+      case 'SUPPLY_REQUEST':
+        return <ShoppingCart className="w-4 h-4 text-yellow-600" />;
+      case 'WAREHOUSE_RECEIPT':
+        return <Truck className="w-4 h-4 text-gray-600" />;
+      case 'MEETING_CREATED':
+      case 'MEETING_UPDATED':
+      case 'MEETING_CANCELLED':
+      case 'MEETING_REMINDER':
+        return <CalendarDays className="w-4 h-4 text-red-600" />;
+      case 'SUPPLY_ADJUSTMENT_CREATED':
+      case 'SUPPLY_ADJUSTMENT_APPROVED':
+      case 'SUPPLY_ADJUSTMENT_REJECTED':
+        return <ShoppingCart className="w-4 h-4 text-emerald-600" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }
   };
 
+  // Group notifications by date
+  const groupedNotifications = groupByDate(notifications);
+
   return (
     <>
-    <div className="relative">
-      {/* Bell Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
-        title="Thông báo"
-      >
-        <Bell className="w-6 h-6" />
-        {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
+      <div className="relative">
+        {/* Bell Button */}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+          title="Thông báo"
+        >
+          <Bell className="w-6 h-6" />
+          {unreadCount > 0 && (
+            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </button>
 
-      {/* Notification Dropdown */}
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
-            <h3 className="text-lg font-bold text-gray-800">Thông báo</h3>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Notifications List */}
-          <div className="overflow-y-auto flex-1">
-            {loading ? (
-              <div className="p-4 text-center text-gray-500">Đang tải...</div>
-            ) : notifications.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                <p>Không có thông báo</p>
-              </div>
-            ) : (
-              notifications.map(notification => (
-                <div
-                  key={notification.id}
-                  onClick={() => handleNotificationClick(notification)}
-                  className={`p-4 border-b border-gray-100 cursor-pointer transition-colors ${
-                    notification.isRead
-                      ? 'bg-white hover:bg-gray-50'
-                      : 'bg-blue-50 hover:bg-blue-100'
-                  }`}
-                >
-                  <div className="flex gap-3">
-                    <div className="flex-shrink-0 mt-1">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">
-                        {notification.title}
-                      </p>
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                        {notification.message}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-2">
-                        {new Date(notification.createdAt).toLocaleString('vi-VN')}
-                      </p>
-                    </div>
-                    {!notification.isRead && (
-                      <div className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full mt-2" />
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div className="p-3 border-t border-gray-200 bg-gray-50 text-center">
+        {/* Notification Dropdown */}
+        {isOpen && (
+          <div className="absolute right-0 mt-2 w-[22rem] bg-white rounded-lg shadow-2xl z-50 max-h-[42rem] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
+              <h3 className="text-lg font-bold text-gray-800">Thông báo</h3>
               <button
-                onClick={() => { setIsAllNotificationsOpen(true); setIsOpen(false); }}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                onClick={() => setIsOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
               >
-                Xem tất cả thông báo
+                <X className="w-5 h-5" />
               </button>
             </div>
-          )}
-        </div>
-      )}
-    </div>
+
+            {/* Notifications List — grouped by date */}
+            <div className="overflow-y-auto flex-1">
+              {loading ? (
+                <div className="p-8 text-center text-gray-500">Đang tải...</div>
+              ) : notifications.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p>Không có thông báo</p>
+                </div>
+              ) : (
+                <>
+                  {groupedNotifications.map(group => (
+                    <div key={group.label}>
+                      {/* Group header */}
+                      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          {group.label}
+                        </span>
+                      </div>
+
+                      {group.items.map(notification => {
+                        const link = getNotificationLink(notification);
+                        const content = (
+                          <div
+                            className={`p-4 border-b border-gray-100 cursor-pointer transition-colors ${
+                              notification.isRead
+                                ? 'bg-white hover:bg-gray-50'
+                                : 'bg-blue-50 hover:bg-blue-100'
+                            }`}
+                          >
+                            <div className="flex gap-3">
+                              <div className="flex-shrink-0 mt-1">
+                                {getNotificationIcon(notification.type)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {notification.title}
+                                </p>
+                                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                                  {notification.message}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-2">
+                                  {getRelativeTime(notification.createdAt)}
+                                </p>
+                              </div>
+                              {!notification.isRead && (
+                                <div className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full mt-2" />
+                              )}
+                            </div>
+                          </div>
+                        );
+
+                        // Wrap in link if a navigation path exists; otherwise use onClick
+                        if (link) {
+                          return (
+                            <Link
+                              key={notification.id}
+                              to={link}
+                              onClick={() => handleNotificationClick(notification)}
+                              className="block"
+                            >
+                              {content}
+                            </Link>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={notification.id}
+                            onClick={() => handleNotificationClick(notification)}
+                          >
+                            {content}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            {notifications.length > 0 && (
+              <div className="p-3 border-t border-gray-200 bg-gray-50 text-center">
+                <Link
+                  to="/notifications"
+                  onClick={() => setIsOpen(false)}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Xem tất cả thông báo
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Task List Modal - opened when clicking TASK notification */}
       <TaskListModal
@@ -275,7 +410,6 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       />
 
       {/* Overtime Plan Modal - opened when clicking OVERTIME_PLAN notification */}
-      {/* #3 Fix: Pass isAdmin prop so admin sees all plans with approve buttons */}
       <OvertimePlanListModal
         isOpen={isOvertimePlanModalOpen}
         onClose={() => setIsOvertimePlanModalOpen(false)}
@@ -286,4 +420,3 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 };
 
 export default NotificationBell;
-

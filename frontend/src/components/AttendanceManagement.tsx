@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Search, Filter, Download, Settings } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Edit2, Trash2, Search, Settings, Download } from 'lucide-react';
 import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import DatePicker from './DatePicker';
 import WorkShiftSettingsModal from './WorkShiftSettingsModal';
+import { DataTable, Column } from './DataTable';
+import { formatDate, formatDateTime, formatTime, formatWorkHours } from '../utils/formatters';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface AttendanceRecord {
   stt: number;
@@ -19,9 +23,12 @@ interface AttendanceRecord {
   workHours: number;
   status: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME';
   notes: string | null;
+  // Individual record fields (from individual endpoint)
+  isOvertime?: boolean;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
 }
 
-// Each individual attendance entry in the edit modal
 interface EditEntry {
   id: string;
   checkInTime: string;
@@ -30,17 +37,67 @@ interface EditEntry {
   notes: string;
 }
 
+type TabValue = 'all' | 'overtime';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'PRESENT': return 'text-green-700 bg-green-50';
+    case 'LATE':    return 'text-yellow-700 bg-yellow-50';
+    case 'ABSENT':  return 'text-red-700 bg-red-50';
+    case 'ON_LEAVE':return 'text-purple-700 bg-purple-50';
+    case 'OVERTIME':return 'text-blue-700 bg-blue-50';
+    default:        return 'text-gray-700 bg-gray-50';
+  }
+};
+
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    PRESENT: 'Đúng giờ',
+    LATE:    'Muộn',
+    ABSENT:  'Vắng mặt',
+    ON_LEAVE:'Nghỉ phép',
+    OVERTIME:'Tăng ca',
+  };
+  return labels[status] || status;
+};
+
+const formatTimes = (times: string[]) => {
+  if (!times || times.length === 0) return '—';
+  return times.map(t => {
+    const date = new Date(t);
+    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }).join(', ');
+};
+
+const formatTimeFromDateTime = (dt: string | null | undefined): string => {
+  if (!dt) return '—';
+  return new Date(dt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+};
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 const AttendanceManagement: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]);
+  const queryClient = useQueryClient();
+
+  // ── Date filters
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  });
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+
+  // ── UI state
+  const [currentTab, setCurrentTab] = useState<TabValue>('all');
   const [showModal, setShowModal] = useState(false);
   const [showShiftSettings, setShowShiftSettings] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editEntries, setEditEntries] = useState<EditEntry[]>([]);
   const [selectedEmployeeName, setSelectedEmployeeName] = useState('');
+
+  // ── Form state
   const [formData, setFormData] = useState({
     employeeCode: '',
     attendanceDate: new Date().toISOString().split('T')[0],
@@ -50,14 +107,32 @@ const AttendanceManagement: React.FC = () => {
     notes: '',
   });
 
-  // Use React Query for employees
+  // ── Pagination (managed outside DataTable for search/filter)
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  // ── Search text (mirrored to DataTable filter)
+  const [searchText, setSearchText] = useState('');
+
+  // ── React Query: employees
   const { data: employeesData } = useEmployees(1, 1000);
   const employees = employeesData?.data || [];
 
-  // Use React Query for attendance data
-  const queryClient = useQueryClient();
-  const { data: attendances = [], isLoading: loading } = useAttendanceByDateRange(startDate, endDate);
+  // ── React Query: attendance
+  const { data: attendances = [], isLoading, refetch } = useAttendanceByDateRange(startDate, endDate);
 
+  // ── Realtime: ATTENDANCE_CHANGED + OVERTIME_PLAN_CHANGED (overtime approval auto-creates attendance)
+  useEffect(() => {
+    const handler = () => { refetch(); };
+    window.addEventListener('ATTENDANCE_CHANGED', handler);
+    window.addEventListener('OVERTIME_PLAN_CHANGED', handler);
+    return () => {
+      window.removeEventListener('ATTENDANCE_CHANGED', handler);
+      window.removeEventListener('OVERTIME_PLAN_CHANGED', handler);
+    };
+  }, [refetch]);
+
+  // ── Add / Edit handlers
   const handleAddNew = () => {
     setEditingId(null);
     setEditEntries([]);
@@ -74,56 +149,30 @@ const AttendanceManagement: React.FC = () => {
   };
 
   const handleEmployeeCodeChange = (code: string) => {
-    setFormData({ ...formData, employeeCode: code });
-
-    console.log('Searching for employee code:', code);
-    console.log('Available employees:', employees.length);
-
-    // Find employee by code
-    const employee = employees.find(emp => emp.employeeCode === code);
-    console.log('Found employee:', employee);
-
-    if (employee) {
-      const fullName = `${employee.user.firstName} ${employee.user.lastName}`;
-      console.log('Employee name:', fullName);
-      setSelectedEmployeeName(fullName);
-    } else {
-      setSelectedEmployeeName('');
-    }
+    setFormData(prev => ({ ...prev, employeeCode: code }));
+    const emp = employees.find(e => e.employeeCode === code);
+    setSelectedEmployeeName(emp ? `${emp.user.firstName} ${emp.user.lastName}` : '');
   };
 
   const handleEdit = (record: AttendanceRecord) => {
     setEditingId(record.id);
     setSelectedEmployeeName(record.employeeName);
 
-    // Convert UTC time to local time for editing
     const getLocalTimeString = (dateTimeString: string | null | undefined) => {
       if (!dateTimeString) return '';
       const date = new Date(dateTimeString);
-      const hours = date.getHours().toString().padStart(2, '0');
-      const minutes = date.getMinutes().toString().padStart(2, '0');
-      return `${hours}:${minutes}`;
+      return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
     };
 
-    // Build entries for each record id
     const entries: EditEntry[] = record.ids.map((id, index) => ({
       id,
-      checkInTime: getLocalTimeString(record.checkInTimes[index] ?? null),
+      checkInTime:  getLocalTimeString(record.checkInTimes[index] ?? null),
       checkOutTime: getLocalTimeString(record.checkOutTimes[index] ?? null),
       status: record.status,
-      notes: '',
+      notes: record.notes ? record.notes.split('; ')[index] || '' : '',
     }));
 
-    // Parse notes - the backend joins them with '; '
-    if (record.notes) {
-      const notesParts = record.notes.split('; ');
-      entries.forEach((entry, index) => {
-        entry.notes = notesParts[index] || '';
-      });
-    }
-
     setEditEntries(entries);
-
     setFormData({
       employeeCode: record.employeeCode,
       attendanceDate: record.attendanceDate.split('T')[0],
@@ -137,37 +186,30 @@ const AttendanceManagement: React.FC = () => {
 
   const handleSave = async () => {
     try {
-      console.log('Form data:', formData);
-
       if (!formData.employeeCode || !formData.attendanceDate) {
         alert('Vui lòng điền đầy đủ thông tin');
         return;
       }
 
       if (editingId && editEntries.length > 0) {
-        // Update each record individually
         for (const entry of editEntries) {
-          const updateData = {
-            checkInTime: entry.checkInTime ? `${formData.attendanceDate}T${entry.checkInTime}:00` : undefined,
+          await attendanceService.updateAttendance(entry.id, {
+            checkInTime:  entry.checkInTime  ? `${formData.attendanceDate}T${entry.checkInTime}:00`  : undefined,
             checkOutTime: entry.checkOutTime ? `${formData.attendanceDate}T${entry.checkOutTime}:00` : undefined,
             status: entry.status,
             notes: entry.notes || undefined,
-          };
-          console.log('Updating attendance:', entry.id, updateData);
-          await attendanceService.updateAttendance(entry.id, updateData);
+          });
         }
         alert('Cập nhật điểm danh thành công');
       } else {
-        const createData = {
+        await attendanceService.createAttendance({
           employeeCode: formData.employeeCode,
           attendanceDate: formData.attendanceDate,
-          checkInTime: formData.checkInTime ? `${formData.attendanceDate}T${formData.checkInTime}:00` : undefined,
+          checkInTime:  formData.checkInTime  ? `${formData.attendanceDate}T${formData.checkInTime}:00`  : undefined,
           checkOutTime: formData.checkOutTime ? `${formData.attendanceDate}T${formData.checkOutTime}:00` : undefined,
           status: formData.status,
           notes: formData.notes || undefined,
-        };
-        console.log('Creating attendance:', createData);
-        await attendanceService.createAttendance(createData);
+        });
         alert('Thêm điểm danh thành công');
       }
 
@@ -181,7 +223,6 @@ const AttendanceManagement: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa bản ghi này?')) return;
-
     try {
       await attendanceService.deleteAttendance(id);
       alert('Xóa điểm danh thành công');
@@ -192,59 +233,214 @@ const AttendanceManagement: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'PRESENT':
-        return 'text-green-700 font-medium';
-      case 'LATE':
-        return 'text-yellow-700 font-medium';
-      case 'ABSENT':
-        return 'text-red-700 font-medium';
-      case 'ON_LEAVE':
-        return 'text-purple-700 font-medium';
-      case 'OVERTIME':
-        return 'text-blue-700 font-medium';
-      default:
-        return 'text-gray-700 font-medium';
-    }
-  };
+  // ── DataTable columns ───────────────────────────────────────────────────────
 
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      PRESENT: 'Đúng giờ',
-      LATE: 'Muộn',
-      ABSENT: 'Vắng mặt',
-      ON_LEAVE: 'Nghỉ phép',
-      OVERTIME: 'Tăng ca',
-    };
-    return labels[status] || status;
-  };
+  const columns: Column<AttendanceRecord>[] = [
+    {
+      key: 'stt',
+      label: 'STT',
+      width: '60px',
+      render: (row) => <span className="font-semibold text-gray-500">{row.stt}</span>,
+    },
+    {
+      key: 'employeeCode',
+      label: 'Mã NV',
+      width: '100px',
+      filterable: true,
+      filterType: 'text',
+      render: (row) => <span className="font-semibold text-blue-600">{row.employeeCode}</span>,
+    },
+    {
+      key: 'employeeName',
+      label: 'Nhân viên',
+      filterable: true,
+      filterType: 'text',
+      render: (row) => <span className="font-medium">{row.employeeName}</span>,
+    },
+    {
+      key: 'positionName',
+      label: 'Chức vụ',
+      width: '140px',
+    },
+    {
+      key: 'attendanceDate',
+      label: 'Ngày',
+      width: '120px',
+      filterable: true,
+      filterType: 'date-range',
+      render: (row) => formatDate(row.attendanceDate),
+    },
+    {
+      key: 'checkInTimes',
+      label: 'Giờ vào',
+      width: '120px',
+      render: (row) => formatTimes(row.checkInTimes),
+    },
+    {
+      key: 'checkOutTimes',
+      label: 'Giờ ra',
+      width: '120px',
+      render: (row) => formatTimes(row.checkOutTimes),
+    },
+    {
+      key: 'workHours',
+      label: 'Số giờ',
+      width: '90px',
+      render: (row) => formatWorkHours(row.workHours),
+    },
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      width: '130px',
+      filterable: true,
+      filterType: 'select',
+      filterOptions: [
+        { value: 'PRESENT',  label: 'Đúng giờ' },
+        { value: 'LATE',     label: 'Muộn' },
+        { value: 'ABSENT',   label: 'Vắng mặt' },
+        { value: 'ON_LEAVE', label: 'Nghỉ phép' },
+        { value: 'OVERTIME', label: 'Tăng ca' },
+      ],
+      render: (row) => (
+        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(row.status)}`}>
+          {getStatusLabel(row.status)}
+        </span>
+      ),
+    },
+    {
+      key: 'notes',
+      label: 'Ghi chú',
+      width: '140px',
+      render: (row) => <span className="text-gray-600 text-sm">{row.notes || '—'}</span>,
+    },
+    {
+      key: 'actions',
+      label: 'Hành động',
+      width: '120px',
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleEdit(row)}
+            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+            title="Chỉnh sửa"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleDelete(row.id)}
+            className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+            title="Xóa"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
 
-  const formatTimes = (times: string[]) => {
-    if (!times || times.length === 0) return '-';
-    return times.map(t => {
-      const date = new Date(t);
-      return date.toLocaleTimeString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
-    }).join(', ');
-  };
+  // Overtime columns (separate tab)
+  const overtimeColumns: Column<AttendanceRecord>[] = [
+    {
+      key: 'stt',
+      label: 'STT',
+      width: '60px',
+      render: (row) => <span className="font-semibold text-gray-500">{row.stt}</span>,
+    },
+    {
+      key: 'employeeName',
+      label: 'Nhân viên',
+      filterable: true,
+      filterType: 'text',
+      render: (row) => (
+        <div>
+          <div className="font-medium">{row.employeeName}</div>
+          <div className="text-xs text-gray-500">{row.employeeCode}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'attendanceDate',
+      label: 'Ngày',
+      width: '120px',
+      filterable: true,
+      filterType: 'date-range',
+      render: (row) => formatDate(row.attendanceDate),
+    },
+    {
+      key: 'checkInTime',
+      label: 'Giờ vào',
+      width: '110px',
+      render: (row) => (
+        <span className="font-medium text-blue-700">
+          {row.checkInTime ? formatTimeFromDateTime(row.checkInTime) : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'checkOutTime',
+      label: 'Giờ ra',
+      width: '110px',
+      render: (row) => (
+        <span className="font-medium text-green-700">
+          {row.checkOutTime ? formatTimeFromDateTime(row.checkOutTime) : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'workHours',
+      label: 'Giờ tăng ca',
+      width: '110px',
+      render: (row) => (
+        <span className="font-semibold text-purple-700">{formatWorkHours(row.workHours)}</span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      width: '130px',
+      render: (row) => (
+        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(row.status)}`}>
+          {getStatusLabel(row.status)}
+        </span>
+      ),
+    },
+    {
+      key: 'notes',
+      label: 'Ghi chú',
+      width: '140px',
+      render: (row) => <span className="text-gray-600 text-sm">{row.notes || '—'}</span>,
+    },
+  ];
 
-  const filteredAttendances = attendances.filter(
-    item =>
-      item.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
+  // ── Filtering: apply search + tab filter
+  const filteredAll = attendances.filter(item =>
+    currentTab === 'overtime' ? false : (
+      item.employeeCode.toLowerCase().includes(searchText.toLowerCase()) ||
+      item.employeeName.toLowerCase().includes(searchText.toLowerCase())
+    )
   );
 
-  const totalItems = filteredAttendances.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedAttendances = filteredAttendances.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const filteredOvertime = attendances.filter(
+    item => item.status === 'OVERTIME' &&
+      (item.employeeCode.toLowerCase().includes(searchText.toLowerCase()) ||
+        item.employeeName.toLowerCase().includes(searchText.toLowerCase()))
+  );
+
+  const activeData = currentTab === 'overtime' ? filteredOvertime : filteredAll;
+  const total = activeData.length;
+
+  // ── onFilterChange handler for DataTable
+  const handleFilterChange = useCallback((filters: Record<string, unknown>) => {
+    setCurrentPage(1);
+    // Extract text search from filters (if employeeName or employeeCode filter applied)
+    // DataTable's built-in text filters handle inline — no extra state needed here
+  }, []);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="bg-white rounded-lg shadow-sm">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-gray-800">Bảng Điểm Danh Nhân Viên</h2>
@@ -267,183 +463,95 @@ const AttendanceManagement: React.FC = () => {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-4 items-end">
-          <div className="flex-1">
+        {/* ── Tabs + Filters ── */}
+        <div className="flex flex-wrap gap-4 items-end">
+          {/* Tabs */}
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+            {([
+              ['all',      'Tất cả'],
+              ['overtime', 'Tăng ca'],
+            ] as [TabValue, string][]).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => { setCurrentTab(val); setCurrentPage(1); }}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  currentTab === val
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Date range */}
+          <div>
             <DatePicker
               label="Từ ngày"
               value={startDate}
-              onChange={(date) => setStartDate(date)}
+              onChange={(date) => { setStartDate(date); setCurrentPage(1); }}
               maxDate={endDate}
               placeholder="Chọn ngày bắt đầu"
             />
           </div>
-          <div className="flex-1">
+          <div>
             <DatePicker
               label="Đến ngày"
               value={endDate}
-              onChange={(date) => setEndDate(date)}
+              onChange={(date) => { setEndDate(date); setCurrentPage(1); }}
               minDate={startDate}
               placeholder="Chọn ngày kết thúc"
             />
           </div>
-          <div className="flex-1">
+
+          {/* Search */}
+          <div className="flex-1 min-w-[200px]">
             <label className="block text-sm font-medium text-gray-700 mb-1">Tìm kiếm</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Tìm theo mã hoặc tên nhân viên..."
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                value={searchText}
+                onChange={(e) => { setSearchText(e.target.value); setCurrentPage(1); }}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
-          <div className="flex items-end">
-            <button
-              onClick={async () => {
-                try {
-                  await attendanceService.exportToExcel({ search: searchTerm || undefined });
-                } catch (err) {
-                  console.error('Error exporting to Excel:', err);
-                  alert('Không thể xuất file Excel');
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Download size={18} />
-              Xuất Excel
-            </button>
-          </div>
+
+          {/* Export */}
+          <button
+            onClick={async () => {
+              try {
+                await attendanceService.exportToExcel({ search: searchText || undefined });
+              } catch {
+                alert('Không thể xuất file Excel');
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Download size={18} />
+            Xuất Excel
+          </button>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-500">Đang tải dữ liệu...</div>
-        ) : filteredAttendances.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">Không có dữ liệu điểm danh</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nhân viên</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Chức vụ</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày điểm danh</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Giờ vào</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Giờ ra</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số giờ</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedAttendances.map((record, index) => (
-                  <tr
-                    key={record.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{record.stt}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
-                      {record.employeeCode}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {record.employeeName}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                      {record.positionName}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {new Date(record.attendanceDate).toLocaleDateString('vi-VN')}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {formatTimes(record.checkInTimes)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {formatTimes(record.checkOutTimes)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {record.workHours.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-center border-r border-gray-200">
-                      <span className={`text-sm ${getStatusColor(record.status)}`}>
-                        {getStatusLabel(record.status)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                      {record.notes || '-'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          onClick={() => handleEdit(record)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit2 className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(record.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                          title="Xóa"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Trước
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-              .map((page, idx, arr) => (
-                <React.Fragment key={page}>
-                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                  <button
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 text-sm rounded-md ${
-                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                </React.Fragment>
-              ))}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sau
-            </button>
-          </div>
-        </div>
-      )}
+      {/* ── DataTable ── */}
+      <DataTable
+        columns={currentTab === 'overtime' ? overtimeColumns : columns}
+        data={activeData}
+        isLoading={isLoading}
+        total={total}
+        page={currentPage}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onFilterChange={handleFilterChange}
+        emptyMessage={currentTab === 'overtime' ? 'Không có bản ghi tăng ca nào' : 'Không có dữ liệu điểm danh'}
+        rowKey="id"
+      />
+
+      {/* ── Modal ── */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className={`bg-white rounded-lg shadow-xl w-full mx-4 ${editingId && editEntries.length > 0 ? 'max-w-2xl' : 'max-w-md'}`}>
@@ -451,15 +559,13 @@ const AttendanceManagement: React.FC = () => {
               <h3 className="text-xl font-bold text-white">
                 {editingId ? 'Chỉnh sửa điểm danh' : 'Thêm điểm danh'}
               </h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-white hover:text-gray-200"
-              >
+              <button onClick={() => setShowModal(false)} className="text-white hover:text-gray-200 text-xl leading-none">
                 ✕
               </button>
             </div>
 
             <div className="p-6 space-y-4">
+              {/* Employee code */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mã nhân viên</label>
                 <input
@@ -471,12 +577,11 @@ const AttendanceManagement: React.FC = () => {
                   disabled={!!editingId}
                 />
                 {formData.employeeCode && !selectedEmployeeName && !editingId && (
-                  <p className="mt-1 text-sm text-red-600">
-                    ✗ Không tìm thấy nhân viên
-                  </p>
+                  <p className="mt-1 text-sm text-red-600">✗ Không tìm thấy nhân viên</p>
                 )}
               </div>
 
+              {/* Employee name (auto-filled) */}
               {selectedEmployeeName && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên</label>
@@ -489,18 +594,19 @@ const AttendanceManagement: React.FC = () => {
                 </div>
               )}
 
+              {/* Date */}
               <div>
                 <DatePicker
                   label="Ngày điểm danh"
                   value={formData.attendanceDate}
-                  onChange={(date) => setFormData({ ...formData, attendanceDate: date })}
+                  onChange={(date) => setFormData(prev => ({ ...prev, attendanceDate: date }))}
                   placeholder="Chọn ngày điểm danh"
                   required
                   disabled={!!editingId}
                 />
               </div>
 
-              {/* Edit mode: show all entries */}
+              {/* Edit mode: multiple entries */}
               {editingId && editEntries.length > 0 ? (
                 <div className="space-y-3">
                   <label className="block text-sm font-medium text-gray-700">
@@ -509,7 +615,7 @@ const AttendanceManagement: React.FC = () => {
                   <div className="max-h-80 overflow-y-auto space-y-3 pr-1">
                     {editEntries.map((entry, index) => (
                       <div key={entry.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="mb-2">
                           <span className="text-sm font-semibold text-blue-600">Lần {index + 1}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-3 mb-2">
@@ -547,7 +653,7 @@ const AttendanceManagement: React.FC = () => {
                               value={entry.status}
                               onChange={(e) => {
                                 const updated = [...editEntries];
-                                updated[index] = { ...updated[index], status: e.target.value as any };
+                                updated[index] = { ...updated[index], status: e.target.value as EditEntry['status'] };
                                 setEditEntries(updated);
                               }}
                               className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -579,15 +685,15 @@ const AttendanceManagement: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                /* Add mode: single entry */
                 <>
+                  {/* Add mode: single entry */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Giờ vào</label>
                       <input
                         type="time"
                         value={formData.checkInTime}
-                        onChange={(e) => setFormData({ ...formData, checkInTime: e.target.value })}
+                        onChange={(e) => setFormData(prev => ({ ...prev, checkInTime: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -596,7 +702,7 @@ const AttendanceManagement: React.FC = () => {
                       <input
                         type="time"
                         value={formData.checkOutTime}
-                        onChange={(e) => setFormData({ ...formData, checkOutTime: e.target.value })}
+                        onChange={(e) => setFormData(prev => ({ ...prev, checkOutTime: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -606,7 +712,7 @@ const AttendanceManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
                     <select
                       value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                      onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as AttendanceRecord['status'] }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="PRESENT">Đúng giờ</option>
@@ -621,7 +727,7 @@ const AttendanceManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                     <textarea
                       value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                       placeholder="Nhập ghi chú (nếu có)"
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -630,6 +736,7 @@ const AttendanceManagement: React.FC = () => {
                 </>
               )}
 
+              {/* Modal actions */}
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => setShowModal(false)}
@@ -648,6 +755,8 @@ const AttendanceManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ── Work Shift Settings Modal ── */}
       <WorkShiftSettingsModal
         isOpen={showShiftSettings}
         onClose={() => setShowShiftSettings(false)}
@@ -657,4 +766,3 @@ const AttendanceManagement: React.FC = () => {
 };
 
 export default AttendanceManagement;
-
