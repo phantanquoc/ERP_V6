@@ -279,6 +279,7 @@ model Employee {
   leaveRequests      LeaveRequest[]
   purchaseRequests   PurchaseRequest[]
   suppliers          Supplier[]          @relation("SupplierCreatedBy")
+  meetingParticipations MeetingParticipant[]
 
   @@map("employees")
   @@schema("common")
@@ -356,6 +357,13 @@ model Notification {
   taskId                String?
   acceptanceHandoverId  String?
   leaveRequestId        String?
+  payrollId             String?
+  orderId               String?
+  supplyRequestId       String?
+  warehouseReceiptId    String?
+  overtimePlanId        String?
+  meetingId             String?
+  supplyAdjustmentId    String?
   isRead                Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -696,6 +704,49 @@ model WorkShift {
   updatedAt DateTime @updatedAt
 
   @@map("work_shifts")
+  @@schema("common")
+}
+
+model Meeting {
+  id             String           @id @default(cuid())
+  title          String
+  agenda         String?          @db.Text
+  meetingDate    DateTime
+  startTime      String           // "HH:mm"
+  endTime        String           // "HH:mm"
+  room           String?
+  notes          String?          @db.Text
+  status         MeetingStatus    @default(SCHEDULED)
+  departmentId   String?
+  createdBy      String
+  reminderSentAt DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  participants   MeetingParticipant[]
+
+  @@map("meetings")
+  @@schema("common")
+}
+
+model MeetingParticipant {
+  id          String   @id @default(cuid())
+  meetingId   String
+  employeeId  String
+  isConfirmed Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, employeeId])
+  @@map("meeting_participants")
+  @@schema("common")
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
   @@schema("common")
 }
 
