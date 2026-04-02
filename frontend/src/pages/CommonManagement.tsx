@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 import { API_BASE_URL } from '../config/api';
 import FileUpload from '../components/FileUpload';
 import Modal from '../components/Modal';
@@ -76,7 +77,7 @@ const CommonManagement = () => {
 
   if (!user) return <div>Loading...</div>;
 
-  const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'manager';
+  const isManagerOrAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
 
   const categories = [
         {
@@ -657,7 +658,7 @@ const CommonManagement = () => {
       <OvertimePlanListModal
         isOpen={isOvertimePlanListOpen}
         onClose={() => setIsOvertimePlanListOpen(false)}
-        isAdmin={user?.role === 'admin' || user?.department === 'admin'}
+        isAdmin={user?.role === UserRole.ADMIN}
       />
 
       {/* Private Feedback Modal (Góp ý riêng / Nêu khó khăn) */}

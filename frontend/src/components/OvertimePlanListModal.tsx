@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Download } from 'lucide-react';
+import { X, Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Download, CheckCircle, Info } from 'lucide-react';
 import { overtimePlanService, OvertimePlan, OvertimePlanStatus } from '../services/overtimePlanService';
 import Modal from './Modal';
 import { getFileUrl } from '../config/api';
@@ -20,6 +20,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
+  const [showApproveModal, setShowApproveModal] = useState<OvertimePlan | null>(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -68,6 +69,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
     try {
       setActionLoading(planId);
       await overtimePlanService.approvePlan(planId, OvertimePlanStatus.DA_DUYET);
+      setShowApproveModal(null);
       await loadPlans();
     } catch (error) {
       console.error('Error approving plan:', error);
@@ -199,10 +201,10 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                       {isAdmin && isPending && (
                         <>
                           <button
-                            onClick={() => handleApprove(plan.id)}
+                            onClick={() => setShowApproveModal(plan)}
                             disabled={actionLoading === plan.id}
                             className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                            title="Duyệt"
+                            title="Duyệt kế hoạch"
                           >
                             <Check className="w-4 h-4" />
                           </button>
@@ -335,6 +337,12 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${getStatusBadge(viewPlan.trangThai).class}`}>
                     {getStatusBadge(viewPlan.trangThai).label}
                   </span>
+                  {viewPlan.trangThai === OvertimePlanStatus.DA_DUYET && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded-md px-2.5 py-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>Chấm công tăng ca đã được tự động tạo cho {viewPlan.nguoiThamGia?.length || 0} người tham gia</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -448,6 +456,83 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Approve Confirmation Modal */}
+      <Modal isOpen={!!showApproveModal} onClose={() => setShowApproveModal(null)}>
+        {showApproveModal && (
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-600 to-green-700">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Check className="w-6 h-6" />
+                Xác nhận duyệt kế hoạch
+              </h2>
+              <button onClick={() => setShowApproveModal(null)} className="text-white hover:text-gray-200 transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {/* Plan summary */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
+                <div className="flex items-start gap-2">
+                  <Calendar className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Ngày tăng ca</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {new Date(showApproveModal.ngayTangCa).toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Clock className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Giờ làm việc</p>
+                    <p className="text-sm font-semibold text-gray-900">{showApproveModal.gioBatDau} → {showApproveModal.gioKetThuc}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Users className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Người tham gia</p>
+                    <p className="text-sm font-semibold text-gray-900">{showApproveModal.nguoiThamGia?.length || 0} nhân viên</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Attendance auto-create notice */}
+              <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-800">
+                  <p className="font-semibold mb-1">Tự động tạo chấm công</p>
+                  <p>
+                    Khi duyệt, hệ thống sẽ <strong>tự động tạo bản ghi chấm công tăng ca</strong> cho{' '}
+                    <strong>{showApproveModal.nguoiThamGia?.length || 0} người tham gia</strong>.
+                  </p>
+                  <ul className="mt-2 space-y-1 text-xs text-blue-700 list-disc list-inside">
+                    <li>Nếu chưa có chấm công ngày đó → tạo mới với trạng thái <strong>Tăng ca</strong></li>
+                    <li>Nếu đã có chấm công → cập nhật giờ ra theo giờ kết thúc tăng ca</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowApproveModal(null)}
+                className="px-5 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 text-sm font-medium transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => handleApprove(showApproveModal.id)}
+                disabled={actionLoading === showApproveModal.id}
+                className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                {actionLoading === showApproveModal.id ? 'Đang xử lý...' : 'Xác nhận duyệt'}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </>
   );
