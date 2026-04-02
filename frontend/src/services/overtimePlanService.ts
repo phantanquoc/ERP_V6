@@ -84,15 +84,12 @@ const buildFormData = (data: CreateOvertimePlanData): FormData => {
 
 export const overtimePlanService = {
   async create(data: CreateOvertimePlanData): Promise<OvertimePlan> {
-    const response = await apiClient.post('/overtime-plans', buildFormData(data), {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // Let Axios set Content-Type + boundary automatically for FormData
+    const response = await apiClient.post('/overtime-plans', buildFormData(data));
     return extractData(response);
   },
   async update(id: string, data: CreateOvertimePlanData): Promise<OvertimePlan> {
-    const response = await apiClient.put(`/overtime-plans/${id}`, buildFormData(data), {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await apiClient.put(`/overtime-plans/${id}`, buildFormData(data));
     return extractData(response);
   },
   async getAll(params?: any): Promise<any> {
