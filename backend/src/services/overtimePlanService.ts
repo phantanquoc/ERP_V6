@@ -37,9 +37,16 @@ export class OvertimePlanService {
   async create(data: CreateOvertimePlanRequest, nguoiTaoId: string, files?: string[]): Promise<any> {
     const nguoiTao = await prisma.user.findUnique({ where: { id: nguoiTaoId }, include: { employees: true } });
     if (!nguoiTao) throw new NotFoundError('Người tạo kế hoạch không tồn tại');
-    const employees = await prisma.employee.findMany({ where: { id: { in: data.nguoiThamGia } }, select: { id: true, userId: true } });
-    if (employees.length !== data.nguoiThamGia.length) throw new NotFoundError('Một hoặc nhiều người tham gia không tồn tại');
-    const nguoiThamGiaUserIds = employees.map(emp => emp.userId);
+
+    let nguoiThamGiaUserIds: string[];
+    // If no participants specified, auto-register the creator themselves
+    if (!data.nguoiThamGia || data.nguoiThamGia.length === 0) {
+      nguoiThamGiaUserIds = [nguoiTaoId];
+    } else {
+      const employees = await prisma.employee.findMany({ where: { id: { in: data.nguoiThamGia } }, select: { id: true, userId: true } });
+      if (employees.length !== data.nguoiThamGia.length) throw new NotFoundError('Một hoặc nhiều người tham gia không tồn tại');
+      nguoiThamGiaUserIds = employees.map(emp => emp.userId);
+    }
     const ngayTangCa = new Date(data.ngayTangCa);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     if (ngayTangCa < today) throw new ValidationError('Ngày tăng ca phải từ ngày hôm nay trở đi');
