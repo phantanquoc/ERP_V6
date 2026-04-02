@@ -87,6 +87,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             window.dispatchEvent(
               new CustomEvent('systemSloganChanged', { detail: broadcastPayload.value })
             );
+          } else if (broadcastPayload.type === 'OVERTIME_PLAN_CHANGED') {
+            // Any overtime plan was created/approved — refresh all open overtime modals
+            window.dispatchEvent(new CustomEvent('overtimePlanChanged'));
           }
         } else if (msg.type === 'PING') {
           ws.send(JSON.stringify({ type: 'PONG' }));

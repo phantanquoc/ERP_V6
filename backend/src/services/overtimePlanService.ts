@@ -3,6 +3,7 @@ import logger from '@config/logger';
 import { CreateOvertimePlanRequest, UpdateOvertimePlanRequest, OvertimePlanListQuery, AcceptOvertimePlanRequest, ApproveOvertimePlanRequest, NotificationType } from '@types';
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import notificationService from './notificationService';
+import { broadcast } from './websocket';
 import { AttendanceStatus } from '@prisma/client';
 
 export class OvertimePlanService {
@@ -76,6 +77,8 @@ export class OvertimePlanService {
           message: `${creatorName} đã tạo kế hoạch tăng ca cần phê duyệt: ${data.noiDung}`,
         });
       }
+      // Broadcast to ALL connected WS clients so every open overtime modal refreshes
+      broadcast({ type: 'OVERTIME_PLAN_CHANGED' });
     } catch (error) { logger.error('Error sending overtime plan admin notifications:', error); }
     return plan;
   }
@@ -170,6 +173,8 @@ export class OvertimePlanService {
         // Auto-create attendance records for all participants
         await this.createOvertimeAttendances(plan);
       }
+      // Broadcast to ALL connected WS clients so every open overtime modal refreshes
+      broadcast({ type: 'OVERTIME_PLAN_CHANGED' });
     } catch (error) { logger.error('Error sending overtime plan approval notification:', error); }
     return this.populateWithUsers(updated);
   }

@@ -39,8 +39,8 @@ import logger from '@config/logger';
    Types
    ───────────────────────────────────────────────────────────────────────────── */
 
-/** Client connection keyed by employeeId — supports multiple tabs per user */
-type WSClient = WebSocket & { employeeId?: string; isAlive?: boolean };
+/** Client connection keyed by employeeId OR userId (for users without employee record) */
+type WSClient = WebSocket & { clientKey?: string; isAlive?: boolean };
 
 interface WsMessage {
   type: 'PING';
@@ -68,7 +68,7 @@ export interface WsNotificationPayload {
  */
 export const wsState: { _wss: WebSocketServer | null } = { _wss: null };
 
-/** Map: employeeId → Set of active WebSocket connections (handles multi-tab) */
+/** Map: employeeId (or userId fallback) → Set of active WebSocket connections */
 export const clientsByEmployee = new Map<string, Set<WSClient>>();
 
 /** Heartbeat interval handle (cleared on shutdown) */
@@ -142,7 +142,8 @@ async function handleConnection(ws: WSClient, req: IncomingMessage): Promise<voi
 
   // ── Step 2: Resolve userId → employeeId for notification routing ───────────
   // The JWT contains userId; notifications are keyed by employeeId.
-  // We need to look up the employeeId from the user record.
+  // If the user has no employee record (e.g. system admin), fall back to userId
+  // so they can still receive broadcasts and plan-change events.
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const prisma = require('@config/database').default;
@@ -151,12 +152,8 @@ async function handleConnection(ws: WSClient, req: IncomingMessage): Promise<voi
       select: { id: true },
     });
 
-    if (!employee) {
-      ws.close(4001, 'No employee record for this user');
-      return;
-    }
-
-    ws.employeeId = employee.id;
+    // Use employeeId when available; fall back to `u:<userId>` for admin-only users
+    ws.clientKey = employee ? employee.id : `u:${userId}`;
   } catch (err) {
     logger.error('WebSocket: failed to resolve employeeId', err);
     ws.close(4001, 'Internal error');
@@ -167,7 +164,6 @@ async function handleConnection(ws: WSClient, req: IncomingMessage): Promise<voi
   ws.isAlive = true;
 
   ws.on('pong', () => {
-    // Client responded to our ping → connection is alive
     ws.isAlive = true;
   });
 
@@ -183,25 +179,23 @@ async function handleConnection(ws: WSClient, req: IncomingMessage): Promise<voi
   });
 
   ws.on('error', (err) => {
-    logger.error(`WebSocket client error [employeeId=${ws.employeeId}]`, err);
+    logger.error(`WebSocket client error [key=${ws.clientKey}]`, err);
   });
 
   ws.on('close', () => {
     removeClient(ws);
-    logger.info(`WebSocket client disconnected [employeeId=${ws.employeeId ?? 'unknown'}]`);
+    logger.info(`WebSocket client disconnected [key=${ws.clientKey ?? 'unknown'}]`);
   });
 
   // ── Step 4: Store in registry ────────────────────────────────────────────
-  // employeeId is guaranteed to be set at this point (either from step 1 payload
-  // or overridden in step 2). Non-null assertion is safe here.
-  const empId = ws.employeeId!;
+  const key = ws.clientKey!;
 
-  if (!clientsByEmployee.has(empId)) {
-    clientsByEmployee.set(empId, new Set());
+  if (!clientsByEmployee.has(key)) {
+    clientsByEmployee.set(key, new Set());
   }
-  clientsByEmployee.get(empId)!.add(ws);
+  clientsByEmployee.get(key)!.add(ws);
 
-  logger.info(`WebSocket client connected [employeeId=${empId}]`);
+  logger.info(`WebSocket client connected [key=${key}]`);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -213,15 +207,15 @@ async function handleConnection(ws: WSClient, req: IncomingMessage): Promise<voi
  * Cleans up empty sets to prevent memory leaks.
  */
 function removeClient(ws: WSClient): void {
-  if (!ws.employeeId) return;
+  if (!ws.clientKey) return;
 
-  const set = clientsByEmployee.get(ws.employeeId);
+  const set = clientsByEmployee.get(ws.clientKey);
   if (!set) return;
 
   set.delete(ws);
 
   if (set.size === 0) {
-    clientsByEmployee.delete(ws.employeeId);
+    clientsByEmployee.delete(ws.clientKey);
   }
 }
 
@@ -300,7 +294,7 @@ export function pushNotification(
 
   if (!clients || clients.size === 0) {
     // No active connection — notification is still saved to DB for later polling
-    logger.debug(`No active WS client for employeeId=${employeeId}, skipping push`);
+    logger.debug(`No active WS client for key=${employeeId}, skipping push`);
     return;
   }
 

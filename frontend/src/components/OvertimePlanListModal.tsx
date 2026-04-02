@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Download, CheckCircle, Info, Plus, Pencil } from 'lucide-react';
 import { overtimePlanService, OvertimePlan, OvertimePlanStatus } from '../services/overtimePlanService';
 import Modal from './Modal';
@@ -10,6 +10,15 @@ interface OvertimePlanListModalProps {
   isOpen: boolean;
   onClose: () => void;
   isAdmin?: boolean;
+}
+
+/** Custom window event fired whenever an overtime plan is created/updated/approved.
+ *  Both the creator's modal and admin's modal listen to this to refresh immediately,
+ *  independent of WebSocket connectivity.
+ */
+const OVERTIME_CHANGED_EVENT = 'overtimePlanChanged';
+export function dispatchOvertimeChanged() {
+  window.dispatchEvent(new CustomEvent(OVERTIME_CHANGED_EVENT));
 }
 
 const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, onClose, isAdmin = false }) => {
@@ -26,50 +35,62 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
   const [showApproveModal, setShowApproveModal] = useState<OvertimePlan | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editPlan, setEditPlan] = useState<OvertimePlan | null>(null);
+  // Incrementing this forces the fetch effect to re-run immediately
+  const [refreshKey, setRefreshKey] = useState(0);
   const itemsPerPage = 10;
 
-  // Use ref so loadPlans inside WS listener always gets fresh values
-  const currentPageRef = useRef(currentPage);
-  const isAdminRef = useRef(isAdmin);
-  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
-  useEffect(() => { isAdminRef.current = isAdmin; }, [isAdmin]);
-
-  const loadPlans = useCallback(async (page?: number) => {
-    try {
-      setLoading(true);
-      const p = page ?? currentPageRef.current;
-      const params = { page: p, limit: itemsPerPage };
-      const response = isAdminRef.current
-        ? await overtimePlanService.getAll(params)
-        : await overtimePlanService.getMyPlans(params);
-      setPlans(response.data || []);
-      setTotalPages(response.totalPages || 1);
-      setTotalItems(response.total || response.data?.length || 0);
-    } catch (error) {
-      console.error('Error loading overtime plans:', error);
-    } finally {
-      setLoading(false);
-    }
+  /** Reset to page 1 and trigger an immediate re-fetch */
+  const refresh = useCallback(() => {
+    setCurrentPage(1);
+    setRefreshKey(k => k + 1);
   }, []);
 
-  useEffect(() => {
-    if (isOpen) loadPlans(currentPage);
-  }, [isOpen, currentPage]);
-
-  // Real-time: refresh list when receiving overtime-related WS notifications
+  // ── Primary fetch effect — runs on open, page change, or forced refresh ──
   useEffect(() => {
     if (!isOpen) return;
-    const unsubscribe = subscribeToNotifications((notification) => {
+    let cancelled = false;
+    const fetch = async () => {
+      setLoading(true);
+      try {
+        const params = { page: currentPage, limit: itemsPerPage };
+        const response = isAdmin
+          ? await overtimePlanService.getAll(params)
+          : await overtimePlanService.getMyPlans(params);
+        if (!cancelled) {
+          setPlans(response.data || []);
+          setTotalPages(response.totalPages || 1);
+          setTotalItems(response.total || response.data?.length || 0);
+        }
+      } catch (error) {
+        console.error('Error loading overtime plans:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetch();
+    return () => { cancelled = true; };
+  }, [isOpen, currentPage, refreshKey, isAdmin]);
+
+  // ── Real-time via WebSocket (when WS is connected) ──
+  useEffect(() => {
+    if (!isOpen) return;
+    return subscribeToNotifications((notification) => {
       if (
         notification.type === 'OVERTIME_PLAN' ||
         notification.type === 'OVERTIME_PLAN_APPROVAL'
       ) {
-        loadPlans(1);
-        setCurrentPage(1);
+        refresh();
       }
     });
-    return unsubscribe;
-  }, [isOpen, subscribeToNotifications, loadPlans]);
+  }, [isOpen, subscribeToNotifications, refresh]);
+
+  // ── Real-time via window event (works even when WS is down / admin has no employee) ──
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = () => refresh();
+    window.addEventListener(OVERTIME_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(OVERTIME_CHANGED_EVENT, handler);
+  }, [isOpen, refresh]);
 
   const getStatusBadge = (status: OvertimePlanStatus) => {
     const badges: Record<string, { label: string; class: string }> = {
@@ -97,7 +118,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
       setActionLoading(planId);
       await overtimePlanService.approvePlan(planId, OvertimePlanStatus.DA_DUYET);
       setShowApproveModal(null);
-      await loadPlans();
+      dispatchOvertimeChanged();
     } catch (error) {
       console.error('Error approving plan:', error);
       alert('Có lỗi xảy ra khi duyệt kế hoạch');
@@ -116,7 +137,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
       await overtimePlanService.approvePlan(planId, OvertimePlanStatus.TU_CHOI, rejectReason);
       setShowRejectModal(null);
       setRejectReason('');
-      await loadPlans();
+      dispatchOvertimeChanged();
     } catch (error) {
       console.error('Error rejecting plan:', error);
       alert('Có lỗi xảy ra khi từ chối kế hoạch');
@@ -129,7 +150,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
     try {
       setActionLoading(planId);
       await overtimePlanService.acceptPlan(planId, trangThai);
-      await loadPlans();
+      dispatchOvertimeChanged();
     } catch (error) {
       console.error('Error accepting plan:', error);
       alert('Có lỗi xảy ra khi tiếp nhận kế hoạch');
@@ -589,8 +610,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
         onSuccess={() => {
           setIsCreateOpen(false);
           setEditPlan(null);
-          setCurrentPage(1);
-          loadPlans(1);
+          dispatchOvertimeChanged();
         }}
         planId={editPlan?.id}
         initialData={editPlan ? {
