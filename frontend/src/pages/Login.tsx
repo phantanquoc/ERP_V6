@@ -111,10 +111,13 @@ const Login: React.FC = () => {
 
   // ── Fetch slogan từ API + lắng nghe WebSocket broadcast realtime ──
   useEffect(() => {
-    fetch(`${API_BASE_URL}/system-settings/slogan`)
-      .then(r => r.json())
-      .then(json => setSlogan(json?.data?.value ?? ''))
-      .catch(() => {/* ignore */});
+    const fetchAndSet = () =>
+      fetch(`${API_BASE_URL}/system-settings/slogan`)
+        .then(r => r.json())
+        .then(json => setSlogan(json?.data?.value ?? ''))
+        .catch(() => {/* ignore */});
+
+    fetchAndSet();
 
     const handler = (e: Event) => setSlogan((e as CustomEvent<string>).detail ?? '');
     window.addEventListener('systemSloganChanged', handler);

@@ -40,21 +40,31 @@ function useSystemBanner(): HolidayType | 'auto' {
   const [value, setValue] = useState<HolidayType | 'auto'>('auto');
 
   useEffect(() => {
+    const fetchAndSet = () =>
+      fetch(`${API_BASE_URL}/system-settings/banner`)
+        .then(r => r.json())
+        .then(json => {
+          if (json?.data?.value) setValue(json.data.value as HolidayType | 'auto');
+        })
+        .catch(() => {/* fallback: giữ 'auto' */});
+
     // Fetch giá trị ban đầu từ API (không cần auth)
-    fetch(`${API_BASE_URL}/system-settings/banner`)
-      .then(r => r.json())
-      .then(json => {
-        if (json?.data?.value) setValue(json.data.value as HolidayType | 'auto');
-      })
-      .catch(() => {/* fallback: giữ 'auto' */});
+    fetchAndSet();
 
     // Lắng nghe realtime từ WebSocket (qua AuthContext → CustomEvent)
     const onBannerChanged = (e: Event) => {
       const val = (e as CustomEvent<string>).detail;
       if (val) setValue(val as HolidayType | 'auto');
     };
+    // Re-fetch sau khi WS reconnect (để lấy giá trị bị missed trong lúc disconnect)
+    const onWsReconnected = () => fetchAndSet();
+
     window.addEventListener(SYSTEM_BANNER_EVENT, onBannerChanged);
-    return () => window.removeEventListener(SYSTEM_BANNER_EVENT, onBannerChanged);
+    window.addEventListener('wsReconnected', onWsReconnected);
+    return () => {
+      window.removeEventListener(SYSTEM_BANNER_EVENT, onBannerChanged);
+      window.removeEventListener('wsReconnected', onWsReconnected);
+    };
   }, []);
 
   return value;

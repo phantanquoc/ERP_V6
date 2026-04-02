@@ -64,6 +64,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     ws.onopen = () => {
       console.debug('[WS] Connected');
+      // Sau khi reconnect, re-fetch các system settings để cập nhật giá trị lỡ bị missed
+      // trong khoảng thời gian WS bị disconnect
+      window.dispatchEvent(new CustomEvent('wsReconnected'));
     };
 
     ws.onmessage = (event: MessageEvent) => {

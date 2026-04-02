@@ -16,14 +16,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Fetch slogan từ API khi mount + lắng nghe WebSocket broadcast realtime
   useEffect(() => {
-    fetch(`${API_BASE_URL}/system-settings/slogan`)
-      .then(r => r.json())
-      .then(json => setSlogan(json?.data?.value ?? ''))
-      .catch(() => {/* ignore */});
+    const fetchAndSet = () =>
+      fetch(`${API_BASE_URL}/system-settings/slogan`)
+        .then(r => r.json())
+        .then(json => setSlogan(json?.data?.value ?? ''))
+        .catch(() => {/* ignore */});
+
+    fetchAndSet();
 
     const handler = (e: Event) => setSlogan((e as CustomEvent<string>).detail ?? '');
+    const onWsReconnected = () => fetchAndSet();
+
     window.addEventListener('systemSloganChanged', handler);
-    return () => window.removeEventListener('systemSloganChanged', handler);
+    window.addEventListener('wsReconnected', onWsReconnected);
+    return () => {
+      window.removeEventListener('systemSloganChanged', handler);
+      window.removeEventListener('wsReconnected', onWsReconnected);
+    };
   }, []);
 
   const toggleSidebar = () => {
