@@ -10,7 +10,13 @@ import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { registerRoutes } from '@routes/index';
 import { globalRateLimiter } from '@middlewares/rateLimiter';
 import { initWebSocket, closeWebSocket } from '@services/websocket';
+import { broadcast } from '@services/websocket';
 import debugRoutes from '@routes/debugRoutes';
+import prisma from '@config/database';
+import attendanceService from '@services/attendanceService';
+import notificationService from '@services/notificationService';
+import meetingService from '@services/meetingService';
+import { NotificationType } from '@types';
 
 const app: Express = express();
 
@@ -109,10 +115,64 @@ const server = app.listen(PORT, () => {
 
   // Initialize WebSocket server on the same HTTP server
   initWebSocket(server);
-});
 
-server.on('error', (error) => {
-  logger.error('Server error:', error);
-});
+  // ─── Attendance Reminder Scheduler ──────────────────────────────────────────
+  const checkAttendanceReminders = async () => {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
 
-export default app;
+    if (hour === 8 && minute === 0) {
+      const absent = await attendanceService.getAbsentEmployees(now);
+      for (const emp of absent) {
+        await notificationService.createNotification({
+          userId: emp.userId,
+          type: NotificationType.ATTENDANCE_REMINDER,
+          title: '⏰ Nhắc nhở chấm công',
+          message: 'Bạn chưa chấm công vào. Vui lòng điểm danh ngay.',
+        });
+      }
+      broadcast({ type: 'ATTENDANCE_SUMMARY_CHANGED' });
+    }
+
+    if (hour === 17 && minute === 0) {
+      const present = await attendanceService.getPresentNotOutEmployees(now);
+      for (const emp of present) {
+        await notificationService.createNotification({
+          userId: emp.employee.userId,
+          type: NotificationType.ATTENDANCE_REMINDER,
+          title: '⏰ Nhắc nhở chấm công ra',
+          message: 'Bạn chưa chấm công ra. Vui lòng điểm danh trước khi rời văn phòng.',
+        });
+      }
+    }
+
+    if (hour === 22 && minute === 0) {
+      const absent = await attendanceService.getAbsentEmployees(now);
+      for (const emp of absent) {
+        await prisma.attendance.create({
+          data: {
+            employeeId: emp.id,
+            attendanceDate: now,
+            status: 'ABSENT',
+          },
+        });
+        await notificationService.createNotification({
+          userId: emp.userId,
+          type: NotificationType.ATTENDANCE_REMINDER,
+          title: 'Chấm công vắng mặt',
+          message: 'Bạn đã được ghi nhận vắng mặt hôm nay.',
+        });
+      }
+      broadcast({ type: 'ATTENDANCE_SUMMARY_CHANGED' });
+    }
+  };
+
+  setInterval(checkAttendanceReminders, 60_000);
+
+  // ─── Meeting Reminder Scheduler ───────────────────────────────────────────
+  setInterval(async () => {
+    try { await meetingService.checkUpcomingReminders(); }
+    catch(e) { logger.error('Meeting reminder check failed:', e); }
+  }, 60_000);
+});
