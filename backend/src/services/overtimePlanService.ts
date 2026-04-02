@@ -49,8 +49,19 @@ export class OvertimePlanService {
     const plan = await (prisma.overtimePlan as any).create({ data: { nguoiTaoId, nguoiThamGiaIds: nguoiThamGiaUserIds, noiDung: data.noiDung, ngayTangCa, gioBatDau: data.gioBatDau, gioKetThuc: data.gioKetThuc, ghiChu: data.ghiChu, files: files || [], mucDoUuTien: data.mucDoUuTien as any, trangThaiTiepNhan, gioThucTe: {} } });
     try {
       const creatorName = `${nguoiTao.firstName} ${nguoiTao.lastName}`;
-      const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { id: true } });
-      for (const admin of adminUsers) { await notificationService.createNotification({ userId: admin.id, type: NotificationType.OVERTIME_PLAN_APPROVAL, title: 'Kế hoạch tăng ca cần phê duyệt', message: `${creatorName} đã tạo kế hoạch tăng ca cần phê duyệt: ${data.noiDung}` }); }
+      // Notify all users who can approve (ADMIN, DEPARTMENT_HEAD, TEAM_LEAD)
+      const approvers = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'] as any }, isActive: true },
+        select: { id: true },
+      });
+      for (const approver of approvers) {
+        await notificationService.createNotification({
+          userId: approver.id,
+          type: NotificationType.OVERTIME_PLAN_APPROVAL,
+          title: 'Kế hoạch tăng ca cần phê duyệt',
+          message: `${creatorName} đã tạo kế hoạch tăng ca cần phê duyệt: ${data.noiDung}`,
+        });
+      }
     } catch (error) { logger.error('Error sending overtime plan admin notifications:', error); }
     return plan;
   }

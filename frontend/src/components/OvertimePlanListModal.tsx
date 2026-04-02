@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Download, CheckCircle, Info } from 'lucide-react';
+import { X, Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Download, CheckCircle, Info, Plus, Pencil } from 'lucide-react';
 import { overtimePlanService, OvertimePlan, OvertimePlanStatus } from '../services/overtimePlanService';
 import Modal from './Modal';
 import { getFileUrl } from '../config/api';
+import CreateOvertimePlanModal from './CreateOvertimePlanModal';
 
 interface OvertimePlanListModalProps {
   isOpen: boolean;
@@ -21,6 +22,8 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [showApproveModal, setShowApproveModal] = useState<OvertimePlan | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editPlan, setEditPlan] = useState<OvertimePlan | null>(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -198,6 +201,17 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                         <Eye className="w-4 h-4" />
                       </button>
 
+                      {/* Edit button — only creator can edit pending plans */}
+                      {isPending && isAdmin && (
+                        <button
+                          onClick={() => { setEditPlan(plan); setIsCreateOpen(true); }}
+                          className="p-1.5 text-orange-500 hover:bg-orange-50 rounded transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
+
                       {isAdmin && isPending && (
                         <>
                           <button
@@ -289,9 +303,18 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
               Kế hoạch tăng ca
               {isAdmin && <span className="text-sm font-normal opacity-80">(Quản lý)</span>}
             </h2>
-            <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors">
-              <X className="w-6 h-6" />
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => { setEditPlan(null); setIsCreateOpen(true); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Tạo kế hoạch
+              </button>
+              <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
           </div>
 
           {tableContent}
@@ -534,6 +557,28 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
           </div>
         )}
       </Modal>
+
+      {/* Create / Edit Overtime Plan Modal */}
+      <CreateOvertimePlanModal
+        isOpen={isCreateOpen}
+        onClose={() => { setIsCreateOpen(false); setEditPlan(null); }}
+        onSuccess={() => {
+          setIsCreateOpen(false);
+          setEditPlan(null);
+          loadPlans();
+        }}
+        planId={editPlan?.id}
+        initialData={editPlan ? {
+          nguoiThamGia: editPlan.nguoiThamGiaIds,
+          nguoiThamGiaUserIds: editPlan.nguoiThamGiaIds,
+          noiDung: editPlan.noiDung,
+          ngayTangCa: editPlan.ngayTangCa,
+          gioBatDau: editPlan.gioBatDau,
+          gioKetThuc: editPlan.gioKetThuc,
+          ghiChu: editPlan.ghiChu,
+          mucDoUuTien: editPlan.mucDoUuTien,
+        } : undefined}
+      />
     </>
   );
 };
