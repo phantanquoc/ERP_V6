@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Download, CheckCircle, Info, Plus, Pencil } from 'lucide-react';
 import { overtimePlanService, OvertimePlan, OvertimePlanStatus } from '../services/overtimePlanService';
 import Modal from './Modal';
 import { getFileUrl } from '../config/api';
 import CreateOvertimePlanModal from './CreateOvertimePlanModal';
+import { useAuth } from '../contexts/AuthContext';
 
 interface OvertimePlanListModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface OvertimePlanListModalProps {
 }
 
 const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, onClose, isAdmin = false }) => {
+  const { subscribeToNotifications } = useAuth();
   const [plans, setPlans] = useState<OvertimePlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -26,15 +28,18 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
   const [editPlan, setEditPlan] = useState<OvertimePlan | null>(null);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    if (isOpen) loadPlans();
-  }, [isOpen, currentPage]);
+  // Use ref so loadPlans inside WS listener always gets fresh values
+  const currentPageRef = useRef(currentPage);
+  const isAdminRef = useRef(isAdmin);
+  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
+  useEffect(() => { isAdminRef.current = isAdmin; }, [isAdmin]);
 
-  const loadPlans = async () => {
+  const loadPlans = useCallback(async (page?: number) => {
     try {
       setLoading(true);
-      const params = { page: currentPage, limit: itemsPerPage };
-      const response = isAdmin
+      const p = page ?? currentPageRef.current;
+      const params = { page: p, limit: itemsPerPage };
+      const response = isAdminRef.current
         ? await overtimePlanService.getAll(params)
         : await overtimePlanService.getMyPlans(params);
       setPlans(response.data || []);
@@ -45,7 +50,26 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) loadPlans(currentPage);
+  }, [isOpen, currentPage]);
+
+  // Real-time: refresh list when receiving overtime-related WS notifications
+  useEffect(() => {
+    if (!isOpen) return;
+    const unsubscribe = subscribeToNotifications((notification) => {
+      if (
+        notification.type === 'OVERTIME_PLAN' ||
+        notification.type === 'OVERTIME_PLAN_APPROVAL'
+      ) {
+        loadPlans(1);
+        setCurrentPage(1);
+      }
+    });
+    return unsubscribe;
+  }, [isOpen, subscribeToNotifications, loadPlans]);
 
   const getStatusBadge = (status: OvertimePlanStatus) => {
     const badges: Record<string, { label: string; class: string }> = {
@@ -565,7 +589,8 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
         onSuccess={() => {
           setIsCreateOpen(false);
           setEditPlan(null);
-          loadPlans();
+          setCurrentPage(1);
+          loadPlans(1);
         }}
         planId={editPlan?.id}
         initialData={editPlan ? {

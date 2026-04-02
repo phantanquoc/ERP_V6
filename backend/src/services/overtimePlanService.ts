@@ -56,9 +56,16 @@ export class OvertimePlanService {
     const plan = await (prisma.overtimePlan as any).create({ data: { nguoiTaoId, nguoiThamGiaIds: nguoiThamGiaUserIds, noiDung: data.noiDung, ngayTangCa, gioBatDau: data.gioBatDau, gioKetThuc: data.gioKetThuc, ghiChu: data.ghiChu, files: files || [], mucDoUuTien: data.mucDoUuTien as any, trangThaiTiepNhan, gioThucTe: undefined } });
     try {
       const creatorName = `${nguoiTao.firstName} ${nguoiTao.lastName}`;
+      // Notify creator so their WebSocket listener refreshes the list immediately
+      await notificationService.createNotification({
+        userId: nguoiTaoId,
+        type: NotificationType.OVERTIME_PLAN,
+        title: 'Đăng ký tăng ca thành công',
+        message: `Yêu cầu tăng ca "${data.noiDung}" đã được gửi và đang chờ phê duyệt.`,
+      });
       // Notify all users who can approve (ADMIN, DEPARTMENT_HEAD, TEAM_LEAD)
       const approvers = await prisma.user.findMany({
-        where: { role: { in: ['ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'] as any }, isActive: true },
+        where: { role: { in: ['ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'] as any }, isActive: true, id: { not: nguoiTaoId } },
         select: { id: true },
       });
       for (const approver of approvers) {
