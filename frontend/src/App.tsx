@@ -54,6 +54,9 @@ const TechnicalMechanical = React.lazy(() => import('./pages/technical/Technical
 // Admin Settings
 const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
 
+// Meetings
+const MeetingPage = React.lazy(() => import('./pages/MeetingPage'));
+
 function App() {
   return (
     <Router>
@@ -135,6 +138,9 @@ function App() {
 
           {/* Admin Settings */}
           <Route path="/settings" element={<ProtectedLayout><SettingsPage /></ProtectedLayout>} />
+
+          {/* Meetings */}
+          <Route path="/meetings" element={<ProtectedLayout><MeetingPage /></ProtectedLayout>} />
         </Routes>
         </Suspense>
       </AuthProvider>

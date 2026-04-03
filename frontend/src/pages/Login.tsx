@@ -86,8 +86,15 @@ const Login: React.FC = () => {
   const { remaining, start: startCountdown } = useCountdown();
   const [slogan, setSlogan] = useState('');
 
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // ── Redirect về dashboard nếu đã đăng nhập ──
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, authLoading, navigate]);
 
   const {
     register,
