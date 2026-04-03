@@ -1,16 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Search,
-  Filter,
   Download,
   Edit,
   Eye,
   Trash2,
   AlertCircle,
   CheckCircle,
-
   X
 } from 'lucide-react';
+import { DataTable, Column, FilterValues } from './DataTable';
 import { useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '../config/api';
 import { useEmployees, useDepartments, usePositions, usePositionLevelsByPosition, employeeKeys } from '../hooks';
@@ -129,9 +127,9 @@ const EmployeeManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [tableFilters, setTableFilters] = useState<FilterValues>({});
+  const [tablePage, setTablePage] = useState(1);
+  const TABLE_PAGE_SIZE = 10;
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -301,16 +299,98 @@ const EmployeeManagement: React.FC = () => {
     return dept?.name || '-';
   };
 
-  const filteredEmployees = employees.filter(emp =>
-    emp.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.user?.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.user?.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.user?.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(emp => {
+      const f = tableFilters;
+      if (f.employeeCode && !emp.employeeCode.toLowerCase().includes(String(f.employeeCode).toLowerCase())) return false;
+      if (f.fullName) {
+        const name = `${emp.user?.firstName || ''} ${emp.user?.lastName || ''}`.toLowerCase();
+        if (!name.includes(String(f.fullName).toLowerCase())) return false;
+      }
+      if (f.email && !emp.user?.email?.toLowerCase().includes(String(f.email).toLowerCase())) return false;
+      if (f.department && emp.user?.departmentId !== f.department) return false;
+      if (f.status && emp.status !== f.status) return false;
+      return true;
+    });
+  }, [employees, tableFilters]);
 
-  const totalItems = filteredEmployees.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedEmployees = useMemo(() => {
+    const start = (tablePage - 1) * TABLE_PAGE_SIZE;
+    return filteredEmployees.slice(start, start + TABLE_PAGE_SIZE);
+  }, [filteredEmployees, tablePage]);
+
+  const columns: Column<Employee>[] = [
+    {
+      key: 'employeeCode',
+      label: 'Mã NV',
+      filterable: true,
+      filterType: 'text',
+      render: (emp) => <span className="font-semibold text-blue-600">{emp.employeeCode}</span>,
+    },
+    {
+      key: 'fullName',
+      label: 'Họ tên',
+      filterable: true,
+      filterType: 'text',
+      render: (emp) => <span className="font-medium">{emp.user?.firstName} {emp.user?.lastName}</span>,
+    },
+    {
+      key: 'email',
+      label: 'Email',
+      filterable: true,
+      filterType: 'text',
+      render: (emp) => emp.user?.email || '—',
+    },
+    {
+      key: 'position',
+      label: 'Vị trí',
+      render: (emp) => emp.position?.name || '—',
+    },
+    {
+      key: 'department',
+      label: 'Bộ phận',
+      filterable: true,
+      filterType: 'select',
+      filterOptions: departments.map(d => ({ label: d.name, value: d.id })),
+      render: (emp) => getDepartmentName(emp.user?.departmentId),
+    },
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      filterable: true,
+      filterType: 'select',
+      filterOptions: [
+        { label: 'Đang làm', value: 'ACTIVE' },
+        { label: 'Nghỉ việc', value: 'INACTIVE' },
+      ],
+      render: (emp) => (
+        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+          emp.status === 'ACTIVE'
+            ? 'bg-green-100 text-green-700 border border-green-300'
+            : 'bg-red-100 text-red-700 border border-red-300'
+        }`}>
+          {emp.status === 'ACTIVE' ? 'Đang làm' : 'Nghỉ việc'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Hoạt động',
+      render: (emp) => (
+        <div className="flex items-center justify-center gap-3">
+          <button onClick={() => openDetailModal(emp)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors" title="Xem chi tiết">
+            <Eye className="w-5 h-5" />
+          </button>
+          <button onClick={() => openEditModal(emp)} className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors" title="Chỉnh sửa">
+            <Edit className="w-5 h-5" />
+          </button>
+          <button onClick={() => handleDelete(emp.id)} className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors" title="Xóa">
+            <Trash2 className="w-5 h-5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -330,24 +410,12 @@ const EmployeeManagement: React.FC = () => {
 
       {/* Action Bar */}
       <div className="bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm theo mã NV, họ tên, email..."
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-80"
-              />
-            </div>
-          </div>
+        <div className="flex flex-wrap gap-4 items-center justify-end">
           <button
             onClick={async () => {
               try {
                 setError('');
-                await employeeService.exportToExcel({ search: searchTerm || undefined });
+                await employeeService.exportToExcel({});
                 setSuccess('Đã xuất file Excel thành công');
                 setTimeout(() => setSuccess(''), 3000);
               } catch (err) {
@@ -365,127 +433,19 @@ const EmployeeManagement: React.FC = () => {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-500">Đang tải...</div>
-        ) : filteredEmployees.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">Không có nhân viên nào</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Họ tên</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Email</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vị trí</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedEmployees.map((emp, index) => (
-                  <tr
-                    key={emp.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
-                      {emp.employeeCode}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {emp.user?.firstName} {emp.user?.lastName}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                      {emp.user?.email}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {emp.position?.name || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {getDepartmentName(emp.user?.departmentId)}
-                    </td>
-                    <td className="px-6 py-4 text-center border-r border-gray-200">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                        emp.status === 'ACTIVE'
-                          ? 'bg-green-100 text-green-700 border border-green-300'
-                          : 'bg-red-100 text-red-700 border border-red-300'
-                      }`}>
-                        {emp.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          onClick={() => openDetailModal(emp)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(emp)}
-                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(emp.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                          title="Xóa"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          columns={columns}
+          data={paginatedEmployees}
+          isLoading={loading}
+          total={filteredEmployees.length}
+          page={tablePage}
+          pageSize={TABLE_PAGE_SIZE}
+          onPageChange={setTablePage}
+          onFilterChange={(f) => { setTableFilters(f); setTablePage(1); }}
+          rowKey="id"
+          emptyMessage="Không có nhân viên nào phù hợp"
+        />
       </div>
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Trước
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-              .map((page, idx, arr) => (
-                <React.Fragment key={page}>
-                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                  <button
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 text-sm rounded-md ${
-                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                </React.Fragment>
-              ))}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sau
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Form Modal */}
       {isFormModalOpen && (
