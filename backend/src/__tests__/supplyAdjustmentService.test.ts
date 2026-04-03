@@ -128,15 +128,6 @@ const WAREHOUSE_USER = {
   departmentId: 'dept-warehouse',
 };
 
-const EMPLOYEE_USER = {
-  id: 'employee-user-id',
-  firstName: 'Employee',
-  lastName: 'User',
-  role: 'EMPLOYEE',
-  isActive: true,
-  departmentId: 'dept-production',
-  employees: { id: 'emp-1', employeeCode: 'EMP001' },
-};
 
 const EMPLOYEE_RECORD = {
   id: 'emp-1',
@@ -397,7 +388,7 @@ describe.skip('SupplyAdjustmentService', () => {
 
       await expect(
         service.approve('adj-001', 'employee-user-id', 'EMPLOYEE')
-      ).rejects.toBeThrow();
+      ).rejects.toThrow();
     });
 
     it('should set trangThai to DA_DUYET and record approvedBy + approvedAt on approval', async () => {

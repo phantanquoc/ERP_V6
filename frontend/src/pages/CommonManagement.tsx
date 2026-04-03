@@ -13,6 +13,7 @@ import CreateWorkPlanModal from '../components/CreateWorkPlanModal';
 import OvertimePlanListModal from '../components/OvertimePlanListModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
 import MeetingPage from './MeetingPage';
+import SupplyAdjustmentModal from '../components/SupplyAdjustmentModal';
 import {
   FileText,
   Settings,
@@ -48,6 +49,7 @@ const CommonManagement = () => {
   const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState<boolean>(false);
   const [isOvertimePlanListOpen, setIsOvertimePlanListOpen] = useState<boolean>(false);
   const [isMeetingListOpen, setIsMeetingListOpen] = useState<boolean>(false);
+  const [isSupplyAdjustmentOpen, setIsSupplyAdjustmentOpen] = useState<boolean>(false);
 
   // Private Feedback Modal states
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState<boolean>(false);
@@ -185,6 +187,12 @@ const CommonManagement = () => {
     // "Danh sách các cuộc họp"
     if (categoryId === 'ds_cuoc_hop') {
       setIsMeetingListOpen(true);
+      return;
+    }
+
+    // Điều chỉnh bổ sung vật tư
+    if (categoryId === 'de_nghi_dieu_chinh') {
+      setIsSupplyAdjustmentOpen(true);
       return;
     }
 
@@ -701,6 +709,9 @@ const CommonManagement = () => {
             <MeetingPage />
           </div>
         </div>
+      )}
+      {isSupplyAdjustmentOpen && (
+        <SupplyAdjustmentModal onClose={() => setIsSupplyAdjustmentOpen(false)} />
       )}
       </div>
 

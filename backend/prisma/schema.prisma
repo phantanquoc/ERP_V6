@@ -280,6 +280,7 @@ model Employee {
   purchaseRequests   PurchaseRequest[]
   suppliers          Supplier[]          @relation("SupplierCreatedBy")
   meetingParticipations MeetingParticipant[]
+  supplyAdjustments    SupplyAdjustment[]
 
   @@map("employees")
   @@schema("common")
@@ -1217,6 +1218,41 @@ model SupplyRequest {
   warehouseReceipts WarehouseReceipt[]
 
   @@map("supply_requests")
+  @@schema("business")
+}
+
+// ── Supply Adjustment (Điều chỉnh vật tư) ─────────────────────────────────
+
+enum SupplyAdjustmentStatus {
+  CHO_DUYET
+  DA_DUYET
+  TU_CHOI
+
+  @@schema("business")
+}
+
+model SupplyAdjustment {
+  id                String                 @id @default(cuid())
+  maDieuChinh       String                 @unique
+  employeeId        String
+  loaiVatTu         String                 // Loại vật tư (nguyên liệu, bao bì, ...)
+  tenVatTu          String                 // Tên vật tư
+  soLuongHienTai    Float                  // Số lượng hiện tại
+  soLuongDieuChinh  Float                  // Số lượng điều chỉnh (±)
+  donViTinh         String                 // Đơn vị tính
+  lyDo              String                 @db.Text
+  trangThai         SupplyAdjustmentStatus @default(CHO_DUYET)
+  nguoiDuyetId      String?                // userId of approver
+  ngayDuyet         DateTime?
+  ghiChuQC          String?                @db.Text
+  lyDoTuChoi        String?                @db.Text
+  ngayDieuChinh     DateTime
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("supply_adjustments")
   @@schema("business")
 }
 

@@ -62,6 +62,7 @@ const ROUTE_MAP: Record<string, string> = {
   meeting: '/api/meetings',
   theme: '/api/themes',
   systemSetting: '/api/system-settings',
+  supplyAdjustment: '/api/supply-adjustments',
 };
 
 export const registerRoutes = (app: Express): void => {
