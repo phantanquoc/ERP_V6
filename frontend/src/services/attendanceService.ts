@@ -32,6 +32,35 @@ export interface IndividualAttendanceRecord {
   notes: string | null;
 }
 
+export interface DailySummaryEmployee {
+  employeeId: string;
+  employeeCode: string;
+  firstName: string;
+  lastName: string;
+  department: string;
+  position: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  workHours: number | null;
+  lastCheckTime: string | null;
+  userId: string;
+}
+
+export interface DailySummary {
+  date: string;
+  summary: {
+    totalEmployees: number;
+    present: number;
+    present_out: number;
+    absent: number;
+  };
+  employees: {
+    present: DailySummaryEmployee[];
+    present_out: DailySummaryEmployee[];
+    absent: Omit<DailySummaryEmployee, 'checkInTime' | 'checkOutTime' | 'workHours' | 'lastCheckTime'>[];
+  };
+}
+
 class AttendanceService {
   async getAttendanceByDateRange(startDate: string, endDate: string): Promise<AttendanceRecord[]> {
     try {
@@ -205,6 +234,11 @@ class AttendanceService {
     if (filters?.search) params.append('search', filters.search);
     const url = `${API_BASE_URL}/attendances/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     await downloadFile(url, `bang-cham-cong-${Date.now()}.xlsx`);
+  }
+
+  async getDailySummary(date: string): Promise<DailySummary> {
+    const response = await apiClient.get('/attendances/daily-summary', { params: { date } });
+    return response.data;
   }
 }
 

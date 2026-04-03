@@ -3,6 +3,9 @@ import { NotFoundError } from '@utils/errors';
 import { AttendanceStatus } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import workShiftService from './workShiftService';
+import notificationService from './notificationService';
+import { NotificationType } from '@types';
+import logger from '@config/logger';
 
 export class AttendanceService {
   /**
@@ -308,6 +311,11 @@ export class AttendanceService {
       },
     });
 
+    // ⚠️ SECURITY: Notify employee + supervisor when manually marked as LATE
+    if (data.status === AttendanceStatus.LATE) {
+      void this.notifyLateAttendance(data.employeeId);
+    }
+
     return {
       id: attendance.id,
       employeeCode: attendance.employee.employeeCode,
@@ -320,6 +328,54 @@ export class AttendanceService {
       status: attendance.status,
       notes: attendance.notes,
     };
+  }
+
+  /** Notify the employee and their supervisor when attendance is manually marked as LATE. */
+  private async notifyLateAttendance(employeeId: string): Promise<void> {
+    try {
+      const employee = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true } },
+          subDepartment: { include: { department: true } },
+        },
+      });
+      if (!employee) return;
+
+      const empName = `${employee.user.firstName} ${employee.user.lastName}`;
+
+      // Notify the employee themselves
+      await notificationService.createNotification({
+        userId: employee.user.id,
+        type: NotificationType.ATTENDANCE_REMINDER,
+        title: '⚠️ Chấm công muộn',
+        message: 'Bạn đã được ghi nhận đến muộn hôm nay. Vui lòng lưu ý giờ giấc.',
+      });
+
+      // Notify supervisors (DEPARTMENT_HEAD / TEAM_LEAD) in the same department
+      if (employee.subDepartment?.departmentId) {
+        const supervisors = await prisma.user.findMany({
+          where: {
+            role: { in: ['DEPARTMENT_HEAD', 'TEAM_LEAD'] },
+            employees: {
+              subDepartment: { departmentId: employee.subDepartment.departmentId },
+            },
+          },
+          select: { id: true },
+        });
+
+        await Promise.allSettled(supervisors.map(sup =>
+          notificationService.createNotification({
+            userId: sup.id,
+            type: NotificationType.ATTENDANCE_REMINDER,
+            title: '⚠️ Nhân viên đến muộn',
+            message: `${empName} đã được ghi nhận chấm công muộn hôm nay.`,
+          })
+        ));
+      }
+    } catch (error) {
+      logger.error('❌ Error sending late attendance notification:', error);
+    }
   }
 
   async updateAttendance(
