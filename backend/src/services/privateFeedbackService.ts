@@ -1,5 +1,7 @@
 import prisma from '@config/database';
 import { FeedbackType, FeedbackStatus } from '@prisma/client';
+import notificationService from './notificationService';
+import { NotificationType } from '@types';
 
 interface CreatePrivateFeedbackData {
   type: FeedbackType;
@@ -178,6 +180,24 @@ export const privateFeedbackService = {
         }
       }
     });
+
+    // Gửi notification đến tất cả ADMIN
+    const typeLabel = data.type === 'GOP_Y' ? 'Góp ý' : 'Nêu khó khăn';
+    const senderName = `${feedback.user.firstName} ${feedback.user.lastName}`;
+    const admins = await prisma.user.findMany({
+      where: { role: 'ADMIN', isActive: true },
+      select: { id: true },
+    });
+    await Promise.allSettled(
+      admins.map((admin) =>
+        notificationService.createNotification({
+          userId: admin.id,
+          type: NotificationType.PRIVATE_FEEDBACK,
+          title: `📝 ${typeLabel} mới từ nhân viên`,
+          message: `${senderName} vừa gửi ${typeLabel.toLowerCase()} [${code}]: "${data.content.slice(0, 80)}${data.content.length > 80 ? '...' : ''}"`,
+        })
+      )
+    );
 
     return feedback;
   },
