@@ -58,6 +58,8 @@ export interface GetMeetingsParams {
   status?: string;
   dateFrom?: string;
   dateTo?: string;
+  startDate?: string;
+  endDate?: string;
   departmentId?: string;
 }
 
@@ -104,16 +106,15 @@ export const meetingService = {
   },
 
   /**
-   * Get today's meetings
+   * Get today's meetings — delegates to getAll with today's date range
    */
   getToday: async (params: GetMeetingsParams = {}): Promise<{ data: Meeting[]; pagination: Pagination }> => {
     const today = new Date().toISOString().split('T')[0];
-    const response = await apiClient.get('/meetings/today', { params: { ...params, dateFrom: today, dateTo: today } });
-    return unwrapPaginated(response);
+    return meetingService.getAll({ ...params, dateFrom: today, dateTo: today });
   },
 
   /**
-   * Get this week's meetings (Mon–Sun)
+   * Get this week's meetings (Mon–Sun) — delegates to getAll with week date range
    */
   getThisWeek: async (params: GetMeetingsParams = {}): Promise<{ data: Meeting[]; pagination: Pagination }> => {
     const now = new Date();
@@ -122,14 +123,11 @@ export const meetingService = {
     monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    const response = await apiClient.get('/meetings/week', {
-      params: {
-        ...params,
-        dateFrom: monday.toISOString().split('T')[0],
-        dateTo: sunday.toISOString().split('T')[0],
-      },
+    return meetingService.getAll({
+      ...params,
+      dateFrom: monday.toISOString().split('T')[0],
+      dateTo: sunday.toISOString().split('T')[0],
     });
-    return unwrapPaginated(response);
   },
 
   /**
@@ -167,7 +165,7 @@ export const meetingService = {
    * Confirm or decline meeting participation
    */
   confirm: async (id: string, isConfirmed: boolean): Promise<Meeting> => {
-    const response = await apiClient.patch(`/meetings/${id}/confirm`, { isConfirmed });
+    const response = await apiClient.put(`/meetings/${id}/confirm`, { isConfirmed });
     return unwrap(response);
   },
 

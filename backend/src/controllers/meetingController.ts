@@ -21,14 +21,17 @@ export class MeetingController {
     try {
       const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+      // Accept both startDate/endDate and dateFrom/dateTo for flexibility
+      const startDate = (req.query.startDate || req.query.dateFrom) as string | undefined;
+      const endDate = (req.query.endDate || req.query.dateTo) as string | undefined;
       const result = await meetingService.getAll({
         search: req.query.search as string,
         page,
         limit,
         status: req.query.status as string,
         departmentId: req.query.departmentId as string,
-        startDate: req.query.startDate as string,
-        endDate: req.query.endDate as string,
+        startDate,
+        endDate,
       });
       res.json({
         success: true,
@@ -56,19 +59,44 @@ export class MeetingController {
 
       const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+      const startDate = (req.query.startDate || req.query.dateFrom) as string | undefined;
+      const endDate = (req.query.endDate || req.query.dateTo) as string | undefined;
       const result = await meetingService.getMyMeetings(employee.id, {
         search: req.query.search as string,
         page,
         limit,
         status: req.query.status as string,
-        startDate: req.query.startDate as string,
-        endDate: req.query.endDate as string,
+        startDate,
+        endDate,
       });
       res.json({
         success: true,
         data: result.data,
         pagination: { page: result.page, limit, total: result.total, totalPages: result.totalPages },
       } as ApiResponse<any>);
+    } catch (error) { next(error); }
+  }
+
+  /**
+   * PATCH /api/meetings/:id/status
+   * Update meeting status only (e.g., mark COMPLETED or CANCELLED).
+   */
+  async updateStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const userRole = req.user?.role;
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
+
+      const { status } = req.body;
+      if (!status) { throw new ValidationError('status là bắt buộc'); }
+
+      const meeting = await meetingService.update(
+        req.params.id as string,
+        { status },
+        userId,
+        userRole || ''
+      );
+      res.json({ success: true, data: meeting, message: 'Cập nhật trạng thái cuộc họp thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
 

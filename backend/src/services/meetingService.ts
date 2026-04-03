@@ -146,30 +146,74 @@ export class MeetingService {
   }
 
   /**
+   * Builds a where-clause from query filters (shared between getAll / getMyMeetings).
+   */
+  private buildWhere(query: MeetingQuery): any {
+    const where: any = {};
+    if (query.search) where.title = { contains: query.search, mode: 'insensitive' };
+    if (query.status) where.status = query.status;
+    if (query.departmentId) where.departmentId = query.departmentId;
+    if (query.startDate) where.meetingDate = { ...where.meetingDate, gte: new Date(query.startDate) };
+    if (query.endDate) where.meetingDate = { ...where.meetingDate, lte: new Date(query.endDate + 'T23:59:59') };
+    return where;
+  }
+
+  /**
+   * Batch-fetches creator user info for a list of meetings.
+   */
+  private async batchFetchCreators(createdByIds: string[]): Promise<Record<string, { firstName: string; lastName: string }>> {
+    const unique = [...new Set(createdByIds)];
+    if (unique.length === 0) return {};
+    const users = await (prisma as any).user.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    return Object.fromEntries(users.map((u: any) => [u.id, { firstName: u.firstName, lastName: u.lastName }]));
+  }
+
+  /**
+   * Maps a raw Prisma meeting record to the public DTO.
+   */
+  private mapMeetingDto(m: any, creatorMap: Record<string, { firstName: string; lastName: string }>): any {
+    return {
+      id: m.id,
+      title: m.title,
+      agenda: m.agenda,
+      meetingDate: m.meetingDate,
+      startTime: m.startTime,
+      endTime: m.endTime,
+      room: m.room,
+      notes: m.notes,
+      status: m.status,
+      departmentId: m.departmentId,
+      createdBy: m.createdBy,
+      creator: creatorMap[m.createdBy] || null,
+      participants: (m.participants || []).map((p: any) => ({
+        id: p.id,
+        employeeId: p.employeeId,
+        isConfirmed: p.isConfirmed,
+        employee: {
+          id: p.employee?.id,
+          employeeCode: p.employee?.employeeCode,
+          user: {
+            firstName: p.employee?.user?.firstName || '',
+            lastName: p.employee?.user?.lastName || '',
+          },
+        },
+      })),
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+    };
+  }
+
+  /**
    * Paginated list of meetings with optional filters.
    */
   async getAll(query: MeetingQuery): Promise<{ data: any[]; total: number; page: number; totalPages: number }> {
     const pageNum = Math.max(1, parseInt(String(query.page || 1), 10));
     const limitNum = Math.min(100, Math.max(1, parseInt(String(query.limit || 10), 10)));
     const skip = (pageNum - 1) * limitNum;
-
-    const where: any = {};
-
-    if (query.search) {
-      where.title = { contains: query.search, mode: 'insensitive' };
-    }
-    if (query.status) {
-      where.status = query.status;
-    }
-    if (query.departmentId) {
-      where.departmentId = query.departmentId;
-    }
-    if (query.startDate) {
-      where.meetingDate = { ...where.meetingDate, gte: new Date(query.startDate) };
-    }
-    if (query.endDate) {
-      where.meetingDate = { ...where.meetingDate, lte: new Date(query.endDate + 'T23:59:59') };
-    }
+    const where = this.buildWhere(query);
 
     const [total, meetings] = await Promise.all([
       prisma.meeting.count({ where }),
@@ -186,19 +230,8 @@ export class MeetingService {
       }),
     ]);
 
-    const data = meetings.map((m) => ({
-      id: m.id,
-      title: m.title,
-      agenda: m.agenda,
-      meetingDate: m.meetingDate,
-      startTime: m.startTime,
-      endTime: m.endTime,
-      room: m.room,
-      status: m.status,
-      departmentId: m.departmentId,
-      createdBy: m.createdBy,
-      participantCount: m.participants.length,
-    }));
+    const creatorMap = await this.batchFetchCreators(meetings.map((m) => m.createdBy));
+    const data = meetings.map((m) => this.mapMeetingDto(m, creatorMap));
 
     return { data, total, page: pageNum, totalPages: Math.ceil(total / limitNum) };
   }
@@ -350,22 +383,11 @@ export class MeetingService {
     const limitNum = Math.min(100, Math.max(1, parseInt(String(query.limit || 10), 10)));
     const skip = (pageNum - 1) * limitNum;
 
-    const where: any = {
-      participants: { some: { employeeId } },
-    };
-
-    if (query.search) {
-      where.title = { contains: query.search, mode: 'insensitive' };
-    }
-    if (query.status) {
-      where.status = query.status;
-    }
-    if (query.startDate) {
-      where.meetingDate = { ...where.meetingDate, gte: new Date(query.startDate) };
-    }
-    if (query.endDate) {
-      where.meetingDate = { ...where.meetingDate, lte: new Date(query.endDate + 'T23:59:59') };
-    }
+    const where: any = { participants: { some: { employeeId } } };
+    if (query.search) where.title = { contains: query.search, mode: 'insensitive' };
+    if (query.status) where.status = query.status;
+    if (query.startDate) where.meetingDate = { ...where.meetingDate, gte: new Date(query.startDate) };
+    if (query.endDate) where.meetingDate = { ...where.meetingDate, lte: new Date(query.endDate + 'T23:59:59') };
 
     const [total, meetings] = await Promise.all([
       prisma.meeting.count({ where }),
@@ -382,16 +404,8 @@ export class MeetingService {
       }),
     ]);
 
-    const data = meetings.map((m) => ({
-      id: m.id,
-      title: m.title,
-      meetingDate: m.meetingDate,
-      startTime: m.startTime,
-      endTime: m.endTime,
-      room: m.room,
-      status: m.status,
-      participantCount: m.participants.length,
-    }));
+    const creatorMap = await this.batchFetchCreators(meetings.map((m) => m.createdBy));
+    const data = meetings.map((m) => this.mapMeetingDto(m, creatorMap));
 
     return { data, total, page: pageNum, totalPages: Math.ceil(total / limitNum) };
   }
