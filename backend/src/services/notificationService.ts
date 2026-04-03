@@ -315,6 +315,28 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Notify the task assigner when an assignee accepts or rejects the task.
+   */
+  async createTaskAcceptanceNotification(
+    assignerEmployeeId: string,
+    taskId: string,
+    taskTitle: string,
+    assigneeName: string,
+    trangThai: string
+  ): Promise<void> {
+    const isAccepted = trangThai === 'DA_TIEP_NHAN';
+    const title = isAccepted ? 'Nhiệm vụ đã được tiếp nhận' : 'Nhiệm vụ bị từ chối tiếp nhận';
+    const message = isAccepted
+      ? `${assigneeName} đã tiếp nhận nhiệm vụ: "${taskTitle}"`
+      : `${assigneeName} đã từ chối tiếp nhận nhiệm vụ: "${taskTitle}"`;
+
+    const notification = await prisma.notification.create({
+      data: { employeeId: assignerEmployeeId, type: NotificationType.TASK, title, message, taskId, isRead: false },
+    });
+    await batchPushAfterCreate(assignerEmployeeId, notification);
+  }
+
   /* ── Leave Requests ──────────────────────────────────────────────────────── */
 
   async createLeaveRequestNotification(

@@ -221,6 +221,11 @@ class TaskService {
       throw new ApiError(403, 'Chỉ người giao nhiệm vụ mới có quyền cập nhật');
     }
 
+    // Track newly added assignees before update
+    const previousAssigneeIds: string[] = task.nguoiNhanIds;
+    const newAssigneeIds: string[] = data.nguoiNhan ?? previousAssigneeIds;
+    const addedAssigneeUserIds = newAssigneeIds.filter(uid => !previousAssigneeIds.includes(uid));
+
     // Người giao can update all fields
     const updateData: any = {};
     if (data.nguoiNhan) updateData.nguoiNhanIds = data.nguoiNhan;
@@ -239,6 +244,34 @@ class TaskService {
 
     // Broadcast to all connected clients so task lists refresh
     broadcast({ type: 'TASK_CHANGED' });
+
+    // Notify newly added assignees
+    if (addedAssigneeUserIds.length > 0) {
+      try {
+        const assigner = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { firstName: true, lastName: true },
+        });
+        const assignerName = assigner ? `${assigner.firstName} ${assigner.lastName}` : 'Hệ thống';
+
+        const newAssigneeEmployees = await prisma.employee.findMany({
+          where: { userId: { in: addedAssigneeUserIds } },
+          select: { id: true },
+        });
+        const newAssigneeEmployeeIds = newAssigneeEmployees.map(e => e.id);
+
+        if (newAssigneeEmployeeIds.length > 0) {
+          await notificationService.createTaskNotifications(
+            newAssigneeEmployeeIds,
+            updatedTask.id,
+            updatedTask.noiDung,
+            assignerName
+          );
+        }
+      } catch (error) {
+        logger.error('❌ Error sending task update notifications:', error);
+      }
+    }
 
     return updatedTask;
   }
@@ -324,6 +357,33 @@ class TaskService {
 
     // Broadcast to all connected clients so task lists refresh
     broadcast({ type: 'TASK_CHANGED' });
+
+    // Notify the assigner (nguoiGiao) about acceptance/rejection
+    try {
+      const [assignee, assignerEmployee] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { firstName: true, lastName: true },
+        }),
+        prisma.employee.findFirst({
+          where: { userId: task.nguoiGiaoId },
+          select: { id: true },
+        }),
+      ]);
+
+      if (assignerEmployee && assignee) {
+        const assigneeName = `${assignee.firstName} ${assignee.lastName}`;
+        await notificationService.createTaskAcceptanceNotification(
+          assignerEmployee.id,
+          taskId,
+          task.noiDung,
+          assigneeName,
+          data.trangThai
+        );
+      }
+    } catch (error) {
+      logger.error('❌ Error sending task acceptance notification:', error);
+    }
 
     return this.populateTaskWithUsers(updatedTask);
   }
