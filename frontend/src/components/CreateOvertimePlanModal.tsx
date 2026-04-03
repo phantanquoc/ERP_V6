@@ -10,7 +10,10 @@ import { useAuth } from '../contexts/AuthContext';
 interface CreateOvertimePlanModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Called when plan is created/updated successfully — tells parent to switch to overtime tab */
   onSuccess?: () => void;
+  /** Called after onSuccess — tells parent to switch to the overtime tab */
+  onSwitchToTab?: () => void;
   planId?: string;
   initialData?: Partial<Omit<CreateOvertimePlanData, 'files'>> & { nguoiThamGiaUserIds?: string[] };
 }
@@ -22,7 +25,7 @@ const PRIORITY_OPTIONS = [
   { value: TaskPriority.KHAN_CAP, label: '🔴 Khẩn cấp' },
 ];
 
-const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({ isOpen, onClose, onSuccess, planId, initialData }) => {
+const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({ isOpen, onClose, onSuccess, onSwitchToTab, planId, initialData }) => {
   const isEditMode = !!planId;
   const { user } = useAuth();
   const defaultForm: CreateOvertimePlanData = {
@@ -76,6 +79,8 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({ isOpe
       } else {
         await overtimePlanService.create(formData);
       }
+      // Switch to overtime tab BEFORE closing the modal so the tab is already active
+      onSwitchToTab?.();
       onSuccess?.();
       handleClose();
     } catch (err: any) {

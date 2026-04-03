@@ -64,6 +64,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     ws.onopen = () => {
       console.debug('[WS] Connected');
+      // Subscribe to personal notifications so the server starts pushing them to us.
+      // Without this message the server may only broadcast system-wide events but not
+      // user-specific notifications (OVERTIME_PLAN, TASK, LEAVE_REQUEST, etc.).
+      ws.send(JSON.stringify({ type: 'SUBSCRIBE_NOTIFICATIONS' }));
+      console.debug('[WS] SUBSCRIBE_NOTIFICATIONS sent');
       // Sau khi reconnect, re-fetch các system settings để cập nhật giá trị lỡ bị missed
       // trong khoảng thời gian WS bị disconnect
       window.dispatchEvent(new CustomEvent('wsReconnected'));
@@ -75,6 +80,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (msg.type === 'NOTIFICATION' && msg.payload) {
           const payload = msg.payload as WsNotificationPayload;
+          console.debug('[WS] NOTIFICATION received:', payload.type, payload.title);
           notificationListeners.current.forEach((fn) => fn(payload));
         } else if (msg.type === 'BROADCAST' && msg.payload) {
           // System-wide broadcasts — dispatch as custom events so any component can listen
@@ -89,6 +95,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             );
           } else if (broadcastPayload.type === 'OVERTIME_PLAN_CHANGED') {
             // Any overtime plan was created/approved — refresh all open overtime modals
+            console.debug('[WS] BROADCAST: OVERTIME_PLAN_CHANGED');
             window.dispatchEvent(new CustomEvent('overtimePlanChanged'));
           }
         } else if (msg.type === 'PING') {
@@ -111,8 +118,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    ws.onerror = () => {
-      // onclose fires right after onerror, so reconnect is handled there
+    ws.onerror = (event) => {
+      console.warn('[WS] Error — onclose will fire next', event);
     };
   }, []);
 

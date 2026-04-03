@@ -1,4 +1,4 @@
-import apiClient from './apiClient';
+import apiClient, { ApiResponse } from './apiClient';
 
 export interface Notification {
   id: string;
@@ -24,55 +24,65 @@ export interface Notification {
 }
 
 class NotificationService {
-  async getEmployeeNotifications(limit: number = 10): Promise<Notification[]> {
+  /**
+   * Fetches employee notifications from GET /api/notifications.
+   * The backend returns { success: true, data: [...] }, so we unwrap the array.
+   */
+  async getEmployeeNotifications(limit: number = 50): Promise<Notification[]> {
     try {
-      const response = await apiClient.get('/notifications', {
+      const response = await apiClient.get<Notification[]>('/notifications', {
         params: { limit },
       });
-      return response.data || [];
+      // Backend wraps in { success: true, data: [...] } — unwrap to get the array
+      if (response && typeof response === 'object' && 'success' in response) {
+        return (response as ApiResponse<Notification[]>).data ?? [];
+      }
+      return Array.isArray(response) ? response : [];
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      throw error;
+      return [];
     }
   }
 
   async getUnreadNotifications(): Promise<Notification[]> {
     try {
-      const response = await apiClient.get('/notifications/unread');
-      return response.data || [];
+      const response = await apiClient.get<Notification[]>('/notifications/unread');
+      if (response && typeof response === 'object' && 'success' in response) {
+        return (response as ApiResponse<Notification[]>).data ?? [];
+      }
+      return Array.isArray(response) ? response : [];
     } catch (error) {
       console.error('Error fetching unread notifications:', error);
-      throw error;
+      return [];
     }
   }
 
   async getLatestEvaluationNotification(): Promise<Notification | null> {
     try {
-      const response = await apiClient.get('/notifications/evaluation/latest');
-      return response.data || null;
+      const response = await apiClient.get<Notification>('/notifications/evaluation/latest');
+      if (response && typeof response === 'object' && 'success' in response) {
+        return (response as ApiResponse<Notification | null>).data ?? null;
+      }
+      return (response as Notification | null) ?? null;
     } catch (error) {
       console.error('Error fetching latest evaluation notification:', error);
-      throw error;
+      return null;
     }
   }
 
-  async markAsRead(notificationId: string): Promise<Notification> {
+  async markAsRead(notificationId: string): Promise<void> {
     try {
-      const response = await apiClient.patch(`/notifications/${notificationId}/read`, {});
-      return response.data;
+      await apiClient.patch(`/notifications/${notificationId}/read`, {});
     } catch (error) {
       console.error('Error marking notification as read:', error);
-      throw error;
     }
   }
 
-  async markAllAsRead(): Promise<any> {
+  async markAllAsRead(): Promise<void> {
     try {
-      const response = await apiClient.patch('/notifications/read-all', {});
-      return response.data;
+      await apiClient.patch('/notifications/read-all', {});
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
-      throw error;
     }
   }
 
@@ -81,10 +91,8 @@ class NotificationService {
       await apiClient.delete(`/notifications/${notificationId}`);
     } catch (error) {
       console.error('Error deleting notification:', error);
-      throw error;
     }
   }
 }
 
 export default new NotificationService();
-

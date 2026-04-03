@@ -10,6 +10,14 @@ interface OvertimePlanListModalProps {
   isOpen: boolean;
   onClose: () => void;
   isAdmin?: boolean;
+  /** When set, the modal opens and immediately shows the detail view for this plan ID */
+  initialPlanId?: string | null;
+  /** Called after the initial plan ID has been consumed (plan fetched / detail opened) */
+  onInitialPlanIdConsumed?: () => void;
+  /** Called when user clicks "Tạo kế hoạch" — tells parent to switch to overtime tab if needed (for PlanCombinedModal) */
+  onSwitchToTab?: () => void;
+  /** When true, renders table content directly without the outer Modal/Portal wrapper (used inside PlanCombinedModal) */
+  embedded?: boolean;
 }
 
 /** Custom window event fired whenever an overtime plan is created/updated/approved.
@@ -21,7 +29,15 @@ export function dispatchOvertimeChanged() {
   window.dispatchEvent(new CustomEvent(OVERTIME_CHANGED_EVENT));
 }
 
-const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, onClose, isAdmin = false }) => {
+const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
+  isOpen,
+  onClose,
+  isAdmin = false,
+  initialPlanId,
+  onInitialPlanIdConsumed,
+  onSwitchToTab,
+  embedded = false,
+}) => {
   const { subscribeToNotifications } = useAuth();
   const [plans, setPlans] = useState<OvertimePlan[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,7 +87,42 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
     return () => { cancelled = true; };
   }, [isOpen, currentPage, refreshKey, isAdmin]);
 
+  // ── Open detail view when launched from a notification click ──
+  // When initialPlanId is provided (from clicking a notification), fetch that plan
+  // and open the detail view immediately instead of showing the list first.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+
+    const openDetail = async () => {
+      try {
+        const plan = await overtimePlanService.getById(initialPlanId);
+        if (!cancelled) {
+          setViewPlan(plan);
+          onInitialPlanIdConsumed?.();
+        }
+      } catch (error) {
+        console.error('Error loading plan from notification:', error);
+        if (!cancelled) {
+          // Even if fetch fails, tell parent the ID was consumed so we don't retry
+          onInitialPlanIdConsumed?.();
+        }
+      }
+    };
+
+    if (initialPlanId) {
+      openDetail();
+    }
+    return () => { cancelled = true; };
+  }, [isOpen, initialPlanId, onInitialPlanIdConsumed]);
+
+  // ── Reset viewPlan when modal closes so detail doesn't persist on next open ──
+  useEffect(() => {
+    if (!isOpen) setViewPlan(null);
+  }, [isOpen]);
+
   // ── Real-time via WebSocket (when WS is connected) ──
+  // Use direct setState instead of refresh() to avoid stale closure issues.
   useEffect(() => {
     if (!isOpen) return;
     return subscribeToNotifications((notification) => {
@@ -79,22 +130,31 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
         notification.type === 'OVERTIME_PLAN' ||
         notification.type === 'OVERTIME_PLAN_APPROVAL'
       ) {
-        refresh();
+        setCurrentPage(1);
+        setRefreshKey(k => k + 1);
       }
     });
-  }, [isOpen, subscribeToNotifications, refresh]);
+  }, [isOpen, subscribeToNotifications]);
 
   // ── Real-time via window event (works even when WS is down / admin has no employee) ──
+  // ⚠️ Call setRefreshKey directly instead of through refresh() to avoid stale closure.
+  // The refresh() function is created via useCallback and captures setRefreshKey at render time —
+  // if the component re-renders (e.g. isCreateOpen state change after create) between
+  // dispatchOvertimeChanged() and the event firing, the old refresh closure is stale and
+  // the increment never propagates to the fetch effect.
   useEffect(() => {
     if (!isOpen) return;
-    const handler = () => refresh();
+    const handler = () => {
+      setCurrentPage(1);
+      setRefreshKey(k => k + 1);
+    };
     window.addEventListener(OVERTIME_CHANGED_EVENT, handler);
     window.addEventListener('OVERTIME_PLAN_CHANGED', handler);
     return () => {
       window.removeEventListener(OVERTIME_CHANGED_EVENT, handler);
       window.removeEventListener('OVERTIME_PLAN_CHANGED', handler);
     };
-  }, [isOpen, refresh]);
+  }, [isOpen]);
 
   const getStatusBadge = (status: OvertimePlanStatus) => {
     const badges: Record<string, { label: string; class: string }> = {
@@ -347,35 +407,33 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
     </div>
   );
 
-  return (
+  const header = (
+    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
+      <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <Clock className="w-6 h-6" />
+        Kế hoạch tăng ca
+        {isAdmin && <span className="text-sm font-normal opacity-80">(Quản lý)</span>}
+      </h2>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => { setEditPlan(null); onSwitchToTab?.(); setIsCreateOpen(true); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Tạo kế hoạch
+        </button>
+        {!embedded && (
+          <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  // Sub-modals are rendered via Portal regardless of embedded mode
+  const subModals = (
     <>
-      <Modal isOpen={isOpen} onClose={onClose}>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Clock className="w-6 h-6" />
-              Kế hoạch tăng ca
-              {isAdmin && <span className="text-sm font-normal opacity-80">(Quản lý)</span>}
-            </h2>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => { setEditPlan(null); setIsCreateOpen(true); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Tạo kế hoạch
-              </button>
-              <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-
-          {tableContent}
-        </div>
-      </Modal>
-
       {/* Detail Modal */}
       <Modal isOpen={!!viewPlan} onClose={() => setViewPlan(null)}>
         {viewPlan && (
@@ -550,7 +608,6 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
               </button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              {/* Plan summary */}
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
                 <div className="flex items-start gap-2">
                   <Calendar className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
@@ -577,7 +634,6 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                 </div>
               </div>
 
-              {/* Attendance auto-create notice */}
               <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-blue-800">
@@ -634,6 +690,30 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
           mucDoUuTien: editPlan.mucDoUuTien,
         } : undefined}
       />
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        <div className="flex flex-col h-full overflow-hidden">
+          {header}
+          {tableContent}
+        </div>
+        {subModals}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          {header}
+          {tableContent}
+        </div>
+      </Modal>
+      {subModals}
     </>
   );
 };

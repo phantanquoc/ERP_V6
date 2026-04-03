@@ -9,16 +9,22 @@ interface PlanCombinedModalProps {
   isOpen: boolean;
   onClose: () => void;
   isAdmin?: boolean;
-  defaultTab?: Tab;
+  /** Currently active tab — controlled by parent */
+  activeTab: Tab;
+  /** Called when user switches tab */
+  onTabChange: (tab: Tab) => void;
+  /** Called when "Tạo kế hoạch tăng ca" is clicked — switches to overtime tab */
+  onSwitchToOvertimeTab?: () => void;
 }
 
 const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
   isOpen,
   onClose,
   isAdmin = false,
-  defaultTab = 'workPlans',
+  activeTab,
+  onTabChange,
+  onSwitchToOvertimeTab,
 }) => {
-  const [activeTab, setActiveTab] = useState<Tab>(defaultTab);
 
   if (!isOpen) return null;
 
@@ -43,7 +49,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
         {/* Tabs */}
         <div className="flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
           <button
-            onClick={() => setActiveTab('workPlans')}
+            onClick={() => onTabChange('workPlans')}
             className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'workPlans'
                 ? 'border-purple-600 text-purple-600 bg-white'
@@ -54,7 +60,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
             Kế hoạch công việc
           </button>
           <button
-            onClick={() => setActiveTab('overtimePlans')}
+            onClick={() => onTabChange('overtimePlans')}
             className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'overtimePlans'
                 ? 'border-orange-500 text-orange-500 bg-white'
@@ -82,6 +88,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
               onClose={onClose}
               isAdmin={isAdmin}
               embedded={true}
+              onSwitchToTab={onSwitchToOvertimeTab}
             />
           )}
         </div>

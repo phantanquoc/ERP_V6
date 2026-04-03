@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck, CalendarDays, ShoppingCart, Truck } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdmin } from '../utils/permissions';
+import { UserRole } from '../types/auth';
 import TaskListModal from './TaskListModal';
 import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
 import AllNotificationsModal from './AllNotificationsModal';
@@ -87,7 +87,8 @@ function getNotificationLink(notification: Notification): string | null {
 
 const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
   const { user, subscribeToNotifications } = useAuth();
-  const userIsAdmin = user ? isAdmin(user.department) : false;
+  // isAdmin = role is ADMIN or MANAGER (DEPARTMENT_HEAD / TEAM_LEAD are mapped to MANAGER)
+  const userIsAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -104,6 +105,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedLeaveRequestId, setSelectedLeaveRequestId] = useState<string | null>(null);
   const [selectedLeaveRequestMessage, setSelectedLeaveRequestMessage] = useState<string | undefined>(undefined);
   const [isOvertimePlanModalOpen, setIsOvertimePlanModalOpen] = useState(false);
+  const [selectedOvertimePlanId, setSelectedOvertimePlanId] = useState<string | null>(null);
 
   // Maximum notifications to show in the dropdown
   const MAX_SHOWN = 50;
@@ -112,7 +114,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     loadNotifications();
 
     // Subscribe to real-time notifications via WebSocket (replaces 30s polling)
-    const unsubscribe = subscribeToNotifications(() => {
+    const unsubscribe = subscribeToNotifications((notification) => {
+      console.debug('[NotificationBell] WS notification received:', notification.type, notification.title);
       // Refresh the list whenever a new notification is pushed
       loadNotifications();
     });
@@ -164,6 +167,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setSelectedLeaveRequestMessage(notification.message);
       setIsLeaveRequestModalOpen(true);
     } else if (notification.type === 'OVERTIME_PLAN' || notification.type === 'OVERTIME_PLAN_APPROVAL') {
+      // Store the plan ID from the notification so OvertimePlanListModal opens with that plan highlighted
+      setSelectedOvertimePlanId(notification.overtimePlanId || null);
       setIsOvertimePlanModalOpen(true);
     }
 
@@ -412,8 +417,10 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       {/* Overtime Plan Modal - opened when clicking OVERTIME_PLAN notification */}
       <OvertimePlanListModal
         isOpen={isOvertimePlanModalOpen}
-        onClose={() => setIsOvertimePlanModalOpen(false)}
+        onClose={() => { setIsOvertimePlanModalOpen(false); setSelectedOvertimePlanId(null); }}
         isAdmin={userIsAdmin}
+        initialPlanId={selectedOvertimePlanId}
+        onInitialPlanIdConsumed={() => setSelectedOvertimePlanId(null)}
       />
     </>
   );

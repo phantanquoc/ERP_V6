@@ -20,7 +20,8 @@ import {
   FileText
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { getDepartmentDisplayName, isAdmin } from "../utils/permissions";
+import { getDepartmentDisplayName } from "../utils/permissions";
+import { UserRole } from "../types/auth";
 import EmployeeDashboard from "./EmployeeDashboard";
 import purchaseRequestService from "../services/purchaseRequestService";
 import TaskListModal from "../components/TaskListModal";
@@ -146,12 +147,13 @@ const Dashboard1: React.FC = () => {
   const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
   const [isPurchaseRequestModalOpen, setIsPurchaseRequestModalOpen] = useState(false);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [activePlanTab, setActivePlanTab] = useState<'workPlans' | 'overtimePlans'>('workPlans');
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
   const [latestEvaluationNotification, setLatestEvaluationNotification] = useState<Notification | null>(null);
   const [approveLoading, setApproveLoading] = useState<string | null>(null);
 
-  const userIsAdmin = user ? isAdmin(user.department) : false;
+  const userIsAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
 
   // Use React Query hooks for data fetching with caching
   const { data: tasksCount = 0 } = useTasksCount();
@@ -630,6 +632,9 @@ const Dashboard1: React.FC = () => {
         isOpen={isPlanModalOpen}
         onClose={() => setIsPlanModalOpen(false)}
         isAdmin={userIsAdmin}
+        activeTab={activePlanTab}
+        onTabChange={setActivePlanTab}
+        onSwitchToOvertimeTab={() => setActivePlanTab('overtimePlans')}
       />
 
       {/* Employee Self Evaluation Modal */}

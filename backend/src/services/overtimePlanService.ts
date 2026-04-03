@@ -7,15 +7,18 @@ import { broadcast } from './websocket';
 import { AttendanceStatus } from '@prisma/client';
 
 export class OvertimePlanService {
-  private mapUserDto(user: { id: string; firstName: string; lastName: string; departmentId: string | null; employees: { employeeCode: string } | null }) {
-    return { id: user.id, firstName: user.firstName, lastName: user.lastName, employeeCode: user.employees?.employeeCode || '', department: user.departmentId || '' };
+  private mapUserDto(user: { id: string; firstName: string; lastName: string; departmentId: string | null; departmentName?: string; employees: { employeeCode: string } | null }) {
+    return { id: user.id, firstName: user.firstName, lastName: user.lastName, employeeCode: user.employees?.employeeCode || '', department: user.departmentName || '' };
   }
 
   private async populateWithUsers(plan: any): Promise<any> {
     try {
       const allIds = Array.from(new Set([plan.nguoiTaoId, ...plan.nguoiThamGiaIds]));
       const users = await prisma.user.findMany({ where: { id: { in: allIds } }, select: { id: true, firstName: true, lastName: true, departmentId: true, employees: { select: { employeeCode: true } } } });
-      const userMap = new Map(users.map(u => [u.id, u]));
+      const deptIds = Array.from(new Set(users.map(u => u.departmentId).filter(Boolean))) as string[];
+      const departments = deptIds.length > 0 ? await prisma.department.findMany({ where: { id: { in: deptIds } }, select: { id: true, name: true } }) : [];
+      const deptMap = new Map(departments.map(d => [d.id, d.name]));
+      const userMap = new Map(users.map(u => [u.id, { ...u, departmentName: deptMap.get(u.departmentId || '') || '' }]));
       return this.buildPopulated(plan, userMap);
     } catch (error) { logger.error('Error populating overtime plan with users:', error); return { ...plan, nguoiTao: null, nguoiThamGia: [] }; }
   }
@@ -25,7 +28,10 @@ export class OvertimePlanService {
     try {
       const allIds = Array.from(new Set(plans.flatMap((p: any) => [p.nguoiTaoId, ...p.nguoiThamGiaIds])));
       const users = await prisma.user.findMany({ where: { id: { in: allIds } }, select: { id: true, firstName: true, lastName: true, departmentId: true, employees: { select: { employeeCode: true } } } });
-      const userMap = new Map(users.map(u => [u.id, u]));
+      const deptIds = Array.from(new Set(users.map(u => u.departmentId).filter(Boolean))) as string[];
+      const departments = deptIds.length > 0 ? await prisma.department.findMany({ where: { id: { in: deptIds } }, select: { id: true, name: true } }) : [];
+      const deptMap = new Map(departments.map(d => [d.id, d.name]));
+      const userMap = new Map(users.map(u => [u.id, { ...u, departmentName: deptMap.get(u.departmentId || '') || '' }]));
       return plans.map(p => this.buildPopulated(p, userMap));
     } catch (error) { logger.error('Error batch populating overtime plans:', error); return plans.map(p => ({ ...p, nguoiTao: null, nguoiThamGia: [] })); }
   }

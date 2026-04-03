@@ -14,6 +14,12 @@
  *
  * After saving a notification to the DB, all public methods automatically
  * push it to connected clients via WebSocket (real-time delivery).
+ *
+ * Note on employee-less users (e.g. pure admin accounts):
+ *   Notifications are stored in the DB with a null employeeId so they can be
+ *   retrieved via polling. Real-time WebSocket pushes use the same fallback
+ *   key (`u:<userId>`) as the WebSocket registry, so connected admin clients
+ *   still receive real-time delivery.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -28,7 +34,7 @@ import { pushNotification } from '@services/websocket';
 /** Subset of Prisma Notification fields sent over WebSocket */
 export interface NotificationData {
   id: string;
-  employeeId: string;
+  employeeId: string | null;
   type: string;
   title: string;
   message: string;
@@ -60,22 +66,27 @@ export interface WsNotificationPayload {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Helper: Push notification to connected clients
+   Helpers
    ───────────────────────────────────────────────────────────────────────────── */
 
 /**
- * Pushes a saved notification to all active WebSocket clients of the employee.
- * This runs AFTER the DB write — the notification is already persisted
- * and will appear on next page refresh if the user is offline.
- *
- * @param employeeId - Employee who should receive the push
- * @param data       - The notification record (DB fields)
+ * Returns the key used to route WebSocket pushes for a given user.
+ * Uses employee.id when available; falls back to `u:<userId>` for admin-only users.
+ * This mirrors the same keying logic used in websocket.ts handleConnection.
  */
-function pushAfterCreate(
-  employeeId: string,
-  data: NotificationData
-): void {
-  const payload: WsNotificationPayload = {
+async function getPushKey(userId: string): Promise<string> {
+  const employee = await prisma.employee.findUnique({
+    where: { userId },
+    select: { id: true },
+  });
+  return employee ? employee.id : `u:${userId}`;
+}
+
+/**
+ * Builds a WebSocket payload from a notification data record.
+ */
+function buildPayload(data: NotificationData): WsNotificationPayload {
+  return {
     id:        data.id,
     type:      data.type,
     title:     data.title,
@@ -85,8 +96,38 @@ function pushAfterCreate(
       ? data.createdAt.toISOString()
       : String(data.createdAt),
   };
+}
 
-  pushNotification(employeeId, payload);
+/**
+ * Pushes a notification to all active WebSocket clients of a user.
+ * Resolves userId → push key (employee.id or u:<userId>) and sends via WS.
+ *
+ * @param userId - The user whose clients should receive the push
+ * @param data  - The notification record
+ */
+async function pushAfterCreate(userId: string, data: NotificationData): Promise<void> {
+  const pushKey = await getPushKey(userId);
+  pushNotification(pushKey, buildPayload(data));
+}
+
+/**
+ * Batch push helper — used when only employeeId is available (not userId).
+ * Resolves employeeId → userId → push key then sends via WS.
+ *
+ * @param employeeId - The employee whose clients should receive the push
+ * @param data       - The notification record
+ */
+async function batchPushAfterCreate(
+  employeeId: string,
+  data: NotificationData
+): Promise<void> {
+  // employees is a one-to-one relation, so filter directly on the relation's scalar field
+  const user = await prisma.user.findFirst({
+    where: { employees: { id: employeeId } },
+    select: { id: true },
+  });
+  if (!user) return; // No user found, skip push (admin-only accounts use null employeeId)
+  await pushAfterCreate(user.id, data);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -95,13 +136,16 @@ function pushAfterCreate(
 
 export class NotificationService {
 
-  /* ── Create ─────────────────────────────────────────────────────────────── */
+  /* ── Generic Create ──────────────────────────────────────────────────────── */
 
   /**
    * Generic notification creation.
-   * Automatically pushes to WebSocket after DB insert.
+   * Stores the notification in the DB (with null employeeId if no employee record)
+   * and pushes to all connected WebSocket clients of the user in real-time.
    *
-   * @throws Error if no employee found for userId
+   * Note: For users without an employee record (e.g. pure admin accounts),
+   * the notification is still stored (with employeeId = null) so it appears
+   * when the user next polls / loads the notification list.
    */
   async createNotification(data: {
     userId: string;
@@ -121,17 +165,41 @@ export class NotificationService {
     meetingId?: string;
     supplyAdjustmentId?: string;
   }): Promise<NotificationData> {
-    // Resolve userId → employeeId
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
       include: { employees: true },
     });
 
-    if (!user?.employees) {
-      throw new Error('Employee not found for user');
-    }
+    // Allow null employeeId so admin-only users still get DB records
+    const employeeId = user?.employees?.id ?? null;
 
-    const employeeId = user.employees.id;
+    // ⚠️ Admins without an employee record: skip DB storage but still push real-time
+    // so the bell icon updates immediately. The notification will not appear on page
+    // refresh (DB constraint requires employeeId), but the real-time refresh of the
+    // overtime list + notification bell still works.
+    if (!employeeId) {
+      // Push directly without DB storage
+      const payload: WsNotificationPayload = {
+        id:        '',
+        type:      data.type,
+        title:     data.title,
+        message:   data.message,
+        isRead:    false,
+        createdAt: new Date().toISOString(),
+      };
+      const pushKey = await getPushKey(data.userId);
+      pushNotification(pushKey, payload);
+      // Return a synthetic record for callers that expect a return value
+      return {
+        id: '',
+        employeeId: null,
+        type: data.type,
+        title: data.title,
+        message: data.message,
+        isRead: false,
+        createdAt: new Date(),
+      };
+    }
 
     const notification = await prisma.notification.create({
       data: {
@@ -155,21 +223,14 @@ export class NotificationService {
       },
     });
 
-    pushAfterCreate(employeeId, notification);
+    // Always push in real-time regardless of employeeId (WS handles u:<userId> fallback)
+    await pushAfterCreate(data.userId, notification);
 
     return notification;
   }
 
   /* ── Evaluation ──────────────────────────────────────────────────────────── */
 
-  /**
-   * Creates an evaluation notification for an employee and pushes via WebSocket.
-   *
-   * @param employeeId  - Target employee
-   * @param month        - Evaluation month (1–12)
-   * @param year         - Evaluation year
-   * @param evaluationId - Related evaluation record ID
-   */
   async createEvaluationNotification(
     employeeId: string,
     month: number,
@@ -194,16 +255,12 @@ export class NotificationService {
       },
     });
 
-    pushAfterCreate(employeeId, notification);
-
+    await batchPushAfterCreate(employeeId, notification);
     return notification;
   }
 
   /* ── Tasks ───────────────────────────────────────────────────────────────── */
 
-  /**
-   * Creates a single task assignment notification and pushes via WebSocket.
-   */
   async createTaskNotification(
     employeeId: string,
     taskId: string,
@@ -221,14 +278,10 @@ export class NotificationService {
       },
     });
 
-    pushAfterCreate(employeeId, notification);
-
+    await batchPushAfterCreate(employeeId, notification);
     return notification;
   }
 
-  /**
-   * Creates task notifications for multiple employees (batch) and pushes all via WebSocket.
-   */
   async createTaskNotifications(
     employeeIds: string[],
     taskId: string,
@@ -248,10 +301,9 @@ export class NotificationService {
       })),
     });
 
-    // Push each notification to the corresponding employee (one per employeeId)
     for (const empId of employeeIds) {
-      pushAfterCreate(empId, {
-        id: '',           // Not needed for push — frontend refetches full data from API
+      await batchPushAfterCreate(empId, {
+        id: '',
         employeeId: empId,
         type:       NotificationType.TASK,
         title:      'Nhiệm vụ mới',
@@ -265,9 +317,6 @@ export class NotificationService {
 
   /* ── Leave Requests ──────────────────────────────────────────────────────── */
 
-  /**
-   * Notifies approvers about a new leave request and pushes via WebSocket.
-   */
   async createLeaveRequestNotification(
     employeeIds: string[],
     employeeName: string,
@@ -287,9 +336,8 @@ export class NotificationService {
       })),
     });
 
-    // Push notification to each approver
     for (const empId of employeeIds) {
-      pushAfterCreate(empId, {
+      await batchPushAfterCreate(empId, {
         id: '',
         employeeId: empId,
         type:       NotificationType.LEAVE_REQUEST,
@@ -302,9 +350,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Notifies the employee about the result of their leave request (approved/rejected).
-   */
   async createLeaveRequestResponseNotification(
     employeeId: string,
     leaveCode: string,
@@ -324,16 +369,12 @@ export class NotificationService {
       },
     });
 
-    pushAfterCreate(employeeId, notification);
-
+    await batchPushAfterCreate(employeeId, notification);
     return notification;
   }
 
   /* ── Payroll ─────────────────────────────────────────────────────────────── */
 
-  /**
-   * Batch-creates payroll notifications for all target employees and pushes via WebSocket.
-   */
   async createPayrollNotifications(
     employeeIds: string[],
     month: number,
@@ -353,16 +394,15 @@ export class NotificationService {
       })),
     });
 
-    // Push to each employee (WebSocket push doesn't need the DB-generated IDs)
     for (const empId of employeeIds) {
-      pushAfterCreate(empId, {
+      await batchPushAfterCreate(empId, {
         id: '',
         employeeId: empId,
         type:    NotificationType.PAYROLL,
         title:   `Bảng lương tháng ${month}/${year}`,
         message: `Bảng lương tháng ${month}/${year} của bạn đã sẵn sàng. Nhấn để xem chi tiết.`,
         period,
-        isRead:  false,
+        isRead: false,
         createdAt: new Date(),
       });
     }
@@ -370,9 +410,6 @@ export class NotificationService {
 
   /* ── Acceptance / Handover ───────────────────────────────────────────────── */
 
-  /**
-   * Notifies a QC employee about a new acceptance handover record.
-   */
   async createAcceptanceHandoverNotification(
     employeeId: string,
     maNghiemThu: string,
@@ -391,16 +428,12 @@ export class NotificationService {
       },
     });
 
-    pushAfterCreate(employeeId, notification);
-
+    await batchPushAfterCreate(employeeId, notification);
     return notification;
   }
 
   /* ── Quality Evaluation ─────────────────────────────────────────────────── */
 
-  /**
-   * Batch-creates quality evaluation notifications for QC personnel and pushes via WebSocket.
-   */
   async createQualityEvaluationNotifications(
     employeeIds: string[],
     evaluationId: string,
@@ -422,7 +455,7 @@ export class NotificationService {
     });
 
     for (const empId of employeeIds) {
-      pushAfterCreate(empId, {
+      await batchPushAfterCreate(empId, {
         id: '',
         employeeId: empId,
         type:    NotificationType.QUALITY_EVALUATION,
@@ -435,9 +468,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Notifies a single QC employee about a quality evaluation assignment (legacy single-target version).
-   */
   async createQualityEvaluationNotification(
     employeeId: string,
     evaluationId: string,
@@ -456,16 +486,12 @@ export class NotificationService {
       },
     });
 
-    pushAfterCreate(employeeId, notification);
-
+    await batchPushAfterCreate(employeeId, notification);
     return notification;
   }
 
   /* ── Order ───────────────────────────────────────────────────────────────── */
 
-  /**
-   * Batch-creates order status change notifications and pushes via WebSocket.
-   */
   async createOrderNotifications(
     employeeIds: string[],
     orderId: string,
@@ -487,7 +513,7 @@ export class NotificationService {
     });
 
     for (const empId of employeeIds) {
-      pushAfterCreate(empId, {
+      await batchPushAfterCreate(empId, {
         id: '',
         employeeId: empId,
         type:    NotificationType.ORDER,
@@ -502,9 +528,6 @@ export class NotificationService {
 
   /* ── Supply Request ─────────────────────────────────────────────────────── */
 
-  /**
-   * Notifies the requester when their supply request status changes.
-   */
   async createSupplyRequestNotification(
     employeeId: string,
     supplyRequestId: string,
@@ -523,16 +546,12 @@ export class NotificationService {
       },
     });
 
-    pushAfterCreate(employeeId, notification);
-
+    await batchPushAfterCreate(employeeId, notification);
     return notification;
   }
 
   /* ── Warehouse Receipt ───────────────────────────────────────────────────── */
 
-  /**
-   * Notifies warehouse staff about a new warehouse receipt.
-   */
   async createWarehouseReceiptNotification(
     employeeIds: string[],
     warehouseReceiptId: string,
@@ -554,7 +573,7 @@ export class NotificationService {
     });
 
     for (const empId of employeeIds) {
-      pushAfterCreate(empId, {
+      await batchPushAfterCreate(empId, {
         id: '',
         employeeId: empId,
         type:    NotificationType.WAREHOUSE_RECEIPT,
@@ -579,12 +598,11 @@ export class NotificationService {
     employeeId: string,
     limit = 10
   ): Promise<NotificationData[]> {
-    const notifications = await prisma.notification.findMany({
+    return prisma.notification.findMany({
       where: { employeeId },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
-    return notifications;
   }
 
   /**
@@ -597,7 +615,7 @@ export class NotificationService {
     });
   }
 
-  /* ── Update ──────────────────────────────────────────────────────────────── */
+  /* ── Update ─────────────────────────────────────────────────────────────── */
 
   /** Marks a single notification as read. */
   async markAsRead(notificationId: string): Promise<NotificationData> {
@@ -616,7 +634,7 @@ export class NotificationService {
     return { count: result.count };
   }
 
-  /* ── Delete ──────────────────────────────────────────────────────────────── */
+  /* ── Delete ─────────────────────────────────────────────────────────────── */
 
   /** Deletes a single notification. */
   async deleteNotification(notificationId: string): Promise<void> {
@@ -625,7 +643,7 @@ export class NotificationService {
     });
   }
 
-  /* ── Query ───────────────────────────────────────────────────────────────── */
+  /* ── Query ──────────────────────────────────────────────────────────────── */
 
   /** Returns the most recent evaluation notification for an employee. */
   async getLatestEvaluationNotification(
