@@ -53,19 +53,19 @@ export interface CreateOvertimePlanData {
 }
 
 const extractData = (response: any): any => {
-  if (response?.data?.data) return response.data.data;
-  if (response?.data) return response.data;
+  // apiClient returns parsed JSON directly: { success, data, message }
+  if (response?.data !== undefined) return response.data;
   return response;
 };
 
 const extractPaginated = (response: any): any => {
-  const d = response?.data || response;
-  const pagination = d.pagination || {};
+  // apiClient returns: { success, data: [...], pagination: { page, limit, total, totalPages } }
+  const pagination = response?.pagination || {};
   return {
-    data: d.data || [],
-    total: pagination.total || d.total || 0,
-    page: pagination.page || d.page || 1,
-    totalPages: pagination.totalPages || d.totalPages || 1,
+    data: response?.data || [],
+    total: pagination.total || response?.total || 0,
+    page: pagination.page || response?.page || 1,
+    totalPages: pagination.totalPages || response?.totalPages || 1,
   };
 };
 
