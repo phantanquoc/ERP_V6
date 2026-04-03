@@ -38,7 +38,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
   onSwitchToTab,
   embedded = false,
 }) => {
-  const { subscribeToNotifications } = useAuth();
+  const { subscribeToNotifications, user } = useAuth();
   const [plans, setPlans] = useState<OvertimePlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -226,178 +226,189 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
   if (!isOpen) return null;
 
   const tableContent = (
-    <div className="p-6 overflow-x-auto max-h-[calc(90vh-200px)]">
+    <div className="flex-1 overflow-y-auto p-3 sm:p-5">
       {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Đang tải...</p>
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mb-3" />
+          <p className="text-gray-500 text-sm">Đang tải...</p>
         </div>
       ) : plans.length === 0 ? (
-        <div className="text-center py-12">
-          <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg">Không có kế hoạch tăng ca nào</p>
+        <div className="flex flex-col items-center justify-center py-16">
+          <Clock className="w-14 h-14 text-gray-200 mb-3" />
+          <p className="text-gray-400 text-base font-medium">Chưa có kế hoạch tăng ca nào</p>
+          <p className="text-gray-400 text-sm mt-1">Nhấn "Tạo kế hoạch" để bắt đầu</p>
         </div>
       ) : (
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Ngày tăng ca</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Người tạo</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Nội dung</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Giờ</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Trạng thái</th>
-              <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Hành động</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {plans.map((plan) => {
-              const statusBadge = getStatusBadge(plan.trangThai);
-              const priorityBadge = getPriorityBadge(plan.mucDoUuTien);
-              const isPending = plan.trangThai === OvertimePlanStatus.CHO_DUYET;
-              const canAccept = isPending && !isAdmin;
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+          {plans.map((plan) => {
+            const statusBadge = getStatusBadge(plan.trangThai);
+            const priorityBadge = getPriorityBadge(plan.mucDoUuTien);
+            const isPending = plan.trangThai === OvertimePlanStatus.CHO_DUYET;
+            const isCreator = plan.nguoiTaoId === user?._id;
+            // Non-creator participants can accept/reject their own attendance on pending plans
+            const canAccept = isPending && !isAdmin && !isCreator;
 
-              return (
-                <tr key={plan.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-900">
-                        {new Date(plan.ngayTangCa).toLocaleDateString('vi-VN')}
-                      </span>
-                    </div>
-                    <div className="mt-1">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${priorityBadge.class}`}>
-                        {priorityBadge.label}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {plan.nguoiTao?.firstName} {plan.nguoiTao?.lastName}
-                    </div>
-                    <div className="text-xs text-gray-500">{plan.nguoiTao?.employeeCode}</div>
-                    <div className="text-xs text-gray-400">{plan.nguoiTao?.department}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-sm text-gray-900 line-clamp-2 max-w-xs">{plan.noiDung}</p>
-                    <div className="mt-1 flex items-center gap-1">
-                      <Users className="w-3 h-3 text-gray-400" />
-                      <span className="text-xs text-gray-500">{plan.nguoiThamGia?.length || 0} người</span>
-                      {plan.files && plan.files.length > 0 && (
-                        <span className="ml-2 flex items-center gap-1 text-xs text-blue-600">
-                          <FileText className="w-3 h-3" /> {plan.files.length} file
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {plan.gioBatDau} - {plan.gioKetThuc}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadge.class}`}>
+            return (
+              <div
+                key={plan.id}
+                className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+              >
+                {/* Card header — date + badges */}
+                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Calendar className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                    <span className="text-sm font-semibold text-gray-900 truncate">
+                      {new Date(plan.ngayTangCa).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </span>
+                    <span className="text-sm text-gray-500 flex-shrink-0">
+                      · {plan.gioBatDau}–{plan.gioKetThuc}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${priorityBadge.class}`}>
+                      {priorityBadge.label}
+                    </span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge.class}`}>
                       {statusBadge.label}
                     </span>
-                    {plan.trangThai === OvertimePlanStatus.DA_DUYET && (
-                      <div className="mt-1 flex items-center gap-1 text-xs text-green-600">
-                        <CheckCircle className="w-3 h-3" />
-                        <span>Đã tạo chấm công tự động</span>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => setViewPlan(plan)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                  </div>
+                </div>
 
-                      {/* Edit button — only creator can edit pending plans */}
-                      {isPending && isAdmin && (
-                        <button
-                          onClick={() => { setEditPlan(plan); setIsCreateOpen(true); }}
-                          className="p-1.5 text-orange-500 hover:bg-orange-50 rounded transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                      )}
-
-                      {isAdmin && isPending && (
-                        <>
-                          <button
-                            onClick={() => setShowApproveModal(plan)}
-                            disabled={actionLoading === plan.id}
-                            className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                            title="Duyệt kế hoạch"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setShowRejectModal(plan.id)}
-                            disabled={actionLoading === plan.id}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                            title="Từ chối"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-
-                      {canAccept && (
-                        <>
-                          <button
-                            onClick={() => handleAccept(plan.id, 'DA_TIEP_NHAN')}
-                            disabled={actionLoading === plan.id}
-                            className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                            title="Tiếp nhận"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleAccept(plan.id, 'TU_CHOI')}
-                            disabled={actionLoading === plan.id}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                            title="Từ chối"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
+                {/* Card body */}
+                <div className="px-4 py-3 space-y-2">
+                  {/* Creator */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-orange-600">
+                        {plan.nguoiTao?.firstName?.[0]}{plan.nguoiTao?.lastName?.[0]}
+                      </span>
                     </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {plan.nguoiTao?.firstName} {plan.nguoiTao?.lastName}
+                        {isCreator && <span className="ml-1 text-xs text-orange-500 font-normal">(bạn)</span>}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">{plan.nguoiTao?.department || plan.nguoiTao?.employeeCode}</p>
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <p className="text-sm text-gray-700 line-clamp-2 leading-relaxed">{plan.noiDung}</p>
+
+                  {/* Participants + files row */}
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" />
+                      {plan.nguoiThamGia?.length || 0} người tham gia
+                    </span>
+                    {plan.files && plan.files.length > 0 && (
+                      <span className="flex items-center gap-1 text-blue-500">
+                        <FileText className="w-3.5 h-3.5" />
+                        {plan.files.length} tệp
+                      </span>
+                    )}
+                    {plan.trangThai === OvertimePlanStatus.DA_DUYET && (
+                      <span className="flex items-center gap-1 text-green-600">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Đã tạo chấm công
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card footer — actions */}
+                <div className="flex items-center justify-end gap-1.5 px-4 py-2.5 bg-gray-50 border-t border-gray-100">
+                  {/* View detail */}
+                  <button
+                    onClick={() => setViewPlan(plan)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    Xem
+                  </button>
+
+                  {/* Creator can edit their pending plan */}
+                  {isPending && isCreator && (
+                    <button
+                      onClick={() => { setEditPlan(plan); setIsCreateOpen(true); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      Sửa
+                    </button>
+                  )}
+
+                  {/* Admin: approve / reject */}
+                  {isAdmin && isPending && (
+                    <>
+                      <button
+                        onClick={() => setShowApproveModal(plan)}
+                        disabled={actionLoading === plan.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-300 rounded-lg transition-colors"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        Duyệt
+                      </button>
+                      <button
+                        onClick={() => setShowRejectModal(plan.id)}
+                        disabled={actionLoading === plan.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300 rounded-lg transition-colors"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        Từ chối
+                      </button>
+                    </>
+                  )}
+
+                  {/* Non-creator participant: accept own participation */}
+                  {canAccept && (
+                    <>
+                      <button
+                        onClick={() => handleAccept(plan.id, 'DA_TIEP_NHAN')}
+                        disabled={actionLoading === plan.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-300 rounded-lg transition-colors"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        Tiếp nhận
+                      </button>
+                      <button
+                        onClick={() => handleAccept(plan.id, 'TU_CHOI')}
+                        disabled={actionLoading === plan.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 disabled:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        Từ chối
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Pagination */}
       {!loading && totalItems > 0 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <p className="text-sm text-gray-600">
-            Tổng: <span className="font-medium">{totalItems}</span> kế hoạch
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+          <p className="text-sm text-gray-500">
+            Tổng <span className="font-semibold text-gray-700">{totalItems}</span> kế hoạch
           </p>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50 transition-colors"
+              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
             >
               ← Trước
             </button>
-            <span className="px-3 py-1.5 text-sm text-gray-700">
-              Trang {currentPage} / {totalPages}
+            <span className="px-3 py-1.5 text-sm text-gray-600 font-medium">
+              {currentPage} / {totalPages}
             </span>
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50 transition-colors"
+              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
             >
               Sau →
             </button>
@@ -408,23 +419,24 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
   );
 
   const header = (
-    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
-      <h2 className="text-xl font-bold text-white flex items-center gap-2">
-        <Clock className="w-6 h-6" />
-        Kế hoạch tăng ca
-        {isAdmin && <span className="text-sm font-normal opacity-80">(Quản lý)</span>}
+    <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-orange-400/30 bg-gradient-to-r from-orange-500 to-orange-600 flex-shrink-0">
+      <h2 className="text-base sm:text-xl font-bold text-white flex items-center gap-2">
+        <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
+        <span>Kế hoạch tăng ca</span>
+        {isAdmin && <span className="text-xs sm:text-sm font-normal opacity-80">(Quản lý)</span>}
       </h2>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <button
           onClick={() => { setEditPlan(null); onSwitchToTab?.(); setIsCreateOpen(true); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs sm:text-sm font-medium rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Tạo kế hoạch
+          <span className="hidden sm:inline">Tạo kế hoạch</span>
+          <span className="sm:hidden">Tạo</span>
         </button>
         {!embedded && (
-          <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors">
-            <X className="w-6 h-6" />
+          <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors p-1">
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         )}
       </div>

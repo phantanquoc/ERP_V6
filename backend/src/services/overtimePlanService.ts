@@ -59,7 +59,10 @@ export class OvertimePlanService {
     if (ngayTangCa < today) throw new ValidationError('Ngày tăng ca phải từ ngày hôm nay trở đi');
     if (data.gioBatDau >= data.gioKetThuc) throw new ValidationError('Giờ kết thúc phải sau giờ bắt đầu');
     const trangThaiTiepNhan: Record<string, string> = {};
-    nguoiThamGiaUserIds.forEach(uid => { trangThaiTiepNhan[uid] = 'CHUA_TIEP_NHAN'; });
+    // Creator is auto-accepted (they're the one creating the plan, so consent is implicit)
+    nguoiThamGiaUserIds.forEach(uid => {
+      trangThaiTiepNhan[uid] = uid === nguoiTaoId ? 'DA_TIEP_NHAN' : 'CHUA_TIEP_NHAN';
+    });
     const plan = await (prisma.overtimePlan as any).create({ data: { nguoiTaoId, nguoiThamGiaIds: nguoiThamGiaUserIds, noiDung: data.noiDung, ngayTangCa, gioBatDau: data.gioBatDau, gioKetThuc: data.gioKetThuc, ghiChu: data.ghiChu, files: files || [], mucDoUuTien: data.mucDoUuTien as any, trangThaiTiepNhan, gioThucTe: undefined } });
     try {
       const creatorName = `${nguoiTao.firstName} ${nguoiTao.lastName}`;
