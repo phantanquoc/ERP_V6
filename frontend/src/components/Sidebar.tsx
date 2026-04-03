@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BarChart2, Briefcase, Calculator, ShoppingCart, Factory, Settings, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, BarChart2, Briefcase, Calculator, ShoppingCart, Factory, Settings, ChevronDown, ChevronRight, ChevronLeft, CalendarDays } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { hasModuleAccess, hasSubModuleAccess } from '../utils/permissions';
@@ -46,6 +46,13 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
       icon: <BarChart2 size={20} />,
       subItems: [],
       module: 'common'
+    },
+    {
+      path: '/meetings',
+      name: 'Cuộc họp',
+      icon: <CalendarDays size={20} />,
+      subItems: [],
+      module: 'meetings'
     },
     {
       path: '/general',

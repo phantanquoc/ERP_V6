@@ -71,17 +71,16 @@ export interface Pagination {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const unwrap = <T>(response: any): T => {
-  const d = response?.data;
-  if (d?.data !== undefined) return d.data as T;
-  if (Array.isArray(d)) return d as T;
-  return d as T;
+  // apiClient returns parsed JSON directly: { success, data, message }
+  if (response?.data !== undefined) return response.data as T;
+  return response as T;
 };
 
 const unwrapPaginated = (response: any) => {
-  const d = response?.data || {};
+  // apiClient returns: { success, data: [...], pagination: { page, limit, total, totalPages } }
   return {
-    data: Array.isArray(d.data) ? d.data : [],
-    pagination: d.pagination || { page: 1, limit: 10, total: 0, totalPages: 0 },
+    data: Array.isArray(response?.data) ? response.data : [],
+    pagination: response?.pagination || { page: 1, limit: 10, total: 0, totalPages: 0 },
   };
 };
 

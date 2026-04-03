@@ -69,6 +69,11 @@ export const DEPARTMENT_PERMISSIONS: DepartmentPermission[] = [
     adminOnly: false
   },
   {
+    module: 'meetings',
+    allowedDepartments: Object.values(DEPARTMENTS), // Tất cả đều có thể xem cuộc họp
+    adminOnly: false
+  },
+  {
     module: 'general',
     allowedDepartments: [DEPARTMENTS.ADMIN, DEPARTMENTS.GENERAL]
   },
