@@ -174,7 +174,7 @@
 | 9 | Overtime → Attendance Auto-add | ✅ | Migration `20260402063218_add_overtime_plan_id_to_attendance` (field `overtimePlanId` + relation), `approvePlan` auto-tạo attendance khi DA_DUYET, 13 unit tests trong `overtimePlanService.test.ts` | — |
 | 10 | Meeting List | ✅ | Migration `20260402091112_add_meeting_model`, `meetingService.ts` (CRUD + WS notify + reminder scheduler), `meetingController.ts`, `meetingRoutes.ts`, `MeetingPage.tsx`, `MeetingModal.tsx` (create/edit/view + participant picker), tích hợp vào Common module | — |
 | 11 | Supply Adjustment Request | ✅ | Migration `20260403083837_add_supply_adjustment_model`, `supplyAdjustmentService.ts` (CRUD + role-based + WS notify), `supplyAdjustmentController.ts`, `supplyAdjustmentRoutes.ts`, `SupplyAdjustmentModal.tsx` (list/create/approve), wired vào `CommonManagement` → `de_nghi_dieu_chinh` | — |
-| 12 | Global Table Filters | ⬜ | — | Chưa có `DataTable` component, chưa có debounce, chưa chuẩn hóa date format |
+| 12 | Global Table Filters | ✅ | `DataTable.tsx` component (debounce 300ms text filters, date-range picker, multi-select, loading skeleton, empty state, paginator với ellipsis), `formatters.ts` (`formatDate`, `formatDateTime`, `formatNumber`, `formatCurrency`). Applied to: `EmployeeManagement` (filter: mã NV, họ tên, email, bộ phận, trạng thái), `UserManagement` (filter: họ tên, email, vai trò, bộ phận, trạng thái) | — |
 | 13 | Fix All Notification Workflows | ⬜ | — | Chưa audit, chưa có notification cho phần lớn workflow trong bảng |
 | 14 | Attendance CardView + Reminder | ⬜ | — | Chưa có endpoint `/api/attendance/daily-summary`, chưa có cron job reminder |
 
