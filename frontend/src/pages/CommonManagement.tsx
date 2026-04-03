@@ -12,6 +12,7 @@ import CreateTaskModal from '../components/CreateTaskModal';
 import CreateWorkPlanModal from '../components/CreateWorkPlanModal';
 import OvertimePlanListModal from '../components/OvertimePlanListModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
+import MeetingPage from './MeetingPage';
 import {
   FileText,
   Settings,
@@ -24,7 +25,8 @@ import {
   Filter,
   Download,
   X,
-  Upload
+  Upload,
+  CalendarDays
 } from 'lucide-react';
 import {
   repairRequestSchema,
@@ -45,6 +47,7 @@ const CommonManagement = () => {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState<boolean>(false);
   const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState<boolean>(false);
   const [isOvertimePlanListOpen, setIsOvertimePlanListOpen] = useState<boolean>(false);
+  const [isMeetingListOpen, setIsMeetingListOpen] = useState<boolean>(false);
 
   // Private Feedback Modal states
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState<boolean>(false);
@@ -93,9 +96,9 @@ const CommonManagement = () => {
         {
           id: 'ds_cuoc_hop',
           title: 'Danh sách các cuộc họp',
-          icon: <AlertTriangle className="h-6 w-6" />,
-          color: 'bg-red-500',
-          description: 'Báo cáo khó khăn trong công việc'
+          icon: <CalendarDays className="h-6 w-6" />,
+          color: 'bg-sky-500',
+          description: 'Xem lịch họp, tạo và quản lý cuộc họp'
         }
       ]
     },
@@ -179,8 +182,9 @@ const CommonManagement = () => {
       return;
     }
 
-    // "Danh sách các cuộc họp" - chưa implement
+    // "Danh sách các cuộc họp"
     if (categoryId === 'ds_cuoc_hop') {
+      setIsMeetingListOpen(true);
       return;
     }
 
@@ -671,6 +675,33 @@ const CommonManagement = () => {
           // Có thể refresh danh sách feedback ở đây nếu cần
         }}
       />
+
+      {/* Meeting List — full-screen overlay */}
+      {isMeetingListOpen && (
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col bg-gray-50"
+          style={{ top: 0, left: 0, right: 0, bottom: 0 }}
+        >
+          {/* Header bar */}
+          <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📅</span>
+              <h2 className="text-lg font-semibold text-gray-800">Danh sách cuộc họp</h2>
+            </div>
+            <button
+              onClick={() => setIsMeetingListOpen(false)}
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              title="Đóng"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <MeetingPage />
+          </div>
+        </div>
+      )}
       </div>
 
     </div>
