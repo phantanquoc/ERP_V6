@@ -40,6 +40,7 @@ jest.mock('@config/database', () => ({
   __esModule: true,
   default: {
     employee: { count: jest.fn(), findUnique: jest.fn() },
+    user: { findMany: jest.fn() },
     meeting: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), count: jest.fn() },
     meetingParticipant: { deleteMany: jest.fn(), createMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
   },
@@ -123,6 +124,8 @@ describe('MeetingService', () => {
     jest.clearAllMocks();
     broadcastMock.mockClear();
     mockedNotification.createNotification.mockClear();
+    // batchFetchCreators calls (prisma as any).user.findMany — return empty by default
+    (mockedPrisma as any).user.findMany.mockResolvedValue([]);
   });
 
   // ── create ──────────────────────────────────────────────────────────────
@@ -426,13 +429,16 @@ describe('MeetingService', () => {
 
   describe('checkUpcomingReminders', () => {
     it('should notify participants for meetings starting within reminder window', async () => {
-      const in15Min = new Date(Date.now() + 15 * 60 * 1000);
-      in15Min.setHours(14, 0, 0, 0);
+      // meetingDate must be exactly ~15 min from now so diffMin lands in [14, 16]
+      const now = new Date();
+      const in15Min = new Date(now.getTime() + 15 * 60 * 1000);
+      const hh = in15Min.getHours().toString().padStart(2, '0');
+      const mm = in15Min.getMinutes().toString().padStart(2, '0');
 
       const upcomingMeeting = {
         ...MEETING_FIXTURE,
         meetingDate: in15Min,
-        startTime: `${in15Min.getHours().toString().padStart(2, '0')}:00`,
+        startTime: `${hh}:${mm}`, // exact time 15 min from now
         status: 'SCHEDULED',
         reminderSentAt: null,
         participants: PARTICIPANTS,

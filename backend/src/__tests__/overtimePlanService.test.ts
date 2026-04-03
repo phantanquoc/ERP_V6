@@ -149,7 +149,7 @@ describe('OvertimePlanService', () => {
     });
 
     it('should extend checkOutTime when attendance already exists and overtime ends later', async () => {
-      const existingCheckOut = new Date('2026-04-05T16:00:00.000Z'); // 16:00
+      const existingCheckOut = new Date(2026, 3, 5, 16, 0, 0); // local 16:00
       (mockedPrisma.attendance.findFirst as jest.Mock).mockResolvedValue({
         id: 'att-001',
         checkOutTime: existingCheckOut,
@@ -168,7 +168,7 @@ describe('OvertimePlanService', () => {
     });
 
     it('should NOT update checkOutTime when existing checkout is already later', async () => {
-      const laterCheckOut = new Date('2026-04-05T23:00:00.000Z'); // 23:00 > 21:00
+      const laterCheckOut = new Date(2026, 3, 5, 23, 0, 0); // local 23:00 > 21:00
       (mockedPrisma.attendance.findFirst as jest.Mock).mockResolvedValue({
         id: 'att-001',
         checkOutTime: laterCheckOut,

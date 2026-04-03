@@ -70,7 +70,7 @@ describe('WebSocket Service', () => {
       });
 
       expect(logger.debug).toHaveBeenCalledWith(
-        'No active WS client for employeeId=emp-none, skipping push'
+        'No active WS client for key=emp-none, skipping push'
       );
     });
 

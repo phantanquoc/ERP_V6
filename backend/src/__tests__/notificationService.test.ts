@@ -28,6 +28,7 @@ jest.mock('@config/database', () => ({
   __esModule: true,
   default: {
     user: { findUnique: jest.fn() },
+    employee: { findUnique: jest.fn() },
     notification: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
@@ -90,6 +91,8 @@ describe('NotificationService', () => {
 
       (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (mockedPrisma.notification.create as jest.Mock).mockResolvedValue(mockNotif);
+      // getPushKey resolves userId → employeeId via employee table
+      (mockedPrisma.employee.findUnique as jest.Mock).mockResolvedValue({ id: 'emp-1' });
 
       const result = await service.createNotification({
         userId: 'user-1',
@@ -107,23 +110,28 @@ describe('NotificationService', () => {
       );
     });
 
-    it('should throw Error when user has no employee record', async () => {
+    it('should push WS without DB storage when user has no employee record (admin case)', async () => {
       (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({
-        id: 'user-orphan',
-        employees: null, // user chưa có employee
+        id: 'user-admin',
+        employees: null, // admin without employee record
+      });
+      // getPushKey fallback: employee not found → push key = u:<userId>
+      (mockedPrisma.employee.findUnique as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.createNotification({
+        userId: 'user-admin',
+        type: NotificationType.TASK,
+        title: 'Test',
+        message: 'Test',
       });
 
-      await expect(
-        service.createNotification({
-          userId: 'user-orphan',
-          type: NotificationType.TASK,
-          title: 'Test',
-          message: 'Test',
-        })
-      ).rejects.toThrow('Employee not found for user');
-
+      // Should NOT create DB record (no employeeId)
       expect(mockedPrisma.notification.create).not.toHaveBeenCalled();
-      expect(mockedPush).not.toHaveBeenCalled();
+      // Should still push real-time notification
+      expect(mockedPush).toHaveBeenCalled();
+      // Returns synthetic record
+      expect(result.id).toBe('');
+      expect(result.employeeId).toBeNull();
     });
 
     it('should throw Error when user does not exist', async () => {

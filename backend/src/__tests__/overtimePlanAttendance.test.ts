@@ -187,7 +187,7 @@ describe('OvertimePlan Attendance Integration', () => {
         if (where.employeeId === 'emp-member-2') {
           return Promise.resolve({
             id: 'att-existing-002',
-            checkOutTime: new Date('2026-04-06T17:00:00.000Z'), // 17:00
+            checkOutTime: new Date(2026, 3, 6, 17, 0, 0), // local 17:00
             notes: 'Ca ngày thường',
           });
         }
@@ -211,7 +211,7 @@ describe('OvertimePlan Attendance Integration', () => {
       // Employee already checked out at 22:00 — later than overtime end (21:00)
       mockedPrisma.attendance.findFirst.mockResolvedValue({
         id: 'att-already-out',
-        checkOutTime: new Date('2026-04-06T22:00:00.000Z'), // 22:00 > 21:00
+        checkOutTime: new Date(2026, 3, 6, 22, 0, 0), // local 22:00 > 21:00
         notes: 'Ca tối',
       });
 

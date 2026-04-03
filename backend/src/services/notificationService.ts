@@ -170,8 +170,11 @@ export class NotificationService {
       include: { employees: true },
     });
 
-    // Allow null employeeId so admin-only users still get DB records
-    const employeeId = user?.employees?.id ?? null;
+    // Guard: user must exist (caller bug if not)
+    if (!user) throw new Error('Employee not found for user');
+
+    // Allow null employeeId so admin-only users still get real-time push
+    const employeeId = user.employees?.id ?? null;
 
     // ⚠️ Admins without an employee record: skip DB storage but still push real-time
     // so the bell icon updates immediately. The notification will not appear on page

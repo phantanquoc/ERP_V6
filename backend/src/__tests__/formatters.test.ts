@@ -57,21 +57,22 @@ describe('formatDate', () => {
 
 describe('formatDateTime', () => {
   it('should format timestamp "2026-04-02T08:30:00" → "02/04/2026 08:30"', () => {
-    expect(formatDateTime('2026-04-02T08:30:00.000Z')).toBe('02/04/2026 08:30');
+    // Use local-time string (no 'Z') so getHours() = 08 in any timezone
+    expect(formatDateTime('2026-04-02T08:30:00')).toBe('02/04/2026 08:30');
   });
 
   it('should format Date object → "dd/mm/yyyy HH:mm"', () => {
-    const d = new Date('2026-04-02T08:30:00.000Z');
+    const d = new Date(2026, 3, 2, 8, 30, 0); // local time constructor
     expect(formatDateTime(d)).toBe('02/04/2026 08:30');
   });
 
   it('should format numeric timestamp (ms)', () => {
-    const ts = new Date('2026-04-02T08:30:00.000Z').getTime();
+    const ts = new Date(2026, 3, 2, 8, 30, 0).getTime(); // local time
     expect(formatDateTime(ts)).toBe('02/04/2026 08:30');
   });
 
   it('should pad single-digit hours and minutes with leading zero', () => {
-    const d = new Date('2026-04-02T09:05:00.000Z');
+    const d = new Date(2026, 3, 2, 9, 5, 0); // local time constructor
     expect(formatDateTime(d)).toBe('02/04/2026 09:05');
   });
 
