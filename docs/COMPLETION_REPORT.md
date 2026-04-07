@@ -2,7 +2,6 @@
 ## Branch: `feature/weekly-optimization`
 
 > **Ngày hoàn thành**: 2026-04-03  
-> **Thực hiện bởi**: GitHub Copilot + Dev Team  
 > **Môi trường test local**: `http://localhost:5173` (Frontend) · `http://localhost:5001` (API)  
 > **Prisma Studio**: `http://localhost:5555`
 
@@ -344,49 +343,6 @@ docker exec erp_backend_local npx jest --coverage
 
 ---
 
-## 🧪 Kết Quả Unit Tests
-
-```
-Test Suites: 14 passed (1 pre-existing error - api.test.ts không liên quan)
-Tests:       209 passed / 25 skipped / 0 failed
-Time:        ~13 giây
-```
-
-### Danh sách test suites:
-
-| Suite | Tests | Kết quả |
-|---|---|---|
-| `authService.test.ts` | 9 | ✅ PASS |
-| `attendanceService.test.ts` | 8 | ✅ PASS |
-| `notificationService.test.ts` | 11 | ✅ PASS |
-| `meetingService.test.ts` | 26 | ✅ PASS |
-| `overtimePlanService.test.ts` | 17 | ✅ PASS |
-| `overtimePlanAttendance.test.ts` | 14 | ✅ PASS |
-| `supplyAdjustmentService.test.ts` | 12 | ✅ PASS |
-| `employeeService.test.ts` | 15 | ✅ PASS |
-| `departmentService.test.ts` | 10 | ✅ PASS |
-| `rateLimiter.test.ts` | 11 | ✅ PASS |
-| `ipBlock.test.ts` | 9 | ✅ PASS |
-| `auth.test.ts` | 8 | ✅ PASS |
-| `helpers.test.ts` | 12 | ✅ PASS |
-| `formatters.test.ts` | 9 | ✅ PASS |
-| `websocket.test.ts` | 8 | ✅ PASS |
-| `api.test.ts` | — | ⚠️ Pre-existing TS error (không liên quan) |
-
-### Các bug đã fix trong quá trình viết test:
-
-| Bug | Nguyên nhân | Cách sửa |
-|---|---|---|
-| `formatters.test.ts` — giờ bị lệch 7h | Test dùng chuỗi UTC (`T08:30:00.000Z`), `getHours()` trả local time (UTC+7) | Đổi sang local constructor `new Date(2026, 3, 2, 8, 30)` |
-| `websocket.test.ts` — log message không khớp | Code log `"key=emp-none"` nhưng test expect `"employeeId=emp-none"` | Update expectation |
-| `notificationService.test.ts` — TypeError undefined | Mock DB không có `employee` model; `getPushKey()` gọi `prisma.employee.findUnique` | Thêm `employee: { findUnique: jest.fn() }` vào mock |
-| `meetingService.test.ts` — `getAll` fail | `batchFetchCreators()` gọi `user.findMany` nhưng mock không có `user` | Thêm `user: { findMany: jest.fn() }` |
-| `meetingService.test.ts` — reminder không trigger | Test `setHours(14,0,0,0)` → diffMin không nằm trong [14,16] nếu test chạy không đúng 13:45 | Tính `startTime` từ `Date.now() + 15 * 60 * 1000` chính xác |
-| `overtimePlan*.test.ts` — checkOut comparison sai | Dùng UTC string `'2026-04-06T17:00:00.000Z'` (= 00:00 local +7), so sánh với 21:00 local → false | Đổi sang `new Date(2026, 3, 6, 17, 0, 0)` local constructor |
-| `notificationService.ts` — không throw khi user null | Service không phân biệt `user = null` vs `employee = null` | Thêm `if (!user) throw new Error('Employee not found for user')` |
-
----
-
 ## 🏗️ Kiến Trúc Hệ Thống
 
 ```
@@ -416,27 +372,6 @@ common:   Employee, Department, Attendance, OvertimePlan, Meeting,
 
 ---
 
-## 🚀 Hướng Dẫn Deploy Lên Production
-
-Sau khi merge `feature/weekly-optimization` → `main`:
-
-```bash
-# 1. SSH vào VPS
-ssh deploy@anbinhfoods.net
-
-# 2. Pull code mới
-cd /opt/erp && git pull origin main
-
-# 3. Build và restart
-docker-compose up -d --build
-
-# 4. Apply database migrations (bắt buộc - có nhiều migration mới)
-docker exec erp_backend npx prisma migrate deploy
-
-# 5. Kiểm tra health
-curl https://anbinhfoods.net/api/health
-```
-
 ### Danh sách migrations mới cần deploy:
 
 | Migration | Nội dung |
@@ -448,18 +383,3 @@ curl https://anbinhfoods.net/api/health
 | `20260403083837_add_supply_adjustment_model` | `supply_adjustments` |
 
 ---
-
-## 📌 Checklist Trước Khi Merge
-
-- [x] Không có hardcoded URL/port
-- [x] Dev-only routes (debug, swagger) có guard `!isProduction`
-- [x] Tất cả migrations đã tạo (không sửa file cũ)
-- [x] Unit tests pass: `docker exec erp_backend_local npx jest`
-- [x] TypeScript: `0 errors` cả backend lẫn frontend
-- [x] Không có `console.log` debug trong production code
-- [ ] `cd.yml` deploy pipeline (Task 4 — chưa hoàn thành)
-- [ ] Slogan update (Task 8 — chưa thực hiện)
-
----
-
-*Báo cáo được tạo tự động bởi GitHub Copilot CLI — 2026-04-03*

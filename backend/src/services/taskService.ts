@@ -119,7 +119,24 @@ class TaskService {
         assignerName
       );
 
-      logger.info(`✅ Sent notifications to ${nguoiNhanEmployeeIds.length} recipients`);
+      // Notify all admins (except the assigner if they're also admin)
+      const admins = await prisma.user.findMany({
+        where: { role: 'ADMIN' as any, isActive: true, id: { not: nguoiGiaoId } },
+        select: { id: true, employees: { select: { id: true } } },
+      });
+      const adminEmployeeIds = admins
+        .map((a: { id: string; employees: { id: string } | null }) => a.employees?.id)
+        .filter((id): id is string => !!id);
+      if (adminEmployeeIds.length > 0) {
+        await notificationService.createAdminTaskNotification(
+          adminEmployeeIds,
+          task.id,
+          data.noiDung,
+          assignerName
+        );
+      }
+
+      logger.info(`✅ Sent notifications to ${nguoiNhanEmployeeIds.length} recipients, ${adminEmployeeIds.length} admins`);
     } catch (error) {
       logger.error('❌ Error sending task notifications:', error);
       // Don't fail the task creation if notification fails

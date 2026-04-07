@@ -85,9 +85,22 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
               <p className="text-blue-100 text-sm">Trong 1 tháng gần nhất · {notifications.length} thông báo</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {notifications.some(n => !n.isRead) && (
+              <button
+                onClick={async () => {
+                  await notificationService.markAllAsRead();
+                  setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+                }}
+                className="text-sm text-white/90 hover:text-white font-medium px-3 py-1.5 rounded-lg hover:bg-white/20 transition-colors border border-white/30"
+              >
+                Đánh dấu tất cả đã đọc
+              </button>
+            )}
+            <button onClick={onClose} className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}

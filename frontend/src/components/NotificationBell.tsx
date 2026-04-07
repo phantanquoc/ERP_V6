@@ -93,6 +93,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [selectedEvaluationNotification, setSelectedEvaluationNotification] = useState<Notification | null>(null);
   const [isAllNotificationsOpen, setIsAllNotificationsOpen] = useState(false);
@@ -151,6 +152,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 
     // Open contextual modals for certain notification types
     if (notification.type === 'TASK') {
+      setSelectedTaskId(notification.taskId || null);
       setIsTaskListModalOpen(true);
     } else if (['EVALUATION', 'EVALUATION_SUPERVISOR1', 'EVALUATION_SUPERVISOR2', 'EVALUATION_COMPLETED'].includes(notification.type)) {
       setSelectedEvaluationNotification(notification);
@@ -247,12 +249,25 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
             {/* Header */}
             <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
               <h3 className="text-lg font-bold text-gray-800">Thông báo</h3>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={async () => {
+                      await notificationService.markAllAsRead();
+                      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                  >
+                    Đánh dấu tất cả đã đọc
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Notifications List — grouped by date */}
@@ -355,7 +370,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       {/* Task List Modal - opened when clicking TASK notification */}
       <TaskListModal
         isOpen={isTaskListModalOpen}
-        onClose={() => setIsTaskListModalOpen(false)}
+        onClose={() => { setIsTaskListModalOpen(false); setSelectedTaskId(null); }}
+        initialTaskId={selectedTaskId}
       />
 
       {/* Evaluation Modal - opened when clicking EVALUATION notification */}

@@ -8,9 +8,10 @@ interface TaskListModalProps {
   isOpen: boolean;
   onClose: () => void;
   isAdmin?: boolean;
+  initialTaskId?: string | null;
 }
 
-const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin = false }) => {
+const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin = false, initialTaskId }) => {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,9 +24,19 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
 
   useEffect(() => {
     if (isOpen) {
+      setSelectedTask(null);
       loadTasks();
     }
   }, [isOpen, currentPage, isAdmin]);
+
+  // When initialTaskId is provided, fetch and open that task directly
+  useEffect(() => {
+    if (isOpen && initialTaskId) {
+      taskService.getTaskById(initialTaskId)
+        .then(task => setSelectedTask(task))
+        .catch(() => {});
+    }
+  }, [isOpen, initialTaskId]);
 
   const loadTasks = async () => {
     try {

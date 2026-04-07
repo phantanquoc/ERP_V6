@@ -319,6 +319,42 @@ export class NotificationService {
   }
 
   /**
+   * Notify admins when any task is created.
+   */
+  async createAdminTaskNotification(
+    adminEmployeeIds: string[],
+    taskId: string,
+    taskTitle: string,
+    assignerName: string
+  ): Promise<void> {
+    if (adminEmployeeIds.length === 0) return;
+
+    await prisma.notification.createMany({
+      data: adminEmployeeIds.map((employeeId) => ({
+        employeeId,
+        type:    NotificationType.TASK,
+        title:   'Nhiệm vụ mới được tạo',
+        message: `${assignerName} đã tạo nhiệm vụ: "${taskTitle}"`,
+        taskId,
+        isRead:  false,
+      })),
+    });
+
+    for (const empId of adminEmployeeIds) {
+      await batchPushAfterCreate(empId, {
+        id: '',
+        employeeId: empId,
+        type:       NotificationType.TASK,
+        title:      'Nhiệm vụ mới được tạo',
+        message:    `${assignerName} đã tạo nhiệm vụ: "${taskTitle}"`,
+        taskId,
+        isRead:     false,
+        createdAt:  new Date(),
+      });
+    }
+  }
+
+  /**
    * Notify the task assigner when an assignee accepts or rejects the task.
    */
   async createTaskAcceptanceNotification(
