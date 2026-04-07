@@ -39,6 +39,8 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
   embedded = false,
 }) => {
   const { subscribeToNotifications, user } = useAuth();
+  const userIsAdmin = user?.role === 'ADMIN';
+  const isManager = ['ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'].includes((user?.role as string) ?? '');
   const [plans, setPlans] = useState<OvertimePlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -210,14 +212,15 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
     }
   };
 
-  const handleAccept = async (planId: string, trangThai: string) => {
+  const handleRevoke = async (planId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn thu hồi kế hoạch tăng ca này? Chấm công tự động đã tạo sẽ bị xóa.')) return;
     try {
       setActionLoading(planId);
-      await overtimePlanService.acceptPlan(planId, trangThai);
+      await overtimePlanService.revokePlan(planId);
       dispatchOvertimeChanged();
-    } catch (error) {
-      console.error('Error accepting plan:', error);
-      alert('Có lỗi xảy ra khi tiếp nhận kế hoạch');
+    } catch (error: any) {
+      console.error('Error revoking plan:', error);
+      alert(error?.response?.data?.message || 'Có lỗi xảy ra khi thu hồi kế hoạch');
     } finally {
       setActionLoading(null);
     }
@@ -244,9 +247,10 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
             const statusBadge = getStatusBadge(plan.trangThai);
             const priorityBadge = getPriorityBadge(plan.mucDoUuTien);
             const isPending = plan.trangThai === OvertimePlanStatus.CHO_DUYET;
+            const isApproved = plan.trangThai === OvertimePlanStatus.DA_DUYET;
             const isCreator = plan.nguoiTaoId === user?._id;
-            // Non-creator participants can accept/reject their own attendance on pending plans
-            const canAccept = isPending && !isAdmin && !isCreator;
+            // Manager or creator can revoke, but not if already approved
+            const canRevoke = !isApproved && (isManager || isCreator);
 
             return (
               <div
@@ -338,8 +342,8 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
                     </button>
                   )}
 
-                  {/* Admin: approve / reject */}
-                  {isAdmin && isPending && (
+                  {/* ADMIN only: approve / reject */}
+                  {userIsAdmin && isPending && (
                     <>
                       <button
                         onClick={() => setShowApproveModal(plan)}
@@ -360,26 +364,16 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
                     </>
                   )}
 
-                  {/* Non-creator participant: accept own participation */}
-                  {canAccept && (
-                    <>
-                      <button
-                        onClick={() => handleAccept(plan.id, 'DA_TIEP_NHAN')}
-                        disabled={actionLoading === plan.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-300 rounded-lg transition-colors"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        Tiếp nhận
-                      </button>
-                      <button
-                        onClick={() => handleAccept(plan.id, 'TU_CHOI')}
-                        disabled={actionLoading === plan.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 disabled:bg-gray-100 rounded-lg transition-colors"
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Từ chối
-                      </button>
-                    </>
+                  {/* Manager or creator: revoke (not allowed when approved) */}
+                  {canRevoke && (
+                    <button
+                      onClick={() => handleRevoke(plan.id)}
+                      disabled={actionLoading === plan.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg transition-colors"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      Thu hồi
+                    </button>
                   )}
                 </div>
               </div>
@@ -510,20 +504,11 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
                 <p className="text-xs font-medium text-gray-500 uppercase">Người tham gia ({viewPlan.nguoiThamGia?.length || 0})</p>
                 <div className="mt-2 space-y-2">
                   {viewPlan.nguoiThamGia?.map((person, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded">
+                    <div key={idx} className="flex items-center bg-gray-50 px-3 py-2 rounded">
                       <div>
                         <p className="text-sm font-medium text-gray-900">{person.firstName} {person.lastName}</p>
                         <p className="text-xs text-gray-500">{person.employeeCode} • {person.department}</p>
                       </div>
-                      {viewPlan.trangThaiTiepNhan?.[person.id] && (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          viewPlan.trangThaiTiepNhan[person.id] === 'DA_TIEP_NHAN'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}>
-                          {viewPlan.trangThaiTiepNhan[person.id] === 'DA_TIEP_NHAN' ? 'Đã tiếp nhận' : 'Từ chối'}
-                        </span>
-                      )}
                     </div>
                   ))}
                 </div>

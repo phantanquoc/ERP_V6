@@ -59,20 +59,38 @@ export class OvertimePlanService {
     if (ngayTangCa < today) throw new ValidationError('Ngày tăng ca phải từ ngày hôm nay trở đi');
     if (data.gioBatDau >= data.gioKetThuc) throw new ValidationError('Giờ kết thúc phải sau giờ bắt đầu');
     const trangThaiTiepNhan: Record<string, string> = {};
-    // Creator is auto-accepted (they're the one creating the plan, so consent is implicit)
+    // All participants auto-accepted — manager/creator creates on their behalf
     nguoiThamGiaUserIds.forEach(uid => {
-      trangThaiTiepNhan[uid] = uid === nguoiTaoId ? 'DA_TIEP_NHAN' : 'CHUA_TIEP_NHAN';
+      trangThaiTiepNhan[uid] = 'DA_TIEP_NHAN';
     });
     const plan = await (prisma.overtimePlan as any).create({ data: { nguoiTaoId, nguoiThamGiaIds: nguoiThamGiaUserIds, noiDung: data.noiDung, ngayTangCa, gioBatDau: data.gioBatDau, gioKetThuc: data.gioKetThuc, ghiChu: data.ghiChu, files: files || [], mucDoUuTien: data.mucDoUuTien as any, trangThaiTiepNhan, gioThucTe: undefined } });
+
+    // Auto-create attendance records immediately when plan is created
+    try {
+      await this.createOvertimeAttendances(plan);
+      broadcast({ type: 'ATTENDANCE_CHANGED' });
+    } catch (error) { logger.error('Error auto-creating attendance on overtime plan creation:', error); }
+
     try {
       const creatorName = `${nguoiTao.firstName} ${nguoiTao.lastName}`;
-      // Notify creator so their WebSocket listener refreshes the list immediately
+      // Notify creator
       await notificationService.createNotification({
         userId: nguoiTaoId,
         type: NotificationType.OVERTIME_PLAN,
         title: 'Đăng ký tăng ca thành công',
         message: `Yêu cầu tăng ca "${data.noiDung}" đã được gửi và đang chờ phê duyệt.`,
       });
+      // Notify participants (excluding creator) that they've been added
+      for (const uid of nguoiThamGiaUserIds) {
+        if (uid !== nguoiTaoId) {
+          await notificationService.createNotification({
+            userId: uid,
+            type: NotificationType.OVERTIME_PLAN,
+            title: 'Bạn được thêm vào kế hoạch tăng ca',
+            message: `${creatorName} đã thêm bạn vào kế hoạch tăng ca "${data.noiDung}" ngày ${new Date(data.ngayTangCa).toLocaleDateString('vi-VN')}.`,
+          });
+        }
+      }
       // Notify all users who can approve (ADMIN, DEPARTMENT_HEAD, TEAM_LEAD)
       const approvers = await prisma.user.findMany({
         where: { role: { in: ['ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'] as any }, isActive: true, id: { not: nguoiTaoId } },
@@ -160,44 +178,47 @@ export class OvertimePlanService {
 
   async approvePlan(planId: string, adminUserId: string, data: ApproveOvertimePlanRequest): Promise<any> {
     const adminUser = await prisma.user.findUnique({ where: { id: adminUserId } });
-    const canApprove = adminUser && (
-      adminUser.role === 'ADMIN' ||
-      adminUser.role === 'DEPARTMENT_HEAD' ||
-      adminUser.role === 'TEAM_LEAD'
-    );
-    if (!canApprove) throw new ApiError(403, 'Chỉ Admin, Trưởng bộ phận hoặc Trưởng nhóm mới có quyền phê duyệt kế hoạch tăng ca');
+    if (!adminUser || adminUser.role !== 'ADMIN') throw new ApiError(403, 'Chỉ Admin mới có quyền phê duyệt kế hoạch tăng ca');
     const plan = await prisma.overtimePlan.findUnique({ where: { id: planId } });
     if (!plan) throw new NotFoundError('Không tìm thấy kế hoạch tăng ca');
     if (plan.trangThai !== 'CHO_DUYET') throw new ValidationError('Kế hoạch tăng ca này đã được xử lý');
     const newStatus = data.trangThai === 'DA_DUYET' ? 'DA_DUYET' : 'TU_CHOI';
     const updated = await prisma.overtimePlan.update({ where: { id: planId }, data: { trangThai: newStatus as any } });
+
+    const isApproved = newStatus === 'DA_DUYET';
+
+    // Auto-create/update attendance records — in its own try/catch so notification failures don't block this
+    if (isApproved) {
+      try {
+        await this.createOvertimeAttendances(plan);
+        broadcast({ type: 'ATTENDANCE_CHANGED' });
+      } catch (error) { logger.error('Error auto-creating attendance on overtime plan approval:', error); }
+    }
+
+    // Notifications
     try {
       const adminName = `${adminUser.firstName} ${adminUser.lastName}`;
-      const isApproved = newStatus === 'DA_DUYET';
       await notificationService.createNotification({ userId: plan.nguoiTaoId, type: NotificationType.OVERTIME_PLAN, title: isApproved ? 'Kế hoạch tăng ca đã được duyệt' : 'Kế hoạch tăng ca bị từ chối', message: isApproved ? `${adminName} đã phê duyệt kế hoạch tăng ca: ${plan.noiDung}` : `${adminName} đã từ chối: ${plan.noiDung}${data.lyDoTuChoi ? `. Lý do: ${data.lyDoTuChoi}` : ''}` });
       if (isApproved) {
         for (const uid of plan.nguoiThamGiaIds) {
           if (uid !== plan.nguoiTaoId) { await notificationService.createNotification({ userId: uid, type: NotificationType.OVERTIME_PLAN, title: 'Kế hoạch tăng ca đã được duyệt', message: `Kế hoạch tăng ca "${plan.noiDung}" đã được ${adminName} phê duyệt.` }); }
         }
-        // Auto-create attendance records for all participants
-        await this.createOvertimeAttendances(plan);
-        // Broadcast attendance change so overtime attendance list refreshes
-        broadcast({ type: 'ATTENDANCE_CHANGED' });
       }
-      // Broadcast to ALL connected WS clients so every open overtime modal refreshes
       broadcast({ type: 'OVERTIME_PLAN_CHANGED' });
     } catch (error) { logger.error('Error sending overtime plan approval notification:', error); }
     return this.populateWithUsers(updated);
   }
 
   /**
-   * Parses an "HH:mm" time string and applies it to a given base date.
-   * Returns a new Date object with the time set (UTC-safe: uses local date parts).
+   * Parses an "HH:mm" time string (Vietnam local time) and applies it to a given base date.
+   * Stores as UTC by subtracting Vietnam offset (UTC+7).
    */
   parseTimeToDate(baseDate: Date, timeStr: string): Date {
     const [hours, minutes] = timeStr.split(':').map(Number);
+    // Treat the input time as Vietnam local (UTC+7), convert to UTC for storage
+    const VIETNAM_OFFSET_HOURS = 7;
     const result = new Date(baseDate);
-    result.setHours(hours, minutes, 0, 0);
+    result.setUTCHours(hours - VIETNAM_OFFSET_HOURS, minutes, 0, 0);
     return result;
   }
 
@@ -214,9 +235,10 @@ export class OvertimePlanService {
     gioBatDau: string;
     gioKetThuc: string;
     noiDung: string;
+    ghiChu?: string | null;
   }): Promise<void> {
-    // All unique userIds (creator + participants)
-    const allUserIds = Array.from(new Set([plan.nguoiTaoId, ...plan.nguoiThamGiaIds]));
+    // Only create attendance for explicit participants — creator is included only if they added themselves
+    const allUserIds = Array.from(new Set(plan.nguoiThamGiaIds));
 
     // Resolve userId → Employee
     const employees = await prisma.employee.findMany({
@@ -226,51 +248,47 @@ export class OvertimePlanService {
 
     const checkInTime = this.parseTimeToDate(plan.ngayTangCa, plan.gioBatDau);
     const checkOutTime = this.parseTimeToDate(plan.ngayTangCa, plan.gioKetThuc);
-
-    // Start-of-day and end-of-day for querying existing attendance
-    const dayStart = new Date(plan.ngayTangCa);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(plan.ngayTangCa);
-    dayEnd.setHours(23, 59, 59, 999);
+    const workHours = Math.round((checkOutTime.getTime() - checkInTime.getTime()) / (1000 * 60 * 60) * 100) / 100;
+    const overtimeNote = plan.ghiChu
+      ? `Tăng ca: ${plan.noiDung} - ${plan.ghiChu}`
+      : `Tăng ca: ${plan.noiDung}`;
 
     for (const employee of employees) {
       try {
-        // Check if an attendance record already exists for this date
+        // Check if an attendance record already exists for THIS specific plan
         const existing = await prisma.attendance.findFirst({
           where: {
             employeeId: employee.id,
-            attendanceDate: { gte: dayStart, lte: dayEnd },
+            overtimePlanId: plan.id,
           },
         });
 
         if (existing) {
-          // Extend checkOutTime if the overtime end is later
-          const existingCheckOut = existing.checkOutTime;
-          if (!existingCheckOut || checkOutTime > existingCheckOut) {
-            await prisma.attendance.update({
-              where: { id: existing.id },
-              data: {
-                checkOutTime,
-                isOvertime: true,
-                overtimePlanId: plan.id,
-                notes: existing.notes
-                  ? `${existing.notes}; Tăng ca: ${plan.noiDung}`
-                  : `Tăng ca: ${plan.noiDung}`,
-              },
-            });
-          }
+          // Update the existing record for this plan (e.g. re-approval or re-creation)
+          await prisma.attendance.update({
+            where: { id: existing.id },
+            data: {
+              checkInTime,
+              checkOutTime,
+              workHours,
+              status: AttendanceStatus.OVERTIME,
+              isOvertime: true,
+              notes: overtimeNote,
+            },
+          });
         } else {
-          // Create new attendance record for overtime
+          // Create new attendance record for this overtime plan
           await prisma.attendance.create({
             data: {
               employeeId: employee.id,
               attendanceDate: plan.ngayTangCa,
               checkInTime,
               checkOutTime,
+              workHours,
               status: AttendanceStatus.OVERTIME,
               isOvertime: true,
               overtimePlanId: plan.id,
-              notes: `Tăng ca: ${plan.noiDung}`,
+              notes: overtimeNote,
             },
           });
         }
@@ -278,6 +296,46 @@ export class OvertimePlanService {
         logger.error(`Error creating overtime attendance for employee ${employee.id}:`, error);
       }
     }
+  }
+
+  async revokePlan(planId: string, userId: string): Promise<any> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundError('Người dùng không tồn tại');
+
+    const plan = await prisma.overtimePlan.findUnique({ where: { id: planId } });
+    if (!plan) throw new NotFoundError('Không tìm thấy kế hoạch tăng ca');
+
+    // Không được thu hồi kế hoạch đã duyệt
+    if (plan.trangThai === 'DA_DUYET') throw new ApiError(403, 'Không thể thu hồi kế hoạch tăng ca đã được duyệt');
+
+    const isManager = user.role === 'ADMIN' || user.role === 'DEPARTMENT_HEAD' || user.role === 'TEAM_LEAD';
+    const isCreator = plan.nguoiTaoId === userId;
+    if (!isManager && !isCreator) throw new ApiError(403, 'Chỉ người tạo hoặc quản lý mới có quyền thu hồi kế hoạch');
+
+    const updated = await prisma.overtimePlan.update({ where: { id: planId }, data: { trangThai: 'HUY' as any } });
+
+    // Delete auto-created attendance records linked to this plan
+    try {
+      await prisma.attendance.deleteMany({ where: { overtimePlanId: planId } });
+      broadcast({ type: 'ATTENDANCE_CHANGED' });
+    } catch (error) { logger.error('Error deleting overtime attendances on revoke:', error); }
+
+    try {
+      // Notify participants
+      for (const uid of plan.nguoiThamGiaIds) {
+        if (uid !== userId) {
+          await notificationService.createNotification({
+            userId: uid,
+            type: NotificationType.OVERTIME_PLAN,
+            title: 'Kế hoạch tăng ca bị thu hồi',
+            message: `Kế hoạch tăng ca "${plan.noiDung}" đã bị thu hồi.`,
+          });
+        }
+      }
+      broadcast({ type: 'OVERTIME_PLAN_CHANGED' });
+    } catch (error) { logger.error('Error sending revoke notifications:', error); }
+
+    return this.populateWithUsers(updated);
   }
 
   async updateActualTime(planId: string, userId: string, actualTimes: Record<string, { gioVao: string; gioRa: string }>, isUserAdmin: boolean): Promise<any> {

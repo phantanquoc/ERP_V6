@@ -3,14 +3,14 @@ import Modal from './Modal';
 import DatePicker from './DatePicker';
 import { overtimePlanService, CreateOvertimePlanData } from '../services/overtimePlanService';
 import { TaskPriority } from '../services/taskService';
-import { X, Calendar, FileText, AlertCircle, Clock, ChevronDown, User } from 'lucide-react';
+import { X, Calendar, Users, FileText, AlertCircle, Clock, User } from 'lucide-react';
+import apiClient from '../services/apiClient';
 import FileUpload from './FileUpload';
 import { useAuth } from '../contexts/AuthContext';
 
 interface CreateOvertimePlanModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Called when plan is created/updated successfully — tells parent to switch to overtime tab */
   onSuccess?: () => void;
   /** Called after onSuccess — tells parent to switch to the overtime tab */
   onSwitchToTab?: () => void;
@@ -18,18 +18,26 @@ interface CreateOvertimePlanModalProps {
   initialData?: Partial<Omit<CreateOvertimePlanData, 'files'>> & { nguoiThamGiaUserIds?: string[] };
 }
 
-const PRIORITY_OPTIONS = [
-  { value: TaskPriority.THAP, label: '🟢 Thấp' },
-  { value: TaskPriority.TRUNG_BINH, label: '🟡 Trung bình' },
-  { value: TaskPriority.CAO, label: '🟠 Cao' },
-  { value: TaskPriority.KHAN_CAP, label: '🔴 Khẩn cấp' },
-];
+interface Employee {
+  _id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  employeeCode: string;
+  department: string;
+}
 
-const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({ isOpen, onClose, onSuccess, onSwitchToTab, planId, initialData }) => {
+const MANAGER_ROLES = ['ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'];
+
+const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({
+  isOpen, onClose, onSuccess, onSwitchToTab, planId, initialData,
+}) => {
   const isEditMode = !!planId;
   const { user } = useAuth();
+  const isManager = MANAGER_ROLES.includes((user?.role as string) ?? '');
+
   const defaultForm: CreateOvertimePlanData = {
-    nguoiThamGia: [], // empty = auto-register self on backend
+    nguoiThamGia: [],
     noiDung: '',
     ngayTangCa: '',
     gioBatDau: '',
@@ -40,221 +48,367 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({ isOpe
   };
 
   const [formData, setFormData] = useState<CreateOvertimePlanData>(defaultForm);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [departments, setDepartments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
+      if (isManager) fetchEmployees();
+      if (!initialData) setFormData(defaultForm);
+      setSelectedDepartment('');
       setError('');
-      if (initialData) {
-        setFormData(prev => ({
-          ...prev,
-          nguoiThamGia: [],
-          noiDung: initialData.noiDung || '',
-          ngayTangCa: initialData.ngayTangCa || '',
-          gioBatDau: initialData.gioBatDau || '',
-          gioKetThuc: initialData.gioKetThuc || '',
-          ghiChu: initialData.ghiChu || '',
-          mucDoUuTien: initialData.mucDoUuTien || TaskPriority.TRUNG_BINH,
-          files: [],
-        }));
-      } else {
-        setFormData(defaultForm);
-      }
     }
   }, [isOpen, planId]);
+
+  // After employees load, map user IDs to employee IDs for edit mode
+  useEffect(() => {
+    if (isOpen && initialData && employees.length > 0) {
+      const userIds = initialData.nguoiThamGiaUserIds || [];
+      const employeeIds = userIds.length > 0
+        ? employees.filter(emp => userIds.includes(emp.userId)).map(emp => emp._id)
+        : (initialData.nguoiThamGia || []);
+      setFormData(prev => ({
+        ...prev,
+        noiDung: initialData.noiDung || '',
+        ngayTangCa: initialData.ngayTangCa || '',
+        gioBatDau: initialData.gioBatDau || '',
+        gioKetThuc: initialData.gioKetThuc || '',
+        ghiChu: initialData.ghiChu || '',
+        mucDoUuTien: initialData.mucDoUuTien || TaskPriority.TRUNG_BINH,
+        nguoiThamGia: employeeIds,
+        files: [],
+      }));
+    }
+  }, [employees, isOpen, planId]);
+
+  useEffect(() => {
+    if (selectedDepartment) {
+      setFilteredEmployees(employees.filter(emp => emp.department === selectedDepartment));
+    } else {
+      setFilteredEmployees(employees);
+    }
+  }, [selectedDepartment, employees]);
+
+  const fetchEmployees = async () => {
+    setLoadingEmployees(true);
+    setError('');
+    try {
+      const response = await apiClient.get('/employees/for-assignment', { params: { limit: 1000 } });
+      let employeeList: any[] = [];
+      if (response.data) {
+        employeeList = Array.isArray(response.data) ? response.data : (response.data as any).data || [];
+      } else if (Array.isArray(response)) {
+        employeeList = response as any;
+      }
+      const transformed = employeeList.map((emp: any) => ({
+        _id: emp.id || emp._id,
+        userId: emp.userId || '',
+        firstName: emp.user?.firstName || emp.firstName || '',
+        lastName: emp.user?.lastName || emp.lastName || '',
+        employeeCode: emp.employeeCode || '',
+        department: emp.departmentName || emp.subDepartmentName || 'Chưa xác định',
+      }));
+      setEmployees(transformed);
+      setFilteredEmployees(transformed);
+      const uniqueDepts = Array.from(new Set(transformed.map((emp: Employee) => emp.department).filter(Boolean)));
+      setDepartments(uniqueDepts as string[]);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Không thể tải danh sách nhân viên');
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
+  const handleEmployeeToggle = (employeeId: string) => {
+    const current = formData.nguoiThamGia;
+    setFormData({
+      ...formData,
+      nguoiThamGia: current.includes(employeeId)
+        ? current.filter(id => id !== employeeId)
+        : [...current, employeeId],
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (isManager && formData.nguoiThamGia.length === 0) {
+      setError('Vui lòng chọn ít nhất một người tham gia');
+      return;
+    }
     if (!formData.noiDung.trim()) { setError('Vui lòng nhập nội dung công việc tăng ca'); return; }
     if (!formData.ngayTangCa) { setError('Vui lòng chọn ngày tăng ca'); return; }
     if (!formData.gioBatDau) { setError('Vui lòng chọn giờ bắt đầu'); return; }
     if (!formData.gioKetThuc) { setError('Vui lòng chọn giờ kết thúc'); return; }
     if (formData.gioBatDau >= formData.gioKetThuc) { setError('Giờ kết thúc phải sau giờ bắt đầu'); return; }
+
+    const payload: CreateOvertimePlanData = {
+      ...formData,
+      // Manager: pass selected employee IDs; employee: empty = self-register on backend
+      nguoiThamGia: isManager ? formData.nguoiThamGia : [],
+    };
+
     try {
       setLoading(true);
       if (isEditMode && planId) {
-        await overtimePlanService.update(planId, formData);
+        await overtimePlanService.update(planId, payload);
       } else {
-        await overtimePlanService.create(formData);
+        await overtimePlanService.create(payload);
       }
-      // Switch to overtime tab BEFORE closing the modal so the tab is already active
       onSwitchToTab?.();
       onSuccess?.();
       handleClose();
     } catch (err: any) {
       setError(err.response?.data?.message || (isEditMode ? 'Có lỗi xảy ra khi cập nhật kế hoạch' : 'Có lỗi xảy ra khi tạo kế hoạch tăng ca'));
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleClose = () => { setFormData(defaultForm); setError(''); onClose(); };
+  const handleClose = () => {
+    setFormData(defaultForm);
+    setSelectedDepartment('');
+    setError('');
+    onClose();
+  };
+
+  const getSelectedNames = () =>
+    employees
+      .filter(emp => formData.nguoiThamGia.includes(emp._id))
+      .map(emp => `${emp.firstName} ${emp.lastName}`)
+      .join(', ');
 
   const fullName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Bạn';
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose}>
-      {/* Full-screen on mobile, max-width on desktop */}
-      <div className="bg-white rounded-none sm:rounded-xl shadow-xl w-full sm:max-w-lg max-h-screen sm:max-h-[92vh] flex flex-col">
-
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 bg-gradient-to-r from-orange-500 to-orange-600 sm:rounded-t-xl flex-shrink-0">
-          <div>
-            <h2 className="text-lg sm:text-xl font-bold text-white">
-              {isEditMode ? 'Chỉnh sửa yêu cầu tăng ca' : 'Đăng ký tăng ca'}
-            </h2>
-            <p className="text-orange-100 text-xs mt-0.5">Gửi yêu cầu tăng ca để quản lý phê duyệt</p>
-          </div>
-          <button onClick={handleClose} className="text-white hover:text-orange-100 transition-colors p-1" type="button">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
+          <h2 className="text-xl font-bold text-white">
+            {isEditMode ? 'Chỉnh sửa kế hoạch tăng ca' : isManager ? 'Tạo kế hoạch tăng ca' : 'Đăng ký tăng ca'}
+          </h2>
+          <button onClick={handleClose} className="text-white hover:text-gray-200 transition-colors" type="button">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-4 space-y-4">
+        <div className="overflow-y-auto max-h-[calc(90vh-140px)] px-6 py-5">
+          <form onSubmit={handleSubmit} className="space-y-5" id="create-overtime-plan-form">
+            {/* Error */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center">
+                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                <span className="text-sm">{error}</span>
+              </div>
+            )}
 
-          {/* Error banner */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-              <span className="text-sm">{error}</span>
-            </div>
-          )}
-
-          {/* Self-register info card */}
-          <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
-              <User className="w-5 h-5 text-white" />
-            </div>
+            {/* Ngày tạo */}
             <div>
-              <p className="text-xs text-orange-600 font-medium uppercase tracking-wide">Đăng ký cho</p>
-              <p className="text-sm font-semibold text-orange-900">{fullName}</p>
-            </div>
-          </div>
-
-          {/* Nội dung */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-orange-500" />
-              Nội dung công việc <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={formData.noiDung}
-              onChange={(e) => setFormData({ ...formData, noiDung: e.target.value })}
-              rows={3}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm resize-none transition-shadow"
-              placeholder="Mô tả công việc tăng ca..."
-            />
-          </div>
-
-          {/* Ngày tăng ca */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-orange-500" />
-              Ngày tăng ca <span className="text-red-500">*</span>
-            </label>
-            <DatePicker
-              label=""
-              value={formData.ngayTangCa}
-              onChange={(date) => setFormData({ ...formData, ngayTangCa: date })}
-              placeholder="Chọn ngày tăng ca"
-            />
-          </div>
-
-          {/* Giờ bắt đầu & kết thúc — 2 cột */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                <Clock className="w-4 h-4 text-orange-500" />
-                Từ giờ <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center">
+                <Calendar className="w-4 h-4 mr-1.5" />Ngày tạo
               </label>
               <input
-                type="time"
-                value={formData.gioBatDau}
-                onChange={(e) => setFormData({ ...formData, gioBatDau: e.target.value })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm text-center transition-shadow"
+                type="text"
+                value={new Date().toLocaleDateString('vi-VN')}
+                disabled
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 text-sm"
               />
             </div>
+
+            {/* Manager: department filter + employee checkbox list */}
+            {isManager ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Lọc theo phòng ban</label>
+                  <select
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                  >
+                    <option value="">Tất cả phòng ban</option>
+                    {departments.map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center">
+                    <Users className="w-4 h-4 mr-1.5" />
+                    Người tham gia tăng ca <span className="text-red-500 ml-1">*</span>
+                  </label>
+                  {loadingEmployees ? (
+                    <div className="border border-gray-300 rounded-lg p-4 text-center">
+                      <p className="text-gray-500 text-sm">Đang tải danh sách nhân viên...</p>
+                    </div>
+                  ) : filteredEmployees.length === 0 ? (
+                    <div className="border border-gray-300 rounded-lg p-4 text-center">
+                      <p className="text-gray-500 text-sm">Không có nhân viên nào</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-gray-50">
+                        <div className="space-y-1.5">
+                          {filteredEmployees.map(emp => (
+                            <label key={emp._id} className="flex items-start space-x-2.5 cursor-pointer hover:bg-white p-2 rounded transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={formData.nguoiThamGia.includes(emp._id)}
+                                onChange={() => handleEmployeeToggle(emp._id)}
+                                className="w-4 h-4 mt-0.5 text-orange-600 rounded focus:ring-2 focus:ring-orange-500 flex-shrink-0"
+                              />
+                              <span className="text-sm text-gray-700">
+                                <span className="font-medium">{emp.firstName} {emp.lastName}</span>
+                                <span className="text-gray-500"> - {emp.employeeCode}</span>
+                                <span className="text-gray-400 text-xs block">{emp.department}</span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      {formData.nguoiThamGia.length > 0 && (
+                        <div className="mt-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                          <p className="text-sm text-orange-700">
+                            <span className="font-medium">Đã chọn {formData.nguoiThamGia.length} người:</span>
+                            <span className="ml-1">{getSelectedNames()}</span>
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* Employee: self-register card */
+              <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                  <User className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs text-orange-600 font-medium uppercase tracking-wide">Đăng ký cho</p>
+                  <p className="text-sm font-semibold text-orange-900">{fullName}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Nội dung */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                <Clock className="w-4 h-4 text-orange-500" />
-                Đến giờ <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center">
+                <FileText className="w-4 h-4 mr-1.5" />
+                Nội dung công việc tăng ca <span className="text-red-500 ml-1">*</span>
               </label>
-              <input
-                type="time"
-                value={formData.gioKetThuc}
-                onChange={(e) => setFormData({ ...formData, gioKetThuc: e.target.value })}
-                className="w-full px-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm text-center transition-shadow"
+              <textarea
+                value={formData.noiDung}
+                onChange={(e) => setFormData({ ...formData, noiDung: e.target.value })}
+                rows={3}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm resize-none"
+                placeholder="Mô tả chi tiết nội dung công việc tăng ca..."
+                required
               />
             </div>
-          </div>
 
-          {/* Mức độ ưu tiên */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Mức độ ưu tiên</label>
-            <div className="relative">
-              <select
-                value={formData.mucDoUuTien}
-                onChange={(e) => setFormData({ ...formData, mucDoUuTien: e.target.value as TaskPriority })}
-                className="w-full appearance-none px-4 py-3 pr-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm bg-white transition-shadow"
-              >
-                {PRIORITY_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            {/* Ngày + giờ — 3 cột */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <DatePicker
+                  label="Ngày tăng ca"
+                  value={formData.ngayTangCa}
+                  onChange={(date) => setFormData({ ...formData, ngayTangCa: date })}
+                  placeholder="Chọn ngày tăng ca"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center">
+                  <Clock className="w-4 h-4 mr-1.5" />Giờ bắt đầu <span className="text-red-500 ml-1">*</span>
+                </label>
+                <input
+                  type="time"
+                  value={formData.gioBatDau}
+                  onChange={(e) => setFormData({ ...formData, gioBatDau: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center">
+                  <Clock className="w-4 h-4 mr-1.5" />Giờ kết thúc <span className="text-red-500 ml-1">*</span>
+                </label>
+                <input
+                  type="time"
+                  value={formData.gioKetThuc}
+                  onChange={(e) => setFormData({ ...formData, gioKetThuc: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                  required
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Ghi chú */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Ghi chú</label>
-            <textarea
-              value={formData.ghiChu}
-              onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
-              rows={2}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm resize-none transition-shadow"
-              placeholder="Thêm ghi chú (không bắt buộc)..."
-            />
-          </div>
+            {/* Ghi chú / Lý do */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                {isManager ? 'Lý do tăng ca' : 'Ghi chú'}
+              </label>
+              <textarea
+                value={formData.ghiChu}
+                onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
+                rows={2}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm resize-none"
+                placeholder={isManager ? 'Nhập lý do tăng ca (sẽ ghi vào chấm công của tất cả nhân viên)...' : 'Ghi chú thêm (nếu có)...'}
+              />
+              {isManager && (
+                <p className="text-xs text-orange-600 mt-1">
+                  Lý do này sẽ được ghi vào chấm công tự động cho tất cả nhân viên trong danh sách.
+                </p>
+              )}
+            </div>
 
-          {/* File đính kèm */}
-          {!isEditMode && (
-            <FileUpload
-              label="File đính kèm"
-              files={formData.files || []}
-              onChange={(files) => setFormData({ ...formData, files })}
-              multiple
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-            />
-          )}
+            {/* File đính kèm */}
+            {!isEditMode && (
+              <FileUpload
+                label="File kèm theo"
+                files={formData.files || []}
+                onChange={(files) => setFormData({ ...formData, files })}
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+              />
+            )}
+          </form>
         </div>
 
-        {/* Footer buttons — sticky */}
-        <div className="flex gap-3 px-4 sm:px-6 py-4 border-t border-gray-100 bg-white sm:rounded-b-xl flex-shrink-0">
+        {/* Footer */}
+        <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
           <button
             type="button"
             onClick={handleClose}
+            className="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 text-sm font-medium"
             disabled={loading}
-            className="flex-1 py-3 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 text-sm font-semibold transition-colors disabled:opacity-50"
           >
             Hủy
           </button>
           <button
-            onClick={handleSubmit}
+            type="submit"
+            form="create-overtime-plan-form"
             disabled={loading}
-            className="flex-2 flex-grow-[2] py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+            className="px-5 py-2.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium flex items-center"
           >
             {loading ? (
               <>
-                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                {isEditMode ? 'Đang cập nhật...' : 'Đang gửi...'}
+                {isEditMode ? 'Đang cập nhật...' : 'Đang tạo...'}
               </>
             ) : (
-              isEditMode ? '💾 Lưu thay đổi' : '📤 Gửi yêu cầu'
+              isEditMode ? 'Cập nhật kế hoạch' : isManager ? 'Tạo kế hoạch tăng ca' : 'Gửi yêu cầu tăng ca'
             )}
           </button>
         </div>
@@ -264,5 +418,3 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({ isOpe
 };
 
 export default CreateOvertimePlanModal;
-
-

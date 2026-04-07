@@ -119,6 +119,10 @@ export const overtimePlanService = {
     const response = await apiClient.patch(`/overtime-plans/${id}/actual-time`, { actualTimes });
     return extractData(response);
   },
+  async revokePlan(id: string): Promise<OvertimePlan> {
+    const response = await apiClient.patch(`/overtime-plans/${id}/revoke`, {});
+    return extractData(response);
+  },
 };
 
 export default overtimePlanService;

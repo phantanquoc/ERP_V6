@@ -100,6 +100,15 @@ class OvertimePlanController {
     } catch (error) { next(error); }
   }
 
+  async revokePlan(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
+      const plan = await overtimePlanService.revokePlan(req.params.id as string, userId);
+      res.json({ success: true, data: plan, message: 'Thu hồi kế hoạch tăng ca thành công' } as ApiResponse<any>);
+    } catch (error) { next(error); }
+  }
+
   async updateActualTime(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.id;

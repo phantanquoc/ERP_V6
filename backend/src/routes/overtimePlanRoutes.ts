@@ -18,6 +18,7 @@ router.put('/:id', uploadOvertimePlans, overtimePlanController.update);
 router.delete('/:id', overtimePlanController.delete);
 router.patch('/:id/accept', overtimePlanController.acceptPlan);
 router.patch('/:id/approve', overtimePlanController.approvePlan);
+router.patch('/:id/revoke', overtimePlanController.revokePlan);
 router.patch('/:id/actual-time', overtimePlanController.updateActualTime);
 
 export default router;
