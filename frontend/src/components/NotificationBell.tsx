@@ -10,6 +10,8 @@ import EmployeePayrollModal from './EmployeePayrollModal';
 import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import OvertimePlanListModal from './OvertimePlanListModal';
+import MeetingModal from './MeetingModal';
+import { meetingService, Meeting } from '../services/meetingService';
 
 /**
  * Returns a human-readable relative time string in Vietnamese.
@@ -92,6 +94,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedLeaveRequestMessage, setSelectedLeaveRequestMessage] = useState<string | undefined>(undefined);
   const [isOvertimePlanModalOpen, setIsOvertimePlanModalOpen] = useState(false);
   const [selectedOvertimePlanId, setSelectedOvertimePlanId] = useState<string | null>(null);
+  const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
+  const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
 
   // Maximum notifications to show in the dropdown
   const MAX_SHOWN = 50;
@@ -154,9 +158,14 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setSelectedLeaveRequestMessage(notification.message);
       setIsLeaveRequestModalOpen(true);
     } else if (notification.type === 'OVERTIME_PLAN' || notification.type === 'OVERTIME_PLAN_APPROVAL') {
-      // Store the plan ID from the notification so OvertimePlanListModal opens with that plan highlighted
       setSelectedOvertimePlanId(notification.overtimePlanId || null);
       setIsOvertimePlanModalOpen(true);
+    } else if (['MEETING_CREATED', 'MEETING_UPDATED', 'MEETING_CANCELLED', 'MEETING_REMINDER'].includes(notification.type)) {
+      if (notification.meetingId) {
+        meetingService.getById(notification.meetingId)
+          .then(meeting => { setSelectedMeeting(meeting); setIsMeetingModalOpen(true); })
+          .catch(() => {});
+      }
     }
 
     if (onNotificationClick) {
@@ -407,6 +416,15 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         initialPlanId={selectedOvertimePlanId}
         onInitialPlanIdConsumed={() => setSelectedOvertimePlanId(null)}
       />
+
+      {/* Meeting Modal - opened when clicking MEETING notification */}
+      {isMeetingModalOpen && (
+        <MeetingModal
+          meeting={selectedMeeting}
+          onClose={() => { setIsMeetingModalOpen(false); setSelectedMeeting(null); }}
+          onSuccess={() => { setIsMeetingModalOpen(false); setSelectedMeeting(null); }}
+        />
+      )}
     </>
   );
 };
