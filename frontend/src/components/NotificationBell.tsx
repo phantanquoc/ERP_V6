@@ -70,20 +70,6 @@ function groupByDate(notifications: Notification[]): Array<{ label: string; item
  * Returns a navigation link for clicking on a notification.
  * Returns null if no specific link is available.
  */
-function getNotificationLink(notification: Notification): string | null {
-  if (notification.taskId) return `/tasks?highlight=${notification.taskId}`;
-  if (notification.leaveRequestId) return `/leave-requests?highlight=${notification.leaveRequestId}`;
-  if (notification.payrollId) return `/payroll?highlight=${notification.payrollId}`;
-  if (notification.overtimePlanId) return `/overtime-plans?highlight=${notification.overtimePlanId}`;
-  if (notification.meetingId) return `/meetings?highlight=${notification.meetingId}`;
-  if (notification.supplyAdjustmentId) return `/supply-adjustments?highlight=${notification.supplyAdjustmentId}`;
-  if (notification.orderId) return `/orders?highlight=${notification.orderId}`;
-  if (notification.supplyRequestId) return `/supply-requests?highlight=${notification.supplyRequestId}`;
-  if (notification.acceptanceHandoverId) return `/acceptance-handover?highlight=${notification.acceptanceHandoverId}`;
-  if (notification.evaluationId) return `/evaluations?highlight=${notification.evaluationId}`;
-  return null;
-}
-
 const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
   const { user, subscribeToNotifications } = useAuth();
   // isAdmin = role is ADMIN or MANAGER (DEPARTMENT_HEAD / TEAM_LEAD are mapped to MANAGER)
@@ -290,7 +276,6 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
                       </div>
 
                       {group.items.map(notification => {
-                        const link = getNotificationLink(notification);
                         const content = (
                           <div
                             className={`p-4 border-b border-gray-100 cursor-pointer transition-colors ${
@@ -320,20 +305,6 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
                             </div>
                           </div>
                         );
-
-                        // Wrap in link if a navigation path exists; otherwise use onClick
-                        if (link) {
-                          return (
-                            <Link
-                              key={notification.id}
-                              to={link}
-                              onClick={() => handleNotificationClick(notification)}
-                              className="block"
-                            >
-                              {content}
-                            </Link>
-                          );
-                        }
 
                         return (
                           <div
