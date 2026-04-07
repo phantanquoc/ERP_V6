@@ -54,23 +54,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       />
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="bg-header text-header-text shadow-sm border-b border-white/10 px-6 py-1">
+        <header className="bg-white text-gray-900 shadow-sm border-b border-gray-200 px-6 py-1">
           <div className="relative flex items-center justify-between">
             {/* Toggle button - positioned to the left */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={toggleSidebar}
-                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
                 title={sidebarCollapsed ? 'Mở menu' : 'Thu gọn menu'}
               >
-                <Menu size={24} className="text-header-text/80" />
+                <Menu size={24} className="text-gray-600" />
               </button>
             </div>
 
             {/* Centered slogan — dynamic from DB, hide if empty */}
             <div className="flex-1 px-4 overflow-hidden">
               {slogan && (
-                <p className="text-sm font-medium text-header-text/90 text-center italic truncate">
+                <p className="text-sm font-medium text-black text-center italic truncate">
                   {slogan}
                 </p>
               )}
