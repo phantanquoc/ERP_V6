@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck, CalendarDays, ShoppingCart, Truck } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
@@ -354,13 +353,12 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
             {/* Footer */}
             {notifications.length > 0 && (
               <div className="p-3 border-t border-gray-200 bg-gray-50 text-center">
-                <Link
-                  to="/notifications"
-                  onClick={() => setIsOpen(false)}
+                <button
+                  onClick={() => { setIsOpen(false); setIsAllNotificationsOpen(true); }}
                   className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                 >
                   Xem tất cả thông báo
-                </Link>
+                </button>
               </div>
             )}
           </div>

@@ -24,7 +24,8 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
 
   useEffect(() => {
     if (isOpen) {
-      setSelectedTask(null);
+      // Only reset selectedTask if we're NOT opening directly to a specific task
+      if (!initialTaskId) setSelectedTask(null);
       loadTasks();
     }
   }, [isOpen, currentPage, isAdmin]);
@@ -32,9 +33,10 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
   // When initialTaskId is provided, fetch and open that task directly
   useEffect(() => {
     if (isOpen && initialTaskId) {
+      setSelectedTask(null); // clear stale task first
       taskService.getTaskById(initialTaskId)
         .then(task => setSelectedTask(task))
-        .catch(() => {});
+        .catch(err => console.error('Failed to load task:', err));
     }
   }, [isOpen, initialTaskId]);
 
