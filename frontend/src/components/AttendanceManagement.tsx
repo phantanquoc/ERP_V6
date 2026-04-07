@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Edit2, Trash2, Search, Settings, Download, LayoutGrid, Table, Users, CheckCircle, Clock, XCircle, RefreshCw } from 'lucide-react';
-import attendanceService, { DailySummary, DailySummaryEmployee } from '@services/attendanceService';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Edit2, Trash2, Search, Settings, Download } from 'lucide-react';
+import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import DatePicker from './DatePicker';
 import WorkShiftSettingsModal from './WorkShiftSettingsModal';
 import { DataTable, Column } from './DataTable';
-import { formatDate, formatDateTime, formatTime, formatWorkHours } from '../utils/formatters';
+import { formatDate, formatWorkHours } from '../utils/formatters';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ interface EditEntry {
   notes: string;
 }
 
-type TabValue = 'all' | 'overtime' | 'cardview';
+type TabValue = 'all' | 'standard' | 'overtime';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -81,13 +81,17 @@ const formatTimeFromDateTime = (dt: string | null | undefined): string => {
 const AttendanceManagement: React.FC = () => {
   const queryClient = useQueryClient();
 
-  // ── Date filters
+  // ── Date filters (end date defaults 7 days ahead to show future overtime plans)
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
     return d.toISOString().split('T')[0];
   });
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  });
 
   // ── UI state
   const [currentTab, setCurrentTab] = useState<TabValue>('all');
@@ -338,7 +342,7 @@ const AttendanceManagement: React.FC = () => {
     },
   ];
 
-  // Overtime columns (separate tab)
+  // Overtime columns (separate tab) — pairs checkIn/checkOut per session
   const overtimeColumns: Column<AttendanceRecord>[] = [
     {
       key: 'stt',
@@ -367,102 +371,95 @@ const AttendanceManagement: React.FC = () => {
       render: (row) => formatDate(row.attendanceDate),
     },
     {
-      key: 'checkInTime',
-      label: 'Giờ vào',
-      width: '110px',
-      render: (row) => (
-        <span className="font-medium text-blue-700">
-          {row.checkInTime ? formatTimeFromDateTime(row.checkInTime) : '—'}
-        </span>
-      ),
-    },
-    {
-      key: 'checkOutTime',
-      label: 'Giờ ra',
-      width: '110px',
-      render: (row) => (
-        <span className="font-medium text-green-700">
-          {row.checkOutTime ? formatTimeFromDateTime(row.checkOutTime) : '—'}
-        </span>
-      ),
+      key: 'checkInTimes',
+      label: 'Ca tăng ca',
+      render: (row) => {
+        const ins = row.checkInTimes || [];
+        const outs = row.checkOutTimes || [];
+        const count = Math.max(ins.length, outs.length);
+        if (count === 0) return <span className="text-gray-400">—</span>;
+        return (
+          <div className="space-y-1">
+            {Array.from({ length: count }, (_, i) => {
+              const inTime = ins[i] ? new Date(ins[i]).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
+              const outTime = outs[i] ? new Date(outs[i]).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
+              const diffH = (ins[i] && outs[i])
+                ? Math.round((new Date(outs[i]).getTime() - new Date(ins[i]).getTime()) / 36000) / 100
+                : null;
+              return (
+                <div key={i} className="flex items-center gap-1 text-sm">
+                  <span className="text-blue-700 font-medium">{inTime}</span>
+                  <span className="text-gray-400">→</span>
+                  <span className="text-green-700 font-medium">{outTime}</span>
+                  {diffH !== null && (
+                    <span className="text-xs text-purple-600 font-medium">({diffH}h)</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      },
     },
     {
       key: 'workHours',
-      label: 'Giờ tăng ca',
+      label: 'Tổng giờ TC',
       width: '110px',
       render: (row) => (
         <span className="font-semibold text-purple-700">{formatWorkHours(row.workHours)}</span>
       ),
     },
     {
-      key: 'status',
-      label: 'Trạng thái',
-      width: '130px',
-      render: (row) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(row.status)}`}>
-          {getStatusLabel(row.status)}
-        </span>
-      ),
-    },
-    {
       key: 'notes',
       label: 'Ghi chú',
-      width: '140px',
+      width: '180px',
       render: (row) => <span className="text-gray-600 text-sm">{row.notes || '—'}</span>,
+    },
+    {
+      key: 'actions',
+      label: 'Hành động',
+      width: '120px',
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleEdit(row)}
+            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+            title="Chỉnh sửa"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleDelete(row.id)}
+            className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+            title="Xóa"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      ),
     },
   ];
 
   // ── Filtering: apply search + tab filter
-  const filteredAll = attendances.filter(item =>
-    currentTab === 'overtime' ? false : (
-      item.employeeCode.toLowerCase().includes(searchText.toLowerCase()) ||
-      item.employeeName.toLowerCase().includes(searchText.toLowerCase())
-    )
+  const matchesSearch = (item: AttendanceRecord) =>
+    item.employeeCode.toLowerCase().includes(searchText.toLowerCase()) ||
+    item.employeeName.toLowerCase().includes(searchText.toLowerCase());
+
+  const filteredAll = attendances.filter(matchesSearch);
+
+  const filteredStandard = attendances.filter(
+    item => item.status !== 'OVERTIME' && matchesSearch(item)
   );
 
   const filteredOvertime = attendances.filter(
-    item => item.status === 'OVERTIME' &&
-      (item.employeeCode.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.employeeName.toLowerCase().includes(searchText.toLowerCase()))
+    item => item.status === 'OVERTIME' && matchesSearch(item)
   );
 
-  const activeData = currentTab === 'overtime' ? filteredOvertime : filteredAll;
+  const activeData =
+    currentTab === 'overtime' ? filteredOvertime :
+    currentTab === 'standard' ? filteredStandard :
+    filteredAll;
   const total = activeData.length;
-
-  // ── CardView (daily summary)
-  const [cardViewDate, setCardViewDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
-  const [cardViewLoading, setCardViewLoading] = useState(false);
-  const cardViewInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const fetchDailySummary = useCallback(async (date: string) => {
-    setCardViewLoading(true);
-    try {
-      const data = await attendanceService.getDailySummary(date);
-      setDailySummary(data);
-    } catch {
-      // silently ignore
-    } finally {
-      setCardViewLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (currentTab === 'cardview') {
-      fetchDailySummary(cardViewDate);
-      cardViewInterval.current = setInterval(() => fetchDailySummary(cardViewDate), 60_000);
-    }
-    return () => {
-      if (cardViewInterval.current) clearInterval(cardViewInterval.current);
-    };
-  }, [currentTab, cardViewDate, fetchDailySummary]);
-
-  // Realtime refresh: ATTENDANCE_SUMMARY_CHANGED from WS broadcast
-  useEffect(() => {
-    const handler = () => { if (currentTab === 'cardview') fetchDailySummary(cardViewDate); };
-    window.addEventListener('ATTENDANCE_SUMMARY_CHANGED', handler);
-    return () => window.removeEventListener('ATTENDANCE_SUMMARY_CHANGED', handler);
-  }, [currentTab, cardViewDate, fetchDailySummary]);
 
   // ── onFilterChange handler for DataTable
   const handleFilterChange = useCallback((filters: Record<string, unknown>) => {
@@ -504,8 +501,8 @@ const AttendanceManagement: React.FC = () => {
           <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
             {([
               ['all',      'Tất cả'],
+              ['standard', 'Giờ tiêu chuẩn'],
               ['overtime', 'Tăng ca'],
-              ['cardview', 'Tổng quan ngày'],
             ] as [TabValue, string][]).map(([val, label]) => (
               <button
                 key={val}
@@ -573,32 +570,23 @@ const AttendanceManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* ── DataTable (hidden on cardview tab) ── */}
-      {currentTab !== 'cardview' && (
-        <DataTable
-          columns={currentTab === 'overtime' ? overtimeColumns : columns}
-          data={activeData}
-          isLoading={isLoading}
-          total={total}
-          page={currentPage}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          onFilterChange={handleFilterChange}
-          emptyMessage={currentTab === 'overtime' ? 'Không có bản ghi tăng ca nào' : 'Không có dữ liệu điểm danh'}
-          rowKey="id"
-        />
-      )}
-
-      {/* ── CardView (daily summary) ── */}
-      {currentTab === 'cardview' && (
-        <AttendanceCardView
-          date={cardViewDate}
-          onDateChange={setCardViewDate}
-          summary={dailySummary}
-          loading={cardViewLoading}
-          onRefresh={() => fetchDailySummary(cardViewDate)}
-        />
-      )}
+      {/* ── DataTable ── */}
+      <DataTable
+        columns={currentTab === 'overtime' ? overtimeColumns : columns}
+        data={activeData}
+        isLoading={isLoading}
+        total={total}
+        page={currentPage}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onFilterChange={handleFilterChange}
+        emptyMessage={
+          currentTab === 'overtime' ? 'Không có bản ghi tăng ca nào' :
+          currentTab === 'standard' ? 'Không có bản ghi giờ tiêu chuẩn nào' :
+          'Không có dữ liệu điểm danh'
+        }
+        rowKey="id"
+      />
 
       {/* ── Modal ── */}
       {showModal && (
@@ -813,147 +801,5 @@ const AttendanceManagement: React.FC = () => {
     </div>
   );
 };
-
-// ─── AttendanceCardView Component ────────────────────────────────────────────
-
-interface CardViewProps {
-  date: string;
-  onDateChange: (d: string) => void;
-  summary: DailySummary | null;
-  loading: boolean;
-  onRefresh: () => void;
-}
-
-function EmployeeCard({ emp, group }: { emp: DailySummaryEmployee | any; group: 'present_out' | 'present' | 'absent' }) {
-  const avatarBg = group === 'present_out' ? 'bg-green-100 text-green-700'
-    : group === 'present' ? 'bg-blue-100 text-blue-700'
-    : 'bg-red-100 text-red-700';
-
-  const initial = `${emp.firstName?.[0] ?? ''}${emp.lastName?.[0] ?? ''}`.toUpperCase();
-
-  return (
-    <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-100 hover:shadow-sm transition-shadow">
-      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${avatarBg}`}>
-        {initial || '?'}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{emp.firstName} {emp.lastName}</p>
-        <p className="text-xs text-gray-500 truncate">{emp.position || emp.department || '—'}</p>
-      </div>
-      <div className="text-right flex-shrink-0">
-        {group === 'present_out' && (
-          <div className="text-xs text-gray-600">
-            <span className="text-green-600">▶ {emp.checkInTime ?? '—'}</span>
-            <span className="mx-1">·</span>
-            <span className="text-gray-500">◀ {emp.checkOutTime ?? '—'}</span>
-          </div>
-        )}
-        {group === 'present' && (
-          <span className="text-xs text-blue-600">▶ {emp.checkInTime ?? '—'}</span>
-        )}
-        {group === 'absent' && (
-          <span className="text-xs text-red-500">Vắng</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AttendanceCardView({ date, onDateChange, summary, loading, onRefresh }: CardViewProps) {
-  const stats = summary?.summary;
-
-  const GroupCard = ({
-    title, icon: Icon, color, bg, count, children,
-  }: {
-    title: string; icon: React.ElementType; color: string; bg: string; count: number; children: React.ReactNode;
-  }) => (
-    <div className={`rounded-xl border ${bg} flex flex-col`}>
-      <div className="p-4 border-b border-current border-opacity-10 flex items-center gap-2">
-        <Icon className={`w-5 h-5 ${color}`} />
-        <h3 className={`font-semibold ${color}`}>{title}</h3>
-        <span className={`ml-auto text-xl font-bold ${color}`}>{count}</span>
-      </div>
-      <div className="p-3 flex flex-col gap-2 overflow-y-auto max-h-96">{children}</div>
-    </div>
-  );
-
-  const skeletonRows = Array.from({ length: 4 }, (_, i) => (
-    <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-100 animate-pulse">
-      <div className="w-9 h-9 rounded-full bg-gray-200" />
-      <div className="flex-1 space-y-1.5">
-        <div className="h-3 bg-gray-200 rounded w-2/3" />
-        <div className="h-2.5 bg-gray-100 rounded w-1/2" />
-      </div>
-    </div>
-  ));
-
-  return (
-    <div className="p-6">
-      {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-600">Ngày:</label>
-          <input
-            type="date"
-            value={date}
-            max={new Date().toISOString().split('T')[0]}
-            onChange={e => onDateChange(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Làm mới
-        </button>
-        {summary && (
-          <span className="text-xs text-gray-400 ml-auto">Cập nhật lúc {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
-        )}
-      </div>
-
-      {/* Summary stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-        {[
-          { label: 'Tổng nhân viên', value: stats?.totalEmployees ?? '—', icon: Users, color: 'text-gray-600', bg: 'bg-gray-50' },
-          { label: 'Hoàn thành ca', value: stats?.present_out ?? '—', icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
-          { label: 'Đang trong ca', value: stats?.present ?? '—', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Vắng mặt', value: stats?.absent ?? '—', icon: XCircle, color: 'text-red-500', bg: 'bg-red-50' },
-        ].map(s => (
-          <div key={s.label} className={`${s.bg} rounded-xl p-4 flex items-center gap-3`}>
-            <s.icon className={`w-6 h-6 ${s.color}`} />
-            <div>
-              <p className="text-xs text-gray-500">{s.label}</p>
-              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Employee groups */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <GroupCard title="Hoàn thành ca" icon={CheckCircle} color="text-green-700" bg="bg-green-50" count={summary?.employees.present_out.length ?? 0}>
-          {loading ? skeletonRows : summary?.employees.present_out.length
-            ? summary.employees.present_out.map(e => <EmployeeCard key={e.employeeId} emp={e} group="present_out" />)
-            : <p className="text-center text-sm text-green-500 py-4">Chưa có</p>}
-        </GroupCard>
-
-        <GroupCard title="Đang trong ca" icon={Clock} color="text-blue-700" bg="bg-blue-50" count={summary?.employees.present.length ?? 0}>
-          {loading ? skeletonRows : summary?.employees.present.length
-            ? summary.employees.present.map(e => <EmployeeCard key={e.employeeId} emp={e} group="present" />)
-            : <p className="text-center text-sm text-blue-500 py-4">Chưa có</p>}
-        </GroupCard>
-
-        <GroupCard title="Vắng mặt" icon={XCircle} color="text-red-700" bg="bg-red-50" count={summary?.employees.absent.length ?? 0}>
-          {loading ? skeletonRows : summary?.employees.absent.length
-            ? summary.employees.absent.map(e => <EmployeeCard key={e.employeeId} emp={e} group="absent" />)
-            : <p className="text-center text-sm text-red-500 py-4">Không có vắng mặt 🎉</p>}
-        </GroupCard>
-      </div>
-    </div>
-  );
-}
 
 export default AttendanceManagement;
