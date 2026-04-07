@@ -5,9 +5,10 @@ import { privateFeedbackService, PrivateFeedback, FeedbackStatus } from '../serv
 interface FeedbackListModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialFeedbackId?: string | null;
 }
 
-const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }) => {
+const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose, initialFeedbackId }) => {
   const [feedbacks, setFeedbacks] = useState<PrivateFeedback[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'GOP_Y' | 'NEU_KHO_KHAN'>('all');
@@ -15,9 +16,20 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
 
   useEffect(() => {
     if (isOpen) {
+      if (!initialFeedbackId) setSelectedFeedback(null);
       loadFeedbacks();
     }
   }, [isOpen, activeTab]);
+
+  // When initialFeedbackId provided, fetch and open that feedback directly
+  useEffect(() => {
+    if (isOpen && initialFeedbackId) {
+      setSelectedFeedback(null);
+      privateFeedbackService.getById(initialFeedbackId)
+        .then(res => setSelectedFeedback(res.data))
+        .catch(err => console.error('Failed to load feedback:', err));
+    }
+  }, [isOpen, initialFeedbackId]);
 
   const loadFeedbacks = async () => {
     try {

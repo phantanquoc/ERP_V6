@@ -12,6 +12,7 @@ import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import OvertimePlanListModal from './OvertimePlanListModal';
 import MeetingModal from './MeetingModal';
 import { meetingService, Meeting } from '../services/meetingService';
+import FeedbackListModal from './FeedbackListModal';
 
 /**
  * Returns a human-readable relative time string in Vietnamese.
@@ -96,6 +97,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedOvertimePlanId, setSelectedOvertimePlanId] = useState<string | null>(null);
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
 
   // Maximum notifications to show in the dropdown
   const MAX_SHOWN = 50;
@@ -166,6 +169,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
           .then(meeting => { setSelectedMeeting(meeting); setIsMeetingModalOpen(true); })
           .catch(() => {});
       }
+    } else if (notification.type === 'PRIVATE_FEEDBACK') {
+      setSelectedFeedbackId(notification.privateFeedbackId || null);
+      setIsFeedbackModalOpen(true);
     }
 
     if (onNotificationClick) {
@@ -425,6 +431,13 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
           onSuccess={() => { setIsMeetingModalOpen(false); setSelectedMeeting(null); }}
         />
       )}
+
+      {/* Feedback Modal - opened when clicking PRIVATE_FEEDBACK notification */}
+      <FeedbackListModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => { setIsFeedbackModalOpen(false); setSelectedFeedbackId(null); }}
+        initialFeedbackId={selectedFeedbackId}
+      />
     </>
   );
 };

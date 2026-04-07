@@ -18,6 +18,7 @@ export interface Notification {
   overtimePlanId?: string;
   meetingId?: string;
   supplyAdjustmentId?: string;
+  privateFeedbackId?: string;
   isRead: boolean;
   createdAt: string;
   updatedAt: string;

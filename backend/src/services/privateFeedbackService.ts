@@ -195,6 +195,7 @@ export const privateFeedbackService = {
           type: NotificationType.PRIVATE_FEEDBACK,
           title: `📝 ${typeLabel} mới từ nhân viên`,
           message: `${senderName} vừa gửi ${typeLabel.toLowerCase()} [${code}]: "${data.content.slice(0, 80)}${data.content.length > 80 ? '...' : ''}"`,
+          privateFeedbackId: feedback.id,
         })
       )
     );

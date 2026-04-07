@@ -50,6 +50,7 @@ export interface NotificationData {
   overtimePlanId?: string | null;
   meetingId?: string | null;
   supplyAdjustmentId?: string | null;
+  privateFeedbackId?: string | null;
   isRead: boolean;
   createdAt: Date;
 }
@@ -164,6 +165,7 @@ export class NotificationService {
     overtimePlanId?: string;
     meetingId?: string;
     supplyAdjustmentId?: string;
+    privateFeedbackId?: string;
   }): Promise<NotificationData> {
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
@@ -222,6 +224,7 @@ export class NotificationService {
         overtimePlanId:      data.overtimePlanId      ?? null,
         meetingId:           data.meetingId           ?? null,
         supplyAdjustmentId:  data.supplyAdjustmentId  ?? null,
+        privateFeedbackId:   data.privateFeedbackId   ?? null,
         isRead:              false,
       },
     });
