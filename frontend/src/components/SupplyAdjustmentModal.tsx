@@ -46,11 +46,12 @@ const DON_VI_TINH_OPTIONS = ['kg', 'g', 'lít', 'ml', 'cái', 'hộp', 'thùng',
 interface SupplyAdjustmentModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialId?: string | null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const SupplyAdjustmentModal: React.FC<SupplyAdjustmentModalProps> = ({ isOpen, onClose }) => {
+const SupplyAdjustmentModal: React.FC<SupplyAdjustmentModalProps> = ({ isOpen, onClose, initialId }) => {
   const { user } = useAuth();
   const isManagerOrAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
 
@@ -103,6 +104,14 @@ const SupplyAdjustmentModal: React.FC<SupplyAdjustmentModalProps> = ({ isOpen, o
   }, [tab, currentPage]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  // Khi mở từ notification: tự fetch và hiển thị detail record được chỉ định
+  useEffect(() => {
+    if (!initialId || !isOpen) return;
+    supplyAdjustmentService.getById(initialId)
+      .then(item => { if (item) setSelectedItem(item); })
+      .catch(() => {});
+  }, [initialId, isOpen]);
 
   // Realtime
   useEffect(() => {

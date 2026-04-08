@@ -13,6 +13,7 @@ import OvertimePlanListModal from './OvertimePlanListModal';
 import MeetingModal from './MeetingModal';
 import { meetingService, Meeting } from '../services/meetingService';
 import FeedbackListModal from './FeedbackListModal';
+import SupplyAdjustmentModal from './SupplyAdjustmentModal';
 
 /**
  * Returns a human-readable relative time string in Vietnamese.
@@ -99,6 +100,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
+  const [isSupplyAdjustmentModalOpen, setIsSupplyAdjustmentModalOpen] = useState(false);
+  const [selectedSupplyAdjustmentId, setSelectedSupplyAdjustmentId] = useState<string | null>(null);
 
   // Maximum notifications to show in the dropdown
   const MAX_SHOWN = 50;
@@ -172,6 +175,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     } else if (notification.type === 'PRIVATE_FEEDBACK') {
       setSelectedFeedbackId(notification.privateFeedbackId || null);
       setIsFeedbackModalOpen(true);
+    } else if (['SUPPLY_ADJUSTMENT_CREATED', 'SUPPLY_ADJUSTMENT_APPROVED', 'SUPPLY_ADJUSTMENT_REJECTED'].includes(notification.type)) {
+      setSelectedSupplyAdjustmentId(notification.supplyAdjustmentId || null);
+      setIsSupplyAdjustmentModalOpen(true);
     }
 
     if (onNotificationClick) {
@@ -437,6 +443,13 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         isOpen={isFeedbackModalOpen}
         onClose={() => { setIsFeedbackModalOpen(false); setSelectedFeedbackId(null); }}
         initialFeedbackId={selectedFeedbackId}
+      />
+
+      {/* Supply Adjustment Modal - opened when clicking SUPPLY_ADJUSTMENT_* notification */}
+      <SupplyAdjustmentModal
+        isOpen={isSupplyAdjustmentModalOpen}
+        onClose={() => { setIsSupplyAdjustmentModalOpen(false); setSelectedSupplyAdjustmentId(null); }}
+        initialId={selectedSupplyAdjustmentId}
       />
     </>
   );
