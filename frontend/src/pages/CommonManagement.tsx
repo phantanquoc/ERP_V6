@@ -711,7 +711,7 @@ const CommonManagement = () => {
         </div>
       )}
       {isSupplyAdjustmentOpen && (
-        <SupplyAdjustmentModal onClose={() => setIsSupplyAdjustmentOpen(false)} />
+        <SupplyAdjustmentModal isOpen={isSupplyAdjustmentOpen} onClose={() => setIsSupplyAdjustmentOpen(false)} />
       )}
       </div>
 

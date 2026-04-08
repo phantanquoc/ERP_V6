@@ -18,6 +18,7 @@ import {
   CreateSupplyAdjustmentData,
 } from '../services/supplyAdjustmentService';
 import { formatDate } from '../utils/formatters';
+import Modal from './Modal';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -43,12 +44,13 @@ const DON_VI_TINH_OPTIONS = ['kg', 'g', 'lít', 'ml', 'cái', 'hộp', 'thùng',
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface SupplyAdjustmentModalProps {
+  isOpen: boolean;
   onClose: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const SupplyAdjustmentModal: React.FC<SupplyAdjustmentModalProps> = ({ onClose }) => {
+const SupplyAdjustmentModal: React.FC<SupplyAdjustmentModalProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const isManagerOrAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
 
@@ -182,22 +184,23 @@ const SupplyAdjustmentModal: React.FC<SupplyAdjustmentModalProps> = ({ onClose }
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col bg-gray-50">
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-600 to-purple-700 rounded-t-2xl flex-shrink-0">
         <div className="flex items-center gap-2">
-          <ClipboardList className="h-5 w-5 text-purple-600" />
-          <h2 className="text-lg font-semibold text-gray-800">Điều chỉnh bổ sung vật tư</h2>
+          <ClipboardList className="h-5 w-5 text-white" />
+          <h2 className="text-lg font-semibold text-white">Điều chỉnh bổ sung vật tư</h2>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-white bg-opacity-20 text-white rounded-lg hover:bg-opacity-30 text-sm font-medium transition-colors"
           >
             <Plus className="h-4 w-4" />
             Tạo yêu cầu
           </button>
-          <button onClick={onClose} className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Đóng">
+          <button onClick={onClose} className="p-2 rounded-lg text-white hover:bg-white hover:bg-opacity-20 transition-colors" title="Đóng">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -660,7 +663,8 @@ const SupplyAdjustmentModal: React.FC<SupplyAdjustmentModalProps> = ({ onClose }
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </Modal>
   );
 };
 
