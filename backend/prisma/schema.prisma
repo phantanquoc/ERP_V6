@@ -368,6 +368,7 @@ model Notification {
   privateFeedbackId     String?
   purchaseRequestId     String?
   workPlanId            String?
+  dailyWorkReportId     String?
   isRead                Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt

@@ -21,6 +21,7 @@ export interface Notification {
   privateFeedbackId?: string;
   purchaseRequestId?: string;
   workPlanId?: string;
+  dailyWorkReportId?: string;
   isRead: boolean;
   createdAt: string;
   updatedAt: string;

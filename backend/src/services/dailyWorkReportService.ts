@@ -1,6 +1,8 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { DailyWorkReportStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import notificationService from './notificationService';
 
 export class DailyWorkReportService {
   /**
@@ -190,6 +192,35 @@ export class DailyWorkReportService {
       },
     });
 
+    // Notify supervisor1 khi nhân viên gửi báo cáo (status = SUBMITTED)
+    if (report.status === DailyWorkReportStatus.SUBMITTED) {
+      try {
+        const empUser = await prisma.user.findUnique({
+          where: { id: report.employee.userId },
+          select: { supervisor1Id: true, firstName: true, lastName: true },
+        });
+
+        if (empUser?.supervisor1Id) {
+          const supervisor1Employee = await prisma.employee.findUnique({
+            where: { userId: empUser.supervisor1Id },
+            select: { id: true },
+          });
+
+          if (supervisor1Employee) {
+            const empName = `${report.employee.user?.firstName} ${report.employee.user?.lastName}`;
+            await notificationService.createDailyWorkReportNotification(
+              supervisor1Employee.id,
+              report.id,
+              empName,
+              report.reportDate
+            );
+          }
+        }
+      } catch (error) {
+        logger.error('❌ Error sending daily work report notification:', error);
+      }
+    }
+
     return report;
   }
 
@@ -286,6 +317,28 @@ export class DailyWorkReportService {
         },
       },
     });
+
+    // Notify nhân viên khi cấp trên nhận xét
+    if (status && ['REVIEWED', 'APPROVED', 'REJECTED'].includes(status)) {
+      try {
+        const supervisor = await prisma.user.findUnique({
+          where: { id: supervisorId },
+          select: { firstName: true, lastName: true },
+        });
+        const supervisorName = supervisor
+          ? `${supervisor.firstName} ${supervisor.lastName}`
+          : 'Cấp trên';
+
+        await notificationService.createDailyWorkReportReviewNotification(
+          updatedReport.employeeId,
+          updatedReport.id,
+          supervisorName,
+          status
+        );
+      } catch (error) {
+        logger.error('❌ Error sending daily work report review notification:', error);
+      }
+    }
 
     return updatedReport;
   }

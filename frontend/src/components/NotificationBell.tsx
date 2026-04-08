@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck, CalendarDays, ShoppingCart, Truck } from 'lucide-react';
+import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck, CalendarDays, ShoppingCart, Truck, FileText } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
@@ -17,6 +17,7 @@ import SupplyAdjustmentModal from './SupplyAdjustmentModal';
 import OrderDetailModal from './OrderDetailModal';
 import PurchaseRequestDetailModal from './PurchaseRequestDetailModal';
 import WorkPlanDetailModal from './WorkPlanDetailModal';
+import DailyWorkReportDetailModal from './DailyWorkReportDetailModal';
 
 /**
  * Returns a human-readable relative time string in Vietnamese.
@@ -111,6 +112,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedPurchaseRequestId, setSelectedPurchaseRequestId] = useState<string | null>(null);
   const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState(false);
   const [selectedWorkPlanId, setSelectedWorkPlanId] = useState<string | null>(null);
+  const [isDailyWorkReportModalOpen, setIsDailyWorkReportModalOpen] = useState(false);
+  const [selectedDailyWorkReportId, setSelectedDailyWorkReportId] = useState<string | null>(null);
 
   // Maximum notifications to show in the dropdown
   const MAX_SHOWN = 50;
@@ -196,6 +199,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     } else if (notification.type === 'WORK_PLAN') {
       setSelectedWorkPlanId(notification.workPlanId || null);
       setIsWorkPlanModalOpen(true);
+    } else if (notification.type === 'DAILY_WORK_REPORT') {
+      setSelectedDailyWorkReportId(notification.dailyWorkReportId || null);
+      setIsDailyWorkReportModalOpen(true);
     }
 
     if (onNotificationClick) {
@@ -246,6 +252,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         return <ShoppingCart className="w-4 h-4 text-teal-600" />;
       case 'WORK_PLAN':
         return <ClipboardList className="w-4 h-4 text-violet-600" />;
+      case 'DAILY_WORK_REPORT':
+        return <FileText className="w-4 h-4 text-cyan-600" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }
@@ -488,11 +496,18 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         purchaseRequestId={selectedPurchaseRequestId}
       />
 
-      {/* Work Plan Modal - opened when clicking WORK_PLAN notification */}
+      {/* Work Plan Modal */}
       <WorkPlanDetailModal
         isOpen={isWorkPlanModalOpen}
         onClose={() => { setIsWorkPlanModalOpen(false); setSelectedWorkPlanId(null); }}
         workPlanId={selectedWorkPlanId}
+      />
+
+      {/* Daily Work Report Modal */}
+      <DailyWorkReportDetailModal
+        isOpen={isDailyWorkReportModalOpen}
+        onClose={() => { setIsDailyWorkReportModalOpen(false); setSelectedDailyWorkReportId(null); }}
+        reportId={selectedDailyWorkReportId}
       />
     </>
   );

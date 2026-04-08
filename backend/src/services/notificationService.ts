@@ -53,6 +53,7 @@ export interface NotificationData {
   privateFeedbackId?: string | null;
   purchaseRequestId?: string | null;
   workPlanId?: string | null;
+  dailyWorkReportId?: string | null;
   isRead: boolean;
   createdAt: Date;
 }
@@ -170,6 +171,7 @@ export class NotificationService {
     privateFeedbackId?: string;
     purchaseRequestId?: string;
     workPlanId?: string;
+    dailyWorkReportId?: string;
   }): Promise<NotificationData> {
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
@@ -231,6 +233,7 @@ export class NotificationService {
         privateFeedbackId:   data.privateFeedbackId   ?? null,
         purchaseRequestId:   data.purchaseRequestId   ?? null,
         workPlanId:          data.workPlanId          ?? null,
+        dailyWorkReportId:   data.dailyWorkReportId   ?? null,
         isRead:              false,
       },
     });
@@ -847,6 +850,67 @@ export class NotificationService {
         createdAt: new Date(),
       } as NotificationData);
     }
+  }
+
+  /* ── Daily Work Report ──────────────────────────────────────────────────── */
+
+  /**
+   * Thông báo cho supervisor1 khi nhân viên gửi báo cáo công việc.
+   */
+  async createDailyWorkReportNotification(
+    supervisorEmployeeId: string,
+    reportId: string,
+    employeeName: string,
+    reportDate: Date
+  ): Promise<void> {
+    const dateStr = reportDate.toLocaleDateString('vi-VN');
+    const title   = `Báo cáo công việc mới`;
+    const message = `${employeeName} đã gửi báo cáo công việc ngày ${dateStr}. Vui lòng xem xét.`;
+
+    const notification = await prisma.notification.create({
+      data: {
+        employeeId:       supervisorEmployeeId,
+        type:             NotificationType.DAILY_WORK_REPORT,
+        title,
+        message,
+        dailyWorkReportId: reportId,
+        isRead:           false,
+      },
+    });
+
+    await batchPushAfterCreate(supervisorEmployeeId, notification as unknown as NotificationData);
+  }
+
+  /**
+   * Thông báo cho nhân viên khi cấp trên nhận xét báo cáo.
+   */
+  async createDailyWorkReportReviewNotification(
+    employeeId: string,
+    reportId: string,
+    supervisorName: string,
+    status: string
+  ): Promise<void> {
+    const statusLabel: Record<string, string> = {
+      REVIEWED: 'đã xem',
+      APPROVED: 'đã phê duyệt',
+      REJECTED: 'đã từ chối',
+    };
+    const label   = statusLabel[status] ?? 'đã cập nhật';
+    const title   = `Báo cáo công việc ${label}`;
+    const message = `${supervisorName} ${label} báo cáo công việc của bạn.`;
+
+    const notification = await prisma.notification.create({
+      data: {
+        employeeId,
+        type:              NotificationType.DAILY_WORK_REPORT,
+        title,
+        message,
+        dailyWorkReportId: reportId,
+        isRead:            false,
+      },
+    });
+
+    await batchPushAfterCreate(employeeId, notification as unknown as NotificationData);
   }
 
   /* ── Query ──────────────────────────────────────────────────────────────── */
