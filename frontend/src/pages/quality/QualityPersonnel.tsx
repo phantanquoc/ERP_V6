@@ -250,11 +250,11 @@ const QualityPersonnel = () => {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
-                  <div className="text-xl font-bold text-green-600">{attendances.filter(a => a.checkInTime !== null).length}</div>
+                  <div className="text-xl font-bold text-green-600">{attendances.filter(a => a.checkInTimes && a.checkInTimes.length > 0).length}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đã vào</div>
                 </div>
                 <div className="bg-blue-50 rounded-lg p-2 text-center hover:bg-blue-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
-                  <div className="text-xl font-bold text-blue-600">{attendances.filter(a => a.checkOutTime !== null).length}</div>
+                  <div className="text-xl font-bold text-blue-600">{attendances.filter(a => a.checkOutTimes && a.checkOutTimes.length > 0).length}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đã ra</div>
                 </div>
                 <div className="bg-red-50 rounded-lg p-2 text-center hover:bg-red-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-red-300 cursor-pointer">
