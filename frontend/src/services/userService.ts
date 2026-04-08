@@ -19,6 +19,7 @@ interface CreateUserRequest {
   subDepartmentId?: string | null;
   secondaryDepartmentId?: string | null;
   secondarySubDepartmentId?: string | null;
+  secondaryRole?: string | null;
 }
 
 interface UpdateUserRequest {
@@ -30,6 +31,7 @@ interface UpdateUserRequest {
   subDepartmentId?: string | null;
   secondaryDepartmentId?: string | null;
   secondarySubDepartmentId?: string | null;
+  secondaryRole?: string | null;
 }
 
 interface ChangePasswordRequest {

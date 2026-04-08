@@ -27,6 +27,7 @@ export class UserService {
           subDepartmentId: true,
           secondaryDepartmentId: true,
           secondarySubDepartmentId: true,
+          secondaryRole: true,
           supervisor1Id: true,
           supervisor2Id: true,
         },
@@ -243,6 +244,7 @@ export class UserService {
       subDepartmentId?: string | null;
       secondaryDepartmentId?: string | null;
       secondarySubDepartmentId?: string | null;
+      secondaryRole?: string | null;
       supervisor1Id?: string | null;
       supervisor2Id?: string | null;
     }
@@ -296,6 +298,7 @@ export class UserService {
         ...(data.subDepartmentId !== undefined && { subDepartmentId: data.subDepartmentId }),
         ...(data.secondaryDepartmentId !== undefined && { secondaryDepartmentId: data.secondaryDepartmentId }),
         ...(data.secondarySubDepartmentId !== undefined && { secondarySubDepartmentId: data.secondarySubDepartmentId }),
+        ...(data.secondaryRole !== undefined && { secondaryRole: data.secondaryRole as any }),
         ...(supervisor1Id !== undefined && { supervisor1Id: supervisor1Id }),
         ...(supervisor2Id !== undefined && { supervisor2Id: supervisor2Id }),
       },
@@ -362,6 +365,7 @@ export class UserService {
     subDepartmentId?: string | null;
     secondaryDepartmentId?: string | null;
     secondarySubDepartmentId?: string | null;
+    secondaryRole?: string | null;
     supervisor1Id?: string | null;
     supervisor2Id?: string | null;
   }): Promise<any> {
@@ -412,6 +416,7 @@ export class UserService {
           subDepartmentId: data.subDepartmentId || null,
           secondaryDepartmentId: data.secondaryDepartmentId || null,
           secondarySubDepartmentId: data.secondarySubDepartmentId || null,
+          secondaryRole: (data.secondaryRole as any) || null,
           supervisor1Id: supervisor1Id,
           supervisor2Id: supervisor2Id,
         },
@@ -426,6 +431,7 @@ export class UserService {
           subDepartmentId: true,
           secondaryDepartmentId: true,
           secondarySubDepartmentId: true,
+          secondaryRole: true,
           supervisor1Id: true,
           supervisor2Id: true,
           createdAt: true,

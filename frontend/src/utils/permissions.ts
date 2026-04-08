@@ -132,7 +132,8 @@ export const hasSubModuleAccess = (
   userSubDepartment?: string,
   userRole?: string,
   userSecondaryDepartment?: string,
-  userSecondarySubDepartment?: string
+  userSecondarySubDepartment?: string,
+  userSecondaryRole?: string
 ): boolean => {
   // Admin luôn có quyền truy cập
   if (userDepartment === DEPARTMENTS.ADMIN) return true;
@@ -148,9 +149,15 @@ export const hasSubModuleAccess = (
     }
   }
 
-  // Check secondary department match — chỉ cho truy cập phòng ban phụ được assign
+  // Check secondary department match — dùng secondaryRole thay vì role chính
   if (userSecondaryDepartment === department) {
-    if (userSecondarySubDepartment === subModule) return true;
+    const effectiveRole = userSecondaryRole || UserRole.EMPLOYEE;
+
+    if (effectiveRole === UserRole.MANAGER) return true;
+
+    if (effectiveRole === UserRole.EMPLOYEE) {
+      if (userSecondarySubDepartment === subModule) return true;
+    }
   }
 
   // Mặc định không có quyền

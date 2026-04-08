@@ -26,6 +26,7 @@ export interface User {
   position?: string;
   secondaryDepartment?: string;
   secondarySubDepartment?: string;
+  secondaryRole?: UserRole;
   // Employee specific information
   employeeId?: string;
   employeeCode?: string;

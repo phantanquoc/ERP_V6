@@ -82,6 +82,7 @@ export class AuthService {
         secondaryDepartmentName: null,
         secondarySubDepartmentId: user.secondarySubDepartmentId,
         secondarySubDepartmentName: null,
+        secondaryRole: user.secondaryRole,
       },
       employee: undefined,
     };
@@ -266,6 +267,7 @@ export class AuthService {
         secondaryDepartmentName,
         secondarySubDepartmentId: user.secondarySubDepartmentId,
         secondarySubDepartmentName,
+        secondaryRole: user.secondaryRole,
       },
       employee: employee ? {
         id: employee.id,

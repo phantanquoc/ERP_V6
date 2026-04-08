@@ -204,7 +204,8 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
                             user.subDepartment,
                             user.role,
                             user.secondaryDepartment,
-                            user.secondarySubDepartment
+                            user.secondarySubDepartment,
+                            user.secondaryRole
                           );
                         })
                         .map((subItem: any) => (

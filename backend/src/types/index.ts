@@ -28,6 +28,7 @@ export interface AuthResponse {
     secondaryDepartmentName?: string | null;
     secondarySubDepartmentId?: string | null;
     secondarySubDepartmentName?: string | null;
+    secondaryRole?: string | null;
   };
   employee?: {
     id: string;

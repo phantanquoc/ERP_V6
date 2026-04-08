@@ -36,6 +36,7 @@ interface User {
   secondaryDepartmentName?: string | null;
   secondarySubDepartmentId?: string | null;
   secondarySubDepartmentName?: string | null;
+  secondaryRole?: string | null;
   supervisor1Id?: string | null;
   supervisor2Id?: string | null;
   supervisor1?: {
@@ -62,6 +63,7 @@ interface FormData {
   subDepartmentId?: string;
   secondaryDepartmentId?: string;
   secondarySubDepartmentId?: string;
+  secondaryRole?: string;
 }
 
 interface Department {
@@ -123,6 +125,7 @@ const UserManagement: React.FC = () => {
     subDepartmentId: '',
     secondaryDepartmentId: '',
     secondarySubDepartmentId: '',
+    secondaryRole: '',
   });
 
   // Ref to skip resetting subDepartmentId on initial edit load
@@ -248,6 +251,7 @@ const UserManagement: React.FC = () => {
       subDepartmentId: user.subDepartmentId || '',
       secondaryDepartmentId: user.secondaryDepartmentId || '',
       secondarySubDepartmentId: user.secondarySubDepartmentId || '',
+      secondaryRole: user.secondaryRole || '',
     });
     // Filter sub-departments for edit mode
     if (user.departmentId) {
@@ -304,6 +308,7 @@ const UserManagement: React.FC = () => {
           subDepartmentId: formData.subDepartmentId || null,
           secondaryDepartmentId: formData.secondaryDepartmentId || null,
           secondarySubDepartmentId: formData.secondarySubDepartmentId || null,
+          secondaryRole: formData.secondaryRole || null,
         });
         setSuccess('Cập nhật người dùng thành công');
       } else {
@@ -323,6 +328,7 @@ const UserManagement: React.FC = () => {
           subDepartmentId: formData.subDepartmentId || null,
           secondaryDepartmentId: formData.secondaryDepartmentId || null,
           secondarySubDepartmentId: formData.secondarySubDepartmentId || null,
+          secondaryRole: formData.secondaryRole || null,
         });
 
         // Employee is auto-created by backend for EMPLOYEE role
@@ -453,7 +459,10 @@ const UserManagement: React.FC = () => {
                       {user.email}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {getRoleDisplayName(user.role)}
+                      <div>{getRoleDisplayName(user.role)}</div>
+                      {user.secondaryRole && (
+                        <div className="text-xs text-blue-600 mt-0.5">(Phụ) {getRoleDisplayName(user.secondaryRole)}</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                       <div>{user.departmentName || '-'}</div>
@@ -622,6 +631,10 @@ const UserManagement: React.FC = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận phụ</label>
                     <p className="text-gray-900">{selectedUser.secondaryDepartmentName || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vai trò phụ</label>
+                    <p className="text-gray-900">{selectedUser.secondaryRole ? getRoleDisplayName(selectedUser.secondaryRole) : '-'}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Phòng ban phụ</label>
@@ -808,6 +821,22 @@ const UserManagement: React.FC = () => {
                         {dept.name}
                       </option>
                     ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Vai trò phụ</label>
+                  <select
+                    name="secondaryRole"
+                    value={formData.secondaryRole}
+                    onChange={handleFormChange}
+                    disabled={!formData.secondaryDepartmentId}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  >
+                    <option value="">-- Chọn vai trò phụ --</option>
+                    <option value="EMPLOYEE">Nhân viên</option>
+                    <option value="TEAM_LEAD">Trưởng phòng</option>
+                    <option value="DEPARTMENT_HEAD">Trưởng bộ phận</option>
                   </select>
                 </div>
 

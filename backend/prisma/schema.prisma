@@ -20,6 +20,7 @@ model User {
   subDepartmentId             String?
   secondaryDepartmentId       String?
   secondarySubDepartmentId    String?
+  secondaryRole               UserRole?
   supervisor1Id               String?
   supervisor2Id               String?
   createdAt       DateTime             @default(now())
