@@ -39,7 +39,7 @@ class OrderService {
 
     // Nhân viên bộ phận kinh doanh
     const bizDept = await prisma.department.findFirst({
-      where: { code: 'business' },
+      where: { code: 'DEPT_BUSINESS' },
       select: { id: true, subDepartments: { select: { id: true } } },
     });
 
