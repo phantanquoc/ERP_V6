@@ -5,11 +5,13 @@ import {
   X,
   ClipboardList,
   Package,
-  ShieldCheck
+  ShieldCheck,
+  Wrench
 } from 'lucide-react';
 import ProcessManagement from '../../components/ProcessManagement';
 import OrderManagement from '../../components/OrderManagement';
 import InternalInspectionManagement from '../../components/InternalInspectionManagement';
+import SupplyAdjustmentModal from '../../components/SupplyAdjustmentModal';
 import { processService } from '../../services/processService';
 import { internationalProductService } from '../../services/internationalProductService';
 
@@ -54,7 +56,8 @@ interface Process {
 }
 
 const QualityProcess = () => {
-  const [activeTab, setActiveTab] = useState<'processList' | 'orderList' | 'inspection'>('processList');
+  const [activeTab, setActiveTab] = useState<'processList' | 'orderList' | 'inspection' | 'supplyAdjustment'>('processList');
+  const [isSupplyAdjustmentOpen, setIsSupplyAdjustmentOpen] = useState(false);
 
   // State for Process List
   const [processDetails, setProcessDetails] = useState<ProcessDetail[]>([]);
@@ -294,7 +297,8 @@ const QualityProcess = () => {
   const tabs = [
     { id: 'processList', name: 'Danh sách quy trình', icon: <FileText className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
-    { id: 'inspection', name: 'Kiểm tra nội bộ', icon: <ShieldCheck className="w-4 h-4" /> }
+    { id: 'inspection', name: 'Kiểm tra nội bộ', icon: <ShieldCheck className="w-4 h-4" /> },
+    { id: 'supplyAdjustment', name: 'Điều chỉnh bổ sung', icon: <Wrench className="w-4 h-4" /> },
   ];
 
   return (
@@ -424,7 +428,13 @@ const QualityProcess = () => {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => {
+                    if (tab.id === 'supplyAdjustment') {
+                      setIsSupplyAdjustmentOpen(true);
+                    } else {
+                      setActiveTab(tab.id as any);
+                    }
+                  }}
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
@@ -744,6 +754,11 @@ const QualityProcess = () => {
 
 
       </div>
+
+      {/* Supply Adjustment Modal */}
+      {isSupplyAdjustmentOpen && (
+        <SupplyAdjustmentModal isOpen={isSupplyAdjustmentOpen} onClose={() => setIsSupplyAdjustmentOpen(false)} />
+      )}
     </div>
   );
 };
