@@ -16,10 +16,12 @@ model User {
   lastName        String
   role            UserRole             @default(EMPLOYEE)
   isActive        Boolean              @default(true)
-  departmentId    String?
-  subDepartmentId String?
-  supervisor1Id   String?
-  supervisor2Id   String?
+  departmentId                String?
+  subDepartmentId             String?
+  secondaryDepartmentId       String?
+  secondarySubDepartmentId    String?
+  supervisor1Id               String?
+  supervisor2Id               String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   loginHistory     LoginHistory[]
@@ -200,7 +202,8 @@ model Employee {
   address            String?
   positionId         String?
   positionLevelId    String?
-  subDepartmentId    String?
+  subDepartmentId              String?
+  secondarySubDepartmentId     String?
   status             EmployeeStatus          @default(ACTIVE)
   hireDate           DateTime
   contractType       ContractType            @default(PERMANENT)

@@ -21,13 +21,16 @@ export class AuthController {
 
   async login(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { email, password } = req.body;
+      const { identifier, email, password } = req.body;
+
+      // Support both 'identifier' (new) and 'email' (legacy) field names
+      const loginIdentifier = identifier || email;
 
       // Extract request metadata
       const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '';
       const userAgent = req.headers['user-agent'] || '';
 
-      const result = await authService.login(email, password, {
+      const result = await authService.login(loginIdentifier, password, {
         ipAddress,
         userAgent,
       });

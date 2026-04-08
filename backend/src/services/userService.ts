@@ -25,6 +25,8 @@ export class UserService {
           createdAt: true,
           departmentId: true,
           subDepartmentId: true,
+          secondaryDepartmentId: true,
+          secondarySubDepartmentId: true,
           supervisor1Id: true,
           supervisor2Id: true,
         },
@@ -38,6 +40,8 @@ export class UserService {
       users.map(async (user: any) => {
         let departmentName = null;
         let subDepartmentName = null;
+        let secondaryDepartmentName = null;
+        let secondarySubDepartmentName = null;
         let supervisor1 = null;
         let supervisor2 = null;
 
@@ -55,6 +59,22 @@ export class UserService {
             select: { name: true },
           });
           subDepartmentName = subDept?.name;
+        }
+
+        if (user.secondaryDepartmentId) {
+          const dept2 = await prisma.department.findUnique({
+            where: { id: user.secondaryDepartmentId },
+            select: { name: true },
+          });
+          secondaryDepartmentName = dept2?.name;
+        }
+
+        if (user.secondarySubDepartmentId) {
+          const subDept2 = await prisma.subDepartment.findUnique({
+            where: { id: user.secondarySubDepartmentId },
+            select: { name: true },
+          });
+          secondarySubDepartmentName = subDept2?.name;
         }
 
         if (user.supervisor1Id) {
@@ -77,6 +97,8 @@ export class UserService {
           ...user,
           departmentName,
           subDepartmentName,
+          secondaryDepartmentName,
+          secondarySubDepartmentName,
           supervisor1,
           supervisor2,
         };
@@ -106,6 +128,8 @@ export class UserService {
         updatedAt: true,
         departmentId: true,
         subDepartmentId: true,
+        secondaryDepartmentId: true,
+        secondarySubDepartmentId: true,
         supervisor1Id: true,
         supervisor2Id: true,
         employees: {
@@ -131,6 +155,8 @@ export class UserService {
     // Get department and subdepartment names
     let departmentName = null;
     let subDepartmentName = null;
+    let secondaryDepartmentName = null;
+    let secondarySubDepartmentName = null;
     let supervisor1 = null;
     let supervisor2 = null;
 
@@ -148,6 +174,22 @@ export class UserService {
         select: { name: true },
       });
       subDepartmentName = subDept?.name;
+    }
+
+    if (user.secondaryDepartmentId) {
+      const dept2 = await prisma.department.findUnique({
+        where: { id: user.secondaryDepartmentId },
+        select: { name: true },
+      });
+      secondaryDepartmentName = dept2?.name;
+    }
+
+    if (user.secondarySubDepartmentId) {
+      const subDept2 = await prisma.subDepartment.findUnique({
+        where: { id: user.secondarySubDepartmentId },
+        select: { name: true },
+      });
+      secondarySubDepartmentName = subDept2?.name;
     }
 
     if (user.supervisor1Id) {
@@ -183,6 +225,8 @@ export class UserService {
       shoeSize: employeeData?.shoeSize || null,
       departmentName,
       subDepartmentName,
+      secondaryDepartmentName,
+      secondarySubDepartmentName,
       supervisor1,
       supervisor2,
     };
@@ -197,6 +241,8 @@ export class UserService {
       isActive?: boolean;
       departmentId?: string | null;
       subDepartmentId?: string | null;
+      secondaryDepartmentId?: string | null;
+      secondarySubDepartmentId?: string | null;
       supervisor1Id?: string | null;
       supervisor2Id?: string | null;
     }
@@ -248,6 +294,8 @@ export class UserService {
         ...(data.isActive !== undefined && { isActive: data.isActive }),
         ...(data.departmentId !== undefined && { departmentId: data.departmentId }),
         ...(data.subDepartmentId !== undefined && { subDepartmentId: data.subDepartmentId }),
+        ...(data.secondaryDepartmentId !== undefined && { secondaryDepartmentId: data.secondaryDepartmentId }),
+        ...(data.secondarySubDepartmentId !== undefined && { secondarySubDepartmentId: data.secondarySubDepartmentId }),
         ...(supervisor1Id !== undefined && { supervisor1Id: supervisor1Id }),
         ...(supervisor2Id !== undefined && { supervisor2Id: supervisor2Id }),
       },
@@ -260,6 +308,8 @@ export class UserService {
         isActive: true,
         departmentId: true,
         subDepartmentId: true,
+        secondaryDepartmentId: true,
+        secondarySubDepartmentId: true,
         supervisor1Id: true,
         supervisor2Id: true,
         updatedAt: true,
@@ -310,6 +360,8 @@ export class UserService {
     role: string;
     departmentId?: string | null;
     subDepartmentId?: string | null;
+    secondaryDepartmentId?: string | null;
+    secondarySubDepartmentId?: string | null;
     supervisor1Id?: string | null;
     supervisor2Id?: string | null;
   }): Promise<any> {
@@ -358,6 +410,8 @@ export class UserService {
           isActive: true,
           departmentId: data.departmentId || null,
           subDepartmentId: data.subDepartmentId || null,
+          secondaryDepartmentId: data.secondaryDepartmentId || null,
+          secondarySubDepartmentId: data.secondarySubDepartmentId || null,
           supervisor1Id: supervisor1Id,
           supervisor2Id: supervisor2Id,
         },
@@ -370,6 +424,8 @@ export class UserService {
           isActive: true,
           departmentId: true,
           subDepartmentId: true,
+          secondaryDepartmentId: true,
+          secondarySubDepartmentId: true,
           supervisor1Id: true,
           supervisor2Id: true,
           createdAt: true,

@@ -102,7 +102,8 @@ export const DEPARTMENT_PERMISSIONS: DepartmentPermission[] = [
 export const hasModuleAccess = (
   module: string,
   userRole: UserRole,
-  userDepartment?: string
+  userDepartment?: string,
+  userSecondaryDepartment?: string
 ): boolean => {
   const permission = DEPARTMENT_PERMISSIONS.find(p => p.module === module);
 
@@ -114,8 +115,13 @@ export const hasModuleAccess = (
   // Admin (department = 'admin') luôn có quyền truy cập tất cả
   if (userDepartment === DEPARTMENTS.ADMIN) return true;
 
-  // Kiểm tra xem department của user có trong danh sách được phép không
-  return permission.allowedDepartments.includes(userDepartment);
+  // Kiểm tra xem department chính của user có trong danh sách được phép không
+  if (permission.allowedDepartments.includes(userDepartment)) return true;
+
+  // Kiểm tra secondary department
+  if (userSecondaryDepartment && permission.allowedDepartments.includes(userSecondaryDepartment)) return true;
+
+  return false;
 };
 
 // Kiểm tra quyền truy cập sub-module (trang con trong bộ phận)
@@ -124,20 +130,27 @@ export const hasSubModuleAccess = (
   subModule: string,
   userDepartment?: string,
   userSubDepartment?: string,
-  userRole?: string
+  userRole?: string,
+  userSecondaryDepartment?: string,
+  userSecondarySubDepartment?: string
 ): boolean => {
   // Admin luôn có quyền truy cập
   if (userDepartment === DEPARTMENTS.ADMIN) return true;
 
-  // Phải cùng department
-  if (userDepartment !== department) return false;
+  // Check primary department match
+  if (userDepartment === department) {
+    // MANAGER (Trưởng bộ phận hoặc Trưởng phòng) có thể truy cập tất cả sub-modules trong bộ phận
+    if (userRole === UserRole.MANAGER) return true;
 
-  // MANAGER (Trưởng bộ phận hoặc Trưởng phòng) có thể truy cập tất cả sub-modules trong bộ phận
-  if (userRole === UserRole.MANAGER) return true;
+    // EMPLOYEE chỉ có thể truy cập sub-module của mình
+    if (userRole === UserRole.EMPLOYEE) {
+      if (userSubDepartment === subModule) return true;
+    }
+  }
 
-  // EMPLOYEE chỉ có thể truy cập sub-module của mình
-  if (userRole === UserRole.EMPLOYEE) {
-    return userSubDepartment === subModule;
+  // Check secondary department match — chỉ cho truy cập phòng ban phụ được assign
+  if (userSecondaryDepartment === department) {
+    if (userSecondarySubDepartment === subModule) return true;
   }
 
   // Mặc định không có quyền

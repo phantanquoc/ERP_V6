@@ -78,13 +78,17 @@ export class AuthService {
         departmentName: null,
         subDepartmentId: user.subDepartmentId,
         subDepartmentName: null,
+        secondaryDepartmentId: user.secondaryDepartmentId,
+        secondaryDepartmentName: null,
+        secondarySubDepartmentId: user.secondarySubDepartmentId,
+        secondarySubDepartmentName: null,
       },
       employee: undefined,
     };
   }
 
   async login(
-    email: string,
+    identifier: string,
     password: string,
     metadata?: {
       ipAddress?: string;
@@ -94,13 +98,29 @@ export class AuthService {
     let userId: string | null = null;
 
     try {
-      // Find user
-      const user = await prisma.user.findUnique({
-        where: { email },
-      });
+      // Detect if identifier is email (contains @) or employee code
+      let user;
+      if (identifier.includes('@')) {
+        // Login by email
+        user = await prisma.user.findUnique({
+          where: { email: identifier },
+        });
+      } else {
+        // Login by employee code (case-insensitive)
+        const employee = await prisma.employee.findFirst({
+          where: { employeeCode: identifier.toUpperCase() },
+          select: { userId: true },
+        });
+
+        if (employee) {
+          user = await prisma.user.findUnique({
+            where: { id: employee.userId },
+          });
+        }
+      }
 
       if (!user) {
-        throw new AuthenticationError('Email hoặc mật khẩu không đúng');
+        throw new AuthenticationError('Thông tin đăng nhập không đúng');
       }
 
       userId = user.id;
@@ -108,7 +128,7 @@ export class AuthService {
       // Check password
       const isPasswordValid = await comparePassword(password, user.password);
       if (!isPasswordValid) {
-        throw new AuthenticationError('Email hoặc mật khẩu không đúng');
+        throw new AuthenticationError('Thông tin đăng nhập không đúng');
       }
 
       // Check if user is active
@@ -135,7 +155,7 @@ export class AuthService {
 
     // Continue with successful login flow
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { id: userId! },
     });
 
     if (!user) {
@@ -145,6 +165,8 @@ export class AuthService {
     // Get department and subdepartment names
     let departmentName = null;
     let subDepartmentName = null;
+    let secondaryDepartmentName = null;
+    let secondarySubDepartmentName = null;
 
     if (user.departmentId) {
       const dept = await prisma.department.findUnique({
@@ -160,6 +182,22 @@ export class AuthService {
         select: { name: true, code: true },
       });
       subDepartmentName = subDept?.name;
+    }
+
+    if (user.secondaryDepartmentId) {
+      const dept2 = await prisma.department.findUnique({
+        where: { id: user.secondaryDepartmentId },
+        select: { name: true, code: true },
+      });
+      secondaryDepartmentName = dept2?.name;
+    }
+
+    if (user.secondarySubDepartmentId) {
+      const subDept2 = await prisma.subDepartment.findUnique({
+        where: { id: user.secondarySubDepartmentId },
+        select: { name: true, code: true },
+      });
+      secondarySubDepartmentName = subDept2?.name;
     }
 
     // Get employee data if exists
@@ -224,6 +262,10 @@ export class AuthService {
         departmentName,
         subDepartmentId: user.subDepartmentId,
         subDepartmentName,
+        secondaryDepartmentId: user.secondaryDepartmentId,
+        secondaryDepartmentName,
+        secondarySubDepartmentId: user.secondarySubDepartmentId,
+        secondarySubDepartmentName,
       },
       employee: employee ? {
         id: employee.id,

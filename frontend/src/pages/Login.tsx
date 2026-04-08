@@ -23,7 +23,7 @@ const Login: React.FC = () => {
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
+      identifier: '',
       password: ''
     }
   });
@@ -33,7 +33,7 @@ const Login: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await login(data);
+      await login({ identifier: data.identifier, password: data.password });
       navigate('/dashboard');
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Đăng nhập thất bại');
@@ -72,15 +72,15 @@ const Login: React.FC = () => {
                     Tên đăng nhập
                   </label>
                   <input
-                    type="email"
-                    {...register('email')}
+                    type="text"
+                    {...register('identifier')}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.email ? 'border-red-500' : 'border-gray-300'
+                      errors.identifier ? 'border-red-500' : 'border-gray-300'
                     }`}
-                    placeholder="Nhập email của bạn"
+                    placeholder="Email hoặc mã nhân viên (VD: NV001)"
                   />
-                  {errors.email && (
-                    <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                  {errors.identifier && (
+                    <p className="mt-1 text-sm text-red-600">{errors.identifier.message}</p>
                   )}
                 </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Users,
   Plus,
@@ -32,6 +32,10 @@ interface User {
   departmentName?: string;
   subDepartmentId?: string | null;
   subDepartmentName?: string | null;
+  secondaryDepartmentId?: string | null;
+  secondaryDepartmentName?: string | null;
+  secondarySubDepartmentId?: string | null;
+  secondarySubDepartmentName?: string | null;
   supervisor1Id?: string | null;
   supervisor2Id?: string | null;
   supervisor1?: {
@@ -56,6 +60,8 @@ interface FormData {
   password?: string;
   departmentId?: string;
   subDepartmentId?: string;
+  secondaryDepartmentId?: string;
+  secondarySubDepartmentId?: string;
 }
 
 interface Department {
@@ -97,6 +103,7 @@ const UserManagement: React.FC = () => {
   // Department states
   const [subDepartments, setSubDepartments] = useState<SubDepartment[]>([]);
   const [filteredSubDepartments, setFilteredSubDepartments] = useState<SubDepartment[]>([]);
+  const [filteredSecondarySubDepartments, setFilteredSecondarySubDepartments] = useState<SubDepartment[]>([]);
 
   // Modal states
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -114,7 +121,13 @@ const UserManagement: React.FC = () => {
     password: '',
     departmentId: '',
     subDepartmentId: '',
+    secondaryDepartmentId: '',
+    secondarySubDepartmentId: '',
   });
+
+  // Ref to skip resetting subDepartmentId on initial edit load
+  const skipSubDeptResetRef = useRef(false);
+  const skipSecondarySubDeptResetRef = useRef(false);
 
   // Fetch subDepartments on mount
   useEffect(() => {
@@ -128,12 +141,34 @@ const UserManagement: React.FC = () => {
         (sub) => sub.departmentId === formData.departmentId
       );
       setFilteredSubDepartments(filtered);
-      // Reset subDepartmentId when department changes
-      setFormData((prev) => ({ ...prev, subDepartmentId: '' }));
+      // Skip reset on initial edit load
+      if (skipSubDeptResetRef.current) {
+        skipSubDeptResetRef.current = false;
+      } else {
+        setFormData((prev) => ({ ...prev, subDepartmentId: '' }));
+      }
     } else {
       setFilteredSubDepartments([]);
     }
   }, [formData.departmentId, subDepartments]);
+
+  // Filter secondary sub-departments when secondary department changes
+  useEffect(() => {
+    if (formData.secondaryDepartmentId) {
+      const filtered = subDepartments.filter(
+        (sub) => sub.departmentId === formData.secondaryDepartmentId
+      );
+      setFilteredSecondarySubDepartments(filtered);
+      // Skip reset on initial edit load
+      if (skipSecondarySubDeptResetRef.current) {
+        skipSecondarySubDeptResetRef.current = false;
+      } else {
+        setFormData((prev) => ({ ...prev, secondarySubDepartmentId: '' }));
+      }
+    } else {
+      setFilteredSecondarySubDepartments([]);
+    }
+  }, [formData.secondaryDepartmentId, subDepartments]);
 
   const fetchSubDepartments = async () => {
     try {
@@ -190,14 +225,20 @@ const UserManagement: React.FC = () => {
       password: '',
       departmentId: '',
       subDepartmentId: '',
+      secondaryDepartmentId: '',
+      secondarySubDepartmentId: '',
     });
     setFilteredSubDepartments([]);
+    setFilteredSecondarySubDepartments([]);
     setIsFormModalOpen(true);
   };
 
   const openEditModal = (user: User) => {
     setIsEditMode(true);
     setSelectedUser(user);
+    // Set refs to skip reset on initial form load
+    skipSubDeptResetRef.current = true;
+    skipSecondarySubDeptResetRef.current = true;
     setFormData({
       email: user.email,
       firstName: user.firstName,
@@ -205,6 +246,8 @@ const UserManagement: React.FC = () => {
       role: user.role,
       departmentId: user.departmentId || '',
       subDepartmentId: user.subDepartmentId || '',
+      secondaryDepartmentId: user.secondaryDepartmentId || '',
+      secondarySubDepartmentId: user.secondarySubDepartmentId || '',
     });
     // Filter sub-departments for edit mode
     if (user.departmentId) {
@@ -212,6 +255,12 @@ const UserManagement: React.FC = () => {
         (sub) => sub.departmentId === user.departmentId
       );
       setFilteredSubDepartments(filtered);
+    }
+    if (user.secondaryDepartmentId) {
+      const filtered = subDepartments.filter(
+        (sub) => sub.departmentId === user.secondaryDepartmentId
+      );
+      setFilteredSecondarySubDepartments(filtered);
     }
     setIsFormModalOpen(true);
   };
@@ -226,8 +275,11 @@ const UserManagement: React.FC = () => {
       password: '',
       departmentId: '',
       subDepartmentId: '',
+      secondaryDepartmentId: '',
+      secondarySubDepartmentId: '',
     });
     setFilteredSubDepartments([]);
+    setFilteredSecondarySubDepartments([]);
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -250,6 +302,8 @@ const UserManagement: React.FC = () => {
           role: formData.role,
           departmentId: formData.departmentId || null,
           subDepartmentId: formData.subDepartmentId || null,
+          secondaryDepartmentId: formData.secondaryDepartmentId || null,
+          secondarySubDepartmentId: formData.secondarySubDepartmentId || null,
         });
         setSuccess('Cập nhật người dùng thành công');
       } else {
@@ -267,6 +321,8 @@ const UserManagement: React.FC = () => {
           password: formData.password,
           departmentId: formData.departmentId || null,
           subDepartmentId: formData.subDepartmentId || null,
+          secondaryDepartmentId: formData.secondaryDepartmentId || null,
+          secondarySubDepartmentId: formData.secondarySubDepartmentId || null,
         });
 
         // Employee is auto-created by backend for EMPLOYEE role
@@ -377,7 +433,7 @@ const UserManagement: React.FC = () => {
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Email</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vai trò</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Phòng ban</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
@@ -400,10 +456,16 @@ const UserManagement: React.FC = () => {
                       {getRoleDisplayName(user.role)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {user.departmentName || '-'}
+                      <div>{user.departmentName || '-'}</div>
+                      {user.secondaryDepartmentName && (
+                        <div className="text-xs text-blue-600 mt-0.5">(Phụ) {user.secondaryDepartmentName}</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {user.subDepartmentName || '-'}
+                      <div>{user.subDepartmentName || '-'}</div>
+                      {user.secondarySubDepartmentName && (
+                        <div className="text-xs text-blue-600 mt-0.5">(Phụ) {user.secondarySubDepartmentName}</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-center border-r border-gray-200">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
@@ -555,6 +617,21 @@ const UserManagement: React.FC = () => {
 
               {/* Supervisor Info Section */}
               <div className="mt-6 pt-6 border-t border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Thông tin bộ phận phụ</h3>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận phụ</label>
+                    <p className="text-gray-900">{selectedUser.secondaryDepartmentName || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phòng ban phụ</label>
+                    <p className="text-gray-900">{selectedUser.secondarySubDepartmentName || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Supervisor Info Section */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Thông tin cấp trên</h3>
                 <div className="grid grid-cols-2 gap-6">
                   <div>
@@ -700,7 +777,7 @@ const UserManagement: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phòng ban</label>
                   <select
                     name="subDepartmentId"
                     value={formData.subDepartmentId}
@@ -708,8 +785,43 @@ const UserManagement: React.FC = () => {
                     disabled={!formData.departmentId}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                   >
-                    <option value="">-- Chọn bộ phận --</option>
+                    <option value="">-- Chọn phòng ban --</option>
                     {filteredSubDepartments.map((subDept) => (
+                      <option key={subDept.id} value={subDept.id}>
+                        {subDept.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận phụ</label>
+                  <select
+                    name="secondaryDepartmentId"
+                    value={formData.secondaryDepartmentId}
+                    onChange={handleFormChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Chọn bộ phận phụ --</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phòng ban phụ</label>
+                  <select
+                    name="secondarySubDepartmentId"
+                    value={formData.secondarySubDepartmentId}
+                    onChange={handleFormChange}
+                    disabled={!formData.secondaryDepartmentId}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  >
+                    <option value="">-- Chọn phòng ban phụ --</option>
+                    {filteredSecondarySubDepartments.map((subDept) => (
                       <option key={subDept.id} value={subDept.id}>
                         {subDept.name}
                       </option>

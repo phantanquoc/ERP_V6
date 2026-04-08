@@ -123,7 +123,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
   // Filter menu items based on department permissions
   const menuItems = allMenuItems.filter(item => {
     if (!user) return false;
-    return hasModuleAccess(item.module, user.role, user.department);
+    return hasModuleAccess(item.module, user.role, user.department, user.secondaryDepartment);
   });
 
   return (
@@ -202,7 +202,9 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
                             subItem.subModule,
                             user.department,
                             user.subDepartment,
-                            user.role
+                            user.role,
+                            user.secondaryDepartment,
+                            user.secondarySubDepartment
                           );
                         })
                         .map((subItem: any) => (
