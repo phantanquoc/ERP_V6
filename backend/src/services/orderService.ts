@@ -1,15 +1,81 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
-import { TaxReportStatus } from '@prisma/client';
+import { TaxReportStatus, UserRole } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import ExcelJS from 'exceljs';
 import notificationService from './notificationService';
 import { broadcast } from './websocket';
 
 class OrderService {
+  /**
+   * Lấy tên đầy đủ của user theo userId.
+   * Trả về 'Hệ thống' nếu không tìm thấy.
+   */
+  private async getUserDisplayName(userId?: string): Promise<string> {
+    if (!userId) return 'Hệ thống';
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { firstName: true, lastName: true },
+    });
+    return user ? `${user.firstName} ${user.lastName}` : 'Hệ thống';
+  }
+
+  /**
+   * Lấy employeeIds cần nhận notification khi có thay đổi đơn hàng:
+   *   - Tất cả admin
+   *   - Nhân viên trong bộ phận kinh doanh (department.code = 'business')
+   *   - Employee được assign trên đơn hàng
+   * Loại trừ người thực hiện thay đổi (actorUserId).
+   */
+  private async getOrderNotifyEmployeeIds(
+    assignedEmployeeId: string | null,
+    actorUserId?: string
+  ): Promise<string[]> {
+    // Admin users
+    const adminUsers = await prisma.user.findMany({
+      where: { role: UserRole.ADMIN, isActive: true },
+      select: { id: true, employees: { select: { id: true } } },
+    });
+
+    // Nhân viên bộ phận kinh doanh
+    const bizDept = await prisma.department.findFirst({
+      where: { code: 'business' },
+      select: { id: true, subDepartments: { select: { id: true } } },
+    });
+
+    const bizSubDeptIds = bizDept?.subDepartments.map(s => s.id) ?? [];
+
+    const bizEmployees = bizSubDeptIds.length > 0
+      ? await prisma.employee.findMany({
+          where: { subDepartmentId: { in: bizSubDeptIds }, status: 'ACTIVE' },
+          select: { id: true, userId: true },
+        })
+      : [];
+
+    const idSet = new Set<string>();
+
+    for (const u of adminUsers) {
+      if (u.employees?.id) idSet.add(u.employees.id);
+    }
+    for (const e of bizEmployees) {
+      idSet.add(e.id);
+    }
+    if (assignedEmployeeId) idSet.add(assignedEmployeeId);
+
+    // Loại trừ người thực hiện
+    if (actorUserId) {
+      const actorEmployee = await prisma.employee.findUnique({
+        where: { userId: actorUserId },
+        select: { id: true },
+      });
+      if (actorEmployee) idSet.delete(actorEmployee.id);
+    }
+
+    return [...idSet];
+  }
+
   // Generate order code
-  async generateOrderCode(): Promise<string> {
-    const lastOrder = await prisma.order.findFirst({
+  async generateOrderCode(): Promise<string> {    const lastOrder = await prisma.order.findFirst({
       orderBy: { maDonHang: 'desc' },
       select: { maDonHang: true },
     });
@@ -24,7 +90,7 @@ class OrderService {
   }
 
   // Create order from quotation
-  async createOrderFromQuotation(quotationId: string, fileDinhKem?: string) {
+  async createOrderFromQuotation(quotationId: string, fileDinhKem?: string, actorUserId?: string) {
     // Check if quotation exists
     const quotation = await prisma.quotation.findUnique({
       where: { id: quotationId },
@@ -115,6 +181,26 @@ class OrderService {
 
     // Broadcast so all connected clients refresh their order lists
     broadcast({ type: 'ORDER_CHANGED' });
+
+    // Notify admin + bộ phận kinh doanh về đơn hàng mới
+    try {
+      const actorName = await this.getUserDisplayName(actorUserId);
+      const employeeIds = await this.getOrderNotifyEmployeeIds(
+        order.employeeId ?? null,
+        actorUserId
+      );
+      if (employeeIds.length > 0) {
+        await notificationService.createOrderNotifications(
+          employeeIds,
+          order.id,
+          order.maDonHang,
+          'Đơn hàng mới được tạo',
+          actorName
+        );
+      }
+    } catch (error) {
+      logger.error('❌ Error sending new order notifications:', error);
+    }
 
     return order;
   }
@@ -217,7 +303,7 @@ class OrderService {
   }
 
   // Update order
-  async updateOrder(id: string, data: any) {
+  async updateOrder(id: string, data: any, actorUserId?: string) {
     const order = await prisma.order.findUnique({
       where: { id },
     });
@@ -251,61 +337,46 @@ class OrderService {
       },
     });
 
-    // Notify relevant users on production or payment status changes
+    // Notify khi trạng thái sản xuất thay đổi
     if (data.trangThaiSanXuat && data.trangThaiSanXuat !== order.trangThaiSanXuat) {
       try {
-        // Notify the assigned employee
-        if (updatedOrder.employeeId) {
-          const employee = await prisma.employee.findUnique({
-            where: { id: updatedOrder.employeeId },
-            select: { id: true, userId: true },
-          });
-          if (employee?.userId) {
-            const user = await prisma.user.findUnique({
-              where: { id: employee.userId },
-              select: { firstName: true, lastName: true },
-            });
-            const updatedByName = user ? `${user.firstName} ${user.lastName}` : 'Hệ thống';
-            await notificationService.createOrderNotifications(
-              [employee.id],
-              updatedOrder.id,
-              updatedOrder.maDonHang,
-              data.trangThaiSanXuat,
-              updatedByName
-            );
-          }
+        const actorName = await this.getUserDisplayName(actorUserId);
+        const employeeIds = await this.getOrderNotifyEmployeeIds(
+          updatedOrder.employeeId ?? null,
+          actorUserId
+        );
+        if (employeeIds.length > 0) {
+          await notificationService.createOrderNotifications(
+            employeeIds,
+            updatedOrder.id,
+            updatedOrder.maDonHang,
+            data.trangThaiSanXuat,
+            actorName
+          );
         }
-        // Broadcast so all connected clients refresh their order lists
         broadcast({ type: 'ORDER_CHANGED' });
       } catch (error) {
         logger.error('❌ Error sending order production status notification:', error);
       }
     }
 
+    // Notify khi trạng thái thanh toán thay đổi
     if (data.trangThaiThanhToan && data.trangThaiThanhToan !== order.trangThaiThanhToan) {
       try {
-        // Notify the assigned employee
-        if (updatedOrder.employeeId) {
-          const employee = await prisma.employee.findUnique({
-            where: { id: updatedOrder.employeeId },
-            select: { id: true, userId: true },
-          });
-          if (employee?.userId) {
-            const user = await prisma.user.findUnique({
-              where: { id: employee.userId },
-              select: { firstName: true, lastName: true },
-            });
-            const updatedByName = user ? `${user.firstName} ${user.lastName}` : 'Hệ thống';
-            await notificationService.createOrderNotifications(
-              [employee.id],
-              updatedOrder.id,
-              updatedOrder.maDonHang,
-              data.trangThaiThanhToan,
-              updatedByName
-            );
-          }
+        const actorName = await this.getUserDisplayName(actorUserId);
+        const employeeIds = await this.getOrderNotifyEmployeeIds(
+          updatedOrder.employeeId ?? null,
+          actorUserId
+        );
+        if (employeeIds.length > 0) {
+          await notificationService.createOrderNotifications(
+            employeeIds,
+            updatedOrder.id,
+            updatedOrder.maDonHang,
+            data.trangThaiThanhToan,
+            actorName
+          );
         }
-        // Broadcast so all connected clients refresh their order lists
         broadcast({ type: 'ORDER_CHANGED' });
       } catch (error) {
         logger.error('❌ Error sending order payment status notification:', error);

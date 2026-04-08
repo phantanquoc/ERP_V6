@@ -40,7 +40,7 @@ class OrderController {
         fileDinhKem = getFileUrl('orders', req.file.filename);
       }
 
-      const order = await orderService.createOrderFromQuotation(quotationId, fileDinhKem);
+      const order = await orderService.createOrderFromQuotation(quotationId, fileDinhKem, req.user?.id);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -105,7 +105,7 @@ class OrderController {
         data.fileDinhKem = getFileUrl('orders', req.file.filename);
       }
 
-      const order = await orderService.updateOrder(id, data);
+      const order = await orderService.updateOrder(id, data, req.user?.id);
 
       const response: ApiResponse<any> = {
         success: true,
