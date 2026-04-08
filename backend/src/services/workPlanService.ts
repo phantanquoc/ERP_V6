@@ -1,6 +1,7 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
-import { WorkPlanStatus, TaskPriority } from '@prisma/client';
+import { WorkPlanStatus, TaskPriority, UserRole } from '@prisma/client';
+import notificationService from './notificationService';
 
 class WorkPlanService {
   // Helper function to populate work plan with user information
@@ -86,6 +87,39 @@ class WorkPlanService {
         files: files || [],
       },
     });
+
+    // Notify admin + người thực hiện về kế hoạch mới
+    try {
+      const creatorName = `${nguoiTao.firstName} ${nguoiTao.lastName}`;
+
+      // Admin employees (loại trừ người tạo nếu là admin)
+      const adminUsers = await prisma.user.findMany({
+        where: { role: UserRole.ADMIN, isActive: true, id: { not: nguoiTaoId } },
+        select: { employees: { select: { id: true } } },
+      });
+      const adminEmployeeIds = adminUsers
+        .map((u) => u.employees?.id)
+        .filter((id): id is string => !!id);
+
+      // Người thực hiện (employee IDs), loại trừ người tạo
+      const creatorEmployee = await prisma.employee.findUnique({
+        where: { userId: nguoiTaoId },
+        select: { id: true },
+      });
+      const assigneeEmployeeIds = nguoiThucHienIds.filter(
+        (id) => id !== creatorEmployee?.id
+      );
+
+      await notificationService.createWorkPlanNotifications(
+        adminEmployeeIds,
+        assigneeEmployeeIds,
+        workPlan.id,
+        workPlan.tieuDe,
+        creatorName
+      );
+    } catch (error) {
+      logger.error('❌ Error sending work plan notifications:', error);
+    }
 
     return workPlan;
   }

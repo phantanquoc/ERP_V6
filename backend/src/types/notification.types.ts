@@ -29,6 +29,7 @@ export const NotificationType = {
   SUPPLY_ADJUSTMENT_REJECTED: 'SUPPLY_ADJUSTMENT_REJECTED',
   PRIVATE_FEEDBACK: 'PRIVATE_FEEDBACK',
   PURCHASE_REQUEST: 'PURCHASE_REQUEST',
+  WORK_PLAN: 'WORK_PLAN',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];

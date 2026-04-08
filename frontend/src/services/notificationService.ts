@@ -20,6 +20,7 @@ export interface Notification {
   supplyAdjustmentId?: string;
   privateFeedbackId?: string;
   purchaseRequestId?: string;
+  workPlanId?: string;
   isRead: boolean;
   createdAt: string;
   updatedAt: string;

@@ -52,6 +52,7 @@ export interface NotificationData {
   supplyAdjustmentId?: string | null;
   privateFeedbackId?: string | null;
   purchaseRequestId?: string | null;
+  workPlanId?: string | null;
   isRead: boolean;
   createdAt: Date;
 }
@@ -167,6 +168,8 @@ export class NotificationService {
     meetingId?: string;
     supplyAdjustmentId?: string;
     privateFeedbackId?: string;
+    purchaseRequestId?: string;
+    workPlanId?: string;
   }): Promise<NotificationData> {
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
@@ -226,6 +229,8 @@ export class NotificationService {
         meetingId:           data.meetingId           ?? null,
         supplyAdjustmentId:  data.supplyAdjustmentId  ?? null,
         privateFeedbackId:   data.privateFeedbackId   ?? null,
+        purchaseRequestId:   data.purchaseRequestId   ?? null,
+        workPlanId:          data.workPlanId          ?? null,
         isRead:              false,
       },
     });
@@ -658,7 +663,7 @@ export class NotificationService {
         purchaseRequestId,
         isRead: false,
         createdAt: new Date(),
-      });
+      } as NotificationData);
     }
   }
 
@@ -696,7 +701,7 @@ export class NotificationService {
       },
     });
 
-    await batchPushAfterCreate(employeeId, notification);
+    await batchPushAfterCreate(employeeId, notification as unknown as NotificationData);
   }
 
   /* ── Warehouse Receipt ───────────────────────────────────────────────────── */
@@ -790,6 +795,58 @@ export class NotificationService {
     await prisma.notification.delete({
       where: { id: notificationId },
     });
+  }
+
+  /* ── Work Plan ──────────────────────────────────────────────────────────── */
+
+  /**
+   * Thông báo cho admin + người thực hiện khi có kế hoạch công việc mới.
+   * @param adminEmployeeIds - employeeId của tất cả admin
+   * @param assigneeEmployeeIds - employeeId của người thực hiện (trừ người tạo)
+   * @param workPlanId - ID kế hoạch công việc
+   * @param tieuDe - Tiêu đề kế hoạch
+   * @param creatorName - Tên người tạo
+   */
+  async createWorkPlanNotifications(
+    adminEmployeeIds: string[],
+    assigneeEmployeeIds: string[],
+    workPlanId: string,
+    tieuDe: string,
+    creatorName: string
+  ): Promise<void> {
+    const allRecipients = Array.from(new Set([...adminEmployeeIds, ...assigneeEmployeeIds]));
+    if (allRecipients.length === 0) return;
+
+    // Build notification per recipient: admin gets "Kế hoạch mới cần theo dõi", assignee gets "Bạn được giao thực hiện"
+    const adminSet = new Set(adminEmployeeIds);
+    const assigneeSet = new Set(assigneeEmployeeIds);
+
+    const rows = allRecipients.map((employeeId) => {
+      const isAssignee = assigneeSet.has(employeeId);
+      const isAdmin    = adminSet.has(employeeId);
+      const title   = isAssignee ? `Kế hoạch mới: ${tieuDe}` : `Kế hoạch công việc mới`;
+      const message = isAssignee
+        ? `${creatorName} đã giao cho bạn thực hiện kế hoạch "${tieuDe}".`
+        : isAdmin
+          ? `${creatorName} đã tạo kế hoạch công việc mới: "${tieuDe}". Vui lòng theo dõi tiến độ.`
+          : `${creatorName} đã tạo kế hoạch công việc mới: "${tieuDe}".`;
+      return { employeeId, type: NotificationType.WORK_PLAN, title, message, workPlanId, isRead: false };
+    });
+
+    await prisma.notification.createMany({ data: rows });
+
+    for (const row of rows) {
+      await batchPushAfterCreate(row.employeeId, {
+        id: '',
+        employeeId: row.employeeId,
+        type:    row.type,
+        title:   row.title,
+        message: row.message,
+        workPlanId,
+        isRead:  false,
+        createdAt: new Date(),
+      } as NotificationData);
+    }
   }
 
   /* ── Query ──────────────────────────────────────────────────────────────── */
