@@ -74,6 +74,25 @@ class OrderService {
     return [...idSet];
   }
 
+  /**
+   * Map enum value sang tiếng Việt để hiển thị trong notification message.
+   */
+  private formatStatusLabel(status: string): string {
+    const map: Record<string, string> = {
+      CHO_LEN_KE_HOACH:       'Chờ lên kế hoạch',
+      CHO_SAN_XUAT:           'Chờ sản xuất',
+      DANG_SAN_XUAT:          'Đang sản xuất',
+      CHO_GIAO_HANG:          'Chờ giao hàng',
+      DA_LEN_CONTAINER:       'Đã lên container',
+      DANG_VAN_CHUYEN:        'Đang vận chuyển',
+      DA_GIAO_CHO_KHACH_HANG: 'Đã giao cho khách hàng',
+      DA_THANH_TOAN_DOT_1:    'Đã thanh toán đợt 1',
+      CHO_THANH_TOAN_DOT_2:   'Chờ thanh toán đợt 2',
+      DA_THANH_TOAN_DU:       'Đã thanh toán đủ',
+    };
+    return map[status] ?? status;
+  }
+
   // Generate order code
   async generateOrderCode(): Promise<string> {    const lastOrder = await prisma.order.findFirst({
       orderBy: { maDonHang: 'desc' },
@@ -350,7 +369,7 @@ class OrderService {
             employeeIds,
             updatedOrder.id,
             updatedOrder.maDonHang,
-            data.trangThaiSanXuat,
+            this.formatStatusLabel(data.trangThaiSanXuat),
             actorName
           );
         }
@@ -373,7 +392,7 @@ class OrderService {
             employeeIds,
             updatedOrder.id,
             updatedOrder.maDonHang,
-            data.trangThaiThanhToan,
+            this.formatStatusLabel(data.trangThaiThanhToan),
             actorName
           );
         }

@@ -14,6 +14,7 @@ import MeetingModal from './MeetingModal';
 import { meetingService, Meeting } from '../services/meetingService';
 import FeedbackListModal from './FeedbackListModal';
 import SupplyAdjustmentModal from './SupplyAdjustmentModal';
+import OrderDetailModal from './OrderDetailModal';
 
 /**
  * Returns a human-readable relative time string in Vietnamese.
@@ -102,6 +103,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
   const [isSupplyAdjustmentModalOpen, setIsSupplyAdjustmentModalOpen] = useState(false);
   const [selectedSupplyAdjustmentId, setSelectedSupplyAdjustmentId] = useState<string | null>(null);
+  const [isOrderDetailModalOpen, setIsOrderDetailModalOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   // Maximum notifications to show in the dropdown
   const MAX_SHOWN = 50;
@@ -178,6 +181,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     } else if (['SUPPLY_ADJUSTMENT_CREATED', 'SUPPLY_ADJUSTMENT_APPROVED', 'SUPPLY_ADJUSTMENT_REJECTED'].includes(notification.type)) {
       setSelectedSupplyAdjustmentId(notification.supplyAdjustmentId || null);
       setIsSupplyAdjustmentModalOpen(true);
+    } else if (notification.type === 'ORDER') {
+      setSelectedOrderId(notification.orderId || null);
+      setIsOrderDetailModalOpen(true);
     }
 
     if (onNotificationClick) {
@@ -450,6 +456,13 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         isOpen={isSupplyAdjustmentModalOpen}
         onClose={() => { setIsSupplyAdjustmentModalOpen(false); setSelectedSupplyAdjustmentId(null); }}
         initialId={selectedSupplyAdjustmentId}
+      />
+
+      {/* Order Detail Modal - opened when clicking ORDER notification */}
+      <OrderDetailModal
+        isOpen={isOrderDetailModalOpen}
+        onClose={() => { setIsOrderDetailModalOpen(false); setSelectedOrderId(null); }}
+        orderId={selectedOrderId}
       />
     </>
   );
