@@ -51,6 +51,7 @@ export interface NotificationData {
   meetingId?: string | null;
   supplyAdjustmentId?: string | null;
   privateFeedbackId?: string | null;
+  purchaseRequestId?: string | null;
   isRead: boolean;
   createdAt: Date;
 }
@@ -612,6 +613,90 @@ export class NotificationService {
 
     await batchPushAfterCreate(employeeId, notification);
     return notification;
+  }
+
+  /* ── Purchase Request ───────────────────────────────────────────────────── */
+
+  /**
+   * Thông báo cho admin khi có yêu cầu mua hàng mới.
+   * @param adminEmployeeIds - Danh sách employeeId của admin
+   * @param purchaseRequestId - ID yêu cầu mua hàng
+   * @param maYeuCau - Mã yêu cầu mua hàng
+   * @param tenNhanVien - Tên nhân viên tạo yêu cầu
+   * @param tenHangHoa - Tên hàng hóa
+   */
+  async createPurchaseRequestNotifications(
+    adminEmployeeIds: string[],
+    purchaseRequestId: string,
+    maYeuCau: string,
+    tenNhanVien: string,
+    tenHangHoa: string
+  ): Promise<void> {
+    if (adminEmployeeIds.length === 0) return;
+
+    const title = `Yêu cầu mua hàng mới: ${maYeuCau}`;
+    const message = `${tenNhanVien} đã gửi yêu cầu mua hàng ${maYeuCau} (${tenHangHoa}). Vui lòng xem xét và phê duyệt.`;
+
+    await prisma.notification.createMany({
+      data: adminEmployeeIds.map((employeeId) => ({
+        employeeId,
+        type: NotificationType.PURCHASE_REQUEST,
+        title,
+        message,
+        purchaseRequestId,
+        isRead: false,
+      })),
+    });
+
+    for (const empId of adminEmployeeIds) {
+      await batchPushAfterCreate(empId, {
+        id: '',
+        employeeId: empId,
+        type: NotificationType.PURCHASE_REQUEST,
+        title,
+        message,
+        purchaseRequestId,
+        isRead: false,
+        createdAt: new Date(),
+      });
+    }
+  }
+
+  /**
+   * Thông báo cho nhân viên khi yêu cầu mua hàng được duyệt hoặc từ chối.
+   * @param employeeId - employeeId của người tạo yêu cầu
+   * @param purchaseRequestId - ID yêu cầu mua hàng
+   * @param maYeuCau - Mã yêu cầu mua hàng
+   * @param trangThai - Trạng thái mới (APPROVED / REJECTED)
+   * @param nguoiDuyet - Tên người duyệt
+   */
+  async createPurchaseRequestResponseNotification(
+    employeeId: string,
+    purchaseRequestId: string,
+    maYeuCau: string,
+    trangThai: string,
+    nguoiDuyet: string
+  ): Promise<void> {
+    const isApproved = trangThai === 'APPROVED';
+    const title = isApproved
+      ? `Yêu cầu mua hàng ${maYeuCau} đã được duyệt`
+      : `Yêu cầu mua hàng ${maYeuCau} bị từ chối`;
+    const message = isApproved
+      ? `${nguoiDuyet} đã phê duyệt yêu cầu mua hàng ${maYeuCau} của bạn.`
+      : `${nguoiDuyet} đã từ chối yêu cầu mua hàng ${maYeuCau} của bạn.`;
+
+    const notification = await prisma.notification.create({
+      data: {
+        employeeId,
+        type: NotificationType.PURCHASE_REQUEST,
+        title,
+        message,
+        purchaseRequestId,
+        isRead: false,
+      },
+    });
+
+    await batchPushAfterCreate(employeeId, notification);
   }
 
   /* ── Warehouse Receipt ───────────────────────────────────────────────────── */

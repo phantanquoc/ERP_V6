@@ -15,6 +15,7 @@ import { meetingService, Meeting } from '../services/meetingService';
 import FeedbackListModal from './FeedbackListModal';
 import SupplyAdjustmentModal from './SupplyAdjustmentModal';
 import OrderDetailModal from './OrderDetailModal';
+import PurchaseRequestDetailModal from './PurchaseRequestDetailModal';
 
 /**
  * Returns a human-readable relative time string in Vietnamese.
@@ -105,6 +106,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedSupplyAdjustmentId, setSelectedSupplyAdjustmentId] = useState<string | null>(null);
   const [isOrderDetailModalOpen, setIsOrderDetailModalOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [isPurchaseRequestModalOpen, setIsPurchaseRequestModalOpen] = useState(false);
+  const [selectedPurchaseRequestId, setSelectedPurchaseRequestId] = useState<string | null>(null);
 
   // Maximum notifications to show in the dropdown
   const MAX_SHOWN = 50;
@@ -184,6 +187,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     } else if (notification.type === 'ORDER') {
       setSelectedOrderId(notification.orderId || null);
       setIsOrderDetailModalOpen(true);
+    } else if (notification.type === 'PURCHASE_REQUEST') {
+      setSelectedPurchaseRequestId(notification.purchaseRequestId || null);
+      setIsPurchaseRequestModalOpen(true);
     }
 
     if (onNotificationClick) {
@@ -230,6 +236,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       case 'SUPPLY_ADJUSTMENT_APPROVED':
       case 'SUPPLY_ADJUSTMENT_REJECTED':
         return <ShoppingCart className="w-4 h-4 text-emerald-600" />;
+      case 'PURCHASE_REQUEST':
+        return <ShoppingCart className="w-4 h-4 text-teal-600" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }
@@ -463,6 +471,13 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         isOpen={isOrderDetailModalOpen}
         onClose={() => { setIsOrderDetailModalOpen(false); setSelectedOrderId(null); }}
         orderId={selectedOrderId}
+      />
+
+      {/* Purchase Request Modal - opened when clicking PURCHASE_REQUEST notification */}
+      <PurchaseRequestDetailModal
+        isOpen={isPurchaseRequestModalOpen}
+        onClose={() => { setIsPurchaseRequestModalOpen(false); setSelectedPurchaseRequestId(null); }}
+        purchaseRequestId={selectedPurchaseRequestId}
       />
     </>
   );

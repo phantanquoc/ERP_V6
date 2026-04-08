@@ -1,7 +1,10 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError } from '@utils/errors';
+import { UserRole } from '@prisma/client';
 import ExcelJS from 'exceljs';
+import notificationService from './notificationService';
 
 interface CreatePurchaseRequestRequest {
   employeeId: string;
@@ -19,6 +22,19 @@ interface CreatePurchaseRequestRequest {
 }
 
 class PurchaseRequestService {
+  /**
+   * Lấy employeeId của tất cả admin đang active.
+   */
+  private async getAdminEmployeeIds(): Promise<string[]> {
+    const adminUsers = await prisma.user.findMany({
+      where: { role: UserRole.ADMIN, isActive: true },
+      select: { employees: { select: { id: true } } },
+    });
+    return adminUsers
+      .map((u) => u.employees?.id)
+      .filter((id): id is string => !!id);
+  }
+
   private async generatePurchaseRequestCode(): Promise<string> {
     const lastRequest = await prisma.purchaseRequest.findFirst({
       where: {
@@ -141,6 +157,22 @@ class PurchaseRequestService {
       },
     });
 
+    // Notify admin khi có yêu cầu mua hàng mới
+    try {
+      const adminEmployeeIds = await this.getAdminEmployeeIds();
+      if (adminEmployeeIds.length > 0) {
+        await notificationService.createPurchaseRequestNotifications(
+          adminEmployeeIds,
+          purchaseRequest.id,
+          purchaseRequest.maYeuCau,
+          purchaseRequest.tenNhanVien,
+          purchaseRequest.tenHangHoa
+        );
+      }
+    } catch (error) {
+      logger.error('❌ Error sending purchase request notification:', error);
+    }
+
     return purchaseRequest;
   }
 
@@ -191,6 +223,25 @@ class PurchaseRequestService {
         supplyRequest: true,
       },
     });
+
+    // Notify người tạo khi trạng thái thay đổi thành APPROVED hoặc REJECTED
+    if (
+      data.trangThai &&
+      data.trangThai !== existingRequest.trangThai &&
+      (data.trangThai === 'APPROVED' || data.trangThai === 'REJECTED')
+    ) {
+      try {
+        await notificationService.createPurchaseRequestResponseNotification(
+          purchaseRequest.employeeId,
+          purchaseRequest.id,
+          purchaseRequest.maYeuCau,
+          data.trangThai,
+          data.nguoiDuyet || 'Admin'
+        );
+      } catch (error) {
+        logger.error('❌ Error sending purchase request response notification:', error);
+      }
+    }
 
     return purchaseRequest;
   }
