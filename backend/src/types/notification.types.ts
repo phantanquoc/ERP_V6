@@ -31,6 +31,8 @@ export const NotificationType = {
   PURCHASE_REQUEST: 'PURCHASE_REQUEST',
   WORK_PLAN: 'WORK_PLAN',
   DAILY_WORK_REPORT: 'DAILY_WORK_REPORT',
+  PROCESS_CREATED: 'PROCESS_CREATED',
+  PROCESS_UPDATED: 'PROCESS_UPDATED',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];

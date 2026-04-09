@@ -2,7 +2,11 @@ import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
+import { NotificationType } from '@types';
 import ExcelJS from 'exceljs';
+import logger from '@config/logger';
+import notificationService from './notificationService';
+import { broadcast } from './websocket';
 
 export class ProcessService {
   /**
@@ -122,6 +126,19 @@ export class ProcessService {
       },
     });
 
+    // Gửi thông báo đến admin và trưởng bộ phận khi tạo quy trình mới
+    try {
+      await this.notifyProcessChange(
+        process.id,
+        process.maQuyTrinh,
+        process.tenQuyTrinh,
+        data.tenNhanVien,
+        'created',
+      );
+    } catch (error) {
+      logger.error('❌ Error sending process creation notification:', error);
+    }
+
     return process;
   }
 
@@ -145,6 +162,19 @@ export class ProcessService {
         loaiQuyTrinh: data.loaiQuyTrinh ?? existingProcess.loaiQuyTrinh,
       },
     });
+
+    // Gửi thông báo đến admin và trưởng bộ phận khi cập nhật quy trình
+    try {
+      await this.notifyProcessChange(
+        updatedProcess.id,
+        updatedProcess.maQuyTrinh,
+        updatedProcess.tenQuyTrinh,
+        data.tenNhanVien ?? existingProcess.tenNhanVien,
+        'updated',
+      );
+    } catch (error) {
+      logger.error('❌ Error sending process update notification:', error);
+    }
 
     return updatedProcess;
   }
@@ -359,6 +389,52 @@ export class ProcessService {
     await prisma.processFlowchart.delete({
       where: { id: flowchart.id },
     });
+  }
+
+  /**
+   * Gửi thông báo đến admin và trưởng bộ phận khi tạo/cập nhật quy trình
+   */
+  private async notifyProcessChange(
+    processId: string,
+    maQuyTrinh: string,
+    tenQuyTrinh: string,
+    tenNhanVien: string,
+    action: 'created' | 'updated',
+  ): Promise<void> {
+    const isCreated = action === 'created';
+    const type = isCreated ? NotificationType.PROCESS_CREATED : NotificationType.PROCESS_UPDATED;
+    const title = isCreated
+      ? `Quy trình mới: ${maQuyTrinh}`
+      : `Quy trình cập nhật: ${maQuyTrinh}`;
+    const message = isCreated
+      ? `${tenNhanVien} đã tạo quy trình mới "${tenQuyTrinh}" (${maQuyTrinh}).`
+      : `${tenNhanVien} đã cập nhật quy trình "${tenQuyTrinh}" (${maQuyTrinh}).`;
+
+    // Lấy tất cả admin và trưởng bộ phận
+    const recipients = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: { in: ['ADMIN', 'DEPARTMENT_HEAD'] },
+      },
+      select: { id: true },
+    });
+
+    for (const user of recipients) {
+      try {
+        await notificationService.createNotification({
+          userId: user.id,
+          type,
+          title,
+          message,
+          processId,
+        });
+      } catch (error) {
+        logger.error(`Failed to notify user ${user.id} about process ${action}:`, error);
+      }
+    }
+
+    broadcast({ type: 'PROCESS_CHANGED' });
+    logger.info(`✅ Sent process ${action} notifications to ${recipients.length} recipients`);
   }
 }
 

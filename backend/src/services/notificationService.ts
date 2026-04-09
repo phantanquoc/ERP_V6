@@ -172,6 +172,7 @@ export class NotificationService {
     purchaseRequestId?: string;
     workPlanId?: string;
     dailyWorkReportId?: string;
+    processId?: string;
   }): Promise<NotificationData> {
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
@@ -234,6 +235,7 @@ export class NotificationService {
         purchaseRequestId:   data.purchaseRequestId   ?? null,
         workPlanId:          data.workPlanId          ?? null,
         dailyWorkReportId:   data.dailyWorkReportId   ?? null,
+        processId:           data.processId           ?? null,
         isRead:              false,
       },
     });
