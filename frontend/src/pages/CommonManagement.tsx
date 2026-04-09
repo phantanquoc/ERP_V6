@@ -715,23 +715,23 @@ const CommonManagement = () => {
       {isSupplyAdjustmentOpen && (
         <SupplyAdjustmentModal isOpen={isSupplyAdjustmentOpen} onClose={() => setIsSupplyAdjustmentOpen(false)} />
       )}
-      {/* Điều chỉnh bổ sung quy trình — Full-screen overlay */}
-      {isProcessAdjustmentOpen && (
-        <div className="fixed inset-0 bg-white z-[9999] flex flex-col">
-          <div className="bg-purple-600 text-white px-6 py-3 flex justify-between items-center">
-            <h2 className="text-lg font-bold">Điều chỉnh, bổ sung quy trình</h2>
+      {/* Điều chỉnh bổ sung quy trình */}
+      <Modal isOpen={isProcessAdjustmentOpen} onClose={() => setIsProcessAdjustmentOpen(false)}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-purple-600 rounded-t-lg sticky top-0 z-10">
+            <h2 className="text-lg font-bold text-white">Điều chỉnh, bổ sung quy trình</h2>
             <button
               onClick={() => setIsProcessAdjustmentOpen(false)}
               className="p-1 hover:bg-purple-700 rounded"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 text-white" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="p-4">
             <ProcessManagement />
           </div>
         </div>
-      )}
+      </Modal>
       </div>
 
     </div>
