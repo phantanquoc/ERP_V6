@@ -244,22 +244,26 @@ const QualityPersonnel = () => {
             <div className="space-y-3">
               <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Tổng điểm danh</span>
-                  <span className="text-2xl font-bold text-blue-600">{attendances.length}</span>
+                  <span className="text-xs font-medium text-gray-700">Tổng nhân viên</span>
+                  <span className="text-2xl font-bold text-blue-600">{loading ? '...' : employees.length}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
-                  <div className="text-xl font-bold text-green-600">{attendances.filter(a => a.checkInTimes && a.checkInTimes.length > 0).length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Đã vào</div>
+                  <div className="text-xl font-bold text-green-600">{loading ? '...' : attendances.filter(a => a.status === 'PRESENT').length}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Đúng giờ</div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-2 text-center hover:bg-blue-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
-                  <div className="text-xl font-bold text-blue-600">{attendances.filter(a => a.checkOutTimes && a.checkOutTimes.length > 0).length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Đã ra</div>
+                <div className="bg-yellow-50 rounded-lg p-2 text-center hover:bg-yellow-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-yellow-300 cursor-pointer">
+                  <div className="text-xl font-bold text-yellow-600">{loading ? '...' : attendances.filter(a => a.status === 'LATE').length}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Đi muộn</div>
                 </div>
                 <div className="bg-red-50 rounded-lg p-2 text-center hover:bg-red-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-red-300 cursor-pointer">
-                  <div className="text-xl font-bold text-red-600">{employees.length - attendances.length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Chưa điểm danh</div>
+                  <div className="text-xl font-bold text-red-600">{loading ? '...' : attendances.filter(a => a.status === 'ABSENT').length}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Vắng mặt</div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-2 text-center hover:bg-purple-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-purple-300 cursor-pointer">
+                  <div className="text-xl font-bold text-purple-600">{loading ? '...' : attendances.filter(a => a.status === 'ON_LEAVE').length}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Nghỉ phép</div>
                 </div>
               </div>
             </div>
