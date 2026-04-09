@@ -98,6 +98,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.debug('[WS] BROADCAST: OVERTIME_PLAN_CHANGED');
             window.dispatchEvent(new CustomEvent('overtimePlanChanged'));
           }
+        } else if (msg.type === 'FORCE_LOGOUT') {
+          // Bị đẩy ra do login từ thiết bị/IP khác
+          const reason = (msg.payload as Record<string, string>)?.reason || 'Tài khoản đã đăng nhập từ thiết bị khác';
+          console.warn('[WS] FORCE_LOGOUT received:', reason);
+          alert(reason);
+          isLoggedOutRef.current = true;
+          disconnectWebSocket();
+          AuthService.logout().catch(() => {});
+          setUser(null);
         } else if (msg.type === 'PING') {
           ws.send(JSON.stringify({ type: 'PONG' }));
         }

@@ -322,6 +322,39 @@ export function pushNotification(
 }
 
 /**
+ * Force-disconnect tất cả WS connections của một user.
+ * Gửi FORCE_LOGOUT message trước khi đóng socket.
+ * Dùng khi user login từ IP mới → kick sessions cũ.
+ *
+ * @param clientKey - employeeId hoặc "u:<userId>"
+ * @param reason - Lý do force-logout
+ */
+export function forceDisconnectUser(clientKey: string, reason: string): void {
+  const clients = clientsByEmployee.get(clientKey);
+  if (!clients || clients.size === 0) return;
+
+  const payload = JSON.stringify({
+    type: 'FORCE_LOGOUT',
+    payload: { reason },
+  });
+
+  let disconnected = 0;
+  clients.forEach((ws: WSClient) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(payload);
+        ws.close(4002, reason);
+        disconnected++;
+      } catch (err) {
+        logger.warn(`Failed to force-disconnect client key=${clientKey}`, err);
+      }
+    }
+  });
+
+  logger.info(`Force-disconnected ${disconnected} WS client(s) for key=${clientKey}: ${reason}`);
+}
+
+/**
  * Broadcasts a message to all connected clients (admin broadcasts, system alerts).
  *
  * @param message - The broadcast payload

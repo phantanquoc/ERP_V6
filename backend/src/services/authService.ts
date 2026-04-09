@@ -14,6 +14,7 @@ import {
 } from '@utils/errors';
 import type { JwtPayload, AuthResponse } from '@types';
 import loginHistoryService from './loginHistoryService';
+import { forceDisconnectUser } from './websocket';
 
 export class AuthService {
   async register(email: string, password: string, firstName: string, lastName: string): Promise<AuthResponse> {
@@ -187,11 +188,27 @@ export class AuthService {
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    // Save refresh token
+    // ⚠️ Single-IP enforcement: xóa tất cả refresh tokens cũ + force-disconnect WS
+    try {
+      const oldTokenCount = await prisma.refreshToken.count({ where: { userId: user.id } });
+      if (oldTokenCount > 0) {
+        await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+        // Force-disconnect WS connections cũ
+        const employee = await prisma.employee.findUnique({ where: { userId: user.id }, select: { id: true } });
+        const wsKey = employee ? employee.id : `u:${user.id}`;
+        forceDisconnectUser(wsKey, 'Tài khoản đã đăng nhập từ thiết bị khác');
+        logger.info(`Single-IP: cleared ${oldTokenCount} old session(s) for user ${user.email}`);
+      }
+    } catch (err) {
+      logger.error('Failed to clear old sessions:', err);
+    }
+
+    // Save refresh token với IP address
     await prisma.refreshToken.create({
       data: {
         token: refreshToken,
         userId: user.id,
+        ipAddress: metadata?.ipAddress || null,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });

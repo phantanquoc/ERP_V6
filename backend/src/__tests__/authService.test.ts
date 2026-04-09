@@ -25,6 +25,12 @@ jest.mock('@services/loginHistoryService', () => ({
   default: { createLoginHistory: jest.fn().mockResolvedValue(undefined) },
 }));
 
+// Mock websocket forceDisconnectUser
+jest.mock('@services/websocket', () => ({
+  __esModule: true,
+  forceDisconnectUser: jest.fn(),
+}));
+
 // Mock helpers — hash + token generation
 jest.mock('@utils/helpers', () => ({
   hashPassword: jest.fn(),
@@ -47,6 +53,7 @@ jest.mock('@config/database', () => ({
       create: jest.fn(),
       findFirst: jest.fn(),
       deleteMany: jest.fn(),
+      count: jest.fn(),
     },
     department: {
       findUnique: jest.fn(),
@@ -65,6 +72,7 @@ import { AuthService } from '@services/authService';
 import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken } from '@utils/helpers';
 import { ConflictError, ValidationError, AuthenticationError } from '@utils/errors';
 import { UserRole } from '@types';
+import { forceDisconnectUser } from '@services/websocket';
 
 const service = new AuthService();
 const mockedPrisma = prisma as jest.Mocked<typeof prisma>;
@@ -167,6 +175,7 @@ describe('AuthService', () => {
       (mockedPrisma.department.findUnique as jest.Mock).mockResolvedValue(null);
       (mockedPrisma.subDepartment.findUnique as jest.Mock).mockResolvedValue(null);
       (mockedPrisma.employee.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.refreshToken.count as jest.Mock).mockResolvedValue(0);
       (mockedPrisma.refreshToken.create as jest.Mock).mockResolvedValue({});
       mockedAccessToken.mockReturnValue('access-token');
       mockedRefreshToken.mockReturnValue('refresh-token');
@@ -218,6 +227,7 @@ describe('AuthService', () => {
       (mockedPrisma.department.findUnique as jest.Mock).mockResolvedValue(null);
       (mockedPrisma.subDepartment.findUnique as jest.Mock).mockResolvedValue(null);
       (mockedPrisma.employee.findUnique as jest.Mock).mockResolvedValue(mockEmployee);
+      (mockedPrisma.refreshToken.count as jest.Mock).mockResolvedValue(0);
       (mockedPrisma.refreshToken.create as jest.Mock).mockResolvedValue({});
       mockedAccessToken.mockReturnValue('at');
       mockedRefreshToken.mockReturnValue('rt');
@@ -226,6 +236,92 @@ describe('AuthService', () => {
 
       expect(result.employee).toBeDefined();
       expect(result.employee?.employeeCode).toBe('NV001');
+    });
+
+    // ─── Single-IP Session Enforcement Tests ───────────────────────────────
+
+    it('should delete old refresh tokens when user has existing sessions', async () => {
+      const mockUser = makeUser();
+      (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      mockedCompare.mockResolvedValue(true);
+      (mockedPrisma.department.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.subDepartment.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.employee.findUnique as jest.Mock).mockResolvedValue({ id: 'emp-1' });
+      (mockedPrisma.refreshToken.count as jest.Mock).mockResolvedValue(2); // 2 old sessions
+      (mockedPrisma.refreshToken.deleteMany as jest.Mock).mockResolvedValue({ count: 2 });
+      (mockedPrisma.refreshToken.create as jest.Mock).mockResolvedValue({});
+      mockedAccessToken.mockReturnValue('new-access');
+      mockedRefreshToken.mockReturnValue('new-refresh');
+
+      await service.login('test@anbinhfoods.net', 'password123');
+
+      expect(mockedPrisma.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1' },
+      });
+      expect(forceDisconnectUser).toHaveBeenCalledWith('emp-1', 'Tài khoản đã đăng nhập từ thiết bị khác');
+    });
+
+    it('should store IP address in new refresh token', async () => {
+      const mockUser = makeUser();
+      (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      mockedCompare.mockResolvedValue(true);
+      (mockedPrisma.department.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.subDepartment.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.employee.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.refreshToken.count as jest.Mock).mockResolvedValue(0);
+      (mockedPrisma.refreshToken.create as jest.Mock).mockResolvedValue({});
+      mockedAccessToken.mockReturnValue('at');
+      mockedRefreshToken.mockReturnValue('rt');
+
+      await service.login('test@anbinhfoods.net', 'password123', {
+        ipAddress: '192.168.1.100',
+        userAgent: 'TestAgent',
+      });
+
+      expect(mockedPrisma.refreshToken.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            ipAddress: '192.168.1.100',
+          }),
+        })
+      );
+    });
+
+    it('should not call deleteMany when no old sessions exist', async () => {
+      const mockUser = makeUser();
+      (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      mockedCompare.mockResolvedValue(true);
+      (mockedPrisma.department.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.subDepartment.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.employee.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.refreshToken.count as jest.Mock).mockResolvedValue(0); // no old sessions
+      (mockedPrisma.refreshToken.create as jest.Mock).mockResolvedValue({});
+      mockedAccessToken.mockReturnValue('at');
+      mockedRefreshToken.mockReturnValue('rt');
+
+      await service.login('test@anbinhfoods.net', 'password123');
+
+      expect(mockedPrisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+      expect(forceDisconnectUser).not.toHaveBeenCalled();
+    });
+
+    it('should use u:<userId> as WS key when user has no employee record', async () => {
+      const mockUser = makeUser();
+      (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      mockedCompare.mockResolvedValue(true);
+      (mockedPrisma.department.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.subDepartment.findUnique as jest.Mock).mockResolvedValue(null);
+      // employee.findUnique called twice: once in single-IP block, once for response
+      (mockedPrisma.employee.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockedPrisma.refreshToken.count as jest.Mock).mockResolvedValue(1); // 1 old session
+      (mockedPrisma.refreshToken.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (mockedPrisma.refreshToken.create as jest.Mock).mockResolvedValue({});
+      mockedAccessToken.mockReturnValue('at');
+      mockedRefreshToken.mockReturnValue('rt');
+
+      await service.login('test@anbinhfoods.net', 'password123');
+
+      expect(forceDisconnectUser).toHaveBeenCalledWith('u:user-1', 'Tài khoản đã đăng nhập từ thiết bị khác');
     });
   });
 });
