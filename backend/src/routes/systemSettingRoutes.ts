@@ -36,4 +36,20 @@ router.put('/slogan', authenticate, authorize('ADMIN'), (req, res) =>
   systemSettingController.setSlogan(req as any, res)
 );
 
+/**
+ * GET /api/system-settings/attendance-reminder
+ * Authenticated — lấy cài đặt nhắc nhở chấm công (checkinReminder, checkoutReminder, autoAbsent)
+ */
+router.get('/attendance-reminder', authenticate, (req, res) =>
+  systemSettingController.getAttendanceReminder(req as any, res)
+);
+
+/**
+ * PUT /api/system-settings/attendance-reminder
+ * Admin only — cập nhật cài đặt nhắc nhở chấm công
+ */
+router.put('/attendance-reminder', authenticate, authorize('ADMIN'), (req, res) =>
+  systemSettingController.setAttendanceReminder(req as any, res)
+);
+
 export default router;

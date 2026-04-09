@@ -86,6 +86,75 @@ class SystemSettingController {
       }
     }
   }
+
+  // ─── Attendance Reminder Settings ───────────────────────────────────────────
+
+  /**
+   * GET /api/system-settings/attendance-reminder
+   * Authenticated — lấy cài đặt nhắc nhở chấm công hiện tại
+   */
+  async getAttendanceReminder(_req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const settings = await systemSettingService.getAttendanceReminderSettings();
+      res.status(200).json({ success: true, data: settings });
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ success: false, message: error.message });
+      } else {
+        logger.error('SystemSettingController.getAttendanceReminder error:', error);
+        res.status(500).json({ success: false, message: 'Lỗi hệ thống' });
+      }
+    }
+  }
+
+  /**
+   * PUT /api/system-settings/attendance-reminder
+   * Admin only — cập nhật cài đặt nhắc nhở chấm công
+   */
+  async setAttendanceReminder(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { checkinReminder, checkoutReminder, autoAbsent } = req.body as {
+        checkinReminder?: string;
+        checkoutReminder?: string;
+        autoAbsent?: string;
+      };
+
+      // Validate HH:mm format
+      const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+      for (const [name, val] of [
+        ['checkinReminder', checkinReminder],
+        ['checkoutReminder', checkoutReminder],
+        ['autoAbsent', autoAbsent],
+      ] as const) {
+        if (val && !timeRegex.test(val)) {
+          res.status(400).json({
+            success: false,
+            message: `${name} phải đúng định dạng HH:mm (ví dụ: 08:30)`,
+          });
+          return;
+        }
+      }
+
+      const updatedBy = req.user?.id;
+      const result = await systemSettingService.setAttendanceReminderSettings(
+        { checkinReminder, checkoutReminder, autoAbsent },
+        updatedBy,
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: 'Cập nhật cài đặt nhắc nhở chấm công thành công',
+      });
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ success: false, message: error.message });
+      } else {
+        logger.error('SystemSettingController.setAttendanceReminder error:', error);
+        res.status(500).json({ success: false, message: 'Lỗi hệ thống' });
+      }
+    }
+  }
 }
 
 export default new SystemSettingController();

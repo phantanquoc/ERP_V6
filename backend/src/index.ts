@@ -16,6 +16,7 @@ import prisma from '@config/database';
 import attendanceService from '@services/attendanceService';
 import notificationService from '@services/notificationService';
 import meetingService from '@services/meetingService';
+import systemSettingService from '@services/systemSettingService';
 import { NotificationType } from '@types';
 
 const app: Express = express();
@@ -117,54 +118,62 @@ const server = app.listen(PORT, () => {
   initWebSocket(server);
 
   // ─── Attendance Reminder Scheduler ──────────────────────────────────────────
+  // Đọc cài đặt nhắc nhở từ DB (có cache) thay vì hardcode thời gian
   const checkAttendanceReminders = async () => {
-    const now = new Date();
-    const hour = now.getHours();
-    const minute = now.getMinutes();
+    try {
+      const settings = await systemSettingService.getAttendanceReminderSettings();
+      const now = new Date();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-    if (hour === 8 && minute === 0) {
-      const absent = await attendanceService.getAbsentEmployees(now);
-      for (const emp of absent) {
-        await notificationService.createNotification({
-          userId: emp.userId,
-          type: NotificationType.ATTENDANCE_REMINDER,
-          title: '⏰ Nhắc nhở chấm công',
-          message: 'Bạn chưa chấm công vào. Vui lòng điểm danh ngay.',
-        });
+      // Nhắc nhở chấm công vào (mặc định 08:30)
+      if (currentTime === settings.checkinReminder) {
+        const absent = await attendanceService.getAbsentEmployees(now);
+        for (const emp of absent) {
+          await notificationService.createNotification({
+            userId: emp.userId,
+            type: NotificationType.ATTENDANCE_REMINDER,
+            title: '⏰ Nhắc nhở chấm công',
+            message: `Bạn chưa chấm công vào. Vui lòng điểm danh ngay. (Nhắc nhở lúc ${settings.checkinReminder})`,
+          });
+        }
+        broadcast({ type: 'ATTENDANCE_SUMMARY_CHANGED' });
       }
-      broadcast({ type: 'ATTENDANCE_SUMMARY_CHANGED' });
-    }
 
-    if (hour === 17 && minute === 0) {
-      const present = await attendanceService.getPresentNotOutEmployees(now);
-      for (const emp of present) {
-        await notificationService.createNotification({
-          userId: emp.employee.userId,
-          type: NotificationType.ATTENDANCE_REMINDER,
-          title: '⏰ Nhắc nhở chấm công ra',
-          message: 'Bạn chưa chấm công ra. Vui lòng điểm danh trước khi rời văn phòng.',
-        });
+      // Nhắc nhở chấm công ra (mặc định 17:30)
+      if (currentTime === settings.checkoutReminder) {
+        const present = await attendanceService.getPresentNotOutEmployees(now);
+        for (const emp of present) {
+          await notificationService.createNotification({
+            userId: emp.employee.userId,
+            type: NotificationType.ATTENDANCE_REMINDER,
+            title: '⏰ Nhắc nhở chấm công ra',
+            message: `Bạn chưa chấm công ra. Vui lòng điểm danh trước khi rời văn phòng. (Nhắc nhở lúc ${settings.checkoutReminder})`,
+          });
+        }
       }
-    }
 
-    if (hour === 22 && minute === 0) {
-      const absent = await attendanceService.getAbsentEmployees(now);
-      for (const emp of absent) {
-        await prisma.attendance.create({
-          data: {
-            employeeId: emp.id,
-            attendanceDate: now,
-            status: 'ABSENT',
-          },
-        });
-        await notificationService.createNotification({
-          userId: emp.userId,
-          type: NotificationType.ATTENDANCE_REMINDER,
-          title: 'Chấm công vắng mặt',
-          message: 'Bạn đã được ghi nhận vắng mặt hôm nay.',
-        });
+      // Tự động ghi nhận vắng mặt (mặc định 22:00)
+      if (currentTime === settings.autoAbsent) {
+        const absent = await attendanceService.getAbsentEmployees(now);
+        for (const emp of absent) {
+          await prisma.attendance.create({
+            data: {
+              employeeId: emp.id,
+              attendanceDate: now,
+              status: 'ABSENT',
+            },
+          });
+          await notificationService.createNotification({
+            userId: emp.userId,
+            type: NotificationType.ATTENDANCE_REMINDER,
+            title: 'Chấm công vắng mặt',
+            message: 'Bạn đã được ghi nhận vắng mặt hôm nay.',
+          });
+        }
+        broadcast({ type: 'ATTENDANCE_SUMMARY_CHANGED' });
       }
-      broadcast({ type: 'ATTENDANCE_SUMMARY_CHANGED' });
+    } catch (error) {
+      logger.error('Attendance reminder scheduler error:', error);
     }
   };
 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit2, Trash2, Search, Settings, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Settings, Download, Bell } from 'lucide-react';
 import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import DatePicker from './DatePicker';
 import WorkShiftSettingsModal from './WorkShiftSettingsModal';
+import AttendanceReminderSettingsModal from './AttendanceReminderSettingsModal';
 import { DataTable, Column } from './DataTable';
 import { formatDate, formatWorkHours } from '../utils/formatters';
 
@@ -97,6 +98,7 @@ const AttendanceManagement: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<TabValue>('all');
   const [showModal, setShowModal] = useState(false);
   const [showShiftSettings, setShowShiftSettings] = useState(false);
+  const [showReminderSettings, setShowReminderSettings] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editEntries, setEditEntries] = useState<EditEntry[]>([]);
   const [selectedEmployeeName, setSelectedEmployeeName] = useState('');
@@ -478,6 +480,14 @@ const AttendanceManagement: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-800">Bảng Điểm Danh Nhân Viên</h2>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowReminderSettings(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+              title="Cài đặt nhắc nhở chấm công"
+            >
+              <Bell className="w-4 h-4" />
+              Nhắc nhở
+            </button>
+            <button
               onClick={() => setShowShiftSettings(true)}
               className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
               title="Cài đặt ca làm việc"
@@ -797,6 +807,12 @@ const AttendanceManagement: React.FC = () => {
       <WorkShiftSettingsModal
         isOpen={showShiftSettings}
         onClose={() => setShowShiftSettings(false)}
+      />
+
+      {/* ── Attendance Reminder Settings Modal ── */}
+      <AttendanceReminderSettingsModal
+        isOpen={showReminderSettings}
+        onClose={() => setShowReminderSettings(false)}
       />
     </div>
   );
