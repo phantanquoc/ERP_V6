@@ -244,11 +244,11 @@ const QualityPersonnel = () => {
             <div className="space-y-3">
               <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Tổng nhân viên</span>
-                  <span className="text-2xl font-bold text-blue-600">{loading ? '...' : employees.length}</span>
+                  <span className="text-xs font-medium text-gray-700">Đã điểm danh / Tổng NV</span>
+                  <span className="text-2xl font-bold text-blue-600">{loading ? '...' : `${attendances.length} / ${employees.length}`}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
                   <div className="text-xl font-bold text-green-600">{loading ? '...' : attendances.filter(a => a.status === 'PRESENT').length}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đúng giờ</div>
@@ -264,6 +264,10 @@ const QualityPersonnel = () => {
                 <div className="bg-purple-50 rounded-lg p-2 text-center hover:bg-purple-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-purple-300 cursor-pointer">
                   <div className="text-xl font-bold text-purple-600">{loading ? '...' : attendances.filter(a => a.status === 'ON_LEAVE').length}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Nghỉ phép</div>
+                </div>
+                <div className="bg-orange-50 rounded-lg p-2 text-center hover:bg-orange-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-orange-300 cursor-pointer">
+                  <div className="text-xl font-bold text-orange-600">{loading ? '...' : attendances.filter(a => a.status === 'OVERTIME').length}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Tăng ca</div>
                 </div>
               </div>
             </div>
