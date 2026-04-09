@@ -138,7 +138,7 @@ class PurchaseRequestService {
         tenNhanVien: data.tenNhanVien,
         phanLoai: data.phanLoai,
         tenHangHoa: data.tenHangHoa,
-        soLuong: data.soLuong,
+        soLuong: typeof data.soLuong === 'string' ? parseFloat(data.soLuong) : data.soLuong,
         donViTinh: data.donViTinh,
         mucDichYeuCau: data.mucDichYeuCau,
         mucDoUuTien: data.mucDoUuTien,
