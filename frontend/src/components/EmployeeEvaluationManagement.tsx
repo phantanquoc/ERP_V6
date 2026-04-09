@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Search,
   Eye,
   AlertCircle,
   CheckCircle,
@@ -8,6 +7,7 @@ import {
 } from 'lucide-react';
 import employeeEvaluationService, { EmployeeEvaluation, EvaluationDetailsResponse } from '@services/employeeEvaluationService';
 import { useEmployees } from '../hooks';
+import { DataTable, Column } from './DataTable';
 
 const EmployeeEvaluationManagement = () => {
   const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
@@ -100,14 +100,68 @@ const EmployeeEvaluationManagement = () => {
     }
   };
 
+  const evaluationColumns: Column<EmployeeEvaluation>[] = [
+    {
+      key: 'employeeCode',
+      label: 'MNV',
+      filterable: true,
+      filterType: 'text',
+      render: (e) => <span className="font-semibold text-blue-600">{e.employeeCode}</span>,
+    },
+    {
+      key: 'employeeName',
+      label: 'Tên NV',
+      filterable: true,
+      filterType: 'text',
+      render: (e) => <span className="font-medium text-gray-900">{e.employeeName}</span>,
+    },
+    {
+      key: 'positionName',
+      label: 'Vị trí',
+      render: (e) => e.positionName,
+    },
+    {
+      key: 'selfScore',
+      label: '% Tự đánh giá',
+      render: (e) => `${e.selfScore.toFixed(1)}%`,
+    },
+    {
+      key: 'supervisorScore1',
+      label: '% Cấp trên 1',
+      render: (e) => `${e.supervisorScore1.toFixed(1)}%`,
+    },
+    {
+      key: 'supervisorScore2',
+      label: '% Cấp trên 2',
+      render: (e) => `${e.supervisorScore2.toFixed(1)}%`,
+    },
+    {
+      key: 'actions',
+      label: 'Hành động',
+      render: (e) => (
+        <div className="flex items-center justify-center">
+          {e.evaluationId ? (
+            <button
+              onClick={() => openDetailModal(e)}
+              className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+              title="Xem chi tiết đánh giá"
+            >
+              <Eye className="w-5 h-5" />
+            </button>
+          ) : (
+            <span className="p-1.5 text-gray-400 cursor-not-allowed" title="Chưa có đánh giá">
+              <Eye className="w-5 h-5" />
+            </span>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   const filteredEvaluations = evaluations.filter(item =>
     item.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const totalItems = filteredEvaluations.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedEvaluations = filteredEvaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="space-y-4">
@@ -163,20 +217,7 @@ const EmployeeEvaluationManagement = () => {
 
       {/* Search and Actions */}
       <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tìm kiếm</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm theo mã hoặc tên nhân viên..."
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
+        <div className="flex gap-4 items-end justify-end">
           <button
             onClick={createEvaluationsForAllEmployees}
             disabled={loading}
@@ -187,115 +228,22 @@ const EmployeeEvaluationManagement = () => {
         </div>
       </div>
 
-      {/* Evaluations Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-500">Đang tải...</div>
-        ) : filteredEvaluations.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">Không có dữ liệu</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">MNV</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên NV</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vị trí</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">% Tự đánh giá</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">% Cấp trên 1</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">% Cấp trên 2</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedEvaluations.map((evaluation, index) => (
-                  <tr
-                    key={evaluation.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
-                      {evaluation.employeeCode}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {evaluation.employeeName}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                      {evaluation.positionName}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {evaluation.selfScore.toFixed(1)}%
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {evaluation.supervisorScore1.toFixed(1)}%
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {evaluation.supervisorScore2.toFixed(1)}%
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center">
-                        {evaluation.evaluationId ? (
-                          <button
-                            onClick={() => openDetailModal(evaluation)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                            title="Xem chi tiết đánh giá"
-                          >
-                            <Eye className="w-5 h-5" />
-                          </button>
-                        ) : (
-                          <span className="p-1.5 text-gray-400 cursor-not-allowed" title="Chưa có đánh giá">
-                            <Eye className="w-5 h-5" />
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Trước
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-              .map((page, idx, arr) => (
-                <React.Fragment key={page}>
-                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                  <button
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 text-sm rounded-md ${
-                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                </React.Fragment>
-              ))}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sau
-            </button>
-          </div>
-        </div>
-      )}
+      <DataTable
+        columns={evaluationColumns}
+        data={filteredEvaluations}
+        isLoading={loading}
+        total={filteredEvaluations.length}
+        page={currentPage}
+        pageSize={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onFilterChange={(filters) => {
+          const term = (filters.employeeCode as string) || (filters.employeeName as string) || '';
+          setSearchTerm(term);
+          setCurrentPage(1);
+        }}
+        rowKey="id"
+        emptyMessage="Không có dữ liệu"
+      />
 
       {/* Detail Modal */}
       {isDetailModalOpen && selectedEvaluation && (

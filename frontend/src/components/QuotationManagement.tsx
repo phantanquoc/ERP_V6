@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Search, Eye, Edit, Trash2, ShoppingCart, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import { Eye, Edit, Trash2, ShoppingCart, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { quotationService, Quotation } from '../services/quotationService';
 import { orderService } from '../services/orderService';
 import { useQuotations, quotationKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInputStr } from '../utils/numberInput';
+import { DataTable, Column, FilterValues } from './DataTable';
 
 interface QuotationManagementProps {
   customerType?: 'Quốc tế' | 'Nội địa' | 'all';
@@ -38,7 +39,6 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
     customerType: filterCustomerType,
   });
   const quotations = quotationsData?.data || [];
-
   const handleView = (quotation: Quotation) => {
     setSelectedQuotation(quotation);
     setShowViewModal(true);
@@ -166,20 +166,121 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
     }).format(value);
   };
 
+  const quotationColumns: Column<Quotation>[] = [
+    {
+      key: 'stt',
+      label: 'STT',
+      render: (_row, index) => (currentPage - 1) * itemsPerPage + (index ?? 0) + 1,
+    } as any,
+    {
+      key: 'ngayBaoGia',
+      label: 'Ngày BG',
+      render: (q) => formatDate(q.ngayBaoGia),
+    },
+    {
+      key: 'maBaoGia',
+      label: 'Mã báo giá',
+      filterable: true,
+      filterType: 'text',
+      render: (q) => <span className="font-semibold text-blue-600">{q.maBaoGia}</span>,
+    },
+    {
+      key: 'giaBaoKhach',
+      label: 'Giá báo khách',
+      render: (q) => {
+        if (q.quotationRequest?.calculator?.products && q.quotationRequest.calculator.products.length > 0) {
+          return (
+            <div className="space-y-1">
+              {q.quotationRequest.calculator.products.map((product: any, idx: number) => {
+                const giaBaoKhach = (product.giaHoaVon || 0) + (product.loiNhuanCongThem || 0);
+                const tiGiaUSD = product.tiGiaUSD || 0;
+                const giaBaoKhachUSD = tiGiaUSD > 0 ? giaBaoKhach / tiGiaUSD : 0;
+                return (
+                  <div key={idx}>
+                    <span className="text-gray-600 text-xs">{product.tenSanPham}:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-green-600">{formatCurrency(giaBaoKhach)}</span>
+                      {tiGiaUSD > 0 && (
+                        <>
+                          <span className="text-gray-400">-</span>
+                          <span className="font-semibold text-blue-600">
+                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(giaBaoKhachUSD)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
+        return <span className="font-semibold text-green-600">{formatCurrency(q.giaBaoKhach)}</span>;
+      },
+    },
+    {
+      key: 'thoiGianGiaoHang',
+      label: 'TG giao hàng',
+      render: (q) => q.thoiGianGiaoHang ? `${q.thoiGianGiaoHang} ngày` : '-',
+    },
+    {
+      key: 'hieuLucBaoGia',
+      label: 'Hiệu lực',
+      render: (q) => q.hieuLucBaoGia ? `${q.hieuLucBaoGia} ngày` : '-',
+    },
+    {
+      key: 'tenNhanVien',
+      label: 'Nhân viên',
+      filterable: true,
+      filterType: 'text',
+      render: (q) => q.tenNhanVien || '-',
+    },
+    {
+      key: 'tinhTrang',
+      label: 'Trạng thái',
+      filterable: true,
+      filterType: 'select',
+      filterOptions: [
+        { label: 'Nháp', value: 'DRAFT' },
+        { label: 'Đang chờ phản hồi', value: 'DANG_CHO_PHAN_HOI' },
+        { label: 'Đang chờ gửi đơn hàng', value: 'DANG_CHO_GUI_DON_HANG' },
+        { label: 'Đã đặt hàng', value: 'DA_DAT_HANG' },
+        { label: 'Không đặt hàng', value: 'KHONG_DAT_HANG' },
+      ],
+      render: (q) => getStatusBadge(q.tinhTrang),
+    },
+    {
+      key: 'ghiChu',
+      label: 'Ghi chú',
+      render: (q) => <span className="text-sm text-gray-700 max-w-xs truncate block">{q.ghiChu || '-'}</span>,
+    },
+    {
+      key: 'actions',
+      label: 'Hành động',
+      render: (q) => (
+        <div className="flex items-center justify-center gap-3">
+          <button onClick={() => handleView(q)} className="text-gray-500 hover:text-blue-600" title="Xem chi tiết">
+            <Eye className="w-5 h-5" />
+          </button>
+          <button onClick={() => handleEdit(q)} className="text-gray-500 hover:text-green-600" title="Chỉnh sửa">
+            <Edit className="w-5 h-5" />
+          </button>
+          <button onClick={() => handleCreateOrder(q.id)} className="text-gray-500 hover:text-purple-600" title="Tạo đơn hàng">
+            <ShoppingCart className="w-5 h-5" />
+          </button>
+          <button onClick={() => handleDelete(q.id)} className="text-gray-500 hover:text-red-600" title="Xóa">
+            <Trash2 className="w-5 h-5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-4">
-      {/* Search Bar */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
-          />
-        </div>
+        <div />
         <button
           onClick={handleExportExcel}
           disabled={exportLoading}
@@ -204,171 +305,21 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
         </div>
       )}
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b-2 border-gray-200">
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">STT</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Ngày BG</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Mã báo giá</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Giá báo khách</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">TG giao hàng</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Hiệu lực</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Nhân viên</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Trạng thái</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Ghi chú</th>
-              <th className="px-4 py-3 text-center text-sm font-semibold text-blue-600">Hành động</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading ? (
-              <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
-                  Đang tải...
-                </td>
-              </tr>
-            ) : quotations.length === 0 ? (
-              <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
-                  Không có dữ liệu
-                </td>
-              </tr>
-            ) : (
-              quotations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((quotation, index) => (
-                <tr key={quotation.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">
-                    {(currentPage - 1) * itemsPerPage + index + 1}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-                    {formatDate(quotation.ngayBaoGia)}
-                  </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-blue-600">
-                    {quotation.maBaoGia}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {quotation.quotationRequest?.calculator?.products && quotation.quotationRequest.calculator.products.length > 0 ? (
-                      <div className="space-y-1">
-                        {quotation.quotationRequest.calculator.products.map((product: any, idx: number) => {
-                          const giaBaoKhach = (product.giaHoaVon || 0) + (product.loiNhuanCongThem || 0);
-                          const tiGiaUSD = product.tiGiaUSD || 0;
-                          const giaBaoKhachUSD = tiGiaUSD > 0 ? giaBaoKhach / tiGiaUSD : 0;
-                          return (
-                            <div key={idx}>
-                              <span className="text-gray-600 text-xs">{product.tenSanPham}:</span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-green-600">{formatCurrency(giaBaoKhach)}</span>
-                                {tiGiaUSD > 0 && (
-                                  <>
-                                    <span className="text-gray-400">-</span>
-                                    <span className="font-semibold text-blue-600">
-                                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(giaBaoKhachUSD)}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <span className="font-semibold text-green-600">{formatCurrency(quotation.giaBaoKhach)}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-                    {quotation.thoiGianGiaoHang ? `${quotation.thoiGianGiaoHang} ngày` : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-                    {quotation.hieuLucBaoGia ? `${quotation.hieuLucBaoGia} ngày` : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    {quotation.tenNhanVien || '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {getStatusBadge(quotation.tinhTrang)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 max-w-xs truncate">
-                    {quotation.ghiChu || '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-3">
-                      <button
-                        onClick={() => handleView(quotation)}
-                        className="text-gray-500 hover:text-blue-600"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleEdit(quotation)}
-                        className="text-gray-500 hover:text-green-600"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleCreateOrder(quotation.id)}
-                        className="text-gray-500 hover:text-purple-600"
-                        title="Tạo đơn hàng"
-                      >
-                        <ShoppingCart className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(quotation.id)}
-                        className="text-gray-500 hover:text-red-600"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {(() => {
-        const totalItems = quotations.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
-            <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                .map((page, idx, arr) => (
-                  <React.Fragment key={page}>
-                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                    <button
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
-                    >
-                      {page}
-                    </button>
-                  </React.Fragment>
-                ))}
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        ) : null;
-      })()}
+      <DataTable
+        columns={quotationColumns}
+        data={quotations}
+        isLoading={loading}
+        total={quotations.length}
+        page={currentPage}
+        pageSize={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onFilterChange={(filters) => {
+          setSearchTerm((filters.maBaoGia as string) || '');
+          setCurrentPage(1);
+        }}
+        rowKey="id"
+        emptyMessage="Không có dữ liệu"
+      />
 
       {/* Modal Xem Chi Tiết */}
       {showViewModal && selectedQuotation && (

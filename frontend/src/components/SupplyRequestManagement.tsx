@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Trash2, Eye, FileText, Edit, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus } from 'lucide-react';
+import { Trash2, Eye, FileText, Edit, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus } from 'lucide-react';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
 import CreatePurchaseRequestModal from './CreatePurchaseRequestModal';
 import CreateWarehouseReceiptModal from './CreateWarehouseReceiptModal';
 import { parseNumberInput } from '../utils/numberInput';
 import warehouseService from '../services/warehouseService';
+import { DataTable, Column, FilterValues } from './DataTable';
 
 interface SupplyRequestManagementProps {
   onClose?: () => void;
@@ -186,25 +187,122 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     }
   };
 
+  const supplyRequestColumns: Column<SupplyRequest>[] = [
+    {
+      key: 'stt',
+      label: 'STT',
+      render: (_row, index) => (currentPage - 1) * itemsPerPage + (index ?? 0) + 1,
+    } as any,
+    {
+      key: 'ngayYeuCau',
+      label: 'Ngày yêu cầu',
+      render: (r) => new Date(r.ngayYeuCau).toLocaleDateString('vi-VN'),
+    },
+    {
+      key: 'maYeuCau',
+      label: 'Mã yêu cầu',
+      render: (r) => <span className="font-medium text-indigo-600">{r.maYeuCau}</span>,
+    },
+    {
+      key: 'tenNhanVien',
+      label: 'Tên nhân viên',
+      filterable: true,
+      filterType: 'text',
+      render: (r) => r.tenNhanVien,
+    },
+    {
+      key: 'boPhan',
+      label: 'Bộ phận',
+      render: (r) => r.boPhan,
+    },
+    {
+      key: 'phanLoai',
+      label: 'Phân loại',
+      render: (r) => r.phanLoai,
+    },
+    {
+      key: 'tenGoi',
+      label: 'Tên gọi',
+      render: (r) => r.tenGoi,
+    },
+    {
+      key: 'soLuong',
+      label: 'Số lượng',
+      render: (r) => `${r.soLuong} ${r.donViTinh}`,
+    },
+    {
+      key: 'mucDoUuTien',
+      label: 'Mức độ ưu tiên',
+      filterable: true,
+      filterType: 'select',
+      filterOptions: [
+        { label: 'Cao', value: 'Cao' },
+        { label: 'Trung bình', value: 'Trung bình' },
+        { label: 'Thấp', value: 'Thấp' },
+      ],
+      render: (r) => (
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(r.mucDoUuTien)}`}>
+          {r.mucDoUuTien}
+        </span>
+      ),
+    },
+    {
+      key: 'trangThai',
+      label: 'Trạng thái',
+      filterable: true,
+      filterType: 'select',
+      filterOptions: [
+        { label: 'Chưa cung cấp', value: 'Chưa cung cấp' },
+        { label: 'Đã cung cấp', value: 'Đã cung cấp' },
+      ],
+      render: (r) => (
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(r.trangThai)}`}>
+          {r.trangThai}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Hoạt động',
+      render: (r) => {
+        const daNhapKho = r.warehouseReceipts && r.warehouseReceipts.length > 0;
+        return (
+          <div className="flex items-center gap-2">
+            <button onClick={() => handleView(r)} className="text-blue-600 hover:text-blue-800" title="Xem chi tiết">
+              <Eye className="h-4 w-4" />
+            </button>
+            <button onClick={() => handleEdit(r)} className="text-indigo-600 hover:text-indigo-800" title="Chỉnh sửa">
+              <Edit className="h-4 w-4" />
+            </button>
+            <button onClick={() => handleDelete(r.id)} className="text-red-600 hover:text-red-800" title="Xóa">
+              <Trash2 className="h-4 w-4" />
+            </button>
+            {r.purchaseRequests?.some(pr => pr.trangThai === 'Hoàn thành') && (
+              <button
+                onClick={() => {
+                  if (!daNhapKho) {
+                    setSelectedRequest(r);
+                    setShowWarehouseReceiptModal(true);
+                  }
+                }}
+                disabled={daNhapKho}
+                className={daNhapKho ? 'text-gray-400 cursor-not-allowed' : 'text-green-600 hover:text-green-800'}
+                title={daNhapKho ? 'Đã nhập kho' : 'Nhập kho'}
+              >
+                <PackagePlus className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="p-6">
       {/* Header */}
       <div className="mb-6 flex justify-between items-center">
-        <div className="flex-1 max-w-md">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm theo mã, tên nhân viên, tên gọi..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-        </div>
+        <div />
         <button
           onClick={async () => {
             try {
@@ -221,157 +319,22 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày yêu cầu</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã yêu cầu</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên nhân viên</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bộ phận</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phân loại</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên gọi</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mức độ ưu tiên</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? (
-                <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
-                    Đang tải...
-                  </td>
-                </tr>
-              ) : requests.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
-                    Không có dữ liệu
-                  </td>
-                </tr>
-              ) : (
-                requests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((request, index) => (
-                  <tr key={request.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                    <td className="px-4 py-3 text-sm">{new Date(request.ngayYeuCau).toLocaleDateString('vi-VN')}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-indigo-600">{request.maYeuCau}</td>
-                    <td className="px-4 py-3 text-sm">{request.tenNhanVien}</td>
-                    <td className="px-4 py-3 text-sm">{request.boPhan}</td>
-                    <td className="px-4 py-3 text-sm">{request.phanLoai}</td>
-                    <td className="px-4 py-3 text-sm">{request.tenGoi}</td>
-                    <td className="px-4 py-3 text-sm">{request.soLuong} {request.donViTinh}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(request.mucDoUuTien)}`}>
-                        {request.mucDoUuTien}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.trangThai)}`}>
-                        {request.trangThai}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleView(request)}
-                          className="text-blue-600 hover:text-blue-800"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-
-                        <button
-                          onClick={() => handleEdit(request)}
-                          className="text-indigo-600 hover:text-indigo-800"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(request.id)}
-                          className="text-red-600 hover:text-red-800"
-                          title="Xóa"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-
-                        {request.purchaseRequests?.some(pr => pr.trangThai === 'Hoàn thành') && (() => {
-                          const daNhapKho = request.warehouseReceipts && request.warehouseReceipts.length > 0;
-                          return (
-                            <button
-                              onClick={() => {
-                                if (!daNhapKho) {
-                                  setSelectedRequest(request);
-                                  setShowWarehouseReceiptModal(true);
-                                }
-                              }}
-                              disabled={daNhapKho}
-                              className={daNhapKho
-                                ? "text-gray-400 cursor-not-allowed"
-                                : "text-green-600 hover:text-green-800"
-                              }
-                              title={daNhapKho ? "Đã nhập kho" : "Nhập kho"}
-                            >
-                              <PackagePlus className="h-4 w-4" />
-                            </button>
-                          );
-                        })()}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {(() => {
-          const totalItems = requests.length;
-          const totalPages = Math.ceil(totalItems / itemsPerPage);
-          return totalPages > 1 ? (
-            <div className="flex items-center justify-between mt-4 px-2">
-              <span className="text-sm text-gray-600">
-                Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Trước
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                  .map((page, idx, arr) => (
-                    <React.Fragment key={page}>
-                      {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                      <button
-                        onClick={() => setCurrentPage(page)}
-                        className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
-                      >
-                        {page}
-                      </button>
-                    </React.Fragment>
-                  ))}
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Sau
-                </button>
-              </div>
-            </div>
-          ) : null;
-        })()}
-      </div>
+      <DataTable
+        columns={supplyRequestColumns}
+        data={requests}
+        isLoading={loading}
+        total={requests.length}
+        page={currentPage}
+        pageSize={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onFilterChange={(filters) => {
+          const search = (filters.tenNhanVien as string) || '';
+          setSearchTerm(search);
+          setCurrentPage(1);
+        }}
+        rowKey="id"
+        emptyMessage="Không có dữ liệu"
+      />
 
       {/* Modal Edit/View */}
       {showModal && (

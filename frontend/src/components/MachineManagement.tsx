@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, X } from 'lucide-react';
 import machineService, { Machine, CreateMachineRequest, UpdateMachineRequest } from '../services/machineService';
 import { useMachines, machineKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import { DataTable, Column } from './DataTable';
 
 const MachineManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -13,11 +14,6 @@ const MachineManagement: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
-  const [columnFilters, setColumnFilters] = useState({
-    maMay: '',
-    tenMay: '',
-    trangThai: '',
-  });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [nextMachineCode, setNextMachineCode] = useState<string>('');
@@ -107,13 +103,6 @@ const MachineManagement: React.FC = () => {
     }
   };
 
-  const filteredMachines = machines.filter(machine => {
-    const matchMaMay = !columnFilters.maMay || machine.maMay.toLowerCase().includes(columnFilters.maMay.toLowerCase());
-    const matchTenMay = !columnFilters.tenMay || machine.tenMay.toLowerCase().includes(columnFilters.tenMay.toLowerCase());
-    const matchTrangThai = !columnFilters.trangThai || (machine.trangThai || '').toLowerCase().includes(columnFilters.trangThai.toLowerCase());
-    return matchMaMay && matchTenMay && matchTrangThai;
-  });
-
   const getStatusBadge = (status: string) => {
     const statusConfig = {
       HOAT_DONG: { label: 'Hoạt động', className: 'bg-green-100 text-green-700 border border-green-300' },
@@ -127,6 +116,67 @@ const MachineManagement: React.FC = () => {
       </span>
     );
   };
+
+  const machineColumns: Column<Machine>[] = [
+    {
+      key: 'maMay',
+      label: 'Mã máy',
+      filterable: true,
+      filterType: 'text',
+      render: (m) => <span className="font-semibold text-blue-600">{m.maMay}</span>,
+    },
+    {
+      key: 'tenMay',
+      label: 'Tên máy',
+      filterable: true,
+      filterType: 'text',
+      render: (m) => <span className="font-medium text-gray-900">{m.tenMay}</span>,
+    },
+    {
+      key: 'moTa',
+      label: 'Mô tả',
+      render: (m) => m.moTa || '-',
+    },
+    {
+      key: 'trangThai',
+      label: 'Trạng thái',
+      filterable: true,
+      filterType: 'select',
+      filterOptions: [
+        { label: 'Hoạt động', value: 'HOAT_DONG' },
+        { label: 'Bảo trì', value: 'BẢO_TRÌ' },
+        { label: 'Ngừng hoạt động', value: 'NGỪNG_HOẠT_ĐỘNG' },
+      ],
+      render: (m) => getStatusBadge(m.trangThai),
+    },
+    {
+      key: 'ghiChu',
+      label: 'Ghi chú',
+      render: (m) => m.ghiChu || '-',
+    },
+    {
+      key: 'actions',
+      label: 'Hoạt động',
+      render: (m) => (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={() => handleOpenModal(m)}
+            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+            title="Chỉnh sửa"
+          >
+            <Edit className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => handleDelete(m)}
+            className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+            title="Xóa"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -149,135 +199,18 @@ const MachineManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã máy</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên máy</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mô tả</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
-              </tr>
-              <tr className="bg-white border-b border-gray-200">
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.maMay} onChange={(e) => { setColumnFilters(prev => ({...prev, maMay: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.tenMay} onChange={(e) => { setColumnFilters(prev => ({...prev, tenMay: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.trangThai} onChange={(e) => { setColumnFilters(prev => ({...prev, trangThai: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
-                </tr>
-              ) : filteredMachines.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                    {(columnFilters.maMay || columnFilters.tenMay || columnFilters.trangThai) ? 'Không tìm thấy máy nào' : 'Chưa có máy nào'}
-                  </td>
-                </tr>
-              ) : (
-                filteredMachines.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((machine, index) => (
-                  <tr
-                    key={machine.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
-                      {machine.maMay}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {machine.tenMay}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                      {machine.moTa || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-center border-r border-gray-200">
-                      {getStatusBadge(machine.trangThai)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                      {machine.ghiChu || '-'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          onClick={() => handleOpenModal(machine)}
-                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(machine)}
-                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                          title="Xóa"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {(() => {
-        const totalItems = filteredMachines.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
-            <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                .map((page, idx, arr) => (
-                  <React.Fragment key={page}>
-                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                    <button
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 text-sm rounded-md ${
-                        page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  </React.Fragment>
-                ))}
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        ) : null;
-      })()}
+      <DataTable
+        columns={machineColumns}
+        data={machines}
+        isLoading={loading}
+        total={machines.length}
+        page={currentPage}
+        pageSize={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onFilterChange={() => setCurrentPage(1)}
+        rowKey="id"
+        emptyMessage="Chưa có máy nào"
+      />
 
       {/* Modal */}
       {isModalOpen && (

@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Eye, Edit2, Save, X, Download, Settings, Send } from 'lucide-react';
+import { Eye, Save, X, Download, Settings, Send } from 'lucide-react';
 import payrollService, { PayrollItem, PayrollDetail } from '@services/payrollService';
 import evaluationService from '@services/employeeEvaluationService';
 import { usePayrollByMonthYear, usePayrollSettings, useUpdatePayrollSettings, payrollKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInput } from '../utils/numberInput';
+import { DataTable, FilterValues } from './DataTable';
 
 const PayrollManagement: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [searchTerm, setSearchTerm] = useState('');
+  const [activeFilters, setActiveFilters] = useState<FilterValues>({});
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -198,71 +199,54 @@ const PayrollManagement: React.FC = () => {
     );
   };
 
-  const filteredPayrolls = recalculatedPayrolls.filter(
-    item =>
-      item.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalItems = filteredPayrolls.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedPayrolls = filteredPayrolls.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const filteredPayrolls = recalculatedPayrolls.filter(item => {
+    const search = (activeFilters.employeeName as string) ?? '';
+    if (!search) return true;
+    return (
+      item.employeeCode.toLowerCase().includes(search.toLowerCase()) ||
+      item.employeeName.toLowerCase().includes(search.toLowerCase())
+    );
+  });
 
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
     <div className="p-6 bg-white rounded-lg shadow">
-      <h2 className="text-2xl font-bold mb-6">Bảng Tính Lương</h2>
-
-      {/* Filters */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-2">Tháng</label>
-          <select
-            value={selectedMonth}
-            onChange={e => setSelectedMonth(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          >
-            {months.map(m => (
-              <option key={m} value={m}>
-                Tháng {m}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-2">Năm</label>
-          <select
-            value={selectedYear}
-            onChange={e => setSelectedYear(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          >
-            {years.map(y => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-2">Tìm kiếm</label>
-          <input
-            type="text"
-            placeholder="Mã NV hoặc Tên NV"
-            value={searchTerm}
-            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          />
-        </div>
-
-        <div className="flex items-end gap-2">
+      {/* Header bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <h2 className="text-2xl font-bold">Bảng Tính Lương</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Month / Year selectors */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium whitespace-nowrap">Tháng</label>
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+            >
+              {months.map(m => (
+                <option key={m} value={m}>Tháng {m}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium whitespace-nowrap">Năm</label>
+            <select
+              value={selectedYear}
+              onChange={e => setSelectedYear(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+            >
+              {years.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+          {/* Action buttons */}
           <button
             onClick={() => queryClient.invalidateQueries({ queryKey: payrollKeys.lists() })}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 text-sm"
           >
             {loading ? 'Đang tải...' : 'Làm mới'}
           </button>
@@ -274,7 +258,7 @@ const PayrollManagement: React.FC = () => {
               });
               setShowSettingsModal(true);
             }}
-            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center gap-2"
+            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center gap-2 text-sm"
             title="Cài đặt"
           >
             <Settings size={18} />
@@ -295,24 +279,23 @@ const PayrollManagement: React.FC = () => {
               }
             }}
             disabled={sendingNotifications || loading}
-            className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 flex items-center gap-2"
+            className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 flex items-center gap-2 text-sm"
             title="Gửi bảng lương"
           >
             <Send size={18} />
             {sendingNotifications ? 'Đang gửi...' : 'Gửi bảng lương'}
           </button>
-        </div>
-        <div className="flex items-end">
           <button
             onClick={async () => {
               try {
-                await payrollService.exportToExcel({ search: searchTerm || undefined, month: selectedMonth, year: selectedYear });
+                const search = (activeFilters.employeeName as string) ?? undefined;
+                await payrollService.exportToExcel({ search, month: selectedMonth, year: selectedYear });
               } catch (err) {
                 console.error('Error exporting to Excel:', err);
                 alert('Không thể xuất file Excel');
               }
             }}
-            className="w-full flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 text-sm"
           >
             <Download size={18} />
             Xuất Excel
@@ -322,132 +305,97 @@ const PayrollManagement: React.FC = () => {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên NV</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vị trí</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Lương cơ bản</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Lương KPI</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Phụ cấp khác</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng khấu trừ</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Thực lĩnh</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedPayrolls.map((payroll, index) => (
-                <tr
-                  key={payroll.employeeId}
-                  className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
-                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                  }`}
-                >
-                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
-                    {payroll.employeeCode}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                    {payroll.employeeName}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                    {payroll.positionName}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
-                    {payroll.baseSalary.toLocaleString('vi-VN')} ₫
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
-                    {payroll.kpiBonus.toLocaleString('vi-VN')} ₫
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
-                    {(payroll.positionAllowance + payroll.otherAllowances).toLocaleString('vi-VN')} ₫
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
-                    {payroll.totalDeductions.toLocaleString('vi-VN')} ₫
-                  </td>
-                  <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right border-r border-gray-200">
-                    {payroll.netSalary.toLocaleString('vi-VN')} ₫
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-center">
-                      <button
-                        onClick={() => handleViewDetail(payroll)}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                      >
-                        <Eye size={16} />
-                        Chi tiết
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-blue-50 border-t-2 border-blue-300">
-                <td colSpan={4} className="px-6 py-4 text-sm font-bold text-blue-800 border-r border-gray-200">
-                  Tổng cộng ({filteredPayrolls.length} nhân viên)
-                </td>
-                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
-                  {filteredPayrolls.reduce((sum, p) => sum + p.baseSalary, 0).toLocaleString('vi-VN')} ₫
-                </td>
-                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
-                  {filteredPayrolls.reduce((sum, p) => sum + p.kpiBonus, 0).toLocaleString('vi-VN')} ₫
-                </td>
-                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
-                  {filteredPayrolls.reduce((sum, p) => sum + p.positionAllowance + p.otherAllowances, 0).toLocaleString('vi-VN')} ₫
-                </td>
-                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
-                  {filteredPayrolls.reduce((sum, p) => sum + p.totalDeductions, 0).toLocaleString('vi-VN')} ₫
-                </td>
-                <td className="px-6 py-4 text-sm font-bold text-blue-900 text-right border-r border-gray-200">
-                  {filteredPayrolls.reduce((sum, p) => sum + p.netSalary, 0).toLocaleString('vi-VN')} ₫
-                </td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <DataTable<PayrollItem & { _stt: number }>
+          columns={[
+            {
+              key: '_stt',
+              label: 'STT',
+              width: '60px',
+            },
+            {
+              key: 'employeeCode',
+              label: 'Mã NV',
+              render: (p) => <span className="font-semibold text-blue-600">{p.employeeCode}</span>,
+            },
+            {
+              key: 'employeeName',
+              label: 'Tên NV',
+              filterable: true,
+              filterType: 'text',
+              render: (p) => <span className="font-medium text-gray-900">{p.employeeName}</span>,
+            },
+            {
+              key: 'positionName',
+              label: 'Vị trí',
+            },
+            {
+              key: 'baseSalary',
+              label: 'Lương cơ bản',
+              render: (p) => <span className="text-right block">{p.baseSalary.toLocaleString('vi-VN')} ₫</span>,
+            },
+            {
+              key: 'kpiBonus',
+              label: 'Lương KPI',
+              render: (p) => <span className="text-right block">{p.kpiBonus.toLocaleString('vi-VN')} ₫</span>,
+            },
+            {
+              key: 'allowances',
+              label: 'Phụ cấp khác',
+              render: (p) => <span className="text-right block">{(p.positionAllowance + p.otherAllowances).toLocaleString('vi-VN')} ₫</span>,
+            },
+            {
+              key: 'totalDeductions',
+              label: 'Tổng khấu trừ',
+              render: (p) => <span className="text-right block">{p.totalDeductions.toLocaleString('vi-VN')} ₫</span>,
+            },
+            {
+              key: 'netSalary',
+              label: 'Thực lĩnh',
+              render: (p) => <span className="text-right block font-bold">{p.netSalary.toLocaleString('vi-VN')} ₫</span>,
+            },
+            {
+              key: 'actions',
+              label: 'Hành động',
+              width: '100px',
+              render: (p) => (
+                <div className="flex items-center justify-center">
+                  <button
+                    onClick={() => handleViewDetail(p)}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    <Eye size={16} />
+                    Chi tiết
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+          data={filteredPayrolls.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((p, i) => ({
+            ...p,
+            _stt: (currentPage - 1) * itemsPerPage + i + 1,
+          }))}
+          isLoading={loading}
+          total={filteredPayrolls.length}
+          page={currentPage}
+          pageSize={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onFilterChange={(filters) => {
+            setActiveFilters(filters);
+            setCurrentPage(1);
+          }}
+          rowKey="employeeId"
+          emptyMessage="Không có dữ liệu bảng lương"
+        />
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Trước
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-              .map((page, idx, arr) => (
-                <React.Fragment key={page}>
-                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                  <button
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 text-sm rounded-md ${
-                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                </React.Fragment>
-              ))}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sau
-            </button>
-          </div>
+      {/* Summary row */}
+      {filteredPayrolls.length > 0 && (
+        <div className="mt-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex flex-wrap gap-6 text-sm font-semibold text-blue-800">
+          <span>Tổng cộng: {filteredPayrolls.length} nhân viên</span>
+          <span>Lương cơ bản: {filteredPayrolls.reduce((s, p) => s + p.baseSalary, 0).toLocaleString('vi-VN')} ₫</span>
+          <span>KPI: {filteredPayrolls.reduce((s, p) => s + p.kpiBonus, 0).toLocaleString('vi-VN')} ₫</span>
+          <span>Khấu trừ: {filteredPayrolls.reduce((s, p) => s + p.totalDeductions, 0).toLocaleString('vi-VN')} ₫</span>
+          <span className="text-blue-900">Thực lĩnh: {filteredPayrolls.reduce((s, p) => s + p.netSalary, 0).toLocaleString('vi-VN')} ₫</span>
         </div>
       )}
 

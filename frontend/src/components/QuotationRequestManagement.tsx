@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X, FileText, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, FileText, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import internationalCustomerService, { InternationalCustomer } from '../services/internationalCustomerService';
@@ -7,6 +7,7 @@ import internationalProductService, { InternationalProduct } from '../services/i
 import { useQuotationRequests, quotationRequestKeys } from '../hooks';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
 import { parseNumberInput } from '../utils/numberInput';
+import { DataTable, Column } from './DataTable';
 
 interface QuotationRequestManagementProps {
   mode?: 'business' | 'pricing';
@@ -386,42 +387,144 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
   };
 
+  const requestColumns: Column<QuotationRequest>[] = [
+    {
+      key: 'stt',
+      label: 'STT',
+      render: (_row, index) => (currentPage - 1) * itemsPerPage + (index ?? 0) + 1,
+    } as any,
+    {
+      key: 'ngayYeuCau',
+      label: 'Ngày yêu cầu',
+      render: (r) => formatDate(r.ngayYeuCau),
+    },
+    {
+      key: 'maYeuCauBaoGia',
+      label: 'Mã YC',
+      filterable: true,
+      filterType: 'text',
+      render: (r) => <span className="font-semibold text-blue-600">{r.maYeuCauBaoGia}</span>,
+    },
+    {
+      key: 'tenNhanVien',
+      label: 'Nhân viên',
+      filterable: true,
+      filterType: 'text',
+      render: (r) => (
+        <div>
+          <div className="font-medium">{r.tenNhanVien}</div>
+          <div className="text-xs text-gray-500">{r.maNhanVien}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'tenKhachHang',
+      label: 'Khách hàng',
+      filterable: true,
+      filterType: 'text',
+      render: (r) => (
+        <div>
+          <div className="font-medium">{r.tenKhachHang}</div>
+          <div className="text-xs text-gray-500">{r.maKhachHang}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'sanPham',
+      label: 'Sản phẩm',
+      render: (r) => {
+        const items = (r as any).items;
+        if (items && items.length > 0) {
+          return (
+            <div>
+              <div className="font-medium">{items.length} sản phẩm</div>
+              <div className="text-xs text-gray-500">
+                {items[0].tenSanPham}{items.length > 1 && ` +${items.length - 1}`}
+              </div>
+            </div>
+          );
+        }
+        return <span className="text-gray-400">Chưa có sản phẩm</span>;
+      },
+    },
+    {
+      key: 'soLuong',
+      label: 'Số lượng',
+      render: (r) => {
+        const items = (r as any).items;
+        if (items && items.length > 0) {
+          return <div>{items.reduce((sum: number, item: any) => sum + item.soLuong, 0)} {items[0].donViTinh}</div>;
+        }
+        return <span className="text-gray-400">-</span>;
+      },
+    },
+    {
+      key: 'actions',
+      label: 'Hành động',
+      render: (r) => (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={() => openDetailModal(r)}
+            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+            title="Xem chi tiết"
+          >
+            <Eye className="w-5 h-5" />
+          </button>
+          {mode === 'business' ? (
+            <>
+              <button
+                onClick={() => openEditModal(r)}
+                className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                title="Chỉnh sửa"
+              >
+                <Edit className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleDelete(r.id)}
+                className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                title="Xóa"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => handleCreateQuotation(r)}
+              className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+              title="Tạo báo giá"
+            >
+              <FileText className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Danh sách yêu cầu báo giá</h2>
-        {mode === 'business' && (
+        <div className="flex items-center gap-2">
+          {mode === 'business' && (
+            <button
+              onClick={openCreateModal}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm yêu cầu báo giá
+            </button>
+          )}
           <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            onClick={handleExportExcel}
+            disabled={exportLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
           >
-            <Plus className="w-4 h-4" />
-            Thêm yêu cầu báo giá
+            <Download size={18} />
+            {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
           </button>
-        )}
-      </div>
-
-      {/* Search */}
-      <div className="flex items-center gap-2">
-        <div className="relative w-80">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm..."
-            value={searchTerm}
-            onChange={handleSearch}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
         </div>
-        <button
-          onClick={handleExportExcel}
-          disabled={exportLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-        >
-          <Download size={18} />
-          {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
-        </button>
       </div>
 
       {/* Alert Messages */}
@@ -438,165 +541,18 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
         </div>
       )}
 
-      {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày yêu cầu</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã YC</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                    Đang tải...
-                  </td>
-                </tr>
-              ) : requests.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                    Không có dữ liệu
-                  </td>
-                </tr>
-              ) : (
-                requests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((request, index) => (
-                  <tr
-                    key={request.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {(currentPage - 1) * itemsPerPage + index + 1}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                      {formatDate(request.ngayYeuCau)}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
-                      {request.maYeuCauBaoGia}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      <div className="font-medium">{request.tenNhanVien}</div>
-                      <div className="text-xs text-gray-500">{request.maNhanVien}</div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      <div className="font-medium">{request.tenKhachHang}</div>
-                      <div className="text-xs text-gray-500">{request.maKhachHang}</div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {(request as any).items && (request as any).items.length > 0 ? (
-                        <div>
-                          <div className="font-medium">{(request as any).items.length} sản phẩm</div>
-                          <div className="text-xs text-gray-500">
-                            {(request as any).items[0].tenSanPham}
-                            {(request as any).items.length > 1 && ` +${(request as any).items.length - 1}`}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">Chưa có sản phẩm</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {(request as any).items && (request as any).items.length > 0 ? (
-                        <div>
-                          {(request as any).items.reduce((sum: number, item: any) => sum + item.soLuong, 0)} {(request as any).items[0].donViTinh}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          onClick={() => openDetailModal(request)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        {mode === 'business' ? (
-                          <>
-                            <button
-                              onClick={() => openEditModal(request)}
-                              className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                              title="Chỉnh sửa"
-                            >
-                              <Edit className="w-5 h-5" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(request.id)}
-                              className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                              title="Xóa"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => handleCreateQuotation(request)}
-                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                            title="Tạo báo giá"
-                          >
-                            <FileText className="w-5 h-5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-      {(() => {
-        const totalItems = requests.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
-            <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                .map((page, idx, arr) => (
-                  <React.Fragment key={page}>
-                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                    <button
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
-                    >
-                      {page}
-                    </button>
-                  </React.Fragment>
-                ))}
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        ) : null;
-      })()}
+      <DataTable
+        columns={requestColumns}
+        data={requests}
+        isLoading={loading}
+        total={requests.length}
+        page={currentPage}
+        pageSize={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onFilterChange={() => setCurrentPage(1)}
+        rowKey="id"
+        emptyMessage="Không có dữ liệu"
+      />
 
       {/* Create/Edit Modal */}
       {showModal && (

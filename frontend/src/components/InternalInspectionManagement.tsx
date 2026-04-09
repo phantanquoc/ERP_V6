@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Eye, Search, X, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, Download, X } from 'lucide-react';
 import internalInspectionService from '@services/internalInspectionService';
 import type { InternalInspection } from '@services/internalInspectionService';
+import { DataTable, FilterValues } from './DataTable';
 
 const InternalInspectionManagement = () => {
   const [inspections, setInspections] = useState<InternalInspection[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [activeFilters, setActiveFilters] = useState<FilterValues>({});
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -48,15 +49,15 @@ const InternalInspectionManagement = () => {
     }
   };
 
-  const handleSearch = async () => {
+  const handleSearch = async (term: string) => {
     setCurrentPage(1);
-    if (!searchTerm.trim()) {
+    if (!term.trim()) {
       loadInspections();
       return;
     }
     try {
       setLoading(true);
-      const data = await internalInspectionService.searchInspections(searchTerm);
+      const data = await internalInspectionService.searchInspections(term);
       setInspections(data);
     } catch (error) {
       console.error('Error searching:', error);
@@ -139,11 +140,15 @@ const InternalInspectionManagement = () => {
     }
   };
 
-  const filteredInspections = inspections.filter(ins =>
-    ins.inspectionCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ins.violationCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ins.inspectedBy?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInspections = inspections.filter(ins => {
+    const search = (activeFilters.inspectedBy as string) ?? '';
+    if (!search) return true;
+    return (
+      ins.inspectionCode?.toLowerCase().includes(search.toLowerCase()) ||
+      ins.violationCode?.toLowerCase().includes(search.toLowerCase()) ||
+      ins.inspectedBy?.toLowerCase().includes(search.toLowerCase())
+    );
+  });
 
   const handleExportExcel = async () => {
     try {
@@ -155,188 +160,157 @@ const InternalInspectionManagement = () => {
     }
   };
 
-  const totalItems = filteredInspections.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedInspections = filteredInspections.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex gap-4 items-end">
-        <div>
-          <label className="block text-sm font-medium mb-1">Tháng</label>
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            className="border rounded px-3 py-2"
-          >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>
-                Tháng {m}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Năm</label>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="border rounded px-3 py-2"
-          >
-            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex-1">
-          <label className="block text-sm font-medium mb-1">Tìm kiếm</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Mã kiểm tra, mã vi phạm..."
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              className="flex-1 border rounded px-3 py-2"
-            />
-            <button
-              onClick={handleSearch}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
+      {/* Header bar */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">Tháng</label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="border rounded px-3 py-2"
             >
-              <Search size={18} />
-              Tìm
-            </button>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>Tháng {m}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Năm</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="border rounded px-3 py-2"
+            >
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
           </div>
         </div>
-        <button
-          onClick={handleExportExcel}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2"
-        >
-          <Download size={18} />
-          Xuất Excel
-        </button>
-        <button
-          onClick={handleAdd}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus size={18} />
-          Thêm mới
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2"
+          >
+            <Download size={18} />
+            Xuất Excel
+          </button>
+          <button
+            onClick={handleAdd}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
+          >
+            <Plus size={18} />
+            Thêm mới
+          </button>
+        </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto border rounded">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-100 border-b">
-            <tr>
-              <th className="px-4 py-2 text-left">STT</th>
-              <th className="px-4 py-2 text-left">Mã kiểm tra</th>
-              <th className="px-4 py-2 text-left">Ngày kiểm tra</th>
-              <th className="px-4 py-2 text-left">Mã vi phạm</th>
-              <th className="px-4 py-2 text-left">Nội dung vi phạm</th>
-              <th className="px-4 py-2 text-left">Mức độ</th>
-              <th className="px-4 py-2 text-left">Người kiểm tra</th>
-              <th className="px-4 py-2 text-left">Trạng thái</th>
-              <th className="px-4 py-2 text-center">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={9} className="px-4 py-4 text-center">
-                  Đang tải...
-                </td>
-              </tr>
-            ) : inspections.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="px-4 py-4 text-center text-gray-500">
-                  Không có dữ liệu
-                </td>
-              </tr>
-            ) : (
-              paginatedInspections.map((inspection) => (
-                <tr key={inspection.id} className="border-b hover:bg-gray-50">
-                  <td className="px-4 py-2">{inspection.stt}</td>
-                  <td className="px-4 py-2">{inspection.inspectionCode}</td>
-                  <td className="px-4 py-2">{new Date(inspection.inspectionDate).toLocaleDateString('vi-VN')}</td>
-                  <td className="px-4 py-2">{inspection.violationCode}</td>
-                  <td className="px-4 py-2 max-w-xs truncate">{inspection.violationContent}</td>
-                  <td className="px-4 py-2">{inspection.violationLevel}</td>
-                  <td className="px-4 py-2">{inspection.inspectedBy}</td>
-                  <td className="px-4 py-2">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      inspection.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                      inspection.status === 'VERIFIED' ? 'bg-blue-100 text-blue-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {inspection.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-center">
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => handleEdit(inspection)}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(inspection.id)}
-                        className="text-red-600 hover:text-red-800"
-                        title="Xóa"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Trước
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-              .map((page, idx, arr) => (
-                <React.Fragment key={page}>
-                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+      <div className="border rounded overflow-hidden">
+        <DataTable<InternalInspection & { _stt: number }>
+          columns={[
+            {
+              key: '_stt',
+              label: 'STT',
+              width: '60px',
+            },
+            {
+              key: 'inspectionCode',
+              label: 'Mã kiểm tra',
+              filterable: true,
+              filterType: 'text',
+            },
+            {
+              key: 'inspectionDate',
+              label: 'Ngày kiểm tra',
+              render: (ins) => new Date(ins.inspectionDate).toLocaleDateString('vi-VN'),
+            },
+            {
+              key: 'violationCode',
+              label: 'Mã vi phạm',
+            },
+            {
+              key: 'violationContent',
+              label: 'Nội dung vi phạm',
+              render: (ins) => (
+                <span className="block max-w-xs truncate">{ins.violationContent}</span>
+              ),
+            },
+            {
+              key: 'violationLevel',
+              label: 'Mức độ',
+            },
+            {
+              key: 'inspectedBy',
+              label: 'Người kiểm tra',
+              filterable: true,
+              filterType: 'text',
+            },
+            {
+              key: 'status',
+              label: 'Trạng thái',
+              filterable: true,
+              filterType: 'select',
+              filterOptions: [
+                { label: 'Chờ xử lý', value: 'PENDING' },
+                { label: 'Đã xác nhận', value: 'VERIFIED' },
+                { label: 'Đã đóng', value: 'CLOSED' },
+              ],
+              render: (ins) => (
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  ins.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                  ins.status === 'VERIFIED' ? 'bg-blue-100 text-blue-800' :
+                  'bg-green-100 text-green-800'
+                }`}>
+                  {ins.status === 'PENDING' ? 'Chờ xử lý' :
+                   ins.status === 'VERIFIED' ? 'Đã xác nhận' : 'Đã đóng'}
+                </span>
+              ),
+            },
+            {
+              key: 'actions',
+              label: 'Thao tác',
+              width: '80px',
+              render: (ins) => (
+                <div className="flex gap-2 justify-center">
                   <button
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 text-sm rounded-md ${
-                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
+                    onClick={() => handleEdit(ins)}
+                    className="text-blue-600 hover:text-blue-800"
+                    title="Chỉnh sửa"
                   >
-                    {page}
+                    <Edit2 size={18} />
                   </button>
-                </React.Fragment>
-              ))}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sau
-            </button>
-          </div>
-        </div>
-      )}
+                  <button
+                    onClick={() => handleDelete(ins.id)}
+                    className="text-red-600 hover:text-red-800"
+                    title="Xóa"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+          data={filteredInspections.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((ins, i) => ({
+            ...ins,
+            _stt: (currentPage - 1) * itemsPerPage + i + 1,
+          }))}
+          isLoading={loading}
+          total={filteredInspections.length}
+          page={currentPage}
+          pageSize={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onFilterChange={(filters) => {
+            setActiveFilters(filters);
+            setCurrentPage(1);
+          }}
+          rowKey="id"
+          emptyMessage="Không có dữ liệu kiểm tra nội bộ"
+        />
+      </div>
 
       {/* Modal */}
       {showModal && (

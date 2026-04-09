@@ -6,6 +6,7 @@ import QuotationCalculatorModal from './QuotationCalculatorModal';
 import { useOrders, orderKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInput } from '../utils/numberInput';
+import { DataTable, Column, FilterValues } from './DataTable';
 
 interface OrderManagementProps {
   hideHeader?: boolean;
@@ -13,12 +14,7 @@ interface OrderManagementProps {
 }
 
 const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, customerType }) => {
-  const [columnFilters, setColumnFilters] = useState({
-    maDonHang: '',
-    maBaoGia: '',
-    tenKhachHang: '',
-    trangThaiSanXuat: '',
-  });
+  const [activeFilters, setActiveFilters] = useState<FilterValues>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -42,13 +38,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
   const orders = React.useMemo(() => {
     const allOrders = ordersData?.data || [];
     return allOrders.filter(order => {
-      const matchMaDH = !columnFilters.maDonHang || (order.maDonHang || '').toLowerCase().includes(columnFilters.maDonHang.toLowerCase());
-      const matchMaBG = !columnFilters.maBaoGia || (order.maBaoGia || '').toLowerCase().includes(columnFilters.maBaoGia.toLowerCase());
-      const matchKH = !columnFilters.tenKhachHang || (order.tenKhachHang || '').toLowerCase().includes(columnFilters.tenKhachHang.toLowerCase());
-      const matchTTSX = !columnFilters.trangThaiSanXuat || (order.trangThaiSanXuat || '').toLowerCase().includes(columnFilters.trangThaiSanXuat.toLowerCase());
+      const matchMaDH = !activeFilters.maDonHang || (order.maDonHang || '').toLowerCase().includes((activeFilters.maDonHang as string).toLowerCase());
+      const matchMaBG = !activeFilters.maBaoGia || (order.maBaoGia || '').toLowerCase().includes((activeFilters.maBaoGia as string).toLowerCase());
+      const matchKH = !activeFilters.tenKhachHang || (order.tenKhachHang || '').toLowerCase().includes((activeFilters.tenKhachHang as string).toLowerCase());
+      const matchTTSX = !activeFilters.trangThaiSanXuat || (order.trangThaiSanXuat || '') === activeFilters.trangThaiSanXuat;
       return matchMaDH && matchMaBG && matchKH && matchTTSX;
     });
-  }, [ordersData, columnFilters]);
+  }, [ordersData, activeFilters]);
 
   const handleExportExcel = async () => {
     try {
@@ -201,164 +197,133 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày đặt hàng</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã đơn hàng</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã báo giá</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng SP</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái SX</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái TT</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
-            </tr>
-            <tr className="bg-white border-b border-gray-200">
-              <th className="px-2 py-2 border-r border-gray-200"></th>
-              <th className="px-2 py-2 border-r border-gray-200"></th>
-              <th className="px-2 py-2 border-r border-gray-200">
-                <input type="text" placeholder="Lọc..." value={columnFilters.maDonHang} onChange={(e) => { setColumnFilters(prev => ({...prev, maDonHang: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-              </th>
-              <th className="px-2 py-2 border-r border-gray-200">
-                <input type="text" placeholder="Lọc..." value={columnFilters.maBaoGia} onChange={(e) => { setColumnFilters(prev => ({...prev, maBaoGia: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-              </th>
-              <th className="px-2 py-2 border-r border-gray-200">
-                <input type="text" placeholder="Lọc..." value={columnFilters.tenKhachHang} onChange={(e) => { setColumnFilters(prev => ({...prev, tenKhachHang: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-              </th>
-              <th className="px-2 py-2 border-r border-gray-200"></th>
-              <th className="px-2 py-2 border-r border-gray-200">
-                <input type="text" placeholder="Lọc..." value={columnFilters.trangThaiSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, trangThaiSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-              </th>
-              <th className="px-2 py-2 border-r border-gray-200"></th>
-              <th className="px-2 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
-                  Đang tải...
-                </td>
-              </tr>
-            ) : orders.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
-                  Không có dữ liệu
-                </td>
-              </tr>
-            ) : (
-              orders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((order, index) => (
-                <tr key={order.id} className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                  <td className="px-6 py-4 text-sm text-blue-600 font-medium border-r border-gray-200">
-                    {(currentPage - 1) * itemsPerPage + index + 1}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                    {formatDate(order.ngayDatHang)}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
-                    {order.maDonHang}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                    {order.maBaoGia}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                    {order.tenKhachHang}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                    {order.items?.length || 0}
-                  </td>
-                  <td className="px-6 py-4 border-r border-gray-200">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getProductionStatusColor(order.trangThaiSanXuat)}`}>
-                      {getProductionStatusLabel(order.trangThaiSanXuat)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 border-r border-gray-200">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(order.trangThaiThanhToan)}`}>
-                      {getPaymentStatusLabel(order.trangThaiThanhToan)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-3">
-                      <button
-                        onClick={() => handleView(order)}
-                        className="text-gray-500 hover:text-blue-600"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleViewCosting(order)}
-                        className="text-gray-500 hover:text-purple-600"
-                        title="Xem bảng tính"
-                      >
-                        <Calculator className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleEdit(order)}
-                        className="text-gray-500 hover:text-green-600"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(order.id)}
-                        className="text-gray-500 hover:text-red-600"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        </div>
+        <DataTable<Order>
+          columns={[
+            {
+              key: 'stt',
+              label: 'STT',
+              width: '60px',
+              render: (order) => (
+                <span className="text-blue-600 font-medium">
+                  {(order as Order & { _stt: number })._stt}
+                </span>
+              ),
+            },
+            {
+              key: 'ngayDatHang',
+              label: 'Ngày đặt hàng',
+              render: (order) => formatDate(order.ngayDatHang),
+            },
+            {
+              key: 'maDonHang',
+              label: 'Mã đơn hàng',
+              filterable: true,
+              filterType: 'text',
+              render: (order) => (
+                <span className="font-semibold text-blue-600">{order.maDonHang}</span>
+              ),
+            },
+            {
+              key: 'maBaoGia',
+              label: 'Mã báo giá',
+              filterable: true,
+              filterType: 'text',
+            },
+            {
+              key: 'tenKhachHang',
+              label: 'Khách hàng',
+              filterable: true,
+              filterType: 'text',
+            },
+            {
+              key: 'items',
+              label: 'Số lượng SP',
+              render: (order) => String(order.items?.length || 0),
+            },
+            {
+              key: 'trangThaiSanXuat',
+              label: 'Trạng thái SX',
+              filterable: true,
+              filterType: 'select',
+              filterOptions: [
+                { label: 'Chờ lên kế hoạch', value: 'CHO_LEN_KE_HOACH' },
+                { label: 'Chờ sản xuất', value: 'CHO_SAN_XUAT' },
+                { label: 'Đang sản xuất', value: 'DANG_SAN_XUAT' },
+                { label: 'Chờ giao hàng', value: 'CHO_GIAO_HANG' },
+                { label: 'Đã lên container', value: 'DA_LEN_CONTAINER' },
+                { label: 'Đang vận chuyển', value: 'DANG_VAN_CHUYEN' },
+                { label: 'Đã giao cho khách hàng', value: 'DA_GIAO_CHO_KHACH_HANG' },
+              ],
+              render: (order) => (
+                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getProductionStatusColor(order.trangThaiSanXuat)}`}>
+                  {getProductionStatusLabel(order.trangThaiSanXuat)}
+                </span>
+              ),
+            },
+            {
+              key: 'trangThaiThanhToan',
+              label: 'Trạng thái TT',
+              render: (order) => (
+                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(order.trangThaiThanhToan)}`}>
+                  {getPaymentStatusLabel(order.trangThaiThanhToan)}
+                </span>
+              ),
+            },
+            {
+              key: 'actions',
+              label: 'Hành động',
+              width: '140px',
+              render: (order) => (
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    onClick={() => handleView(order)}
+                    className="text-gray-500 hover:text-blue-600"
+                    title="Xem chi tiết"
+                  >
+                    <Eye className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleViewCosting(order)}
+                    className="text-gray-500 hover:text-purple-600"
+                    title="Xem bảng tính"
+                  >
+                    <Calculator className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleEdit(order)}
+                    className="text-gray-500 hover:text-green-600"
+                    title="Chỉnh sửa"
+                  >
+                    <Edit className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(order.id)}
+                    className="text-gray-500 hover:text-red-600"
+                    title="Xóa"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+          data={orders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((o, i) => ({
+            ...o,
+            _stt: (currentPage - 1) * itemsPerPage + i + 1,
+          }))}
+          isLoading={loading}
+          total={orders.length}
+          page={currentPage}
+          pageSize={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onFilterChange={(filters) => {
+            setActiveFilters(filters);
+            setCurrentPage(1);
+          }}
+          rowKey="id"
+          emptyMessage="Không có dữ liệu đơn hàng"
+        />
       </div>
-
-      {(() => {
-        const totalItems = orders.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
-            <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                .map((page, idx, arr) => (
-                  <React.Fragment key={page}>
-                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                    <button
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
-                    >
-                      {page}
-                    </button>
-                  </React.Fragment>
-                ))}
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        ) : null;
-      })()}
 
       {/* View Modal */}
       {showViewModal && selectedOrder && (
