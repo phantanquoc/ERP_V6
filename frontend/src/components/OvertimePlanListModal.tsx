@@ -242,143 +242,117 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
           <p className="text-gray-400 text-sm mt-1">Nhấn "Tạo kế hoạch" để bắt đầu</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-          {plans.map((plan) => {
-            const statusBadge = getStatusBadge(plan.trangThai);
-            const priorityBadge = getPriorityBadge(plan.mucDoUuTien);
-            const isPending = plan.trangThai === OvertimePlanStatus.CHO_DUYET;
-            const isApproved = plan.trangThai === OvertimePlanStatus.DA_DUYET;
-            const isCreator = plan.nguoiTaoId === user?._id;
-            // Manager or creator can revoke, but not if already approved
-            const canRevoke = !isApproved && (isManager || isCreator);
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">STT</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Ngày tăng ca</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Giờ</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Người tạo</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase">Nội dung</th>
+                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase">Người TG</th>
+                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase">Ưu tiên</th>
+                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase">Trạng thái</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-600 uppercase">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {plans.map((plan, index) => {
+                const statusBadge = getStatusBadge(plan.trangThai);
+                const priorityBadge = getPriorityBadge(plan.mucDoUuTien);
+                const isPending = plan.trangThai === OvertimePlanStatus.CHO_DUYET;
+                const isApproved = plan.trangThai === OvertimePlanStatus.DA_DUYET;
+                const isCreator = plan.nguoiTaoId === user?._id;
+                const canRevoke = !isApproved && (isManager || isCreator);
 
-            return (
-              <div
-                key={plan.id}
-                className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden"
-              >
-                {/* Card header — date + badges */}
-                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Calendar className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                    <span className="text-sm font-semibold text-gray-900 truncate">
+                return (
+                  <tr key={plan.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-3 py-2.5 text-gray-500">{(currentPage - 1) * 10 + index + 1}</td>
+                    <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">
                       {new Date(plan.ngayTangCa).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
-                    </span>
-                    <span className="text-sm text-gray-500 flex-shrink-0">
-                      · {plan.gioBatDau}–{plan.gioKetThuc}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${priorityBadge.class}`}>
-                      {priorityBadge.label}
-                    </span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge.class}`}>
-                      {statusBadge.label}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Card body */}
-                <div className="px-4 py-3 space-y-2">
-                  {/* Creator */}
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-bold text-orange-600">
-                        {plan.nguoiTao?.firstName?.[0]}{plan.nguoiTao?.lastName?.[0]}
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{plan.gioBatDau}–{plan.gioKetThuc}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-[10px] font-bold text-orange-600">
+                            {plan.nguoiTao?.firstName?.[0]}{plan.nguoiTao?.lastName?.[0]}
+                          </span>
+                        </div>
+                        <span className="text-gray-900 truncate max-w-[120px]">
+                          {plan.nguoiTao?.firstName} {plan.nguoiTao?.lastName}
+                          {isCreator && <span className="ml-1 text-xs text-orange-500">(bạn)</span>}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-700 max-w-[200px] truncate" title={plan.noiDung}>{plan.noiDung}</td>
+                    <td className="px-3 py-2.5 text-center text-gray-600">{plan.nguoiThamGia?.length || 0}</td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${priorityBadge.class}`}>
+                        {priorityBadge.label}
                       </span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {plan.nguoiTao?.firstName} {plan.nguoiTao?.lastName}
-                        {isCreator && <span className="ml-1 text-xs text-orange-500 font-normal">(bạn)</span>}
-                      </p>
-                      <p className="text-xs text-gray-400 truncate">{plan.nguoiTao?.department || plan.nguoiTao?.employeeCode}</p>
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <p className="text-sm text-gray-700 line-clamp-2 leading-relaxed">{plan.noiDung}</p>
-
-                  {/* Participants + files row */}
-                  <div className="flex items-center gap-3 text-xs text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5" />
-                      {plan.nguoiThamGia?.length || 0} người tham gia
-                    </span>
-                    {plan.files && plan.files.length > 0 && (
-                      <span className="flex items-center gap-1 text-blue-500">
-                        <FileText className="w-3.5 h-3.5" />
-                        {plan.files.length} tệp
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge.class}`}>
+                        {statusBadge.label}
                       </span>
-                    )}
-                    {plan.trangThai === OvertimePlanStatus.DA_DUYET && (
-                      <span className="flex items-center gap-1 text-green-600">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        Đã tạo chấm công
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card footer — actions */}
-                <div className="flex items-center justify-end gap-1.5 px-4 py-2.5 bg-gray-50 border-t border-gray-100">
-                  {/* View detail */}
-                  <button
-                    onClick={() => setViewPlan(plan)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    Xem
-                  </button>
-
-                  {/* Creator can edit their pending plan */}
-                  {isPending && isCreator && (
-                    <button
-                      onClick={() => { setEditPlan(plan); setIsCreateOpen(true); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      Sửa
-                    </button>
-                  )}
-
-                  {/* ADMIN only: approve / reject */}
-                  {userIsAdmin && isPending && (
-                    <>
-                      <button
-                        onClick={() => setShowApproveModal(plan)}
-                        disabled={actionLoading === plan.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-300 rounded-lg transition-colors"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        Duyệt
-                      </button>
-                      <button
-                        onClick={() => setShowRejectModal(plan.id)}
-                        disabled={actionLoading === plan.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 disabled:bg-gray-300 rounded-lg transition-colors"
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Từ chối
-                      </button>
-                    </>
-                  )}
-
-                  {/* Manager or creator: revoke (not allowed when approved) */}
-                  {canRevoke && (
-                    <button
-                      onClick={() => handleRevoke(plan.id)}
-                      disabled={actionLoading === plan.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg transition-colors"
-                    >
-                      <XCircle className="w-3.5 h-3.5" />
-                      Thu hồi
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setViewPlan(plan)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Xem chi tiết"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        {isPending && isCreator && (
+                          <button
+                            onClick={() => { setEditPlan(plan); setIsCreateOpen(true); }}
+                            className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                            title="Sửa"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+                        {userIsAdmin && isPending && (
+                          <>
+                            <button
+                              onClick={() => setShowApproveModal(plan)}
+                              disabled={actionLoading === plan.id}
+                              className="p-1.5 text-green-600 hover:bg-green-50 disabled:opacity-40 rounded-lg transition-colors"
+                              title="Duyệt"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setShowRejectModal(plan.id)}
+                              disabled={actionLoading === plan.id}
+                              className="p-1.5 text-red-500 hover:bg-red-50 disabled:opacity-40 rounded-lg transition-colors"
+                              title="Từ chối"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        {canRevoke && (
+                          <button
+                            onClick={() => handleRevoke(plan.id)}
+                            disabled={actionLoading === plan.id}
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-40 rounded-lg transition-colors"
+                            title="Thu hồi"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
