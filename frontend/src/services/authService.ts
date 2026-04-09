@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../config/api';
 class AuthService {
   static async login(credentials: LoginRequest): Promise<AuthResponse> {
     try {
-      console.log('🔐 Attempting login with:', credentials.email);
+      console.log('🔐 Attempting login with:', credentials.identifier);
       console.log('📡 API URL:', `${API_BASE_URL}/auth/login`);
 
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -12,7 +12,10 @@ class AuthService {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({
+          identifier: credentials.identifier,
+          password: credentials.password,
+        }),
       });
 
       console.log('📊 Response status:', response.status);
@@ -117,6 +120,9 @@ class AuthService {
           role: mapBackendRoleToUserRole(data.data.user.role),
           department: data.data.user.role === 'ADMIN' ? 'admin' : mapDepartmentNameToCode(data.data.user.departmentName),
           subDepartment: mapSubDepartmentNameToCode(data.data.user.subDepartmentName),
+          secondaryDepartment: data.data.user.secondaryDepartmentName ? mapDepartmentNameToCode(data.data.user.secondaryDepartmentName) : undefined,
+          secondarySubDepartment: data.data.user.secondarySubDepartmentName ? mapSubDepartmentNameToCode(data.data.user.secondarySubDepartmentName) : undefined,
+          secondaryRole: data.data.user.secondaryRole ? mapBackendRoleToUserRole(data.data.user.secondaryRole) : undefined,
           // Employee information
           employeeId: data.data.employee?.id,
           employeeCode: data.data.employee?.employeeCode,

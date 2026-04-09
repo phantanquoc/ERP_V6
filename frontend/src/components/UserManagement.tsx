@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Users,
   Plus,
@@ -29,6 +29,11 @@ interface User {
   departmentName?: string;
   subDepartmentId?: string | null;
   subDepartmentName?: string | null;
+  secondaryDepartmentId?: string | null;
+  secondaryDepartmentName?: string | null;
+  secondarySubDepartmentId?: string | null;
+  secondarySubDepartmentName?: string | null;
+  secondaryRole?: string | null;
   supervisor1Id?: string | null;
   supervisor2Id?: string | null;
   supervisor1?: {
@@ -53,6 +58,9 @@ interface FormData {
   password?: string;
   departmentId?: string;
   subDepartmentId?: string;
+  secondaryDepartmentId?: string;
+  secondarySubDepartmentId?: string;
+  secondaryRole?: string;
 }
 
 interface Department {
@@ -99,6 +107,7 @@ const UserManagement: React.FC = () => {
   // Department states
   const [subDepartments, setSubDepartments] = useState<SubDepartment[]>([]);
   const [filteredSubDepartments, setFilteredSubDepartments] = useState<SubDepartment[]>([]);
+  const [filteredSecondarySubDepartments, setFilteredSecondarySubDepartments] = useState<SubDepartment[]>([]);
 
   // Modal states
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -116,7 +125,14 @@ const UserManagement: React.FC = () => {
     password: '',
     departmentId: '',
     subDepartmentId: '',
+    secondaryDepartmentId: '',
+    secondarySubDepartmentId: '',
+    secondaryRole: '',
   });
+
+  // Ref to skip resetting subDepartmentId on initial edit load
+  const skipSubDeptResetRef = useRef(false);
+  const skipSecondarySubDeptResetRef = useRef(false);
 
   // Fetch subDepartments on mount
   useEffect(() => {
@@ -130,12 +146,34 @@ const UserManagement: React.FC = () => {
         (sub) => sub.departmentId === formData.departmentId
       );
       setFilteredSubDepartments(filtered);
-      // Reset subDepartmentId when department changes
-      setFormData((prev) => ({ ...prev, subDepartmentId: '' }));
+      // Skip reset on initial edit load
+      if (skipSubDeptResetRef.current) {
+        skipSubDeptResetRef.current = false;
+      } else {
+        setFormData((prev) => ({ ...prev, subDepartmentId: '' }));
+      }
     } else {
       setFilteredSubDepartments([]);
     }
   }, [formData.departmentId, subDepartments]);
+
+  // Filter secondary sub-departments when secondary department changes
+  useEffect(() => {
+    if (formData.secondaryDepartmentId) {
+      const filtered = subDepartments.filter(
+        (sub) => sub.departmentId === formData.secondaryDepartmentId
+      );
+      setFilteredSecondarySubDepartments(filtered);
+      // Skip reset on initial edit load
+      if (skipSecondarySubDeptResetRef.current) {
+        skipSecondarySubDeptResetRef.current = false;
+      } else {
+        setFormData((prev) => ({ ...prev, secondarySubDepartmentId: '' }));
+      }
+    } else {
+      setFilteredSecondarySubDepartments([]);
+    }
+  }, [formData.secondaryDepartmentId, subDepartments]);
 
   const fetchSubDepartments = async () => {
     try {
@@ -204,14 +242,20 @@ const UserManagement: React.FC = () => {
       password: '',
       departmentId: '',
       subDepartmentId: '',
+      secondaryDepartmentId: '',
+      secondarySubDepartmentId: '',
     });
     setFilteredSubDepartments([]);
+    setFilteredSecondarySubDepartments([]);
     setIsFormModalOpen(true);
   };
 
   const openEditModal = (user: User) => {
     setIsEditMode(true);
     setSelectedUser(user);
+    // Set refs to skip reset on initial form load
+    skipSubDeptResetRef.current = true;
+    skipSecondarySubDeptResetRef.current = true;
     setFormData({
       email: user.email,
       firstName: user.firstName,
@@ -219,6 +263,9 @@ const UserManagement: React.FC = () => {
       role: user.role,
       departmentId: user.departmentId || '',
       subDepartmentId: user.subDepartmentId || '',
+      secondaryDepartmentId: user.secondaryDepartmentId || '',
+      secondarySubDepartmentId: user.secondarySubDepartmentId || '',
+      secondaryRole: user.secondaryRole || '',
     });
     // Filter sub-departments for edit mode
     if (user.departmentId) {
@@ -226,6 +273,12 @@ const UserManagement: React.FC = () => {
         (sub) => sub.departmentId === user.departmentId
       );
       setFilteredSubDepartments(filtered);
+    }
+    if (user.secondaryDepartmentId) {
+      const filtered = subDepartments.filter(
+        (sub) => sub.departmentId === user.secondaryDepartmentId
+      );
+      setFilteredSecondarySubDepartments(filtered);
     }
     setIsFormModalOpen(true);
   };
@@ -240,8 +293,11 @@ const UserManagement: React.FC = () => {
       password: '',
       departmentId: '',
       subDepartmentId: '',
+      secondaryDepartmentId: '',
+      secondarySubDepartmentId: '',
     });
     setFilteredSubDepartments([]);
+    setFilteredSecondarySubDepartments([]);
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -264,6 +320,9 @@ const UserManagement: React.FC = () => {
           role: formData.role,
           departmentId: formData.departmentId || null,
           subDepartmentId: formData.subDepartmentId || null,
+          secondaryDepartmentId: formData.secondaryDepartmentId || null,
+          secondarySubDepartmentId: formData.secondarySubDepartmentId || null,
+          secondaryRole: formData.secondaryRole || null,
         });
         setSuccess('Cập nhật người dùng thành công');
       } else {
@@ -281,6 +340,9 @@ const UserManagement: React.FC = () => {
           password: formData.password,
           departmentId: formData.departmentId || null,
           subDepartmentId: formData.subDepartmentId || null,
+          secondaryDepartmentId: formData.secondaryDepartmentId || null,
+          secondarySubDepartmentId: formData.secondarySubDepartmentId || null,
+          secondaryRole: formData.secondaryRole || null,
         });
 
         // Employee is auto-created by backend for EMPLOYEE role
@@ -458,18 +520,111 @@ const UserManagement: React.FC = () => {
 
       {/* Users Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <DataTable
-          columns={columns}
-          data={paginatedUsers}
-          isLoading={loading && users.length === 0}
-          total={filteredUsers.length}
-          page={tablePage}
-          pageSize={TABLE_PAGE_SIZE}
-          onPageChange={setTablePage}
-          onFilterChange={(f) => { setTableFilters(f); setTablePage(1); }}
-          rowKey="id"
-          emptyMessage="Không tìm thấy người dùng nào"
-        />
+        {loading && users.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">Đang tải dữ liệu...</div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">Không tìm thấy người dùng</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Họ tên</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Email</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vai trò</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Phòng ban</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedUsers.map((user, index) => (
+                  <tr
+                    key={user.id}
+                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      {user.firstName} {user.lastName}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                      {user.email}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      <div>{getRoleDisplayName(user.role)}</div>
+                      {user.secondaryRole && (
+                        <div className="text-xs text-blue-600 mt-0.5">(Phụ) {getRoleDisplayName(user.secondaryRole)}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      <div>{user.departmentName || '-'}</div>
+                      {user.secondaryDepartmentName && (
+                        <div className="text-xs text-blue-600 mt-0.5">(Phụ) {user.secondaryDepartmentName}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                      <div>{user.subDepartmentName || '-'}</div>
+                      {user.secondarySubDepartmentName && (
+                        <div className="text-xs text-blue-600 mt-0.5">(Phụ) {user.secondarySubDepartmentName}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-center border-r border-gray-200">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                        user.isActive
+                          ? 'bg-green-100 text-green-700 border border-green-300'
+                          : 'bg-red-100 text-red-700 border border-red-300'
+                      }`}>
+                        {user.isActive ? 'Hoạt động' : 'Khóa'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => openDetailModal(user)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                          title="Xem chi tiết"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => openEditModal(user)}
+                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleToggleStatus(user)}
+                          disabled={loading}
+                          className="p-1.5 text-orange-600 hover:bg-orange-100 rounded-md transition-colors disabled:opacity-50"
+                          title={user.isActive ? 'Khóa' : 'Mở khóa'}
+                        >
+                          {user.isActive ? (
+                            <Lock className="w-5 h-5" />
+                          ) : (
+                            <Unlock className="w-5 h-5" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setIsDeleteConfirmOpen(true);
+                          }}
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Detail Modal */}
@@ -521,6 +676,25 @@ const UserManagement: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ngày cập nhật</label>
                   <p className="text-gray-900">{new Date(selectedUser.updatedAt).toLocaleDateString('vi-VN')}</p>
+                </div>
+              </div>
+
+              {/* Supervisor Info Section */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Thông tin bộ phận phụ</h3>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận phụ</label>
+                    <p className="text-gray-900">{selectedUser.secondaryDepartmentName || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vai trò phụ</label>
+                    <p className="text-gray-900">{selectedUser.secondaryRole ? getRoleDisplayName(selectedUser.secondaryRole) : '-'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phòng ban phụ</label>
+                    <p className="text-gray-900">{selectedUser.secondarySubDepartmentName || '-'}</p>
+                  </div>
                 </div>
               </div>
 
@@ -671,7 +845,7 @@ const UserManagement: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phòng ban</label>
                   <select
                     name="subDepartmentId"
                     value={formData.subDepartmentId}
@@ -679,8 +853,59 @@ const UserManagement: React.FC = () => {
                     disabled={!formData.departmentId}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                   >
-                    <option value="">-- Chọn bộ phận --</option>
+                    <option value="">-- Chọn phòng ban --</option>
                     {filteredSubDepartments.map((subDept) => (
+                      <option key={subDept.id} value={subDept.id}>
+                        {subDept.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận phụ</label>
+                  <select
+                    name="secondaryDepartmentId"
+                    value={formData.secondaryDepartmentId}
+                    onChange={handleFormChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Chọn bộ phận phụ --</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Vai trò phụ</label>
+                  <select
+                    name="secondaryRole"
+                    value={formData.secondaryRole}
+                    onChange={handleFormChange}
+                    disabled={!formData.secondaryDepartmentId}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  >
+                    <option value="">-- Chọn vai trò phụ --</option>
+                    <option value="EMPLOYEE">Nhân viên</option>
+                    <option value="TEAM_LEAD">Trưởng phòng</option>
+                    <option value="DEPARTMENT_HEAD">Trưởng bộ phận</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phòng ban phụ</label>
+                  <select
+                    name="secondarySubDepartmentId"
+                    value={formData.secondarySubDepartmentId}
+                    onChange={handleFormChange}
+                    disabled={!formData.secondaryDepartmentId}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  >
+                    <option value="">-- Chọn phòng ban phụ --</option>
+                    {filteredSecondarySubDepartments.map((subDept) => (
                       <option key={subDept.id} value={subDept.id}>
                         {subDept.name}
                       </option>

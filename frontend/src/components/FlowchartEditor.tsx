@@ -339,7 +339,7 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
             className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
           >
             <Plus className="w-5 h-5" />
-            + THÊM PHÂN ĐOẠN
+            THÊM PHÂN ĐOẠN
           </button>
         </div>
 

@@ -29,7 +29,10 @@ const ProtectedSubRoute: React.FC<ProtectedSubRouteProps> = ({
     subModule,
     user.department,
     user.subDepartment,
-    user.role
+    user.role,
+    user.secondaryDepartment,
+    user.secondarySubDepartment,
+    user.secondaryRole
   );
 
   if (!hasAccess) {

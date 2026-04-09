@@ -1669,12 +1669,13 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
     const items = getItems();
     const isOrderSummaryTab = activeTab === items.length + additionalCostTabs.length;
+    const isRevenueTab = activeTab === items.length + additionalCostTabs.length + 1;
 
     setLoading(true);
 
     try {
-      if (isOrderSummaryTab) {
-        // Tab "Báo giá đơn hàng" - Mở modal tạo báo giá
+      if (isOrderSummaryTab || isRevenueTab) {
+        // Tab "Tổng chi phí đơn hàng" hoặc "Doanh thu & lợi nhuận" - Mở modal tạo báo giá
         setLoading(false);
         setShowCreateQuotationModal(true);
         return;
@@ -2715,11 +2716,12 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
   const items = getItems();
   const isOrderSummaryTab = activeTab === items.length + additionalCostTabs.length;
+  const isRevenueTab = activeTab === items.length + additionalCostTabs.length + 1;
   const isAdditionalCostTab = activeTab >= items.length && activeTab < items.length + additionalCostTabs.length;
   const currentAdditionalTabIndex = isAdditionalCostTab ? activeTab - items.length : -1;
   const currentAdditionalTab = isAdditionalCostTab ? additionalCostTabs[currentAdditionalTabIndex] : null;
-  const currentTab = isOrderSummaryTab || isAdditionalCostTab ? null : (tabsData[activeTab] || null);
-  const currentItem = isOrderSummaryTab || isAdditionalCostTab ? null : items[activeTab];
+  const currentTab = isOrderSummaryTab || isRevenueTab || isAdditionalCostTab ? null : (tabsData[activeTab] || null);
+  const currentItem = isOrderSummaryTab || isRevenueTab || isAdditionalCostTab ? null : items[activeTab];
 
   return (
     <>
@@ -2798,7 +2800,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             </svg>
             <span>Chi phí bổ sung</span>
           </button>
-          {/* Tab Báo giá đơn hàng */}
+          {/* Tab Tổng chi phí đơn hàng */}
           <button
             type="button"
             onClick={() => setActiveTab(items.length + additionalCostTabs.length)}
@@ -2808,13 +2810,25 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
             }`}
           >
-            Báo giá đơn hàng
+            Tổng chi phí đơn hàng
+          </button>
+          {/* Tab Doanh thu & lợi nhuận */}
+          <button
+            type="button"
+            onClick={() => setActiveTab(items.length + additionalCostTabs.length + 1)}
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+              activeTab === items.length + additionalCostTabs.length + 1
+                ? 'bg-white text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+            }`}
+          >
+            Doanh thu & lợi nhuận
           </button>
         </div>
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6">
-          {/* Hiển thị tab Báo giá đơn hàng */}
+          {/* Hiển thị tab Tổng chi phí đơn hàng */}
           {isOrderSummaryTab ? (
             <div className="space-y-6">
               {/* Header Section */}
@@ -3266,7 +3280,9 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   </table>
                 </div>
               </div>
-
+            </div>
+          ) : isRevenueTab ? (
+            <div className="space-y-6">
               {/* Phần tính lợi nhuận */}
               <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
                 <div className="bg-gradient-to-r from-gray-700 to-gray-800 px-6 py-3">
@@ -6327,7 +6343,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             >
               Hủy
             </button>
-            {isOrderSummaryTab ? (
+            {(isOrderSummaryTab || isRevenueTab) ? (
               <>
                 <button
                   type="submit"

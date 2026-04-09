@@ -78,7 +78,7 @@ router.post(
   ipBlockCheck,
   loginRateLimiter,
   validate([
-    { field: 'email', required: true, type: 'email' },
+    { field: 'identifier', required: true, type: 'string' },
     { field: 'password', required: true, type: 'string' },
   ]),
   (req, res, next) => authController.login(req, res, next)

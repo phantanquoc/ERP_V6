@@ -1,6 +1,6 @@
 // Authentication types
 export interface LoginRequest {
-  email: string;
+  identifier: string;
   password: string;
 }
 
@@ -24,6 +24,9 @@ export interface User {
   role: UserRole;
   department?: string;
   position?: string;
+  secondaryDepartment?: string;
+  secondarySubDepartment?: string;
+  secondaryRole?: UserRole;
   // Employee specific information
   employeeId?: string;
   employeeCode?: string;
