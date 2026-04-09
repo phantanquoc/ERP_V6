@@ -14,6 +14,7 @@ import OvertimePlanListModal from '../components/OvertimePlanListModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
 import MeetingPage from './MeetingPage';
 import SupplyAdjustmentModal from '../components/SupplyAdjustmentModal';
+import ProcessManagement from '../components/ProcessManagement';
 import {
   FileText,
   Settings,
@@ -50,6 +51,7 @@ const CommonManagement = () => {
   const [isOvertimePlanListOpen, setIsOvertimePlanListOpen] = useState<boolean>(false);
   const [isMeetingListOpen, setIsMeetingListOpen] = useState<boolean>(false);
   const [isSupplyAdjustmentOpen, setIsSupplyAdjustmentOpen] = useState<boolean>(false);
+  const [isProcessAdjustmentOpen, setIsProcessAdjustmentOpen] = useState<boolean>(false);
 
   // Private Feedback Modal states
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState<boolean>(false);
@@ -190,9 +192,9 @@ const CommonManagement = () => {
       return;
     }
 
-    // Điều chỉnh bổ sung vật tư
+    // Điều chỉnh bổ sung quy trình
     if (categoryId === 'de_nghi_dieu_chinh') {
-      setIsSupplyAdjustmentOpen(true);
+      setIsProcessAdjustmentOpen(true);
       return;
     }
 
@@ -712,6 +714,23 @@ const CommonManagement = () => {
       )}
       {isSupplyAdjustmentOpen && (
         <SupplyAdjustmentModal isOpen={isSupplyAdjustmentOpen} onClose={() => setIsSupplyAdjustmentOpen(false)} />
+      )}
+      {/* Điều chỉnh bổ sung quy trình — Full-screen overlay */}
+      {isProcessAdjustmentOpen && (
+        <div className="fixed inset-0 bg-white z-[9999] flex flex-col">
+          <div className="bg-purple-600 text-white px-6 py-3 flex justify-between items-center">
+            <h2 className="text-lg font-bold">Điều chỉnh, bổ sung quy trình</h2>
+            <button
+              onClick={() => setIsProcessAdjustmentOpen(false)}
+              className="p-1 hover:bg-purple-700 rounded"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <ProcessManagement />
+          </div>
+        </div>
       )}
       </div>
 
