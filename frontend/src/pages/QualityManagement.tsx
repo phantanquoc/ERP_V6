@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Users, Settings, ShieldCheck, ClipboardList } from 'lucide-react';
 import {
   PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis,
@@ -13,6 +14,7 @@ const PRODUCT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '
 const INSPECTION_COLORS = ['#EF4444', '#F59E0B', '#3B82F6', '#10B981'];
 
 const QualityManagement = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [employeeTotal, setEmployeeTotal] = useState(0);
   const [employeeActive, setEmployeeActive] = useState(0);
@@ -114,10 +116,10 @@ const QualityManagement = () => {
   }
 
   const statCards = [
-    { label: 'Nhân viên', value: employeeTotal, sub: `Đang làm việc: ${employeeActive}`, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Quy trình', value: processTotal, sub: 'Tổng quy trình', icon: Settings, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Đánh giá chất lượng', value: evalTotal, sub: 'Tổng đánh giá', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { label: 'Kiểm tra nội bộ', value: inspectionTotal, sub: 'Tổng kiểm tra', icon: ClipboardList, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { label: 'Nhân viên', value: employeeTotal, sub: `Đang làm việc: ${employeeActive}`, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', navigateTo: '/quality/personnel' },
+    { label: 'Quy trình', value: processTotal, sub: 'Tổng quy trình', icon: Settings, color: 'text-green-600', bg: 'bg-green-50', navigateTo: '/quality/process-list' },
+    { label: 'Đánh giá chất lượng', value: evalTotal, sub: 'Tổng đánh giá', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-50', navigateTo: '/quality/production' },
+    { label: 'Kiểm tra nội bộ', value: inspectionTotal, sub: 'Tổng kiểm tra', icon: ClipboardList, color: 'text-orange-600', bg: 'bg-orange-50', navigateTo: '/quality/office' },
   ];
 
   return (
@@ -131,7 +133,7 @@ const QualityManagement = () => {
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           {statCards.map((card) => (
-            <div key={card.label} className="bg-white rounded-xl shadow-lg border-2 border-gray-300 p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200">
+            <div key={card.label} onClick={() => navigate(card.navigateTo)} className="bg-white rounded-xl shadow-lg border-2 border-gray-300 p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 cursor-pointer">
               <div className="flex items-center justify-between mb-4">
                 <div className={`${card.bg} p-3 rounded-lg`}>
                   <card.icon className={`w-6 h-6 ${card.color}`} />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Home,
   Users,
@@ -17,7 +18,10 @@ import { orderService } from '../../services/orderService';
 import customerFeedbackService from '../../services/customerFeedbackService';
 
 const BusinessDomestic = () => {
-  const [activeTab, setActiveTab] = useState<'orders' | 'quotations' | 'quotationRequests' | 'customers' | 'feedback'>('quotationRequests');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<'orders' | 'quotations' | 'quotationRequests' | 'customers' | 'feedback'>(
+    (location.state?.tab as 'orders' | 'quotations' | 'quotationRequests' | 'customers' | 'feedback') || 'quotationRequests'
+  );
 
   // Overview stats
   const [quotationRequestStats, setQuotationRequestStats] = useState({

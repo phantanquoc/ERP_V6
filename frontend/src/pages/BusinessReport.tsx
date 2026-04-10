@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { ShoppingCart, MessageSquare, Plane, Building2 } from 'lucide-react';
 import { orderService } from '../services/orderService';
@@ -26,6 +27,7 @@ const buildMonthlyChartData = (orders: any[]) => {
 };
 
 const BusinessReport: React.FC = () => {
+  const navigate = useNavigate();
   const [businessData, setBusinessData] = useState({
     orders: { total: 0, international: 0, domestic: 0 },
     internationalCustomers: { total: 0, new: 0, inactive: 0 },
@@ -120,6 +122,8 @@ const BusinessReport: React.FC = () => {
       borderColor: 'border-blue-400',
       bgColor: 'bg-blue-50',
       textColor: 'text-blue-600',
+      navigateTo: '/business/international',
+      navigateTab: 'orders',
     },
     {
       title: 'Khách hàng quốc tế',
@@ -132,6 +136,8 @@ const BusinessReport: React.FC = () => {
       borderColor: 'border-green-400',
       bgColor: 'bg-green-50',
       textColor: 'text-green-600',
+      navigateTo: '/business/international',
+      navigateTab: 'customers',
     },
     {
       title: 'Khách hàng nội địa',
@@ -144,6 +150,8 @@ const BusinessReport: React.FC = () => {
       borderColor: 'border-purple-400',
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-600',
+      navigateTo: '/business/domestic',
+      navigateTab: 'customers',
     },
     {
       title: 'Phản hồi khách hàng',
@@ -154,6 +162,8 @@ const BusinessReport: React.FC = () => {
       borderColor: 'border-orange-400',
       bgColor: 'bg-orange-50',
       textColor: 'text-orange-600',
+      navigateTo: '/business/international',
+      navigateTab: 'feedback',
     },
   ];
 
@@ -171,7 +181,8 @@ const BusinessReport: React.FC = () => {
           {statCards.map((card, idx) => (
             <div
               key={idx}
-              className={`bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:${card.borderColor}`}
+              onClick={() => navigate(card.navigateTo, { state: { tab: card.navigateTab } })}
+              className={`bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:${card.borderColor} cursor-pointer`}
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold flex items-center text-gray-800">

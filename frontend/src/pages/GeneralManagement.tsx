@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FileText, ShoppingCart, DollarSign, TrendingUp, Plane, Building2 } from 'lucide-react';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { quotationRequestService } from '../services/quotationRequestService';
@@ -22,6 +23,7 @@ interface MonthlyData {
 }
 
 const GeneralManagement = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats>({
     ycbg: { total: 0, quocTe: 0, noiDia: 0 },
@@ -121,6 +123,8 @@ const GeneralManagement = () => {
       borderColor: 'border-blue-400',
       bgColor: 'bg-blue-50',
       textColor: 'text-blue-600',
+      navigateTo: '/general/pricing',
+      navigateTab: 'requests',
     },
     {
       title: 'Bảng báo giá',
@@ -132,6 +136,8 @@ const GeneralManagement = () => {
       borderColor: 'border-green-400',
       bgColor: 'bg-green-50',
       textColor: 'text-green-600',
+      navigateTo: '/general/pricing',
+      navigateTab: 'quotes',
     },
     {
       title: 'Đơn hàng',
@@ -143,6 +149,8 @@ const GeneralManagement = () => {
       borderColor: 'border-purple-400',
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-600',
+      navigateTo: '/general/pricing',
+      navigateTab: 'orders',
     },
     {
       title: 'Chi phí chung',
@@ -154,6 +162,8 @@ const GeneralManagement = () => {
       isCost: true,
       generalCost: stats.chiPhiChung.total,
       exportCost: stats.chiPhiChung.exportCost,
+      navigateTo: '/general/pricing',
+      navigateTab: 'costs',
     },
   ];
 
@@ -171,7 +181,8 @@ const GeneralManagement = () => {
           {statCards.map((card, idx) => (
             <div
               key={idx}
-              className={`bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:${card.borderColor}`}
+              onClick={() => navigate(card.navigateTo, { state: { tab: card.navigateTab } })}
+              className={`bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:${card.borderColor} cursor-pointer`}
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold flex items-center text-gray-800">

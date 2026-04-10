@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Calculator,
   FileText,
@@ -14,7 +15,10 @@ import { quotationRequestService } from '../../services/quotationRequestService'
 import { orderService } from '../../services/orderService';
 
 const GeneralPricing = () => {
-  const [activeTab, setActiveTab] = useState<'requests' | 'quotes' | 'orders' | 'costs'>('requests');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<'requests' | 'quotes' | 'orders' | 'costs'>(
+    (location.state?.tab as 'requests' | 'quotes' | 'orders' | 'costs') || 'requests'
+  );
 
   // Stats overview
   const [requestStats, setRequestStats] = useState({

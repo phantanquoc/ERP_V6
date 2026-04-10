@@ -18,10 +18,14 @@ interface StatCardProps {
   value: number | string;
   sub?: string;
   icon: React.ReactNode;
+  onClick?: () => void;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, sub, icon }) => (
-  <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-start gap-3">
+const StatCard: React.FC<StatCardProps> = ({ label, value, sub, icon, onClick }) => (
+  <div
+    className={`bg-white border border-gray-200 rounded-lg p-4 flex items-start gap-3${onClick ? ' cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200' : ''}`}
+    onClick={onClick}
+  >
     <div className="text-gray-400 mt-0.5">{icon}</div>
     <div>
       <p className="text-xs text-gray-500 mb-0.5">{label}</p>
@@ -228,19 +232,19 @@ const ProductionManagement = () => {
         {/* Machine stats */}
         <p className="text-xs font-medium text-gray-400 uppercase mb-2">Máy móc</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-          <StatCard label="Tổng số máy" value={machineStats.total} sub={`Hoạt động ${machineRate}%`} icon={<Cog className="w-4 h-4" />} />
-          <StatCard label="Đang hoạt động" value={machineStats.hoatDong} icon={<CheckCircle className="w-4 h-4 text-green-500" />} />
-          <StatCard label="Đang bảo trì" value={machineStats.baoTri} icon={<AlertTriangle className="w-4 h-4 text-yellow-500" />} />
-          <StatCard label="Ngừng hoạt động" value={machineStats.ngungHoatDong} icon={<XCircle className="w-4 h-4 text-red-400" />} />
+          <StatCard label="Tổng số máy" value={machineStats.total} sub={`Hoạt động ${machineRate}%`} icon={<Cog className="w-4 h-4" />} onClick={() => navigate('/production/management')} />
+          <StatCard label="Đang hoạt động" value={machineStats.hoatDong} icon={<CheckCircle className="w-4 h-4 text-green-500" />} onClick={() => navigate('/production/management')} />
+          <StatCard label="Đang bảo trì" value={machineStats.baoTri} icon={<AlertTriangle className="w-4 h-4 text-yellow-500" />} onClick={() => navigate('/production/management')} />
+          <StatCard label="Ngừng hoạt động" value={machineStats.ngungHoatDong} icon={<XCircle className="w-4 h-4 text-red-400" />} onClick={() => navigate('/production/management')} />
         </div>
 
         {/* Order stats */}
         <p className="text-xs font-medium text-gray-400 uppercase mb-2">Đơn hàng sản xuất</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <StatCard label="Tổng đơn hàng" value={orderStats.total} icon={<ClipboardList className="w-4 h-4" />} />
-          <StatCard label="Chờ sản xuất" value={orderStats.choSanXuat} icon={<Clock className="w-4 h-4 text-yellow-500" />} />
-          <StatCard label="Đang sản xuất" value={orderStats.dangSanXuat} icon={<TrendingUp className="w-4 h-4 text-blue-500" />} />
-          <StatCard label="Đã giao" value={orderStats.daGiao} sub={`Tháng này: ${finishedStats.thangNay} thành phẩm`} icon={<CheckCircle className="w-4 h-4 text-green-500" />} />
+          <StatCard label="Tổng đơn hàng" value={orderStats.total} icon={<ClipboardList className="w-4 h-4" />} onClick={() => navigate('/production/management')} />
+          <StatCard label="Chờ sản xuất" value={orderStats.choSanXuat} icon={<Clock className="w-4 h-4 text-yellow-500" />} onClick={() => navigate('/production/management')} />
+          <StatCard label="Đang sản xuất" value={orderStats.dangSanXuat} icon={<TrendingUp className="w-4 h-4 text-blue-500" />} onClick={() => navigate('/production/management')} />
+          <StatCard label="Đã giao" value={orderStats.daGiao} sub={`Tháng này: ${finishedStats.thangNay} thành phẩm`} icon={<CheckCircle className="w-4 h-4 text-green-500" />} onClick={() => navigate('/production/management')} />
         </div>
 
         {/* Order progress bar */}
@@ -268,10 +272,10 @@ const ProductionManagement = () => {
         {/* Warehouse stats */}
         <p className="text-xs font-medium text-gray-400 uppercase mb-2">Tồn kho</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-          <StatCard label="Số kho" value={warehouseStats.totalWarehouses} sub={`Trống: ${warehouseStats.trong}`} icon={<Warehouse className="w-4 h-4" />} />
-          <StatCard label="Kho có hàng" value={warehouseStats.coHang} icon={<Package className="w-4 h-4 text-green-500" />} />
-          <StatCard label="Tổng lô hàng" value={warehouseStats.totalLots} sub={`Lô trống: ${warehouseStats.loTrong}`} icon={<ClipboardList className="w-4 h-4" />} />
-          <StatCard label="Phiếu nhập / xuất" value={`${receiptIssueStats.totalReceipts} / ${receiptIssueStats.totalIssues}`} sub={`Tháng này: +${receiptIssueStats.receiptThangNay} / -${receiptIssueStats.issueThangNay}`} icon={<ArrowDown className="w-4 h-4 text-indigo-400" />} />
+          <StatCard label="Số kho" value={warehouseStats.totalWarehouses} sub={`Trống: ${warehouseStats.trong}`} icon={<Warehouse className="w-4 h-4" />} onClick={() => navigate('/production/warehouse')} />
+          <StatCard label="Kho có hàng" value={warehouseStats.coHang} icon={<Package className="w-4 h-4 text-green-500" />} onClick={() => navigate('/production/warehouse')} />
+          <StatCard label="Tổng lô hàng" value={warehouseStats.totalLots} sub={`Lô trống: ${warehouseStats.loTrong}`} icon={<ClipboardList className="w-4 h-4" />} onClick={() => navigate('/production/warehouse')} />
+          <StatCard label="Phiếu nhập / xuất" value={`${receiptIssueStats.totalReceipts} / ${receiptIssueStats.totalIssues}`} sub={`Tháng này: +${receiptIssueStats.receiptThangNay} / -${receiptIssueStats.issueThangNay}`} icon={<ArrowDown className="w-4 h-4 text-indigo-400" />} onClick={() => navigate('/production/warehouse')} />
         </div>
 
         {/* Supply request */}
