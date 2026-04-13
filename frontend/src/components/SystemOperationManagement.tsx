@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Eye, X, Settings } from 'lucide-react';
 import systemOperationService, { SystemOperation, GiaiDoan } from '../services/systemOperationService';
 import machineService, { Machine } from '../services/machineService';
 import { parseNumberInput } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 interface FormData {
   maChien: string;
@@ -48,18 +49,26 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
   });
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [columnFilters, setColumnFilters] = useState({
-    maChien: '',
-    trangThai: '',
-  });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', trangThai: '' });
   const itemsPerPage = 10;
+
+  const operationFilterFields: FilterField[] = [
+    { key: 'maChien', label: 'Mã chiên', type: 'text' },
+    { key: 'trangThai', label: 'Trạng thái', type: 'select', options: [
+      { value: 'DANG_HOAT_DONG', label: 'Đang hoạt động' },
+      { value: 'BAO_TRI', label: 'Bảo trì' },
+      { value: 'NGUNG_HOAT_DONG', label: 'Ngừng hoạt động' },
+    ]},
+  ];
 
   // Lấy danh sách operations của máy đang chọn
   const filteredOperations = operations.filter(op => {
     const matchMachine = op.tenMay === selectedMachine;
-    const matchMaChien = !columnFilters.maChien || (op.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
-    const matchTrangThai = !columnFilters.trangThai || (op.trangThai || '').toLowerCase().includes(columnFilters.trangThai.toLowerCase());
-    return matchMachine && matchMaChien && matchTrangThai;
+    const matchMaChien = !filterValues.maChien || (op.maChien || '').toLowerCase().includes(filterValues.maChien.toLowerCase());
+    const matchTrangThai = !filterValues.trangThai || (op.trangThai || '').toLowerCase().includes(filterValues.trangThai.toLowerCase());
+    const search = filterValues._search.toLowerCase();
+    const matchSearch = !search || (op.maChien || '').toLowerCase().includes(search) || (op.tenMay || '').toLowerCase().includes(search) || (op.nguoiThucHien || '').toLowerCase().includes(search);
+    return matchMachine && matchMaChien && matchTrangThai && matchSearch;
   });
 
   const totalPages = Math.ceil(filteredOperations.length / itemsPerPage);
@@ -358,6 +367,10 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Thông số vận hành hệ thống</h2>
+        <button onClick={() => handleOpenModal()} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <Plus className="w-4 h-4" />
+          Thêm thông số
+        </button>
       </div>
 
       {/* Error Message */}
@@ -397,7 +410,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                   whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
                   ${selectedMachine === machine.tenMay
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-900 hover:text-blue-600 hover:border-gray-300'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }
                 `}
               >
@@ -412,6 +425,13 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
           </nav>
         </div>
       </div>
+
+      <TableFilter
+        filters={operationFilterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm mã chiên, tên máy, người thực hiện..."
+      />
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -429,22 +449,6 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
-              </tr>
-              <tr className="bg-white border-b border-gray-200">
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.maChien} onChange={(e) => { setColumnFilters(prev => ({...prev, maChien: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.trangThai} onChange={(e) => { setColumnFilters(prev => ({...prev, trangThai: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>

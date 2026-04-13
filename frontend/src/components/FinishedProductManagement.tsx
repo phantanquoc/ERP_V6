@@ -5,6 +5,7 @@ import machineService, { Machine } from '../services/machineService';
 import FinishedProductModal from './FinishedProductModal';
 import FinishedProductViewModal from './FinishedProductViewModal';
 import { useAuth } from '../contexts/AuthContext';
+import TableFilter, { FilterField } from './TableFilter';
 
 // Special constant for "Tổng các máy" tab
 const TOTAL_ALL_MACHINES = '__TOTAL_ALL_MACHINES__';
@@ -22,11 +23,13 @@ const FinishedProductManagement: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FinishedProduct | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [columnFilters, setColumnFilters] = useState({
-    maChien: '',
-    tenHangHoa: '',
-  });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
   const itemsPerPage = 10;
+
+  const productFilterFields: FilterField[] = [
+    { key: 'maChien', label: 'Mã chiên', type: 'text' },
+    { key: 'tenHangHoa', label: 'Tên hàng hóa', type: 'text' },
+  ];
 
   // Get current user's full name
   const currentUserName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
@@ -354,16 +357,20 @@ const FinishedProductManagement: React.FC = () => {
 
   // Filtered aggregated data
   const filteredAggregated = aggregatedByMaChien.filter(item => {
-    const matchMaChien = !columnFilters.maChien || (item.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
-    const matchTenHangHoa = !columnFilters.tenHangHoa || (item.tenHangHoa || '').toLowerCase().includes(columnFilters.tenHangHoa.toLowerCase());
-    return matchMaChien && matchTenHangHoa;
+    const search = filterValues._search.toLowerCase();
+    const matchSearch = !search || (item.maChien || '').toLowerCase().includes(search) || (item.tenHangHoa || '').toLowerCase().includes(search) || (item.nguoiThucHien || '').toLowerCase().includes(search);
+    const matchMaChien = !filterValues.maChien || (item.maChien || '').toLowerCase().includes(filterValues.maChien.toLowerCase());
+    const matchTenHangHoa = !filterValues.tenHangHoa || (item.tenHangHoa || '').toLowerCase().includes(filterValues.tenHangHoa.toLowerCase());
+    return matchSearch && matchMaChien && matchTenHangHoa;
   });
 
   // Filtered individual products
   const filteredProducts = products.filter(product => {
-    const matchMaChien = !columnFilters.maChien || (product.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
-    const matchTenHangHoa = !columnFilters.tenHangHoa || (product.tenHangHoa || '').toLowerCase().includes(columnFilters.tenHangHoa.toLowerCase());
-    return matchMaChien && matchTenHangHoa;
+    const search = filterValues._search.toLowerCase();
+    const matchSearch = !search || (product.maChien || '').toLowerCase().includes(search) || (product.tenHangHoa || '').toLowerCase().includes(search) || (product.nguoiThucHien || '').toLowerCase().includes(search);
+    const matchMaChien = !filterValues.maChien || (product.maChien || '').toLowerCase().includes(filterValues.maChien.toLowerCase());
+    const matchTenHangHoa = !filterValues.tenHangHoa || (product.tenHangHoa || '').toLowerCase().includes(filterValues.tenHangHoa.toLowerCase());
+    return matchSearch && matchMaChien && matchTenHangHoa;
   });
 
   // State for viewing aggregated product detail
@@ -631,6 +638,12 @@ const FinishedProductManagement: React.FC = () => {
         </div>
       </div>
 
+      <TableFilter
+        filters={productFilterFields}
+        values={filterValues}
+        onChange={(newValues) => { setFilterValues(newValues); setCurrentPage(1); }}
+      />
+
       {/* Aggregated Table View for "Tổng các máy" tab - Display by maChien */}
       {selectedMachine === TOTAL_ALL_MACHINES && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -647,21 +660,6 @@ const FinishedProductManagement: React.FC = () => {
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Số máy</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Đánh giá</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
-                </tr>
-                <tr className="bg-white border-b border-gray-200">
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200">
-                    <input type="text" placeholder="Lọc..." value={columnFilters.maChien} onChange={(e) => { setColumnFilters(prev => ({...prev, maChien: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                  </th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200">
-                    <input type="text" placeholder="Lọc..." value={columnFilters.tenHangHoa} onChange={(e) => { setColumnFilters(prev => ({...prev, tenHangHoa: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                  </th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -768,20 +766,6 @@ const FinishedProductManagement: React.FC = () => {
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
-                </tr>
-                <tr className="bg-white border-b border-gray-200">
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200">
-                    <input type="text" placeholder="Lọc..." value={columnFilters.maChien} onChange={(e) => { setColumnFilters(prev => ({...prev, maChien: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                  </th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200">
-                    <input type="text" placeholder="Lọc..." value={columnFilters.tenHangHoa} onChange={(e) => { setColumnFilters(prev => ({...prev, tenHangHoa: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                  </th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2"></th>
                 </tr>
               </thead>
               <tbody>

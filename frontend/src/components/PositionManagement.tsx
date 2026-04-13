@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Plus,
-  Search,
   Edit,
   Eye,
   Trash2,
@@ -12,6 +11,7 @@ import {
 import { usePositions, positionKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import positionService, { Position } from '@services/positionService';
+import TableFilter, { FilterField } from './TableFilter';
 
 interface FormData {
   code: string;
@@ -25,9 +25,18 @@ const PositionManagement = () => {
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', name: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const filterFields: FilterField[] = [
+    {
+      key: 'name',
+      label: 'Tên vị trí',
+      type: 'text',
+      placeholder: 'Lọc theo tên vị trí...',
+    },
+  ];
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -98,10 +107,12 @@ const PositionManagement = () => {
     setSelectedPosition(null);
   };
 
-  const filteredPositions = positions.filter(pos =>
-    pos.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pos.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPositions = positions.filter(pos => {
+    const s = filterValues._search.toLowerCase();
+    const matchesSearch = pos.code.toLowerCase().includes(s) || pos.name.toLowerCase().includes(s);
+    const matchesName = !filterValues.name || pos.name.toLowerCase().includes(filterValues.name.toLowerCase());
+    return matchesSearch && matchesName;
+  });
 
   const totalPages = Math.ceil(filteredPositions.length / itemsPerPage);
   const paginatedPositions = filteredPositions.slice(
@@ -109,16 +120,12 @@ const PositionManagement = () => {
     currentPage * itemsPerPage
   );
 
-  // Reset page when search changes
-  const handleSearch = (value: string) => {
-    setSearchTerm(value);
-    setCurrentPage(1);
-  };
+  // Reset page when search changes - handled by TableFilter onChange
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Quản lý vị trí</h2>
         <button
           onClick={openCreateModal}
@@ -131,35 +138,25 @@ const PositionManagement = () => {
 
       {/* Messages */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md flex items-center gap-2">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-md flex items-center gap-2">
           <AlertCircle className="h-5 w-5 text-red-600" />
           <span className="text-red-700">{error}</span>
         </div>
       )}
       {success && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md flex items-center gap-2">
+        <div className="p-4 bg-green-50 border border-green-200 rounded-md flex items-center gap-2">
           <CheckCircle className="h-5 w-5 text-green-600" />
           <span className="text-green-700">{success}</span>
         </div>
       )}
 
-      {/* Action Bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm theo mã vị trí, tên vị trí..."
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-80"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm theo mã vị trí, tên vị trí..."
+      />
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

@@ -292,7 +292,7 @@ const AccountingAdmin = () => {
         </div>
 
         {/* Content */}
-        <div className="bg-white rounded-xl shadow-lg border-2 border-gray-300">
+        <div className="bg-white rounded-lg shadow-sm">
           {/* HÓA ĐƠN */}
           {/* HÓA ĐƠN */}
           {activeTab === 'invoices' && (
@@ -303,7 +303,9 @@ const AccountingAdmin = () => {
 
           {/* QUẢN LÝ TÀI SẢN */}
           {activeTab === 'assets' && (
-            <AssetManagement hideHeader={true} />
+            <div className="p-6">
+              <AssetManagement hideHeader={true} />
+            </div>
           )}
 
           {/* QUẢN LÝ TÀI SẢN - OLD MOCKDATA (COMMENTED OUT) */}

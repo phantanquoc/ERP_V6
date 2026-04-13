@@ -1,11 +1,21 @@
 import { LoginRequest, RegisterRequest, AuthResponse, User, UserRole } from '../types/auth';
 import { API_BASE_URL } from '../config/api';
 
+// Custom error type for IP rate limit lock
+export class IpLockedError extends Error {
+  public lockedUntil: Date;
+  constructor(message: string, lockedUntil: Date) {
+    super(message);
+    this.name = 'IpLockedError';
+    this.lockedUntil = lockedUntil;
+  }
+}
+
 class AuthService {
   static async login(credentials: LoginRequest): Promise<AuthResponse> {
     try {
-      console.log('🔐 Attempting login with:', credentials.identifier);
-      console.log('📡 API URL:', `${API_BASE_URL}/auth/login`);
+      console.log('Attempting login with:', credentials.identifier);
+      console.log('API URL:', `${API_BASE_URL}/auth/login`);
 
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -18,21 +28,26 @@ class AuthService {
         }),
       });
 
-      console.log('📊 Response status:', response.status);
+      console.log('Response status:', response.status);
 
       if (!response.ok) {
         let errorMessage = 'Đăng nhập thất bại';
         try {
           const errorData = await response.json();
+          // Handle IP locked (HTTP 429)
+          if (response.status === 429 && errorData.lockedUntil) {
+            throw new IpLockedError(errorData.message || 'IP bị khóa', new Date(errorData.lockedUntil));
+          }
           errorMessage = errorData.message || errorMessage;
         } catch (e) {
+          if (e instanceof IpLockedError) throw e;
           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
         throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      console.log('✅ Response data:', data);
+      console.log('Response data:', data);
 
       if (!data.success || !data.data) {
         throw new Error(data.message || 'Đăng nhập thất bại');
@@ -44,9 +59,9 @@ class AuthService {
           case 'ADMIN':
             return UserRole.ADMIN;
           case 'DEPARTMENT_HEAD':
-            return UserRole.MANAGER;
+            return UserRole.DEPARTMENT_HEAD;
           case 'TEAM_LEAD':
-            return UserRole.MANAGER;
+            return UserRole.TEAM_LEAD;
           case 'EMPLOYEE':
             return UserRole.EMPLOYEE;
           default:
@@ -141,10 +156,11 @@ class AuthService {
       localStorage.setItem('refreshToken', authResponse.refreshToken);
       localStorage.setItem('user', JSON.stringify(authResponse.user));
 
-      console.log('🎉 Login successful for:', authResponse.user.email);
+      console.log('Login successful for:', authResponse.user.email);
       return authResponse;
     } catch (error) {
-      console.error('❌ Login error:', error);
+      console.error('Login error:', error);
+      if (error instanceof IpLockedError) throw error;
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         throw new Error(`Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy tại ${API_BASE_URL}`);
       }
@@ -154,6 +170,24 @@ class AuthService {
 
   static async register(userData: RegisterRequest): Promise<AuthResponse> {
     throw new Error('Đăng ký tài khoản hiện chưa được hỗ trợ');
+  }
+
+  static async forgotPassword(identifier: string): Promise<string> {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ identifier }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Yêu cầu thất bại');
+    }
+
+    return data.message;
   }
 
   static async logout(): Promise<void> {
@@ -170,7 +204,7 @@ class AuthService {
         });
       }
 
-      console.log('🚪 Logout successful');
+      console.log('Logout successful');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -194,6 +228,20 @@ class AuthService {
       });
 
       if (!response.ok) {
+        // Check if session was replaced by another device login
+        try {
+          const errorData = await response.json();
+          if (errorData.code === 'SESSION_REPLACED') {
+            localStorage.setItem('session_replaced', 'true');
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+            return null;
+          }
+        } catch (_e) {
+          // ignore JSON parse error
+        }
         throw new Error('Token refresh failed');
       }
 

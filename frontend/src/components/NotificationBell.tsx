@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck, CalendarDays } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, X } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdmin } from '../utils/permissions';
+import { getNotificationIcon } from '../utils/notificationIcons';
 import TaskListModal from './TaskListModal';
 import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
 import AllNotificationsModal from './AllNotificationsModal';
@@ -13,8 +14,10 @@ import OvertimePlanListModal from './OvertimePlanListModal';
 
 const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
   const { user } = useAuth();
-  const userIsAdmin = user ? isAdmin(user.department) : false;
+  const navigate = useNavigate();
+  const userIsAdmin = user?.role === 'admin';
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
@@ -33,10 +36,15 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 
   useEffect(() => {
     loadNotifications();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(loadNotifications, 30000);
+    loadUnreadCount();
+    const interval = setInterval(loadUnreadCount, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const loadUnreadCount = async () => {
+    const count = await notificationService.getUnreadCount();
+    setUnreadCount(count);
+  };
 
   const loadNotifications = async () => {
     try {
@@ -56,6 +64,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setNotifications(notifications.map(n =>
         n.id === notificationId ? { ...n, isRead: true } : n
       ));
+      setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -79,42 +88,22 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setSelectedLeaveRequestId(notification.leaveRequestId || null);
       setSelectedLeaveRequestMessage(notification.message);
       setIsLeaveRequestModalOpen(true);
+    } else if (notification.type === 'LEAVE_REQUEST_RESPONSE') {
+      // NV xem kết quả đơn nghỉ phép — mở modal xem đơn của mình
+      setSelectedLeaveRequestId(notification.leaveRequestId || null);
+      setSelectedLeaveRequestMessage(notification.message);
+      setIsLeaveRequestModalOpen(true);
     } else if (notification.type === 'OVERTIME_PLAN' || notification.type === 'OVERTIME_PLAN_APPROVAL') {
       setIsOvertimePlanModalOpen(true);
+    } else if (['SUPPLY_REQUEST', 'SUPPLY_REQUEST_PROCESSING', 'SUPPLY_REQUEST_APPROVED', 'SUPPLY_REQUEST_FULFILLED'].includes(notification.type)) {
+      // Navigate đến trang quản lý yêu cầu cung ứng
+      navigate('/production/warehouse');
     }
+    // PASSWORD_RESET: chỉ mark read, không cần mở gì
     if (onNotificationClick) {
       onNotificationClick(notification);
     }
     setIsOpen(false);
-  };
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'EVALUATION':
-        return <ClipboardList className="w-4 h-4 text-orange-600" />;
-      case 'EVALUATION_SUPERVISOR1':
-      case 'EVALUATION_SUPERVISOR2':
-        return <Clock className="w-4 h-4 text-blue-600" />;
-      case 'EVALUATION_COMPLETED':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'TASK':
-        return <Target className="w-4 h-4 text-indigo-600" />;
-      case 'PAYROLL':
-        return <DollarSign className="w-4 h-4 text-green-600" />;
-      case 'ACCEPTANCE_HANDOVER':
-        return <PackageCheck className="w-4 h-4 text-teal-600" />;
-      case 'LEAVE_REQUEST':
-        return <CalendarDays className="w-4 h-4 text-purple-600" />;
-      case 'LEAVE_REQUEST_RESPONSE':
-        return <CalendarDays className="w-4 h-4 text-purple-600" />;
-      case 'OVERTIME_PLAN':
-      case 'OVERTIME_PLAN_APPROVAL':
-        return <Clock className="w-4 h-4 text-orange-600" />;
-      default:
-        return <AlertCircle className="w-4 h-4 text-gray-600" />;
-    }
   };
 
   return (
@@ -122,7 +111,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     <div className="relative">
       {/* Bell Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => { if (!isOpen) loadNotifications(); setIsOpen(!isOpen); }}
         className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
         title="Thông báo"
       >
@@ -275,6 +264,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         isOpen={isOvertimePlanModalOpen}
         onClose={() => setIsOvertimePlanModalOpen(false)}
         isAdmin={userIsAdmin}
+        canViewAll={userIsAdmin}
+        canCreate={userIsAdmin || user?.role === 'department_head'}
       />
     </>
   );

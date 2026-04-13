@@ -244,8 +244,10 @@ const WarehouseManagement: React.FC = () => {
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Quản lý kho</h1>
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-800">Quản lý kho</h2>
+      </div>
 
       {/* Warehouse Tabs */}
       <div className="bg-white rounded-lg shadow mb-6">

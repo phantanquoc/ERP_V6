@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { SystemSettingsProvider } from './contexts/SystemSettingsContext';
 import ProtectedLayout from './components/ProtectedLayout';
 import ProtectedSubRoute from './components/ProtectedSubRoute';
 
@@ -51,10 +52,14 @@ const TechnicalManagement = React.lazy(() => import('./pages/TechnicalManagement
 const TechnicalQuality = React.lazy(() => import('./pages/technical/TechnicalQuality'));
 const TechnicalMechanical = React.lazy(() => import('./pages/technical/TechnicalMechanical'));
 
+// System Settings
+const SystemSettingsPage = React.lazy(() => import('./pages/SystemSettingsPage'));
+
 function App() {
   return (
     <Router>
       <AuthProvider>
+        <SystemSettingsProvider>
         <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
         <Routes>
           {/* Public Routes */}
@@ -129,8 +134,12 @@ function App() {
           <Route path="/technical" element={<ProtectedLayout><TechnicalManagement /></ProtectedLayout>} />
           <Route path="/technical/quality" element={<ProtectedLayout><TechnicalQuality /></ProtectedLayout>} />
           <Route path="/technical/mechanical" element={<ProtectedLayout><TechnicalMechanical /></ProtectedLayout>} />
+
+          {/* System Settings (Admin Only) */}
+          <Route path="/system-settings" element={<ProtectedLayout><SystemSettingsPage /></ProtectedLayout>} />
         </Routes>
         </Suspense>
+        </SystemSettingsProvider>
       </AuthProvider>
     </Router>
   );

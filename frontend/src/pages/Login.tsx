@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,14 +6,58 @@ import { useAuth } from '../contexts/AuthContext';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import { loginSchema, LoginFormData } from '../schemas/requestSchemas';
+import { IpLockedError } from '../services/authService';
 
 const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [sessionReplacedMessage, setSessionReplacedMessage] = useState('');
+  const [ipLockedUntil, setIpLockedUntil] = useState<Date | null>(null);
+  const [countdownText, setCountdownText] = useState('');
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Check for session_replaced flag on mount
+  useEffect(() => {
+    const replaced = localStorage.getItem('session_replaced');
+    if (replaced === 'true') {
+      setSessionReplacedMessage('Tài khoản của bạn đã được đăng nhập trên thiết bị khác. Vui lòng đăng nhập lại.');
+      localStorage.removeItem('session_replaced');
+    }
+  }, []);
+
+  // Countdown timer for IP lock
+  useEffect(() => {
+    if (!ipLockedUntil) {
+      setCountdownText('');
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const remaining = ipLockedUntil.getTime() - Date.now();
+      if (remaining <= 0) {
+        setCountdownText('');
+        setIpLockedUntil(null);
+        setApiError('');
+        if (countdownRef.current) clearInterval(countdownRef.current);
+        return;
+      }
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      setCountdownText(`${minutes} phút ${seconds} giây`);
+    };
+
+    updateCountdown();
+    countdownRef.current = setInterval(updateCountdown, 1000);
+
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, [ipLockedUntil]);
 
   const {
     register,
@@ -30,19 +74,25 @@ const Login: React.FC = () => {
 
   const onSubmit = async (data: LoginFormData) => {
     setApiError('');
+    setSessionReplacedMessage('');
     setIsLoading(true);
 
     try {
       await login({ identifier: data.identifier, password: data.password });
       navigate('/dashboard');
     } catch (error) {
-      setApiError(error instanceof Error ? error.message : 'Đăng nhập thất bại');
+      if (error instanceof IpLockedError) {
+        setIpLockedUntil(error.lockedUntil);
+        setApiError(error.message);
+      } else {
+        setApiError(error instanceof Error ? error.message : 'Đăng nhập thất bại');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-
+  const isIpLocked = ipLockedUntil !== null && ipLockedUntil > new Date();
 
   return (
     <div className="min-h-screen flex">
@@ -57,11 +107,23 @@ const Login: React.FC = () => {
             </div>
             <div className="bg-white p-8 rounded-b-lg shadow-lg border border-gray-200">
               <h2 className="text-2xl font-bold text-gray-900 mb-8">Đăng nhập</h2>
-              
+
+              {/* Session replaced warning */}
+              {sessionReplacedMessage && (
+                <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded">
+                  {sessionReplacedMessage}
+                </div>
+              )}
+
               {/* Error Message */}
               {apiError && (
                 <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
                   {apiError}
+                  {isIpLocked && countdownText && (
+                    <div className="mt-2 font-semibold">
+                      Thử lại sau: {countdownText}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -114,9 +176,9 @@ const Login: React.FC = () => {
                   type="submit"
                   className="w-full"
                   loading={isLoading}
-                  disabled={isLoading}
+                  disabled={isLoading || isIpLocked}
                 >
-                  Đăng nhập
+                  {isIpLocked ? `IP bị khóa (${countdownText})` : 'Đăng nhập'}
                 </Button>
               </form>
 
@@ -135,7 +197,7 @@ const Login: React.FC = () => {
                 <p>© 2025 ABF System.</p>
                 <p>Bản quyền thuộc về Công Ty TNHH Thực Phẩm Quốc Tế An Bình.</p>
                 <p className="mt-2">
-                  Hỗ trợ kỹ thuật: 
+                  Hỗ trợ kỹ thuật:
                   <a href="mailto:support@abf.com" className="text-blue-600 hover:text-blue-500 ml-1">
                     support@abf.com
                   </a>

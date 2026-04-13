@@ -1,31 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Search,
   Eye,
   AlertCircle,
   CheckCircle,
   X,
 } from 'lucide-react';
 import employeeEvaluationService, { EmployeeEvaluation, EvaluationDetailsResponse } from '@services/employeeEvaluationService';
-import { useEmployees } from '../hooks';
+import TableFilter, { FilterField } from './TableFilter';
 
 const EmployeeEvaluationManagement = () => {
   const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', evaluationStatus: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const filterFields: FilterField[] = [
+    {
+      key: 'evaluationStatus',
+      label: 'Trạng thái đánh giá',
+      type: 'select',
+      options: [
+        { value: 'evaluated', label: 'Đã đánh giá' },
+        { value: 'not_evaluated', label: 'Chưa đánh giá' },
+      ],
+    },
+  ];
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEvaluation, setSelectedEvaluation] = useState<EvaluationDetailsResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-
-  // Use React Query hook for fetching employees
-  const { data: employeesData } = useEmployees(1, 1000);
-  const employees = employeesData?.data || [];
 
   useEffect(() => {
     loadEvaluations();
@@ -53,7 +60,8 @@ const EmployeeEvaluationManagement = () => {
 
     try {
       setDetailLoading(true);
-      const details = await employeeEvaluationService.getEvaluationDetails(evaluation.evaluationId);
+      // BUG 4: Pass isManager=true to go directly to manager endpoint
+      const details = await employeeEvaluationService.getEvaluationDetails(evaluation.evaluationId, true);
       setSelectedEvaluation(details);
       setIsDetailModalOpen(true);
       setError('');
@@ -75,22 +83,9 @@ const EmployeeEvaluationManagement = () => {
       setLoading(true);
       setError('');
 
-      if (employees.length === 0) {
-        throw new Error('Không có nhân viên nào để tạo đánh giá');
-      }
-
-      // Create evaluation for each employee
-      let successCount = 0;
-      for (const employee of employees) {
-        try {
-          await employeeEvaluationService.createOrUpdateEvaluation(employee.id, month, year);
-          successCount++;
-        } catch (err) {
-          console.error(`Lỗi tạo đánh giá cho nhân viên ${employee.employeeCode}:`, err);
-        }
-      }
-
-      setSuccess(`Tạo đánh giá thành công cho ${successCount}/${employees.length} nhân viên`);
+      // BUG 5: Use bulk endpoint instead of looping sequentially
+      const result = await employeeEvaluationService.createBulkEvaluations(month, year);
+      setSuccess(`Tạo đánh giá thành công cho ${result.created} nhân viên (bỏ qua ${result.skipped} đã có đánh giá)`);
       loadEvaluations();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi tạo đánh giá');
@@ -100,10 +95,15 @@ const EmployeeEvaluationManagement = () => {
     }
   };
 
-  const filteredEvaluations = evaluations.filter(item =>
-    item.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEvaluations = evaluations.filter(item => {
+    const s = filterValues._search.toLowerCase();
+    const matchesSearch = item.employeeCode.toLowerCase().includes(s) || item.employeeName.toLowerCase().includes(s);
+    const matchesStatus =
+      !filterValues.evaluationStatus ||
+      (filterValues.evaluationStatus === 'evaluated' && item.evaluationId) ||
+      (filterValues.evaluationStatus === 'not_evaluated' && !item.evaluationId);
+    return matchesSearch && matchesStatus;
+  });
 
   const totalItems = filteredEvaluations.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -155,37 +155,24 @@ const EmployeeEvaluationManagement = () => {
       )}
 
       {/* Header */}
-      <div className="bg-white rounded-lg shadow border-b">
-        <div className="px-6 py-3 font-medium border-b-2 border-blue-600 text-blue-600">
-          Tự đánh giá
-        </div>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Đánh giá nhân viên</h2>
+        <button
+          onClick={createEvaluationsForAllEmployees}
+          disabled={loading}
+          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400"
+        >
+          {loading ? 'Đang tạo...' : 'Tạo đánh giá'}
+        </button>
       </div>
 
-      {/* Search and Actions */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tìm kiếm</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm theo mã hoặc tên nhân viên..."
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          <button
-            onClick={createEvaluationsForAllEmployees}
-            disabled={loading}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400"
-          >
-            {loading ? 'Đang tạo...' : 'Tạo đánh giá'}
-          </button>
-        </div>
-      </div>
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm theo mã hoặc tên nhân viên..."
+      />
 
       {/* Evaluations Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

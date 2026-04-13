@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, X } from 'lucide-react';
 import machineService, { Machine, CreateMachineRequest, UpdateMachineRequest } from '../services/machineService';
 import { useMachines, machineKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import TableFilter, { FilterField } from './TableFilter';
 
 const MachineManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -13,11 +14,22 @@ const MachineManagement: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
-  const [columnFilters, setColumnFilters] = useState({
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
     maMay: '',
     tenMay: '',
     trangThai: '',
   });
+
+  const machineFilterFields: FilterField[] = [
+    { key: 'maMay', label: 'Mã máy', type: 'text' },
+    { key: 'tenMay', label: 'Tên máy', type: 'text' },
+    { key: 'trangThai', label: 'Trạng thái', type: 'select', options: [
+      { value: 'HOAT_DONG', label: 'Hoạt động' },
+      { value: 'BẢO_TRÌ', label: 'Bảo trì' },
+      { value: 'NGỪNG_HOẠT_ĐỘNG', label: 'Ngừng hoạt động' },
+    ]},
+  ];
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [nextMachineCode, setNextMachineCode] = useState<string>('');
@@ -108,10 +120,16 @@ const MachineManagement: React.FC = () => {
   };
 
   const filteredMachines = machines.filter(machine => {
-    const matchMaMay = !columnFilters.maMay || machine.maMay.toLowerCase().includes(columnFilters.maMay.toLowerCase());
-    const matchTenMay = !columnFilters.tenMay || machine.tenMay.toLowerCase().includes(columnFilters.tenMay.toLowerCase());
-    const matchTrangThai = !columnFilters.trangThai || (machine.trangThai || '').toLowerCase().includes(columnFilters.trangThai.toLowerCase());
-    return matchMaMay && matchTenMay && matchTrangThai;
+    const search = filterValues._search.toLowerCase();
+    const matchSearch = !search || (
+      machine.maMay.toLowerCase().includes(search) ||
+      machine.tenMay.toLowerCase().includes(search) ||
+      (machine.trangThai || '').toLowerCase().includes(search)
+    );
+    const matchMaMay = !filterValues.maMay || machine.maMay.toLowerCase().includes(filterValues.maMay.toLowerCase());
+    const matchTenMay = !filterValues.tenMay || machine.tenMay.toLowerCase().includes(filterValues.tenMay.toLowerCase());
+    const matchTrangThai = !filterValues.trangThai || machine.trangThai === filterValues.trangThai;
+    return matchSearch && matchMaMay && matchTenMay && matchTrangThai;
   });
 
   const getStatusBadge = (status: string) => {
@@ -149,6 +167,14 @@ const MachineManagement: React.FC = () => {
         </div>
       )}
 
+      {/* Filters */}
+      <TableFilter
+        filters={machineFilterFields}
+        values={filterValues}
+        onChange={(v) => { setFilterValues(v); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm mã máy, tên máy..."
+      />
+
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -162,20 +188,6 @@ const MachineManagement: React.FC = () => {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
-              <tr className="bg-white border-b border-gray-200">
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.maMay} onChange={(e) => { setColumnFilters(prev => ({...prev, maMay: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.tenMay} onChange={(e) => { setColumnFilters(prev => ({...prev, tenMay: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.trangThai} onChange={(e) => { setColumnFilters(prev => ({...prev, trangThai: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2"></th>
-              </tr>
             </thead>
             <tbody>
               {loading ? (
@@ -185,7 +197,7 @@ const MachineManagement: React.FC = () => {
               ) : filteredMachines.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                    {(columnFilters.maMay || columnFilters.tenMay || columnFilters.trangThai) ? 'Không tìm thấy máy nào' : 'Chưa có máy nào'}
+                    {(filterValues._search || filterValues.maMay || filterValues.tenMay || filterValues.trangThai) ? 'Không tìm thấy máy nào' : 'Chưa có máy nào'}
                   </td>
                 </tr>
               ) : (

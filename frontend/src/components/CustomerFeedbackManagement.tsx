@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
 import {
   Plus,
-  Search,
   Edit,
   Trash2,
   Eye,
   X,
-  MessageCircle,
   AlertCircle,
   CheckCircle,
   Clock,
-  Filter,
   Download
 } from 'lucide-react';
+import TableFilter, { FilterField } from './TableFilter';
 import { useQueryClient } from '@tanstack/react-query';
 import customerFeedbackService, { CustomerFeedback } from '../services/customerFeedbackService';
 import internationalCustomerService, { InternationalCustomer } from '../services/internationalCustomerService';
@@ -25,10 +23,12 @@ interface CustomerFeedbackManagementProps {
 const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({ customerType = 'Quốc tế' }) => {
   const queryClient = useQueryClient();
   const [customers, setCustomers] = useState<InternationalCustomer[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [filterPriority, setFilterPriority] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
+    trangThaiXuLy: '',
+    loaiPhanHoi: '',
+    mucDoNghiemTrong: '',
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,13 +44,49 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
 
   // Use React Query hook for feedbacks
   const { data: feedbacksData, isLoading: loading } = useCustomerFeedbacks({
-    trangThaiXuLy: filterStatus,
-    loaiPhanHoi: filterType,
-    mucDoNghiemTrong: filterPriority,
-    search: searchTerm,
+    trangThaiXuLy: filterValues.trangThaiXuLy,
+    loaiPhanHoi: filterValues.loaiPhanHoi,
+    mucDoNghiemTrong: filterValues.mucDoNghiemTrong,
+    search: filterValues._search,
     customerType: customerType,
   });
   const feedbacks = feedbacksData || [];
+
+  const feedbackFilterFields: FilterField[] = [
+    {
+      key: 'trangThaiXuLy', label: 'Trạng thái', type: 'select',
+      options: [
+        { value: 'Chưa xử lý', label: 'Chưa xử lý' },
+        { value: 'Đang xử lý', label: 'Đang xử lý' },
+        { value: 'Đã xử lý', label: 'Đã xử lý' },
+        { value: 'Đã đóng', label: 'Đã đóng' },
+      ],
+    },
+    {
+      key: 'loaiPhanHoi', label: 'Loại phản hồi', type: 'select',
+      options: [
+        { value: 'Khiếu nại', label: 'Khiếu nại' },
+        { value: 'Góp ý', label: 'Góp ý' },
+        { value: 'Khen ngợi', label: 'Khen ngợi' },
+        { value: 'Yêu cầu hỗ trợ', label: 'Yêu cầu hỗ trợ' },
+        { value: 'Khác', label: 'Khác' },
+      ],
+    },
+    {
+      key: 'mucDoNghiemTrong', label: 'Mức độ', type: 'select',
+      options: [
+        { value: 'Thấp', label: 'Thấp' },
+        { value: 'Trung bình', label: 'Trung bình' },
+        { value: 'Cao', label: 'Cao' },
+        { value: 'Khẩn cấp', label: 'Khẩn cấp' },
+      ],
+    },
+  ];
+
+  const handleFilterChange = (newValues: Record<string, string>) => {
+    setFilterValues(newValues);
+    setCurrentPage(1);
+  };
 
   const totalItems = feedbacks.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -68,10 +104,6 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
-  };
-
-  const handleSearch = () => {
-    // React Query will automatically refetch when searchTerm changes
   };
 
   const handleCreate = () => {
@@ -157,18 +189,15 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
   };
 
   return (
-    <div>
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <MessageCircle className="w-6 h-6 text-blue-600" />
-          Quản lý phản hồi từ khách hàng quốc tế
-        </h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Danh sách phản hồi từ khách hàng</h2>
         <div className="flex items-center gap-2">
           <button
             onClick={async () => {
               try {
-                await customerFeedbackService.exportToExcel({ search: searchTerm || undefined, customerType });
+                await customerFeedbackService.exportToExcel({ search: filterValues._search || undefined, customerType });
               } catch (error) {
                 console.error('Error exporting to Excel:', error);
                 alert('Lỗi khi xuất Excel');
@@ -189,66 +218,21 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="flex gap-4">
-          <div className="relative w-80">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm..."
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <select
-            value={filterStatus}
-            onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="Chưa xử lý">Chưa xử lý</option>
-            <option value="Đang xử lý">Đang xử lý</option>
-            <option value="Đã xử lý">Đã xử lý</option>
-            <option value="Đã đóng">Đã đóng</option>
-          </select>
-          <select
-            value={filterType}
-            onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Tất cả loại</option>
-            <option value="Khiếu nại">Khiếu nại</option>
-            <option value="Góp ý">Góp ý</option>
-            <option value="Khen ngợi">Khen ngợi</option>
-            <option value="Yêu cầu hỗ trợ">Yêu cầu hỗ trợ</option>
-            <option value="Khác">Khác</option>
-          </select>
-          <select
-            value={filterPriority}
-            onChange={(e) => { setFilterPriority(e.target.value); setCurrentPage(1); }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Tất cả mức độ</option>
-            <option value="Thấp">Thấp</option>
-            <option value="Trung bình">Trung bình</option>
-            <option value="Cao">Cao</option>
-            <option value="Khẩn cấp">Khẩn cấp</option>
-          </select>
-        </div>
-      </div>
+      {/* Search & Filters */}
+      <TableFilter
+        filters={feedbackFilterFields}
+        values={filterValues}
+        onChange={handleFilterChange}
+        searchPlaceholder="Tìm kiếm nội dung, sản phẩm, khách hàng..."
+      />
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Đang tải...</div>
         ) : !feedbacks || feedbacks.length === 0 ? (
           <div className="p-8 text-center text-gray-500">Không có dữ liệu</div>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
@@ -258,7 +242,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                     <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Mức độ</th>
                     <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày</th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Thao tác</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -313,8 +297,6 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
         )}
       </div>
       {totalPages > 1 && (

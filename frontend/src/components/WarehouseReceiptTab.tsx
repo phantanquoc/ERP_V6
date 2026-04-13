@@ -4,6 +4,7 @@ import warehouseReceiptService, { WarehouseReceipt } from '../services/warehouse
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 const WarehouseReceiptTab: React.FC = () => {
   const { user } = useAuth();
@@ -17,6 +18,13 @@ const WarehouseReceiptTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuNhap: '', tenNhanVien: '', tenKho: '', tenSanPham: '' });
+  const receiptFilterFields: FilterField[] = [
+    { key: 'maPhieuNhap', label: 'Mã phiếu', type: 'text' },
+    { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
+    { key: 'tenKho', label: 'Kho', type: 'text' },
+    { key: 'tenSanPham', label: 'Sản phẩm', type: 'text' },
+  ];
 
   const handleViewDetail = (receipt: WarehouseReceipt) => {
     setSelectedReceipt(receipt);
@@ -146,13 +154,33 @@ const WarehouseReceiptTab: React.FC = () => {
     }
   };
 
-  const totalPages = Math.ceil(receipts.length / itemsPerPage);
-  const paginatedReceipts = receipts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const searchTerm = (filterValues._search || '').toLowerCase();
+  const filteredReceipts = receipts.filter((r) => {
+    const search = (filterValues._search || '').toLowerCase().trim();
+    if (search) {
+      const matchSearch =
+        (r.maPhieuNhap || '').toLowerCase().includes(search) ||
+        (r.tenNhanVien || '').toLowerCase().includes(search) ||
+        (r.maNhanVien || '').toLowerCase().includes(search) ||
+        (r.tenKho || '').toLowerCase().includes(search) ||
+        (r.tenLo || '').toLowerCase().includes(search) ||
+        (r.tenSanPham || '').toLowerCase().includes(search);
+      if (!matchSearch) return false;
+    }
+    if (filterValues.maPhieuNhap && !(r.maPhieuNhap || '').toLowerCase().includes(filterValues.maPhieuNhap.toLowerCase())) return false;
+    if (filterValues.tenNhanVien && !(r.tenNhanVien || '').toLowerCase().includes(filterValues.tenNhanVien.toLowerCase())) return false;
+    if (filterValues.tenKho && !(r.tenKho || '').toLowerCase().includes(filterValues.tenKho.toLowerCase())) return false;
+    if (filterValues.tenSanPham && !(r.tenSanPham || '').toLowerCase().includes(filterValues.tenSanPham.toLowerCase())) return false;
+    return true;
+  });
+
+  const totalPages = Math.ceil(filteredReceipts.length / itemsPerPage);
+  const paginatedReceipts = filteredReceipts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="p-6">
+    <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Phiếu nhập kho</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Phiếu nhập kho</h2>
         <button
           onClick={handleOpenModal}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
@@ -163,58 +191,65 @@ const WarehouseReceiptTab: React.FC = () => {
       </div>
 
       {/* Receipts Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã phiếu</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày nhập</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nhân viên</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lô</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Số lượng nhập</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+      <TableFilter
+        filters={receiptFilterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm phiếu nhập..."
+      />
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày nhập</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng nhập</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Thao tác</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {receipts.length === 0 ? (
+          <tbody>
+            {filteredReceipts.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                   Chưa có phiếu nhập kho nào
                 </td>
               </tr>
             ) : (
-              paginatedReceipts.map((receipt) => (
-                <tr key={receipt.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              paginatedReceipts.map((receipt, index) => (
+                <tr key={receipt.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors border-b border-gray-200`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">
                     {receipt.maPhieuNhap}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {new Date(receipt.ngayNhap).toLocaleDateString('vi-VN')}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {receipt.tenNhanVien}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {receipt.tenKho}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {receipt.tenLo}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {receipt.tenSanPham}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {receipt.soLuongNhap} {receipt.donViTinh}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <button
                       onClick={() => handleViewDetail(receipt)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                      className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                      title="Xem chi tiết"
                     >
-                      <Eye className="h-4 w-4" />
-                      Xem chi tiết
+                      <Eye className="w-5 h-5" />
                     </button>
                   </td>
                 </tr>
@@ -222,12 +257,13 @@ const WarehouseReceiptTab: React.FC = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4 px-2">
           <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, receipts.length)} / {receipts.length} mục
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredReceipts.length)} / {filteredReceipts.length} mục
           </span>
           <div className="flex items-center gap-2">
             <button

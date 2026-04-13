@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
+import { AttendanceStatus } from '@prisma/client';
 import { CreateOvertimePlanRequest, UpdateOvertimePlanRequest, OvertimePlanListQuery, AcceptOvertimePlanRequest, ApproveOvertimePlanRequest, NotificationType } from '@types';
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import notificationService from './notificationService';
@@ -134,10 +135,30 @@ class OvertimePlanService {
       await notificationService.createNotification({ userId: plan.nguoiTaoId, type: NotificationType.OVERTIME_PLAN, title: isApproved ? 'Kế hoạch tăng ca đã được duyệt' : 'Kế hoạch tăng ca bị từ chối', message: isApproved ? `${adminName} đã phê duyệt kế hoạch tăng ca: ${plan.noiDung}` : `${adminName} đã từ chối: ${plan.noiDung}${data.lyDoTuChoi ? `. Lý do: ${data.lyDoTuChoi}` : ''}` });
       if (isApproved) {
         for (const uid of plan.nguoiThamGiaIds) {
-          if (uid !== plan.nguoiTaoId) { await notificationService.createNotification({ userId: uid, type: NotificationType.OVERTIME_PLAN, title: 'Kế hoạch tăng ca đã được duyệt', message: `Kế hoạch tăng ca "${plan.noiDung}" đã được ${adminName} phê duyệt.` }); }
+          await notificationService.createNotification({ userId: uid, type: NotificationType.OVERTIME_PLAN, title: 'Kế hoạch tăng ca đã được duyệt', message: `Kế hoạch tăng ca "${plan.noiDung}" đã được ${adminName} phê duyệt. Bạn được xếp lịch tăng ca ngày ${plan.ngayTangCa.toLocaleDateString('vi-VN')} từ ${plan.gioBatDau} đến ${plan.gioKetThuc}.` });
         }
       }
     } catch (error) { logger.error('Error sending overtime plan approval notification:', error); }
+    if (newStatus === 'DA_DUYET') {
+      const parseTime = (date: Date, timeStr: string): Date => {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        const result = new Date(date);
+        result.setHours(hours, minutes, 0, 0);
+        return result;
+      };
+      try {
+        for (const uid of plan.nguoiThamGiaIds) {
+          const employee = await prisma.employee.findFirst({ where: { userId: uid } });
+          if (!employee) continue;
+          const existing = await prisma.attendance.findFirst({ where: { employeeId: employee.id, attendanceDate: plan.ngayTangCa, isOvertime: true } });
+          if (existing) continue;
+          const checkInTime = parseTime(plan.ngayTangCa, plan.gioBatDau);
+          const checkOutTime = parseTime(plan.ngayTangCa, plan.gioKetThuc);
+          const workHours = (checkOutTime.getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
+          await prisma.attendance.create({ data: { employeeId: employee.id, attendanceDate: plan.ngayTangCa, checkInTime, checkOutTime, workHours: Math.round(workHours * 100) / 100, status: AttendanceStatus.OVERTIME, isOvertime: true, notes: `Tăng ca theo kế hoạch: ${plan.noiDung}` } });
+        }
+      } catch (error) { logger.error('Error creating overtime attendance records:', error); }
+    }
     return this.populateWithUsers(updated);
   }
 

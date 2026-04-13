@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, BarChart2, Briefcase, Calculator, ShoppingCart, Factory, Settings, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { hasModuleAccess, hasSubModuleAccess } from '../utils/permissions';
+import { hasModuleAccess, hasSubModuleAccess, isAdmin } from '../utils/permissions';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -228,6 +228,22 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
           ))}
         </ul>
       </nav>
+
+      {/* System Settings - Admin Only */}
+      {user && isAdmin(user.department) && (
+        <div className="border-t border-gray-800 p-2">
+          <Link
+            to="/system-settings"
+            className={`flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors rounded-lg ${
+              location.pathname === '/system-settings' ? 'bg-gray-800 text-white' : ''
+            }`}
+            title={collapsed ? 'Cài đặt hệ thống' : ''}
+          >
+            <span className={collapsed ? '' : 'mr-3'}><Settings size={20} /></span>
+            {!collapsed && <span>Cài đặt hệ thống</span>}
+          </Link>
+        </div>
+      )}
     </div>
     </>
   );

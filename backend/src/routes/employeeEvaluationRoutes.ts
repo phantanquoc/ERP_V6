@@ -143,6 +143,40 @@ router.get(
 
 /**
  * @swagger
+ * /api/employee-evaluations/evaluations/bulk:
+ *   post:
+ *     tags: [Employee Evaluations]
+ *     summary: Tạo đánh giá hàng loạt cho tất cả nhân viên
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               month:
+ *                 type: integer
+ *                 description: Tháng đánh giá
+ *               year:
+ *                 type: integer
+ *                 description: Năm đánh giá
+ *     responses:
+ *       200:
+ *         description: Tạo đánh giá hàng loạt thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ */
+router.post(
+  '/evaluations/bulk',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  employeeEvaluationController.createBulkEvaluations
+);
+
+/**
+ * @swagger
  * /api/employee-evaluations/evaluations:
  *   post:
  *     tags: [Employee Evaluations]

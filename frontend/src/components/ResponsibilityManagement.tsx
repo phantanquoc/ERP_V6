@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus,
-  Search,
   Edit,
   Eye,
   Trash2,
@@ -12,6 +11,7 @@ import {
 import positionService, { Position } from '@services/positionService';
 import positionResponsibilityService, { PositionResponsibility } from '@services/positionResponsibilityService';
 import { parseNumberInput } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 interface FormData {
   title: string;
@@ -26,9 +26,18 @@ const ResponsibilityManagement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', title: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const filterFields: FilterField[] = [
+    {
+      key: 'title',
+      label: 'Tên trách nhiệm',
+      type: 'text',
+      placeholder: 'Lọc theo tên trách nhiệm...',
+    },
+  ];
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -146,38 +155,40 @@ const ResponsibilityManagement = () => {
     setSelectedResponsibility(null);
   };
 
-  const filteredResponsibilities = responsibilities.filter(resp =>
-    resp.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    resp.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredResponsibilities = responsibilities.filter(resp => {
+    const s = filterValues._search.toLowerCase();
+    const matchesSearch = resp.title.toLowerCase().includes(s) || resp.description.toLowerCase().includes(s);
+    const matchesTitle = !filterValues.title || resp.title.toLowerCase().includes(filterValues.title.toLowerCase());
+    return matchesSearch && matchesTitle;
+  });
 
   const totalItems = filteredResponsibilities.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const paginatedResponsibilities = filteredResponsibilities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Quản lý trách nhiệm theo vị trí</h2>
       </div>
 
       {/* Messages */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md flex items-center gap-2">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-md flex items-center gap-2">
           <AlertCircle className="h-5 w-5 text-red-600" />
           <span className="text-red-700">{error}</span>
         </div>
       )}
       {success && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md flex items-center gap-2">
+        <div className="p-4 bg-green-50 border border-green-200 rounded-md flex items-center gap-2">
           <CheckCircle className="h-5 w-5 text-green-600" />
           <span className="text-green-700">{success}</span>
         </div>
       )}
 
       {/* Position Selector */}
-      <div className="mb-6">
+      <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">Chọn vị trí</label>
         <select
           value={selectedPosition?.id || ''}
@@ -199,7 +210,7 @@ const ResponsibilityManagement = () => {
       {selectedPosition && (
         <>
           {/* Position Info */}
-          <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
             <h3 className="font-semibold text-gray-800 mb-2">Thông tin vị trí</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -213,29 +224,21 @@ const ResponsibilityManagement = () => {
             </div>
           </div>
 
-          {/* Add Button */}
-          <div className="mb-6 flex justify-end">
+          {/* Actions + Search */}
+          <div className="flex justify-between items-center">
+            <TableFilter
+              filters={filterFields}
+              values={filterValues}
+              onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+              searchPlaceholder="Tìm kiếm trách nhiệm..."
+            />
             <button
               onClick={openCreateModal}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="ml-4 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 shrink-0"
             >
               <Plus className="h-4 w-4" />
               Thêm trách nhiệm
             </button>
-          </div>
-
-          {/* Search */}
-          <div className="mb-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm trách nhiệm..."
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
           </div>
 
           {/* Table */}

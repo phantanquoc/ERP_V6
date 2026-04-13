@@ -43,6 +43,29 @@ export class NotificationController {
     }
   }
 
+  async getUnreadCount(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const prisma = require('@config/database').default;
+      const employee = await prisma.employee.findUnique({ where: { userId } });
+
+      if (!employee) {
+        res.json({ success: true, count: 0 });
+        return;
+      }
+
+      const count = await notificationService.getUnreadCount(employee.id);
+      res.json({ success: true, count });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getUnreadNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;

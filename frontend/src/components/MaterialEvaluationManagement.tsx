@@ -5,6 +5,7 @@ import materialEvaluationCriteriaService, { MaterialEvaluationCriteria } from '.
 import systemOperationService from '../services/systemOperationService';
 import DateTimePicker from './DateTimePicker';
 import { parseNumberInput } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 interface MaterialEvaluationManagementProps {
   onCreateSystemOperation?: (maChien: string, thoiGianChien: string) => void;
@@ -21,10 +22,12 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [columnFilters, setColumnFilters] = useState({
-    maChien: '',
-    tenHangHoa: '',
-  });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
+
+  const evaluationFilterFields: FilterField[] = [
+    { key: 'maChien', label: 'Mã chiên', type: 'text' },
+    { key: 'tenHangHoa', label: 'Tên hàng hóa', type: 'text' },
+  ];
 
   // Criteria states
   const [criteria, setCriteria] = useState<MaterialEvaluationCriteria[]>([]);
@@ -379,6 +382,13 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         </div>
       )}
 
+      <TableFilter
+        filters={evaluationFilterFields}
+        values={filterValues}
+        onChange={(v) => { setFilterValues(v); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm mã chiên, tên hàng hóa..."
+      />
+
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
@@ -393,26 +403,17 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian ngâm (Phút)</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
-                <tr className="bg-white border-b border-gray-200">
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200">
-                    <input type="text" placeholder="Lọc..." value={columnFilters.maChien} onChange={(e) => { setColumnFilters(prev => ({...prev, maChien: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                  </th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200">
-                    <input type="text" placeholder="Lọc..." value={columnFilters.tenHangHoa} onChange={(e) => { setColumnFilters(prev => ({...prev, tenHangHoa: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                  </th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2 border-r border-gray-200"></th>
-                  <th className="px-2 py-2"></th>
-                </tr>
               </thead>
               <tbody>
                 {(() => {
                   const filteredEvaluations = evaluations.filter(evaluation => {
-                    const matchMaChien = !columnFilters.maChien || (evaluation.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
-                    const matchTenHangHoa = !columnFilters.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(columnFilters.tenHangHoa.toLowerCase());
-                    return matchMaChien && matchTenHangHoa;
+                    const search = (filterValues._search || '').toLowerCase();
+                    const matchSearch = !search ||
+                      (evaluation.maChien || '').toLowerCase().includes(search) ||
+                      (evaluation.tenHangHoa || '').toLowerCase().includes(search);
+                    const matchMaChien = !filterValues.maChien || (evaluation.maChien || '').toLowerCase().includes(filterValues.maChien.toLowerCase());
+                    const matchTenHangHoa = !filterValues.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(filterValues.tenHangHoa.toLowerCase());
+                    return matchSearch && matchMaChien && matchTenHangHoa;
                   });
                   if (loading) return (
                   <tr>
@@ -480,9 +481,13 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       </div>
       {(() => {
         const filteredEvaluations = evaluations.filter(evaluation => {
-          const matchMaChien = !columnFilters.maChien || (evaluation.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
-          const matchTenHangHoa = !columnFilters.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(columnFilters.tenHangHoa.toLowerCase());
-          return matchMaChien && matchTenHangHoa;
+          const search = (filterValues._search || '').toLowerCase();
+          const matchSearch = !search ||
+            (evaluation.maChien || '').toLowerCase().includes(search) ||
+            (evaluation.tenHangHoa || '').toLowerCase().includes(search);
+          const matchMaChien = !filterValues.maChien || (evaluation.maChien || '').toLowerCase().includes(filterValues.maChien.toLowerCase());
+          const matchTenHangHoa = !filterValues.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(filterValues.tenHangHoa.toLowerCase());
+          return matchSearch && matchMaChien && matchTenHangHoa;
         });
         const totalItems = filteredEvaluations.length;
         const totalPages = Math.ceil(totalItems / itemsPerPage);

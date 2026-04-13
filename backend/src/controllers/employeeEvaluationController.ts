@@ -114,6 +114,34 @@ export class EmployeeEvaluationController {
     }
   }
 
+  async createBulkEvaluations(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { month, year } = req.body;
+
+      if (!month || !year) {
+        res.status(400).json({
+          success: false,
+          message: 'Month and year are required',
+        });
+        return;
+      }
+
+      const result = await employeeEvaluationService.createBulkEvaluations(
+        Number(month),
+        Number(year)
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        message: `Tạo đánh giá thành công cho ${result.created} nhân viên (bỏ qua ${result.skipped} đã có đánh giá)`,
+      });
+      return;
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async finalizeEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const evaluationId = req.params.evaluationId as string;

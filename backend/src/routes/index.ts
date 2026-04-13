@@ -59,6 +59,7 @@ const ROUTE_MAP: Record<string, string> = {
   acceptanceHandover: '/api/acceptance-handovers',
   workShift: '/api/work-shifts',
   overtimePlan: '/api/overtime-plans',
+  systemSettings: '/api/system-settings',
 };
 
 export const registerRoutes = (app: Express): void => {

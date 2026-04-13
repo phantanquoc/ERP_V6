@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Edit, Eye, X } from 'lucide-react';
 import warehouseService, { Warehouse, LotProduct } from '../services/warehouseService';
 import { parseNumberInput } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 interface AssetManagementProps {
   hideHeader?: boolean;
@@ -20,7 +21,11 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
   const [selectedProduct, setSelectedProduct] = useState<LotProduct | null>(null);
   const [editGiaThanh, setEditGiaThanh] = useState<number>(0);
 
-  // Sort warehouses by name (extract number and sort)
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', loSanPham: '' });
+
+  const filterFields: FilterField[] = [
+    { key: 'loSanPham', label: 'Tên lô', type: 'text', placeholder: 'Lọc theo tên lô...' },
+  ];
   const sortWarehouses = (warehousesList: Warehouse[]) => {
     return [...warehousesList].sort((a, b) => {
       const numA = parseInt(a.tenKho.replace(/\D/g, '')) || 0;
@@ -102,12 +107,20 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {!hideHeader && (
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Quản lý tài sản</h2>
+          <h2 className="text-2xl font-bold text-gray-800">Quản lý tài sản</h2>
         </div>
       )}
+
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm tên, mã sản phẩm..."
+      />
 
       {/* Warehouse Tabs - Machine style */}
       <div className="bg-white rounded-lg shadow mb-6">
@@ -160,9 +173,27 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
           </div>
 
           {/* Lots Table */}
-          {selectedWarehouse?.lots && selectedWarehouse.lots.length > 0 ? (
-            <div className="space-y-4">
-              {selectedWarehouse.lots.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lot) => (
+          {selectedWarehouse?.lots && selectedWarehouse.lots.length > 0 ? (() => {
+            const search = filterValues._search.toLowerCase();
+            const loFilter = filterValues.loSanPham.toLowerCase();
+            const filteredLots = selectedWarehouse.lots
+              .map(lot => {
+                const filteredProducts = (lot.lotProducts || []).filter(p => {
+                  if (search && !p.internationalProduct?.tenSanPham?.toLowerCase().includes(search) && !p.internationalProduct?.maSanPham?.toLowerCase().includes(search)) return false;
+                  return true;
+                });
+                return { ...lot, lotProducts: filteredProducts };
+              })
+              .filter(lot => {
+                if (loFilter && !lot.tenLo.toLowerCase().includes(loFilter)) return false;
+                return true;
+              });
+            const pagedLots = filteredLots.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+            const totalFilteredItems = filteredLots.length;
+            const totalFilteredPages = Math.ceil(totalFilteredItems / itemsPerPage);
+            return (
+              <div className="space-y-4">
+                {pagedLots.map((lot) => (
                 <div key={lot.id} className="border border-gray-200 rounded-lg overflow-hidden">
                   {/* Lot Header */}
                   <div className="flex justify-between items-center px-4 py-3 bg-gray-50 border-b border-gray-200">
@@ -184,67 +215,67 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                   {lot?.lotProducts && lot.lotProducts.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full">
-                        <thead>
-                          <tr className="border-b-2 border-gray-200">
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">
+                        <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                          <tr>
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">
                               Tên hàng hóa
                             </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">
                               Số lượng
                             </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">
                               Đơn vị
                             </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">
                               Đơn giá
                             </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">
                               Thành tiền
                             </th>
-                            <th className="px-4 py-3 text-center text-sm font-semibold text-blue-600">
+                            <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                               Hành động
                             </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {lot.lotProducts.map((product) => {
+                          {lot.lotProducts.map((product, prodIndex) => {
                             const giaThanh = product.giaThanh || 100000;
                             const thanhTien = product.soLuong * giaThanh;
                             return (
-                              <tr key={product.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 text-sm text-gray-700">
+                              <tr key={product.id} className={`border-b border-gray-200 hover:bg-blue-50 ${prodIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                                   <div>
                                     <div className="font-medium">{product.internationalProduct?.tenSanPham || '-'}</div>
                                     <div className="text-xs text-gray-500">Mã: {product.internationalProduct?.maSanPham || '-'}</div>
                                   </div>
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-700 font-medium">
+                                <td className="px-6 py-4 text-sm text-gray-700 font-medium border-r border-gray-200">
                                   {product.soLuong.toLocaleString('vi-VN')}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-700">
+                                <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                                   {product.donViTinh}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-700">
+                                <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                                   {formatCurrency(giaThanh)}
                                 </td>
-                                <td className="px-4 py-3 text-sm font-semibold text-green-600">
+                                <td className="px-6 py-4 text-sm font-semibold text-green-600 border-r border-gray-200">
                                   {formatCurrency(thanhTien)}
                                 </td>
-                                <td className="px-4 py-3 text-sm">
-                                  <div className="flex justify-center gap-3">
+                                <td className="px-6 py-4 text-sm">
+                                  <div className="flex justify-center gap-1">
                                     <button
                                       onClick={() => handleViewProduct(product)}
-                                      className="text-gray-500 hover:text-blue-600"
-                                      title="Xem chi tiết"
+                                      className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+                                      title="Xem"
                                     >
-                                      <Eye className="w-5 h-5" />
+                                      <Eye className="w-4 h-4" />
                                     </button>
                                     <button
                                       onClick={() => handleEditProduct(product)}
-                                      className="text-gray-500 hover:text-green-600"
-                                      title="Chỉnh sửa giá"
+                                      className="p-1.5 rounded-md text-green-600 hover:bg-green-50 hover:text-green-800 transition-colors"
+                                      title="Sửa"
                                     >
-                                      <Edit className="w-5 h-5" />
+                                      <Edit className="w-4 h-4" />
                                     </button>
                                   </div>
                                 </td>
@@ -261,51 +292,47 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                   )}
                 </div>
               ))}
+              {totalFilteredPages > 1 && (
+                <div className="flex items-center justify-between mt-4 px-2">
+                  <span className="text-sm text-gray-600">
+                    Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalFilteredItems)} / {totalFilteredItems} mục
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Trước
+                    </button>
+                    {Array.from({ length: totalFilteredPages }, (_, i) => i + 1)
+                      .filter(page => page === 1 || page === totalFilteredPages || Math.abs(page - currentPage) <= 2)
+                      .map((page, idx, arr) => (
+                        <React.Fragment key={page}>
+                          {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                          <button
+                            onClick={() => setCurrentPage(page)}
+                            className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                          >
+                            {page}
+                          </button>
+                        </React.Fragment>
+                      ))}
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalFilteredPages, p + 1))}
+                      disabled={currentPage === totalFilteredPages}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Sau
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          ) : (
+          );
+          })() : (
             <p className="text-center text-gray-500">Chưa có lô nào trong kho này</p>
           )}
-
-          {(() => {
-            const totalItems = selectedWarehouse?.lots?.length || 0;
-            const totalPages = Math.ceil(totalItems / itemsPerPage);
-            return totalPages > 1 ? (
-              <div className="flex items-center justify-between mt-4 px-2">
-                <span className="text-sm text-gray-600">
-                  Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Trước
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                    .map((page, idx, arr) => (
-                      <React.Fragment key={page}>
-                        {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                        <button
-                          onClick={() => setCurrentPage(page)}
-                          className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
-                        >
-                          {page}
-                        </button>
-                      </React.Fragment>
-                    ))}
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Sau
-                  </button>
-                </div>
-              </div>
-            ) : null;
-          })()}
         </div>
       )}
 

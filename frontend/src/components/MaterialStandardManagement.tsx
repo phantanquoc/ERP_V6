@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Edit, Eye, Trash2, X, ChevronDown } from 'lucide-react';
+import TableFilter, { FilterField } from './TableFilter';
 import materialStandardService, {
   MaterialStandard,
   MaterialStandardItem,
@@ -24,11 +25,7 @@ const MaterialStandardManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [columnFilters, setColumnFilters] = useState({
-    maDinhMuc: '',
-    tenDinhMuc: '',
-    loaiDinhMuc: '',
-  });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maDinhMuc: '', tenDinhMuc: '', loaiDinhMuc: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -260,10 +257,27 @@ const MaterialStandardManagement: React.FC = () => {
     return type === 'RAW_MATERIAL' ? 'Nguyên liệu - Thành phẩm' : 'Vật tư - Thiết bị';
   };
 
+  const standardFilterFields: FilterField[] = [
+    { key: 'maDinhMuc', label: 'Mã định mức', type: 'text' },
+    { key: 'tenDinhMuc', label: 'Tên định mức', type: 'text' },
+    { key: 'loaiDinhMuc', label: 'Loại định mức', type: 'select', options: [
+      { value: 'RAW_MATERIAL', label: 'Nguyên liệu - Thành phẩm' },
+      { value: 'EQUIPMENT', label: 'Vật tư - Thiết bị' },
+    ]},
+  ];
+
   const filteredStandards = standards.filter(standard => {
-    const matchMaDM = !columnFilters.maDinhMuc || (standard.maDinhMuc || '').toLowerCase().includes(columnFilters.maDinhMuc.toLowerCase());
-    const matchTenDM = !columnFilters.tenDinhMuc || (standard.tenDinhMuc || '').toLowerCase().includes(columnFilters.tenDinhMuc.toLowerCase());
-    const matchLoaiDM = !columnFilters.loaiDinhMuc || (standard.loaiDinhMuc || '').toLowerCase().includes(columnFilters.loaiDinhMuc.toLowerCase());
+    const search = (filterValues._search || '').toLowerCase();
+    if (search) {
+      const matchSearch =
+        (standard.maDinhMuc || '').toLowerCase().includes(search) ||
+        (standard.tenDinhMuc || '').toLowerCase().includes(search) ||
+        (standard.loaiDinhMuc || '').toLowerCase().includes(search);
+      if (!matchSearch) return false;
+    }
+    const matchMaDM = !filterValues.maDinhMuc || (standard.maDinhMuc || '').toLowerCase().includes(filterValues.maDinhMuc.toLowerCase());
+    const matchTenDM = !filterValues.tenDinhMuc || (standard.tenDinhMuc || '').toLowerCase().includes(filterValues.tenDinhMuc.toLowerCase());
+    const matchLoaiDM = !filterValues.loaiDinhMuc || (standard.loaiDinhMuc || '').toLowerCase().includes(filterValues.loaiDinhMuc.toLowerCase());
     return matchMaDM && matchTenDM && matchLoaiDM;
   });
 
@@ -281,22 +295,25 @@ const MaterialStandardManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Action Bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
-          </div>
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            Thêm định mức
-          </button>
-        </div>
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Định mức NVL</h2>
+        <button
+          onClick={openCreateModal}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Plus className="h-4 w-4" />
+          Thêm định mức
+        </button>
       </div>
 
       {/* Table */}
+      <TableFilter
+        filters={standardFilterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm định mức..."
+      />
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
@@ -308,20 +325,6 @@ const MaterialStandardManagement: React.FC = () => {
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tỉ lệ thu hồi (%)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày tạo</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
-              </tr>
-              <tr className="bg-white border-b border-gray-200">
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.maDinhMuc} onChange={(e) => { setColumnFilters(prev => ({...prev, maDinhMuc: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.tenDinhMuc} onChange={(e) => { setColumnFilters(prev => ({...prev, tenDinhMuc: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.loaiDinhMuc} onChange={(e) => { setColumnFilters(prev => ({...prev, loaiDinhMuc: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>

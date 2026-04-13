@@ -1,6 +1,17 @@
 import apiClient from './apiClient';
 import { API_BASE_URL } from '../config/api';
 
+export interface SupplyRequestItem {
+  id: string;
+  supplyRequestId: string;
+  phanLoai: string;
+  tenGoi: string;
+  soLuong: number;
+  donViTinh: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SupplyRequest {
   id: string;
   stt: number;
@@ -10,10 +21,6 @@ export interface SupplyRequest {
   maNhanVien: string;
   tenNhanVien: string;
   boPhan: string;
-  phanLoai: string;
-  tenGoi: string;
-  soLuong: number;
-  donViTinh: string;
   mucDichYeuCau: string;
   mucDoUuTien: string;
   ghiChu?: string;
@@ -21,6 +28,7 @@ export interface SupplyRequest {
   fileKemTheo?: string;
   createdAt: string;
   updatedAt: string;
+  items: SupplyRequestItem[];
   purchaseRequests?: { id: string; trangThai: string; maYeuCau: string }[];
   warehouseReceipts?: { id: string; maPhieuNhap: string }[];
 }
@@ -30,26 +38,18 @@ export interface CreateSupplyRequestRequest {
   maNhanVien: string;
   tenNhanVien: string;
   boPhan: string;
-  phanLoai: string;
-  tenGoi: string;
-  soLuong: number;
-  donViTinh: string;
+  items: { phanLoai: string; tenGoi: string; soLuong: number; donViTinh: string }[];
   mucDichYeuCau: string;
   mucDoUuTien: string;
   ghiChu?: string;
-  trangThai?: string;
   fileKemTheo?: string;
 }
 
 export interface UpdateSupplyRequestRequest {
-  phanLoai?: string;
-  tenGoi?: string;
-  soLuong?: number;
-  donViTinh?: string;
+  items?: { phanLoai: string; tenGoi: string; soLuong: number; donViTinh: string }[];
   mucDichYeuCau?: string;
   mucDoUuTien?: string;
   ghiChu?: string;
-  trangThai?: string;
   fileKemTheo?: string;
 }
 
@@ -107,4 +107,3 @@ class SupplyRequestService {
 }
 
 export default new SupplyRequestService();
-

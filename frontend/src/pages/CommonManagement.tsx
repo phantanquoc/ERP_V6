@@ -76,7 +76,7 @@ const CommonManagement = () => {
 
   if (!user) return <div>Loading...</div>;
 
-  const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'manager';
+  const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'department_head';
 
   const categories = [
         {
@@ -124,10 +124,10 @@ const CommonManagement = () => {
         },
         {
           id: 'ke_hoach_tang_ca',
-          title: isManagerOrAdmin ? 'Tạo kế hoạch tăng ca' : 'Kế hoạch tăng ca',
+          title: 'Danh sách kế hoạch tăng ca',
           icon: <Briefcase className="h-6 w-6" />,
           color: 'bg-orange-500',
-          description: isManagerOrAdmin ? 'Lập kế hoạch tăng ca cho nhân viên' : 'Xem danh sách kế hoạch tăng ca'
+          description: 'Xem và quản lý kế hoạch tăng ca'
         }
       ]
     },
@@ -178,8 +178,15 @@ const CommonManagement = () => {
       return;
     }
 
-    // "Danh sách các cuộc họp" - chưa implement
+    // "Danh sách các cuộc họp" - đang bảo trì
     if (categoryId === 'ds_cuoc_hop') {
+      alert('Chức năng đang bảo trì, vui lòng quay lại sau!');
+      return;
+    }
+
+    // "Tạo đề nghị điều chỉnh, bổ sung quy trình" - đang bảo trì
+    if (categoryId === 'de_nghi_dieu_chinh') {
+      alert('Chức năng đang bảo trì, vui lòng quay lại sau!');
       return;
     }
 
@@ -657,7 +664,9 @@ const CommonManagement = () => {
       <OvertimePlanListModal
         isOpen={isOvertimePlanListOpen}
         onClose={() => setIsOvertimePlanListOpen(false)}
-        isAdmin={user?.role === 'admin' || user?.department === 'admin'}
+        isAdmin={user?.role === 'admin'}
+        canViewAll={user?.role === 'admin'}
+        canCreate={isManagerOrAdmin}
       />
 
       {/* Private Feedback Modal (Góp ý riêng / Nêu khó khăn) */}

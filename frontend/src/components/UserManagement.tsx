@@ -2,13 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Users,
   Plus,
-  Search,
-  Filter,
   Download,
   Edit,
   Eye,
   Trash2,
-
   Lock,
   Unlock,
   AlertCircle,
@@ -18,6 +15,7 @@ import userService from '@services/userService';
 import { API_BASE_URL } from '../config/api';
 import { useUsers, userKeys, useDepartments } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import TableFilter, { FilterField } from './TableFilter';
 
 interface User {
   id: string;
@@ -85,11 +83,34 @@ const UserManagement: React.FC = () => {
   const users = usersData?.data || [];
   const { data: departments = [] } = useDepartments();
 
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', role: '', isActive: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const filterFields: FilterField[] = [
+    {
+      key: 'role',
+      label: 'Vai trò',
+      type: 'select',
+      options: [
+        { value: 'EMPLOYEE', label: 'Nhân viên' },
+        { value: 'TEAM_LEAD', label: 'Trưởng phòng' },
+        { value: 'DEPARTMENT_HEAD', label: 'Trưởng bộ phận' },
+        { value: 'ADMIN', label: 'Admin' },
+      ],
+    },
+    {
+      key: 'isActive',
+      label: 'Trạng thái',
+      type: 'select',
+      options: [
+        { value: 'true', label: 'Hoạt động' },
+        { value: 'false', label: 'Khóa' },
+      ],
+    },
+  ];
 
   // Function to convert role to Vietnamese display name
   const getRoleDisplayName = (role: string): string => {
@@ -199,11 +220,19 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const filteredUsers = users.filter(user =>
-    user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = users.filter(user => {
+    const s = filterValues._search.toLowerCase();
+    const matchesSearch =
+      user.firstName.toLowerCase().includes(s) ||
+      user.lastName.toLowerCase().includes(s) ||
+      user.email.toLowerCase().includes(s);
+    const matchesRole = !filterValues.role || user.role === filterValues.role;
+    const matchesActive =
+      !filterValues.isActive ||
+      (filterValues.isActive === 'true' && user.isActive) ||
+      (filterValues.isActive === 'false' && !user.isActive);
+    return matchesSearch && matchesRole && matchesActive;
+  });
 
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -375,7 +404,7 @@ const UserManagement: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Alert Messages */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
@@ -396,33 +425,23 @@ const UserManagement: React.FC = () => {
           <Users className="w-6 h-6 mr-2 text-blue-600" />
           Quản lý người dùng
         </h2>
+        <button
+          onClick={openCreateModal}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" />
+          Thêm mới
+        </button>
       </div>
 
-      {/* Action Bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm..."
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-              />
-            </div>
-          </div>
-          <button
-            onClick={openCreateModal}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            Thêm mới
-          </button>
-        </div>
-      </div>
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm theo họ tên, email..."
+      />
 
       {/* Users Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSystemSettings } from '../contexts/SystemSettingsContext';
 import Sidebar from './Sidebar';
 import UserProfileDropdown from './UserProfileDropdown';
 import NotificationBell from './NotificationBell';
@@ -11,6 +12,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user } = useAuth();
+  const { settings } = useSystemSettings();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -49,7 +51,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Centered text with padding to avoid overlap */}
             <div className="flex-1 px-4 overflow-hidden">
               <p className="text-sm font-medium text-gray-900 text-center italic truncate">
-                Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.
+                {settings?.slogan || 'Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.'}
               </p>
             </div>
 

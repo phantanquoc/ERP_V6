@@ -11,7 +11,9 @@ import {
   User
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { useSystemSettings } from "../contexts/SystemSettingsContext";
 import { getDepartmentDisplayName } from "../utils/permissions";
+import { ThemeHeader, getThemePageBackground } from "../components/ThemeHeaders";
 import PersonalInfoModal from "../components/PersonalInfoModal";
 import AttendanceModal from "../components/AttendanceModal";
 import LeaveRequestModal from "../components/LeaveRequestModal";
@@ -128,7 +130,7 @@ const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; on
       <div className="flex-1">
         <p className="text-sm font-medium text-gray-600 mb-1">{stat.label}</p>
         <div className="flex items-baseline space-x-2">
-          <p className={`text-2xl font-bold ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</p>
+          <p className={`text-lg font-bold ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</p>
           {stat.total && (
             <p className="text-sm text-gray-500">/ {stat.total}</p>
           )}
@@ -183,6 +185,8 @@ const QuickActionCard: React.FC<{
     </div>
   </div>
 );
+
+// Theme headers moved to ../components/ThemeHeaders.tsx
 
 const EmployeeDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -254,146 +258,14 @@ const EmployeeDashboard: React.FC = () => {
   const departmentName = getDepartmentDisplayName(user.department);
   const personalStats = getPersonalStats(user, latestEvaluationNotification, tasksCount, workPlansCount);
   const quickActions = getQuickActions(user.department || '');
+  const { settings } = useSystemSettings();
+  const activeTheme = settings?.activeTheme || 'DEFAULT';
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50">
+    <div className={`min-h-full ${getThemePageBackground(activeTheme)}`}>
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
-        {/* Lunar New Year Theme Header */}
-        <div className="relative bg-gradient-to-r from-red-700 via-red-600 to-red-700 rounded-2xl shadow-xl p-6 mb-8 overflow-hidden">
-          {/* Background pattern */}
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute inset-0" style={{
-              backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,215,0,0.1) 10px, rgba(255,215,0,0.1) 20px)`
-            }}></div>
-          </div>
-
-          {/* Animated styles */}
-          <style>{`
-            @keyframes float {
-              0%, 100% { transform: translateY(0px) rotate(0deg); }
-              50% { transform: translateY(-8px) rotate(5deg); }
-            }
-            @keyframes sway {
-              0%, 100% { transform: rotate(-5deg); }
-              50% { transform: rotate(5deg); }
-            }
-            @keyframes falling-petal {
-              0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
-              100% { transform: translateY(150px) rotate(360deg); opacity: 0; }
-            }
-            @keyframes glow {
-              0%, 100% { filter: brightness(1); }
-              50% { filter: brightness(1.3); }
-            }
-            .branch-sway { animation: sway 4s ease-in-out infinite; transform-origin: left center; }
-            .flower-float { animation: float 3s ease-in-out infinite; }
-            .petal-fall { animation: falling-petal 5s linear infinite; position: absolute; }
-            .glow-effect { animation: glow 2s ease-in-out infinite; }
-          `}</style>
-
-          {/* Mai branch (right side) - SVG style */}
-          <div className="absolute right-0 top-0 bottom-0 w-2/5 overflow-hidden">
-            {/* Main branch with Mai flowers */}
-            <svg className="absolute right-0 top-0 h-full w-full branch-sway" viewBox="0 0 250 150" preserveAspectRatio="xMaxYMid slice">
-              {/* Branch */}
-              <path d="M260 75 Q200 60 160 45 Q130 35 100 50 Q70 65 40 60"
-                    stroke="#5D4037" strokeWidth="6" fill="none" strokeLinecap="round"/>
-              <path d="M160 45 Q145 25 120 20"
-                    stroke="#5D4037" strokeWidth="4" fill="none" strokeLinecap="round"/>
-              <path d="M100 50 Q85 35 65 30"
-                    stroke="#5D4037" strokeWidth="3" fill="none" strokeLinecap="round"/>
-              <path d="M130 48 Q125 70 115 85"
-                    stroke="#5D4037" strokeWidth="3" fill="none" strokeLinecap="round"/>
-              <path d="M180 55 Q175 75 165 90"
-                    stroke="#5D4037" strokeWidth="3" fill="none" strokeLinecap="round"/>
-
-              {/* Mai flower component - 5 petals */}
-              <defs>
-                <g id="mai-flower">
-                  <ellipse cx="0" cy="-8" rx="4" ry="8" fill="#FFD700"/>
-                  <ellipse cx="7.6" cy="-2.5" rx="4" ry="8" fill="#FFD700" transform="rotate(72)"/>
-                  <ellipse cx="4.7" cy="6.5" rx="4" ry="8" fill="#FFD700" transform="rotate(144)"/>
-                  <ellipse cx="-4.7" cy="6.5" rx="4" ry="8" fill="#FFD700" transform="rotate(216)"/>
-                  <ellipse cx="-7.6" cy="-2.5" rx="4" ry="8" fill="#FFD700" transform="rotate(288)"/>
-                  <circle cx="0" cy="0" r="3" fill="#FF8C00"/>
-                  <circle cx="-1" cy="-1" r="0.8" fill="#8B4513"/>
-                  <circle cx="1" cy="0" r="0.8" fill="#8B4513"/>
-                  <circle cx="0" cy="1" r="0.8" fill="#8B4513"/>
-                </g>
-                <g id="mai-flower-small">
-                  <ellipse cx="0" cy="-6" rx="3" ry="6" fill="#FFD700"/>
-                  <ellipse cx="5.7" cy="-1.9" rx="3" ry="6" fill="#FFD700" transform="rotate(72)"/>
-                  <ellipse cx="3.5" cy="4.9" rx="3" ry="6" fill="#FFD700" transform="rotate(144)"/>
-                  <ellipse cx="-3.5" cy="4.9" rx="3" ry="6" fill="#FFD700" transform="rotate(216)"/>
-                  <ellipse cx="-5.7" cy="-1.9" rx="3" ry="6" fill="#FFD700" transform="rotate(288)"/>
-                  <circle cx="0" cy="0" r="2" fill="#FF8C00"/>
-                </g>
-                <g id="mai-bud">
-                  <ellipse cx="0" cy="0" rx="3" ry="5" fill="#FFD700"/>
-                  <path d="M-2 2 Q0 -3 2 2" stroke="#5D4037" strokeWidth="0.5" fill="none"/>
-                </g>
-              </defs>
-
-              {/* Flowers on branch */}
-              <use href="#mai-flower" x="120" y="22" className="flower-float"/>
-              <use href="#mai-flower" x="155" y="40" className="flower-float" style={{animationDelay: '0.5s'}}/>
-              <use href="#mai-flower" x="95" y="48" className="flower-float" style={{animationDelay: '1s'}}/>
-              <use href="#mai-flower" x="180" y="55" className="flower-float" style={{animationDelay: '0.3s'}}/>
-              <use href="#mai-flower-small" x="65" y="32" className="flower-float" style={{animationDelay: '0.8s'}}/>
-              <use href="#mai-flower-small" x="130" y="50" className="flower-float" style={{animationDelay: '1.2s'}}/>
-              <use href="#mai-flower" x="115" y="82" className="flower-float" style={{animationDelay: '0.6s'}}/>
-              <use href="#mai-flower-small" x="165" y="88" className="flower-float" style={{animationDelay: '1.5s'}}/>
-              <use href="#mai-flower" x="200" y="65" className="flower-float" style={{animationDelay: '0.2s'}}/>
-              <use href="#mai-bud" x="75" y="55" />
-              <use href="#mai-bud" x="145" y="30" />
-              <use href="#mai-bud" x="190" y="78" />
-            </svg>
-          </div>
-
-          {/* Falling petals */}
-          <div className="petal-fall text-lg" style={{left: '60%', animationDelay: '0s'}}>🌸</div>
-          <div className="petal-fall text-xl" style={{left: '70%', animationDelay: '1s'}}>🌸</div>
-          <div className="petal-fall text-lg" style={{left: '80%', animationDelay: '2s'}}>🌸</div>
-          <div className="petal-fall text-xl" style={{left: '75%', animationDelay: '3s'}}>🌸</div>
-          <div className="petal-fall text-lg" style={{left: '65%', animationDelay: '4s'}}>🌸</div>
-
-          {/* Content */}
-          <div className="flex items-center justify-between relative z-10">
-            <div className="flex-1">
-              <div>
-                <p className="text-yellow-300 text-sm font-medium tracking-wider mb-1">🧧 CHÚC MỪNG NĂM MỚI - XUÂN BÍNH NGỌ 2026 ✨</p>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">
-                  Chào mừng, {user.firstName}!
-                </h1>
-                <p className="text-red-100 text-lg mt-1">
-                  {user.position} - {departmentName}
-                </p>
-              </div>
-              <div className="flex items-center mt-3 space-x-2 flex-wrap gap-y-2">
-                <span className="px-3 py-1 bg-yellow-500 text-red-800 rounded-full text-sm font-bold shadow-lg">
-                  🏷️ {user.employeeCode}
-                </span>
-                {user.subDepartment && (
-                  <span className="px-3 py-1 bg-red-500 border border-yellow-400 text-white rounded-full text-sm shadow-lg">
-                    {user.subDepartment.toUpperCase()}
-                  </span>
-                )}
-                <span className="px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium shadow-lg">
-                  🌟 {user.employeeStatus || 'Đang làm việc'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Date/Time section - bottom right */}
-          <div className="absolute bottom-3 right-4 text-right text-white z-10">
-            <p className="text-2xl font-bold drop-shadow-lg">{new Date().toLocaleDateString('vi-VN')}</p>
-            <p className="text-sm text-red-100">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p>
-          </div>
-
-          {/* Decorative corners */}
-          <div className="absolute top-2 left-2 text-2xl">🏮</div>
-        </div>
+        {/* Theme Header */}
+        <ThemeHeader activeTheme={activeTheme} user={user} departmentName={departmentName} />
 
         {/* Personal Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

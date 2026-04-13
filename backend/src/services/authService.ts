@@ -13,7 +13,40 @@ import {
   ValidationError,
 } from '@utils/errors';
 import type { JwtPayload, AuthResponse } from '@types';
+import { NotificationType } from '@types';
 import loginHistoryService from './loginHistoryService';
+import notificationService from './notificationService';
+
+// IP rate limiter: track failed login attempts per IP
+interface IpRateLimitEntry {
+  count: number;
+  lockedUntil: Date | null;
+}
+
+const ipRateLimiter = new Map<string, IpRateLimitEntry>();
+
+const IP_MAX_ATTEMPTS = 5;
+const IP_LOCK_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+
+// Custom error class for IP lock so controller can return lockedUntil
+export class IpLockedError extends Error {
+  public lockedUntil: Date;
+  constructor(lockedUntil: Date) {
+    super('IP_LOCKED');
+    this.name = 'IpLockedError';
+    this.lockedUntil = lockedUntil;
+    Object.setPrototypeOf(this, IpLockedError.prototype);
+  }
+}
+
+// Custom error class for session replaced by another device
+export class SessionReplacedError extends AuthenticationError {
+  constructor() {
+    super('SESSION_REPLACED');
+    this.name = 'SessionReplacedError';
+    Object.setPrototypeOf(this, SessionReplacedError.prototype);
+  }
+}
 
 export class AuthService {
   async register(email: string, password: string, firstName: string, lastName: string): Promise<AuthResponse> {
@@ -97,6 +130,18 @@ export class AuthService {
     }
   ): Promise<AuthResponse> {
     let userId: string | null = null;
+    const ip = metadata?.ipAddress || 'unknown';
+
+    // Check IP rate limit before attempting login
+    const ipEntry = ipRateLimiter.get(ip);
+    if (ipEntry?.lockedUntil) {
+      if (ipEntry.lockedUntil > new Date()) {
+        throw new IpLockedError(ipEntry.lockedUntil);
+      } else {
+        // Lock expired, reset entry
+        ipRateLimiter.delete(ip);
+      }
+    }
 
     try {
       // Detect if identifier is email (contains @) or employee code
@@ -137,6 +182,20 @@ export class AuthService {
         throw new AuthenticationError('Tài khoản người dùng đã bị vô hiệu hóa');
       }
     } catch (error) {
+      // Increment IP failed counter (only for auth errors, not system errors)
+      if (error instanceof AuthenticationError) {
+        const current = ipRateLimiter.get(ip) || { count: 0, lockedUntil: null };
+        current.count += 1;
+        if (current.count >= IP_MAX_ATTEMPTS) {
+          current.lockedUntil = new Date(Date.now() + IP_LOCK_DURATION_MS);
+          logger.warn(`IP ${ip} locked after ${IP_MAX_ATTEMPTS} failed login attempts`);
+          ipRateLimiter.set(ip, current);
+          // Throw IpLockedError immediately on the 5th attempt
+          throw new IpLockedError(current.lockedUntil);
+        }
+        ipRateLimiter.set(ip, current);
+      }
+
       // Log failed login attempt
       if (userId && metadata) {
         const { device, browser } = this.parseUserAgent(metadata.userAgent || '');
@@ -153,6 +212,9 @@ export class AuthService {
       }
       throw error;
     }
+
+    // Reset IP failed counter on successful auth
+    ipRateLimiter.delete(ip);
 
     // Continue with successful login flow
     const user = await prisma.user.findUnique({
@@ -225,6 +287,11 @@ export class AuthService {
 
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
+
+    // Single device login: delete all existing refresh tokens for this user
+    await prisma.refreshToken.deleteMany({
+      where: { userId: user.id },
+    });
 
     // Save refresh token
     await prisma.refreshToken.create({
@@ -302,6 +369,64 @@ export class AuthService {
     };
   }
 
+  async forgotPassword(identifier: string): Promise<void> {
+    // Find user by email or employee code
+    let user;
+    let employee;
+
+    if (identifier.includes('@')) {
+      user = await prisma.user.findUnique({
+        where: { email: identifier },
+        include: { employees: true },
+      });
+      if (user) {
+        employee = user.employees;
+      }
+    } else {
+      employee = await prisma.employee.findFirst({
+        where: { employeeCode: identifier.toUpperCase() },
+        include: { user: true },
+      });
+      if (employee) {
+        user = employee.user;
+      }
+    }
+
+    // Always return success to not leak user existence
+    if (!user || !employee) {
+      return;
+    }
+
+    // Generate random 6-digit password
+    const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Hash and update password
+    const hashedPassword = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+
+    // Find all admin users and send notification
+    const adminUsers = await prisma.user.findMany({
+      where: { role: 'ADMIN', isActive: true },
+      include: { employees: true },
+    });
+
+    for (const admin of adminUsers) {
+      if (admin.employees) {
+        await notificationService.createNotification({
+          userId: admin.id,
+          type: NotificationType.PASSWORD_RESET,
+          title: 'Yêu cầu đặt lại mật khẩu',
+          message: `Nhân viên ${user.lastName} ${user.firstName} (${employee.employeeCode}) yêu cầu đặt lại mật khẩu. Mật khẩu mới: ${newPassword}`,
+        });
+      }
+    }
+
+    logger.info(`Password reset for user ${user.email} (${employee.employeeCode})`);
+  }
+
   async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {
     // Verify refresh token
     const decoded = verifyRefreshToken(refreshToken);
@@ -311,7 +436,12 @@ export class AuthService {
       where: { token: refreshToken },
     });
 
-    if (!tokenRecord || tokenRecord.expiresAt < new Date()) {
+    if (!tokenRecord) {
+      // Token not found in DB means it was deleted by a new login on another device
+      throw new SessionReplacedError();
+    }
+
+    if (tokenRecord.expiresAt < new Date()) {
       throw new AuthenticationError('Token làm mới không hợp lệ hoặc đã hết hạn');
     }
 

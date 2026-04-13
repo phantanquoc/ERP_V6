@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Search,
-  Filter,
   Download,
   Edit,
   Eye,
   Trash2,
   AlertCircle,
   CheckCircle,
-
   X
 } from 'lucide-react';
+import TableFilter, { FilterField } from './TableFilter';
 import { useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '../config/api';
 import { useEmployees, useDepartments, usePositions, usePositionLevelsByPosition, employeeKeys } from '../hooks';
@@ -129,9 +127,40 @@ const EmployeeManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', contractType: '', status: '', department: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const filterFields: FilterField[] = [
+    {
+      key: 'contractType',
+      label: 'Loại hợp đồng',
+      type: 'select',
+      options: [
+        { value: 'PERMANENT', label: 'Chính thức' },
+        { value: 'TEMPORARY', label: 'Tạm thời' },
+        { value: 'PROBATION', label: 'Thử việc' },
+        { value: 'PART_TIME', label: 'Bán thời gian' },
+      ],
+    },
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      type: 'select',
+      options: [
+        { value: 'ACTIVE', label: 'Đang làm việc' },
+        { value: 'INACTIVE', label: 'Không hoạt động' },
+        { value: 'ON_LEAVE', label: 'Đang nghỉ' },
+        { value: 'TERMINATED', label: 'Đã nghỉ việc' },
+      ],
+    },
+    {
+      key: 'department',
+      label: 'Phòng ban',
+      type: 'text',
+      placeholder: 'Lọc theo phòng ban...',
+    },
+  ];
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -301,19 +330,28 @@ const EmployeeManagement: React.FC = () => {
     return dept?.name || '-';
   };
 
-  const filteredEmployees = employees.filter(emp =>
-    emp.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.user?.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.user?.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.user?.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = employees.filter(emp => {
+    const s = filterValues._search.toLowerCase();
+    const matchesSearch =
+      emp.employeeCode.toLowerCase().includes(s) ||
+      emp.user?.firstName.toLowerCase().includes(s) ||
+      emp.user?.lastName.toLowerCase().includes(s) ||
+      emp.user?.email.toLowerCase().includes(s);
+
+    const matchesContractType = !filterValues.contractType || emp.contractType === filterValues.contractType;
+    const matchesStatus = !filterValues.status || emp.status === filterValues.status;
+    const matchesDepartment = !filterValues.department ||
+      getDepartmentName(emp.user?.departmentId).toLowerCase().includes(filterValues.department.toLowerCase());
+
+    return matchesSearch && matchesContractType && matchesStatus && matchesDepartment;
+  });
 
   const totalItems = filteredEmployees.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Messages */}
       {error && (
         <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -328,40 +366,35 @@ const EmployeeManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Action Bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm theo mã NV, họ tên, email..."
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-80"
-              />
-            </div>
-          </div>
-          <button
-            onClick={async () => {
-              try {
-                setError('');
-                await employeeService.exportToExcel({ search: searchTerm || undefined });
-                setSuccess('Đã xuất file Excel thành công');
-                setTimeout(() => setSuccess(''), 3000);
-              } catch (err) {
-                console.error('Error exporting to Excel:', err);
-                setError('Không thể xuất file Excel');
-              }
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Download size={18} />
-            Xuất Excel
-          </button>
-        </div>
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Danh sách nhân viên</h2>
+        <button
+          onClick={async () => {
+            try {
+              setError('');
+              await employeeService.exportToExcel({ search: filterValues._search || undefined });
+              setSuccess('Đã xuất file Excel thành công');
+              setTimeout(() => setSuccess(''), 3000);
+            } catch (err) {
+              console.error('Error exporting to Excel:', err);
+              setError('Không thể xuất file Excel');
+            }
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        >
+          <Download size={18} />
+          Xuất Excel
+        </button>
       </div>
+
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm theo mã NV, họ tên, email..."
+      />
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

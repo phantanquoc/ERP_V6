@@ -14,7 +14,9 @@ import { quotationRequestService } from '../../services/quotationRequestService'
 import { orderService } from '../../services/orderService';
 
 const GeneralPricing = () => {
-  const [activeTab, setActiveTab] = useState<'requests' | 'quotes' | 'orders' | 'costs'>('requests');
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialTab = (['requests', 'quotes', 'orders', 'costs'].includes(urlParams.get('tab') || '') ? urlParams.get('tab') : 'requests') as 'requests' | 'quotes' | 'orders' | 'costs';
+  const [activeTab, setActiveTab] = useState<'requests' | 'quotes' | 'orders' | 'costs'>(initialTab);
 
   // Stats overview
   const [requestStats, setRequestStats] = useState({
@@ -239,7 +241,9 @@ const GeneralPricing = () => {
 
           {/* CHI PHÍ */}
           {activeTab === 'costs' && (
-            <ExportCostManagement />
+            <div className="p-6">
+              <ExportCostManagement />
+            </div>
           )}
         </div>
       </div>

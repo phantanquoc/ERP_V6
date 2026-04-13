@@ -4,6 +4,7 @@ import qualityEvaluationService, { QualityEvaluation } from '../services/quality
 import machineService, { Machine } from '../services/machineService';
 import { useAuth } from '../contexts/AuthContext';
 import QualityEvaluationModal from './QualityEvaluationModal';
+import TableFilter, { FilterField } from './TableFilter';
 
 const QualityEvaluationManagement: React.FC = () => {
   const { user } = useAuth();
@@ -19,10 +20,12 @@ const QualityEvaluationManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
-  const [columnFilters, setColumnFilters] = useState({
-    maChien: '',
-    tenHangHoa: '',
-  });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
+
+  const productFilterFields: FilterField[] = [
+    { key: 'maChien', label: 'Mã chiên', type: 'text' },
+    { key: 'tenHangHoa', label: 'Tên hàng hóa', type: 'text' },
+  ];
 
   // Get current user's full name
   const currentUserName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
@@ -274,15 +277,17 @@ const QualityEvaluationManagement: React.FC = () => {
   };
 
   const filteredEvaluations = evaluations.filter(evaluation => {
-    const matchMaChien = !columnFilters.maChien || (evaluation.maChien || '').toLowerCase().includes(columnFilters.maChien.toLowerCase());
-    const matchTenHangHoa = !columnFilters.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(columnFilters.tenHangHoa.toLowerCase());
-    return matchMaChien && matchTenHangHoa;
+    const search = filterValues._search.toLowerCase();
+    const matchSearch = !search || (evaluation.maChien || '').toLowerCase().includes(search) || (evaluation.tenHangHoa || '').toLowerCase().includes(search) || (evaluation.nguoiThucHien || '').toLowerCase().includes(search);
+    const matchMaChien = !filterValues.maChien || (evaluation.maChien || '').toLowerCase().includes(filterValues.maChien.toLowerCase());
+    const matchTenHangHoa = !filterValues.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(filterValues.tenHangHoa.toLowerCase());
+    return matchSearch && matchMaChien && matchTenHangHoa;
   });
 
   return (
-    <div className="p-6">
+    <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Quản lý Đánh giá Chất lượng</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Đánh giá chất lượng</h2>
         <button
           onClick={handleExportExcel}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -319,6 +324,12 @@ const QualityEvaluationManagement: React.FC = () => {
         </div>
       </div>
 
+      <TableFilter
+        filters={productFilterFields}
+        values={filterValues}
+        onChange={(newValues) => { setFilterValues(newValues); setCurrentPage(1); }}
+      />
+
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
@@ -335,23 +346,6 @@ const QualityEvaluationManagement: React.FC = () => {
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Độ giòn</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
-              </tr>
-              <tr className="bg-white border-b border-gray-200">
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.maChien} onChange={(e) => { setColumnFilters(prev => ({...prev, maChien: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.tenHangHoa} onChange={(e) => { setColumnFilters(prev => ({...prev, tenHangHoa: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>

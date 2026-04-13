@@ -71,8 +71,13 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
   };
 
   const handleViewEvaluation = async (subordinate: Subordinate) => {
+    if (!subordinate.evaluationId) {
+      setError('Chưa có đánh giá cho nhân viên này trong kỳ này');
+      return;
+    }
     try {
-      const details = await employeeEvaluationService.getEvaluationDetails(subordinate.evaluationId);
+      // BUG 4: Pass isManager=true to go directly to manager endpoint
+      const details = await employeeEvaluationService.getEvaluationDetails(subordinate.evaluationId, true);
       onEvaluate(subordinate, details);
     } catch (err) {
       setError('Lỗi tải chi tiết đánh giá');

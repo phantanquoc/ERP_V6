@@ -44,6 +44,15 @@ class PurchaseRequestController {
         data.fileKemTheo = getFileUrl('purchase-requests', req.file.filename);
       }
 
+      // Parse items from FormData JSON string if needed
+      if (data.items && typeof data.items === 'string') {
+        try {
+          data.items = JSON.parse(data.items);
+        } catch (e) {
+          // ignore parse error — service will validate
+        }
+      }
+
       const request = await purchaseRequestService.createPurchaseRequest(data);
 
       return res.status(201).json({
@@ -77,6 +86,15 @@ class PurchaseRequestController {
       // Handle file upload
       if (req.file) {
         data.fileKemTheo = getFileUrl('purchase-requests', req.file.filename);
+      }
+
+      // Parse items from FormData JSON string if needed
+      if (data.items && typeof data.items === 'string') {
+        try {
+          data.items = JSON.parse(data.items);
+        } catch (e) {
+          // ignore
+        }
       }
 
       const request = await purchaseRequestService.updatePurchaseRequest(id, data);

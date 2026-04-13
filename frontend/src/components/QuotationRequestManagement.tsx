@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X, FileText, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Edit, Trash2, Eye, X, FileText, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import TableFilter, { FilterField } from './TableFilter';
 import { useQueryClient } from '@tanstack/react-query';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import internationalCustomerService, { InternationalCustomer } from '../services/internationalCustomerService';
@@ -17,7 +18,12 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
   const queryClient = useQueryClient();
   const [customers, setCustomers] = useState<InternationalCustomer[]>([]);
   const [products, setProducts] = useState<InternationalProduct[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
+    maYeuCauBaoGia: '',
+    tenNhanVien: '',
+    tenKhachHang: '',
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -55,12 +61,39 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
   const { data: requestsData, isLoading: loading } = useQuotationRequests({
     page: 1,
     limit: 1000,
-    search: searchTerm || undefined,
+    search: filterValues._search || undefined,
     customerType: filterCustomerType,
   });
 
   // Derive data from query result
-  const requests = requestsData?.data ?? [];
+  const rawRequests = requestsData?.data ?? [];
+
+  const quotationRequestFilterFields: FilterField[] = [
+    { key: 'maYeuCauBaoGia', label: 'Mã YC', type: 'text' },
+    { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
+    { key: 'tenKhachHang', label: 'Khách hàng', type: 'text' },
+  ];
+
+  const requests = useMemo(() => {
+    return rawRequests.filter((r: any) => {
+      const search = (filterValues._search || '').toLowerCase();
+      const matchSearch = !search ||
+        (r.maYeuCauBaoGia || '').toLowerCase().includes(search) ||
+        (r.tenNhanVien || '').toLowerCase().includes(search) ||
+        (r.tenKhachHang || '').toLowerCase().includes(search) ||
+        (r.maNhanVien || '').toLowerCase().includes(search) ||
+        (r.maKhachHang || '').toLowerCase().includes(search);
+      const matchMa = !filterValues.maYeuCauBaoGia || (r.maYeuCauBaoGia || '').toLowerCase().includes(filterValues.maYeuCauBaoGia.toLowerCase());
+      const matchNV = !filterValues.tenNhanVien || (r.tenNhanVien || '').toLowerCase().includes(filterValues.tenNhanVien.toLowerCase());
+      const matchKH = !filterValues.tenKhachHang || (r.tenKhachHang || '').toLowerCase().includes(filterValues.tenKhachHang.toLowerCase());
+      return matchSearch && matchMa && matchNV && matchKH;
+    });
+  }, [rawRequests, filterValues]);
+
+  const handleFilterChange = (newValues: Record<string, string>) => {
+    setFilterValues(newValues);
+    setCurrentPage(1);
+  };
 
   // Fetch customers and products on mount and when customerType changes
   useEffect(() => {
@@ -357,16 +390,11 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     }));
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-    setCurrentPage(1);
-  };
-
   const handleExportExcel = async () => {
     try {
       setExportError('');
       setExportLoading(true);
-      await quotationRequestService.exportToExcel({ search: searchTerm || undefined });
+      await quotationRequestService.exportToExcel({ search: filterValues._search || undefined });
       setExportSuccess('Đã xuất file Excel thành công');
       setTimeout(() => setExportSuccess(''), 3000);
     } catch (error) {
@@ -391,38 +419,34 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Danh sách yêu cầu báo giá</h2>
-        {mode === 'business' && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            onClick={handleExportExcel}
+            disabled={exportLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
           >
-            <Plus className="w-4 h-4" />
-            Thêm yêu cầu báo giá
+            <Download size={18} />
+            {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
           </button>
-        )}
+          {mode === 'business' && (
+            <button
+              onClick={openCreateModal}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm yêu cầu báo giá
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search */}
-      <div className="flex items-center gap-2">
-        <div className="relative w-80">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm..."
-            value={searchTerm}
-            onChange={handleSearch}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <button
-          onClick={handleExportExcel}
-          disabled={exportLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-        >
-          <Download size={18} />
-          {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
-        </button>
-      </div>
+      <TableFilter
+        filters={quotationRequestFilterFields}
+        values={filterValues}
+        onChange={handleFilterChange}
+        searchPlaceholder="Tìm kiếm mã YC, nhân viên, khách hàng..."
+      />
 
       {/* Alert Messages */}
       {exportError && (

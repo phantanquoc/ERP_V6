@@ -119,5 +119,13 @@ router.post(
  */
 router.post('/logout', (req, res, next) => authController.logout(req, res, next));
 
+router.post(
+  '/forgot-password',
+  validate([
+    { field: 'identifier', required: true, type: 'string' },
+  ]),
+  (req, res, next) => authController.forgotPassword(req, res, next)
+);
+
 export default router;
 

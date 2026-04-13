@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Input from '../components/Input';
 import Button from '../components/Button';
+import AuthService from '../services/authService';
 
 const ForgotPassword: React.FC = () => {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState('');
@@ -14,23 +15,21 @@ const ForgotPassword: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    if (!email) {
-      setError('Email là bắt buộc');
-      return;
-    }
-
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setError('Email không hợp lệ');
+    if (!identifier.trim()) {
+      setError('Vui lòng nhập email hoặc mã nhân viên');
       return;
     }
 
     setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+
+    try {
+      await AuthService.forgotPassword(identifier.trim());
       setIsSubmitted(true);
-    }, 2000);
+    } catch (err: any) {
+      setError(err.message || 'Có lỗi xảy ra, vui lòng thử lại');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSubmitted) {
@@ -49,15 +48,12 @@ const ForgotPassword: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Email đã được gửi!</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">Yêu cầu đã được gửi!</h2>
                 <p className="text-gray-600 mb-6">
-                  Chúng tôi đã gửi hướng dẫn đặt lại mật khẩu đến email <strong>{email}</strong>. 
-                  Vui lòng kiểm tra hộp thư của bạn.
+                  Yêu cầu đặt lại mật khẩu đã được gửi đến quản trị viên.
+                  Vui lòng liên hệ Admin để nhận mật khẩu mới.
                 </p>
-                <p className="text-sm text-gray-500 mb-6">
-                  Không nhận được email? Kiểm tra thư mục spam hoặc thử lại sau 5 phút.
-                </p>
-                <Link 
+                <Link
                   to="/login"
                   className="inline-flex items-center text-blue-600 hover:text-blue-500"
                 >
@@ -82,7 +78,7 @@ const ForgotPassword: React.FC = () => {
           </div>
           <div className="bg-white p-8 rounded-b-lg shadow-lg border border-gray-200">
             <div className="mb-6">
-              <Link 
+              <Link
                 to="/login"
                 className="inline-flex items-center text-blue-600 hover:text-blue-500 text-sm"
               >
@@ -90,29 +86,26 @@ const ForgotPassword: React.FC = () => {
                 Quay lại đăng nhập
               </Link>
             </div>
-            
+
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Quên mật khẩu?</h2>
             <p className="text-gray-600 mb-6">
-              Nhập địa chỉ email của bạn và chúng tôi sẽ gửi hướng dẫn đặt lại mật khẩu.
+              Nhập email hoặc mã nhân viên. Mật khẩu mới sẽ được gửi đến quản trị viên.
             </p>
-            
-            {/* Error Message */}
+
             {error && (
               <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
                 {error}
               </div>
             )}
 
-            {/* Forgot Password Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
               <Input
-                label="Địa chỉ email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Nhập địa chỉ email của bạn"
-                icon="email"
-                error={error && !email ? 'Email là bắt buộc' : ''}
+                label="Email hoặc mã nhân viên"
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="VD: email@company.com hoặc NV001"
+                error={error && !identifier ? 'Trường này là bắt buộc' : ''}
                 required
               />
 
@@ -122,18 +115,12 @@ const ForgotPassword: React.FC = () => {
                 loading={isLoading}
                 disabled={isLoading}
               >
-                {isLoading ? 'Đang gửi...' : 'Gửi hướng dẫn đặt lại mật khẩu'}
+                {isLoading ? 'Đang gửi...' : 'Gửi yêu cầu đặt lại mật khẩu'}
               </Button>
             </form>
 
-            {/* Support Info */}
             <div className="mt-8 text-center text-xs text-gray-500">
-              <p>Cần hỗ trợ? Liên hệ:</p>
-              <p className="mt-1">
-                <a href="mailto:support@abf.com" className="text-blue-600 hover:text-blue-500">
-                  support@abf.com
-                </a>
-              </p>
+              <p>Cần hỗ trợ? Liên hệ quản trị viên.</p>
             </div>
           </div>
         </div>

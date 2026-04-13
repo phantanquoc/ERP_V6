@@ -36,6 +36,7 @@ export interface CreateWarehouseIssueData {
   soLuongXuat: number;
   donViTinh: string;
   ghiChu?: string;
+  supplyRequestId?: string;
 }
 
 const warehouseIssueService = {

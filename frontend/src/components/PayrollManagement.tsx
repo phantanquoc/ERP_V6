@@ -5,13 +5,23 @@ import evaluationService from '@services/employeeEvaluationService';
 import { usePayrollByMonthYear, usePayrollSettings, useUpdatePayrollSettings, payrollKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInput } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 const PayrollManagement: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', position: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const filterFields: FilterField[] = [
+    {
+      key: 'position',
+      label: 'Vị trí',
+      type: 'text',
+      placeholder: 'Lọc theo vị trí...',
+    },
+  ];
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollDetail | null>(null);
   const [editingPayroll, setEditingPayroll] = useState<PayrollDetail | null>(null);
@@ -198,11 +208,14 @@ const PayrollManagement: React.FC = () => {
     );
   };
 
-  const filteredPayrolls = recalculatedPayrolls.filter(
-    item =>
-      item.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPayrolls = recalculatedPayrolls.filter(item => {
+    const matchesSearch =
+      item.employeeCode.toLowerCase().includes(filterValues._search.toLowerCase()) ||
+      item.employeeName.toLowerCase().includes(filterValues._search.toLowerCase());
+    const matchesPosition = !filterValues.position ||
+      item.positionName.toLowerCase().includes(filterValues.position.toLowerCase());
+    return matchesSearch && matchesPosition;
+  });
 
   const totalItems = filteredPayrolls.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -212,60 +225,11 @@ const PayrollManagement: React.FC = () => {
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow">
-      <h2 className="text-2xl font-bold mb-6">Bảng Tính Lương</h2>
-
-      {/* Filters */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-2">Tháng</label>
-          <select
-            value={selectedMonth}
-            onChange={e => setSelectedMonth(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          >
-            {months.map(m => (
-              <option key={m} value={m}>
-                Tháng {m}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-2">Năm</label>
-          <select
-            value={selectedYear}
-            onChange={e => setSelectedYear(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          >
-            {years.map(y => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-2">Tìm kiếm</label>
-          <input
-            type="text"
-            placeholder="Mã NV hoặc Tên NV"
-            value={searchTerm}
-            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          />
-        </div>
-
-        <div className="flex items-end gap-2">
-          <button
-            onClick={() => queryClient.invalidateQueries({ queryKey: payrollKeys.lists() })}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {loading ? 'Đang tải...' : 'Làm mới'}
-          </button>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Bảng Tính Lương</h2>
+        <div className="flex items-center gap-2">
           <button
             onClick={() => {
               setSettingsForm({
@@ -296,27 +260,67 @@ const PayrollManagement: React.FC = () => {
             }}
             disabled={sendingNotifications || loading}
             className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 flex items-center gap-2"
-            title="Gửi bảng lương"
           >
             <Send size={18} />
             {sendingNotifications ? 'Đang gửi...' : 'Gửi bảng lương'}
           </button>
-        </div>
-        <div className="flex items-end">
           <button
             onClick={async () => {
               try {
-                await payrollService.exportToExcel({ search: searchTerm || undefined, month: selectedMonth, year: selectedYear });
+                await payrollService.exportToExcel({ search: filterValues._search || undefined, month: selectedMonth, year: selectedYear });
               } catch (err) {
                 console.error('Error exporting to Excel:', err);
                 alert('Không thể xuất file Excel');
               }
             }}
-            className="w-full flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
           >
             <Download size={18} />
             Xuất Excel
           </button>
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: payrollKeys.lists() })}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+          >
+            {loading ? 'Đang tải...' : 'Làm mới'}
+          </button>
+        </div>
+      </div>
+
+      {/* Month/Year + Search */}
+      <div className="flex flex-wrap gap-4 items-end">
+        <div>
+          <label className="block text-sm font-medium mb-1">Tháng</label>
+          <select
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(Number(e.target.value))}
+            className="px-3 py-2 border border-gray-300 rounded-md"
+          >
+            {months.map(m => (
+              <option key={m} value={m}>Tháng {m}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Năm</label>
+          <select
+            value={selectedYear}
+            onChange={e => setSelectedYear(Number(e.target.value))}
+            className="px-3 py-2 border border-gray-300 rounded-md"
+          >
+            {years.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <TableFilter
+            filters={filterFields}
+            values={filterValues}
+            onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+            searchPlaceholder="Tìm theo mã NV hoặc tên NV..."
+          />
         </div>
       </div>
 

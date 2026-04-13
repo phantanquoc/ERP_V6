@@ -20,6 +20,11 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab);
 
+  const handleClose = () => {
+    setActiveTab(defaultTab);
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -33,7 +38,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
             <h2 className="text-xl font-bold text-white">Kế hoạch</h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -71,7 +76,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
           {activeTab === 'workPlans' && (
             <WorkPlanListModal
               isOpen={true}
-              onClose={onClose}
+              onClose={handleClose}
               isAdmin={isAdmin}
               embedded={true}
             />
@@ -79,8 +84,10 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
           {activeTab === 'overtimePlans' && (
             <OvertimePlanListModal
               isOpen={true}
-              onClose={onClose}
+              onClose={handleClose}
               isAdmin={isAdmin}
+              canViewAll={isAdmin}
+              canCreate={isAdmin}
               embedded={true}
             />
           )}

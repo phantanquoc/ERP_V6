@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Search, Filter, Download, Settings } from 'lucide-react';
+import { Plus, Edit2, Trash2, Download, Settings } from 'lucide-react';
 import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import DatePicker from './DatePicker';
 import WorkShiftSettingsModal from './WorkShiftSettingsModal';
+import TableFilter, { FilterField } from './TableFilter';
 
 interface AttendanceRecord {
   stt: number;
@@ -31,7 +32,21 @@ interface EditEntry {
 }
 
 const AttendanceManagement: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', status: '' });
+  const filterFields: FilterField[] = [
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      type: 'select',
+      options: [
+        { value: 'PRESENT', label: 'Đúng giờ' },
+        { value: 'LATE', label: 'Muộn' },
+        { value: 'ABSENT', label: 'Vắng mặt' },
+        { value: 'ON_LEAVE', label: 'Nghỉ phép' },
+        { value: 'OVERTIME', label: 'Tăng ca' },
+      ],
+    },
+  ];
   const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -232,90 +247,83 @@ const AttendanceManagement: React.FC = () => {
     }).join(', ');
   };
 
-  const filteredAttendances = attendances.filter(
-    item =>
-      item.employeeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredAttendances = attendances.filter(item => {
+    const matchesSearch =
+      item.employeeCode.toLowerCase().includes(filterValues._search.toLowerCase()) ||
+      item.employeeName.toLowerCase().includes(filterValues._search.toLowerCase());
+    const matchesStatus = !filterValues.status || item.status === filterValues.status;
+    return matchesSearch && matchesStatus;
+  });
 
   const totalItems = filteredAttendances.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const paginatedAttendances = filteredAttendances.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">Bảng Điểm Danh Nhân Viên</h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowShiftSettings(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-              title="Cài đặt ca làm việc"
-            >
-              <Settings className="w-4 h-4" />
-              Cài đặt ca
-            </button>
-            <button
-              onClick={handleAddNew}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4" />
-              Thêm mới
-            </button>
-          </div>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Bảng Điểm Danh Nhân Viên</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowShiftSettings(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            title="Cài đặt ca làm việc"
+          >
+            <Settings className="w-4 h-4" />
+            Cài đặt ca
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                await attendanceService.exportToExcel({ search: filterValues._search || undefined });
+              } catch (err) {
+                console.error('Error exporting to Excel:', err);
+                alert('Không thể xuất file Excel');
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Download size={18} />
+            Xuất Excel
+          </button>
+          <button
+            onClick={handleAddNew}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4" />
+            Thêm mới
+          </button>
         </div>
+      </div>
 
-        {/* Filters */}
-        <div className="flex gap-4 items-end">
-          <div className="flex-1">
-            <DatePicker
-              label="Từ ngày"
-              value={startDate}
-              onChange={(date) => setStartDate(date)}
-              maxDate={endDate}
-              placeholder="Chọn ngày bắt đầu"
-            />
-          </div>
-          <div className="flex-1">
-            <DatePicker
-              label="Đến ngày"
-              value={endDate}
-              onChange={(date) => setEndDate(date)}
-              minDate={startDate}
-              placeholder="Chọn ngày kết thúc"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tìm kiếm</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Tìm theo mã hoặc tên nhân viên..."
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={async () => {
-                try {
-                  await attendanceService.exportToExcel({ search: searchTerm || undefined });
-                } catch (err) {
-                  console.error('Error exporting to Excel:', err);
-                  alert('Không thể xuất file Excel');
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Download size={18} />
-              Xuất Excel
-            </button>
-          </div>
+      {/* Date Filters + Search */}
+      <div className="flex flex-wrap gap-4 items-end">
+        <div className="flex-1 min-w-[160px]">
+          <DatePicker
+            label="Từ ngày"
+            value={startDate}
+            onChange={(date) => setStartDate(date)}
+            maxDate={endDate}
+            placeholder="Chọn ngày bắt đầu"
+          />
+        </div>
+        <div className="flex-1 min-w-[160px]">
+          <DatePicker
+            label="Đến ngày"
+            value={endDate}
+            onChange={(date) => setEndDate(date)}
+            minDate={startDate}
+            placeholder="Chọn ngày kết thúc"
+          />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <TableFilter
+            filters={filterFields}
+            values={filterValues}
+            onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+            searchPlaceholder="Tìm theo mã hoặc tên nhân viên..."
+          />
         </div>
       </div>
 

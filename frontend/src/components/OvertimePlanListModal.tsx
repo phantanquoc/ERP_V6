@@ -1,18 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Download } from 'lucide-react';
+import { X, Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Download, Plus } from 'lucide-react';
 import { overtimePlanService, OvertimePlan, OvertimePlanStatus } from '../services/overtimePlanService';
 import Modal from './Modal';
+import CreateOvertimePlanModal from './CreateOvertimePlanModal';
 import { getFileUrl } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface OvertimePlanListModalProps {
   isOpen: boolean;
   onClose: () => void;
   isAdmin?: boolean;
+  canViewAll?: boolean;
+  canCreate?: boolean;
+  embedded?: boolean;
 }
 
-const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, onClose, isAdmin = false }) => {
+const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, onClose, isAdmin = false, canViewAll = false, canCreate = false, embedded = false }) => {
+  const { user } = useAuth();
   const [plans, setPlans] = useState<OvertimePlan[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -30,7 +37,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
     try {
       setLoading(true);
       const params = { page: currentPage, limit: itemsPerPage };
-      const response = isAdmin
+      const response = (isAdmin || canViewAll)
         ? await overtimePlanService.getAll(params)
         : await overtimePlanService.getMyPlans(params);
       setPlans(response.data || []);
@@ -96,23 +103,10 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
     }
   };
 
-  const handleAccept = async (planId: string, trangThai: string) => {
-    try {
-      setActionLoading(planId);
-      await overtimePlanService.acceptPlan(planId, trangThai);
-      await loadPlans();
-    } catch (error) {
-      console.error('Error accepting plan:', error);
-      alert('Có lỗi xảy ra khi tiếp nhận kế hoạch');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   if (!isOpen) return null;
 
   const tableContent = (
-    <div className="p-6 overflow-x-auto max-h-[calc(90vh-200px)]">
+    <div className={embedded ? "p-4 overflow-x-auto max-h-[calc(90vh-220px)]" : "p-6 overflow-x-auto max-h-[calc(90vh-200px)]"}>
       {loading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto"></div>
@@ -140,7 +134,6 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
               const statusBadge = getStatusBadge(plan.trangThai);
               const priorityBadge = getPriorityBadge(plan.mucDoUuTien);
               const isPending = plan.trangThai === OvertimePlanStatus.CHO_DUYET;
-              const canAccept = isPending && !isAdmin;
 
               return (
                 <tr key={plan.id} className="hover:bg-gray-50 transition-colors">
@@ -216,27 +209,6 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                           </button>
                         </>
                       )}
-
-                      {canAccept && (
-                        <>
-                          <button
-                            onClick={() => handleAccept(plan.id, 'DA_TIEP_NHAN')}
-                            disabled={actionLoading === plan.id}
-                            className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                            title="Tiếp nhận"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleAccept(plan.id, 'TU_CHOI')}
-                            disabled={actionLoading === plan.id}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                            title="Từ chối"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -276,26 +248,8 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
     </div>
   );
 
-  return (
+  const subModals = (
     <>
-      <Modal isOpen={isOpen} onClose={onClose}>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Clock className="w-6 h-6" />
-              Kế hoạch tăng ca
-              {isAdmin && <span className="text-sm font-normal opacity-80">(Quản lý)</span>}
-            </h2>
-            <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors">
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-
-          {tableContent}
-        </div>
-      </Modal>
-
       {/* Detail Modal */}
       <Modal isOpen={!!viewPlan} onClose={() => setViewPlan(null)}>
         {viewPlan && (
@@ -359,15 +313,6 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                         <p className="text-sm font-medium text-gray-900">{person.firstName} {person.lastName}</p>
                         <p className="text-xs text-gray-500">{person.employeeCode} • {person.department}</p>
                       </div>
-                      {viewPlan.trangThaiTiepNhan?.[person.id] && (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          viewPlan.trangThaiTiepNhan[person.id] === 'DA_TIEP_NHAN'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}>
-                          {viewPlan.trangThaiTiepNhan[person.id] === 'DA_TIEP_NHAN' ? 'Đã tiếp nhận' : 'Từ chối'}
-                        </span>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -449,6 +394,67 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
           </div>
         </div>
       </Modal>
+
+      <CreateOvertimePlanModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => loadPlans()}
+      />
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {canCreate && (
+          <div className="px-4 pt-3 flex justify-end">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Tạo kế hoạch
+            </button>
+          </div>
+        )}
+        {tableContent}
+        {subModals}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Clock className="w-6 h-6" />
+              Kế hoạch tăng ca
+              {(isAdmin || canViewAll) && <span className="text-sm font-normal opacity-80">(Quản lý)</span>}
+            </h2>
+            <div className="flex items-center gap-3">
+              {canCreate && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-orange-600 rounded-lg text-sm font-medium hover:bg-orange-50 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Tạo kế hoạch
+                </button>
+              )}
+              <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+
+          {tableContent}
+        </div>
+      </Modal>
+
+      {subModals}
     </>
   );
 };

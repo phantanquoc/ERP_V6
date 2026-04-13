@@ -1,21 +1,31 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError } from '@utils/errors';
+import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
+import supplyRequestService from './supplyRequestService';
+
+interface PurchaseRequestItemInput {
+  phanLoai: string;
+  tenHangHoa: string;
+  soLuong: number;
+  donViTinh: string;
+  nhaCungCapId?: string;
+  giaDuKien?: number;
+}
 
 interface CreatePurchaseRequestRequest {
   employeeId: string;
   maNhanVien: string;
   tenNhanVien: string;
-  phanLoai: string;
-  tenHangHoa: string;
-  soLuong: number;
-  donViTinh: string;
+  items: PurchaseRequestItemInput[];
   mucDichYeuCau: string;
   mucDoUuTien: string;
   ghiChu?: string;
   fileKemTheo?: string;
   supplyRequestId?: string;
+  nhaCungCapId?: string;
+  giaDuKien?: number;
+  ghiChuMuaHang?: string;
 }
 
 class PurchaseRequestService {
@@ -52,8 +62,16 @@ class PurchaseRequestService {
             { maYeuCau: { contains: search, mode: 'insensitive' as const } },
             { tenNhanVien: { contains: search, mode: 'insensitive' as const } },
             { maNhanVien: { contains: search, mode: 'insensitive' as const } },
-            { tenHangHoa: { contains: search, mode: 'insensitive' as const } },
-            { phanLoai: { contains: search, mode: 'insensitive' as const } },
+            {
+              items: {
+                some: {
+                  OR: [
+                    { tenHangHoa: { contains: search, mode: 'insensitive' as const } },
+                    { phanLoai: { contains: search, mode: 'insensitive' as const } },
+                  ],
+                },
+              },
+            },
           ],
         }
       : {};
@@ -74,6 +92,8 @@ class PurchaseRequestService {
             },
           },
           supplyRequest: true,
+          supplier: true,
+          items: { include: { supplier: true } },
         },
       }),
       prisma.purchaseRequest.count({ where }),
@@ -101,6 +121,8 @@ class PurchaseRequestService {
           },
         },
         supplyRequest: true,
+        supplier: true,
+        items: { include: { supplier: true } },
       },
     });
 
@@ -112,34 +134,68 @@ class PurchaseRequestService {
   }
 
   async createPurchaseRequest(data: CreatePurchaseRequestRequest) {
+    if (!data.items || data.items.length === 0) {
+      throw new ValidationError('Vui lòng thêm ít nhất một sản phẩm');
+    }
+
     const maYeuCau = await this.generatePurchaseRequestCode();
 
-    const purchaseRequest = await prisma.purchaseRequest.create({
-      data: {
-        maYeuCau,
-        employeeId: data.employeeId,
-        maNhanVien: data.maNhanVien,
-        tenNhanVien: data.tenNhanVien,
-        phanLoai: data.phanLoai,
-        tenHangHoa: data.tenHangHoa,
-        soLuong: data.soLuong,
-        donViTinh: data.donViTinh,
-        mucDichYeuCau: data.mucDichYeuCau,
-        mucDoUuTien: data.mucDoUuTien,
-        ghiChu: data.ghiChu,
-        fileKemTheo: data.fileKemTheo,
-        supplyRequestId: data.supplyRequestId,
-      },
-      include: {
-        employee: {
-          include: {
-            user: true,
-            position: true,
-          },
+    const purchaseRequest = await prisma.$transaction(async (tx) => {
+      const created = await tx.purchaseRequest.create({
+        data: {
+          maYeuCau,
+          employeeId: data.employeeId,
+          maNhanVien: data.maNhanVien,
+          tenNhanVien: data.tenNhanVien,
+          mucDichYeuCau: data.mucDichYeuCau,
+          mucDoUuTien: data.mucDoUuTien,
+          ghiChu: data.ghiChu,
+          fileKemTheo: data.fileKemTheo,
+          supplyRequestId: data.supplyRequestId,
+          nhaCungCapId: data.nhaCungCapId,
+          giaDuKien: data.giaDuKien,
+          ghiChuMuaHang: data.ghiChuMuaHang,
         },
-        supplyRequest: true,
-      },
+      });
+
+      if (data.items && data.items.length > 0) {
+        await tx.purchaseRequestItem.createMany({
+          data: data.items.map((item) => ({
+            purchaseRequestId: created.id,
+            phanLoai: item.phanLoai,
+            tenHangHoa: item.tenHangHoa,
+            soLuong: item.soLuong,
+            donViTinh: item.donViTinh,
+            nhaCungCapId: item.nhaCungCapId || null,
+            giaDuKien: item.giaDuKien ?? null,
+          })),
+        });
+      }
+
+      return tx.purchaseRequest.findUnique({
+        where: { id: created.id },
+        include: {
+          employee: {
+            include: {
+              user: true,
+              position: true,
+            },
+          },
+          supplyRequest: true,
+          supplier: true,
+          items: { include: { supplier: true } },
+        },
+      });
     });
+
+    // Trigger supply request status advancement
+    if (data.supplyRequestId) {
+      try {
+        await supplyRequestService.onPurchaseRequestCreated(data.supplyRequestId);
+      } catch (hookError) {
+        console.error('Error in onPurchaseRequestCreated hook:', hookError);
+      }
+    }
 
     return purchaseRequest;
   }
@@ -160,9 +216,14 @@ class PurchaseRequestService {
     trangThai?: string;
     nguoiDuyet?: string;
     ngayDuyet?: string;
+    nhaCungCapId?: string;
+    giaDuKien?: number;
+    ghiChuMuaHang?: string;
+    items?: PurchaseRequestItemInput[];
   }) {
     const existingRequest = await prisma.purchaseRequest.findUnique({
       where: { id },
+      include: { supplyRequest: true },
     });
 
     if (!existingRequest) {
@@ -170,7 +231,7 @@ class PurchaseRequestService {
     }
 
     // Parse soLuong to float if it's a string (from FormData)
-    const updateData: any = { ...data };
+    const { items, ...updateData } = data as any;
     if (updateData.soLuong !== undefined) {
       updateData.soLuong = parseFloat(updateData.soLuong.toString());
     }
@@ -178,19 +239,57 @@ class PurchaseRequestService {
       updateData.ngayDuyet = new Date(updateData.ngayDuyet);
     }
 
-    const purchaseRequest = await prisma.purchaseRequest.update({
-      where: { id },
-      data: updateData,
-      include: {
-        employee: {
+    let purchaseRequest;
+
+    if (items && Array.isArray(items)) {
+      purchaseRequest = await prisma.$transaction(async (tx) => {
+        await tx.purchaseRequestItem.deleteMany({ where: { purchaseRequestId: id } });
+        await tx.purchaseRequestItem.createMany({
+          data: items.map((item: PurchaseRequestItemInput) => ({
+            purchaseRequestId: id,
+            phanLoai: item.phanLoai,
+            tenHangHoa: item.tenHangHoa,
+            soLuong: item.soLuong,
+            donViTinh: item.donViTinh,
+            nhaCungCapId: item.nhaCungCapId || null,
+            giaDuKien: item.giaDuKien ?? null,
+          })),
+        });
+        return tx.purchaseRequest.update({
+          where: { id },
+          data: updateData,
           include: {
-            user: true,
-            position: true,
+            employee: { include: { user: true, position: true } },
+            supplyRequest: true,
+            supplier: true,
+            items: { include: { supplier: true } },
           },
+        });
+      });
+    } else {
+      purchaseRequest = await prisma.purchaseRequest.update({
+        where: { id },
+        data: updateData,
+        include: {
+          employee: { include: { user: true, position: true } },
+          supplyRequest: true,
+          supplier: true,
+          items: { include: { supplier: true } },
         },
-        supplyRequest: true,
-      },
-    });
+      });
+    }
+
+    // Trigger supply request status advancement when purchase request is approved
+    if (
+      updateData.trangThai === 'Đã duyệt' &&
+      existingRequest.supplyRequestId
+    ) {
+      try {
+        await supplyRequestService.onPurchaseRequestApproved(existingRequest.supplyRequestId);
+      } catch (hookError) {
+        console.error('Error in onPurchaseRequestApproved hook:', hookError);
+      }
+    }
 
     return purchaseRequest;
   }
@@ -219,8 +318,16 @@ class PurchaseRequestService {
         { maYeuCau: { contains: filters.search, mode: 'insensitive' as const } },
         { tenNhanVien: { contains: filters.search, mode: 'insensitive' as const } },
         { maNhanVien: { contains: filters.search, mode: 'insensitive' as const } },
-        { tenHangHoa: { contains: filters.search, mode: 'insensitive' as const } },
-        { phanLoai: { contains: filters.search, mode: 'insensitive' as const } },
+        {
+          items: {
+            some: {
+              OR: [
+                { tenHangHoa: { contains: filters.search, mode: 'insensitive' as const } },
+                { phanLoai: { contains: filters.search, mode: 'insensitive' as const } },
+              ],
+            },
+          },
+        },
       ];
     }
 
@@ -235,6 +342,7 @@ class PurchaseRequestService {
           },
         },
         supplyRequest: true,
+        items: { include: { supplier: true } },
       },
     });
 
@@ -260,18 +368,34 @@ class PurchaseRequestService {
       fgColor: { argb: 'FFE0E0E0' },
     };
 
-    data.forEach((item) => {
-      worksheet.addRow({
-        ngayYeuCau: new Date(item.createdAt).toLocaleDateString('vi-VN'),
-        maYeuCau: item.maYeuCau,
-        tenNhanVien: item.tenNhanVien,
-        phanLoai: item.phanLoai,
-        tenHangHoa: item.tenHangHoa,
-        soLuong: item.soLuong,
-        donViTinh: item.donViTinh,
-        mucDoUuTien: item.mucDoUuTien,
-        trangThai: item.trangThai,
-      });
+    data.forEach((request) => {
+      if (request.items && request.items.length > 0) {
+        request.items.forEach((item) => {
+          worksheet.addRow({
+            ngayYeuCau: new Date(request.createdAt).toLocaleDateString('vi-VN'),
+            maYeuCau: request.maYeuCau,
+            tenNhanVien: request.tenNhanVien,
+            phanLoai: item.phanLoai,
+            tenHangHoa: item.tenHangHoa,
+            soLuong: item.soLuong,
+            donViTinh: item.donViTinh,
+            mucDoUuTien: request.mucDoUuTien,
+            trangThai: request.trangThai,
+          });
+        });
+      } else {
+        worksheet.addRow({
+          ngayYeuCau: new Date(request.createdAt).toLocaleDateString('vi-VN'),
+          maYeuCau: request.maYeuCau,
+          tenNhanVien: request.tenNhanVien,
+          phanLoai: '',
+          tenHangHoa: '',
+          soLuong: '',
+          donViTinh: '',
+          mucDoUuTien: request.mucDoUuTien,
+          trangThai: request.trangThai,
+        });
+      }
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -280,4 +404,3 @@ class PurchaseRequestService {
 }
 
 export default new PurchaseRequestService();
-

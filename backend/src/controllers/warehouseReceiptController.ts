@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
+import supplyRequestService from '../services/supplyRequestService';
 
 // Generate unique receipt code
 export const generateReceiptCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -161,6 +162,13 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
       data: receipt,
       message: 'Tạo phiếu nhập kho thành công',
     });
+
+    // Trigger supply request status advancement (after response sent)
+    if (supplyRequestId) {
+      supplyRequestService.onWarehouseDocumentCreated(supplyRequestId).catch((err) => {
+        console.error('Error in onWarehouseDocumentCreated:', err);
+      });
+    }
   } catch (error) {
     next(error);
   }

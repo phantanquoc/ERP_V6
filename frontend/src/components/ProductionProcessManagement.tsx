@@ -5,6 +5,7 @@ import processService, { Process } from '../services/processService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 const ProductionProcessManagement: React.FC = () => {
   const { user } = useAuth();
@@ -12,7 +13,8 @@ const ProductionProcessManagement: React.FC = () => {
   const [templateProcesses, setTemplateProcesses] = useState<Process[]>([]);
   const [materialStandards, setMaterialStandards] = useState<MaterialStandard[]>([]);
   const [loading, setLoading] = useState(false);
-  const [columnFilters, setColumnFilters] = useState({
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
     maQuyTrinhSanXuat: '',
     tenQuyTrinhSanXuat: '',
     maNVSanXuat: '',
@@ -366,12 +368,27 @@ const ProductionProcessManagement: React.FC = () => {
   };
 
   const filteredProcesses = productionProcesses.filter(process => {
-    const matchMaQTSX = !columnFilters.maQuyTrinhSanXuat || (process.maQuyTrinhSanXuat || '').toLowerCase().includes(columnFilters.maQuyTrinhSanXuat.toLowerCase());
-    const matchTenQTSX = !columnFilters.tenQuyTrinhSanXuat || (process.tenQuyTrinhSanXuat || process.tenQuyTrinh || '').toLowerCase().includes(columnFilters.tenQuyTrinhSanXuat.toLowerCase());
-    const matchMaNV = !columnFilters.maNVSanXuat || (process.maNVSanXuat || '').toLowerCase().includes(columnFilters.maNVSanXuat.toLowerCase());
-    const matchTenNV = !columnFilters.tenNVSanXuat || (process.tenNVSanXuat || '').toLowerCase().includes(columnFilters.tenNVSanXuat.toLowerCase());
-    return matchMaQTSX && matchTenQTSX && matchMaNV && matchTenNV;
+    const search = filterValues._search.toLowerCase();
+    const matchSearch = !search || [
+      process.maQuyTrinhSanXuat,
+      process.tenQuyTrinhSanXuat,
+      process.tenQuyTrinh,
+      process.maNVSanXuat,
+      process.tenNVSanXuat,
+    ].some(v => (v || '').toLowerCase().includes(search));
+    const matchMaQTSX = !filterValues.maQuyTrinhSanXuat || (process.maQuyTrinhSanXuat || '').toLowerCase().includes(filterValues.maQuyTrinhSanXuat.toLowerCase());
+    const matchTenQTSX = !filterValues.tenQuyTrinhSanXuat || (process.tenQuyTrinhSanXuat || process.tenQuyTrinh || '').toLowerCase().includes(filterValues.tenQuyTrinhSanXuat.toLowerCase());
+    const matchMaNV = !filterValues.maNVSanXuat || (process.maNVSanXuat || '').toLowerCase().includes(filterValues.maNVSanXuat.toLowerCase());
+    const matchTenNV = !filterValues.tenNVSanXuat || (process.tenNVSanXuat || '').toLowerCase().includes(filterValues.tenNVSanXuat.toLowerCase());
+    return matchSearch && matchMaQTSX && matchTenQTSX && matchMaNV && matchTenNV;
   });
+
+  const processFilterFields: FilterField[] = [
+    { key: 'maQuyTrinhSanXuat', label: 'Mã QTSX', type: 'text' },
+    { key: 'tenQuyTrinhSanXuat', label: 'Tên QTSX', type: 'text' },
+    { key: 'maNVSanXuat', label: 'Mã NV', type: 'text' },
+    { key: 'tenNVSanXuat', label: 'Tên NV', type: 'text' },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -392,6 +409,13 @@ const ProductionProcessManagement: React.FC = () => {
         </button>
       </div>
 
+      {/* Filters */}
+      <TableFilter
+        filters={processFilterFields}
+        values={filterValues}
+        onChange={(newValues) => { setFilterValues(newValues); setCurrentPage(1); }}
+      />
+
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -408,26 +432,6 @@ const ProductionProcessManagement: React.FC = () => {
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (Kg)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian (Ngày)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
-              </tr>
-              <tr className="bg-white border-b border-gray-200">
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.maQuyTrinhSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, maQuyTrinhSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.tenQuyTrinhSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, tenQuyTrinhSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.maNVSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, maNVSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.tenNVSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, tenNVSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -715,34 +719,34 @@ const ProductionProcessManagement: React.FC = () => {
               {/* Flowchart Table */}
               {flowchartSections.length > 0 && (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse border border-gray-400">
+                  <table className="min-w-full border-collapse border border-gray-200">
                     <thead>
-                      <tr className="bg-blue-100">
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">STT</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">PHÂN ĐOẠN</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">NỘI DUNG CÔNG VIỆC</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">LOẠI CHI PHÍ</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">TÊN CHI PHÍ</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐVT</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐỊNH MỨC LAO ĐỘNG</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐƠN VỊ</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100">SỐ LƯỢNG NGUYÊN LIỆU (Kg)</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100">SỐ PHÚT THỰC HIỆN</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
+                      <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">STT</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">PHÂN ĐOẠN</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">NỘI DUNG CÔNG VIỆC</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">LOẠI CHI PHÍ</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">TÊN CHI PHÍ</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐVT</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐỊNH MỨC LAO ĐỘNG</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐƠN VỊ</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100">SỐ LƯỢNG NGUYÊN LIỆU (Kg)</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100">SỐ PHÚT THỰC HIỆN</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
                       </tr>
-                      <tr className="bg-blue-50">
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2 text-center text-xs font-bold bg-green-100">KẾ HOẠCH</th>
-                        <th className="border border-gray-400 px-3 py-2 text-center text-xs font-bold bg-green-100">THỰC TẾ</th>
+                      <tr className="bg-gray-50">
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-900 bg-green-50">KẾ HOẠCH</th>
+                        <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-900 bg-green-50">THỰC TẾ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -752,29 +756,29 @@ const ProductionProcessManagement: React.FC = () => {
                             <tr key={`${sectionIndex}-${costIndex}`} className={costIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                               {costIndex === 0 && (
                                 <>
-                                  <td className="border border-gray-400 px-3 py-2 text-center font-medium" rowSpan={section.costs.length}>
+                                  <td className="border border-gray-200 px-3 py-2 text-center font-medium" rowSpan={section.costs.length}>
                                     {section.stt}
                                   </td>
-                                  <td className="border border-gray-400 px-3 py-2" rowSpan={section.costs.length}>
+                                  <td className="border border-gray-200 px-3 py-2" rowSpan={section.costs.length}>
                                     <div className="font-semibold">{section.phanDoan}</div>
                                     {section.tenPhanDoan && <div className="text-sm text-gray-600">{section.tenPhanDoan}</div>}
                                   </td>
-                                  <td className="border border-gray-400 px-3 py-2 text-sm" rowSpan={section.costs.length}>
+                                  <td className="border border-gray-200 px-3 py-2 text-sm" rowSpan={section.costs.length}>
                                     {section.noiDungCongViec || '-'}
                                   </td>
                                 </>
                               )}
-                              <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100">{cost.loaiChiPhi}</td>
-                              <td className="border border-gray-400 px-3 py-2 bg-gray-100">{cost.tenChiPhi || '-'}</td>
-                              <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100">{cost.donVi || '-'}</td>
-                              <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100">
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100">{cost.loaiChiPhi}</td>
+                              <td className="border border-gray-200 px-3 py-2 bg-gray-100">{cost.tenChiPhi || '-'}</td>
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100">{cost.donVi || '-'}</td>
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100">
                                 {cost.dinhMucLaoDong !== undefined && cost.dinhMucLaoDong !== null ? cost.dinhMucLaoDong : '-'}
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100">
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100">
                                 {cost.donViDinhMucLaoDong || '-'}
                               </td>
                               {/* Editable fields */}
-                              <td className="border border-gray-400 px-3 py-2 text-center bg-green-50">
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-green-50">
                                 <input
                                   type="number"
                                   step="0.01"
@@ -785,7 +789,7 @@ const ProductionProcessManagement: React.FC = () => {
                                   placeholder="0"
                                 />
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 text-center bg-green-50">
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-green-50">
                                 <input
                                   type="number"
                                   step="0.01"
@@ -796,7 +800,7 @@ const ProductionProcessManagement: React.FC = () => {
                                   placeholder="0"
                                 />
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 text-center bg-blue-50">
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-blue-50">
                                 <input
                                   type="number"
                                   step="0.01"
@@ -807,7 +811,7 @@ const ProductionProcessManagement: React.FC = () => {
                                   placeholder="0"
                                 />
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 text-center bg-green-50">
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-green-50">
                                 <input
                                   type="number"
                                   step="0.01"
@@ -822,9 +826,9 @@ const ProductionProcessManagement: React.FC = () => {
                           ))
                         ) : (
                           <tr key={sectionIndex}>
-                            <td className="border border-gray-400 px-3 py-2 text-center">{section.stt}</td>
-                            <td className="border border-gray-400 px-3 py-2">{section.phanDoan}</td>
-                            <td className="border border-gray-400 px-3 py-2" colSpan={10}>Không có chi phí</td>
+                            <td className="border border-gray-200 px-3 py-2 text-center">{section.stt}</td>
+                            <td className="border border-gray-200 px-3 py-2">{section.phanDoan}</td>
+                            <td className="border border-gray-200 px-3 py-2" colSpan={10}>Không có chi phí</td>
                           </tr>
                         )
                       )}
@@ -953,34 +957,34 @@ const ProductionProcessManagement: React.FC = () => {
 
               {viewingProcess.flowchart && viewingProcess.flowchart.sections && viewingProcess.flowchart.sections.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse border border-gray-400">
+                  <table className="min-w-full border-collapse border border-gray-200">
                     <thead>
-                      <tr className="bg-blue-100">
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">STT</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">PHÂN ĐOẠN</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">NỘI DUNG CÔNG VIỆC</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">LOẠI CHI PHÍ</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">TÊN CHI PHÍ</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐVT</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐỊNH MỨC LAO ĐỘNG</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐƠN VỊ</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">SỐ LƯỢNG NGUYÊN LIỆU (Kg)</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">SỐ PHÚT THỰC HIỆN</th>
-                        <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
+                      <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">STT</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">PHÂN ĐOẠN</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">NỘI DUNG CÔNG VIỆC</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">LOẠI CHI PHÍ</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">TÊN CHI PHÍ</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐVT</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐỊNH MỨC LAO ĐỘNG</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐƠN VỊ</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">SỐ LƯỢNG NGUYÊN LIỆU (Kg)</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">SỐ PHÚT THỰC HIỆN</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
                       </tr>
-                      <tr className="bg-blue-50">
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2"></th>
-                        <th className="border border-gray-400 px-3 py-2 text-center text-xs font-bold">KẾ HOẠCH</th>
-                        <th className="border border-gray-400 px-3 py-2 text-center text-xs font-bold">THỰC TẾ</th>
+                      <tr className="bg-gray-50">
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-900">KẾ HOẠCH</th>
+                        <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-900">THỰC TẾ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -990,46 +994,46 @@ const ProductionProcessManagement: React.FC = () => {
                             <tr key={`${sectionIndex}-${costIndex}`} className={costIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                               {costIndex === 0 && (
                                 <>
-                                  <td className="border border-gray-400 px-3 py-2 text-center font-medium" rowSpan={section.costs.length}>
+                                  <td className="border border-gray-200 px-3 py-2 text-center font-medium" rowSpan={section.costs.length}>
                                     {section.stt}
                                   </td>
-                                  <td className="border border-gray-400 px-3 py-2" rowSpan={section.costs.length}>
+                                  <td className="border border-gray-200 px-3 py-2" rowSpan={section.costs.length}>
                                     <div className="font-semibold">{section.phanDoan}</div>
                                     {section.tenPhanDoan && <div className="text-sm text-gray-600">{section.tenPhanDoan}</div>}
                                   </td>
-                                  <td className="border border-gray-400 px-3 py-2 text-sm" rowSpan={section.costs.length}>
+                                  <td className="border border-gray-200 px-3 py-2 text-sm" rowSpan={section.costs.length}>
                                     {section.noiDungCongViec || '-'}
                                   </td>
                                 </>
                               )}
-                              <td className="border border-gray-400 px-3 py-2 text-center">{cost.loaiChiPhi}</td>
-                              <td className="border border-gray-400 px-3 py-2">{cost.tenChiPhi || '-'}</td>
-                              <td className="border border-gray-400 px-3 py-2 text-center">{cost.donVi || '-'}</td>
-                              <td className="border border-gray-400 px-3 py-2 text-center">
+                              <td className="border border-gray-200 px-3 py-2 text-center">{cost.loaiChiPhi}</td>
+                              <td className="border border-gray-200 px-3 py-2">{cost.tenChiPhi || '-'}</td>
+                              <td className="border border-gray-200 px-3 py-2 text-center">{cost.donVi || '-'}</td>
+                              <td className="border border-gray-200 px-3 py-2 text-center">
                                 {cost.dinhMucLaoDong !== undefined && cost.dinhMucLaoDong !== null ? cost.dinhMucLaoDong : '-'}
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 text-center">
+                              <td className="border border-gray-200 px-3 py-2 text-center">
                                 {cost.donViDinhMucLaoDong || '-'}
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 text-center">
+                              <td className="border border-gray-200 px-3 py-2 text-center">
                                 {cost.soLuongNguyenLieu !== undefined && cost.soLuongNguyenLieu !== null ? cost.soLuongNguyenLieu : '-'}
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 text-center">
+                              <td className="border border-gray-200 px-3 py-2 text-center">
                                 {cost.soPhutThucHien !== undefined && cost.soPhutThucHien !== null ? cost.soPhutThucHien : '-'}
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 text-center bg-blue-50 font-medium">
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-blue-50 font-medium">
                                 {cost.soLuongKeHoach !== undefined && cost.soLuongKeHoach !== null ? cost.soLuongKeHoach.toFixed(2) : '-'}
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 text-center">
+                              <td className="border border-gray-200 px-3 py-2 text-center">
                                 {cost.soLuongThucTe !== undefined && cost.soLuongThucTe !== null ? cost.soLuongThucTe : '-'}
                               </td>
                             </tr>
                           ))
                         ) : (
                           <tr key={sectionIndex}>
-                            <td className="border border-gray-400 px-3 py-2 text-center">{section.stt}</td>
-                            <td className="border border-gray-400 px-3 py-2">{section.phanDoan}</td>
-                            <td className="border border-gray-400 px-3 py-2" colSpan={10}>Không có chi phí</td>
+                            <td className="border border-gray-200 px-3 py-2 text-center">{section.stt}</td>
+                            <td className="border border-gray-200 px-3 py-2">{section.phanDoan}</td>
+                            <td className="border border-gray-200 px-3 py-2" colSpan={10}>Không có chi phí</td>
                           </tr>
                         )
                       )}

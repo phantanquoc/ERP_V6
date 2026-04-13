@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, FileText, Eye } from 'lucide-react';
+import TableFilter, { FilterField } from './TableFilter';
 import warehouseIssueService, { WarehouseIssue } from '../services/warehouseIssueService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,6 +18,13 @@ const WarehouseIssueTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', tenKho: '', tenSanPham: '' });
+  const issueFilterFields: FilterField[] = [
+    { key: 'maPhieuXuat', label: 'Mã phiếu', type: 'text' },
+    { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
+    { key: 'tenKho', label: 'Kho', type: 'text' },
+    { key: 'tenSanPham', label: 'Sản phẩm', type: 'text' },
+  ];
 
   const handleViewDetail = (issue: WarehouseIssue) => {
     setSelectedIssue(issue);
@@ -146,88 +154,116 @@ const WarehouseIssueTab: React.FC = () => {
     }
   };
 
-  const totalPages = Math.ceil(issues.length / itemsPerPage);
-  const paginatedIssues = issues.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const filteredIssues = issues.filter((issue) => {
+    const search = (filterValues._search || '').toLowerCase().trim();
+    if (search) {
+      const matchSearch =
+        (issue.maPhieuXuat || '').toLowerCase().includes(search) ||
+        (issue.tenNhanVien || '').toLowerCase().includes(search) ||
+        (issue.tenKho || '').toLowerCase().includes(search) ||
+        (issue.tenLo || '').toLowerCase().includes(search) ||
+        (issue.tenSanPham || '').toLowerCase().includes(search);
+      if (!matchSearch) return false;
+    }
+    if (filterValues.maPhieuXuat && !(issue.maPhieuXuat || '').toLowerCase().includes(filterValues.maPhieuXuat.toLowerCase())) return false;
+    if (filterValues.tenNhanVien && !(issue.tenNhanVien || '').toLowerCase().includes(filterValues.tenNhanVien.toLowerCase())) return false;
+    if (filterValues.tenKho && !(issue.tenKho || '').toLowerCase().includes(filterValues.tenKho.toLowerCase())) return false;
+    if (filterValues.tenSanPham && !(issue.tenSanPham || '').toLowerCase().includes(filterValues.tenSanPham.toLowerCase())) return false;
+    return true;
+  });
+  const totalPages = Math.ceil(filteredIssues.length / itemsPerPage);
+  const paginatedIssues = filteredIssues.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="p-6">
+    <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Phiếu xuất kho</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Phiếu xuất kho</h2>
         <button
           onClick={handleOpenModal}
-          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
         >
           <Plus className="h-5 w-5" />
           Tạo phiếu xuất
         </button>
       </div>
 
+      <TableFilter
+        filters={issueFilterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); }}
+        searchPlaceholder="Tìm kiếm phiếu xuất..."
+      />
+
       {/* Issues Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã phiếu</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày xuất</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nhân viên</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kho</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lô</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Số lượng xuất</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày xuất</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng xuất</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Thao tác</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {issues.length === 0 ? (
+          <tbody>
+            {filteredIssues.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                   Chưa có phiếu xuất kho nào
                 </td>
               </tr>
             ) : (
-              paginatedIssues.map((issue) => (
-                <tr key={issue.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              paginatedIssues.map((issue, index) => (
+                <tr key={issue.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors border-b border-gray-200`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">
                     {issue.maPhieuXuat}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {new Date(issue.ngayXuat).toLocaleDateString('vi-VN')}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {issue.tenNhanVien}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {issue.tenKho}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {issue.tenLo}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {issue.tenSanPham}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
                     {issue.soLuongXuat} {issue.donViTinh}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <button
-                      onClick={() => handleViewDetail(issue)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
-                    >
-                      <Eye className="h-4 w-4" />
-                      Xem chi tiết
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleViewDetail(issue)}
+                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                        title="Xem chi tiết"
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4 px-2">
           <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, issues.length)} / {issues.length} mục
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredIssues.length)} / {filteredIssues.length} mục
           </span>
           <div className="flex items-center gap-2">
             <button

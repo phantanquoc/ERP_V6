@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import warehouseIssueService from '../services/warehouseIssueService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,6 +13,20 @@ interface CreateWarehouseIssueModalProps {
   onSuccess?: () => void;
 }
 
+interface IssueRow {
+  warehouseId: string;
+  lotId: string;
+  lotProductId: string;
+  soLuongXuat: number;
+  ghiChu: string;
+  // Cached display data
+  lots: Lot[];
+  lotProducts: LotProduct[];
+  // Source item info
+  tenGoi: string;
+  donViTinh: string;
+}
+
 const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
   isOpen,
   onClose,
@@ -21,31 +35,34 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
 }) => {
   const { user } = useAuth();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [lots, setLots] = useState<Lot[]>([]);
-  const [lotProducts, setLotProducts] = useState<LotProduct[]>([]);
   const [loading, setLoading] = useState(false);
-
-  const [formData, setFormData] = useState({
-    maPhieuXuat: '',
-    warehouseId: '',
-    lotId: '',
-    lotProductId: '',
-    soLuongXuat: 0,
-    ghiChu: '',
-  });
+  const [maPhieuXuatBase, setMaPhieuXuatBase] = useState('');
+  const [rows, setRows] = useState<IssueRow[]>([]);
 
   useEffect(() => {
     if (isOpen) {
       fetchWarehouses();
       generateCode();
-      
-      // Pre-fill data from supply request if available
-      if (supplyRequest) {
-        setFormData(prev => ({
-          ...prev,
-          soLuongXuat: supplyRequest.soLuong,
-          ghiChu: `Xuất kho cho yêu cầu cung cấp ${supplyRequest.maYeuCau} - ${supplyRequest.tenGoi}`,
-        }));
+
+      // Init rows from supply request items
+      if (supplyRequest?.items && supplyRequest.items.length > 0) {
+        setRows(supplyRequest.items.map(item => ({
+          warehouseId: '',
+          lotId: '',
+          lotProductId: '',
+          soLuongXuat: item.soLuong,
+          ghiChu: `Xuất kho cho ${supplyRequest.maYeuCau} - ${item.tenGoi}`,
+          lots: [],
+          lotProducts: [],
+          tenGoi: item.tenGoi,
+          donViTinh: item.donViTinh,
+        })));
+      } else {
+        setRows([{
+          warehouseId: '', lotId: '', lotProductId: '',
+          soLuongXuat: 0, ghiChu: '', lots: [], lotProducts: [],
+          tenGoi: '', donViTinh: '',
+        }]);
       }
     }
   }, [isOpen, supplyRequest]);
@@ -53,7 +70,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
   const generateCode = async () => {
     try {
       const response = await warehouseIssueService.generateIssueCode();
-      setFormData(prev => ({ ...prev, maPhieuXuat: response.data.maPhieuXuat }));
+      setMaPhieuXuatBase(response.data.maPhieuXuat);
     } catch (error) {
       console.error('Error generating issue code:', error);
     }
@@ -72,50 +89,91 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
     }
   };
 
-  const handleWarehouseChange = (warehouseId: string) => {
-    setFormData({ ...formData, warehouseId, lotId: '', lotProductId: '' });
-    const warehouse = warehouses.find(w => w.id === warehouseId);
-    setLots(warehouse?.lots || []);
-    setLotProducts([]);
+  const updateRow = (index: number, updates: Partial<IssueRow>) => {
+    setRows(prev => prev.map((row, i) => i === index ? { ...row, ...updates } : row));
   };
 
-  const handleLotChange = (lotId: string) => {
-    setFormData({ ...formData, lotId, lotProductId: '' });
-    const lot = lots.find(l => l.id === lotId);
-    setLotProducts(lot?.lotProducts || []);
+  const handleWarehouseChange = (index: number, warehouseId: string) => {
+    const warehouse = warehouses.find(w => w.id === warehouseId);
+    updateRow(index, {
+      warehouseId,
+      lotId: '',
+      lotProductId: '',
+      lots: warehouse?.lots || [],
+      lotProducts: [],
+    });
+  };
+
+  const handleLotChange = (index: number, lotId: string) => {
+    const lot = rows[index].lots.find(l => l.id === lotId);
+    updateRow(index, {
+      lotId,
+      lotProductId: '',
+      lotProducts: lot?.lotProducts || [],
+    });
+  };
+
+  const addRow = () => {
+    setRows(prev => [...prev, {
+      warehouseId: '', lotId: '', lotProductId: '',
+      soLuongXuat: 0, ghiChu: '', lots: [], lotProducts: [],
+      tenGoi: '', donViTinh: '',
+    }]);
+  };
+
+  const removeRow = (index: number) => {
+    if (rows.length === 1) return;
+    setRows(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.warehouseId || !formData.lotId || !formData.lotProductId) {
-      alert('Vui lòng điền đầy đủ thông tin');
-      return;
+
+    // Validate all rows
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row.warehouseId || !row.lotId || !row.lotProductId) {
+        alert(`Dòng ${i + 1}: Vui lòng chọn đầy đủ kho, lô và sản phẩm`);
+        return;
+      }
+      if (row.soLuongXuat <= 0) {
+        alert(`Dòng ${i + 1}: Số lượng xuất phải lớn hơn 0`);
+        return;
+      }
     }
 
     setLoading(true);
     try {
-      const warehouse = warehouses.find(w => w.id === formData.warehouseId);
-      const lot = lots.find(l => l.id === formData.lotId);
-      const lotProduct = lotProducts.find(lp => lp.id === formData.lotProductId);
+      // Submit each row as a separate warehouse issue
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const warehouse = warehouses.find(w => w.id === row.warehouseId);
+        const lot = row.lots.find(l => l.id === row.lotId);
+        const lotProduct = row.lotProducts.find(lp => lp.id === row.lotProductId);
 
-      await warehouseIssueService.createWarehouseIssue({
-        maPhieuXuat: formData.maPhieuXuat,
-        employeeId: user?.id || '',
-        maNhanVien: user?.employeeCode || '',
-        tenNhanVien: `${user?.firstName} ${user?.lastName}`,
-        warehouseId: formData.warehouseId,
-        tenKho: warehouse?.tenKho || '',
-        lotId: formData.lotId,
-        tenLo: lot?.tenLo || '',
-        lotProductId: formData.lotProductId,
-        tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
-        soLuongXuat: formData.soLuongXuat,
-        donViTinh: lotProduct?.donViTinh || '',
-        ghiChu: formData.ghiChu,
-      });
+        const maPhieuXuat = rows.length === 1
+          ? maPhieuXuatBase
+          : `${maPhieuXuatBase}-${String.fromCharCode(65 + i)}`;
 
-      alert('Tạo phiếu xuất kho thành công!');
+        await warehouseIssueService.createWarehouseIssue({
+          maPhieuXuat,
+          employeeId: user?.id || '',
+          maNhanVien: user?.employeeCode || '',
+          tenNhanVien: `${user?.firstName} ${user?.lastName}`,
+          warehouseId: row.warehouseId,
+          tenKho: warehouse?.tenKho || '',
+          lotId: row.lotId,
+          tenLo: lot?.tenLo || '',
+          lotProductId: row.lotProductId,
+          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
+          soLuongXuat: row.soLuongXuat,
+          donViTinh: lotProduct?.donViTinh || '',
+          ghiChu: row.ghiChu,
+          supplyRequestId: supplyRequest?.id,
+        });
+      }
+
+      alert(`Tạo ${rows.length} phiếu xuất kho thành công!`);
       onSuccess?.();
       onClose();
     } catch (error: any) {
@@ -129,19 +187,16 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-[600px] max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg p-6 w-[900px] max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-900">Tạo phiếu xuất kho</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-6 w-6" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Supply Request Info (if available) */}
+          {/* Supply Request Info */}
           {supplyRequest && (
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <h3 className="font-semibold text-blue-900 mb-2">Thông tin yêu cầu cung cấp</h3>
@@ -151,14 +206,6 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                   <span className="ml-2 font-medium">{supplyRequest.maYeuCau}</span>
                 </div>
                 <div>
-                  <span className="text-gray-600">Tên gọi:</span>
-                  <span className="ml-2 font-medium">{supplyRequest.tenGoi}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Số lượng yêu cầu:</span>
-                  <span className="ml-2 font-medium">{supplyRequest.soLuong} {supplyRequest.donViTinh}</span>
-                </div>
-                <div>
                   <span className="text-gray-600">Người yêu cầu:</span>
                   <span className="ml-2 font-medium">{supplyRequest.tenNhanVien}</span>
                 </div>
@@ -166,157 +213,129 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
             </div>
           )}
 
-          {/* Mã phiếu xuất */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mã phiếu xuất
-            </label>
-            <input
-              type="text"
-              value={formData.maPhieuXuat}
-              disabled
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-            />
+          {/* Header info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mã phiếu xuất</label>
+              <input type="text" value={maPhieuXuatBase} disabled
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" />
+              {rows.length > 1 && (
+                <p className="text-xs text-gray-500 mt-1">Sẽ tạo {rows.length} phiếu: {rows.map((_, i) => `${maPhieuXuatBase}-${String.fromCharCode(65 + i)}`).join(', ')}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên</label>
+              <input type="text" value={`${user?.firstName} ${user?.lastName}`} disabled
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" />
+            </div>
           </div>
 
-          {/* Tên nhân viên */}
+          {/* Items */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tên nhân viên
-            </label>
-            <input
-              type="text"
-              value={`${user?.firstName} ${user?.lastName}`}
-              disabled
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-            />
-          </div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Danh sách sản phẩm xuất kho <span className="text-red-500">*</span>
+              </label>
+              <button type="button" onClick={addRow}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700">
+                <Plus className="h-4 w-4" />
+                Thêm dòng
+              </button>
+            </div>
 
-          {/* Kho */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Kho <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.warehouseId}
-              onChange={(e) => handleWarehouseChange(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
-            >
-              <option value="">Chọn kho</option>
-              {warehouses.map((warehouse) => (
-                <option key={warehouse.id} value={warehouse.id}>
-                  {warehouse.tenKho}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div className="space-y-4">
+              {rows.map((row, index) => (
+                <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-gray-700">
+                      Sản phẩm {index + 1}{row.tenGoi ? `: ${row.tenGoi}` : ''}
+                    </span>
+                    <button type="button" onClick={() => removeRow(index)} disabled={rows.length === 1}
+                      className="text-red-500 hover:text-red-700 disabled:text-gray-300">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
 
-          {/* Lô */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Lô <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.lotId}
-              onChange={(e) => handleLotChange(e.target.value)}
-              required
-              disabled={!formData.warehouseId}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 disabled:bg-gray-100"
-            >
-              <option value="">Chọn lô</option>
-              {lots.map((lot) => (
-                <option key={lot.id} value={lot.id}>
-                  {lot.tenLo}
-                </option>
-              ))}
-            </select>
-          </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {/* Kho */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Kho <span className="text-red-500">*</span></label>
+                      <select value={row.warehouseId} onChange={(e) => handleWarehouseChange(index, e.target.value)}
+                        required className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500">
+                        <option value="">Chọn kho</option>
+                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.tenKho}</option>)}
+                      </select>
+                    </div>
 
-          {/* Sản phẩm */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Sản phẩm <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.lotProductId}
-              onChange={(e) => setFormData({ ...formData, lotProductId: e.target.value })}
-              required
-              disabled={!formData.lotId}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 disabled:bg-gray-100"
-            >
-              <option value="">Chọn sản phẩm</option>
-              {lotProducts.map((lotProduct) => (
-                <option key={lotProduct.id} value={lotProduct.id}>
-                  {lotProduct.internationalProduct?.tenSanPham} - Tồn kho: {lotProduct.soLuong} {lotProduct.donViTinh}
-                </option>
-              ))}
-            </select>
-          </div>
+                    {/* Lô */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Lô <span className="text-red-500">*</span></label>
+                      <select value={row.lotId} onChange={(e) => handleLotChange(index, e.target.value)}
+                        required disabled={!row.warehouseId}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 disabled:bg-gray-100">
+                        <option value="">Chọn lô</option>
+                        {row.lots.map(l => <option key={l.id} value={l.id}>{l.tenLo}</option>)}
+                      </select>
+                    </div>
 
-          {/* Số lượng xuất */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Số lượng xuất kho <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              value={formData.soLuongXuat}
-              onChange={(e) => setFormData({ ...formData, soLuongXuat: parseNumberInput(e.target.value) })}
-              required
-              min="0"
-              step="0.01"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
-              placeholder="Nhập số lượng"
-            />
-            {formData.lotProductId && (
-              <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center gap-2 text-sm text-red-800">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="font-medium">
-                    Tồn kho hiện tại: {lotProducts.find(lp => lp.id === formData.lotProductId)?.soLuong || 0}{' '}
-                    {lotProducts.find(lp => lp.id === formData.lotProductId)?.donViTinh}
-                  </span>
+                    {/* Sản phẩm */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Sản phẩm <span className="text-red-500">*</span></label>
+                      <select value={row.lotProductId}
+                        onChange={(e) => updateRow(index, { lotProductId: e.target.value })}
+                        required disabled={!row.lotId}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 disabled:bg-gray-100">
+                        <option value="">Chọn sản phẩm</option>
+                        {row.lotProducts.map(lp => (
+                          <option key={lp.id} value={lp.id}>
+                            {lp.internationalProduct?.tenSanPham} - Tồn: {lp.soLuong} {lp.donViTinh}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    {/* Số lượng */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Số lượng xuất <span className="text-red-500">*</span></label>
+                      <input type="number" value={row.soLuongXuat}
+                        onChange={(e) => updateRow(index, { soLuongXuat: parseNumberInput(e.target.value) })}
+                        required min="0" step="0.01"
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500" />
+                      {row.lotProductId && (() => {
+                        const lp = row.lotProducts.find(lp => lp.id === row.lotProductId);
+                        return lp ? (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Tồn kho: {lp.soLuong} {lp.donViTinh} → Sau xuất: {(lp.soLuong - row.soLuongXuat).toFixed(2)}
+                          </p>
+                        ) : null;
+                      })()}
+                    </div>
+
+                    {/* Ghi chú */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Ghi chú</label>
+                      <input type="text" value={row.ghiChu}
+                        onChange={(e) => updateRow(index, { ghiChu: e.target.value })}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500"
+                        placeholder="Ghi chú" />
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-red-700 mt-1">
-                  Sau khi xuất: {((lotProducts.find(lp => lp.id === formData.lotProductId)?.soLuong || 0) - formData.soLuongXuat).toFixed(2)}{' '}
-                  {lotProducts.find(lp => lp.id === formData.lotProductId)?.donViTinh}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Ghi chú */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ghi chú
-            </label>
-            <textarea
-              value={formData.ghiChu}
-              onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
-              placeholder="Nhập ghi chú (nếu có)"
-            />
+              ))}
+            </div>
           </div>
 
           {/* Buttons */}
           <div className="flex justify-end gap-2 mt-6">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
               Hủy
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-            >
-              {loading ? 'Đang xử lý...' : 'Tạo phiếu xuất'}
+            <button type="submit" disabled={loading}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+              {loading ? 'Đang xử lý...' : `Tạo ${rows.length > 1 ? rows.length + ' phiếu' : 'phiếu'} xuất kho`}
             </button>
           </div>
         </form>
@@ -326,4 +345,3 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
 };
 
 export default CreateWarehouseIssueModal;
-

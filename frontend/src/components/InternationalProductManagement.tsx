@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X, Download, Settings } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, Download, Settings } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 import { useProducts, productKeys } from '../hooks/useProducts';
+import TableFilter, { FilterField } from './TableFilter';
 
 const InternationalProductManagement: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', loaiSanPham: '' });
+  const searchTerm = filterValues._search || '';
   const [currentPage, setCurrentPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -47,7 +49,10 @@ const InternationalProductManagement: React.FC = () => {
     limit: 10,
     search: searchTerm || undefined,
   });
-  const products = productsResponse?.data || [];
+  const products = (productsResponse?.data || []).filter(p => {
+    if (filterValues.loaiSanPham && p.loaiSanPham !== filterValues.loaiSanPham) return false;
+    return true;
+  });
   const pagination = productsResponse?.pagination;
 
 
@@ -200,62 +205,62 @@ const InternationalProductManagement: React.FC = () => {
     }
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-    setCurrentPage(1);
-  };
 
+
+
+  const productFilterFields: FilterField[] = [
+    { key: 'loaiSanPham', label: 'Loại hàng hóa', type: 'select', options: categories.map(cat => ({ value: cat, label: cat })) },
+  ];
 
   return (
-    <div>
-      {/* Table Container */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {/* Action Bar */}
-        <div className="bg-white px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <div className="relative w-80">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm theo mã, tên hàng hóa..."
-              value={searchTerm}
-              onChange={handleSearch}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { fetchCategories(); setShowCategoryModal(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              title="Cài đặt loại hàng hóa"
-            >
-              <Settings className="w-4 h-4" />
-              Cài đặt
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  await internationalProductService.exportToExcel({ search: searchTerm || undefined });
-                } catch (error) {
-                  console.error('Error exporting to Excel:', error);
-                  alert('Lỗi khi xuất Excel');
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Xuất Excel
-            </button>
-            <button
-              onClick={openCreateModal}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Thêm hàng hóa
-            </button>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Danh sách hàng hóa</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { fetchCategories(); setShowCategoryModal(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            title="Cài đặt loại hàng hóa"
+          >
+            <Settings className="w-4 h-4" />
+            Cài đặt
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                await internationalProductService.exportToExcel({ search: searchTerm || undefined });
+              } catch (error) {
+                console.error('Error exporting to Excel:', error);
+                alert('Lỗi khi xuất Excel');
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Xuất Excel
+          </button>
+          <button
+            onClick={openCreateModal}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Thêm hàng hóa
+          </button>
         </div>
+      </div>
 
-        {/* Table */}
+      {/* Filter */}
+      <TableFilter
+        filters={productFilterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm theo mã, tên hàng hóa..."
+      />
+
+      {/* Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
@@ -276,56 +281,56 @@ const InternationalProductManagement: React.FC = () => {
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                   Đang tải...
                 </td>
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                   Không có dữ liệu
                 </td>
               </tr>
             ) : (
-              products.map((product) => (
-                <tr key={product.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+              products.map((product, index) => (
+                <tr key={product.id} className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                     {product.maSanPham}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                     {product.tenSanPham}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                     {product.loaiSanPham || '-'}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                     {product.moTaSanPham || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center gap-2">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => openDetailModal(product)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                         title="Xem chi tiết"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => openEditModal(product)}
-                        className="text-green-600 hover:text-green-800"
+                        className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                         title="Chỉnh sửa"
                       >
-                        <Edit className="w-4 h-4" />
+                        <Edit className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDelete(product.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                         title="Xóa"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </td>
@@ -334,6 +339,7 @@ const InternationalProductManagement: React.FC = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Pagination */}

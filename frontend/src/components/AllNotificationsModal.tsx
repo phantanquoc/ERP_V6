@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, ChevronLeft, ChevronRight, DollarSign, PackageCheck } from 'lucide-react';
+import { Bell, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
+import { getNotificationIcon } from '../utils/notificationIcons';
 
 interface AllNotificationsModalProps {
   isOpen: boolean;
@@ -35,29 +36,6 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
       console.error('Error loading all notifications:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'EVALUATION':
-        return <ClipboardList className="w-4 h-4 text-orange-600" />;
-      case 'EVALUATION_SUPERVISOR1':
-      case 'EVALUATION_SUPERVISOR2':
-        return <Clock className="w-4 h-4 text-blue-600" />;
-      case 'EVALUATION_COMPLETED':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'TASK':
-        return <Target className="w-4 h-4 text-indigo-600" />;
-      case 'PAYROLL':
-        return <DollarSign className="w-4 h-4 text-green-600" />;
-      case 'ACCEPTANCE_HANDOVER':
-        return <PackageCheck className="w-4 h-4 text-teal-600" />;
-      case 'OVERTIME_PLAN':
-      case 'OVERTIME_PLAN_APPROVAL':
-        return <Clock className="w-4 h-4 text-orange-600" />;
-      default:
-        return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }
   };
 

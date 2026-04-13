@@ -11,6 +11,7 @@ export interface Notification {
   taskId?: string;
   acceptanceHandoverId?: string;
   leaveRequestId?: string;
+  supplyRequestId?: string;
   isRead: boolean;
   createdAt: string;
   updatedAt: string;
@@ -26,6 +27,16 @@ class NotificationService {
     } catch (error) {
       console.error('Error fetching notifications:', error);
       throw error;
+    }
+  }
+
+  async getUnreadCount(): Promise<number> {
+    try {
+      const response = await apiClient.get('/notifications/unread/count');
+      return response.data?.count ?? 0;
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+      return 0;
     }
   }
 

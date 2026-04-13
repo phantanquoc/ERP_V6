@@ -319,11 +319,14 @@ model Notification {
   taskId                String?
   acceptanceHandoverId  String?
   leaveRequestId        String?
+  supplyRequestId       String?
   isRead                Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
+  @@index([employeeId, createdAt(sort: Desc)])
+  @@index([employeeId, isRead])
   @@map("notifications")
   @@schema("common")
 }
@@ -1075,10 +1078,14 @@ model SupplyRequest {
   maNhanVien    String
   tenNhanVien   String
   boPhan        String
-  phanLoai      String
-  tenGoi        String
-  soLuong       Float
-  donViTinh     String
+  // @deprecated — kept for backward compatibility, use items relation instead
+  phanLoai      String?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  tenGoi        String?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  soLuong       Float?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  donViTinh     String?
   mucDichYeuCau String
   mucDoUuTien   String
   ghiChu        String?
@@ -1087,10 +1094,27 @@ model SupplyRequest {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   employee          Employee           @relation(fields: [employeeId], references: [id])
+  items             SupplyRequestItem[]
   purchaseRequests  PurchaseRequest[]
   warehouseReceipts WarehouseReceipt[]
+  warehouseIssues   WarehouseIssue[]
 
   @@map("supply_requests")
+  @@schema("business")
+}
+
+model SupplyRequestItem {
+  id              String        @id @default(cuid())
+  supplyRequestId String
+  phanLoai        String
+  tenGoi          String
+  soLuong         Float
+  donViTinh       String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  supplyRequest   SupplyRequest @relation(fields: [supplyRequestId], references: [id], onDelete: Cascade)
+
+  @@map("supply_request_items")
   @@schema("business")
 }
 
@@ -1102,10 +1126,14 @@ model PurchaseRequest {
   employeeId      String
   maNhanVien      String
   tenNhanVien     String
-  phanLoai        String
-  tenHangHoa      String
-  soLuong         Float
-  donViTinh       String
+  // @deprecated — kept for backward compatibility, use items relation instead
+  phanLoai        String?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  tenHangHoa      String?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  soLuong         Float?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  donViTinh       String?
   mucDichYeuCau   String
   mucDoUuTien     String
   ghiChu          String?
@@ -1114,12 +1142,35 @@ model PurchaseRequest {
   nguoiDuyet      String?
   ngayDuyet       DateTime?
   supplyRequestId String?
+  nhaCungCapId    String?
+  giaDuKien       Float?
+  ghiChuMuaHang   String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   employee        Employee       @relation(fields: [employeeId], references: [id])
   supplyRequest   SupplyRequest? @relation(fields: [supplyRequestId], references: [id])
+  supplier        Supplier?      @relation(fields: [nhaCungCapId], references: [id])
+  items           PurchaseRequestItem[]
 
   @@map("purchase_requests")
+  @@schema("business")
+}
+
+model PurchaseRequestItem {
+  id                String          @id @default(cuid())
+  purchaseRequestId String
+  phanLoai          String
+  tenHangHoa        String
+  soLuong           Float
+  donViTinh         String
+  nhaCungCapId      String?
+  giaDuKien         Float?
+  supplier          Supplier?       @relation("PurchaseRequestItemSupplier", fields: [nhaCungCapId], references: [id])
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_request_items")
   @@schema("business")
 }
 
@@ -1139,10 +1190,12 @@ model Supplier {
   trangThai       String    @default("Đang cung cấp") // Đang cung cấp, Ngừng cung cấp
   phanLoaiNCC     String    @default("NVL") // NVL, Thiết bị
   doanhChi        Float?    // Doanh chi
-  employeeId      String
-  employee        Employee  @relation("SupplierCreatedBy", fields: [employeeId], references: [id])
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  employeeId       String
+  employee         Employee          @relation("SupplierCreatedBy", fields: [employeeId], references: [id])
+  purchaseRequests PurchaseRequest[]
+  purchaseRequestItems PurchaseRequestItem[] @relation("PurchaseRequestItemSupplier")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@map("suppliers")
   @@schema("business")
@@ -1288,10 +1341,12 @@ model WarehouseIssue {
   soLuongTruoc Float    @default(0) // Số lượng tồn kho trước khi xuất
   soLuongXuat  Float
   soLuongSau   Float    @default(0) // Số lượng tồn kho sau khi xuất
-  donViTinh    String
-  ghiChu       String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  donViTinh       String
+  ghiChu          String?
+  supplyRequestId String?
+  supplyRequest   SupplyRequest? @relation(fields: [supplyRequestId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@map("warehouse_issues")
   @@schema("business")
@@ -2087,5 +2142,16 @@ model PayrollSettings {
   updatedAt         DateTime @updatedAt
 
   @@map("payroll_settings")
+  @@schema("common")
+}
+
+model SystemSettings {
+  id          String   @id @default(cuid())
+  activeTheme String   @default("DEFAULT")
+  slogan      String   @default("Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.")
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@map("system_settings")
   @@schema("common")
 }

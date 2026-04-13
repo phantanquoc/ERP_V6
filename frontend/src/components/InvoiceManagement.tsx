@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Edit, Eye, Trash2, Calendar, Plus, X, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import { Edit, Eye, Trash2, Plus, X, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import invoiceService, { Invoice } from '../services/invoiceService';
+import TableFilter, { FilterField } from './TableFilter';
 import DatePicker from './DatePicker';
 import { useAuth } from '../contexts/AuthContext';
 import internationalCustomerService from '../services/internationalCustomerService';
@@ -19,7 +20,7 @@ const InvoiceManagement: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', loaiHoaDon: '', trangThai: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string>('');
@@ -49,10 +50,33 @@ const InvoiceManagement: React.FC = () => {
     ghiChu: '',
   });
 
+  const filterFields: FilterField[] = [
+    {
+      key: 'loaiHoaDon',
+      label: 'Loại hóa đơn',
+      type: 'select',
+      options: [
+        { value: 'Bán hàng', label: 'Bán hàng' },
+        { value: 'Mua hàng', label: 'Mua hàng' },
+        { value: 'Dịch vụ', label: 'Dịch vụ' },
+      ],
+    },
+    {
+      key: 'trangThai',
+      label: 'Trạng thái',
+      type: 'select',
+      options: [
+        { value: 'Đã thanh toán', label: 'Đã thanh toán' },
+        { value: 'Chưa thanh toán', label: 'Chưa thanh toán' },
+        { value: 'Đang xử lý', label: 'Đang xử lý' },
+      ],
+    },
+  ];
+
   const fetchInvoices = async () => {
     try {
       setLoading(true);
-      const response = await invoiceService.getAllInvoices(1, 100, searchTerm);
+      const response = await invoiceService.getAllInvoices(1, 100, filterValues._search);
       setInvoices(response.data || []);
     } catch (error) {
       console.error('Error fetching invoices:', error);
@@ -236,16 +260,19 @@ const InvoiceManagement: React.FC = () => {
     }
   };
 
-  const filteredInvoices = invoices.filter(invoice =>
-    invoice.soHoaDon?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    invoice.khachHang?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInvoices = invoices.filter(invoice => {
+    const search = filterValues._search.toLowerCase();
+    if (search && !invoice.soHoaDon?.toLowerCase().includes(search) && !invoice.khachHang?.toLowerCase().includes(search)) return false;
+    if (filterValues.loaiHoaDon && invoice.loaiHoaDon !== filterValues.loaiHoaDon) return false;
+    if (filterValues.trangThai && invoice.trangThai !== filterValues.trangThai) return false;
+    return true;
+  });
 
   const handleExportExcel = async () => {
     try {
       setExportError('');
       setExportLoading(true);
-      await invoiceService.exportToExcel({ search: searchTerm || undefined });
+      await invoiceService.exportToExcel({ search: filterValues._search || undefined });
       setExportSuccess('Đã xuất file Excel thành công');
       setTimeout(() => setExportSuccess(''), 3000);
     } catch (error) {
@@ -261,19 +288,10 @@ const InvoiceManagement: React.FC = () => {
   const paginatedInvoices = filteredInvoices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div>
-      {/* Header & Search */}
-      <div className="mb-4 flex flex-wrap gap-4 items-center justify-between">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm hóa đơn..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
-          />
-        </div>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Quản lý hóa đơn</h2>
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportExcel}
@@ -285,13 +303,21 @@ const InvoiceManagement: React.FC = () => {
           </button>
           <button
             onClick={handleAddClick}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 border-2 border-blue-600 hover:border-blue-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Thêm hóa đơn
           </button>
         </div>
       </div>
+
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm số hóa đơn, khách hàng..."
+      />
 
       {/* Alert Messages */}
       {exportError && (
@@ -310,37 +336,37 @@ const InvoiceManagement: React.FC = () => {
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead>
-            <tr className="border-b-2 border-gray-200">
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">STT</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Số hóa đơn</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Ngày lập</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Khách hàng</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Loại hóa đơn</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Thành tiền</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Trạng thái</th>
-              <th className="px-4 py-3 text-center text-sm font-semibold text-blue-600">Hoạt động</th>
+          <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+            <tr>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">STT</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Số hóa đơn</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Ngày lập</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Khách hàng</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Loại hóa đơn</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Thành tiền</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Trạng thái</th>
+              <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Hoạt động</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">Đang tải...</td>
+                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
               </tr>
             ) : filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">Không có dữ liệu</td>
+                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">Không có dữ liệu</td>
               </tr>
             ) : (
               paginatedInvoices.map((invoice, index) => (
-                <tr key={invoice.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-blue-600">{invoice.soHoaDon}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{formatDate(invoice.ngayLap)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{invoice.khachHang}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{invoice.loaiHoaDon}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(invoice.thanhTien)}</td>
-                  <td className="px-4 py-3 text-sm">
+                <tr key={invoice.id} className={`border-b border-gray-200 hover:bg-blue-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                  <td className="px-6 py-4 text-sm text-blue-600 font-medium border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{invoice.soHoaDon}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{formatDate(invoice.ngayLap)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{invoice.khachHang}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{invoice.loaiHoaDon}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-900 border-r border-gray-200">{formatCurrency(invoice.thanhTien)}</td>
+                  <td className="px-6 py-4 text-sm border-r border-gray-200">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       invoice.trangThai === 'Đã thanh toán' ? 'bg-green-100 text-green-800' :
                       invoice.trangThai === 'Chưa thanh toán' ? 'bg-red-100 text-red-800' :
@@ -349,16 +375,16 @@ const InvoiceManagement: React.FC = () => {
                       {invoice.trangThai}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm">
-                    <div className="flex items-center justify-center gap-3">
-                      <button onClick={() => handleViewClick(invoice)} className="text-gray-500 hover:text-blue-600" title="Xem chi tiết">
-                        <Eye className="w-5 h-5" />
+                  <td className="px-6 py-4 text-sm">
+                    <div className="flex items-center justify-center gap-1">
+                      <button onClick={() => handleViewClick(invoice)} className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors" title="Xem">
+                        <Eye className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleEditClick(invoice)} className="text-gray-500 hover:text-green-600" title="Chỉnh sửa">
-                        <Edit className="w-5 h-5" />
+                      <button onClick={() => handleEditClick(invoice)} className="p-1.5 rounded-md text-green-600 hover:bg-green-50 hover:text-green-800 transition-colors" title="Sửa">
+                        <Edit className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleDeleteClick(invoice)} className="text-gray-500 hover:text-red-600" title="Xóa">
-                        <Trash2 className="w-5 h-5" />
+                      <button onClick={() => handleDeleteClick(invoice)} className="p-1.5 rounded-md text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors" title="Xóa">
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </td>

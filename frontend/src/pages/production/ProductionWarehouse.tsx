@@ -196,7 +196,7 @@ const ProductionWarehouse = () => {
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
-                      ? 'border-indigo-500 text-indigo-600'
+                      ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
@@ -212,7 +212,9 @@ const ProductionWarehouse = () => {
         <div className="bg-white rounded-lg shadow-sm">
           {/* QUẢN LÝ KHO */}
           {activeTab === 'warehouseManagement' && (
-            <WarehouseManagement />
+            <div className="p-6">
+              <WarehouseManagement />
+            </div>
           )}
 
           {/* DANH SÁCH HÀNG HÓA */}
@@ -224,7 +226,9 @@ const ProductionWarehouse = () => {
 
           {/* NHẬP KHO */}
           {activeTab === 'inbound' && (
-            <WarehouseReceiptTab />
+            <div className="p-6">
+              <WarehouseReceiptTab />
+            </div>
           )}
 
           {/* NHẬP KHO - OLD MOCKDATA (COMMENTED OUT) */}
@@ -300,7 +304,9 @@ const ProductionWarehouse = () => {
 
           {/* XUẤT KHO */}
           {activeTab === 'outbound' && (
-            <WarehouseIssueTab />
+            <div className="p-6">
+              <WarehouseIssueTab />
+            </div>
           )}
 
           {/* XUẤT KHO - OLD MOCKDATA (COMMENTED OUT) */}
@@ -384,7 +390,9 @@ const ProductionWarehouse = () => {
 
           {/* YÊU CẦU CUNG CẤP */}
           {activeTab === 'supplyRequest' && (
-            <SupplyRequestManagement />
+            <div className="p-6">
+              <SupplyRequestManagement />
+            </div>
           )}
         </div>
 

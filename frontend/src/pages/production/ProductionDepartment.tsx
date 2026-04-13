@@ -103,8 +103,6 @@ const ProductionDepartment = () => {
 
 
 
-
-
   const tabs = [
     { id: 'machines', name: 'Quản lý máy móc', icon: <Cog className="w-4 h-4" /> },
     { id: 'processList', name: 'Danh sách quy trình', icon: <FileText className="w-4 h-4" /> },
@@ -113,9 +111,9 @@ const ProductionDepartment = () => {
     { id: 'standards', name: 'Định mức NVL', icon: <Calendar className="w-4 h-4" /> },
     { id: 'materialEvaluation', name: 'Đánh giá nguyên liệu', icon: <ClipboardCheck className="w-4 h-4" /> },
     { id: 'systemOperation', name: 'Thông số vận hành hệ thống', icon: <TrendingUp className="w-4 h-4" /> },
-    { id: 'finishedProduct', name: 'THÀNH PHẨM ĐẦU RA', icon: <PackageCheck className="w-4 h-4" />, count: 0 },
-    { id: 'qualityEvaluation', name: 'ĐÁNH GIÁ CHẤT LƯỢNG', icon: <Star className="w-4 h-4" />, count: 0 },
-    { id: 'productionReport', name: 'BÁO CÁO SẢN LƯỢNG', icon: <BarChart3 className="w-4 h-4" />, count: 0 }
+    { id: 'finishedProduct', name: 'Thành phẩm đầu ra', icon: <PackageCheck className="w-4 h-4" />, count: 0 },
+    { id: 'qualityEvaluation', name: 'Đánh giá chất lượng', icon: <Star className="w-4 h-4" />, count: 0 },
+    { id: 'productionReport', name: 'Báo cáo sản lượng', icon: <BarChart3 className="w-4 h-4" />, count: 0 }
   ];
 
   return (
@@ -212,7 +210,7 @@ const ProductionDepartment = () => {
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-900 hover:text-blue-600 hover:border-gray-300'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
                   {tab.icon}

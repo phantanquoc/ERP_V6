@@ -26,6 +26,26 @@ router.get(
 
 /**
  * @swagger
+ * /api/notifications/unread/count:
+ *   get:
+ *     tags: [Notifications]
+ *     summary: Số thông báo chưa đọc
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lấy số thông báo chưa đọc thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ */
+router.get(
+  '/unread/count',
+  authenticate,
+  notificationController.getUnreadCount
+);
+
+/**
+ * @swagger
  * /api/notifications/unread:
  *   get:
  *     tags: [Notifications]

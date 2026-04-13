@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye } from 'lucide-react';
 import productionReportService, { ProductionReport } from '../../services/productionReportService';
 import ProductionReportModal from './ProductionReportModal';
+import TableFilter, { FilterField } from '../TableFilter';
 
 const ProductionReportList: React.FC = () => {
   const [reports, setReports] = useState<ProductionReport[]>([]);
@@ -12,16 +13,27 @@ const ProductionReportList: React.FC = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ProductionReport | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [columnFilters, setColumnFilters] = useState({
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
     maDinhMuc: '',
     nguoiThucHien: '',
   });
   const itemsPerPage = 10;
 
+  const reportFilterFields: FilterField[] = [
+    { key: 'maDinhMuc', label: 'Mã định mức', type: 'text' },
+    { key: 'nguoiThucHien', label: 'Người thực hiện', type: 'text' },
+  ];
+
   const filteredReports = reports.filter(report => {
-    const matchMaDM = !columnFilters.maDinhMuc || (report.maDinhMuc || '').toLowerCase().includes(columnFilters.maDinhMuc.toLowerCase());
-    const matchNguoiTH = !columnFilters.nguoiThucHien || (report.nguoiThucHien || '').toLowerCase().includes(columnFilters.nguoiThucHien.toLowerCase());
-    return matchMaDM && matchNguoiTH;
+    const search = filterValues._search.toLowerCase();
+    const matchSearch = !search || [
+      report.maDinhMuc,
+      report.nguoiThucHien,
+    ].some(v => (v || '').toLowerCase().includes(search));
+    const matchMaDM = !filterValues.maDinhMuc || (report.maDinhMuc || '').toLowerCase().includes(filterValues.maDinhMuc.toLowerCase());
+    const matchNguoiTH = !filterValues.nguoiThucHien || (report.nguoiThucHien || '').toLowerCase().includes(filterValues.nguoiThucHien.toLowerCase());
+    return matchSearch && matchMaDM && matchNguoiTH;
   });
 
   useEffect(() => {
@@ -90,7 +102,7 @@ const ProductionReportList: React.FC = () => {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-gray-800">Báo cáo sản lượng</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Báo cáo sản lượng</h2>
         <button
           onClick={handleCreate}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -111,6 +123,13 @@ const ProductionReportList: React.FC = () => {
           {success}
         </div>
       )}
+
+      {/* Filters */}
+      <TableFilter
+        filters={reportFilterFields}
+        values={filterValues}
+        onChange={(newValues) => { setFilterValues(newValues); setCurrentPage(1); }}
+      />
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -139,31 +158,6 @@ const ProductionReportList: React.FC = () => {
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">
                   Hoạt động
                 </th>
-              </tr>
-              <tr className="bg-white border-b border-gray-200">
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input
-                    type="text"
-                    placeholder="Lọc..."
-                    value={columnFilters.maDinhMuc}
-                    onChange={(e) => { setColumnFilters(prev => ({...prev, maDinhMuc: e.target.value})); setCurrentPage(1); }}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input
-                    type="text"
-                    placeholder="Lọc..."
-                    value={columnFilters.nguoiThucHien}
-                    onChange={(e) => { setColumnFilters(prev => ({...prev, nguoiThucHien: e.target.value})); setCurrentPage(1); }}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </th>
-                <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>

@@ -1,12 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Eye, Search, X, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, X, Download } from 'lucide-react';
 import internalInspectionService from '@services/internalInspectionService';
 import type { InternalInspection } from '@services/internalInspectionService';
+import TableFilter, { FilterField } from './TableFilter';
 
 const InternalInspectionManagement = () => {
   const [inspections, setInspections] = useState<InternalInspection[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
+    violationLevel: '',
+    inspectedBy: '',
+    violationCode: '',
+  });
+  const filterFields: FilterField[] = [
+    {
+      key: 'violationLevel',
+      label: 'Mức độ vi phạm',
+      type: 'select',
+      options: [
+        { value: 'Quy định', label: 'Quy định' },
+        { value: 'Quy phạm quản lý', label: 'Quy phạm quản lý' },
+        { value: 'Khác', label: 'Khác' },
+      ],
+    },
+    { key: 'inspectedBy', label: 'Người kiểm tra', type: 'text', placeholder: 'Lọc người kiểm tra...' },
+    { key: 'violationCode', label: 'Mã vi phạm', type: 'text', placeholder: 'Lọc mã vi phạm...' },
+  ];
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -43,24 +63,6 @@ const InternalInspectionManagement = () => {
     } catch (error) {
       console.error('Error loading inspections:', error);
       alert('Lỗi khi tải danh sách kiểm tra');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearch = async () => {
-    setCurrentPage(1);
-    if (!searchTerm.trim()) {
-      loadInspections();
-      return;
-    }
-    try {
-      setLoading(true);
-      const data = await internalInspectionService.searchInspections(searchTerm);
-      setInspections(data);
-    } catch (error) {
-      console.error('Error searching:', error);
-      alert('Lỗi khi tìm kiếm');
     } finally {
       setLoading(false);
     }
@@ -139,11 +141,18 @@ const InternalInspectionManagement = () => {
     }
   };
 
-  const filteredInspections = inspections.filter(ins =>
-    ins.inspectionCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ins.violationCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ins.inspectedBy?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInspections = inspections.filter(ins => {
+    const search = (filterValues._search || '').toLowerCase();
+    if (search && !(
+      (ins.inspectionCode || '').toLowerCase().includes(search) ||
+      (ins.violationCode || '').toLowerCase().includes(search) ||
+      (ins.inspectedBy || '').toLowerCase().includes(search)
+    )) return false;
+    if (filterValues.violationLevel && (ins.violationLevel || '') !== filterValues.violationLevel) return false;
+    if (filterValues.inspectedBy && !(ins.inspectedBy || '').toLowerCase().includes(filterValues.inspectedBy.toLowerCase())) return false;
+    if (filterValues.violationCode && !(ins.violationCode || '').toLowerCase().includes(filterValues.violationCode.toLowerCase())) return false;
+    return true;
+  });
 
   const handleExportExcel = async () => {
     try {
@@ -161,7 +170,28 @@ const InternalInspectionManagement = () => {
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Kiểm tra nội bộ</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+          >
+            <Download size={18} />
+            Xuất Excel
+          </button>
+          <button
+            onClick={handleAdd}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          >
+            <Plus size={18} />
+            Thêm mới
+          </button>
+        </div>
+      </div>
+
+      {/* Month/Year selects */}
       <div className="flex gap-4 items-end">
         <div>
           <label className="block text-sm font-medium mb-1">Tháng</label>
@@ -191,40 +221,15 @@ const InternalInspectionManagement = () => {
             ))}
           </select>
         </div>
-        <div className="flex-1">
-          <label className="block text-sm font-medium mb-1">Tìm kiếm</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Mã kiểm tra, mã vi phạm..."
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              className="flex-1 border rounded px-3 py-2"
-            />
-            <button
-              onClick={handleSearch}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
-            >
-              <Search size={18} />
-              Tìm
-            </button>
-          </div>
-        </div>
-        <button
-          onClick={handleExportExcel}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2"
-        >
-          <Download size={18} />
-          Xuất Excel
-        </button>
-        <button
-          onClick={handleAdd}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus size={18} />
-          Thêm mới
-        </button>
       </div>
+
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm mã kiểm tra, mã vi phạm, người kiểm tra..."
+      />
 
       {/* Table */}
       <div className="overflow-x-auto border rounded">

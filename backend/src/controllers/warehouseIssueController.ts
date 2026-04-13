@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
+import supplyRequestService from '@services/supplyRequestService';
 
 // Generate mã phiếu xuất tự động
 export const generateIssueCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -55,6 +56,7 @@ export const createWarehouseIssue = async (req: Request, res: Response, next: Ne
       soLuongXuat,
       donViTinh,
       ghiChu,
+      supplyRequestId,
     } = req.body;
 
     // Kiểm tra số lượng tồn kho
@@ -101,6 +103,7 @@ export const createWarehouseIssue = async (req: Request, res: Response, next: Ne
           soLuongSau,
           donViTinh,
           ghiChu,
+          supplyRequestId: supplyRequestId || null,
         },
       }),
       // TRỪ số lượng
@@ -117,6 +120,12 @@ export const createWarehouseIssue = async (req: Request, res: Response, next: Ne
       message: 'Tạo phiếu xuất kho thành công',
       data: warehouseIssue,
     });
+
+    // Fire-and-forget: advance supply request workflow if linked
+    if (supplyRequestId) {
+      supplyRequestService.onWarehouseDocumentCreated(supplyRequestId)
+        .catch(err => console.error('Error in onWarehouseDocumentCreated:', err));
+    }
   } catch (error) {
     next(error);
   }

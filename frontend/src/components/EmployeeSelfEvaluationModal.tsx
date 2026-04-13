@@ -13,6 +13,7 @@ interface EmployeeSelfEvaluationModalProps {
   evaluationId: string | null;
   notificationId?: string;
   evaluationPeriod?: string | null;
+  initialTab?: 'self' | 'subordinate' | 'history';
 }
 
 interface EvaluationHistory {
@@ -30,11 +31,16 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
   evaluationId,
   notificationId,
   evaluationPeriod,
+  initialTab,
 }) => {
   const { user } = useAuth();
-  const isManager = user?.role === UserRole.MANAGER;
-  const [activeTab, setActiveTab] = useState<'self' | 'subordinate' | 'history'>('self');
+  const isAdmin = user?.role === UserRole.ADMIN;
+  const isManager = isAdmin || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD;
+  const defaultTab = initialTab || (isAdmin ? 'subordinate' : 'self');
+  const [activeTab, setActiveTab] = useState<'self' | 'subordinate' | 'history'>(defaultTab);
   const [details, setDetails] = useState<EvaluationDetail[]>([]);
+  // SUGGESTION fix: track evaluation status to disable self-eval inputs when done
+  const [evaluationStatus, setEvaluationStatus] = useState<string>('SELF_PENDING');
   const [history, setHistory] = useState<EvaluationHistory[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -55,7 +61,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
   }, [isOpen, evaluationId]);
   useEffect(() => {
     if (!isOpen) {
-      setActiveTab('self');
+      setActiveTab(defaultTab);
       setSelectedSubordinate(null);
       setSubordinateEvaluation(null);
       setSubordinateEditingScores({});
@@ -75,9 +81,11 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
       setLoading(true);
       setError('');
 
-      // Load current evaluation details
+      // Load current evaluation details (no isManager — this is self-eval view)
       const detailsData = await employeeEvaluationService.getEvaluationDetails(evaluationId!);
       setDetails(detailsData.details || []);
+      // SUGGESTION fix: capture status from response
+      setEvaluationStatus(detailsData.status || 'SELF_PENDING');
       if (detailsData.period) {
         setEvaluationPeriodState(detailsData.period);
       }
@@ -110,6 +118,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
 
       if (score === undefined) return;
 
+      // Self-eval: no isManager param
       await employeeEvaluationService.updateEvaluationDetail(
         detailId,
         score,
@@ -168,11 +177,13 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
 
       if (!scores) return;
 
+      // BUG 4: Pass isManager=true since this is a manager evaluating a subordinate
       await employeeEvaluationService.updateEvaluationDetail(
         detailId,
         undefined,
         scores.supervisorScore1,
-        scores.supervisorScore2
+        scores.supervisorScore2,
+        true
       );
 
       setSuccess('Cập nhật điểm đánh giá cấp dưới thành công');
@@ -183,7 +194,8 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
       });
 
       if (subordinateEvaluation) {
-        const updated = await employeeEvaluationService.getEvaluationDetails(subordinateEvaluation.evaluationId);
+        // BUG 4: Pass isManager=true here as well
+        const updated = await employeeEvaluationService.getEvaluationDetails(subordinateEvaluation.evaluationId, true);
         setSubordinateEvaluation(updated);
       }
 
@@ -218,6 +230,9 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
 
   const { month: subordinateMonth, year: subordinateYear } = parsePeriodToMonthYear(evaluationPeriodState);
 
+  // SUGGESTION fix: determine if self-eval inputs should be disabled
+  const selfEvalLocked = evaluationStatus !== 'SELF_PENDING';
+
   const formatPeriod = (period: string) => {
     const [year, month] = period.split('-');
     return `Tháng ${month}/${year}`;
@@ -243,16 +258,18 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
 
           {/* Tabs */}
           <div className="flex gap-4 mb-6 border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab('self')}
-              className={`px-4 py-2 font-medium text-sm transition-colors ${
-                activeTab === 'self'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Tự đánh giá
-            </button>
+            {!isAdmin && (
+              <button
+                onClick={() => setActiveTab('self')}
+                className={`px-4 py-2 font-medium text-sm transition-colors ${
+                  activeTab === 'self'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Tự đánh giá
+              </button>
+            )}
             {isManager && (
               <button
                 onClick={() => {
@@ -308,6 +325,14 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
               {/* Tab Content */}
               {activeTab === 'self' && (
                 <>
+                  {/* SUGGESTION fix: show locked message when status is past SELF_PENDING */}
+                  {selfEvalLocked && (
+                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-blue-700">Bạn đã hoàn thành tự đánh giá. Điểm tự đánh giá không thể thay đổi.</p>
+                    </div>
+                  )}
+
                   {/* Evaluation Details Table */}
                   <div className="overflow-x-auto mb-6">
                     <table className="w-full text-sm">
@@ -317,7 +342,9 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Tiêu chí đánh giá</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Trọng số (%)</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Tự đánh giá (0-100)</th>
-                          <th className="px-4 py-3 text-center font-semibold text-gray-700">Hành động</th>
+                          {!selfEvalLocked && (
+                            <th className="px-4 py-3 text-center font-semibold text-gray-700">Hành động</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody>
@@ -336,24 +363,31 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                                 type="number"
                                 min="0"
                                 max="100"
+                                disabled={selfEvalLocked}
                                 value={editingScores[detail.detailId!] ?? detail.selfScore ?? ''}
                                 onChange={(e) => handleScoreChange(detail.detailId!, parseNumberInput(e.target.value))}
-                                className="w-20 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                  selfEvalLocked
+                                    ? 'border-gray-200 bg-gray-100 cursor-not-allowed text-gray-500'
+                                    : 'border-gray-300'
+                                }`}
                                 placeholder="0-100"
                               />
                             </td>
-                            <td className="px-4 py-3 text-center">
-                              {editingScores[detail.detailId!] !== undefined && (
-                                <button
-                                  onClick={() => handleSaveScore(detail.detailId!)}
-                                  disabled={saving}
-                                  className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 text-xs font-medium"
-                                >
-                                  <Save className="w-4 h-4" />
-                                  Lưu
-                                </button>
-                              )}
-                            </td>
+                            {!selfEvalLocked && (
+                              <td className="px-4 py-3 text-center">
+                                {editingScores[detail.detailId!] !== undefined && (
+                                  <button
+                                    onClick={() => handleSaveScore(detail.detailId!)}
+                                    disabled={saving}
+                                    className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 text-xs font-medium"
+                                  >
+                                    <Save className="w-4 h-4" />
+                                    Lưu
+                                  </button>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -361,11 +395,13 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                   </div>
 
                   {/* Summary */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <p className="text-sm text-blue-800">
-                      <strong>Hướng dẫn:</strong> Vui lòng nhập điểm tự đánh giá từ 0-100 cho mỗi tiêu chí. Điểm cuối cùng sẽ được tính dựa trên trọng số của từng tiêu chí.
-                    </p>
-                  </div>
+                  {!selfEvalLocked && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                      <p className="text-sm text-blue-800">
+                        <strong>Hướng dẫn:</strong> Vui lòng nhập điểm tự đánh giá từ 0-100 cho mỗi tiêu chí. Điểm cuối cùng sẽ được tính dựa trên trọng số của từng tiêu chí.
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -517,7 +553,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                   {/* History Tab */}
                   <div className="space-y-3">
                     {history.length > 0 ? (
-                      history.map((item, index) => (
+                      history.map((item) => (
                         <div
                           key={item.evaluationId}
                           className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
@@ -568,4 +604,3 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
 };
 
 export default EmployeeSelfEvaluationModal;
-

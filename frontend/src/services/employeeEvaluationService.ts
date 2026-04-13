@@ -30,6 +30,8 @@ export interface EvaluationDetailsResponse {
   employeeName: string;
   positionName: string;
   period: string;
+  // SUGGESTION fix: status included so frontend can disable inputs by status
+  status: string;
   details: EvaluationDetail[];
 }
 
@@ -45,17 +47,23 @@ class EmployeeEvaluationService {
     }
   }
 
-  async getEvaluationDetails(evaluationId: string): Promise<EvaluationDetailsResponse> {
+  // BUG 4: Accept isManager param to go directly to manager endpoint when true
+  async getEvaluationDetails(evaluationId: string, isManager?: boolean): Promise<EvaluationDetailsResponse> {
     try {
-      // Try to use the /my-evaluation endpoint first (for self-evaluation)
-      // If it fails with 403, fall back to the manager endpoint
+      if (isManager) {
+        const response = await apiClient.get(
+          `/employee-evaluations/evaluations/${evaluationId}/details`
+        );
+        return response.data;
+      }
+
+      // Try self-evaluation endpoint first, fall back on 403
       try {
         const response = await apiClient.get(
           `/employee-evaluations/my-evaluation/${evaluationId}`
         );
         return response.data;
       } catch (error: any) {
-        // If 403, try the manager endpoint
         if (error instanceof ApiError && error.statusCode === 403) {
           const response = await apiClient.get(
             `/employee-evaluations/evaluations/${evaluationId}/details`
@@ -81,11 +89,26 @@ class EmployeeEvaluationService {
     }
   }
 
+  // BUG 5: Bulk creation endpoint
+  async createBulkEvaluations(month: number, year: number): Promise<any> {
+    try {
+      const response = await apiClient.post(
+        '/employee-evaluations/evaluations/bulk',
+        { month, year }
+      );
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  // BUG 4: Accept isManager param to go directly to manager endpoint when true
   async updateEvaluationDetail(
     detailId: string,
     selfScore?: number,
     supervisorScore1?: number,
-    supervisorScore2?: number
+    supervisorScore2?: number,
+    isManager?: boolean
   ): Promise<any> {
     try {
       const body = {
@@ -93,8 +116,16 @@ class EmployeeEvaluationService {
         ...(supervisorScore1 !== undefined && { supervisorScore1 }),
         ...(supervisorScore2 !== undefined && { supervisorScore2 }),
       };
-      // Try to use the /my-evaluation endpoint first (for self-evaluation)
-      // If it fails with 403, fall back to the manager endpoint
+
+      if (isManager) {
+        const response = await apiClient.patch(
+          `/employee-evaluations/evaluations/details/${detailId}`,
+          body
+        );
+        return response.data;
+      }
+
+      // Try self-evaluation endpoint first, fall back on 403
       try {
         const response = await apiClient.patch(
           `/employee-evaluations/my-evaluation/details/${detailId}`,
@@ -102,7 +133,6 @@ class EmployeeEvaluationService {
         );
         return response.data;
       } catch (error: any) {
-        // If 403, try the manager endpoint
         if (error instanceof ApiError && error.statusCode === 403) {
           const response = await apiClient.patch(
             `/employee-evaluations/evaluations/details/${detailId}`,
@@ -161,4 +191,3 @@ class EmployeeEvaluationService {
 }
 
 export default new EmployeeEvaluationService();
-

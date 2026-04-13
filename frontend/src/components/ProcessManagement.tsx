@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit, Trash2, Eye, X, FileText, Download } from 'lucide-react';
 import FileUpload from './FileUpload';
 import processService, { Process, CreateProcessData, ProcessFlowchartSection, ProcessFlowchartCost } from '../services/processService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 interface ProcessManagementProps {
   mode?: 'full' | 'standard-only' | 'production';
@@ -16,11 +17,28 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
   const { user } = useAuth(); // Get current logged-in user
   const [processes, setProcesses] = useState<Process[]>([]);
   const [loading, setLoading] = useState(false);
-  const [columnFilters, setColumnFilters] = useState({
-    maQuyTrinh: '',
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
     tenQuyTrinh: '',
     loaiQuyTrinh: '',
+    tenNhanVien: '',
   });
+  const filterFields: FilterField[] = [
+    { key: 'tenQuyTrinh', label: 'Tên quy trình', type: 'text', placeholder: 'Lọc tên quy trình...' },
+    {
+      key: 'loaiQuyTrinh',
+      label: 'Loại quy trình',
+      type: 'select',
+      options: [
+        { value: 'Sản xuất', label: 'Sản xuất' },
+        { value: 'Kiểm tra chất lượng', label: 'Kiểm tra chất lượng' },
+        { value: 'Đóng gói', label: 'Đóng gói' },
+        { value: 'Vận chuyển', label: 'Vận chuyển' },
+        { value: 'Khác', label: 'Khác' },
+      ],
+    },
+    { key: 'tenNhanVien', label: 'Tên nhân viên', type: 'text', placeholder: 'Lọc tên nhân viên...' },
+  ];
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -380,31 +398,40 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
   };
 
   return (
-    <div>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Quản lý quy trình</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Xuất Excel
+          </button>
+          {mode === 'full' && (
+            <button
+              onClick={handleOpenModal}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Tạo quy trình mới
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm mã, tên, loại quy trình..."
+      />
+
       {/* Table Container */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {/* Action Bar */}
-        <div className="bg-white px-6 py-4 border-b border-gray-200 flex justify-end items-center">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExportExcel}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Xuất Excel
-            </button>
-            {mode === 'full' && (
-              <button
-                onClick={handleOpenModal}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Tạo quy trình mới
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
@@ -418,29 +445,21 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại quy trình</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
-              <tr className="bg-white border-b border-gray-200">
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.maQuyTrinh} onChange={(e) => { setColumnFilters(prev => ({...prev, maQuyTrinh: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200"></th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.tenQuyTrinh} onChange={(e) => { setColumnFilters(prev => ({...prev, tenQuyTrinh: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2 border-r border-gray-200">
-                  <input type="text" placeholder="Lọc..." value={columnFilters.loaiQuyTrinh} onChange={(e) => { setColumnFilters(prev => ({...prev, loaiQuyTrinh: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-                </th>
-                <th className="px-2 py-2"></th>
-              </tr>
             </thead>
             <tbody>
               {(() => {
+                const search = (filterValues._search || '').toLowerCase();
                 const filteredProcesses = processes.filter(process => {
-                  const matchMaQT = !columnFilters.maQuyTrinh || (process.maQuyTrinh || '').toLowerCase().includes(columnFilters.maQuyTrinh.toLowerCase());
-                  const matchTenQT = !columnFilters.tenQuyTrinh || (process.tenQuyTrinh || '').toLowerCase().includes(columnFilters.tenQuyTrinh.toLowerCase());
-                  const matchLoaiQT = !columnFilters.loaiQuyTrinh || (process.loaiQuyTrinh || '').toLowerCase().includes(columnFilters.loaiQuyTrinh.toLowerCase());
-                  return matchMaQT && matchTenQT && matchLoaiQT;
+                  if (search && !(
+                    (process.maQuyTrinh || '').toLowerCase().includes(search) ||
+                    (process.tenQuyTrinh || '').toLowerCase().includes(search) ||
+                    (process.loaiQuyTrinh || '').toLowerCase().includes(search) ||
+                    (process.tenNhanVien || '').toLowerCase().includes(search)
+                  )) return false;
+                  if (filterValues.tenQuyTrinh && !(process.tenQuyTrinh || '').toLowerCase().includes(filterValues.tenQuyTrinh.toLowerCase())) return false;
+                  if (filterValues.loaiQuyTrinh && (process.loaiQuyTrinh || '') !== filterValues.loaiQuyTrinh) return false;
+                  if (filterValues.tenNhanVien && !(process.tenNhanVien || '').toLowerCase().includes(filterValues.tenNhanVien.toLowerCase())) return false;
+                  return true;
                 });
                 if (loading) {
                   return (
@@ -533,11 +552,18 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
 
         {/* Pagination */}
         {(() => {
+          const search = (filterValues._search || '').toLowerCase();
           const filteredProcesses = processes.filter(process => {
-            const matchMaQT = !columnFilters.maQuyTrinh || (process.maQuyTrinh || '').toLowerCase().includes(columnFilters.maQuyTrinh.toLowerCase());
-            const matchTenQT = !columnFilters.tenQuyTrinh || (process.tenQuyTrinh || '').toLowerCase().includes(columnFilters.tenQuyTrinh.toLowerCase());
-            const matchLoaiQT = !columnFilters.loaiQuyTrinh || (process.loaiQuyTrinh || '').toLowerCase().includes(columnFilters.loaiQuyTrinh.toLowerCase());
-            return matchMaQT && matchTenQT && matchLoaiQT;
+            if (search && !(
+              (process.maQuyTrinh || '').toLowerCase().includes(search) ||
+              (process.tenQuyTrinh || '').toLowerCase().includes(search) ||
+              (process.loaiQuyTrinh || '').toLowerCase().includes(search) ||
+              (process.tenNhanVien || '').toLowerCase().includes(search)
+            )) return false;
+            if (filterValues.tenQuyTrinh && !(process.tenQuyTrinh || '').toLowerCase().includes(filterValues.tenQuyTrinh.toLowerCase())) return false;
+            if (filterValues.loaiQuyTrinh && (process.loaiQuyTrinh || '') !== filterValues.loaiQuyTrinh) return false;
+            if (filterValues.tenNhanVien && !(process.tenNhanVien || '').toLowerCase().includes(filterValues.tenNhanVien.toLowerCase())) return false;
+            return true;
           });
           const totalItems = filteredProcesses.length;
           const totalPages = Math.ceil(totalItems / itemsPerPage);

@@ -74,6 +74,12 @@ export class NotificationService {
     return notifications;
   }
 
+  async getUnreadCount(employeeId: string): Promise<number> {
+    return prisma.notification.count({
+      where: { employeeId, isRead: false },
+    });
+  }
+
   async getUnreadNotifications(employeeId: string): Promise<any[]> {
     const notifications = await prisma.notification.findMany({
       where: {
@@ -246,6 +252,48 @@ export class NotificationService {
         acceptanceHandoverId,
         isRead: false,
       },
+    });
+  }
+
+  async createSupplyRequestNotification(
+    employeeId: string,
+    type: string,
+    title: string,
+    message: string,
+    supplyRequestId?: string
+  ): Promise<void> {
+    await prisma.notification.create({
+      data: {
+        employeeId,
+        type,
+        title,
+        message,
+        supplyRequestId,
+        isRead: false,
+      },
+    });
+  }
+
+  async createSupplyRequestNotifications(
+    employeeIds: string[],
+    type: string,
+    title: string,
+    message: string,
+    supplyRequestId?: string
+  ): Promise<void> {
+    if (employeeIds.length === 0) return;
+
+    const notifications = employeeIds.map((employeeId) => ({
+      employeeId,
+      type,
+      title,
+      message,
+      supplyRequestId,
+      isRead: false,
+    }));
+
+    await prisma.notification.createMany({
+      data: notifications,
     });
   }
 }

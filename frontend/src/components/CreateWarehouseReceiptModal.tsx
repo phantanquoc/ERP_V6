@@ -24,6 +24,8 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const [lots, setLots] = useState<Lot[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const [selectedItemIndex, setSelectedItemIndex] = useState(0);
+
   const [formData, setFormData] = useState({
     maPhieuNhap: '',
     warehouseId: '',
@@ -36,16 +38,30 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     if (isOpen) {
       fetchWarehouses();
       generateCode();
+      setSelectedItemIndex(0);
 
       if (supplyRequest) {
+        const firstItem = supplyRequest.items?.[0];
         setFormData(prev => ({
           ...prev,
-          soLuongNhap: supplyRequest.soLuong,
-          ghiChu: `Nhập kho cho yêu cầu cung cấp ${supplyRequest.maYeuCau} - ${supplyRequest.tenGoi}`,
+          soLuongNhap: firstItem?.soLuong ?? 0,
+          ghiChu: `Nhập kho cho yêu cầu cung cấp ${supplyRequest.maYeuCau}${firstItem ? ' - ' + firstItem.tenGoi : ''}`,
         }));
       }
     }
   }, [isOpen, supplyRequest]);
+
+  const handleItemChange = (index: number) => {
+    setSelectedItemIndex(index);
+    const item = supplyRequest?.items?.[index];
+    if (item) {
+      setFormData(prev => ({
+        ...prev,
+        soLuongNhap: item.soLuong,
+        ghiChu: `Nhập kho cho yêu cầu cung cấp ${supplyRequest?.maYeuCau} - ${item.tenGoi}`,
+      }));
+    }
+  };
 
   const generateCode = async () => {
     try {
@@ -83,7 +99,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       return;
     }
 
-    if (!supplyRequest?.tenGoi) {
+    if (!supplyRequest?.items?.[selectedItemIndex]?.tenGoi) {
       alert('Không có thông tin sản phẩm từ yêu cầu cung cấp');
       return;
     }
@@ -102,9 +118,9 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         tenKho: warehouse?.tenKho || '',
         lotId: formData.lotId,
         tenLo: lot?.tenLo || '',
-        tenSanPham: supplyRequest.tenGoi,
+        tenSanPham: supplyRequest.items[selectedItemIndex].tenGoi,
         soLuongNhap: formData.soLuongNhap,
-        donViTinh: supplyRequest.donViTinh,
+        donViTinh: supplyRequest.items[selectedItemIndex].donViTinh,
         ghiChu: formData.ghiChu,
         supplyRequestId: supplyRequest?.id,
       });
@@ -146,11 +162,19 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                 </div>
                 <div>
                   <span className="text-gray-600">Tên gọi:</span>
-                  <span className="ml-2 font-medium">{supplyRequest.tenGoi}</span>
+                  <span className="ml-2 font-medium">
+                    {supplyRequest.items && supplyRequest.items.length > 0
+                      ? supplyRequest.items.map(i => i.tenGoi).join(', ')
+                      : '—'}
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-600">Số lượng yêu cầu:</span>
-                  <span className="ml-2 font-medium">{supplyRequest.soLuong} {supplyRequest.donViTinh}</span>
+                  <span className="ml-2 font-medium">
+                    {supplyRequest.items && supplyRequest.items.length > 0
+                      ? supplyRequest.items.map(i => `${i.soLuong} ${i.donViTinh}`).join(', ')
+                      : '—'}
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-600">Người yêu cầu:</span>
@@ -227,17 +251,31 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
             </select>
           </div>
 
-          {/* Sản phẩm (auto-fill từ yêu cầu cung cấp) */}
+          {/* Sản phẩm (chọn từ danh sách yêu cầu cung cấp) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Sản phẩm
             </label>
-            <input
-              type="text"
-              value={supplyRequest?.tenGoi || ''}
-              disabled
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-            />
+            {supplyRequest?.items && supplyRequest.items.length > 1 ? (
+              <select
+                value={selectedItemIndex}
+                onChange={(e) => handleItemChange(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              >
+                {supplyRequest.items.map((item, idx) => (
+                  <option key={idx} value={idx}>
+                    {item.tenGoi} - {item.soLuong} {item.donViTinh}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={supplyRequest?.items?.[0]?.tenGoi || ''}
+                disabled
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+              />
+            )}
             <p className="text-xs text-gray-500 mt-1">
               Tự động lấy từ tên gọi yêu cầu cung cấp. Nếu sản phẩm đã có trong lô sẽ cộng dồn, nếu chưa có sẽ tạo mới.
             </p>

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Search, Eye, Edit, Trash2, ShoppingCart, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Eye, Edit, Trash2, ShoppingCart, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import TableFilter, { FilterField } from './TableFilter';
 import { quotationService, Quotation } from '../services/quotationService';
 import { orderService } from '../services/orderService';
 import { useQuotations, quotationKeys } from '../hooks';
@@ -11,7 +12,12 @@ interface QuotationManagementProps {
 }
 
 const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
+    maBaoGia: '',
+    tenKhachHang: '',
+    tenNhanVien: '',
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -34,10 +40,36 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
   const { data: quotationsData, isLoading: loading } = useQuotations({
     page: 1,
     limit: 1000,
-    search: searchTerm || undefined,
+    search: filterValues._search || undefined,
     customerType: filterCustomerType,
   });
-  const quotations = quotationsData?.data || [];
+  const rawQuotations = quotationsData?.data || [];
+
+  const quotationFilterFields: FilterField[] = [
+    { key: 'maBaoGia', label: 'Mã BG', type: 'text' },
+    { key: 'tenKhachHang', label: 'Khách hàng', type: 'text' },
+    { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
+  ];
+
+  const quotations = useMemo(() => {
+    return rawQuotations.filter((q: any) => {
+      const search = (filterValues._search || '').toLowerCase();
+      const matchSearch = !search ||
+        (q.maBaoGia || '').toLowerCase().includes(search) ||
+        (q.tenKhachHang || '').toLowerCase().includes(search) ||
+        (q.tenNhanVien || '').toLowerCase().includes(search) ||
+        (q.tenSanPham || '').toLowerCase().includes(search);
+      const matchMa = !filterValues.maBaoGia || (q.maBaoGia || '').toLowerCase().includes(filterValues.maBaoGia.toLowerCase());
+      const matchKH = !filterValues.tenKhachHang || (q.tenKhachHang || '').toLowerCase().includes(filterValues.tenKhachHang.toLowerCase());
+      const matchNV = !filterValues.tenNhanVien || (q.tenNhanVien || '').toLowerCase().includes(filterValues.tenNhanVien.toLowerCase());
+      return matchSearch && matchMa && matchKH && matchNV;
+    });
+  }, [rawQuotations, filterValues]);
+
+  const handleFilterChange = (newValues: Record<string, string>) => {
+    setFilterValues(newValues);
+    setCurrentPage(1);
+  };
 
   const handleView = (quotation: Quotation) => {
     setSelectedQuotation(quotation);
@@ -122,7 +154,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
     try {
       setExportError('');
       setExportLoading(true);
-      await quotationService.exportToExcel({ search: searchTerm || undefined });
+      await quotationService.exportToExcel({ search: filterValues._search || undefined });
       setExportSuccess('Đã xuất file Excel thành công');
       setTimeout(() => setExportSuccess(''), 3000);
     } catch (error) {
@@ -168,18 +200,9 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
 
   return (
     <div className="space-y-4">
-      {/* Search Bar */}
-      <div className="flex items-center justify-between">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
-          />
-        </div>
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Danh sách báo giá</h2>
         <button
           onClick={handleExportExcel}
           disabled={exportLoading}
@@ -189,6 +212,14 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
           {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
         </button>
       </div>
+
+      {/* Search & Filter */}
+      <TableFilter
+        filters={quotationFilterFields}
+        values={filterValues}
+        onChange={handleFilterChange}
+        searchPlaceholder="Tìm kiếm mã BG, khách hàng, nhân viên..."
+      />
 
       {/* Alert Messages */}
       {exportError && (
@@ -206,47 +237,52 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full border-collapse">
           <thead>
-            <tr className="border-b-2 border-gray-200">
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">STT</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Ngày BG</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Mã báo giá</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Giá báo khách</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">TG giao hàng</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Hiệu lực</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Nhân viên</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Trạng thái</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Ghi chú</th>
-              <th className="px-4 py-3 text-center text-sm font-semibold text-blue-600">Hành động</th>
+            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày BG</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã báo giá</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Giá báo khách</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">TG giao hàng</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Hiệu lực</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                   Đang tải...
                 </td>
               </tr>
             ) : quotations.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                   Không có dữ liệu
                 </td>
               </tr>
             ) : (
               quotations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((quotation, index) => (
-                <tr key={quotation.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">
+                <tr
+                  key={quotation.id}
+                  className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  }`}
+                >
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                     {(currentPage - 1) * itemsPerPage + index + 1}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                  <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap border-r border-gray-200">
                     {formatDate(quotation.ngayBaoGia)}
                   </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-blue-600">
+                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                     {quotation.maBaoGia}
                   </td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-6 py-4 text-sm border-r border-gray-200">
                     {quotation.quotationRequest?.calculator?.products && quotation.quotationRequest.calculator.products.length > 0 ? (
                       <div className="space-y-1">
                         {quotation.quotationRequest.calculator.products.map((product: any, idx: number) => {
@@ -275,47 +311,47 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                       <span className="font-semibold text-green-600">{formatCurrency(quotation.giaBaoKhach)}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                  <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap border-r border-gray-200">
                     {quotation.thoiGianGiaoHang ? `${quotation.thoiGianGiaoHang} ngày` : '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                  <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap border-r border-gray-200">
                     {quotation.hieuLucBaoGia ? `${quotation.hieuLucBaoGia} ngày` : '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                     {quotation.tenNhanVien || '-'}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4 border-r border-gray-200">
                     {getStatusBadge(quotation.tinhTrang)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 max-w-xs truncate">
+                  <td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate border-r border-gray-200">
                     {quotation.ghiChu || '-'}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => handleView(quotation)}
-                        className="text-gray-500 hover:text-blue-600"
+                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                         title="Xem chi tiết"
                       >
                         <Eye className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleEdit(quotation)}
-                        className="text-gray-500 hover:text-green-600"
+                        className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                         title="Chỉnh sửa"
                       >
                         <Edit className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleCreateOrder(quotation.id)}
-                        className="text-gray-500 hover:text-purple-600"
+                        className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
                         title="Tạo đơn hàng"
                       >
                         <ShoppingCart className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDelete(quotation.id)}
-                        className="text-gray-500 hover:text-red-600"
+                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                         title="Xóa"
                       >
                         <Trash2 className="w-5 h-5" />

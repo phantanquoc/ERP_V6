@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { getDepartmentDisplayName, isAdmin } from "../utils/permissions";
+import { useSystemSettings } from "../contexts/SystemSettingsContext";
+import { ThemeHeader, getThemePageBackground } from "../components/ThemeHeaders";
 import EmployeeDashboard from "./EmployeeDashboard";
 import purchaseRequestService from "../services/purchaseRequestService";
 import TaskListModal from "../components/TaskListModal";
@@ -29,6 +31,7 @@ import DailyWorkReportListModal from "../components/DailyWorkReportListModal";
 import PlanCombinedModal from "../components/PlanCombinedModal";
 import { overtimePlanService, OvertimePlanStatus } from "../services/overtimePlanService";
 import EmployeeSelfEvaluationModal from "../components/EmployeeSelfEvaluationModal";
+
 import notificationService, { Notification } from "../services/notificationService";
 import { useTasksCount, usePrivateFeedbackStats } from "../hooks";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -51,13 +54,13 @@ import qualityEvaluationService from "../services/qualityEvaluationService";
 import { workPlanService } from "../services/workPlanService";
 
 // Quick Stats for Overview
-const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0, evaluationNotification?: Notification | null, overtimeCount: number = 0, overtimePendingCount: number = 0) => [
-  { label: "Yêu cầu mua hàng", value: purchaseRequestCount.toString(), change: `Chờ duyệt: ${purchaseRequestPendingCount}`, icon: <ShoppingCart className="h-5 w-5" />, color: "text-blue-600", clickable: true, type: 'purchaseRequests' },
-  { label: "Danh sách nhiệm vụ", value: tasksCount.toString(), change: `Nhiệm vụ: ${tasksCount}`, icon: <CheckSquare className="h-5 w-5" />, color: "text-green-600", clickable: true, type: 'tasks' },
-  { label: "Kế hoạch", value: (workPlanCount + overtimeCount).toString(), change: `Tăng ca chờ duyệt: ${overtimePendingCount}`, icon: <Calendar className="h-5 w-5" />, color: overtimePendingCount > 0 ? "text-red-600" : "text-purple-600", clickable: true, type: 'plans', hasNotification: overtimePendingCount > 0 },
-  { label: "Danh sách khó khăn và góp ý", value: feedbackCount.toString(), change: `Góp ý & Khó khăn: ${feedbackCount}`, icon: <AlertTriangle className="h-5 w-5" />, color: "text-orange-600", clickable: true, type: 'feedbacks' },
-  { label: "Đánh giá", value: evaluationNotification ? "Cần đánh giá" : "Không có", change: evaluationNotification?.period ? `Đánh giá tháng ${new Date(evaluationNotification.period + '-01').toLocaleDateString('vi-VN', { month: 'numeric', year: 'numeric' })}` : "Không có đánh giá mới", icon: <Award className="h-5 w-5" />, color: evaluationNotification ? "text-red-600" : "text-gray-600", clickable: true, type: 'evaluation', hasNotification: !!evaluationNotification && !evaluationNotification.isRead },
-  { label: "Báo cáo công việc", value: "Xem", change: "Báo cáo hàng ngày", icon: <FileText className="h-5 w-5" />, color: "text-teal-600", clickable: true, type: 'dailyReports' }
+const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0, overtimeCount: number = 0, overtimePendingCount: number = 0) => [
+  { label: "Mua hàng", value: purchaseRequestCount.toString(), change: `Chờ duyệt: ${purchaseRequestPendingCount}`, icon: <ShoppingCart className="h-4 w-4" />, color: "text-blue-600", bgColor: "bg-blue-50", clickable: true, type: 'purchaseRequests' },
+  { label: "Nhiệm vụ", value: tasksCount.toString(), change: `${tasksCount} nhiệm vụ`, icon: <CheckSquare className="h-4 w-4" />, color: "text-green-600", bgColor: "bg-green-50", clickable: true, type: 'tasks' },
+  { label: "Kế hoạch", value: (workPlanCount + overtimeCount).toString(), change: `TC chờ duyệt: ${overtimePendingCount}`, icon: <Calendar className="h-4 w-4" />, color: overtimePendingCount > 0 ? "text-red-600" : "text-purple-600", bgColor: overtimePendingCount > 0 ? "bg-red-50" : "bg-purple-50", clickable: true, type: 'plans', hasNotification: overtimePendingCount > 0 },
+  { label: "Góp ý & KK", value: feedbackCount.toString(), change: `${feedbackCount} góp ý`, icon: <AlertTriangle className="h-4 w-4" />, color: "text-orange-600", bgColor: "bg-orange-50", clickable: true, type: 'feedbacks' },
+  { label: "Đánh giá", value: "Xem", change: "Đánh giá cấp dưới", icon: <Award className="h-4 w-4" />, color: "text-purple-600", bgColor: "bg-purple-50", clickable: true, type: 'evaluation' },
+  { label: "Báo cáo", value: "Xem", change: "Hàng ngày", icon: <FileText className="h-4 w-4" />, color: "text-teal-600", bgColor: "bg-teal-50", clickable: true, type: 'dailyReports' }
 ];
 
 // Component for Department Card
@@ -88,7 +91,14 @@ const DepartmentCard: React.FC<{
     <div className="p-4 pt-2">
       <div className={`grid gap-3 ${isFullWidth ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2'}`}>
         {department.stats.map((stat: any, index: number) => (
-          <div key={index} className="text-center p-2 rounded-lg bg-gray-50">
+          <div
+            key={index}
+            className={`text-center p-2 rounded-lg bg-gray-50 ${stat.link ? 'hover:bg-blue-50 hover:shadow-sm transition-all' : ''}`}
+            onClick={stat.link ? (e: React.MouseEvent) => {
+              e.stopPropagation();
+              window.location.href = stat.link;
+            } : undefined}
+          >
             <div className="text-2xl font-bold text-gray-800">{stat.value}</div>
             <div className="text-sm text-gray-500">{stat.label}</div>
           </div>
@@ -104,20 +114,22 @@ const QuickStatCard: React.FC<{
   onClick?: () => void;
 }> = ({ stat, onClick }) => (
   <div
-    className={`bg-white rounded-lg shadow-md p-6 border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-100'} ${stat.clickable ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''} relative`}
+    className={`bg-white rounded-lg shadow-sm px-3 py-4 border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-100'} ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 transition-all' : ''} relative`}
     onClick={stat.clickable ? onClick : undefined}
   >
     {stat.hasNotification && (
-      <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+      <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
     )}
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-        <p className={`text-2xl font-bold ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</p>
-        <p className={`text-sm font-medium ${stat.color}`}>{stat.change}</p>
-      </div>
-      <div className={`p-3 rounded-full bg-blue-50 ${stat.color}`}>
+    <div className="flex items-center gap-2.5">
+      <div className={`p-2 rounded-lg ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0`}>
         {stat.icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-1.5 flex-wrap">
+          <span className="text-sm font-medium text-gray-600 whitespace-nowrap">{stat.label}</span>
+          <span className={`text-xl font-bold leading-none ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</span>
+        </div>
+        <p className={`text-[11px] font-medium ${stat.color} truncate mt-0.5`}>{stat.change}</p>
       </div>
     </div>
   </div>
@@ -148,28 +160,16 @@ const Dashboard1: React.FC = () => {
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
-  const [latestEvaluationNotification, setLatestEvaluationNotification] = useState<Notification | null>(null);
   const [approveLoading, setApproveLoading] = useState<string | null>(null);
 
   const userIsAdmin = user ? isAdmin(user.department) : false;
+  const { settings } = useSystemSettings();
+  const activeTheme = settings?.activeTheme || 'DEFAULT';
 
   // Use React Query hooks for data fetching with caching
   const { data: tasksCount = 0 } = useTasksCount();
   const { data: feedbackStats } = usePrivateFeedbackStats();
   const feedbackCount = feedbackStats?.data?.total || 0;
-
-  // Load evaluation notification
-  useEffect(() => {
-    const loadLatestEvaluationNotification = async () => {
-      try {
-        const notification = await notificationService.getLatestEvaluationNotification();
-        setLatestEvaluationNotification(notification);
-      } catch (error) {
-        console.error('Error loading evaluation notification:', error);
-      }
-    };
-    loadLatestEvaluationNotification();
-  }, []);
 
   // Purchase requests query
   const { data: purchaseRequestsData } = useQuery({
@@ -364,7 +364,7 @@ const Dashboard1: React.FC = () => {
 
   // Nếu là admin, hiển thị Admin Dashboard
   const departmentName = getDepartmentDisplayName(user.department);
-  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, latestEvaluationNotification, overtimeCount, overtimePendingCount);
+  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, overtimeCount, overtimePendingCount);
 
   const departmentStats = {
     general: {
@@ -372,10 +372,10 @@ const Dashboard1: React.FC = () => {
       icon: <Building2 className="h-6 w-6" />,
       color: "bg-slate-400",
       stats: [
-        { label: "Đơn hàng", value: orders.length.toString() },
-        { label: "Báo giá", value: quotations.length.toString() },
-        { label: "Khách hàng", value: customers.length.toString() },
-        { label: "Phản hồi KH", value: feedbacks.length.toString() }
+        { label: "Đơn hàng", value: orders.length.toString(), link: "/general/pricing?tab=orders" },
+        { label: "Báo giá", value: quotations.length.toString(), link: "/general/pricing?tab=requests" },
+        { label: "Khách hàng", value: customers.length.toString(), link: "/general/partners" },
+        { label: "Phản hồi KH", value: feedbacks.length.toString(), link: "/general/partners" }
       ]
     },
     quality: {
@@ -383,10 +383,10 @@ const Dashboard1: React.FC = () => {
       icon: <ShieldCheck className="h-6 w-6" />,
       color: "bg-emerald-400",
       stats: [
-        { label: "Quy trình", value: processes.length.toString() },
-        { label: "Kiểm tra NB", value: inspections.length.toString() },
-        { label: "Đánh giá CL", value: qualityEvals.length.toString() },
-        { label: "Nhân viên", value: employees.length.toString() }
+        { label: "Quy trình", value: processes.length.toString(), link: "/quality/process" },
+        { label: "Kiểm tra NB", value: inspections.length.toString(), link: "/quality/office" },
+        { label: "Đánh giá CL", value: qualityEvals.length.toString(), link: "/quality" },
+        { label: "Nhân viên", value: employees.length.toString(), link: "/quality/personnel" }
       ]
     },
     business: {
@@ -394,10 +394,10 @@ const Dashboard1: React.FC = () => {
       icon: <Briefcase className="h-6 w-6" />,
       color: "bg-blue-400",
       stats: [
-        { label: "Đơn hàng", value: orders.length.toString() },
-        { label: "Khách hàng", value: customers.length.toString() },
-        { label: "Báo giá", value: quotations.length.toString() },
-        { label: "Phản hồi", value: feedbacks.length.toString() }
+        { label: "Đơn hàng", value: orders.length.toString(), link: "/business/management" },
+        { label: "Khách hàng", value: customers.length.toString(), link: "/business/international" },
+        { label: "Báo giá", value: quotations.length.toString(), link: "/business/management" },
+        { label: "Phản hồi", value: feedbacks.length.toString(), link: "/business/domestic" }
       ]
     },
     accounting: {
@@ -405,10 +405,10 @@ const Dashboard1: React.FC = () => {
       icon: <Calculator className="h-6 w-6" />,
       color: "bg-amber-400",
       stats: [
-        { label: "Hóa đơn", value: invoices.length.toString() },
-        { label: "Chi phí", value: costs.length.toString() },
-        { label: "Công nợ", value: (debtSummary?.soLuongCongNo || 0).toString() },
-        { label: "Báo cáo thuế", value: taxReports.length.toString() }
+        { label: "Hóa đơn", value: invoices.length.toString(), link: "/accounting" },
+        { label: "Chi phí", value: costs.length.toString(), link: "/accounting/admin" },
+        { label: "Công nợ", value: (debtSummary?.soLuongCongNo || 0).toString(), link: "/accounting" },
+        { label: "Báo cáo thuế", value: taxReports.length.toString(), link: "/accounting/tax" }
       ]
     },
     production: {
@@ -416,10 +416,10 @@ const Dashboard1: React.FC = () => {
       icon: <Factory className="h-6 w-6" />,
       color: "bg-indigo-400",
       stats: [
-        { label: "Máy móc", value: machines.length.toString() },
-        { label: "Đang SX", value: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length.toString() },
-        { label: "Thành phẩm", value: finishedProducts.length.toString() },
-        { label: "Đã giao", value: orders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length.toString() }
+        { label: "Máy móc", value: machines.length.toString(), link: "/production/management" },
+        { label: "Đang SX", value: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length.toString(), link: "/production/management" },
+        { label: "Thành phẩm", value: finishedProducts.length.toString(), link: "/production/warehouse" },
+        { label: "Đã giao", value: orders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length.toString(), link: "/production/management" }
       ]
     },
     purchasing: {
@@ -427,10 +427,10 @@ const Dashboard1: React.FC = () => {
       icon: <ShoppingCart className="h-6 w-6" />,
       color: "bg-teal-400",
       stats: [
-        { label: "Yêu cầu mua", value: purchaseRequestCount.toString() },
-        { label: "Nhà cung cấp", value: suppliers.length.toString() },
-        { label: "Yêu cầu cung ứng", value: supplyRequests.length.toString() },
-        { label: "Chờ duyệt", value: purchaseRequestPendingCount.toString() }
+        { label: "Yêu cầu mua", value: purchaseRequestCount.toString(), link: "/purchasing" },
+        { label: "Nhà cung cấp", value: suppliers.length.toString(), link: "/purchasing/materials" },
+        { label: "Yêu cầu cung ứng", value: supplyRequests.length.toString(), link: "/purchasing/equipment" },
+        { label: "Chờ duyệt", value: purchaseRequestPendingCount.toString(), link: "/purchasing" }
       ]
     },
     technical: {
@@ -438,10 +438,10 @@ const Dashboard1: React.FC = () => {
       icon: <Wrench className="h-6 w-6" />,
       color: "bg-rose-400",
       stats: [
-        { label: "Máy móc", value: machines.length.toString() },
-        { label: "Bảo trì", value: machines.filter((m: any) => m.trangThai === 'BẢO_TRÌ').length.toString() },
-        { label: "Hoạt động", value: machines.filter((m: any) => m.trangThai === 'HOAT_DONG').length.toString() },
-        { label: "Ngừng", value: machines.filter((m: any) => m.trangThai === 'NGỪNG_HOẠT_ĐỘNG').length.toString() }
+        { label: "Máy móc", value: machines.length.toString(), link: "/technical" },
+        { label: "Bảo trì", value: machines.filter((m: any) => m.trangThai === 'BẢO_TRÌ').length.toString(), link: "/technical/mechanical" },
+        { label: "Hoạt động", value: machines.filter((m: any) => m.trangThai === 'HOAT_DONG').length.toString(), link: "/technical" },
+        { label: "Ngừng", value: machines.filter((m: any) => m.trangThai === 'NGỪNG_HOẠT_ĐỘNG').length.toString(), link: "/technical" }
       ]
     }
   };
@@ -452,47 +452,13 @@ const Dashboard1: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className={`min-h-screen ${getThemePageBackground(activeTheme)}`}>
       <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Section */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl shadow-xl p-4 mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl font-bold text-white">
-                    Dashboard ABF
-                  </h1>
-                  <p className="text-blue-100 text-sm">
-                    Chào mừng {user.firstName} {user.lastName} - {user.position}
-                  </p>
-                </div>
-                <div className="hidden md:block text-right text-white">
-                  <p className="text-xs opacity-80">Hôm nay</p>
-                  <p className="text-lg font-bold">{new Date().toLocaleDateString('vi-VN')}</p>
-                </div>
-              </div>
-              <div className="flex items-center mt-2 space-x-2">
-                <span className="px-2 py-1 bg-blue-500 text-white rounded-full text-xs font-medium">
-                  {departmentName}
-                </span>
-                {user.subDepartment && (
-                  <span className="px-2 py-1 bg-blue-700 text-white rounded-full text-xs">
-                    {user.subDepartment.toUpperCase()}
-                  </span>
-                )}
-                {userIsAdmin && (
-                  <span className="px-2 py-1 bg-red-500 text-white rounded-full text-xs font-bold">
-                    ADMIN
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Header Section — same theme as employee dashboard */}
+        <ThemeHeader activeTheme={activeTheme} user={user} departmentName={departmentName} />
 
         {/* Quick Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
           {quickStats.map((stat, index) => (
             <QuickStatCard
               key={index}
@@ -632,13 +598,12 @@ const Dashboard1: React.FC = () => {
         isAdmin={userIsAdmin}
       />
 
-      {/* Employee Self Evaluation Modal */}
+      {/* Admin Evaluation Modal — opens on subordinate tab */}
       <EmployeeSelfEvaluationModal
         isOpen={isEvaluationModalOpen}
         onClose={() => setIsEvaluationModalOpen(false)}
-        evaluationId={latestEvaluationNotification?.evaluationId || null}
-        notificationId={latestEvaluationNotification?.id}
-        evaluationPeriod={latestEvaluationNotification?.period || null}
+        evaluationId={null}
+        initialTab="subordinate"
       />
 
       {/* Daily Work Report List Modal */}

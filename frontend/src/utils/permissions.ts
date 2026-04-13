@@ -140,8 +140,8 @@ export const hasSubModuleAccess = (
 
   // Check primary department match
   if (userDepartment === department) {
-    // MANAGER (Trưởng bộ phận hoặc Trưởng phòng) có thể truy cập tất cả sub-modules trong bộ phận
-    if (userRole === UserRole.MANAGER) return true;
+    // Trưởng bộ phận hoặc Trưởng phòng có thể truy cập tất cả sub-modules trong bộ phận
+    if (userRole === UserRole.DEPARTMENT_HEAD || userRole === UserRole.TEAM_LEAD) return true;
 
     // EMPLOYEE chỉ có thể truy cập sub-module của mình
     if (userRole === UserRole.EMPLOYEE) {
@@ -153,7 +153,7 @@ export const hasSubModuleAccess = (
   if (userSecondaryDepartment === department) {
     const effectiveRole = userSecondaryRole || UserRole.EMPLOYEE;
 
-    if (effectiveRole === UserRole.MANAGER) return true;
+    if (effectiveRole === UserRole.DEPARTMENT_HEAD || effectiveRole === UserRole.TEAM_LEAD) return true;
 
     if (effectiveRole === UserRole.EMPLOYEE) {
       if (userSecondarySubDepartment === subModule) return true;

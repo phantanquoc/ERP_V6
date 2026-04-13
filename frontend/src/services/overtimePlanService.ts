@@ -59,13 +59,14 @@ const extractData = (response: any): any => {
 };
 
 const extractPaginated = (response: any): any => {
-  const d = response?.data || response;
-  const pagination = d.pagination || {};
+  // apiClient returns { success, data, pagination } directly
+  const plans = Array.isArray(response?.data) ? response.data : (Array.isArray(response?.data?.data) ? response.data.data : []);
+  const pagination = response?.pagination || response?.data?.pagination || {};
   return {
-    data: d.data || [],
-    total: pagination.total || d.total || 0,
-    page: pagination.page || d.page || 1,
-    totalPages: pagination.totalPages || d.totalPages || 1,
+    data: plans,
+    total: pagination.total || 0,
+    page: pagination.page || 1,
+    totalPages: pagination.totalPages || 1,
   };
 };
 
@@ -84,15 +85,11 @@ const buildFormData = (data: CreateOvertimePlanData): FormData => {
 
 export const overtimePlanService = {
   async create(data: CreateOvertimePlanData): Promise<OvertimePlan> {
-    const response = await apiClient.post('/overtime-plans', buildFormData(data), {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await apiClient.post('/overtime-plans', buildFormData(data));
     return extractData(response);
   },
   async update(id: string, data: CreateOvertimePlanData): Promise<OvertimePlan> {
-    const response = await apiClient.put(`/overtime-plans/${id}`, buildFormData(data), {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await apiClient.put(`/overtime-plans/${id}`, buildFormData(data));
     return extractData(response);
   },
   async getAll(params?: any): Promise<any> {

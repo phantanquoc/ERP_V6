@@ -43,3 +43,4 @@ nginx/ssl/*.crt
 # Docker volumes (local)
 postgres_data/
 
+.gitnexus

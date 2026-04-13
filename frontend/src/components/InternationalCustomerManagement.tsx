@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import DatePicker from './DatePicker';
-import { Plus, Search, Edit, Trash2, Eye, MapPin, X, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, MapPin, X, Download } from 'lucide-react';
+import TableFilter, { FilterField } from './TableFilter';
 import { parseNumberInput } from '../utils/numberInput';
 import internationalCustomerService, {
   InternationalCustomer,
@@ -11,7 +12,12 @@ import { useCustomers, customerKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 
 const InternationalCustomerManagement: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
+    maKhachHang: '',
+    tenCongTy: '',
+    quocGia: '',
+  });
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<InternationalCustomer | null>(null);
@@ -28,10 +34,36 @@ const InternationalCustomerManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const { data: customersData, isLoading: loading } = useCustomers({
     limit: 1000,
-    search: searchTerm,
+    search: filterValues._search,
     customerType: 'Quốc tế',
   });
-  const customers = customersData?.data || [];
+  const rawCustomers = customersData?.data || [];
+
+  const customerFilterFields: FilterField[] = [
+    { key: 'maKhachHang', label: 'Mã KH', type: 'text' },
+    { key: 'tenCongTy', label: 'Tên công ty', type: 'text' },
+    { key: 'quocGia', label: 'Quốc gia', type: 'text' },
+  ];
+
+  const customers = useMemo(() => {
+    return rawCustomers.filter((c: any) => {
+      const search = (filterValues._search || '').toLowerCase();
+      const matchSearch = !search ||
+        (c.maKhachHang || '').toLowerCase().includes(search) ||
+        (c.tenCongTy || '').toLowerCase().includes(search) ||
+        (c.nguoiLienHe || '').toLowerCase().includes(search) ||
+        (c.quocGia || '').toLowerCase().includes(search);
+      const matchMa = !filterValues.maKhachHang || (c.maKhachHang || '').toLowerCase().includes(filterValues.maKhachHang.toLowerCase());
+      const matchTen = !filterValues.tenCongTy || (c.tenCongTy || '').toLowerCase().includes(filterValues.tenCongTy.toLowerCase());
+      const matchQG = !filterValues.quocGia || (c.quocGia || '').toLowerCase().includes(filterValues.quocGia.toLowerCase());
+      return matchSearch && matchMa && matchTen && matchQG;
+    });
+  }, [rawCustomers, filterValues]);
+
+  const handleFilterChange = (newValues: Record<string, string>) => {
+    setFilterValues(newValues);
+    setCurrentPage(1);
+  };
 
   const handleCreate = async () => {
     try {
@@ -120,14 +152,9 @@ const InternationalCustomerManagement: React.FC = () => {
     }));
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-    setCurrentPage(1);
-  };
-
   const handleExportExcel = async () => {
     try {
-      await internationalCustomerService.exportToExcel({ search: searchTerm, phanLoaiDiaLy: 'Quốc tế' });
+      await internationalCustomerService.exportToExcel({ search: filterValues._search, phanLoaiDiaLy: 'Quốc tế' });
       alert('Đã xuất file Excel thành công');
     } catch (error) {
       console.error('Error exporting to Excel:', error);
@@ -136,40 +163,38 @@ const InternationalCustomerManagement: React.FC = () => {
   };
 
   return (
-    <div>
-      {/* Header Actions */}
-      <div className="mb-6 flex justify-between items-center">
-        <div className="relative w-80">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm..."
-            value={searchTerm}
-            onChange={handleSearch}
-            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-        <div className="flex items-center gap-2 ml-4">
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Danh sách khách hàng quốc tế</h2>
+        <div className="flex items-center gap-2">
           <button
             onClick={handleExportExcel}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
-            <Download className="w-5 h-5" />
+            <Download className="w-4 h-4" />
             Xuất Excel
           </button>
           <button
             onClick={openCreateModal}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
             Thêm khách hàng
           </button>
         </div>
       </div>
 
+      {/* Search & Filter */}
+      <TableFilter
+        filters={customerFilterFields}
+        values={filterValues}
+        onChange={handleFilterChange}
+        searchPlaceholder="Tìm kiếm mã KH, tên công ty, quốc gia..."
+      />
+
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
@@ -267,7 +292,6 @@ const InternationalCustomerManagement: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
 
       {/* Pagination */}
       {(() => {

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus,
-  Search,
   Edit,
   Eye,
   Trash2,
@@ -14,6 +13,7 @@ import { usePositions, usePositionLevelsByPosition, positionKeys } from '../hook
 import { useQueryClient } from '@tanstack/react-query';
 import { Position } from '@services/positionService';
 import { parseNumberInput } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 interface FormData {
   level: string;
@@ -25,9 +25,18 @@ const PositionLevelManagement = () => {
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', level: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const filterFields: FilterField[] = [
+    {
+      key: 'level',
+      label: 'Cấp độ',
+      type: 'text',
+      placeholder: 'VD: Junior, Senior...',
+    },
+  ];
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -128,9 +137,11 @@ const PositionLevelManagement = () => {
     setFormData({ level: '', baseSalary: '', kpiSalary: '' });
   };
 
-  const filteredLevels = levels.filter(level =>
-    level.level.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredLevels = levels.filter(level => {
+    const matchesSearch = level.level.toLowerCase().includes(filterValues._search.toLowerCase());
+    const matchesLevel = !filterValues.level || level.level.toLowerCase().includes(filterValues.level.toLowerCase());
+    return matchesSearch && matchesLevel;
+  });
 
   const totalItems = filteredLevels.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -172,18 +183,9 @@ const PositionLevelManagement = () => {
         </div>
       )}
 
-      {/* Search and Add Button */}
-      <div className="bg-white rounded-lg shadow p-4 flex gap-3">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo cấp độ..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Quản lý cấp độ & lương</h2>
         <button
           onClick={openCreateModal}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
@@ -192,6 +194,14 @@ const PositionLevelManagement = () => {
           Thêm cấp độ
         </button>
       </div>
+
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm theo cấp độ..."
+      />
 
       {/* Levels Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

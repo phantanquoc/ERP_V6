@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import authService from '@services/authService';
+import { IpLockedError, SessionReplacedError } from '@services/authService';
 import type { AuthenticatedRequest, ApiResponse, AuthResponse } from '@types';
 
 export class AuthController {
@@ -41,6 +42,16 @@ export class AuthController {
         data: result,
       } as ApiResponse<AuthResponse>);
     } catch (error) {
+      if (error instanceof IpLockedError) {
+        const remainingMs = error.lockedUntil.getTime() - Date.now();
+        const remainingMinutes = Math.ceil(remainingMs / 60000);
+        res.status(429).json({
+          success: false,
+          message: `IP của bạn đã bị khóa do đăng nhập sai quá nhiều lần. Vui lòng thử lại sau ${remainingMinutes} phút.`,
+          lockedUntil: error.lockedUntil.toISOString(),
+        });
+        return;
+      }
       next(error);
     }
   }
@@ -65,6 +76,14 @@ export class AuthController {
         data: result,
       });
     } catch (error) {
+      if (error instanceof SessionReplacedError) {
+        res.status(401).json({
+          success: false,
+          message: 'Tài khoản của bạn đã đăng nhập trên thiết bị khác.',
+          code: 'SESSION_REPLACED',
+        });
+        return;
+      }
       next(error);
     }
   }
@@ -80,6 +99,21 @@ export class AuthController {
       res.status(200).json({
         success: true,
         message: 'Đăng xuất thành công',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async forgotPassword(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { identifier } = req.body;
+
+      await authService.forgotPassword(identifier);
+
+      res.status(200).json({
+        success: true,
+        message: 'Nếu tài khoản tồn tại, yêu cầu đặt lại mật khẩu đã được gửi đến quản trị viên.',
       });
     } catch (error) {
       next(error);

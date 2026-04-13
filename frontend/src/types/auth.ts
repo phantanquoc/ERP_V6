@@ -67,7 +67,8 @@ export interface AuthResponse {
 
 export enum UserRole {
   ADMIN = 'admin',
-  MANAGER = 'manager',
+  DEPARTMENT_HEAD = 'department_head',
+  TEAM_LEAD = 'team_lead',
   EMPLOYEE = 'employee',
   VIEWER = 'viewer'
 }

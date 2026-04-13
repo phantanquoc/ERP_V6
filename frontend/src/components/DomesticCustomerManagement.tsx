@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, X, Download } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, Edit, Trash2, Eye, X, Download } from 'lucide-react';
+import TableFilter, { FilterField } from './TableFilter';
 import internationalCustomerService, {
   InternationalCustomer,
   CreateInternationalCustomerRequest,
@@ -9,7 +10,12 @@ import { useCustomers, customerKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 
 const DomesticCustomerManagement: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
+    maKhachHang: '',
+    tenCongTy: '',
+    tinhThanh: '',
+  });
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<InternationalCustomer | null>(null);
@@ -26,13 +32,34 @@ const DomesticCustomerManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const { data: customersData, isLoading: loading } = useCustomers({
     limit: 1000,
-    search: searchTerm,
+    search: filterValues._search,
     customerType: 'Nội địa',
   });
-  const customers = customersData?.data || [];
+  const rawCustomers = customersData?.data || [];
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
+  const customerFilterFields: FilterField[] = [
+    { key: 'maKhachHang', label: 'Mã KH', type: 'text' },
+    { key: 'tenCongTy', label: 'Tên công ty', type: 'text' },
+    { key: 'tinhThanh', label: 'Tỉnh/Thành', type: 'text' },
+  ];
+
+  const customers = useMemo(() => {
+    return rawCustomers.filter((c: any) => {
+      const search = (filterValues._search || '').toLowerCase();
+      const matchSearch = !search ||
+        (c.maKhachHang || '').toLowerCase().includes(search) ||
+        (c.tenCongTy || '').toLowerCase().includes(search) ||
+        (c.nguoiLienHe || '').toLowerCase().includes(search) ||
+        (c.tinhThanh || '').toLowerCase().includes(search);
+      const matchMa = !filterValues.maKhachHang || (c.maKhachHang || '').toLowerCase().includes(filterValues.maKhachHang.toLowerCase());
+      const matchTen = !filterValues.tenCongTy || (c.tenCongTy || '').toLowerCase().includes(filterValues.tenCongTy.toLowerCase());
+      const matchTT = !filterValues.tinhThanh || (c.tinhThanh || '').toLowerCase().includes(filterValues.tinhThanh.toLowerCase());
+      return matchSearch && matchMa && matchTen && matchTT;
+    });
+  }, [rawCustomers, filterValues]);
+
+  const handleFilterChange = (newValues: Record<string, string>) => {
+    setFilterValues(newValues);
     setCurrentPage(1);
   };
 
@@ -141,7 +168,7 @@ const DomesticCustomerManagement: React.FC = () => {
 
   const handleExportExcel = async () => {
     try {
-      await internationalCustomerService.exportToExcel({ search: searchTerm, phanLoaiDiaLy: 'Nội địa' });
+      await internationalCustomerService.exportToExcel({ search: filterValues._search, phanLoaiDiaLy: 'Nội địa' });
       alert('Đã xuất file Excel thành công');
     } catch (error) {
       console.error('Error exporting to Excel:', error);
@@ -150,53 +177,52 @@ const DomesticCustomerManagement: React.FC = () => {
   };
 
   return (
-    <div>
-      {/* Header Actions */}
-      <div className="mb-6 flex justify-between items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm khách hàng nội địa..."
-            value={searchTerm}
-            onChange={handleSearch}
-            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-        <div className="flex items-center gap-2 ml-4">
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Danh sách khách hàng nội địa</h2>
+        <div className="flex items-center gap-2">
           <button
             onClick={handleExportExcel}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
-            <Download className="w-5 h-5" />
+            <Download className="w-4 h-4" />
             Xuất Excel
           </button>
           <button
             onClick={openCreateModal}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
             Thêm khách hàng
           </button>
         </div>
       </div>
 
+      {/* Search & Filter */}
+      <TableFilter
+        filters={customerFilterFields}
+        values={filterValues}
+        onChange={handleFilterChange}
+        searchPlaceholder="Tìm kiếm mã KH, tên công ty, tỉnh/thành..."
+      />
+
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã KH</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên công ty</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người liên hệ</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tỉnh/Thành</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quận/Huyện</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại KH</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã KH</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên công ty</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người liên hệ</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tỉnh/Thành</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Quận/Huyện</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại KH</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody>
             {loading ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
@@ -210,57 +236,62 @@ const DomesticCustomerManagement: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              customers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((customer) => (
-                <tr key={customer.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              customers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((customer, index) => (
+                <tr
+                  key={customer.id}
+                  className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  }`}
+                >
+                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                     {customer.maKhachHang}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                     {customer.tenCongTy}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                     {customer.nguoiLienHe}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                     {customer.tinhThanh || '-'}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                     {customer.quanHuyen || '-'}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                     {customer.loaiKhachHang}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      customer.trangThai === 'Hoạt động' ? 'bg-green-100 text-green-800' :
-                      customer.trangThai === 'Tạm ngưng' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
+                  <td className="px-6 py-4 text-center border-r border-gray-200">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                      customer.trangThai === 'Hoạt động' ? 'bg-green-100 text-green-700 border border-green-300' :
+                      customer.trangThai === 'Tạm ngưng' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                      'bg-red-100 text-red-700 border border-red-300'
                     }`}>
                       {customer.trangThai}
                     </span>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center gap-2">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => openDetailModal(customer)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                         title="Xem chi tiết"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => openEditModal(customer)}
-                        className="text-yellow-600 hover:text-yellow-800"
+                        className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                         title="Chỉnh sửa"
                       >
-                        <Edit className="w-4 h-4" />
+                        <Edit className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDelete(customer.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                         title="Xóa"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </td>

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Download, Edit, Eye, Trash2, Calendar, FileText, Upload } from 'lucide-react';
+import { Plus, Download, Edit, Eye, Trash2, FileText, Upload } from 'lucide-react';
 import debtService, { Debt, DebtSummary } from '../services/debtService';
 import DatePicker from './DatePicker';
 import { parseNumberInputStr } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 const DebtManagement: React.FC = () => {
   const [debtData, setDebtData] = useState<Debt[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', loaiChiPhi: '', trangThaiThanhToan: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [summary, setSummary] = useState<DebtSummary>({
@@ -216,48 +217,73 @@ const DebtManagement: React.FC = () => {
     return new Date(dateString).toLocaleDateString('vi-VN');
   };
 
-  const filteredDebtData = debtData.filter(
-    item =>
-      item.tenNhaCungCap.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.maNhaCungCap.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.loaiChiPhi || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filterFields: FilterField[] = [
+    {
+      key: 'loaiChiPhi',
+      label: 'Loại chi phí',
+      type: 'select',
+      options: [
+        { value: 'Đơn hàng', label: 'Đơn hàng' },
+        { value: 'Sửa chữa', label: 'Sửa chữa' },
+        { value: 'Đầu tư', label: 'Đầu tư' },
+        { value: 'Văn phòng phẩm', label: 'Văn phòng phẩm' },
+        { value: 'Khác', label: 'Khác' },
+      ],
+    },
+    {
+      key: 'trangThaiThanhToan',
+      label: 'Trạng thái thanh toán',
+      type: 'select',
+      options: [
+        { value: 'chua', label: 'Chưa thanh toán' },
+        { value: 'da', label: 'Đã thanh toán' },
+      ],
+    },
+  ];
+
+  const filteredDebtData = debtData.filter(item => {
+    const search = filterValues._search.toLowerCase();
+    if (search && !item.tenNhaCungCap.toLowerCase().includes(search) && !item.maNhaCungCap.toLowerCase().includes(search) && !(item.loaiChiPhi || '').toLowerCase().includes(search)) return false;
+    if (filterValues.loaiChiPhi && item.loaiChiPhi !== filterValues.loaiChiPhi) return false;
+    if (filterValues.trangThaiThanhToan === 'chua' && item.soTienDaThanhToan >= item.soTienPhaiTra) return false;
+    if (filterValues.trangThaiThanhToan === 'da' && item.soTienDaThanhToan < item.soTienPhaiTra) return false;
+    return true;
+  });
 
   const totalItems = filteredDebtData.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const paginatedDebtData = filteredDebtData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div>
-      {/* Action Bar */}
-      <div className="mb-4 flex flex-wrap gap-4 items-center justify-between">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm công nợ..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors w-64"
-          />
-        </div>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Danh sách công nợ</h2>
         <div className="flex gap-2">
           <button
             onClick={handleExportExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 border-2 border-green-600 hover:border-green-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <Download className="h-4 w-4" />
             Xuất Excel
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 border-2 border-blue-600 hover:border-blue-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Thêm mới
           </button>
         </div>
       </div>
+
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm mã, tên nhà cung cấp, loại chi phí..."
+      />
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -267,46 +293,46 @@ const DebtManagement: React.FC = () => {
           </div>
         ) : (
           <table className="w-full">
-            <thead>
-              <tr className="border-b-2 border-gray-200">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">STT</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Ngày phát sinh</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Loại chi phí</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Số tiền phải trả</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-blue-600">Số tiền đã thanh toán</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-blue-600">Hoạt động</th>
+            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">STT</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Ngày phát sinh</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Loại chi phí</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Số tiền phải trả</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Số tiền đã thanh toán</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Hoạt động</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {paginatedDebtData.map((item, index) => (
-                <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-blue-600 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{formatDate(item.ngayPhatSinh)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{item.loaiChiPhi || '-'}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-red-600">{formatCurrency(item.soTienPhaiTra)}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-green-600">{formatCurrency(item.soTienDaThanhToan)}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <div className="flex items-center justify-center gap-3">
+                <tr key={item.id} className={`border-b border-gray-200 hover:bg-blue-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                  <td className="px-6 py-4 text-sm text-blue-600 font-medium border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{formatDate(item.ngayPhatSinh)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{item.loaiChiPhi || '-'}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-red-600 border-r border-gray-200">{formatCurrency(item.soTienPhaiTra)}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-green-600 border-r border-gray-200">{formatCurrency(item.soTienDaThanhToan)}</td>
+                  <td className="px-6 py-4 text-sm">
+                    <div className="flex items-center justify-center gap-1">
                       <button
                         onClick={() => handleView(item)}
-                        className="text-gray-500 hover:text-blue-600"
-                        title="Xem chi tiết"
+                        className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+                        title="Xem"
                       >
-                        <Eye className="w-5 h-5" />
+                        <Eye className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleEdit(item)}
-                        className="text-gray-500 hover:text-green-600"
-                        title="Chỉnh sửa"
+                        className="p-1.5 rounded-md text-green-600 hover:bg-green-50 hover:text-green-800 transition-colors"
+                        title="Sửa"
                       >
-                        <Edit className="w-5 h-5" />
+                        <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="text-gray-500 hover:text-red-600"
+                        className="p-1.5 rounded-md text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
                         title="Xóa"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </td>

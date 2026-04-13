@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { CheckCircle, XCircle, Eye, Calendar, Clock, FileText, User, AlertCircle, RefreshCw, Download } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, Calendar, Clock, FileText, User, AlertCircle, Download } from 'lucide-react';
 import leaveRequestService, { LeaveRequest } from '@services/leaveRequestService';
 import { useAuth } from '@contexts/AuthContext';
 import { useLeaveRequests, leaveRequestKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import TableFilter, { FilterField } from './TableFilter';
 
 const LeaveRequestManagement = () => {
   const { user } = useAuth();
@@ -14,14 +15,40 @@ const LeaveRequestManagement = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', status: '', leaveType: '' });
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
+
+  const filterFields: FilterField[] = [
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      type: 'select',
+      options: [
+        { value: 'PENDING', label: 'Chờ duyệt' },
+        { value: 'APPROVED', label: 'Đã duyệt' },
+        { value: 'REJECTED', label: 'Từ chối' },
+      ],
+    },
+    {
+      key: 'leaveType',
+      label: 'Loại nghỉ',
+      type: 'select',
+      options: [
+        { value: 'ANNUAL', label: 'Nghỉ phép năm' },
+        { value: 'SICK', label: 'Nghỉ ốm' },
+        { value: 'PERSONAL', label: 'Nghỉ việc riêng' },
+        { value: 'MATERNITY', label: 'Nghỉ thai sản' },
+        { value: 'EMERGENCY', label: 'Nghỉ khẩn cấp' },
+        { value: 'COMPENSATORY', label: 'Nghỉ bù' },
+      ],
+    },
+  ];
 
   const { data: leaveRequestsData, isLoading: loading } = useLeaveRequests({
     page: 1,
     limit: 1000,
-    status: statusFilter || undefined,
+    status: filterValues.status || undefined,
   });
   const leaveRequests = leaveRequestsData?.data || [];
 
@@ -80,7 +107,7 @@ const LeaveRequestManagement = () => {
     try {
       setError('');
       await leaveRequestService.exportToExcel({
-        status: statusFilter || undefined,
+        status: filterValues.status || undefined,
       });
       setSuccess('Đã xuất file Excel thành công');
       setTimeout(() => setSuccess(''), 3000);
@@ -124,25 +151,22 @@ const LeaveRequestManagement = () => {
     return new Date(dateString).toLocaleString('vi-VN');
   };
 
+  const filteredRequests = leaveRequests.filter(r => {
+    const s = filterValues._search.toLowerCase();
+    const matchesSearch = !s || (
+      r.code.toLowerCase().includes(s) ||
+      (r.employee?.user.firstName + ' ' + r.employee?.user.lastName).toLowerCase().includes(s) ||
+      (r.employee?.employeeCode || '').toLowerCase().includes(s)
+    );
+    const matchesLeaveType = !filterValues.leaveType || r.leaveType === filterValues.leaveType;
+    return matchesSearch && matchesLeaveType;
+  });
+
   return (
-    <div className="p-6">
-      <div className="mb-6 flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold text-gray-800">Danh sách đơn nghỉ phép</h2>
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="PENDING">Chờ duyệt</option>
-            <option value="APPROVED">Đã duyệt</option>
-            <option value="REJECTED">Từ chối</option>
-          </select>
-        </div>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Danh sách đơn nghỉ phép</h2>
         <button
           onClick={handleExportExcel}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -152,15 +176,23 @@ const LeaveRequestManagement = () => {
         </button>
       </div>
 
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm theo mã đơn, tên nhân viên..."
+      />
+
       {/* Alert Messages */}
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-600" />
           <p className="text-red-800">{error}</p>
         </div>
       )}
       {success && (
-        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
           <CheckCircle className="w-5 h-5 text-green-600" />
           <p className="text-green-800">{success}</p>
         </div>
@@ -174,7 +206,7 @@ const LeaveRequestManagement = () => {
       ) : (
         <>
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            {leaveRequests.length === 0 ? (
+            {filteredRequests.length === 0 ? (
               <div className="p-8 text-center text-gray-500">Không có đơn nghỉ phép nào</div>
             ) : (
               <div className="overflow-x-auto">
@@ -191,7 +223,7 @@ const LeaveRequestManagement = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {leaveRequests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((request, index) => (
+                    {filteredRequests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((request, index) => (
                       <tr
                         key={request.id}
                         className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -275,7 +307,7 @@ const LeaveRequestManagement = () => {
 
           {/* Pagination */}
           {(() => {
-            const totalItems = leaveRequests.length;
+            const totalItems = filteredRequests.length;
             const totalPages = Math.ceil(totalItems / itemsPerPage);
             return totalPages > 1 ? (
               <div className="flex items-center justify-between mt-4 px-2">

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, X, Download, DollarSign, Plane } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Download, DollarSign, Plane } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import exportCostService, { ExportCost, CreateExportCostInput, UpdateExportCostInput } from '../services/exportCostService';
 import generalCostService, { GeneralCost, CreateGeneralCostInput, UpdateGeneralCostInput } from '../services/generalCostService';
 import { parseNumberInput } from '../utils/numberInput';
+import TableFilter, { FilterField } from './TableFilter';
 
 type CostType = 'export' | 'general';
 type AnyCost = ExportCost | GeneralCost;
@@ -13,9 +14,14 @@ const ExportCostManagement: React.FC = () => {
   const [costType, setCostType] = useState<CostType>('export');
   const [costs, setCosts] = useState<AnyCost[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', tenChiPhi: '', loaiChiPhi: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const filterFields: FilterField[] = [
+    { key: 'tenChiPhi', label: 'Tên chi phí', type: 'text', placeholder: 'Lọc tên chi phí...' },
+    { key: 'loaiChiPhi', label: 'Loại chi phí', type: 'text', placeholder: 'Lọc loại chi phí...' },
+  ];
   const [showModal, setShowModal] = useState(false);
   const [editingCost, setEditingCost] = useState<AnyCost | null>(null);
   const [formData, setFormData] = useState<CreateExportCostInput>({
@@ -31,7 +37,7 @@ const ExportCostManagement: React.FC = () => {
 
   useEffect(() => {
     loadCosts();
-  }, [searchTerm, costType]);
+  }, [filterValues._search, costType]);
 
   const isExport = costType === 'export';
   const label = isExport ? 'chi phí xuất khẩu' : 'chi phí chung';
@@ -41,10 +47,10 @@ const ExportCostManagement: React.FC = () => {
     try {
       setLoading(true);
       if (isExport) {
-        const response = await exportCostService.getAllExportCosts(1, 1000, searchTerm);
+        const response = await exportCostService.getAllExportCosts(1, 1000, filterValues._search || '');
         setCosts(response.data);
       } else {
-        const response = await generalCostService.getAllGeneralCosts(1, 1000, searchTerm);
+        const response = await generalCostService.getAllGeneralCosts(1, 1000, filterValues._search || '');
         setCosts(response.data);
       }
     } catch (error) {
@@ -54,6 +60,13 @@ const ExportCostManagement: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Client-side filtering for additional filter fields
+  const filteredCosts = costs.filter((cost) => {
+    if (filterValues.tenChiPhi && !cost.tenChiPhi.toLowerCase().includes(filterValues.tenChiPhi.toLowerCase())) return false;
+    if (filterValues.loaiChiPhi && !cost.loaiChiPhi.toLowerCase().includes(filterValues.loaiChiPhi.toLowerCase())) return false;
+    return true;
+  });
 
   const handleOpenModal = (cost?: AnyCost) => {
     if (cost) {
@@ -154,13 +167,13 @@ const ExportCostManagement: React.FC = () => {
   const handleSwitchCostType = (type: CostType) => {
     setCostType(type);
     setCurrentPage(1);
-    setSearchTerm('');
+    setFilterValues({ _search: '', tenChiPhi: '', loaiChiPhi: '' });
   };
 
   return (
-    <div className="p-6">
+    <div className="space-y-4">
       {/* Cost Type Toggle */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2">
         <button
           onClick={() => handleSwitchCostType('export')}
           className={`px-4 py-2 rounded-lg flex items-center gap-2 font-medium text-sm transition-colors ${
@@ -186,9 +199,9 @@ const ExportCostManagement: React.FC = () => {
       </div>
 
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Quản lý {Label}</h2>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={handleExportExcel}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
@@ -206,83 +219,74 @@ const ExportCostManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="mb-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo mã, tên, loại chi phí, quốc gia..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      </div>
+      {/* Search & Filter */}
+      <TableFilter
+        filters={filterFields}
+        values={filterValues}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
+        searchPlaceholder="Tìm kiếm mã, tên, loại chi phí..."
+      />
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã chi phí</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên chi phí</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loại chi phí</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Đơn vị tính</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Giá thành/ngày</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Người tạo</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Mã chi phí</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Tên chi phí</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Loại chi phí</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Đơn vị tính</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Giá thành/ngày</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Người tạo</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Thao tác</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                   Đang tải...
                 </td>
               </tr>
-            ) : costs.length === 0 ? (
+            ) : filteredCosts.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                   Không có dữ liệu
                 </td>
               </tr>
             ) : (
-              costs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((cost) => (
-                <tr key={cost.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              filteredCosts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((cost) => (
+                <tr key={cost.id} className="hover:bg-blue-50/40 transition-colors">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-700">
                     {cost.maChiPhi}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                     {cost.tenChiPhi}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                     {cost.loaiChiPhi}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                     {cost.donViTinh || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
                     {cost.giaThanhNgay ? `${new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(cost.giaThanhNgay)} ${cost.donViTien || 'VND'}` : '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                     {cost.tenNhanVien || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex gap-2">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                    <div className="flex items-center justify-center gap-1">
                       <button
                         onClick={() => handleOpenModal(cost)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"
                         title="Chỉnh sửa"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(cost.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="p-1.5 rounded-md text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
                         title="Xóa"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -298,14 +302,14 @@ const ExportCostManagement: React.FC = () => {
 
       {/* Pagination */}
       {(() => {
-        const totalItems = costs.length;
+        const totalItems = filteredCosts.length;
         const totalPages = Math.ceil(totalItems / itemsPerPage);
         return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
+          <div className="flex items-center justify-between mt-2 px-1">
             <span className="text-sm text-gray-600">
               Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}

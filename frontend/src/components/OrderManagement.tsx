@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, Edit, Trash2, Package, Calculator, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import TableFilter, { FilterField } from './TableFilter';
 import { orderService, Order } from '../services/orderService';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
@@ -13,7 +14,8 @@ interface OrderManagementProps {
 }
 
 const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, customerType }) => {
-  const [columnFilters, setColumnFilters] = useState({
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
     maDonHang: '',
     maBaoGia: '',
     tenKhachHang: '',
@@ -39,16 +41,34 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
     limit: 1000,
     customerType: filterCustomerType,
   });
+
+  const orderFilterFields: FilterField[] = [
+    { key: 'maDonHang', label: 'Mã ĐH', type: 'text' },
+    { key: 'maBaoGia', label: 'Mã BG', type: 'text' },
+    { key: 'tenKhachHang', label: 'Khách hàng', type: 'text' },
+    { key: 'trangThaiSanXuat', label: 'Trạng thái SX', type: 'text' },
+  ];
+
   const orders = React.useMemo(() => {
     const allOrders = ordersData?.data || [];
     return allOrders.filter(order => {
-      const matchMaDH = !columnFilters.maDonHang || (order.maDonHang || '').toLowerCase().includes(columnFilters.maDonHang.toLowerCase());
-      const matchMaBG = !columnFilters.maBaoGia || (order.maBaoGia || '').toLowerCase().includes(columnFilters.maBaoGia.toLowerCase());
-      const matchKH = !columnFilters.tenKhachHang || (order.tenKhachHang || '').toLowerCase().includes(columnFilters.tenKhachHang.toLowerCase());
-      const matchTTSX = !columnFilters.trangThaiSanXuat || (order.trangThaiSanXuat || '').toLowerCase().includes(columnFilters.trangThaiSanXuat.toLowerCase());
-      return matchMaDH && matchMaBG && matchKH && matchTTSX;
+      const search = (filterValues._search || '').toLowerCase();
+      const matchSearch = !search ||
+        (order.maDonHang || '').toLowerCase().includes(search) ||
+        (order.maBaoGia || '').toLowerCase().includes(search) ||
+        (order.tenKhachHang || '').toLowerCase().includes(search);
+      const matchMaDH = !filterValues.maDonHang || (order.maDonHang || '').toLowerCase().includes(filterValues.maDonHang.toLowerCase());
+      const matchMaBG = !filterValues.maBaoGia || (order.maBaoGia || '').toLowerCase().includes(filterValues.maBaoGia.toLowerCase());
+      const matchKH = !filterValues.tenKhachHang || (order.tenKhachHang || '').toLowerCase().includes(filterValues.tenKhachHang.toLowerCase());
+      const matchTTSX = !filterValues.trangThaiSanXuat || (order.trangThaiSanXuat || '').toLowerCase().includes(filterValues.trangThaiSanXuat.toLowerCase());
+      return matchSearch && matchMaDH && matchMaBG && matchKH && matchTTSX;
     });
-  }, [ordersData, columnFilters]);
+  }, [ordersData, filterValues]);
+
+  const handleFilterChange = (newValues: Record<string, string>) => {
+    setFilterValues(newValues);
+    setCurrentPage(1);
+  };
 
   const handleExportExcel = async () => {
     try {
@@ -172,9 +192,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
   };
 
   return (
-    <div>
-      {/* Action Bar */}
-      <div className="mb-4 flex flex-wrap gap-4 items-center justify-end">
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Danh sách đơn hàng</h2>
         <button
           onClick={handleExportExcel}
           disabled={exportLoading}
@@ -184,6 +205,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
           {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
         </button>
       </div>
+
+      {/* Search & Filter */}
+      <TableFilter
+        filters={orderFilterFields}
+        values={filterValues}
+        onChange={handleFilterChange}
+        searchPlaceholder="Tìm kiếm mã ĐH, mã BG, khách hàng..."
+      />
 
       {/* Alert Messages */}
       {exportError && (
@@ -200,7 +229,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
@@ -214,25 +242,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái SX</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái TT</th>
               <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
-            </tr>
-            <tr className="bg-white border-b border-gray-200">
-              <th className="px-2 py-2 border-r border-gray-200"></th>
-              <th className="px-2 py-2 border-r border-gray-200"></th>
-              <th className="px-2 py-2 border-r border-gray-200">
-                <input type="text" placeholder="Lọc..." value={columnFilters.maDonHang} onChange={(e) => { setColumnFilters(prev => ({...prev, maDonHang: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-              </th>
-              <th className="px-2 py-2 border-r border-gray-200">
-                <input type="text" placeholder="Lọc..." value={columnFilters.maBaoGia} onChange={(e) => { setColumnFilters(prev => ({...prev, maBaoGia: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-              </th>
-              <th className="px-2 py-2 border-r border-gray-200">
-                <input type="text" placeholder="Lọc..." value={columnFilters.tenKhachHang} onChange={(e) => { setColumnFilters(prev => ({...prev, tenKhachHang: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-              </th>
-              <th className="px-2 py-2 border-r border-gray-200"></th>
-              <th className="px-2 py-2 border-r border-gray-200">
-                <input type="text" placeholder="Lọc..." value={columnFilters.trangThaiSanXuat} onChange={(e) => { setColumnFilters(prev => ({...prev, trangThaiSanXuat: e.target.value})); setCurrentPage(1); }} className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-              </th>
-              <th className="px-2 py-2 border-r border-gray-200"></th>
-              <th className="px-2 py-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -251,7 +260,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
             ) : (
               orders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((order, index) => (
                 <tr key={order.id} className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                  <td className="px-6 py-4 text-sm text-blue-600 font-medium border-r border-gray-200">
+                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                     {(currentPage - 1) * itemsPerPage + index + 1}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
@@ -283,28 +292,28 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                     <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => handleView(order)}
-                        className="text-gray-500 hover:text-blue-600"
+                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                         title="Xem chi tiết"
                       >
                         <Eye className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleViewCosting(order)}
-                        className="text-gray-500 hover:text-purple-600"
+                        className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
                         title="Xem bảng tính"
                       >
                         <Calculator className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleEdit(order)}
-                        className="text-gray-500 hover:text-green-600"
+                        className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                         title="Chỉnh sửa"
                       >
                         <Edit className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDelete(order.id)}
-                        className="text-gray-500 hover:text-red-600"
+                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                         title="Xóa"
                       >
                         <Trash2 className="w-5 h-5" />
@@ -317,7 +326,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
           </tbody>
         </table>
         </div>
-      </div>
 
       {(() => {
         const totalItems = orders.length;
