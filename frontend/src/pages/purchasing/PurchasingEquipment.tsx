@@ -12,7 +12,8 @@ import {
   ClipboardList,
   List,
   X,
-  Globe
+  Globe,
+  CheckCircle
 } from 'lucide-react';
 import FileUpload from '../../components/FileUpload';
 import OrderManagement from '../../components/OrderManagement';
@@ -252,6 +253,23 @@ const PurchasingEquipment = () => {
     }
   };
 
+  const handleCompletePurchaseRequest = async (item: any) => {
+    if (item.trangThai === 'Hoàn thành') {
+      alert('Yêu cầu mua hàng này đã hoàn thành');
+      return;
+    }
+    if (!window.confirm('Xác nhận đã mua hàng xong? Hệ thống sẽ thông báo cho kho chuẩn bị nhập hàng.')) {
+      return;
+    }
+    try {
+      await purchaseRequestService.updatePurchaseRequest(item.id, { trangThai: 'Hoàn thành' });
+      alert('Đã hoàn thành! Kho đã được thông báo chuẩn bị nhập hàng.');
+      fetchPurchaseRequests();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Lỗi khi cập nhật trạng thái');
+    }
+  };
+
   const tabs = [
     { id: 'suppliers', name: 'Nhà cung cấp Thiết bị', icon: <Users className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
@@ -462,10 +480,7 @@ const PurchasingEquipment = () => {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã yêu cầu</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày yêu cầu</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhân viên</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phân loại</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên hàng hoá</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đơn vị</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sản phẩm</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mức độ ưu tiên</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
@@ -478,10 +493,21 @@ const PurchasingEquipment = () => {
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-600">{item.maYeuCau}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(item.ngayYeuCau).toLocaleDateString('vi-VN')}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.tenNhanVien}</td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.phanLoai}</td>
-                          <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">{item.tenHangHoa}</td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{item.soLuong}</td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.donViTinh}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
+                            {item.items && item.items.length > 0 ? (
+                              <div className="space-y-0.5">
+                                {item.items.map((subItem: any, i: number) => (
+                                  <div key={i} className="text-xs">
+                                    <span className="font-medium">{subItem.tenHangHoa}</span>
+                                    <span className="text-gray-400 ml-1">x{subItem.soLuong} {subItem.donViTinh}</span>
+                                    {subItem.giaDuKien && <span className="text-green-600 ml-1">{Number(subItem.giaDuKien).toLocaleString('vi-VN')}đ</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">{item.tenHangHoa || '-'}</span>
+                            )}
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                               item.mucDoUuTien === 'Cao' ? 'bg-red-100 text-red-800' :
@@ -500,6 +526,22 @@ const PurchasingEquipment = () => {
                               <button onClick={() => openPurchaseRequestDetail(item)} className="text-purple-600 hover:text-purple-800" title="Xem chi tiết"><Eye className="w-4 h-4" /></button>
                               <button onClick={() => openEditPurchaseRequest(item)} className="text-green-600 hover:text-green-800" title="Chỉnh sửa"><Edit className="w-4 h-4" /></button>
                               <button onClick={() => handleDeletePurchaseRequest(item.id)} className="text-red-600 hover:text-red-800" title="Xóa"><Trash2 className="w-4 h-4" /></button>
+                              {item.trangThai === 'Đã duyệt' && (
+                                <button
+                                  onClick={() => handleCompletePurchaseRequest(item)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 border border-emerald-200 text-xs font-medium"
+                                  title="Đã mua hàng xong - Thông báo kho nhập hàng"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  Đã mua xong
+                                </button>
+                              )}
+                              {item.trangThai === 'Hoàn thành' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 text-gray-500 rounded text-xs">
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  Đã hoàn thành
+                                </span>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -560,23 +602,63 @@ const PurchasingEquipment = () => {
         {/* Purchase Request Detail Modal */}
         {selectedPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chi tiết yêu cầu mua hàng</h2>
                   <button onClick={closePurchaseRequestDetail} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Mã yêu cầu</label><p className="text-sm font-semibold text-purple-600">{selectedPurchaseRequest.maYeuCau}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Ngày yêu cầu</label><p className="text-sm text-gray-900">{new Date(selectedPurchaseRequest.ngayYeuCau).toLocaleDateString('vi-VN')}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Nhân viên yêu cầu</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.tenNhanVien}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Mã nhân viên</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.maNhanVien}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Phân loại</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.phanLoai}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Tên hàng hoá</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.tenHangHoa}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Số lượng</label><p className="text-sm font-semibold text-gray-900">{selectedPurchaseRequest.soLuong} {selectedPurchaseRequest.donViTinh}</p></div>
+                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Phân loại</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.phanLoai || '-'}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Mức độ ưu tiên</label>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedPurchaseRequest.mucDoUuTien === 'Cao' ? 'bg-red-100 text-red-800' : selectedPurchaseRequest.mucDoUuTien === 'Trung bình' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{selectedPurchaseRequest.mucDoUuTien}</span>
                   </div>
+
+                  {/* Items table */}
+                  {selectedPurchaseRequest.items && selectedPurchaseRequest.items.length > 0 && (
+                    <div className="bg-gray-50 p-4 rounded-lg col-span-2">
+                      <label className="block text-sm font-medium text-gray-500 mb-2">Danh sách sản phẩm</label>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="text-left py-2 px-2 font-medium text-gray-600">STT</th>
+                            <th className="text-left py-2 px-2 font-medium text-gray-600">Phân loại</th>
+                            <th className="text-left py-2 px-2 font-medium text-gray-600">Tên hàng hoá</th>
+                            <th className="text-right py-2 px-2 font-medium text-gray-600">Số lượng</th>
+                            <th className="text-left py-2 px-2 font-medium text-gray-600">ĐVT</th>
+                            <th className="text-left py-2 px-2 font-medium text-gray-600">Nhà cung cấp</th>
+                            <th className="text-right py-2 px-2 font-medium text-gray-600">Giá dự kiến</th>
+                            <th className="text-right py-2 px-2 font-medium text-gray-600">Thành tiền</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedPurchaseRequest.items.map((item: any, i: number) => (
+                            <tr key={i} className="border-b border-gray-100">
+                              <td className="py-2 px-2">{i + 1}</td>
+                              <td className="py-2 px-2">{item.phanLoai}</td>
+                              <td className="py-2 px-2 font-medium">{item.tenHangHoa}</td>
+                              <td className="py-2 px-2 text-right">{item.soLuong}</td>
+                              <td className="py-2 px-2">{item.donViTinh}</td>
+                              <td className="py-2 px-2 text-purple-600">{item.supplier?.tenNCC || '-'}</td>
+                              <td className="py-2 px-2 text-right">{item.giaDuKien ? Number(item.giaDuKien).toLocaleString('vi-VN') + 'đ' : '-'}</td>
+                              <td className="py-2 px-2 text-right font-medium">{item.giaDuKien ? (Number(item.giaDuKien) * item.soLuong).toLocaleString('vi-VN') + 'đ' : '-'}</td>
+                            </tr>
+                          ))}
+                          <tr className="bg-gray-100 font-bold">
+                            <td colSpan={7} className="py-2 px-2 text-right">Tổng cộng:</td>
+                            <td className="py-2 px-2 text-right text-green-700">
+                              {selectedPurchaseRequest.items.reduce((sum: number, item: any) => sum + (item.giaDuKien ? Number(item.giaDuKien) * item.soLuong : 0), 0).toLocaleString('vi-VN')}đ
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
                   <div className="bg-gray-50 p-4 rounded-lg col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Mục đích yêu cầu</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.mucDichYeuCau}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Trạng thái</label>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedPurchaseRequest.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' : selectedPurchaseRequest.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' : selectedPurchaseRequest.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>{selectedPurchaseRequest.trangThai}</span>

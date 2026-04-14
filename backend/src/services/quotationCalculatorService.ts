@@ -36,6 +36,7 @@ export interface QuotationCalculatorProductData {
   flowchartData?: any; // Lưu flowchart đã chỉnh sửa
   thoiGianChoPhepToiDa?: number;
   ngayBatDauSanXuat?: Date;
+  ngayBatDauSanXuatThucTe?: Date;
   ngayHoanThanhThucTe?: number; // Số ngày hoàn thành thực tế (có thể là số thập phân)
   chiPhiSanXuatKeHoach?: number;
   chiPhiSanXuatThucTe?: number;
@@ -147,6 +148,7 @@ class QuotationCalculatorService {
             flowchartData: product.flowchartData || null,
             thoiGianChoPhepToiDa: product.thoiGianChoPhepToiDa,
             ngayBatDauSanXuat: product.ngayBatDauSanXuat,
+            ngayBatDauSanXuatThucTe: product.ngayBatDauSanXuatThucTe,
             ngayHoanThanhThucTe: product.ngayHoanThanhThucTe,
             chiPhiSanXuatKeHoach: product.chiPhiSanXuatKeHoach,
             chiPhiSanXuatThucTe: product.chiPhiSanXuatThucTe,
@@ -262,6 +264,7 @@ class QuotationCalculatorService {
             flowchartData: product.flowchartData || null,
             thoiGianChoPhepToiDa: product.thoiGianChoPhepToiDa,
             ngayBatDauSanXuat: product.ngayBatDauSanXuat,
+            ngayBatDauSanXuatThucTe: product.ngayBatDauSanXuatThucTe,
             ngayHoanThanhThucTe: product.ngayHoanThanhThucTe,
             chiPhiSanXuatKeHoach: product.chiPhiSanXuatKeHoach,
             chiPhiSanXuatThucTe: product.chiPhiSanXuatThucTe,

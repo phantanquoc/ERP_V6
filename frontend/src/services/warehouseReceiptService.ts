@@ -48,6 +48,10 @@ const warehouseReceiptService = {
     return apiClient.post('/warehouse-receipts', data);
   },
 
+  batchCreateWarehouseReceipts: async (data: { items: CreateWarehouseReceiptData[]; supplyRequestId?: string }) => {
+    return apiClient.post('/warehouse-receipts/batch', data);
+  },
+
   getAllWarehouseReceipts: async () => {
     return apiClient.get('/warehouse-receipts');
   },

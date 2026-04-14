@@ -33,7 +33,7 @@ interface UpdateSupplyRequestRequest {
 }
 
 // Status sequence for advancement checks
-const STATUS_SEQUENCE = ['Chưa cung cấp', 'Đang xử lý', 'Đã duyệt mua', 'Đã cung cấp'];
+const STATUS_SEQUENCE = ['Chưa cung cấp', 'Đang xử lý', 'Đã duyệt mua', 'Đã mua hàng', 'Đã cung cấp'];
 
 class SupplyRequestService {
   async getAllSupplyRequests(page: number = 1, limit: number = 10, search?: string) {
@@ -372,6 +372,33 @@ class SupplyRequestService {
       }
     } catch (error) {
       console.error('Error in onPurchaseRequestApproved notification:', error);
+    }
+  }
+
+  /**
+   * Called when the linked PurchaseRequest is marked as "Hoàn thành" (goods purchased).
+   * Advances status to "Đã mua hàng" and notifies the original requester.
+   */
+  async onPurchaseRequestCompleted(supplyRequestId: string): Promise<void> {
+    try {
+      await this.advanceStatus(supplyRequestId, 'Đã mua hàng');
+
+      const request = await prisma.supplyRequest.findUnique({
+        where: { id: supplyRequestId },
+        select: { employeeId: true, maYeuCau: true },
+      });
+
+      if (request) {
+        await notificationService.createSupplyRequestNotification(
+          request.employeeId,
+          NotificationType.SUPPLY_REQUEST_APPROVED,
+          'Hàng hóa đã được mua',
+          `Yêu cầu cung cấp ${request.maYeuCau} đã được mua hàng xong. Đang chờ nhập kho.`,
+          supplyRequestId
+        );
+      }
+    } catch (error) {
+      console.error('Error in onPurchaseRequestCompleted notification:', error);
     }
   }
 

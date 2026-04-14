@@ -3,6 +3,8 @@ import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 import supplyRequestService from './supplyRequestService';
+import notificationService from './notificationService';
+import { NotificationType } from '@types';
 
 interface PurchaseRequestItemInput {
   phanLoai: string;
@@ -197,6 +199,33 @@ class PurchaseRequestService {
       }
     }
 
+    // Send notification to admin users about the new purchase request
+    try {
+      const adminEmployees = await prisma.employee.findMany({
+        where: {
+          user: {
+            role: 'ADMIN',
+          },
+        },
+        select: { id: true },
+      });
+
+      const itemNames = data.items.map((i) => i.tenHangHoa).join(', ');
+      const allRecipients = [...adminEmployees.map((e) => e.id)];
+
+      if (allRecipients.length > 0) {
+        await notificationService.createSupplyRequestNotifications(
+          allRecipients,
+          NotificationType.SUPPLY_REQUEST,
+          'Yêu cầu mua hàng mới',
+          `${data.tenNhanVien} tạo yêu cầu mua hàng ${maYeuCau}: ${itemNames}`,
+          data.supplyRequestId || undefined
+        );
+      }
+    } catch (notifError) {
+      console.error('Error sending purchase request notifications:', notifError);
+    }
+
     return purchaseRequest;
   }
 
@@ -288,6 +317,49 @@ class PurchaseRequestService {
         await supplyRequestService.onPurchaseRequestApproved(existingRequest.supplyRequestId);
       } catch (hookError) {
         console.error('Error in onPurchaseRequestApproved hook:', hookError);
+      }
+    }
+
+    // Notify warehouse when purchasing marks as "Hoàn thành" (goods purchased, ready for intake)
+    if (updateData.trangThai === 'Hoàn thành') {
+      // Advance supply request status to "Đã mua hàng"
+      if (existingRequest.supplyRequestId) {
+        try {
+          await supplyRequestService.onPurchaseRequestCompleted(existingRequest.supplyRequestId);
+        } catch (hookError) {
+          console.error('Error in onPurchaseRequestCompleted hook:', hookError);
+        }
+      }
+
+      try {
+        const warehouseEmployees = await prisma.employee.findMany({
+          where: {
+            subDepartment: {
+              department: {
+                code: { in: ['DEPT_WAREHOUSE', 'DEPT_PRODUCTION'] },
+              },
+            },
+          },
+          select: { id: true },
+        });
+
+        const requestDetail = await prisma.purchaseRequest.findUnique({
+          where: { id },
+          include: { items: true },
+        });
+
+        if (warehouseEmployees.length > 0 && requestDetail) {
+          const itemNames = requestDetail.items.map((i) => i.tenHangHoa).join(', ');
+          await notificationService.createSupplyRequestNotifications(
+            warehouseEmployees.map((emp) => emp.id),
+            NotificationType.SUPPLY_REQUEST_APPROVED,
+            'Hàng hóa đã mua về - Chuẩn bị nhập kho',
+            `Yêu cầu mua hàng ${requestDetail.maYeuCau} đã hoàn thành. Hàng: ${itemNames}. Vui lòng tiến hành nhập kho.`,
+            existingRequest.supplyRequestId || undefined
+          );
+        }
+      } catch (notifError) {
+        console.error('Error sending warehouse notification:', notifError);
       }
     }
 

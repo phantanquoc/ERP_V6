@@ -246,5 +246,50 @@ router.delete('/:id', taskController.deleteTask);
  */
 router.patch('/:id/accept', taskController.acceptTask);
 
+/**
+ * @swagger
+ * /api/tasks/{id}/evaluate:
+ *   patch:
+ *     tags: [Tasks]
+ *     summary: Đánh giá nhiệm vụ
+ *     description: Người giao đánh giá nhiệm vụ (điểm 0-100 và nội dung đánh giá)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của nhiệm vụ
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - diemDanhGia
+ *             properties:
+ *               diemDanhGia:
+ *                 type: integer
+ *                 minimum: 0
+ *                 maximum: 100
+ *                 description: Điểm đánh giá (0-100)
+ *               noiDungDanhGia:
+ *                 type: string
+ *                 description: Nội dung đánh giá
+ *     responses:
+ *       200:
+ *         description: Đánh giá nhiệm vụ thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ *       403:
+ *         description: Chỉ người giao mới được đánh giá
+ *       404:
+ *         description: Không tìm thấy nhiệm vụ
+ */
+router.patch('/:id/evaluate', taskController.evaluateTask);
+
 export default router;
 

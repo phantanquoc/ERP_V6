@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest, CreateTaskRequest, UpdateTaskRequest, AcceptTaskRequest, TaskListQuery, ApiResponse } from '@types';
+import { AuthenticatedRequest, CreateTaskRequest, UpdateTaskRequest, AcceptTaskRequest, EvaluateTaskRequest, TaskListQuery, ApiResponse } from '@types';
 import taskService from '@services/taskService';
 import { getFileUrl } from '@middlewares/upload';
 
@@ -178,6 +178,32 @@ class TaskController {
         success: true,
         data: task,
         message: data.trangThai === 'DA_TIEP_NHAN' ? 'Đã tiếp nhận nhiệm vụ' : 'Đã từ chối nhiệm vụ',
+      } as ApiResponse<any>);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async evaluateTask(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
+      const taskId = req.params.id as string;
+      const data: EvaluateTaskRequest = req.body;
+
+      const task = await taskService.evaluateTask(taskId, userId, data);
+
+      res.json({
+        success: true,
+        data: task,
+        message: 'Đánh giá nhiệm vụ thành công',
       } as ApiResponse<any>);
     } catch (error) {
       next(error);

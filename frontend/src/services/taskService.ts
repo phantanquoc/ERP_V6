@@ -36,6 +36,8 @@ export interface Task {
   files?: string[];
   mucDoUuTien: TaskPriority;
   trangThaiTiepNhan?: Record<string, TaskAcceptanceStatus>;
+  diemDanhGia?: number;
+  noiDungDanhGia?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -145,6 +147,11 @@ export const taskService = {
 
   async acceptTask(id: string, trangThai: TaskAcceptanceStatus): Promise<Task> {
     const response = await apiClient.patch(`/tasks/${id}/accept`, { trangThai });
+    return response.data;
+  },
+
+  async evaluateTask(id: string, data: { diemDanhGia: number; noiDungDanhGia?: string }): Promise<Task> {
+    const response = await apiClient.patch(`/tasks/${id}/evaluate`, data);
     return response.data;
   },
 };

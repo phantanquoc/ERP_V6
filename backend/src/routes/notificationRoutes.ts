@@ -44,6 +44,12 @@ router.get(
   notificationController.getUnreadCount
 );
 
+router.get(
+  '/unread/count-by-type',
+  authenticate,
+  notificationController.getUnreadCountByType
+);
+
 /**
  * @swagger
  * /api/notifications/unread:

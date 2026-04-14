@@ -58,6 +58,7 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
       donViTinh,
       ghiChu,
       supplyRequestId,
+      loaiSanPham,
     } = req.body;
 
     if (!maPhieuNhap || !employeeId || !warehouseId || !lotId || !tenSanPham || soLuongNhap === undefined || soLuongNhap === null) {
@@ -99,7 +100,7 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
         const maSanPham = `SP-${String(sequence).padStart(3, '0')}`;
 
         product = await prisma.internationalProduct.create({
-          data: { maSanPham, tenSanPham, donViTinh },
+          data: { maSanPham, tenSanPham, donViTinh, loaiSanPham: loaiSanPham || undefined },
         });
       }
 
@@ -187,6 +188,102 @@ export const getAllWarehouseReceipts = async (_req: Request, res: Response, next
       success: true,
       data: receipts,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Batch create warehouse receipts (multiple items at once)
+export const batchCreateWarehouseReceipts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { items, supplyRequestId } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ success: false, message: 'Vui lòng thêm ít nhất một sản phẩm' });
+      return;
+    }
+
+    const results: any[] = [];
+
+    for (const item of items) {
+      const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, warehouseId, tenKho, lotId, tenLo, tenSanPham, soLuongNhap, donViTinh, ghiChu, loaiSanPham: itemLoaiSanPham } = item;
+
+      if (!warehouseId || !lotId || !tenSanPham || soLuongNhap === undefined) {
+        continue;
+      }
+
+      const soLuongNhapFloat = parseFloat(soLuongNhap.toString());
+      let resolvedLotProductId: string;
+      let soLuongTruoc = 0;
+
+      let product = await prisma.internationalProduct.findFirst({
+        where: { tenSanPham: { equals: tenSanPham, mode: 'insensitive' } },
+      });
+
+      if (!product) {
+        const lastProduct = await prisma.internationalProduct.findFirst({
+          where: { maSanPham: { startsWith: 'SP-' } },
+          orderBy: { maSanPham: 'desc' },
+        });
+        let sequence = 1;
+        if (lastProduct) {
+          const seqStr = lastProduct.maSanPham.replace('SP-', '');
+          if (seqStr) sequence = parseInt(seqStr, 10) + 1;
+        }
+        const maSanPham = `SP-${String(sequence).padStart(3, '0')}`;
+        product = await prisma.internationalProduct.create({
+          data: { maSanPham, tenSanPham, donViTinh, loaiSanPham: itemLoaiSanPham || undefined },
+        });
+      }
+
+      let lotProduct = await prisma.lotProduct.findFirst({
+        where: { lotId, internationalProductId: product.id },
+      });
+
+      if (lotProduct) {
+        soLuongTruoc = lotProduct.soLuong;
+        resolvedLotProductId = lotProduct.id;
+      } else {
+        lotProduct = await prisma.lotProduct.create({
+          data: { lotId, internationalProductId: product.id, soLuong: 0, donViTinh: donViTinh || product.donViTinh || 'Kg' },
+        });
+        soLuongTruoc = 0;
+        resolvedLotProductId = lotProduct.id;
+      }
+
+      const soLuongSau = soLuongTruoc + soLuongNhapFloat;
+
+      const [receipt] = await prisma.$transaction([
+        prisma.warehouseReceipt.create({
+          data: {
+            maPhieuNhap, employeeId, maNhanVien, tenNhanVien,
+            warehouseId, tenKho, lotId, tenLo,
+            lotProductId: resolvedLotProductId, tenSanPham,
+            soLuongTruoc, soLuongNhap: soLuongNhapFloat, soLuongSau,
+            donViTinh, ghiChu,
+            ...(supplyRequestId ? { supplyRequestId } : {}),
+          },
+        }),
+        prisma.lotProduct.update({
+          where: { id: resolvedLotProductId },
+          data: { soLuong: soLuongSau },
+        }),
+      ]);
+
+      results.push(receipt);
+    }
+
+    res.status(201).json({
+      success: true,
+      data: results,
+      message: `Đã tạo ${results.length} phiếu nhập kho thành công`,
+    });
+
+    if (supplyRequestId) {
+      supplyRequestService.onWarehouseDocumentCreated(supplyRequestId).catch((err) => {
+        console.error('Error in onWarehouseDocumentCreated:', err);
+      });
+    }
   } catch (error) {
     next(error);
   }

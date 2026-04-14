@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, DollarSign, PlusCircle, Users, Package } from 'lucide-react';
+import DatePicker from './DatePicker';
 import { quotationService, CreateQuotationRequest, QuotationItem } from '../services/quotationService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
 import { QuotationRequest } from '../services/quotationRequestService';
@@ -149,6 +150,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       // Các trường mới
       thoiGianChoPhepToiDa: string;
       ngayBatDauSanXuat: string;
+      ngayBatDauSanXuatThucTe: string;
       ngayHoanThanhThucTe: string;
       chiPhiSanXuatKeHoach: string;
       chiPhiSanXuatThucTe: string;
@@ -191,6 +193,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       ghiChu: string;
       thoiGianChoPhepToiDa: string;
       ngayBatDauSanXuat: string;
+      ngayBatDauSanXuatThucTe: string;
       ngayHoanThanhThucTe: string;
       chiPhiSanXuatKeHoach: string;
       chiPhiSanXuatThucTe: string;
@@ -465,6 +468,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 ghiChu: product.ghiChu || '',
                 thoiGianChoPhepToiDa: product.thoiGianChoPhepToiDa?.toString() || '',
                 ngayBatDauSanXuat: product.ngayBatDauSanXuat ? new Date(product.ngayBatDauSanXuat).toISOString().split('T')[0] : '',
+                ngayBatDauSanXuatThucTe: product.ngayBatDauSanXuatThucTe ? new Date(product.ngayBatDauSanXuatThucTe).toISOString().split('T')[0] : '',
                 ngayHoanThanhThucTe: product.ngayHoanThanhThucTe?.toString() || '',
                 chiPhiSanXuatKeHoach: product.chiPhiSanXuatKeHoach?.toString() || '',
                 chiPhiSanXuatThucTe: product.chiPhiSanXuatThucTe?.toString() || '',
@@ -521,6 +525,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 ghiChu: '',
                 thoiGianChoPhepToiDa: '',
                 ngayBatDauSanXuat: '',
+                ngayBatDauSanXuatThucTe: '',
                 ngayHoanThanhThucTe: '',
                 chiPhiSanXuatKeHoach: '',
                 chiPhiSanXuatThucTe: '',
@@ -647,6 +652,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 ghiChu: product.ghiChu || '',
                 thoiGianChoPhepToiDa: product.thoiGianChoPhepToiDa?.toString() || '',
                 ngayBatDauSanXuat: product.ngayBatDauSanXuat ? new Date(product.ngayBatDauSanXuat).toISOString().split('T')[0] : '',
+                ngayBatDauSanXuatThucTe: product.ngayBatDauSanXuatThucTe ? new Date(product.ngayBatDauSanXuatThucTe).toISOString().split('T')[0] : '',
                 ngayHoanThanhThucTe: product.ngayHoanThanhThucTe?.toString() || '',
                 chiPhiSanXuatKeHoach: product.chiPhiSanXuatKeHoach?.toString() || '',
                 chiPhiSanXuatThucTe: product.chiPhiSanXuatThucTe?.toString() || '',
@@ -707,6 +713,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           // Các trường mới
           thoiGianChoPhepToiDa: '',
           ngayBatDauSanXuat: '',
+          ngayBatDauSanXuatThucTe: '',
           ngayHoanThanhThucTe: '',
           chiPhiSanXuatKeHoach: '',
           chiPhiSanXuatThucTe: '',
@@ -756,6 +763,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           // Các trường mới
           thoiGianChoPhepToiDa: '',
           ngayBatDauSanXuat: '',
+          ngayBatDauSanXuatThucTe: '',
           ngayHoanThanhThucTe: '',
           chiPhiSanXuatKeHoach: '',
           chiPhiSanXuatThucTe: '',
@@ -839,6 +847,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           ghiChu: '',
           thoiGianChoPhepToiDa: '',
           ngayBatDauSanXuat: '',
+          ngayBatDauSanXuatThucTe: '',
           ngayHoanThanhThucTe: '',
           chiPhiSanXuatKeHoach: '',
           chiPhiSanXuatThucTe: '',
@@ -1757,6 +1766,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 flowchartData: tab.selectedProcess?.flowchart || undefined,
                 thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
                 ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
+                ngayBatDauSanXuatThucTe: tab.formData.ngayBatDauSanXuatThucTe || undefined,
                 ngayHoanThanhThucTe: tab.formData.ngayHoanThanhThucTe ? parseFloat(tab.formData.ngayHoanThanhThucTe) : undefined,
                 chiPhiSanXuatKeHoach: (() => { const v = calculateChiPhiSanXuatKeHoach(index); return v ? v : undefined; })(),
                 chiPhiSanXuatThucTe: tab.formData.chiPhiSanXuatThucTe ? parseFloat(tab.formData.chiPhiSanXuatThucTe) : undefined,
@@ -1823,6 +1833,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 flowchartData: tab.selectedProcess?.flowchart || undefined,
                 thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
                 ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
+                ngayBatDauSanXuatThucTe: tab.formData.ngayBatDauSanXuatThucTe || undefined,
                 ngayHoanThanhThucTe: tab.formData.ngayHoanThanhThucTe ? parseFloat(tab.formData.ngayHoanThanhThucTe) : undefined,
                 chiPhiSanXuatKeHoach: tab.formData.chiPhiSanXuatKeHoach ? parseFloat(tab.formData.chiPhiSanXuatKeHoach) : undefined,
                 chiPhiSanXuatThucTe: tab.formData.chiPhiSanXuatThucTe ? parseFloat(tab.formData.chiPhiSanXuatThucTe) : undefined,
@@ -1982,6 +1993,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               flowchartData: tab.selectedProcess?.flowchart || undefined,
               thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
               ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
+              ngayBatDauSanXuatThucTe: tab.formData.ngayBatDauSanXuatThucTe || undefined,
               ngayHoanThanhThucTe: tab.formData.ngayHoanThanhThucTe ? parseFloat(tab.formData.ngayHoanThanhThucTe) : undefined,
               chiPhiSanXuatKeHoach: (() => { const v = calculateChiPhiSanXuatKeHoach(index); return v ? v : undefined; })(),
               chiPhiSanXuatThucTe: tab.formData.chiPhiSanXuatThucTe ? parseFloat(tab.formData.chiPhiSanXuatThucTe) : undefined,
@@ -2037,6 +2049,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               flowchartData: tab.selectedProcess?.flowchart || undefined,
               thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
               ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
+              ngayBatDauSanXuatThucTe: tab.formData.ngayBatDauSanXuatThucTe || undefined,
               ngayHoanThanhThucTe: tab.formData.ngayHoanThanhThucTe ? parseFloat(tab.formData.ngayHoanThanhThucTe) : undefined,
               chiPhiSanXuatKeHoach: tab.formData.chiPhiSanXuatKeHoach ? parseFloat(tab.formData.chiPhiSanXuatKeHoach) : undefined,
               chiPhiSanXuatThucTe: tab.formData.chiPhiSanXuatThucTe ? parseFloat(tab.formData.chiPhiSanXuatThucTe) : undefined,
@@ -3546,756 +3559,462 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             </div>
           ) : isAdditionalCostTab && currentAdditionalTab ? (
             /* Render tab chi phí bổ sung */
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Left Column */}
-                <div className="space-y-4">
-                  {/* Tên chi phí bổ sung */}
-                  <div className="bg-green-100 p-3 rounded">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tên chi phí bổ sung
-                    </label>
-                    <input
-                      type="text"
-                      value={currentAdditionalTab.tenChiPhiBoSung}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-green-50 font-medium"
-                    />
-                  </div>
+            <div className="space-y-5">
 
-                  {/* Chọn loại sản phẩm và sản phẩm */}
-                  <div className="bg-orange-100 p-3 rounded space-y-3">
-                    {/* Loại sản phẩm */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Loại sản phẩm <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={currentAdditionalTab.selectedProductType || ''}
-                        onChange={(e) => handleAdditionalTabProductTypeChange(currentAdditionalTab.id, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">-- Chọn loại sản phẩm --</option>
-                        {Array.from(new Set(availableProducts.map((p) => p.loaiSanPham).filter(Boolean))).map((type) => (
-                          <option key={type} value={type}>
-                            {type}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Tên sản phẩm */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Tên sản phẩm <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={currentAdditionalTab.selectedProduct?.id || ''}
-                        onChange={(e) => handleAdditionalTabProductChange(currentAdditionalTab.id, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500"
-                        disabled={!currentAdditionalTab.selectedProductType}
-                      >
-                        <option value="">-- Chọn sản phẩm --</option>
-                        {availableProducts
-                          .filter((p) => p.loaiSanPham === currentAdditionalTab.selectedProductType)
-                          .map((product) => (
-                            <option key={product.id} value={product.id}>
-                              {product.tenSanPham}
-                            </option>
-                          ))}
-                      </select>
-                      {!currentAdditionalTab.selectedProductType && (
-                        <p className="text-xs text-gray-500 mt-1">Vui lòng chọn loại sản phẩm trước</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Khối lượng và đơn vị */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Khối lượng
-                      </label>
-                      <input
-                        type="number"
-                        value={currentAdditionalTab.formData.soLuong || ''}
-                        onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'soLuong', parseNumberInputStr(e.target.value))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder="Nhập khối lượng"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Đơn vị
-                      </label>
-                      <input
-                        type="text"
-                        value={currentAdditionalTab.formData.donViTinh || ''}
-                        onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'donViTinh', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder="Nhập đơn vị"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Mã báo giá */}
+            {/* ========== SECTION 1: THÔNG TIN SẢN PHẨM BỔ SUNG ========== */}
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-gray-200">
+                <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                <h4 className="text-sm font-semibold text-slate-800">Thông tin sản phẩm</h4>
+              </div>
+              <div className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Mã báo giá
-                    </label>
-                    <input
-                      type="text"
-                      value={currentAdditionalTab.formData.maBaoGia}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
-                    />
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Tên chi phí bổ sung</label>
+                    <input type="text" value={currentAdditionalTab.tenChiPhiBoSung} disabled className="w-full px-3 py-2 text-sm border border-orange-200 rounded-md bg-orange-50 font-semibold text-gray-900" />
                   </div>
-
-                  {/* Định mức NVL */}
-                  <div className="bg-blue-50 p-3 rounded">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Định mức NVL
-                    </label>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Loại sản phẩm <span className="text-red-500">*</span></label>
+                    <select
+                      value={currentAdditionalTab.selectedProductType || ''}
+                      onChange={(e) => handleAdditionalTabProductTypeChange(currentAdditionalTab.id, e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">-- Chọn loại SP --</option>
+                      {Array.from(new Set(availableProducts.map((p) => p.loaiSanPham).filter(Boolean))).map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Tên sản phẩm <span className="text-red-500">*</span></label>
+                    <select
+                      value={currentAdditionalTab.selectedProduct?.id || ''}
+                      onChange={(e) => handleAdditionalTabProductChange(currentAdditionalTab.id, e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={!currentAdditionalTab.selectedProductType}
+                    >
+                      <option value="">-- Chọn SP --</option>
+                      {availableProducts
+                        .filter((p) => p.loaiSanPham === currentAdditionalTab.selectedProductType)
+                        .map((product) => (
+                          <option key={product.id} value={product.id}>{product.tenSanPham}</option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Khối lượng</label>
+                      <input type="number" value={currentAdditionalTab.formData.soLuong || ''} onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'soLuong', parseNumberInputStr(e.target.value))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500" placeholder="Nhập" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Đơn vị</label>
+                      <input type="text" value={currentAdditionalTab.formData.donViTinh || ''} onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'donViTinh', e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500" placeholder="Nhập" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Mã định mức NVL</label>
                     <select
                       value={currentAdditionalTab.selectedStandard?.id || ''}
                       onChange={(e) => handleAdditionalTabStandardChange(currentAdditionalTab.id, e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">-- Chọn định mức --</option>
                       {materialStandards.map((standard) => (
                         <option key={standard.id} value={standard.id}>
-                          {standard.maDinhMuc} - {standard.tenDinhMuc}
+                          {standard.maDinhMuc} : {standard.tenDinhMuc}
                         </option>
                       ))}
                     </select>
                   </div>
-
-                  {/* Tỉ lệ thu hồi */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tỉ lệ thu hồi thành phẩm K3 (%)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentAdditionalTab.formData.tiLeThuHoi}
-                      onChange={(e) => handleAdditionalTabTiLeThuHoiChange(currentAdditionalTab.id, parseNumberInputStr(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      placeholder="Nhập tỉ lệ thu hồi"
-                    />
-                  </div>
                 </div>
+              </div>
+            </div>
 
-                {/* Right Column */}
-                <div className="space-y-4">
-                  {/* Chọn nguyên liệu đầu vào + Chọn sản phẩm đầu ra */}
-                  <div className="flex gap-4">
-                    {/* Chọn nguyên liệu đầu vào */}
+            {/* ========== SECTION 2+3: NGUYÊN LIỆU, TỒN KHO & SẢN XUẤT ========== */}
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                  <h4 className="text-sm font-semibold text-slate-800">Nguyên liệu, Tồn kho & Sản xuất</h4>
+                </div>
+              </div>
+              <div className="p-4">
+                {/* 2 cột: Tồn kho (trái) + Sản xuất & Thời gian (phải) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Cột trái: Nguyên liệu & Tồn kho */}
+                  <div className="overflow-x-auto">
+                    {/* NL đầu vào + SP đầu ra + Kiểm tra tồn kho */}
+                    <div className="flex gap-2 items-end mb-3">
                     <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Chọn nguyên liệu đầu vào
-                      </label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">NL đầu vào</label>
                       <select
                         value={currentAdditionalTab.formData.nguyenLieuDauVao}
                         onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'nguyenLieuDauVao', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="">-- Chọn nguyên liệu --</option>
+                        <option value="">-- Chọn NL --</option>
                         {currentAdditionalTab.selectedStandard?.inputItems?.map((item) => (
-                          <option key={item.tenNguyenLieu} value={item.tenNguyenLieu}>
-                            {item.tenNguyenLieu}
-                          </option>
+                          <option key={item.tenNguyenLieu} value={item.tenNguyenLieu}>{item.tenNguyenLieu}</option>
                         ))}
                       </select>
                     </div>
-
-                    {/* Chọn sản phẩm đầu ra */}
                     <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Chọn sản phẩm đầu ra
-                      </label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">SP đầu ra</label>
                       <select
                         value={currentAdditionalTab.formData.sanPhamDauRa}
                         onChange={(e) => handleAdditionalTabOutputProductChange(currentAdditionalTab.id, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="">-- Chọn sản phẩm --</option>
+                        <option value="">-- Chọn SP --</option>
                         {currentAdditionalTab.selectedStandard?.items?.map((item) => (
-                          <option key={item.tenThanhPham} value={item.tenThanhPham}>
-                            {item.tenThanhPham}
-                          </option>
+                          <option key={item.tenThanhPham} value={item.tenThanhPham}>{item.tenThanhPham}</option>
                         ))}
                       </select>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCheckInventory(currentAdditionalTab.formData.sanPhamDauRa, currentAdditionalTab.formData.nguyenLieuDauVao)}
+                      disabled={!currentAdditionalTab.formData.sanPhamDauRa && !currentAdditionalTab.formData.nguyenLieuDauVao}
+                      className="px-2.5 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1 transition-colors flex-shrink-0"
+                      title="Kiểm tra tồn kho"
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                      Tồn kho
+                    </button>
+                  </div>
 
-                    {/* Nút kiểm tra tồn kho */}
-                    <div className="flex items-end">
-                      <button
-                        type="button"
-                        onClick={() => handleCheckInventory(currentAdditionalTab.formData.sanPhamDauRa, currentAdditionalTab.formData.nguyenLieuDauVao)}
-                        disabled={!currentAdditionalTab.formData.sanPhamDauRa && !currentAdditionalTab.formData.nguyenLieuDauVao}
-                        className="px-3 py-2 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1"
-                        title="Kiểm tra tồn kho"
-                      >
-                        <Package className="w-3.5 h-3.5" />
-                        Kiểm tra tồn kho
-                      </button>
+                  {/* Nguyên liệu & Tồn kho table */}
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                    Nguyên liệu & Tồn kho
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-1.5 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wider">Chỉ tiêu</th>
+                        <th className="text-center py-1.5 px-2 text-xs font-semibold text-blue-600 uppercase tracking-wider">
+                          <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>KH</span>
+                        </th>
+                        <th className="text-center py-1.5 px-2 text-xs font-semibold text-emerald-600 uppercase tracking-wider">
+                          <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>TT</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      <tr className="hover:bg-gray-50/50">
+                        <td className="py-1.5 px-2 text-sm text-gray-700">Thành phẩm tồn kho</td>
+                        <td className="py-1.5 px-2">
+                          <input type="number" step="0.01" value={currentAdditionalTab.formData.thanhPhamTonKho} onChange={(e) => handleAdditionalTabInventoryChange(currentAdditionalTab.id, parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" placeholder="Nhập" />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <input type="number" step="0.01" value={currentAdditionalTab.formData.thanhPhamTonKhoThucTe || ''} onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'thanhPhamTonKhoThucTe', parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-md text-center focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white" placeholder="Nhập" />
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-gray-50/50">
+                        <td className="py-1.5 px-2 text-sm text-gray-700"><span className="flex items-center gap-1">Tổng TP cần SX thêm <span className="text-[10px] text-gray-400 italic">fx</span></span></td>
+                        <td className="py-1.5 px-2">
+                          <input type="number" step="0.01" value={currentAdditionalTab.formData.tongThanhPhamCanSxThem} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-blue-700 font-medium" />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <input type="number" step="0.01" value={currentAdditionalTab.formData.tongThanhPhamCanSxThemThucTe || ''} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-emerald-700 font-medium" />
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-gray-50/50">
+                        <td className="py-1.5 px-2 text-sm text-gray-700"><span className="flex items-center gap-1">Tổng NL cần SX <span className="text-[10px] text-gray-400 italic">fx</span></span></td>
+                        <td className="py-1.5 px-2">
+                          <input type="number" step="0.01" value={currentAdditionalTab.formData.tongNguyenLieuCanSanXuat} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-blue-700 font-medium" />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <input type="number" step="0.01" value={currentAdditionalTab.formData.tongNguyenLieuCanSanXuatThucTe || ''} onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'tongNguyenLieuCanSanXuatThucTe', parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-md text-center focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white" placeholder="Nhập" />
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-gray-50/50">
+                        <td className="py-1.5 px-2 text-sm text-gray-700">NL tồn kho</td>
+                        <td className="py-1.5 px-2">
+                          <input type="number" step="0.01" value={currentAdditionalTab.formData.nguyenLieuTonKho} onChange={(e) => handleAdditionalTabMaterialInventoryChange(currentAdditionalTab.id, parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" placeholder="Nhập" />
+                        </td>
+                        <td className="py-1.5 px-2"><span className="block text-center text-xs text-gray-400">-</span></td>
+                      </tr>
+                      <tr className="hover:bg-gray-50/50">
+                        <td className="py-1.5 px-2 text-sm text-gray-700"><span className="flex items-center gap-1">NL cần nhập thêm <span className="text-[10px] text-gray-400 italic">fx</span></span></td>
+                        <td className="py-1.5 px-2">
+                          <input type="number" step="0.01" value={currentAdditionalTab.formData.nguyenLieuCanNhapThem} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-blue-700 font-medium" />
+                        </td>
+                        <td className="py-1.5 px-2"><span className="block text-center text-xs text-gray-400">-</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                    {/* Ghi chú */}
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Ghi chú</label>
+                      <textarea
+                        value={currentAdditionalTab.formData.ghiChu || ''}
+                        onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'ghiChu', e.target.value)}
+                        rows={2}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Nhập ghi chú (nếu có)"
+                      />
                     </div>
                   </div>
 
-                  {/* Thành phẩm tồn kho */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Thành phẩm tồn kho
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentAdditionalTab.formData.thanhPhamTonKho}
-                      onChange={(e) => handleAdditionalTabInventoryChange(currentAdditionalTab.id, parseNumberInputStr(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                      placeholder="Nhập số lượng tồn kho"
-                    />
-                  </div>
-
-                  {/* Tổng Thành phẩm cần sx thêm */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tổng Thành phẩm cần sx thêm
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentAdditionalTab.formData.tongThanhPhamCanSxThem}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-                      placeholder="Tự động tính"
-                    />
-                  </div>
-
-                  {/* Tổng nguyên liệu cần sản xuất */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tổng nguyên liệu cần sản xuất
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentAdditionalTab.formData.tongNguyenLieuCanSanXuat}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-                      placeholder="Tự động tính"
-                    />
-                  </div>
-
-                  {/* Nguyên liệu tồn kho */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nguyên liệu tồn kho
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentAdditionalTab.formData.nguyenLieuTonKho}
-                      onChange={(e) => handleAdditionalTabMaterialInventoryChange(currentAdditionalTab.id, parseNumberInputStr(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                      placeholder="Nhập nguyên liệu tồn kho"
-                    />
-                  </div>
-
-                  {/* Nguyên liệu cần nhập thêm */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nguyên liệu cần nhập thêm
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentAdditionalTab.formData.nguyenLieuCanNhapThem}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-                      placeholder="Tự động tính"
-                    />
-                  </div>
-                </div> {/* End Right Column */}
-              </div> {/* End grid 2 columns */}
-
-              {/* Các trường mới - Thời gian và Chi phí */}
-              <div className="mt-6 space-y-4">
-                {/* Hàng 1: Các trường thời gian */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Ngày bắt đầu sản xuất */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      ngày bắt đầu sản xuất
-                    </label>
-                    <input
-                      type="date"
-                      value={currentAdditionalTab.formData.ngayBatDauSanXuat}
-                      onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'ngayBatDauSanXuat', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Số ngày hoàn thành (kế hoạch) */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Số ngày hoàn thành ( kế hoạch )
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={currentAdditionalTab.formData.thoiGianChoPhepToiDa}
-                      onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'thoiGianChoPhepToiDa', parseNumberInputStr(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                      placeholder="Nhập số ngày"
-                    />
-                  </div>
-
-                  {/* Số ngày hoàn thành (thực tế) */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Số ngày hoàn thành ( thực tế )
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Nhập số ngày"
-                      value={currentAdditionalTab.formData.ngayHoanThanhThucTe}
-                      onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'ngayHoanThanhThucTe', parseNumberInputStr(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Hàng 2: Các trường chi phí */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {/* Chi phí sản xuất */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700 text-center bg-gray-100 py-2 rounded-t-md">
-                      Chi phí sản xuất
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">kế hoạch</label>
-                        <input
-                          type="text"
-                          value={(() => {
-                            if (!currentAdditionalTab.selectedProcess?.flowchart?.sections) return '0';
-                            const total = currentAdditionalTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
-                              return sum + section.costs.reduce((costSum, cost) => {
-                                const gia = cost.giaKeHoach || 0;
-                                const soLuong = cost.soLuongKeHoach || 0;
-                                return costSum + (gia * soLuong);
-                              }, 0);
-                            }, 0);
-                            const days = parseFloat(currentAdditionalTab.formData.thoiGianChoPhepToiDa) || 1;
-                            return (total * days).toLocaleString('vi-VN');
-                          })()}
-                          disabled
-                          className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">thực tế</label>
-                        <input
-                          type="text"
-                          value={(() => {
-                            if (!currentAdditionalTab.selectedProcess?.flowchart?.sections) return '0';
-                            const total = currentAdditionalTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
-                              return sum + section.costs.reduce((costSum, cost) => {
-                                const gia = cost.giaThucTe || 0;
-                                const soLuong = cost.soLuongThucTe || 0;
-                                return costSum + (gia * soLuong);
-                              }, 0);
-                            }, 0);
-                            const days = parseFloat(currentAdditionalTab.formData.ngayHoanThanhThucTe) || 1;
-                            return (total * days).toLocaleString('vi-VN');
-                          })()}
-                          disabled
-                          className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
-                        />
-                      </div>
+                  {/* Cột phải: Sản xuất & Thời gian */}
+                  <div className="overflow-x-auto">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      Sản xuất & Thời gian
                     </div>
-                  </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-1.5 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wider">Chỉ tiêu</th>
+                          <th className="text-center py-1.5 px-2 text-xs font-semibold text-blue-600 uppercase tracking-wider">
+                            <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>KH</span>
+                          </th>
+                          <th className="text-center py-1.5 px-2 text-xs font-semibold text-emerald-600 uppercase tracking-wider">
+                            <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>TT</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">Tỉ lệ thu hồi K3 (%)</td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentAdditionalTab.formData.tiLeThuHoi} onChange={(e) => handleAdditionalTabTiLeThuHoiChange(currentAdditionalTab.id, parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" placeholder="Nhập" />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentAdditionalTab.formData.tongKhoiLuongThanhPhamThucTe && currentAdditionalTab.formData.tongNguyenLieuCanSanXuatThucTe ? ((parseFloat(currentAdditionalTab.formData.tongKhoiLuongThanhPhamThucTe) / parseFloat(currentAdditionalTab.formData.tongNguyenLieuCanSanXuatThucTe)) * 100).toFixed(2) : ''} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-emerald-700 font-medium" placeholder="Tự động" />
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700"><span className="flex items-center gap-1">Tổng KL TP đầu ra (kg) <span className="text-[10px] text-gray-400 italic">fx</span></span></td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentAdditionalTab.formData.tongNguyenLieuCanSanXuat && currentAdditionalTab.formData.tiLeThuHoi ? (parseFloat(currentAdditionalTab.formData.tongNguyenLieuCanSanXuat) * parseFloat(currentAdditionalTab.formData.tiLeThuHoi) / 100).toFixed(2) : '0'} readOnly className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-blue-700 font-medium" />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentAdditionalTab.formData.tongKhoiLuongThanhPhamThucTe || ''} onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'tongKhoiLuongThanhPhamThucTe', parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-md text-center focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white" placeholder="Nhập" />
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">Ngày bắt đầu SX</td>
+                          <td className="py-1.5 px-2">
+                            <DatePicker value={currentAdditionalTab.formData.ngayBatDauSanXuat} onChange={(date) => updateAdditionalTabFormData(currentAdditionalTab.id, 'ngayBatDauSanXuat', date)} placeholder="Chọn ngày" allowClear />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <DatePicker value={currentAdditionalTab.formData.ngayBatDauSanXuatThucTe} onChange={(date) => updateAdditionalTabFormData(currentAdditionalTab.id, 'ngayBatDauSanXuatThucTe', date)} placeholder="Chọn ngày" allowClear />
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">Số ngày hoàn thành</td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" min="0" step="0.01" value={currentAdditionalTab.formData.thoiGianChoPhepToiDa} onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'thoiGianChoPhepToiDa', parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" placeholder="Nhập" />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" min="0" value={currentAdditionalTab.formData.ngayHoanThanhThucTe} onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'ngayHoanThanhThucTe', parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-md text-center focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white" placeholder="Nhập" />
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
 
-                  {/* Chi phí chung */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700 text-center bg-gray-100 py-2 rounded-t-md">
-                      Chi phí chung
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">kế hoạch</label>
-                        <input
-                          type="text"
-                          value={(() => {
-                            // Tính chi phí chung kế hoạch từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
-                            const currentProductId = `additional-${currentAdditionalTab.id}`;
-                            const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
-
-                            let chiPhiChung = 0;
-                            // Duyệt qua từng bảng chi phí chung
-                            generalCostGroups.forEach(group => {
-                              const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-
-                              // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
-                              const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
-                              if (!isProductSelected) return;
-
-                              // Lọc các sản phẩm chính được chọn cho bảng này
-                              const items = getItems();
-                              const selectedMainItems = items.filter((_: any, index: number) => {
-                                const pid = `tab-${index}`;
-                                return group.selectedProducts.includes(pid);
-                              });
-
-                              // Lọc các chi phí bổ sung được chọn cho bảng này
-                              const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                                const pid = `additional-${tab.id}`;
-                                return group.selectedProducts.includes(pid);
-                              });
-
-                              // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
-                              const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                              const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                              const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
-                              const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
-
-                              if (totalKhoiLuong === 0) return;
-
-                              // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
-                              if (totalSelectedCount === 1) {
-                                chiPhiChung += groupTotalKeHoach;
-                              } else {
-                                chiPhiChung += (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong;
-                              }
-                            });
-
-                            return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                          })()}
-                          disabled
-                          className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">thực tế</label>
-                        <input
-                          type="text"
-                          value={(() => {
-                            // Tính chi phí chung thực tế từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
-                            const currentProductId = `additional-${currentAdditionalTab.id}`;
-                            const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
-
-                            let chiPhiChung = 0;
-                            // Duyệt qua từng bảng chi phí chung
-                            generalCostGroups.forEach(group => {
-                              const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-
-                              // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
-                              const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
-                              if (!isProductSelected) return;
-
-                              // Lọc các sản phẩm chính được chọn cho bảng này
-                              const items = getItems();
-                              const selectedMainItems = items.filter((_: any, index: number) => {
-                                const pid = `tab-${index}`;
-                                return group.selectedProducts.includes(pid);
-                              });
-
-                              // Lọc các chi phí bổ sung được chọn cho bảng này
-                              const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                                const pid = `additional-${tab.id}`;
-                                return group.selectedProducts.includes(pid);
-                              });
-
-                              // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
-                              const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                              const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                              const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
-                              const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
-
-                              if (totalKhoiLuong === 0) return;
-
-                              // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
-                              if (totalSelectedCount === 1) {
-                                chiPhiChung += groupTotalThucTe;
-                              } else {
-                                chiPhiChung += (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
-                              }
-                            });
-
-                            return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                          })()}
-                          disabled
-                          className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Chi phí xuất khẩu */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700 text-center bg-gray-100 py-2 rounded-t-md">
-                      Chi phí xuất khẩu
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">kế hoạch</label>
-                        <input
-                          type="text"
-                          value={(() => {
-                            // Tính tổng chi phí xuất khẩu kế hoạch
-                            const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-                            const currentTongThanhPham = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
-
-                            // Tính tổng "Tổng Thành phẩm cần sx thêm" tất cả sản phẩm (cả chính và bổ sung)
-                            const mainItems = getItems();
-                            const totalTongThanhPhamMain = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                            const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                            const totalTongThanhPham = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
-                            const totalProductCount = mainItems.length + additionalCostTabs.length;
-
-                            // Nếu chỉ có 1 sản phẩm → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo "Tổng Thành phẩm cần sx thêm", fallback theo khối lượng
-                            const currentKhoiLuongExport = parseFloat(currentAdditionalTab.formData.soLuong || '0');
-                            const chiPhiXuatKhau = totalProductCount === 1
-                              ? totalExportCostKeHoach
-                              : totalTongThanhPham > 0
-                                ? (totalExportCostKeHoach * currentTongThanhPham) / totalTongThanhPham
-                                : (() => {
-                                    const totalKhoiLuongAll = mainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                                      additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0);
-                                    return totalKhoiLuongAll > 0 ? (totalExportCostKeHoach * currentKhoiLuongExport) / totalKhoiLuongAll : 0;
-                                  })();
-                            return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                          })()}
-                          disabled
-                          className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">thực tế</label>
-                        <input
-                          type="text"
-                          value={(() => {
-                            // Tính tổng chi phí xuất khẩu thực tế
-                            const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-                            const currentTongThanhPham = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
-
-                            // Tính tổng "Tổng Thành phẩm cần sx thêm" tất cả sản phẩm (cả chính và bổ sung)
-                            const mainItems = getItems();
-                            const totalTongThanhPhamMain = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                            const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                            const totalTongThanhPham = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
-                            const totalProductCount = mainItems.length + additionalCostTabs.length;
-
-                            // Nếu chỉ có 1 sản phẩm → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo "Tổng Thành phẩm cần sx thêm", fallback theo khối lượng
-                            const currentKhoiLuongExport = parseFloat(currentAdditionalTab.formData.soLuong || '0');
-                            const chiPhiXuatKhau = totalProductCount === 1
-                              ? totalExportCostThucTe
-                              : totalTongThanhPham > 0
-                                ? (totalExportCostThucTe * currentTongThanhPham) / totalTongThanhPham
-                                : (() => {
-                                    const totalKhoiLuongAll = mainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                                      additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0);
-                                    return totalKhoiLuongAll > 0 ? (totalExportCostThucTe * currentKhoiLuongExport) / totalKhoiLuongAll : 0;
-                                  })();
-                            return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                          })()}
-                          disabled
-                          className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Tổng chi phí */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700 text-center bg-green-100 py-2 rounded-t-md">
-                      Tổng chi phí
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">kế hoạch</label>
-                        <input
-                          type="text"
-                          value={(() => {
-                            // 1. Chi phí sản xuất kế hoạch
-                            let chiPhiSanXuat = 0;
-                            if (currentAdditionalTab.selectedProcess?.flowchart?.sections) {
-                              const perDay = currentAdditionalTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
+                    {/* Tổng hợp chi phí */}
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tổng hợp chi phí</div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-1.5 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wider"></th>
+                          <th className="text-center py-1.5 px-2 text-xs font-semibold text-blue-600 uppercase tracking-wider">
+                            <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>KH</span>
+                          </th>
+                          <th className="text-center py-1.5 px-2 text-xs font-semibold text-emerald-600 uppercase tracking-wider">
+                            <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>TT</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">CP sản xuất</td>
+                          <td className="py-1.5 px-2 text-center text-sm font-medium text-blue-700">
+                            {(() => {
+                              if (!currentAdditionalTab.selectedProcess?.flowchart?.sections) return '0';
+                              const total = currentAdditionalTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
                                 return sum + section.costs.reduce((costSum, cost) => {
                                   const gia = cost.giaKeHoach || 0;
                                   const soLuong = cost.soLuongKeHoach || 0;
                                   return costSum + (gia * soLuong);
                                 }, 0);
                               }, 0);
-                              const maxDays = parseFloat(currentAdditionalTab.formData.thoiGianChoPhepToiDa) || 1;
-                              chiPhiSanXuat = perDay * maxDays;
-                            }
-
-                            // 2. Chi phí chung kế hoạch - tính từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
-                            const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
-                            const currentProductId = `additional-${currentAdditionalTab.id}`;
-
-                            let chiPhiChung = 0;
-                            generalCostGroups.forEach(group => {
-                              const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-
-                              // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
-                              const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
-                              if (!isProductSelected) return;
-
-                              // Lọc các sản phẩm chính được chọn cho bảng này
-                              const items = getItems();
-                              const selectedMainItems = items.filter((_: any, index: number) => {
-                                const pid = `tab-${index}`;
-                                return group.selectedProducts.includes(pid);
-                              });
-
-                              // Lọc các chi phí bổ sung được chọn cho bảng này
-                              const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                                const pid = `additional-${tab.id}`;
-                                return group.selectedProducts.includes(pid);
-                              });
-
-                              // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
-                              const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                              const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                              const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
-                              const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
-
-                              if (totalKhoiLuong === 0) return;
-
-                              // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
-                              if (totalSelectedCount === 1) {
-                                chiPhiChung += groupTotalKeHoach;
-                              } else {
-                                chiPhiChung += (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong;
-                              }
-                            });
-
-                            // 3. Chi phí xuất khẩu kế hoạch
-                            const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-                            const mainItems = getItems();
-                            const currentTongThanhPhamExport = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
-                            const totalTongThanhPhamMainExport = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                            const totalTongThanhPhamAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                            const totalTongThanhPhamExport = totalTongThanhPhamMainExport + totalTongThanhPhamAdditionalExport;
-                            const totalProductCountExport = mainItems.length + additionalCostTabs.length;
-                            const chiPhiXuatKhau = totalProductCountExport === 1
-                              ? totalExportCostKeHoach
-                              : totalTongThanhPhamExport > 0
-                                ? (totalExportCostKeHoach * currentTongThanhPhamExport) / totalTongThanhPhamExport
-                                : (() => {
-                                    const curKL = parseFloat(currentAdditionalTab.formData.soLuong || '0');
-                                    const totalKL = mainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                                      additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0);
-                                    return totalKL > 0 ? (totalExportCostKeHoach * curKL) / totalKL : 0;
-                                  })();
-
-                            const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;
-                            return tongChiPhi.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                          })()}
-                          disabled
-                          className="w-full px-2 py-1 border border-green-400 rounded bg-green-50 text-sm font-bold text-center"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">thực tế</label>
-                        <input
-                          type="text"
-                          value={(() => {
-                            // 1. Chi phí sản xuất thực tế (per-day * số ngày hoàn thành thực tế)
-                            let chiPhiSanXuat = 0;
-                            if (currentAdditionalTab.selectedProcess?.flowchart?.sections) {
-                              const perDay = currentAdditionalTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
+                              const days = parseFloat(currentAdditionalTab.formData.thoiGianChoPhepToiDa) || 1;
+                              return (total * days).toLocaleString('vi-VN');
+                            })()}
+                          </td>
+                          <td className="py-1.5 px-2 text-center text-sm font-medium text-emerald-700">
+                            {(() => {
+                              if (!currentAdditionalTab.selectedProcess?.flowchart?.sections) return '0';
+                              const total = currentAdditionalTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
                                 return sum + section.costs.reduce((costSum, cost) => {
                                   const gia = cost.giaThucTe || 0;
                                   const soLuong = cost.soLuongThucTe || 0;
                                   return costSum + (gia * soLuong);
                                 }, 0);
                               }, 0);
-                              // Nhân với số ngày hoàn thành thực tế (tương tự kế hoạch)
-                              const actualDays = parseFloat(currentAdditionalTab.formData.ngayHoanThanhThucTe) || 1;
-                              chiPhiSanXuat = perDay * actualDays;
-                            }
-
-                            // 2. Chi phí chung thực tế - tính từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
-                            const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
-                            const currentProductId = `additional-${currentAdditionalTab.id}`;
-
-                            let chiPhiChung = 0;
-                            generalCostGroups.forEach(group => {
-                              const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-
-                              // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
-                              const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
-                              if (!isProductSelected) return;
-
-                              // Lọc các sản phẩm chính được chọn cho bảng này
-                              const items = getItems();
-                              const selectedMainItems = items.filter((_: any, index: number) => {
-                                const pid = `tab-${index}`;
-                                return group.selectedProducts.includes(pid);
+                              const days = parseFloat(currentAdditionalTab.formData.ngayHoanThanhThucTe) || 1;
+                              return (total * days).toLocaleString('vi-VN');
+                            })()}
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">CP chung</td>
+                          <td className="py-1.5 px-2 text-center text-sm font-medium text-blue-700">
+                            {(() => {
+                              const currentProductId = `additional-${currentAdditionalTab.id}`;
+                              const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
+                              let chiPhiChung = 0;
+                              generalCostGroups.forEach(group => {
+                                const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+                                const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                                if (!isProductSelected) return;
+                                const items = getItems();
+                                const selectedMainItems = items.filter((_: any, index: number) => group.selectedProducts.includes(`tab-${index}`));
+                                const selectedAdditionalItems = additionalCostTabs.filter(tab => group.selectedProducts.includes(`additional-${tab.id}`));
+                                const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
+                                const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                                const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                                const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
+                                if (totalKhoiLuong === 0) return;
+                                if (totalSelectedCount === 1) { chiPhiChung += groupTotalKeHoach; } else { chiPhiChung += (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong; }
                               });
-
-                              // Lọc các chi phí bổ sung được chọn cho bảng này
-                              const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                                const pid = `additional-${tab.id}`;
-                                return group.selectedProducts.includes(pid);
+                              return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                          <td className="py-1.5 px-2 text-center text-sm font-medium text-emerald-700">
+                            {(() => {
+                              const currentProductId = `additional-${currentAdditionalTab.id}`;
+                              const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
+                              let chiPhiChung = 0;
+                              generalCostGroups.forEach(group => {
+                                const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+                                const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                                if (!isProductSelected) return;
+                                const items = getItems();
+                                const selectedMainItems = items.filter((_: any, index: number) => group.selectedProducts.includes(`tab-${index}`));
+                                const selectedAdditionalItems = additionalCostTabs.filter(tab => group.selectedProducts.includes(`additional-${tab.id}`));
+                                const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
+                                const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                                const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
+                                const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
+                                if (totalKhoiLuong === 0) return;
+                                if (totalSelectedCount === 1) { chiPhiChung += groupTotalThucTe; } else { chiPhiChung += (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong; }
                               });
-
-                              // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
-                              const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                              const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                              const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
-                              const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
-
-                              if (totalKhoiLuong === 0) return;
-
-                              // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
-                              if (totalSelectedCount === 1) {
-                                chiPhiChung += groupTotalThucTe;
-                              } else {
-                                chiPhiChung += (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
+                              return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">CP xuất khẩu</td>
+                          <td className="py-1.5 px-2 text-center text-sm font-medium text-blue-700">
+                            {(() => {
+                              const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+                              const currentTongThanhPham = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
+                              const mainItems = getItems();
+                              const totalTongThanhPhamMain = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                              const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                              const totalTongThanhPham = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
+                              const totalProductCount = mainItems.length + additionalCostTabs.length;
+                              const currentKhoiLuongExport = parseFloat(currentAdditionalTab.formData.soLuong || '0');
+                              const chiPhiXuatKhau = totalProductCount === 1 ? totalExportCostKeHoach
+                                : totalTongThanhPham > 0 ? (totalExportCostKeHoach * currentTongThanhPham) / totalTongThanhPham
+                                : (() => { const totalKL = mainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) + additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0); return totalKL > 0 ? (totalExportCostKeHoach * currentKhoiLuongExport) / totalKL : 0; })();
+                              return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                          <td className="py-1.5 px-2 text-center text-sm font-medium text-emerald-700">
+                            {(() => {
+                              const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+                              const currentTongThanhPham = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
+                              const mainItems = getItems();
+                              const totalTongThanhPhamMain = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                              const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                              const totalTongThanhPham = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
+                              const totalProductCount = mainItems.length + additionalCostTabs.length;
+                              const currentKhoiLuongExport = parseFloat(currentAdditionalTab.formData.soLuong || '0');
+                              const chiPhiXuatKhau = totalProductCount === 1 ? totalExportCostThucTe
+                                : totalTongThanhPham > 0 ? (totalExportCostThucTe * currentTongThanhPham) / totalTongThanhPham
+                                : (() => { const totalKL = mainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) + additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0); return totalKL > 0 ? (totalExportCostThucTe * currentKhoiLuongExport) / totalKL : 0; })();
+                              return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                        </tr>
+                        <tr className="bg-green-50/80 border-t-2 border-green-200">
+                          <td className="py-2 px-2 text-sm font-bold text-gray-800">Tổng chi phí</td>
+                          <td className="py-2 px-2 text-center text-sm font-bold text-blue-700">
+                            {(() => {
+                              let chiPhiSanXuat = 0;
+                              if (currentAdditionalTab.selectedProcess?.flowchart?.sections) {
+                                const perDay = currentAdditionalTab.selectedProcess.flowchart.sections.reduce((sum, section) => sum + section.costs.reduce((costSum, cost) => costSum + ((cost.giaKeHoach || 0) * (cost.soLuongKeHoach || 0)), 0), 0);
+                                chiPhiSanXuat = perDay * (parseFloat(currentAdditionalTab.formData.thoiGianChoPhepToiDa) || 1);
                               }
-                            });
-
-                            // 3. Chi phí xuất khẩu thực tế
-                            const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-                            const mainItems = getItems();
-                            const currentTongThanhPhamExport = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
-                            const totalTongThanhPhamMainExport = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                            const totalTongThanhPhamAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                            const totalTongThanhPhamExport = totalTongThanhPhamMainExport + totalTongThanhPhamAdditionalExport;
-                            const totalProductCountExport = mainItems.length + additionalCostTabs.length;
-                            const chiPhiXuatKhau = totalProductCountExport === 1
-                              ? totalExportCostThucTe
-                              : totalTongThanhPhamExport > 0
-                                ? (totalExportCostThucTe * currentTongThanhPhamExport) / totalTongThanhPhamExport
-                                : (() => {
-                                    const curKL = parseFloat(currentAdditionalTab.formData.soLuong || '0');
-                                    const totalKL = mainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                                      additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0);
-                                    return totalKL > 0 ? (totalExportCostThucTe * curKL) / totalKL : 0;
-                                  })();
-
-                            const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;
-                            return tongChiPhi.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                          })()}
-                          disabled
-                          className="w-full px-2 py-1 border border-green-400 rounded bg-green-50 text-sm font-bold text-center"
-                        />
-                      </div>
-                    </div>
+                              const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
+                              const currentProductId = `additional-${currentAdditionalTab.id}`;
+                              let chiPhiChung = 0;
+                              generalCostGroups.forEach(group => {
+                                const groupTotal = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+                                if (!(group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId))) return;
+                                const items = getItems();
+                                const selMain = items.filter((_: any, i: number) => group.selectedProducts.includes(`tab-${i}`));
+                                const selAdd = additionalCostTabs.filter(t => group.selectedProducts.includes(`additional-${t.id}`));
+                                const totalKL = selMain.reduce((s: number, it: any) => s + parseFloat(it.soLuong?.toString() || '0'), 0) + selAdd.reduce((s: number, t: any) => s + parseFloat(t.formData?.soLuong?.toString() || '0'), 0);
+                                if (totalKL === 0) return;
+                                chiPhiChung += (selMain.length + selAdd.length) === 1 ? groupTotal : (groupTotal * currentKhoiLuong) / totalKL;
+                              });
+                              const totalExport = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+                              const mainItems = getItems();
+                              const curTP = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
+                              const totTP = tabsData.reduce((s: number, t: any) => s + parseFloat(t.formData?.tongThanhPhamCanSxThem || '0'), 0) + additionalCostTabs.reduce((s: number, t: any) => s + parseFloat(t.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                              const totPC = mainItems.length + additionalCostTabs.length;
+                              const chiPhiXK = totPC === 1 ? totalExport : totTP > 0 ? (totalExport * curTP) / totTP : (() => { const tKL = mainItems.reduce((s: number, it: any) => s + parseFloat(it.soLuong?.toString() || '0'), 0) + additionalCostTabs.reduce((s: number, t: any) => s + parseFloat(t.formData?.soLuong || '0'), 0); return tKL > 0 ? (totalExport * currentKhoiLuong) / tKL : 0; })();
+                              return (chiPhiSanXuat + chiPhiChung + chiPhiXK).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                          <td className="py-2 px-2 text-center text-sm font-bold text-emerald-700">
+                            {(() => {
+                              let chiPhiSanXuat = 0;
+                              if (currentAdditionalTab.selectedProcess?.flowchart?.sections) {
+                                const perDay = currentAdditionalTab.selectedProcess.flowchart.sections.reduce((sum, section) => sum + section.costs.reduce((costSum, cost) => costSum + ((cost.giaThucTe || 0) * (cost.soLuongThucTe || 0)), 0), 0);
+                                chiPhiSanXuat = perDay * (parseFloat(currentAdditionalTab.formData.ngayHoanThanhThucTe) || 1);
+                              }
+                              const currentKhoiLuong = parseFloat(currentAdditionalTab.formData.soLuong || '0');
+                              const currentProductId = `additional-${currentAdditionalTab.id}`;
+                              let chiPhiChung = 0;
+                              generalCostGroups.forEach(group => {
+                                const groupTotal = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+                                if (!(group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId))) return;
+                                const items = getItems();
+                                const selMain = items.filter((_: any, i: number) => group.selectedProducts.includes(`tab-${i}`));
+                                const selAdd = additionalCostTabs.filter(t => group.selectedProducts.includes(`additional-${t.id}`));
+                                const totalKL = selMain.reduce((s: number, it: any) => s + parseFloat(it.soLuong?.toString() || '0'), 0) + selAdd.reduce((s: number, t: any) => s + parseFloat(t.formData?.soLuong?.toString() || '0'), 0);
+                                if (totalKL === 0) return;
+                                chiPhiChung += (selMain.length + selAdd.length) === 1 ? groupTotal : (groupTotal * currentKhoiLuong) / totalKL;
+                              });
+                              const totalExport = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+                              const mainItems = getItems();
+                              const curTP = parseFloat(currentAdditionalTab.formData.tongThanhPhamCanSxThem || '0');
+                              const totTP = tabsData.reduce((s: number, t: any) => s + parseFloat(t.formData?.tongThanhPhamCanSxThem || '0'), 0) + additionalCostTabs.reduce((s: number, t: any) => s + parseFloat(t.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                              const totPC = mainItems.length + additionalCostTabs.length;
+                              const chiPhiXK = totPC === 1 ? totalExport : totTP > 0 ? (totalExport * curTP) / totTP : (() => { const tKL = mainItems.reduce((s: number, it: any) => s + parseFloat(it.soLuong?.toString() || '0'), 0) + additionalCostTabs.reduce((s: number, t: any) => s + parseFloat(t.formData?.soLuong || '0'), 0); return tKL > 0 ? (totalExport * currentKhoiLuong) / tKL : 0; })();
+                              return (chiPhiSanXuat + chiPhiChung + chiPhiXK).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Danh sách sản phẩm trong định mức - Table Layout */}
+            {/* Danh sách sản phẩm trong định mức - Table Layout */}
               {currentAdditionalTab && currentAdditionalTab.selectedStandard && currentAdditionalTab.selectedStandard.items && currentAdditionalTab.selectedStandard.items.length > 0 && (
                 <div className="mt-6">
                   <h4 className="text-md font-semibold text-gray-800 mb-3 border-b pb-2">
@@ -4817,820 +4536,416 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               <p className="text-gray-500">Đang tải dữ liệu...</p>
             </div>
           ) : (
-            <div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Left Column */}
-            <div className="space-y-2.5">
-              {/* Tên người thực hiện */}
-              <div className="bg-gray-50 px-2.5 py-2 rounded">
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Tên người thực hiện</label>
-                <input
-                  type="text"
-                  value={quotationRequest.tenNhanVien || ''}
-                  disabled
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-white"
-                />
-              </div>
+            <div className="space-y-5">
 
-              {/* Tên sản phẩm */}
-              <div className="bg-orange-100 px-2.5 py-2 rounded">
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Tên sản phẩm</label>
-                <input
-                  type="text"
-                  value={currentItem?.tenSanPham || ''}
-                  disabled
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-orange-50 font-medium"
-                />
+            {/* ========== SECTION 1: THÔNG TIN SẢN PHẨM ========== */}
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-gray-200">
+                <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                <h4 className="text-sm font-semibold text-slate-800">Thông tin sản phẩm</h4>
               </div>
-
-              {/* Khối lượng + Đơn vị */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">Khối lượng</label>
-                  <input
-                    type="number"
-                    value={currentItem?.soLuong || ''}
-                    disabled
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">Đơn vị</label>
-                  <input
-                    type="text"
-                    value={currentItem?.donViTinh || ''}
-                    disabled
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-white"
-                  />
-                </div>
-              </div>
-
-              {/* Mã định mức NVL */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Mã định mức NVL</label>
-                <select
-                  value={currentTab.selectedStandard?.id || ''}
-                  onChange={(e) => handleStandardChange(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Chọn định mức --</option>
-                  {materialStandards.map((standard) => (
-                    <option key={standard.id} value={standard.id}>
-                      {standard.maDinhMuc} : {standard.tenDinhMuc}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Tỉ lệ thu hồi thành phẩm (%) K3 */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Tỉ lệ thu hồi thành phẩm (%) K3</label>
-                <div className="grid grid-cols-2 gap-2">
+              <div className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div>
-                    <span className="block text-[11px] text-blue-600 mb-0.5">Kế hoạch</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentTab.formData.tiLeThuHoi}
-                      onChange={(e) => handleTiLeThuHoiChange(parseNumberInputStr(e.target.value))}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                      placeholder="Nhập tỉ lệ thu hồi"
-                    />
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Người thực hiện</label>
+                    <input type="text" value={quotationRequest.tenNhanVien || ''} disabled className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700" />
                   </div>
                   <div>
-                    <span className="block text-[11px] text-green-600 mb-0.5">Thực tế</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={
-                        currentTab.formData.tongKhoiLuongThanhPhamThucTe && currentTab.formData.tongNguyenLieuCanSanXuatThucTe
-                          ? ((parseFloat(currentTab.formData.tongKhoiLuongThanhPhamThucTe) / parseFloat(currentTab.formData.tongNguyenLieuCanSanXuatThucTe)) * 100).toFixed(2)
-                          : ''
-                      }
-                      disabled
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 text-green-600 font-medium"
-                      placeholder="Tự động tính"
-                    />
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Tên sản phẩm</label>
+                    <input type="text" value={currentItem?.tenSanPham || ''} disabled className="w-full px-3 py-2 text-sm border border-orange-200 rounded-md bg-orange-50 font-semibold text-gray-900" />
                   </div>
-                </div>
-              </div>
-
-              {/* Tổng khối lượng thành phẩm đầu ra */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Tổng khối lượng thành phẩm đầu ra (kg)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="block text-[11px] text-blue-600 mb-0.5">Kế hoạch</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={
-                        currentTab.formData.tongNguyenLieuCanSanXuat && currentTab.formData.tiLeThuHoi
-                          ? (parseFloat(currentTab.formData.tongNguyenLieuCanSanXuat) * parseFloat(currentTab.formData.tiLeThuHoi) / 100).toFixed(2)
-                          : '0'
-                      }
-                      readOnly
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 text-blue-600 font-medium"
-                      placeholder="Tự động tính"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Khối lượng</label>
+                      <input type="number" value={currentItem?.soLuong || ''} disabled className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Đơn vị</label>
+                      <input type="text" value={currentItem?.donViTinh || ''} disabled className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700" />
+                    </div>
                   </div>
                   <div>
-                    <span className="block text-[11px] text-green-600 mb-0.5">Thực tế</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentTab.formData.tongKhoiLuongThanhPhamThucTe || ''}
-                      onChange={(e) => updateFormData('tongKhoiLuongThanhPhamThucTe', parseNumberInputStr(e.target.value))}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500"
-                      placeholder="Nhập thực tế"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div> {/* End Left Column */}
-
-            {/* Right Column */}
-            <div className="space-y-2.5">
-              {/* Chọn nguyên liệu đầu vào + Chọn sản phẩm đầu ra */}
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">Chọn nguyên liệu đầu vào</label>
-                  <select
-                    value={currentTab.formData.nguyenLieuDauVao}
-                    onChange={(e) => updateFormData('nguyenLieuDauVao', e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                    disabled={!currentTab.selectedStandard}
-                  >
-                    <option value="">-- Chọn nguyên liệu --</option>
-                    {currentTab.selectedStandard?.inputItems?.map((item, index) => (
-                      <option key={index} value={item.tenNguyenLieu}>
-                        {item.tenNguyenLieu}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">Chọn sản phẩm đầu ra</label>
-                  <select
-                    value={currentTab.formData.sanPhamDauRa}
-                    onChange={(e) => handleOutputProductChange(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                    disabled={!currentTab.selectedStandard}
-                  >
-                    <option value="">-- Chọn sản phẩm --</option>
-                    {currentTab.selectedStandard?.items?.map((item, index) => (
-                      <option key={index} value={item.tenThanhPham}>
-                        {item.tenThanhPham}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleCheckInventory(currentTab.formData.sanPhamDauRa, currentTab.formData.nguyenLieuDauVao)}
-                  disabled={!currentTab.formData.sanPhamDauRa && !currentTab.formData.nguyenLieuDauVao}
-                  className="px-2.5 py-1.5 bg-teal-600 text-white text-xs font-medium rounded hover:bg-teal-700 disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1"
-                  title="Kiểm tra tồn kho"
-                >
-                  <Package className="w-3 h-3" />
-                  Kiểm tra tồn kho
-                </button>
-              </div>
-
-              {/* Thành phẩm tồn kho */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Thành phẩm tồn kho</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="block text-[11px] text-blue-600 mb-0.5">Kế hoạch</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentTab.formData.thanhPhamTonKho}
-                      onChange={(e) => handleInventoryChange(parseNumberInputStr(e.target.value))}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                      placeholder="Nhập tồn kho"
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-[11px] text-green-600 mb-0.5">Thực tế</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentTab.formData.thanhPhamTonKhoThucTe || ''}
-                      onChange={(e) => handleInventoryThucTeChange(parseNumberInputStr(e.target.value))}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500"
-                      placeholder="Nhập thực tế"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Tổng Thành phẩm cần sx thêm */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Tổng Thành phẩm cần sx thêm</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="block text-[11px] text-blue-600 mb-0.5">Kế hoạch</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentTab.formData.tongThanhPhamCanSxThem}
-                      disabled
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 text-blue-600 font-medium"
-                      placeholder="Tự động tính"
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-[11px] text-green-600 mb-0.5">Thực tế</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentTab.formData.tongThanhPhamCanSxThemThucTe || ''}
-                      disabled
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 text-green-600 font-medium"
-                      placeholder="Tự động tính"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Tổng nguyên liệu cần sản xuất */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Tổng nguyên liệu cần sản xuất</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="block text-[11px] text-blue-600 mb-0.5">Kế hoạch</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentTab.formData.tongNguyenLieuCanSanXuat}
-                      disabled
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 text-blue-600 font-medium"
-                      placeholder="Tự động tính"
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-[11px] text-green-600 mb-0.5">Thực tế</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentTab.formData.tongNguyenLieuCanSanXuatThucTe || ''}
-                      onChange={(e) => updateFormData('tongNguyenLieuCanSanXuatThucTe', parseNumberInputStr(e.target.value))}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500"
-                      placeholder="Nhập thực tế"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Nguyên liệu tồn kho + Nguyên liệu cần nhập thêm - gộp 1 hàng */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">Nguyên liệu tồn kho</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={currentTab.formData.nguyenLieuTonKho}
-                    onChange={(e) => handleMaterialInventoryChange(parseNumberInputStr(e.target.value))}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                    placeholder="Nhập NL tồn kho"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">Nguyên liệu cần nhập thêm</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={currentTab.formData.nguyenLieuCanNhapThem}
-                    disabled
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-100 text-blue-600 font-medium"
-                    placeholder="Tự động tính"
-                  />
-                </div>
-              </div>
-            </div> {/* End Right Column */}
-          </div> {/* End grid 2 columns */}
-
-          {/* Các trường mới - Thời gian và Chi phí */}
-          <div className="mt-4 space-y-3">
-            {/* Hàng 1: Các trường thời gian */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/* Ngày bắt đầu sản xuất */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Ngày bắt đầu sản xuất</label>
-                <input
-                  type="date"
-                  value={currentTab.formData.ngayBatDauSanXuat}
-                  onChange={(e) => {
-                    setTabsData(prev => {
-                      const newTabs = [...prev];
-                      newTabs[activeTab].formData.ngayBatDauSanXuat = e.target.value;
-                      return newTabs;
-                    });
-                  }}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Số ngày hoàn thành (kế hoạch) */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Số ngày hoàn thành (kế hoạch)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={currentTab.formData.thoiGianChoPhepToiDa}
-                  onChange={(e) => {
-                    setTabsData(prev => {
-                      const newTabs = [...prev];
-                      newTabs[activeTab].formData.thoiGianChoPhepToiDa = parseNumberInputStr(e.target.value);
-
-                      // Recalculate planned production cost using updated days and existing flowchart
-                      try {
-                        let chiPhiSanXuatPerDay = 0;
-                        const proc = newTabs[activeTab].selectedProcess;
-                        if (proc?.flowchart?.sections) {
-                          chiPhiSanXuatPerDay = proc.flowchart.sections.reduce((sum: number, section: any) => {
-                            return sum + (section.costs || []).reduce((costSum: number, cost: any) => {
-                              const gia = cost.giaKeHoach || 0;
-                              const soLuong = cost.soLuongKeHoach || 0;
-                              return costSum + (gia * soLuong);
-                            }, 0);
-                          }, 0);
-                        }
-                        const maxDays = parseFloat(newTabs[activeTab].formData.thoiGianChoPhepToiDa) || 1;
-                        newTabs[activeTab].formData.chiPhiSanXuatKeHoach = (chiPhiSanXuatPerDay * maxDays).toString();
-                      } catch (e) {
-                        // ignore
-                      }
-
-                      return newTabs;
-                    });
-                  }}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập số ngày"
-                />
-              </div>
-
-              {/* Số ngày hoàn thành (thực tế) */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">Số ngày hoàn thành (thực tế)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="Nhập số ngày"
-                  value={currentTab.formData.ngayHoanThanhThucTe}
-                  onChange={(e) => {
-                    setTabsData(prev => {
-                      const newTabs = [...prev];
-                      newTabs[activeTab].formData.ngayHoanThanhThucTe = parseNumberInputStr(e.target.value);
-                      return newTabs;
-                    });
-                  }}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Hàng 2: Các trường chi phí */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              {/* Chi phí sản xuất */}
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700 text-center bg-gray-100 py-1.5 rounded-t">
-                  Chi phí sản xuất
-                </label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <div>
-                    <label className="block text-[11px] text-gray-600 mb-0.5">kế hoạch</label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        if (!currentTab.selectedProcess?.flowchart?.sections) return '0';
-                        const total = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
-                          return sum + section.costs.reduce((costSum, cost) => {
-                            const gia = cost.giaKeHoach || 0;
-                            const soLuong = cost.soLuongKeHoach || 0;
-                            return costSum + (gia * soLuong);
-                          }, 0);
-                        }, 0);
-                        const days = parseFloat(currentTab.formData.thoiGianChoPhepToiDa) || 1;
-                        return (total * days).toLocaleString('vi-VN');
-                      })()}
-                      disabled
-                      className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-gray-600 mb-0.5">thực tế</label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        if (!currentTab.selectedProcess?.flowchart?.sections) return '0';
-                        const total = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
-                          return sum + section.costs.reduce((costSum, cost) => {
-                            const gia = cost.giaThucTe || 0;
-                            const soLuong = cost.soLuongThucTe || 0;
-                            return costSum + (gia * soLuong);
-                          }, 0);
-                        }, 0);
-                        // Nhân với số ngày hoàn thành thực tế (tương tự kế hoạch)
-                        const days = parseFloat(currentTab.formData.ngayHoanThanhThucTe) || 1;
-                        return (total * days).toLocaleString('vi-VN');
-                      })()}
-                      disabled
-                      className="w-full px-1.5 py-1 border border-gray-300 rounded bg-blue-50 text-xs font-medium text-center"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Chi phí chung */}
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700 text-center bg-gray-100 py-1.5 rounded-t">
-                  Chi phí chung
-                </label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <div>
-                    <label className="block text-[11px] text-gray-600 mb-0.5">kế hoạch</label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        // Tính chi phí chung kế hoạch từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
-                        const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
-                        const currentProductId = `tab-${activeTab}`;
-
-                        console.log('🧮 [Calc Chi phí chung KH] currentProductId:', currentProductId);
-                        console.log('🧮 [Calc Chi phí chung KH] generalCostGroups:', JSON.stringify(generalCostGroups, null, 2));
-
-                        let chiPhiChung = 0;
-                        // Duyệt qua từng bảng chi phí chung
-                        generalCostGroups.forEach((group, groupIndex) => {
-                          const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-
-                          console.log(`🧮 [Group ${groupIndex}] id: ${group.id}, selectedProducts:`, group.selectedProducts, 'length:', group.selectedProducts.length);
-
-                          // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
-                          // CHỈ khi selectedProducts có phần tử mới kiểm tra, nếu rỗng thì KHÔNG áp dụng cho sản phẩm nào
-                          const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
-                          console.log(`🧮 [Group ${groupIndex}] isProductSelected for ${currentProductId}:`, isProductSelected);
-                          if (!isProductSelected) return;
-
-                          // Lọc các sản phẩm chính được chọn cho bảng này
-                          const selectedMainItems = items.filter((_: any, index: number) => {
-                            const pid = `tab-${index}`;
-                            return group.selectedProducts.includes(pid);
-                          });
-
-                          // Lọc các chi phí bổ sung được chọn cho bảng này
-                          const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                            const pid = `additional-${tab.id}`;
-                            return group.selectedProducts.includes(pid);
-                          });
-
-                          // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
-                          const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                          const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                          const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
-                          const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
-
-                          if (totalKhoiLuong === 0) return;
-
-                          // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
-                          if (totalSelectedCount === 1) {
-                            chiPhiChung += groupTotalKeHoach;
-                          } else {
-                            chiPhiChung += (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong;
-                          }
-                        });
-
-                        return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                      })()}
-                      disabled
-                      className="w-full px-1.5 py-1 border border-gray-300 rounded bg-blue-50 text-xs font-medium text-center"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-gray-600 mb-0.5">thực tế</label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        // Tính chi phí chung thực tế từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
-                        const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
-                        const currentProductId = `tab-${activeTab}`;
-
-                        let chiPhiChung = 0;
-                        // Duyệt qua từng bảng chi phí chung
-                        generalCostGroups.forEach(group => {
-                          const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-
-                          // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
-                          // CHỈ khi selectedProducts có phần tử mới kiểm tra
-                          const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
-                          if (!isProductSelected) return;
-
-                          // Lọc các sản phẩm chính được chọn cho bảng này
-                          const selectedMainItems = items.filter((_: any, index: number) => {
-                            const pid = `tab-${index}`;
-                            return group.selectedProducts.includes(pid);
-                          });
-
-                          // Lọc các chi phí bổ sung được chọn cho bảng này
-                          const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                            const pid = `additional-${tab.id}`;
-                            return group.selectedProducts.includes(pid);
-                          });
-
-                          // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
-                          const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                          const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                          const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
-                          const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
-
-                          if (totalKhoiLuong === 0) return;
-
-                          // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
-                          if (totalSelectedCount === 1) {
-                            chiPhiChung += groupTotalThucTe;
-                          } else {
-                            chiPhiChung += (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
-                          }
-                        });
-
-                        return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                      })()}
-                      disabled
-                      className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Chi phí xuất khẩu */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 text-center bg-gray-100 py-2 rounded-t-md">
-                  Chi phí xuất khẩu
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">kế hoạch</label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        // Tính tổng chi phí xuất khẩu kế hoạch từ tab "Báo giá đơn hàng"
-                        const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-
-                        // Lấy "Tổng Thành phẩm cần sx thêm" của sản phẩm hiện tại
-                        const currentTongThanhPham = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
-
-                        // Tính tổng "Tổng Thành phẩm cần sx thêm" tất cả sản phẩm (cả chính và bổ sung)
-                        const totalTongThanhPhamMain = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                        const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                        const totalTongThanhPham = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
-                        const totalProductCount = items.length + additionalCostTabs.length;
-
-                        // Tính chi phí xuất khẩu cho sản phẩm hiện tại
-                        // Nếu chỉ có 1 sản phẩm → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo "Tổng Thành phẩm cần sx thêm", fallback theo khối lượng
-                        const currentKhoiLuongExport = parseFloat(currentItem?.soLuong?.toString() || '0');
-                        const chiPhiXuatKhau = totalProductCount === 1
-                          ? totalExportCostKeHoach
-                          : totalTongThanhPham > 0
-                            ? (totalExportCostKeHoach * currentTongThanhPham) / totalTongThanhPham
-                            : (() => {
-                                const totalKhoiLuongAll = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                                  additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0);
-                                return totalKhoiLuongAll > 0 ? (totalExportCostKeHoach * currentKhoiLuongExport) / totalKhoiLuongAll : 0;
-                              })();
-
-                        return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                      })()}
-                      disabled
-                      className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">thực tế</label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        // Tính tổng chi phí xuất khẩu thực tế từ tab "Báo giá đơn hàng"
-                        const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-
-                        // Lấy "Tổng Thành phẩm cần sx thêm" của sản phẩm hiện tại
-                        const currentTongThanhPham = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
-
-                        // Tính tổng "Tổng Thành phẩm cần sx thêm" tất cả sản phẩm (cả chính và bổ sung)
-                        const totalTongThanhPhamMain = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                        const totalTongThanhPhamAdditional = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                        const totalTongThanhPham = totalTongThanhPhamMain + totalTongThanhPhamAdditional;
-                        const totalProductCount = items.length + additionalCostTabs.length;
-
-                        // Tính chi phí xuất khẩu cho sản phẩm hiện tại
-                        // Nếu chỉ có 1 sản phẩm → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo "Tổng Thành phẩm cần sx thêm", fallback theo khối lượng
-                        const currentKhoiLuongExport = parseFloat(currentItem?.soLuong?.toString() || '0');
-                        const chiPhiXuatKhau = totalProductCount === 1
-                          ? totalExportCostThucTe
-                          : totalTongThanhPham > 0
-                            ? (totalExportCostThucTe * currentTongThanhPham) / totalTongThanhPham
-                            : (() => {
-                                const totalKhoiLuongAll = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                                  additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0);
-                                return totalKhoiLuongAll > 0 ? (totalExportCostThucTe * currentKhoiLuongExport) / totalKhoiLuongAll : 0;
-                              })();
-
-                        return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                      })()}
-                      disabled
-                      className="w-full px-2 py-1 border border-gray-300 rounded bg-blue-50 text-sm font-medium text-center"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Tổng chi phí */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 text-center bg-green-100 py-2 rounded-t-md">
-                  Tổng chi phí
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">kế hoạch</label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        // 1. Chi phí sản xuất kế hoạch (per-day * allowed days)
-                        let chiPhiSanXuat = 0;
-                        if (currentTab.selectedProcess?.flowchart?.sections) {
-                          const perDay = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
-                            return sum + section.costs.reduce((costSum, cost) => {
-                              const gia = cost.giaKeHoach || 0;
-                              const soLuong = cost.soLuongKeHoach || 0;
-                              return costSum + (gia * soLuong);
-                            }, 0);
-                          }, 0);
-                          const maxDays = parseFloat(currentTab.formData.thoiGianChoPhepToiDa) || 1;
-                          chiPhiSanXuat = perDay * maxDays;
-                        }
-
-                        // 2. Chi phí chung kế hoạch - tính từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
-                        const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
-                        const currentProductId = `tab-${activeTab}`;
-
-                        let chiPhiChung = 0;
-                        generalCostGroups.forEach(group => {
-                          const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-
-                          // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
-                          // CHỈ khi selectedProducts có phần tử mới kiểm tra
-                          const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
-                          if (!isProductSelected) return;
-
-                          // Lọc các sản phẩm chính được chọn cho bảng này
-                          const selectedMainItems = items.filter((_: any, index: number) => {
-                            const pid = `tab-${index}`;
-                            return group.selectedProducts.includes(pid);
-                          });
-
-                          // Lọc các chi phí bổ sung được chọn cho bảng này
-                          const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                            const pid = `additional-${tab.id}`;
-                            return group.selectedProducts.includes(pid);
-                          });
-
-                          // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
-                          const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                          const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                          const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
-                          const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
-
-                          if (totalKhoiLuong === 0) return;
-
-                          // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
-                          if (totalSelectedCount === 1) {
-                            chiPhiChung += groupTotalKeHoach;
-                          } else {
-                            chiPhiChung += (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong;
-                          }
-                        });
-
-                        // 3. Chi phí xuất khẩu kế hoạch (bao gồm cả sản phẩm chính và bổ sung)
-                        const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
-                        const currentTongThanhPhamExport = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
-                        const totalTongThanhPhamMainExport = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                        const totalTongThanhPhamAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                        const totalTongThanhPhamExport = totalTongThanhPhamMainExport + totalTongThanhPhamAdditionalExport;
-                        const totalProductCountExport = items.length + additionalCostTabs.length;
-                        const chiPhiXuatKhau = totalProductCountExport === 1
-                          ? totalExportCostKeHoach
-                          : totalTongThanhPhamExport > 0
-                            ? (totalExportCostKeHoach * currentTongThanhPhamExport) / totalTongThanhPhamExport
-                            : (() => {
-                                const curKL = parseFloat(currentItem?.soLuong?.toString() || '0');
-                                const totalKL = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                                  additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0);
-                                return totalKL > 0 ? (totalExportCostKeHoach * curKL) / totalKL : 0;
-                              })();
-
-                        // Tổng
-                        const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;
-                        return tongChiPhi.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                      })()}
-                      disabled
-                      className="w-full px-2 py-1 border border-green-400 rounded bg-green-50 text-sm font-bold text-center"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">thực tế</label>
-                    <input
-                      type="text"
-                      value={(() => {
-                        // 1. Chi phí sản xuất thực tế (per-day * số ngày hoàn thành thực tế)
-                        let chiPhiSanXuat = 0;
-                        if (currentTab.selectedProcess?.flowchart?.sections) {
-                          const perDay = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => {
-                            return sum + section.costs.reduce((costSum, cost) => {
-                              const gia = cost.giaThucTe || 0;
-                              const soLuong = cost.soLuongThucTe || 0;
-                              return costSum + (gia * soLuong);
-                            }, 0);
-                          }, 0);
-                          // Nhân với số ngày hoàn thành thực tế (tương tự kế hoạch)
-                          const actualDays = parseFloat(currentTab.formData.ngayHoanThanhThucTe) || 1;
-                          chiPhiSanXuat = perDay * actualDays;
-                        }
-
-                        // 2. Chi phí chung thực tế - tính từ TẤT CẢ các bảng chi phí chung mà sản phẩm này được chọn
-                        const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
-                        const currentProductId = `tab-${activeTab}`;
-
-                        let chiPhiChung = 0;
-                        generalCostGroups.forEach(group => {
-                          const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-
-                          // Kiểm tra xem sản phẩm hiện tại có được chọn cho bảng này không
-                          // CHỈ khi selectedProducts có phần tử mới kiểm tra
-                          const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
-                          if (!isProductSelected) return;
-
-                          // Lọc các sản phẩm chính được chọn cho bảng này
-                          const selectedMainItems = items.filter((_: any, index: number) => {
-                            const pid = `tab-${index}`;
-                            return group.selectedProducts.includes(pid);
-                          });
-
-                          // Lọc các chi phí bổ sung được chọn cho bảng này
-                          const selectedAdditionalItems = additionalCostTabs.filter(tab => {
-                            const pid = `additional-${tab.id}`;
-                            return group.selectedProducts.includes(pid);
-                          });
-
-                          // Tính tổng khối lượng của các sản phẩm được chọn cho bảng này
-                          const totalKhoiLuongMain = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0);
-                          const totalKhoiLuongAdditional = selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
-                          const totalKhoiLuong = totalKhoiLuongMain + totalKhoiLuongAdditional;
-                          const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
-
-                          if (totalKhoiLuong === 0) return;
-
-                          // Nếu chỉ có 1 sản phẩm được chọn → dùng TOÀN BỘ chi phí, nếu 2+ sản phẩm → phân bổ theo khối lượng
-                          if (totalSelectedCount === 1) {
-                            chiPhiChung += groupTotalThucTe;
-                          } else {
-                            chiPhiChung += (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
-                          }
-                        });
-
-                        // 3. Chi phí xuất khẩu thực tế (bao gồm cả sản phẩm chính và bổ sung)
-                        const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
-                        const currentTongThanhPhamExport = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
-                        const totalTongThanhPhamMainExport = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                        const totalTongThanhPhamAdditionalExport = additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
-                        const totalTongThanhPhamExport = totalTongThanhPhamMainExport + totalTongThanhPhamAdditionalExport;
-                        const totalProductCountExport = items.length + additionalCostTabs.length;
-                        const chiPhiXuatKhau = totalProductCountExport === 1
-                          ? totalExportCostThucTe
-                          : totalTongThanhPhamExport > 0
-                            ? (totalExportCostThucTe * currentTongThanhPhamExport) / totalTongThanhPhamExport
-                            : (() => {
-                                const curKL = parseFloat(currentItem?.soLuong?.toString() || '0');
-                                const totalKL = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) +
-                                  additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0);
-                                return totalKL > 0 ? (totalExportCostThucTe * curKL) / totalKL : 0;
-                              })();
-
-                        // Tổng
-                        const tongChiPhi = chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau;
-                        return tongChiPhi.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-                      })()}
-                      disabled
-                      className="w-full px-2 py-1 border border-green-400 rounded bg-green-50 text-sm font-bold text-center"
-                    />
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Mã định mức NVL</label>
+                    <select
+                      value={currentTab.selectedStandard?.id || ''}
+                      onChange={(e) => handleStandardChange(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">-- Chọn định mức --</option>
+                      {materialStandards.map((standard) => (
+                        <option key={standard.id} value={standard.id}>
+                          {standard.maDinhMuc} : {standard.tenDinhMuc}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+
+            {/* ========== SECTION 2+3: NGUYÊN LIỆU, TỒN KHO & SẢN XUẤT ========== */}
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                  <h4 className="text-sm font-semibold text-slate-800">Nguyên liệu, Tồn kho & Sản xuất</h4>
+                </div>
+              </div>
+              <div className="p-4">
+                {/* 2 cột: Tồn kho (trái) + Sản xuất & Thời gian (phải) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Cột trái: Nguyên liệu & Tồn kho */}
+                  <div className="overflow-x-auto">
+                    {/* NL đầu vào + SP đầu ra + Kiểm tra tồn kho - chỉ ở cột trái */}
+                    <div className="flex gap-2 items-end mb-3">
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">NL đầu vào</label>
+                        <select
+                          value={currentTab.formData.nguyenLieuDauVao}
+                          onChange={(e) => updateFormData('nguyenLieuDauVao', e.target.value)}
+                          className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500"
+                          disabled={!currentTab.selectedStandard}
+                        >
+                          <option value="">-- Chọn NL --</option>
+                          {currentTab.selectedStandard?.inputItems?.map((item, index) => (
+                            <option key={index} value={item.tenNguyenLieu}>{item.tenNguyenLieu}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">SP đầu ra</label>
+                        <select
+                          value={currentTab.formData.sanPhamDauRa}
+                          onChange={(e) => handleOutputProductChange(e.target.value)}
+                          className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500"
+                          disabled={!currentTab.selectedStandard}
+                        >
+                          <option value="">-- Chọn SP --</option>
+                          {currentTab.selectedStandard?.items?.map((item, index) => (
+                            <option key={index} value={item.tenThanhPham}>{item.tenThanhPham}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCheckInventory(currentTab.formData.sanPhamDauRa, currentTab.formData.nguyenLieuDauVao)}
+                        disabled={!currentTab.formData.sanPhamDauRa && !currentTab.formData.nguyenLieuDauVao}
+                        className="px-2.5 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-md hover:bg-teal-700 disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1 transition-colors flex-shrink-0"
+                        title="Kiểm tra tồn kho"
+                      >
+                        <Package className="w-3.5 h-3.5" />
+                        Tồn kho
+                      </button>
+                    </div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                      Nguyên liệu & Tồn kho
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-1.5 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wider">Chỉ tiêu</th>
+                          <th className="text-center py-1.5 px-2 text-xs font-semibold text-blue-600 uppercase tracking-wider">
+                            <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>KH</span>
+                          </th>
+                          <th className="text-center py-1.5 px-2 text-xs font-semibold text-emerald-600 uppercase tracking-wider">
+                            <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>TT</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">Thành phẩm tồn kho</td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.thanhPhamTonKho} onChange={(e) => handleInventoryChange(parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" placeholder="Nhập" />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.thanhPhamTonKhoThucTe || ''} onChange={(e) => handleInventoryThucTeChange(parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-md text-center focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white" placeholder="Nhập" />
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700"><span className="flex items-center gap-1">Tổng TP cần SX thêm <span className="text-[10px] text-gray-400 italic">fx</span></span></td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.tongThanhPhamCanSxThem} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-blue-700 font-medium" />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.tongThanhPhamCanSxThemThucTe || ''} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-emerald-700 font-medium" />
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700"><span className="flex items-center gap-1">Tổng NL cần SX <span className="text-[10px] text-gray-400 italic">fx</span></span></td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.tongNguyenLieuCanSanXuat} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-blue-700 font-medium" />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.tongNguyenLieuCanSanXuatThucTe || ''} onChange={(e) => updateFormData('tongNguyenLieuCanSanXuatThucTe', parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-md text-center focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white" placeholder="Nhập" />
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">NL tồn kho</td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.nguyenLieuTonKho} onChange={(e) => handleMaterialInventoryChange(parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" placeholder="Nhập" />
+                          </td>
+                          <td className="py-1.5 px-2"><span className="block text-center text-xs text-gray-400">-</span></td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700"><span className="flex items-center gap-1">NL cần nhập thêm <span className="text-[10px] text-gray-400 italic">fx</span></span></td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.nguyenLieuCanNhapThem} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-blue-700 font-medium" />
+                          </td>
+                          <td className="py-1.5 px-2"><span className="block text-center text-xs text-gray-400">-</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    {/* Ghi chú - nằm ở cột trái */}
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Ghi chú</label>
+                      <textarea
+                        value={currentTab.formData.ghiChu}
+                        onChange={(e) => updateFormData('ghiChu', e.target.value)}
+                        rows={2}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Nhập ghi chú (nếu có)"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Cột phải: Sản xuất & Thời gian */}
+                  <div className="overflow-x-auto">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      Sản xuất & Thời gian
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-1.5 px-2 text-xs font-semibold text-gray-600 uppercase tracking-wider">Chỉ tiêu</th>
+                          <th className="text-center py-1.5 px-2 text-xs font-semibold text-blue-600 uppercase tracking-wider">
+                            <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>KH</span>
+                          </th>
+                          <th className="text-center py-1.5 px-2 text-xs font-semibold text-emerald-600 uppercase tracking-wider">
+                            <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>TT</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">Tỉ lệ thu hồi K3 (%)</td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.tiLeThuHoi} onChange={(e) => handleTiLeThuHoiChange(parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" placeholder="Nhập" />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.tongKhoiLuongThanhPhamThucTe && currentTab.formData.tongNguyenLieuCanSanXuatThucTe ? ((parseFloat(currentTab.formData.tongKhoiLuongThanhPhamThucTe) / parseFloat(currentTab.formData.tongNguyenLieuCanSanXuatThucTe)) * 100).toFixed(2) : ''} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-emerald-700 font-medium" placeholder="Tự động" />
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700"><span className="flex items-center gap-1">Tổng KL TP đầu ra (kg) <span className="text-[10px] text-gray-400 italic">fx</span></span></td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.tongNguyenLieuCanSanXuat && currentTab.formData.tiLeThuHoi ? (parseFloat(currentTab.formData.tongNguyenLieuCanSanXuat) * parseFloat(currentTab.formData.tiLeThuHoi) / 100).toFixed(2) : '0'} readOnly className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-blue-700 font-medium" />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" value={currentTab.formData.tongKhoiLuongThanhPhamThucTe || ''} onChange={(e) => updateFormData('tongKhoiLuongThanhPhamThucTe', parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-md text-center focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white" placeholder="Nhập" />
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">Ngày bắt đầu SX</td>
+                          <td className="py-1.5 px-2">
+                            <DatePicker value={currentTab.formData.ngayBatDauSanXuat} onChange={(date) => { setTabsData(prev => { const newTabs = [...prev]; newTabs[activeTab].formData.ngayBatDauSanXuat = date; return newTabs; }); }} placeholder="Chọn ngày" allowClear />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <DatePicker value={currentTab.formData.ngayBatDauSanXuatThucTe} onChange={(date) => { setTabsData(prev => { const newTabs = [...prev]; newTabs[activeTab].formData.ngayBatDauSanXuatThucTe = date; return newTabs; }); }} placeholder="Chọn ngày" allowClear />
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">Số ngày hoàn thành</td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" min="0" step="0.01" value={currentTab.formData.thoiGianChoPhepToiDa} onChange={(e) => {
+                              setTabsData(prev => {
+                                const newTabs = [...prev];
+                                newTabs[activeTab].formData.thoiGianChoPhepToiDa = parseNumberInputStr(e.target.value);
+                                try {
+                                  let chiPhiSanXuatPerDay = 0;
+                                  const proc = newTabs[activeTab].selectedProcess;
+                                  if (proc?.flowchart?.sections) {
+                                    chiPhiSanXuatPerDay = proc.flowchart.sections.reduce((sum: number, section: any) => {
+                                      return sum + (section.costs || []).reduce((costSum: number, cost: any) => {
+                                        const gia = cost.giaKeHoach || 0;
+                                        const soLuong = cost.soLuongKeHoach || 0;
+                                        return costSum + (gia * soLuong);
+                                      }, 0);
+                                    }, 0);
+                                  }
+                                  const maxDays = parseFloat(newTabs[activeTab].formData.thoiGianChoPhepToiDa) || 1;
+                                  newTabs[activeTab].formData.chiPhiSanXuatKeHoach = (chiPhiSanXuatPerDay * maxDays).toString();
+                                } catch (e) { /* ignore */ }
+                                return newTabs;
+                              });
+                            }} className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" placeholder="Nhập" />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input type="number" step="0.01" min="0" value={currentTab.formData.ngayHoanThanhThucTe} onChange={(e) => { setTabsData(prev => { const newTabs = [...prev]; newTabs[activeTab].formData.ngayHoanThanhThucTe = parseNumberInputStr(e.target.value); return newTabs; }); }} className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-md text-center focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white" placeholder="Nhập" />
+                          </td>
+                        </tr>
+                        {/* Spacer để cân bằng layout với cột trái */}
+                        <tr><td colSpan={3} className="py-3"></td></tr>
+                        {/* Tổng hợp chi phí - ngay dưới Sản xuất & Thời gian */}
+                        <tr className="bg-gray-50"><td colSpan={3} className="py-1 px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tổng hợp chi phí</td></tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">CP sản xuất</td>
+                          <td className="py-1.5 px-2 text-sm text-right font-medium text-gray-900">
+                            {(() => {
+                              if (!currentTab.selectedProcess?.flowchart?.sections) return '0';
+                              const total = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => { return sum + section.costs.reduce((costSum, cost) => costSum + ((cost.giaKeHoach || 0) * (cost.soLuongKeHoach || 0)), 0); }, 0);
+                              return (total * (parseFloat(currentTab.formData.thoiGianChoPhepToiDa) || 1)).toLocaleString('vi-VN');
+                            })()}
+                          </td>
+                          <td className="py-1.5 px-2 text-sm text-right font-medium text-gray-900">
+                            {(() => {
+                              if (!currentTab.selectedProcess?.flowchart?.sections) return '0';
+                              const total = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => { return sum + section.costs.reduce((costSum, cost) => costSum + ((cost.giaThucTe || 0) * (cost.soLuongThucTe || 0)), 0); }, 0);
+                              return (total * (parseFloat(currentTab.formData.ngayHoanThanhThucTe) || 1)).toLocaleString('vi-VN');
+                            })()}
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">CP chung</td>
+                          <td className="py-1.5 px-2 text-sm text-right font-medium text-gray-900">
+                            {(() => {
+                              const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
+                              const currentProductId = `tab-${activeTab}`;
+                              let chiPhiChung = 0;
+                              generalCostGroups.forEach((group) => {
+                                const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+                                const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                                if (!isProductSelected) return;
+                                const selectedMainItems = items.filter((_: any, index: number) => group.selectedProducts.includes(`tab-${index}`));
+                                const selectedAdditionalItems = additionalCostTabs.filter(tab => group.selectedProducts.includes(`additional-${tab.id}`));
+                                const totalKhoiLuong = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) + selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                                const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
+                                if (totalKhoiLuong === 0) return;
+                                chiPhiChung += totalSelectedCount === 1 ? groupTotalKeHoach : (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong;
+                              });
+                              return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                          <td className="py-1.5 px-2 text-sm text-right font-medium text-gray-900">
+                            {(() => {
+                              const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
+                              const currentProductId = `tab-${activeTab}`;
+                              let chiPhiChung = 0;
+                              generalCostGroups.forEach(group => {
+                                const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+                                const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                                if (!isProductSelected) return;
+                                const selectedMainItems = items.filter((_: any, index: number) => group.selectedProducts.includes(`tab-${index}`));
+                                const selectedAdditionalItems = additionalCostTabs.filter(tab => group.selectedProducts.includes(`additional-${tab.id}`));
+                                const totalKhoiLuong = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) + selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                                const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
+                                if (totalKhoiLuong === 0) return;
+                                chiPhiChung += totalSelectedCount === 1 ? groupTotalThucTe : (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
+                              });
+                              return chiPhiChung.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2 text-sm text-gray-700">CP xuất khẩu</td>
+                          <td className="py-1.5 px-2 text-sm text-right font-medium text-gray-900">
+                            {(() => {
+                              const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+                              const currentTongThanhPham = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
+                              const totalTongThanhPham = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0) + additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                              const totalProductCount = items.length + additionalCostTabs.length;
+                              const currentKhoiLuongExport = parseFloat(currentItem?.soLuong?.toString() || '0');
+                              const chiPhiXuatKhau = totalProductCount === 1 ? totalExportCostKeHoach : totalTongThanhPham > 0 ? (totalExportCostKeHoach * currentTongThanhPham) / totalTongThanhPham : (() => { const totalKL = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) + additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0); return totalKL > 0 ? (totalExportCostKeHoach * currentKhoiLuongExport) / totalKL : 0; })();
+                              return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                          <td className="py-1.5 px-2 text-sm text-right font-medium text-gray-900">
+                            {(() => {
+                              const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+                              const currentTongThanhPham = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
+                              const totalTongThanhPham = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0) + additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                              const totalProductCount = items.length + additionalCostTabs.length;
+                              const currentKhoiLuongExport = parseFloat(currentItem?.soLuong?.toString() || '0');
+                              const chiPhiXuatKhau = totalProductCount === 1 ? totalExportCostThucTe : totalTongThanhPham > 0 ? (totalExportCostThucTe * currentTongThanhPham) / totalTongThanhPham : (() => { const totalKL = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) + additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0); return totalKL > 0 ? (totalExportCostThucTe * currentKhoiLuongExport) / totalKL : 0; })();
+                              return chiPhiXuatKhau.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                        </tr>
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-gradient-to-r from-blue-50 to-emerald-50 border-t-2 border-gray-300">
+                          <td className="py-2 px-2 text-xs font-bold text-gray-900 uppercase">Tổng chi phí</td>
+                          <td className="py-2 px-2 text-right">
+                            <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 font-bold text-sm rounded">
+                              {(() => {
+                                let chiPhiSanXuat = 0;
+                                if (currentTab.selectedProcess?.flowchart?.sections) {
+                                  const perDay = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => { return sum + section.costs.reduce((costSum, cost) => costSum + ((cost.giaKeHoach || 0) * (cost.soLuongKeHoach || 0)), 0); }, 0);
+                                  chiPhiSanXuat = perDay * (parseFloat(currentTab.formData.thoiGianChoPhepToiDa) || 1);
+                                }
+                                const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
+                                const currentProductId = `tab-${activeTab}`;
+                                let chiPhiChung = 0;
+                                generalCostGroups.forEach(group => {
+                                  const groupTotalKeHoach = group.selectedCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+                                  const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                                  if (!isProductSelected) return;
+                                  const selectedMainItems = items.filter((_: any, index: number) => group.selectedProducts.includes(`tab-${index}`));
+                                  const selectedAdditionalItems = additionalCostTabs.filter(tab => group.selectedProducts.includes(`additional-${tab.id}`));
+                                  const totalKhoiLuong = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) + selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                                  const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
+                                  if (totalKhoiLuong === 0) return;
+                                  chiPhiChung += totalSelectedCount === 1 ? groupTotalKeHoach : (groupTotalKeHoach * currentKhoiLuong) / totalKhoiLuong;
+                                });
+                                const totalExportCostKeHoach = selectedExportCosts.reduce((sum, item) => sum + (item.keHoach || 0), 0);
+                                const currentTongThanhPhamExport = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
+                                const totalTongThanhPhamExport = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0) + additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                                const totalProductCountExport = items.length + additionalCostTabs.length;
+                                const chiPhiXuatKhau = totalProductCountExport === 1 ? totalExportCostKeHoach : totalTongThanhPhamExport > 0 ? (totalExportCostKeHoach * currentTongThanhPhamExport) / totalTongThanhPhamExport : (() => { const curKL = parseFloat(currentItem?.soLuong?.toString() || '0'); const totalKL = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) + additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0); return totalKL > 0 ? (totalExportCostKeHoach * curKL) / totalKL : 0; })();
+                                return (chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                              })()}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2 text-right">
+                            <span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-sm rounded">
+                              {(() => {
+                                let chiPhiSanXuat = 0;
+                                if (currentTab.selectedProcess?.flowchart?.sections) {
+                                  const perDay = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => { return sum + section.costs.reduce((costSum, cost) => costSum + ((cost.giaThucTe || 0) * (cost.soLuongThucTe || 0)), 0); }, 0);
+                                  chiPhiSanXuat = perDay * (parseFloat(currentTab.formData.ngayHoanThanhThucTe) || 1);
+                                }
+                                const currentKhoiLuong = parseFloat(currentItem?.soLuong?.toString() || '0');
+                                const currentProductId = `tab-${activeTab}`;
+                                let chiPhiChung = 0;
+                                generalCostGroups.forEach(group => {
+                                  const groupTotalThucTe = group.selectedCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+                                  const isProductSelected = group.selectedProducts.length > 0 && group.selectedProducts.includes(currentProductId);
+                                  if (!isProductSelected) return;
+                                  const selectedMainItems = items.filter((_: any, index: number) => group.selectedProducts.includes(`tab-${index}`));
+                                  const selectedAdditionalItems = additionalCostTabs.filter(tab => group.selectedProducts.includes(`additional-${tab.id}`));
+                                  const totalKhoiLuong = selectedMainItems.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) + selectedAdditionalItems.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.soLuong?.toString() || '0'), 0);
+                                  const totalSelectedCount = selectedMainItems.length + selectedAdditionalItems.length;
+                                  if (totalKhoiLuong === 0) return;
+                                  chiPhiChung += totalSelectedCount === 1 ? groupTotalThucTe : (groupTotalThucTe * currentKhoiLuong) / totalKhoiLuong;
+                                });
+                                const totalExportCostThucTe = selectedExportCosts.reduce((sum, item) => sum + (item.thucTe || 0), 0);
+                                const currentTongThanhPhamExport = parseFloat(currentTab.formData.tongThanhPhamCanSxThem || '0');
+                                const totalTongThanhPhamExport = tabsData.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0) + additionalCostTabs.reduce((sum: number, tab: any) => sum + parseFloat(tab.formData?.tongThanhPhamCanSxThem || '0'), 0);
+                                const totalProductCountExport = items.length + additionalCostTabs.length;
+                                const chiPhiXuatKhau = totalProductCountExport === 1 ? totalExportCostThucTe : totalTongThanhPhamExport > 0 ? (totalExportCostThucTe * currentTongThanhPhamExport) / totalTongThanhPhamExport : (() => { const curKL = parseFloat(currentItem?.soLuong?.toString() || '0'); const totalKL = items.reduce((sum: number, item: any) => sum + parseFloat(item.soLuong?.toString() || '0'), 0) + additionalCostTabs.reduce((sum: number, t: any) => sum + parseFloat(t.formData?.soLuong || '0'), 0); return totalKL > 0 ? (totalExportCostThucTe * curKL) / totalKL : 0; })();
+                                return (chiPhiSanXuat + chiPhiChung + chiPhiXuatKhau).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
+                              })()}
+                            </span>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
 
           {/* Danh sách sản phẩm trong định mức - Table Layout */}
           {currentTab && currentTab.selectedStandard && currentTab.selectedStandard.items && currentTab.selectedStandard.items.length > 0 && (
@@ -6083,20 +5398,6 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               </div>
             </div>
           )}
-
-          {/* Ghi chú */}
-          <div className="mt-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ghi chú
-            </label>
-            <textarea
-              value={currentTab.formData.ghiChu}
-              onChange={(e) => updateFormData('ghiChu', e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-              placeholder="Nhập ghi chú (nếu có)"
-            />
-          </div>
 
           {/* Chọn quy trình sản xuất */}
           <div className="mt-6">

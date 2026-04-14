@@ -60,6 +60,16 @@ class NotificationService {
     }
   }
 
+  async getUnreadCountByType(): Promise<Record<string, number>> {
+    try {
+      const response = await apiClient.get('/notifications/unread/count-by-type');
+      return response.data || {};
+    } catch (error) {
+      console.error('Error fetching unread count by type:', error);
+      return {};
+    }
+  }
+
   async markAsRead(notificationId: string): Promise<Notification> {
     try {
       const response = await apiClient.patch(`/notifications/${notificationId}/read`, {});

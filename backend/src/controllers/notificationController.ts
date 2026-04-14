@@ -60,7 +60,7 @@ export class NotificationController {
       }
 
       const count = await notificationService.getUnreadCount(employee.id);
-      res.json({ success: true, count });
+      res.json({ success: true, data: { count } });
     } catch (error) {
       next(error);
     }
@@ -167,6 +167,29 @@ export class NotificationController {
         success: true,
         message: 'Notification deleted',
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getUnreadCountByType(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const prisma = require('@config/database').default;
+      const employee = await prisma.employee.findUnique({ where: { userId } });
+
+      if (!employee) {
+        res.json({ success: true, data: {} });
+        return;
+      }
+
+      const counts = await notificationService.getUnreadCountByType(employee.id);
+      res.json({ success: true, data: counts });
     } catch (error) {
       next(error);
     }

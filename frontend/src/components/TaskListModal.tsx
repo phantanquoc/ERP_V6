@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Target, Eye, Check, XCircle, FileText, ChevronLeft } from 'lucide-react';
+import { X, Target, Eye, Check, XCircle, FileText, ChevronLeft, Star } from 'lucide-react';
 import { taskService, Task, TaskPriority, TaskAcceptanceStatus } from '../services/taskService';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileUrl } from '../config/api';
@@ -19,6 +19,10 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
   const [totalItems, setTotalItems] = useState(0);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [acceptingTaskId, setAcceptingTaskId] = useState<string | null>(null);
+  const [evaluatingTaskId, setEvaluatingTaskId] = useState<string | null>(null);
+  const [showEvaluateForm, setShowEvaluateForm] = useState(false);
+  const [evaluateScore, setEvaluateScore] = useState<number>(0);
+  const [evaluateContent, setEvaluateContent] = useState('');
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -105,6 +109,34 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
     }
   };
 
+  const handleEvaluateTask = async (taskId: string) => {
+    if (evaluateScore < 0 || evaluateScore > 100) return;
+    try {
+      setEvaluatingTaskId(taskId);
+      await taskService.evaluateTask(taskId, {
+        diemDanhGia: evaluateScore,
+        noiDungDanhGia: evaluateContent || undefined,
+      });
+      await loadTasks();
+      // Refresh selected task
+      if (selectedTask?.id === taskId) {
+        const refreshed = await taskService.getTaskById(taskId);
+        setSelectedTask(refreshed);
+      }
+      setShowEvaluateForm(false);
+    } catch (error) {
+      console.error('Error evaluating task:', error);
+    } finally {
+      setEvaluatingTaskId(null);
+    }
+  };
+
+  const openEvaluateForm = (task: Task) => {
+    setEvaluateScore(task.diemDanhGia ?? 0);
+    setEvaluateContent(task.noiDungDanhGia ?? '');
+    setShowEvaluateForm(true);
+  };
+
   if (!isOpen) return null;
 
   // Detail view for a selected task
@@ -118,7 +150,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
 
     return (
       <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-        <button onClick={() => setSelectedTask(null)} className="flex items-center gap-1 text-blue-600 hover:text-blue-800 mb-4 text-sm">
+        <button onClick={() => { setSelectedTask(null); setShowEvaluateForm(false); }} className="flex items-center gap-1 text-blue-600 hover:text-blue-800 mb-4 text-sm">
           <ChevronLeft className="w-4 h-4" /> Quay lại danh sách
         </button>
         <div className="space-y-4">
@@ -204,6 +236,78 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
               </button>
             </div>
           )}
+
+          {/* Evaluation section */}
+          <div className="pt-4 border-t">
+            <label className="text-xs font-medium text-gray-500 uppercase flex items-center gap-1">
+              <Star className="w-3.5 h-3.5" /> Đánh giá
+            </label>
+            {selectedTask.diemDanhGia != null ? (
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-blue-600">{selectedTask.diemDanhGia}</span>
+                  <span className="text-sm text-gray-500">/ 100 điểm</span>
+                </div>
+                {selectedTask.noiDungDanhGia && (
+                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{selectedTask.noiDungDanhGia}</p>
+                )}
+                {user?._id === selectedTask.nguoiGiao?.id && !showEvaluateForm && (
+                  <button
+                    onClick={() => openEvaluateForm(selectedTask)}
+                    className="text-sm text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Sửa đánh giá
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-gray-400 italic">Chưa đánh giá</p>
+            )}
+
+            {/* Evaluate form - only for nguoiGiao */}
+            {user?._id === selectedTask.nguoiGiao?.id && (showEvaluateForm || selectedTask.diemDanhGia == null) && (
+              <div className="mt-3 space-y-3 bg-blue-50 rounded-lg p-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Điểm đánh giá (0-100)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={evaluateScore}
+                    onChange={(e) => setEvaluateScore(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nội dung đánh giá</label>
+                  <textarea
+                    value={evaluateContent}
+                    onChange={(e) => setEvaluateContent(e.target.value)}
+                    rows={3}
+                    placeholder="Nhập nội dung đánh giá..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEvaluateTask(selectedTask.id)}
+                    disabled={evaluatingTaskId === selectedTask.id}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
+                  >
+                    <Star className="w-4 h-4" /> {selectedTask.diemDanhGia != null ? 'Cập nhật đánh giá' : 'Đánh giá'}
+                  </button>
+                  {showEvaluateForm && selectedTask.diemDanhGia != null && (
+                    <button
+                      onClick={() => setShowEvaluateForm(false)}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                    >
+                      Hủy
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -251,6 +355,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hạn hoàn thành</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ưu tiên</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đánh giá</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
                     </tr>
                   </thead>
@@ -298,6 +403,15 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusBadge.class}`}>
                           {statusBadge.label}
                         </span>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm">
+                        {task.diemDanhGia != null ? (
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                            {task.diemDanhGia}/100
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">Chưa đánh giá</span>
+                        )}
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-1">

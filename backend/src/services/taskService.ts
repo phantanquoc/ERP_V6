@@ -1,6 +1,6 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
-import { CreateTaskRequest, UpdateTaskRequest, TaskListQuery, TaskPriority, TaskAcceptanceStatus, AcceptTaskRequest } from '@types';
+import { CreateTaskRequest, UpdateTaskRequest, TaskListQuery, TaskPriority, TaskAcceptanceStatus, AcceptTaskRequest, EvaluateTaskRequest } from '@types';
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import { Task } from '@prisma/client';
 import notificationService from './notificationService';
@@ -310,6 +310,36 @@ class TaskService {
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
       data: { trangThaiTiepNhan: currentStatus },
+    });
+
+    return this.populateTaskWithUsers(updatedTask);
+  }
+
+  async evaluateTask(taskId: string, userId: string, data: EvaluateTaskRequest): Promise<any> {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+    });
+
+    if (!task) {
+      throw new NotFoundError('Không tìm thấy nhiệm vụ');
+    }
+
+    // Only người giao can evaluate
+    if (task.nguoiGiaoId !== userId) {
+      throw new ApiError(403, 'Chỉ người giao nhiệm vụ mới có quyền đánh giá');
+    }
+
+    // Validate score range
+    if (data.diemDanhGia < 0 || data.diemDanhGia > 100) {
+      throw new ValidationError('Điểm đánh giá phải từ 0 đến 100');
+    }
+
+    const updatedTask = await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        diemDanhGia: data.diemDanhGia,
+        noiDungDanhGia: data.noiDungDanhGia || null,
+      },
     });
 
     return this.populateTaskWithUsers(updatedTask);

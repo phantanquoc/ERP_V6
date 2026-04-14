@@ -31,6 +31,11 @@ export interface AcceptTaskRequest {
   trangThai: TaskAcceptanceStatus;
 }
 
+export interface EvaluateTaskRequest {
+  diemDanhGia: number;
+  noiDungDanhGia?: string;
+}
+
 export interface TaskResponse {
   id: string;
   ngayGiao: string;
@@ -54,6 +59,8 @@ export interface TaskResponse {
   files?: string[];
   mucDoUuTien: TaskPriority;
   trangThaiTiepNhan: Record<string, TaskAcceptanceStatus>;
+  diemDanhGia?: number;
+  noiDungDanhGia?: string;
   createdAt: string;
   updatedAt: string;
 }

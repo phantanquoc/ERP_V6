@@ -2,6 +2,7 @@ import express from 'express';
 import {
   generateReceiptCode,
   createWarehouseReceipt,
+  batchCreateWarehouseReceipts,
   getAllWarehouseReceipts,
 } from '../controllers/warehouseReceiptController';
 import { authenticate } from '@middlewares/auth';
@@ -40,6 +41,7 @@ router.get('/generate-code', authenticate, generateReceiptCode);
  *       201:
  *         description: Tạo phiếu nhập kho thành công
  */
+router.post('/batch', authenticate, batchCreateWarehouseReceipts);
 router.post('/', authenticate, createWarehouseReceipt);
 
 /**

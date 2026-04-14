@@ -883,6 +883,7 @@ model QuotationCalculatorProduct {
   flowchartData                   Json?
   thoiGianChoPhepToiDa            Float?
   ngayBatDauSanXuat               DateTime?
+  ngayBatDauSanXuatThucTe         DateTime?
   ngayHoanThanhThucTe             Float?
   chiPhiSanXuatKeHoach            Float?
   chiPhiSanXuatThucTe             Float?
@@ -1886,6 +1887,8 @@ model Task {
   files              String[]     @default([])
   mucDoUuTien        TaskPriority
   trangThaiTiepNhan  Json         @default("{}") // Map of userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
+  diemDanhGia        Int?         // Điểm đánh giá 0-100
+  noiDungDanhGia     String?      // Nội dung đánh giá từ người giao
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 

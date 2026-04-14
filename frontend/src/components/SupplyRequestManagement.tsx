@@ -31,6 +31,8 @@ const getStatusColor = (status: string) => {
   switch (status) {
     case 'Đã cung cấp':
       return 'text-green-700 bg-green-100';
+    case 'Đã mua hàng':
+      return 'text-emerald-700 bg-emerald-100';
     case 'Đã duyệt mua':
       return 'text-blue-700 bg-blue-100';
     case 'Đang xử lý':
@@ -365,7 +367,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           </button>
                         )}
 
-                        {request.purchaseRequests?.some(pr => pr.trangThai === 'Đã duyệt') && (() => {
+                        {request.purchaseRequests?.some(pr => pr.trangThai === 'Đã duyệt' || pr.trangThai === 'Hoàn thành') && (() => {
                           const daNhapKho = request.warehouseReceipts && request.warehouseReceipts.length > 0;
                           return (
                             <button

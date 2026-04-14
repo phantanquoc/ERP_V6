@@ -113,6 +113,20 @@ export class NotificationService {
     return result;
   }
 
+  async getUnreadCountByType(employeeId: string): Promise<Record<string, number>> {
+    const counts = await prisma.notification.groupBy({
+      by: ['type'],
+      where: { employeeId, isRead: false },
+      _count: { type: true },
+    });
+
+    const result: Record<string, number> = {};
+    for (const item of counts) {
+      result[item.type] = item._count.type;
+    }
+    return result;
+  }
+
   async deleteNotification(notificationId: string): Promise<void> {
     await prisma.notification.delete({
       where: { id: notificationId },

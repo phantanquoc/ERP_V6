@@ -110,7 +110,7 @@ const getQuickActions = (department: string) => {
 };
 
 // Component for Personal Stat Card
-const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; onTaskClick?: () => void; onWorkPlanClick?: () => void }> = ({ stat, onEvaluationClick, onTaskClick, onWorkPlanClick }) => (
+const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; onTaskClick?: () => void; onWorkPlanClick?: () => void; notifCount?: number }> = ({ stat, onEvaluationClick, onTaskClick, onWorkPlanClick, notifCount = 0 }) => (
   <div
     onClick={() => {
       if (stat.label === "Đánh giá" && onEvaluationClick) {
@@ -125,6 +125,11 @@ const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; on
   >
     {stat.hasNotification && (
       <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+    )}
+    {notifCount > 0 && !stat.hasNotification && (
+      <div className="absolute -top-2 -right-2 min-w-[22px] h-[22px] px-1 bg-red-500 rounded-full flex items-center justify-center">
+        <span className="text-[11px] font-bold text-white">{notifCount > 99 ? '99+' : notifCount}</span>
+      </div>
     )}
     <div className="flex items-center justify-between">
       <div className="flex-1">
@@ -202,6 +207,7 @@ const EmployeeDashboard: React.FC = () => {
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
   const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState(false);
   const [workPlansCount, setWorkPlansCount] = useState<number>(0);
+  const [unreadByType, setUnreadByType] = useState<Record<string, number>>({});
 
   const { data: tasksCount = 0 } = useMyTasksCount();
 
@@ -209,6 +215,13 @@ const EmployeeDashboard: React.FC = () => {
     loadLatestEvaluationNotification();
     loadRecentReports();
     loadWorkPlansCount();
+    const loadUnreadByType = async () => {
+      const counts = await notificationService.getUnreadCountByType();
+      setUnreadByType(counts);
+    };
+    loadUnreadByType();
+    const interval = setInterval(loadUnreadByType, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadLatestEvaluationNotification = async () => {
@@ -258,6 +271,16 @@ const EmployeeDashboard: React.FC = () => {
   const departmentName = getDepartmentDisplayName(user.department);
   const personalStats = getPersonalStats(user, latestEvaluationNotification, tasksCount, workPlansCount);
   const quickActions = getQuickActions(user.department || '');
+
+  // Map stat label to unread notification count
+  const getNotifCount = (label: string): number => {
+    switch (label) {
+      case 'Nhiệm vụ': return unreadByType['TASK'] || 0;
+      case 'Kế hoạch': return (unreadByType['OVERTIME_PLAN'] || 0) + (unreadByType['OVERTIME_PLAN_APPROVAL'] || 0);
+      case 'Đánh giá': return (unreadByType['EVALUATION'] || 0) + (unreadByType['EVALUATION_SUPERVISOR1'] || 0) + (unreadByType['EVALUATION_SUPERVISOR2'] || 0) + (unreadByType['EVALUATION_COMPLETED'] || 0);
+      default: return 0;
+    }
+  };
   const { settings } = useSystemSettings();
   const activeTheme = settings?.activeTheme || 'DEFAULT';
 
@@ -273,6 +296,7 @@ const EmployeeDashboard: React.FC = () => {
             <PersonalStatCard
               key={index}
               stat={stat}
+              notifCount={getNotifCount(stat.label)}
               onEvaluationClick={() => setIsEvaluationModalOpen(true)}
               onTaskClick={() => setIsTaskListModalOpen(true)}
               onWorkPlanClick={() => setIsWorkPlanModalOpen(true)}

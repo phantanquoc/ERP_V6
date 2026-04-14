@@ -112,13 +112,19 @@ const DepartmentCard: React.FC<{
 const QuickStatCard: React.FC<{
   stat: any;
   onClick?: () => void;
-}> = ({ stat, onClick }) => (
+  notifCount?: number;
+}> = ({ stat, onClick, notifCount = 0 }) => (
   <div
     className={`bg-white rounded-lg shadow-sm px-3 py-4 border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-100'} ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 transition-all' : ''} relative`}
     onClick={stat.clickable ? onClick : undefined}
   >
     {stat.hasNotification && (
       <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+    )}
+    {notifCount > 0 && !stat.hasNotification && (
+      <div className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 bg-red-500 rounded-full flex items-center justify-center">
+        <span className="text-[10px] font-bold text-white">{notifCount > 99 ? '99+' : notifCount}</span>
+      </div>
     )}
     <div className="flex items-center gap-2.5">
       <div className={`p-2 rounded-lg ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0`}>
@@ -161,10 +167,23 @@ const Dashboard1: React.FC = () => {
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
   const [approveLoading, setApproveLoading] = useState<string | null>(null);
+  const [unreadByType, setUnreadByType] = useState<Record<string, number>>({});
+  const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<any | null>(null);
 
   const userIsAdmin = user ? isAdmin(user.department) : false;
   const { settings } = useSystemSettings();
   const activeTheme = settings?.activeTheme || 'DEFAULT';
+
+  // Load unread notification counts by type
+  useEffect(() => {
+    const loadUnreadByType = async () => {
+      const counts = await notificationService.getUnreadCountByType();
+      setUnreadByType(counts);
+    };
+    loadUnreadByType();
+    const interval = setInterval(loadUnreadByType, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Use React Query hooks for data fetching with caching
   const { data: tasksCount = 0 } = useTasksCount();
@@ -366,6 +385,17 @@ const Dashboard1: React.FC = () => {
   const departmentName = getDepartmentDisplayName(user.department);
   const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, overtimeCount, overtimePendingCount);
 
+  // Map stat type to unread notification count
+  const getNotifCount = (type: string): number => {
+    switch (type) {
+      case 'tasks': return unreadByType['TASK'] || 0;
+      case 'plans': return (unreadByType['OVERTIME_PLAN'] || 0) + (unreadByType['OVERTIME_PLAN_APPROVAL'] || 0);
+      case 'evaluation': return (unreadByType['EVALUATION'] || 0) + (unreadByType['EVALUATION_SUPERVISOR1'] || 0) + (unreadByType['EVALUATION_SUPERVISOR2'] || 0) + (unreadByType['EVALUATION_COMPLETED'] || 0);
+      case 'purchaseRequests': return (unreadByType['SUPPLY_REQUEST'] || 0) + (unreadByType['SUPPLY_REQUEST_PROCESSING'] || 0) + (unreadByType['SUPPLY_REQUEST_APPROVED'] || 0) + (unreadByType['SUPPLY_REQUEST_FULFILLED'] || 0);
+      default: return 0;
+    }
+  };
+
   const departmentStats = {
     general: {
       name: "Bộ phận tổng hợp",
@@ -463,6 +493,7 @@ const Dashboard1: React.FC = () => {
             <QuickStatCard
               key={index}
               stat={stat}
+              notifCount={getNotifCount(stat.type)}
               onClick={stat.clickable ? () => {
                 if (stat.type === 'tasks') {
                   setIsTaskListModalOpen(true);
@@ -641,83 +672,99 @@ const Dashboard1: React.FC = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã yêu cầu</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày yêu cầu</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhân viên</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hàng hoá</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ưu tiên</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người duyệt</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã yêu cầu</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày yêu cầu</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhân viên</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sản phẩm</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng tiền</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ưu tiên</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người duyệt</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {purchaseRequests.map((request, index) => (
-                      <tr key={request.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600">{request.maYeuCau}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(request.ngayYeuCau).toLocaleDateString('vi-VN')}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{request.tenNhanVien}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 max-w-[200px] truncate" title={request.tenHangHoa}>
-                          {request.tenHangHoa}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {request.soLuong} {request.donViTinh}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            request.mucDoUuTien === 'Cao' ? 'bg-red-100 text-red-800' :
-                            request.mucDoUuTien === 'Trung bình' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
-                            {request.mucDoUuTien}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            request.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' :
-                            request.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' :
-                            request.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {request.trangThai}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {request.nguoiDuyet || '-'}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                          {request.trangThai === 'Chờ duyệt' ? (
+                    {purchaseRequests.map((request: any, index: number) => {
+                      const items = request.items || [];
+                      const productNames = items.map((item: any) => item.tenHangHoa).filter(Boolean);
+                      const productDisplay = productNames.length <= 3
+                        ? productNames.join(', ')
+                        : `${productNames.slice(0, 3).join(', ')}...`;
+                      const totalAmount = items.reduce((sum: number, item: any) => sum + ((Number(item.giaDuKien) || 0) * (Number(item.soLuong) || 0)), 0);
+                      return (
+                        <tr key={request.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
+                          <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-blue-600">{request.maYeuCau}</td>
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {new Date(request.ngayYeuCau).toLocaleDateString('vi-VN')}
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.tenNhanVien}</td>
+                          <td className="px-3 py-3 text-sm text-gray-900 max-w-[200px] truncate" title={productNames.join(', ')}>
+                            {productDisplay || '-'}
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                            {totalAmount > 0 ? `${totalAmount.toLocaleString('vi-VN')}đ` : '-'}
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              request.mucDoUuTien === 'Cao' ? 'bg-red-100 text-red-800' :
+                              request.mucDoUuTien === 'Trung bình' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {request.mucDoUuTien}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              request.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' :
+                              request.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' :
+                              request.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {request.trangThai}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {request.nguoiDuyet || '-'}
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-center">
                             <div className="flex items-center justify-center gap-2">
                               <button
-                                onClick={() => handleApprovePurchaseRequest(request.id, true)}
-                                disabled={approveLoading === request.id}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-xs font-medium"
-                                title="Duyệt"
+                                onClick={() => setSelectedPurchaseRequest(request)}
+                                className="inline-flex items-center gap-1 px-2 py-1.5 text-blue-600 hover:bg-blue-50 rounded-md text-xs font-medium"
+                                title="Xem chi tiết"
                               >
-                                <Check className="w-3.5 h-3.5" />
-                                Duyệt
+                                <Eye className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => handleApprovePurchaseRequest(request.id, false)}
-                                disabled={approveLoading === request.id}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 text-xs font-medium"
-                                title="Từ chối"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                                Từ chối
-                              </button>
+                              {request.trangThai === 'Chờ duyệt' && (
+                                <>
+                                  <button
+                                    onClick={() => handleApprovePurchaseRequest(request.id, true)}
+                                    disabled={approveLoading === request.id}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-xs font-medium"
+                                    title="Duyệt"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleApprovePurchaseRequest(request.id, false)}
+                                    disabled={approveLoading === request.id}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 text-xs font-medium"
+                                    title="Từ chối"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                              {request.trangThai !== 'Chờ duyệt' && (
+                                <span className="text-gray-400 text-xs">Đã xử lý</span>
+                              )}
                             </div>
-                          ) : (
-                            <span className="text-gray-400 text-xs">Đã xử lý</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -726,6 +773,163 @@ const Dashboard1: React.FC = () => {
             <div className="p-4 border-t border-gray-200 flex justify-end">
               <button
                 onClick={() => setIsPurchaseRequestModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Purchase Request Detail Modal */}
+      {selectedPurchaseRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center">
+                <Eye className="h-5 w-5 text-blue-600 mr-2" />
+                Chi tiết yêu cầu: {selectedPurchaseRequest.maYeuCau}
+              </h2>
+              <button
+                onClick={() => setSelectedPurchaseRequest(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              {/* General Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Mã yêu cầu</p>
+                  <p className="text-sm font-semibold text-blue-600">{selectedPurchaseRequest.maYeuCau}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Ngày yêu cầu</p>
+                  <p className="text-sm font-medium">{new Date(selectedPurchaseRequest.ngayYeuCau).toLocaleDateString('vi-VN')}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Nhân viên</p>
+                  <p className="text-sm font-medium">{selectedPurchaseRequest.tenNhanVien}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Mã nhân viên</p>
+                  <p className="text-sm font-medium">{selectedPurchaseRequest.maNhanVien || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Mức độ ưu tiên</p>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    selectedPurchaseRequest.mucDoUuTien === 'Cao' ? 'bg-red-100 text-red-800' :
+                    selectedPurchaseRequest.mucDoUuTien === 'Trung bình' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-green-100 text-green-800'
+                  }`}>
+                    {selectedPurchaseRequest.mucDoUuTien}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Trạng thái</p>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    selectedPurchaseRequest.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' :
+                    selectedPurchaseRequest.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' :
+                    selectedPurchaseRequest.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedPurchaseRequest.trangThai}
+                  </span>
+                </div>
+                {selectedPurchaseRequest.nguoiDuyet && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Người duyệt</p>
+                    <p className="text-sm font-medium">{selectedPurchaseRequest.nguoiDuyet}</p>
+                  </div>
+                )}
+                {selectedPurchaseRequest.ngayDuyet && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Ngày duyệt</p>
+                    <p className="text-sm font-medium">{new Date(selectedPurchaseRequest.ngayDuyet).toLocaleDateString('vi-VN')}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Purpose */}
+              {selectedPurchaseRequest.mucDichYeuCau && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Mục đích yêu cầu</p>
+                  <p className="text-sm bg-gray-50 rounded-lg p-3">{selectedPurchaseRequest.mucDichYeuCau}</p>
+                </div>
+              )}
+
+              {/* Notes */}
+              {selectedPurchaseRequest.ghiChu && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Ghi chú</p>
+                  <p className="text-sm bg-gray-50 rounded-lg p-3">{selectedPurchaseRequest.ghiChu}</p>
+                </div>
+              )}
+
+              {/* Items */}
+              <div>
+                <p className="text-xs text-gray-500 mb-2 font-semibold uppercase">Danh sách sản phẩm</p>
+                {selectedPurchaseRequest.items && selectedPurchaseRequest.items.length > 0 ? (
+                  <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg overflow-hidden">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">#</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Phân loại</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Tên hàng hóa</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">SL</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">ĐVT</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Nhà cung cấp</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Đơn giá</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {selectedPurchaseRequest.items.map((item: any, i: number) => {
+                        const donGia = Number(item.giaDuKien) || 0;
+                        const soLuong = Number(item.soLuong) || 0;
+                        return (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-sm text-gray-600">{i + 1}</td>
+                            <td className="px-3 py-2 text-sm text-gray-900">{item.phanLoai || '-'}</td>
+                            <td className="px-3 py-2 text-sm font-medium text-gray-900">{item.tenHangHoa}</td>
+                            <td className="px-3 py-2 text-sm text-right text-gray-900">{soLuong}</td>
+                            <td className="px-3 py-2 text-sm text-gray-900">{item.donViTinh}</td>
+                            <td className="px-3 py-2 text-sm text-gray-900">{item.supplier?.tenNhaCungCap || item.supplier?.tenNCC || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-right text-gray-900">{donGia > 0 ? `${donGia.toLocaleString('vi-VN')}đ` : '-'}</td>
+                            <td className="px-3 py-2 text-sm text-right font-medium text-gray-900">{donGia > 0 ? `${(donGia * soLuong).toLocaleString('vi-VN')}đ` : '-'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-gray-50">
+                      <tr>
+                        <td colSpan={7} className="px-3 py-2 text-sm font-bold text-gray-700 text-right">Tổng cộng:</td>
+                        <td className="px-3 py-2 text-sm font-bold text-right text-blue-700">
+                          {selectedPurchaseRequest.items.reduce((sum: number, item: any) => sum + ((Number(item.giaDuKien) || 0) * (Number(item.soLuong) || 0)), 0).toLocaleString('vi-VN')}đ
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                ) : (
+                  <p className="text-sm text-gray-400">Không có sản phẩm</p>
+                )}
+              </div>
+
+              {/* Purchase notes */}
+              {selectedPurchaseRequest.ghiChuMuaHang && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Ghi chú mua hàng</p>
+                  <p className="text-sm bg-gray-50 rounded-lg p-3">{selectedPurchaseRequest.ghiChuMuaHang}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => setSelectedPurchaseRequest(null)}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               >
                 Đóng
