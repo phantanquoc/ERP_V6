@@ -90,16 +90,20 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // ─── Graceful Shutdown ───────────────────────────────────────────────────────
+let server: ReturnType<typeof app.listen>;
+
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
 function gracefulShutdown() {
   logger.info('Shutting down gracefully...');
   closeWebSocket();
-  server.close(() => {
-    logger.info('HTTP server closed');
-    process.exit(0);
-  });
+  if (server) {
+    server.close(() => {
+      logger.info('HTTP server closed');
+      process.exit(0);
+    });
+  }
 
   // Force exit after 10 seconds
   setTimeout(() => {
@@ -108,9 +112,14 @@ function gracefulShutdown() {
   }, 10_000);
 }
 
+// ─── Export app for testing (supertest) ─────────────────────────────────────
+export default app;
+
 // ─── Start Server ────────────────────────────────────────────────────────────
-const PORT = env.PORT;
-const server = app.listen(PORT, () => {
+// Skip in test environment — supertest creates its own server on a random port
+if (process.env.NODE_ENV !== 'test') {
+  const PORT = env.PORT;
+  server = app.listen(PORT, () => {
   logger.info(`🚀 Server is running on http://localhost:${PORT}`);
   logger.info(`Environment: ${env.NODE_ENV}`);
 
@@ -185,3 +194,4 @@ const server = app.listen(PORT, () => {
     catch(e) { logger.error('Meeting reminder check failed:', e); }
   }, 60_000);
 });
+} // end if (NODE_ENV !== 'test')

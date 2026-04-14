@@ -180,8 +180,8 @@ describe('OvertimePlan Attendance Integration', () => {
       expect(checkOut.getMinutes()).toBe(0);
     });
 
-    it('should EXTEND checkOutTime when employee already checked in (has existing attendance)', async () => {
-      // Employee member-2 already has a daytime attendance with checkIn but no checkOut yet
+    it('should UPDATE existing attendance record when found by overtimePlanId (re-sync)', async () => {
+      // Employee member-2 already has a daytime attendance linked to this plan
       mockedPrisma.attendance.findFirst.mockImplementation((args) => {
         const where: any = args?.where || {};
         if (where.employeeId === 'emp-member-2') {
@@ -195,29 +195,30 @@ describe('OvertimePlan Attendance Integration', () => {
       });
       mockedPrisma.attendance.update.mockResolvedValue({});
 
-      await service.createOvertimeAttendances(PLAN_APPROVED); // overtime ends at 21:00
+      await service.createOvertimeAttendances(PLAN_APPROVED);
 
       // emp-member-2: should UPDATE existing record (not create new)
       const updateCall = (mockedPrisma.attendance.update as jest.Mock).mock.calls[0][0];
       expect(updateCall.where.id).toBe('att-existing-002');
       expect(updateCall.data.isOvertime).toBe(true);
-      expect(updateCall.data.overtimePlanId).toBe(PLAN_APPROVED.id);
-      expect(updateCall.data.notes).toContain('Ca ngày thường');
+      expect(updateCall.data.overtimePlanId).toBeUndefined(); // not in update data (already on record)
       expect(updateCall.data.notes).toContain(PLAN_APPROVED.noiDung);
       expect(mockedPrisma.attendance.create).toHaveBeenCalledTimes(2); // Only 2 new records
     });
 
-    it('should NOT update checkOutTime when existing checkOut is already LATER than overtime end', async () => {
+    it('should UPDATE existing record even when checkOut is already later (re-sync behavior)', async () => {
       // Employee already checked out at 22:00 — later than overtime end (21:00)
       mockedPrisma.attendance.findFirst.mockResolvedValue({
         id: 'att-already-out',
         checkOutTime: new Date(2026, 3, 6, 22, 0, 0), // local 22:00 > 21:00
         notes: 'Ca tối',
       });
+      mockedPrisma.attendance.update.mockResolvedValue({});
 
       await service.createOvertimeAttendances(PLAN_APPROVED);
 
-      expect(mockedPrisma.attendance.update).not.toHaveBeenCalled();
+      // Service re-syncs existing record with approved plan times (idempotent)
+      expect(mockedPrisma.attendance.update).toHaveBeenCalled();
       expect(mockedPrisma.attendance.create).not.toHaveBeenCalled();
     });
 
@@ -257,16 +258,16 @@ describe('OvertimePlan Attendance Integration', () => {
       await expect(service.createOvertimeAttendances(PLAN_APPROVED)).resolves.not.toThrow();
     });
 
-    it('should query attendance within correct date range (start and end of day)', async () => {
+    it('should query attendance by employeeId + overtimePlanId (not date range)', async () => {
       mockedPrisma.attendance.findFirst.mockResolvedValue(null);
       mockedPrisma.attendance.create.mockResolvedValue({});
 
       await service.createOvertimeAttendances(PLAN_APPROVED);
 
       const findFirstCall = (mockedPrisma.attendance.findFirst as jest.Mock).mock.calls[0][0];
-      expect(findFirstCall.where.attendanceDate.gte).toBeDefined();
-      expect(findFirstCall.where.attendanceDate.lte).toBeDefined();
       expect(findFirstCall.where.employeeId).toBe('emp-creator'); // First employee
+      expect(findFirstCall.where.overtimePlanId).toBe(PLAN_APPROVED.id);
+      expect(findFirstCall.where.attendanceDate).toBeUndefined(); // No date range query
     });
   });
 

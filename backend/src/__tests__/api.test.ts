@@ -134,7 +134,7 @@ describe('POST /api/auth/login', () => {
 
     const res = await request(app)
       .post('/api/auth/login')
-      .send({ email: 'test@anbinhfoods.net', password: 'wrong-pass' })
+      .send({ identifier: 'test@anbinhfoods.net', password: 'wrong-pass' })
       .set('Content-Type', 'application/json');
 
     expect(res.status).toBe(401);
@@ -154,7 +154,7 @@ describe('POST /api/auth/login', () => {
 
     const res = await request(app)
       .post('/api/auth/login')
-      .send({ email: 'test@anbinhfoods.net', password: 'password123' })
+      .send({ identifier: 'test@anbinhfoods.net', password: 'password123' })
       .set('Content-Type', 'application/json');
 
     expect(res.status).toBe(200);
