@@ -120,6 +120,7 @@ const BusinessReport: React.FC = () => {
       borderColor: 'border-blue-400',
       bgColor: 'bg-blue-50',
       textColor: 'text-blue-600',
+      link: '/business/management',
     },
     {
       title: 'Khách hàng quốc tế',
@@ -132,6 +133,7 @@ const BusinessReport: React.FC = () => {
       borderColor: 'border-green-400',
       bgColor: 'bg-green-50',
       textColor: 'text-green-600',
+      link: '/business/international',
     },
     {
       title: 'Khách hàng nội địa',
@@ -144,6 +146,7 @@ const BusinessReport: React.FC = () => {
       borderColor: 'border-purple-400',
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-600',
+      link: '/business/domestic',
     },
     {
       title: 'Phản hồi khách hàng',
@@ -154,6 +157,7 @@ const BusinessReport: React.FC = () => {
       borderColor: 'border-orange-400',
       bgColor: 'bg-orange-50',
       textColor: 'text-orange-600',
+      link: '/business/domestic',
     },
   ];
 
@@ -171,7 +175,8 @@ const BusinessReport: React.FC = () => {
           {statCards.map((card, idx) => (
             <div
               key={idx}
-              className={`bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:${card.borderColor}`}
+              className={`bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 cursor-pointer hover:${card.borderColor}`}
+              onClick={() => window.location.href = card.link}
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold flex items-center text-gray-800">

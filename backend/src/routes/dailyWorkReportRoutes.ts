@@ -40,6 +40,8 @@ router.use(authenticate);
  */
 router.get('/my-reports', dailyWorkReportController.getMyReports);
 
+router.get('/submitted-count', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), dailyWorkReportController.getSubmittedCount);
+
 /**
  * @swagger
  * /api/daily-work-reports/my-statistics:

@@ -184,23 +184,21 @@ class SupplyRequestService {
       });
     });
 
-    // Send notification to purchasing department employees
+    // Send notification to warehouse employees
     try {
-      const purchasingEmployees = await prisma.employee.findMany({
+      const warehouseEmployees = await prisma.employee.findMany({
         where: {
           subDepartment: {
-            department: {
-              code: 'DEPT_PURCHASING',
-            },
+            code: 'SUBDEPT_PRODUCTION_WAREHOUSE',
           },
         },
         select: { id: true },
       });
 
-      if (purchasingEmployees.length > 0) {
+      if (warehouseEmployees.length > 0) {
         const itemNames = data.items.map((i) => i.tenGoi).join(', ');
         await notificationService.createSupplyRequestNotifications(
-          purchasingEmployees.map((emp) => emp.id),
+          warehouseEmployees.map((emp) => emp.id),
           NotificationType.SUPPLY_REQUEST,
           'Yêu cầu cung cấp mới',
           `${data.tenNhanVien} (${data.boPhan}) yêu cầu cung cấp: ${itemNames}`,
@@ -327,7 +325,7 @@ class SupplyRequestService {
 
   /**
    * Called when the linked PurchaseRequest is approved.
-   * Advances status to "Đã duyệt mua" and notifies requester + warehouse staff.
+   * Advances status to "Đã duyệt mua" and notifies warehouse + purchasing staff.
    */
   async onPurchaseRequestApproved(supplyRequestId: string): Promise<void> {
     try {
@@ -340,33 +338,41 @@ class SupplyRequestService {
 
       if (!request) return;
 
-      // Notify original requester
-      await notificationService.createSupplyRequestNotification(
-        request.employeeId,
-        NotificationType.SUPPLY_REQUEST_APPROVED,
-        'Yêu cầu cung cấp đã được duyệt mua',
-        `Yêu cầu cung cấp ${request.maYeuCau} của bạn đã được duyệt mua hàng.`,
-        supplyRequestId
-      );
-
       // Notify warehouse employees
       const warehouseEmployees = await prisma.employee.findMany({
         where: {
           subDepartment: {
+            code: 'SUBDEPT_PRODUCTION_WAREHOUSE',
+          },
+        },
+        select: { id: true },
+      });
+
+      // Notify purchasing employees
+      const purchasingEmployees = await prisma.employee.findMany({
+        where: {
+          subDepartment: {
             department: {
-              code: 'DEPT_WAREHOUSE',
+              code: 'DEPT_PURCHASING',
             },
           },
         },
         select: { id: true },
       });
 
-      if (warehouseEmployees.length > 0) {
+      const allRecipientIds = [
+        ...new Set([
+          ...warehouseEmployees.map((emp) => emp.id),
+          ...purchasingEmployees.map((emp) => emp.id),
+        ]),
+      ];
+
+      if (allRecipientIds.length > 0) {
         await notificationService.createSupplyRequestNotifications(
-          warehouseEmployees.map((emp) => emp.id),
+          allRecipientIds,
           NotificationType.SUPPLY_REQUEST_APPROVED,
-          'Hàng hóa sắp nhập kho',
-          `Yêu cầu cung cấp ${request.maYeuCau} đã được duyệt mua. Chuẩn bị nhập kho.`,
+          'Yêu cầu mua hàng đã được duyệt',
+          `Yêu cầu cung cấp ${request.maYeuCau} đã được duyệt mua hàng.`,
           supplyRequestId
         );
       }
@@ -377,7 +383,7 @@ class SupplyRequestService {
 
   /**
    * Called when the linked PurchaseRequest is marked as "Hoàn thành" (goods purchased).
-   * Advances status to "Đã mua hàng" and notifies the original requester.
+   * Advances status to "Đã mua hàng" and notifies warehouse employees.
    */
   async onPurchaseRequestCompleted(supplyRequestId: string): Promise<void> {
     try {
@@ -389,13 +395,24 @@ class SupplyRequestService {
       });
 
       if (request) {
-        await notificationService.createSupplyRequestNotification(
-          request.employeeId,
-          NotificationType.SUPPLY_REQUEST_APPROVED,
-          'Hàng hóa đã được mua',
-          `Yêu cầu cung cấp ${request.maYeuCau} đã được mua hàng xong. Đang chờ nhập kho.`,
-          supplyRequestId
-        );
+        const warehouseEmployees = await prisma.employee.findMany({
+          where: {
+            subDepartment: {
+              code: 'SUBDEPT_PRODUCTION_WAREHOUSE',
+            },
+          },
+          select: { id: true },
+        });
+
+        if (warehouseEmployees.length > 0) {
+          await notificationService.createSupplyRequestNotifications(
+            warehouseEmployees.map((emp) => emp.id),
+            NotificationType.SUPPLY_REQUEST_APPROVED,
+            'Hàng hóa đã được mua',
+            `Yêu cầu cung cấp ${request.maYeuCau} đã được mua hàng xong. Vui lòng chuẩn bị nhập kho.`,
+            supplyRequestId
+          );
+        }
       }
     } catch (error) {
       console.error('Error in onPurchaseRequestCompleted notification:', error);

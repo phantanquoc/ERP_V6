@@ -1,5 +1,7 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { FeedbackType, FeedbackStatus } from '@prisma/client';
+import notificationService from './notificationService';
 
 interface CreatePrivateFeedbackData {
   type: FeedbackType;
@@ -178,6 +180,19 @@ export const privateFeedbackService = {
         }
       }
     });
+
+    // Notify admin about new feedback
+    try {
+      const employeeName = feedback.user
+        ? `${feedback.user.firstName} ${feedback.user.lastName}`
+        : 'Nhân viên';
+      await notificationService.createAdminFeedbackNotification(
+        employeeName,
+        data.userId
+      );
+    } catch (error) {
+      logger.error('Error sending admin feedback notification:', error);
+    }
 
     return feedback;
   },

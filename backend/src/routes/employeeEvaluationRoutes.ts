@@ -51,6 +51,12 @@ router.get(
   employeeEvaluationController.getEmployeeEvaluations
 );
 
+router.get(
+  '/pending-count',
+  authenticate,
+  employeeEvaluationController.getPendingCount
+);
+
 /**
  * @swagger
  * /api/employee-evaluations/my-evaluation/{evaluationId}:

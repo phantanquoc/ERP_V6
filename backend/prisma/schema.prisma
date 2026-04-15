@@ -29,7 +29,8 @@ model User {
   refreshTokens    RefreshToken[]
   userRoles        UserRoleAssignment[]
   employees        Employee?
-  privateFeedbacks PrivateFeedback[]
+  privateFeedbacks  PrivateFeedback[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
   @@schema("auth")
@@ -60,6 +61,21 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
+  @@schema("auth")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@map("push_subscriptions")
   @@schema("auth")
 }
 

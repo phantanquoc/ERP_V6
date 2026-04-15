@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotificationType } from '@types';
+import pushNotificationService from './pushNotificationService';
 
 export class NotificationService {
   async createNotification(data: {
@@ -34,6 +35,10 @@ export class NotificationService {
       },
     });
 
+    pushNotificationService
+      .sendPushToEmployee(user.employees.id, data.title, data.message)
+      .catch(() => {});
+
     return notification;
   }
 
@@ -49,17 +54,24 @@ export class NotificationService {
       year: 'numeric',
     });
 
+    const title = `Đánh giá tháng ${monthName}`;
+    const message = `Bạn có 1 đánh giá mới`;
+
     const notification = await prisma.notification.create({
       data: {
         employeeId,
         type: NotificationType.EVALUATION,
-        title: `Đánh giá tháng ${monthName}`,
-        message: `Bạn có 1 đánh giá mới`,
+        title,
+        message,
         period,
         evaluationId,
         isRead: false,
       },
     });
+
+    pushNotificationService
+      .sendPushToEmployee(employeeId, title, message)
+      .catch(() => {});
 
     return notification;
   }
@@ -151,16 +163,23 @@ export class NotificationService {
     taskTitle: string,
     assignerName: string
   ): Promise<any> {
+    const title = 'Nhiệm vụ mới';
+    const message = `${assignerName} đã giao cho bạn nhiệm vụ: "${taskTitle}"`;
+
     const notification = await prisma.notification.create({
       data: {
         employeeId,
         type: NotificationType.TASK,
-        title: 'Nhiệm vụ mới',
-        message: `${assignerName} đã giao cho bạn nhiệm vụ: "${taskTitle}"`,
+        title,
+        message,
         taskId,
         isRead: false,
       },
     });
+
+    pushNotificationService
+      .sendPushToEmployee(employeeId, title, message)
+      .catch(() => {});
 
     return notification;
   }
@@ -173,11 +192,14 @@ export class NotificationService {
   ): Promise<void> {
     if (employeeIds.length === 0) return;
 
+    const title = 'Nhiệm vụ mới';
+    const message = `${assignerName} đã giao cho bạn nhiệm vụ: "${taskTitle}"`;
+
     const notifications = employeeIds.map((employeeId) => ({
       employeeId,
       type: NotificationType.TASK,
-      title: 'Nhiệm vụ mới',
-      message: `${assignerName} đã giao cho bạn nhiệm vụ: "${taskTitle}"`,
+      title,
+      message,
       taskId,
       isRead: false,
     }));
@@ -185,6 +207,12 @@ export class NotificationService {
     await prisma.notification.createMany({
       data: notifications,
     });
+
+    await Promise.allSettled(
+      employeeIds.map((employeeId) =>
+        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
+      )
+    );
   }
 
   async createLeaveRequestNotification(
@@ -195,11 +223,14 @@ export class NotificationService {
   ): Promise<void> {
     if (employeeIds.length === 0) return;
 
+    const title = 'Đơn nghỉ phép mới';
+    const message = `${employeeName} đã gửi đơn nghỉ phép ${leaveTypeLabel}`;
+
     const notifications = employeeIds.map((employeeId) => ({
       employeeId,
       type: NotificationType.LEAVE_REQUEST,
-      title: 'Đơn nghỉ phép mới',
-      message: `${employeeName} đã gửi đơn nghỉ phép ${leaveTypeLabel}`,
+      title,
+      message,
       leaveRequestId,
       isRead: false,
     }));
@@ -207,6 +238,12 @@ export class NotificationService {
     await prisma.notification.createMany({
       data: notifications,
     });
+
+    await Promise.allSettled(
+      employeeIds.map((employeeId) =>
+        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
+      )
+    );
   }
 
   async createLeaveRequestResponseNotification(
@@ -214,6 +251,7 @@ export class NotificationService {
     leaveCode: string,
     status: 'APPROVED' | 'REJECTED'
   ): Promise<void> {
+    const title = status === 'APPROVED' ? 'Đơn nghỉ phép được duyệt' : 'Đơn nghỉ phép bị từ chối';
     const message = status === 'APPROVED'
       ? `Đơn nghỉ phép ${leaveCode} của bạn đã được phê duyệt`
       : `Đơn nghỉ phép ${leaveCode} của bạn đã bị từ chối`;
@@ -222,12 +260,17 @@ export class NotificationService {
       data: {
         employeeId,
         type: NotificationType.LEAVE_REQUEST_RESPONSE,
-        title: status === 'APPROVED' ? 'Đơn nghỉ phép được duyệt' : 'Đơn nghỉ phép bị từ chối',
+        title,
         message,
         isRead: false,
       },
     });
+
+    pushNotificationService
+      .sendPushToEmployee(employeeId, title, message)
+      .catch(() => {});
   }
+
   async createPayrollNotifications(
     employeeIds: string[],
     month: number,
@@ -236,11 +279,14 @@ export class NotificationService {
   ): Promise<void> {
     if (employeeIds.length === 0) return;
 
+    const title = `Bảng lương tháng ${month}/${year}`;
+    const message = `Bảng lương tháng ${month}/${year} của bạn đã sẵn sàng. Nhấn để xem chi tiết.`;
+
     const notifications = employeeIds.map((employeeId) => ({
       employeeId,
       type: NotificationType.PAYROLL,
-      title: `Bảng lương tháng ${month}/${year}`,
-      message: `Bảng lương tháng ${month}/${year} của bạn đã sẵn sàng. Nhấn để xem chi tiết.`,
+      title,
+      message,
       period,
       isRead: false,
     }));
@@ -248,6 +294,12 @@ export class NotificationService {
     await prisma.notification.createMany({
       data: notifications,
     });
+
+    await Promise.allSettled(
+      employeeIds.map((employeeId) =>
+        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
+      )
+    );
   }
 
   async createAcceptanceHandoverNotification(
@@ -257,16 +309,23 @@ export class NotificationService {
     nguoiBanGiao: string,
     acceptanceHandoverId: string
   ): Promise<void> {
+    const title = 'Nghiệm thu bàn giao mới';
+    const message = `${nguoiBanGiao} đã tạo nghiệm thu bàn giao ${maNghiemThu} cho thiết bị "${tenThietBi}". Vui lòng kiểm tra và xác nhận.`;
+
     await prisma.notification.create({
       data: {
         employeeId,
         type: NotificationType.ACCEPTANCE_HANDOVER,
-        title: 'Nghiệm thu bàn giao mới',
-        message: `${nguoiBanGiao} đã tạo nghiệm thu bàn giao ${maNghiemThu} cho thiết bị "${tenThietBi}". Vui lòng kiểm tra và xác nhận.`,
+        title,
+        message,
         acceptanceHandoverId,
         isRead: false,
       },
     });
+
+    pushNotificationService
+      .sendPushToEmployee(employeeId, title, message)
+      .catch(() => {});
   }
 
   async createSupplyRequestNotification(
@@ -286,6 +345,10 @@ export class NotificationService {
         isRead: false,
       },
     });
+
+    pushNotificationService
+      .sendPushToEmployee(employeeId, title, message)
+      .catch(() => {});
   }
 
   async createSupplyRequestNotifications(
@@ -309,8 +372,111 @@ export class NotificationService {
     await prisma.notification.createMany({
       data: notifications,
     });
+
+    await Promise.allSettled(
+      employeeIds.map((employeeId) =>
+        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
+      )
+    );
+  }
+
+  async getAdminEmployeeIds(excludeUserId?: string): Promise<string[]> {
+    const adminUsers = await prisma.user.findMany({
+      where: {
+        role: 'ADMIN',
+        ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
+      },
+      include: { employees: true },
+    });
+    return adminUsers
+      .filter(u => u.employees)
+      .map(u => u.employees!.id);
+  }
+
+  async createAdminTaskNotification(
+    taskTitle: string,
+    assignerName: string,
+    taskId: string,
+    excludeUserId?: string,
+    recipientNames?: string
+  ): Promise<void> {
+    const adminEmployeeIds = await this.getAdminEmployeeIds(excludeUserId);
+    if (adminEmployeeIds.length === 0) return;
+
+    const title = 'Nhiệm vụ mới trong hệ thống';
+    const message = recipientNames
+      ? `${assignerName} đã giao cho ${recipientNames} nhiệm vụ: "${taskTitle}"`
+      : `${assignerName} đã giao nhiệm vụ: "${taskTitle}"`;
+
+    const notifications = adminEmployeeIds.map(employeeId => ({
+      employeeId,
+      type: NotificationType.TASK_ADMIN,
+      title,
+      message,
+      taskId,
+      isRead: false,
+    }));
+    await prisma.notification.createMany({ data: notifications });
+
+    await Promise.allSettled(
+      adminEmployeeIds.map((employeeId) =>
+        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
+      )
+    );
+  }
+
+  async createAdminFeedbackNotification(
+    employeeName: string,
+    excludeUserId?: string
+  ): Promise<void> {
+    const adminEmployeeIds = await this.getAdminEmployeeIds(excludeUserId);
+    if (adminEmployeeIds.length === 0) return;
+
+    const title = 'Góp ý mới';
+    const message = `${employeeName} đã gửi góp ý mới`;
+
+    const notifications = adminEmployeeIds.map(employeeId => ({
+      employeeId,
+      type: NotificationType.PRIVATE_FEEDBACK,
+      title,
+      message,
+      isRead: false,
+    }));
+    await prisma.notification.createMany({ data: notifications });
+
+    await Promise.allSettled(
+      adminEmployeeIds.map((employeeId) =>
+        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
+      )
+    );
+  }
+
+  async createAdminDailyReportNotification(
+    employeeName: string,
+    reportDate: string,
+    excludeUserId?: string
+  ): Promise<void> {
+    const adminEmployeeIds = await this.getAdminEmployeeIds(excludeUserId);
+    if (adminEmployeeIds.length === 0) return;
+
+    const title = 'Báo cáo công việc mới';
+    const message = `${employeeName} đã nộp báo cáo công việc ngày ${reportDate}`;
+
+    const notifications = adminEmployeeIds.map(employeeId => ({
+      employeeId,
+      type: NotificationType.DAILY_WORK_REPORT,
+      title,
+      message,
+      isRead: false,
+    }));
+    await prisma.notification.createMany({ data: notifications });
+
+    await Promise.allSettled(
+      adminEmployeeIds.map((employeeId) =>
+        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
+      )
+    );
   }
 }
 
 export default new NotificationService();
-

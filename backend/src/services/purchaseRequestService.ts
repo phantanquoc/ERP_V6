@@ -199,8 +199,19 @@ class PurchaseRequestService {
       }
     }
 
-    // Send notification to admin users about the new purchase request
+    // Send notification to purchasing + admin users about the new purchase request
     try {
+      const purchasingEmployees = await prisma.employee.findMany({
+        where: {
+          subDepartment: {
+            department: {
+              code: 'DEPT_PURCHASING',
+            },
+          },
+        },
+        select: { id: true },
+      });
+
       const adminEmployees = await prisma.employee.findMany({
         where: {
           user: {
@@ -211,7 +222,12 @@ class PurchaseRequestService {
       });
 
       const itemNames = data.items.map((i) => i.tenHangHoa).join(', ');
-      const allRecipients = [...adminEmployees.map((e) => e.id)];
+      const allRecipients = [
+        ...new Set([
+          ...purchasingEmployees.map((e) => e.id),
+          ...adminEmployees.map((e) => e.id),
+        ]),
+      ];
 
       if (allRecipients.length > 0) {
         await notificationService.createSupplyRequestNotifications(
@@ -335,9 +351,7 @@ class PurchaseRequestService {
         const warehouseEmployees = await prisma.employee.findMany({
           where: {
             subDepartment: {
-              department: {
-                code: { in: ['DEPT_WAREHOUSE', 'DEPT_PRODUCTION'] },
-              },
+              code: 'SUBDEPT_PRODUCTION_WAREHOUSE',
             },
           },
           select: { id: true },

@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import dailyWorkReportService from '@services/dailyWorkReportService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 import prisma from '@config/database';
@@ -259,6 +259,18 @@ export class DailyWorkReportController {
         success: true,
         message: 'Báo cáo công việc đã được xóa',
       } as ApiResponse<any>);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get count of submitted (unreviewed) daily work reports
+   */
+  async getSubmittedCount(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const count = await dailyWorkReportService.getSubmittedCount();
+      res.json({ success: true, data: { count } });
     } catch (error) {
       next(error);
     }

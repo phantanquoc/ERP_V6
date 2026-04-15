@@ -1,6 +1,8 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { DailyWorkReportStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import notificationService from './notificationService';
 
 export class DailyWorkReportService {
   /**
@@ -180,6 +182,7 @@ export class DailyWorkReportService {
           include: {
             user: {
               select: {
+                id: true,
                 firstName: true,
                 lastName: true,
                 email: true,
@@ -189,6 +192,21 @@ export class DailyWorkReportService {
         },
       },
     });
+
+    // Notify admin about new daily report
+    try {
+      const employeeName = report.employee?.user
+        ? `${report.employee.user.firstName} ${report.employee.user.lastName}`
+        : 'Nhân viên';
+      const reportDateStr = new Date(report.reportDate).toLocaleDateString('vi-VN');
+      await notificationService.createAdminDailyReportNotification(
+        employeeName,
+        reportDateStr,
+        report.employee?.user?.id
+      );
+    } catch (error) {
+      logger.error('Error sending admin daily report notification:', error);
+    }
 
     return report;
   }
@@ -288,6 +306,17 @@ export class DailyWorkReportService {
     });
 
     return updatedReport;
+  }
+
+  /**
+   * Count reports with status SUBMITTED (sent but not reviewed)
+   */
+  async getSubmittedCount(): Promise<number> {
+    return prisma.dailyWorkReport.count({
+      where: {
+        status: 'SUBMITTED',
+      },
+    });
   }
 
   /**

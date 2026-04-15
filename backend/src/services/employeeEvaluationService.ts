@@ -691,6 +691,39 @@ export class EmployeeEvaluationService {
     });
   }
 
+  async getPendingEvaluationCount(userId: string, month: number, year: number): Promise<number> {
+    const period = `${year}-${String(month).padStart(2, '0')}`;
+
+    // Get subordinate employee IDs (where current user is supervisor1 or supervisor2)
+    const subordinates = await prisma.user.findMany({
+      where: {
+        OR: [
+          { supervisor1Id: userId },
+          { supervisor2Id: userId },
+        ],
+        isActive: true,
+      },
+      select: {
+        employees: { select: { id: true } },
+      },
+    });
+
+    const employeeIds = subordinates
+      .filter(s => s.employees)
+      .map(s => s.employees!.id);
+
+    if (employeeIds.length === 0) return 0;
+
+    // Count evaluations of subordinates that are not completed
+    return prisma.evaluation.count({
+      where: {
+        employeeId: { in: employeeIds },
+        period,
+        status: { not: 'COMPLETED' },
+      },
+    });
+  }
+
   async getSubordinatesForEvaluation(userId: string, month: number, year: number): Promise<any[]> {
     const period = `${year}-${String(month).padStart(2, '0')}`;
 

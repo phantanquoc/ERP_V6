@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, X } from 'lucide-react';
-import notificationService, { Notification } from '@services/notificationService';
+import { Bell, X, BellOff, MoreVertical, Trash2 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import notificationService, { AppNotification } from '@services/notificationService';
+import pushNotificationService from '@services/pushNotificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { getNotificationIcon } from '../utils/notificationIcons';
 import TaskListModal from './TaskListModal';
@@ -11,21 +13,27 @@ import EmployeePayrollModal from './EmployeePayrollModal';
 import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import OvertimePlanListModal from './OvertimePlanListModal';
+import FeedbackListModal from './FeedbackListModal';
+import DailyWorkReportListModal from './DailyWorkReportListModal';
 
-const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
+// Whether the current browser environment supports Web Push
+const pushSupported =
+  typeof window !== 'undefined' &&
+  'serviceWorker' in navigator &&
+  'PushManager' in window;
+
+const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: AppNotification) => void }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const userIsAdmin = user?.role === 'admin';
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
-  const [selectedEvaluationNotification, setSelectedEvaluationNotification] = useState<Notification | null>(null);
+  const [selectedEvaluationNotification, setSelectedEvaluationNotification] = useState<AppNotification | null>(null);
   const [isAllNotificationsOpen, setIsAllNotificationsOpen] = useState(false);
   const [isPayrollModalOpen, setIsPayrollModalOpen] = useState(false);
-  const [selectedPayrollNotification, setSelectedPayrollNotification] = useState<Notification | null>(null);
+  const [selectedPayrollNotification, setSelectedPayrollNotification] = useState<AppNotification | null>(null);
   const [isAcceptanceModalOpen, setIsAcceptanceModalOpen] = useState(false);
   const [selectedAcceptanceHandoverId, setSelectedAcceptanceHandoverId] = useState<string | null>(null);
   const [selectedAcceptanceMessage, setSelectedAcceptanceMessage] = useState<string | undefined>(undefined);
@@ -33,46 +41,88 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedLeaveRequestId, setSelectedLeaveRequestId] = useState<string | null>(null);
   const [selectedLeaveRequestMessage, setSelectedLeaveRequestMessage] = useState<string | undefined>(undefined);
   const [isOvertimePlanModalOpen, setIsOvertimePlanModalOpen] = useState(false);
+  const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
+  const [isDailyReportListModalOpen, setIsDailyReportListModalOpen] = useState(false);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
+  // Web Push state
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushDeniedMessage, setPushDeniedMessage] = useState('');
+
+  // Initialise push enabled state on mount
   useEffect(() => {
-    loadNotifications();
-    loadUnreadCount();
-    const interval = setInterval(loadUnreadCount, 30000);
-    return () => clearInterval(interval);
+    if (!pushSupported) return;
+    pushNotificationService.isSubscribed().then(setPushEnabled).catch(() => {});
   }, []);
 
-  const loadUnreadCount = async () => {
-    const count = await notificationService.getUnreadCount();
-    setUnreadCount(count);
-  };
-
-  const loadNotifications = async () => {
+  const handlePushToggle = async () => {
+    if (pushLoading) return;
+    setPushDeniedMessage('');
+    setPushLoading(true);
     try {
-      setLoading(true);
-      const data = await notificationService.getEmployeeNotifications(5);
-      setNotifications(data);
+      if (pushEnabled) {
+        await pushNotificationService.unsubscribeFromPush();
+        setPushEnabled(false);
+      } else {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          await pushNotificationService.subscribeToPush();
+          setPushEnabled(true);
+        } else {
+          setPushDeniedMessage('Vui lòng cho phép thông báo trong cài đặt trình duyệt');
+        }
+      }
     } catch (error) {
-      console.error('Error loading notifications:', error);
+      console.error('[NotificationBell] Push toggle error:', error);
     } finally {
-      setLoading(false);
+      setPushLoading(false);
     }
   };
+
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ['notifications', 'unreadCount'],
+    queryFn: () => notificationService.getUnreadCount(),
+    refetchInterval: 10000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: notifications = [], isFetching: loading } = useQuery({
+    queryKey: ['notifications', 'recent', showUnreadOnly],
+    queryFn: () => showUnreadOnly
+      ? notificationService.getUnreadNotifications()
+      : notificationService.getEmployeeNotifications(20),
+    enabled: isOpen,
+    staleTime: 0,
+  });
 
   const markAsRead = async (notificationId: string) => {
     try {
       await notificationService.markAsRead(notificationId);
-      setNotifications(notifications.map(n =>
-        n.id === notificationId ? { ...n, isRead: true } : n
-      ));
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'unreadCount'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'unreadCountByType'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'recent'] });
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
   };
 
-  const handleNotificationClick = (notification: Notification) => {
+  const handleDeleteNotification = async (e: React.MouseEvent, notificationId: string) => {
+    e.stopPropagation();
+    setMenuOpenId(null);
+    try {
+      await notificationService.deleteNotification(notificationId);
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
+  };
+
+  const handleNotificationClick = (notification: AppNotification) => {
     markAsRead(notification.id);
-    if (notification.type === 'TASK') {
+    if (notification.type === 'TASK' || notification.type === 'TASK_ADMIN') {
       setIsTaskListModalOpen(true);
     } else if (['EVALUATION', 'EVALUATION_SUPERVISOR1', 'EVALUATION_SUPERVISOR2', 'EVALUATION_COMPLETED'].includes(notification.type)) {
       setSelectedEvaluationNotification(notification);
@@ -98,6 +148,10 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     } else if (['SUPPLY_REQUEST', 'SUPPLY_REQUEST_PROCESSING', 'SUPPLY_REQUEST_APPROVED', 'SUPPLY_REQUEST_FULFILLED'].includes(notification.type)) {
       // Navigate đến trang quản lý yêu cầu cung ứng
       navigate('/production/warehouse');
+    } else if (notification.type === 'PRIVATE_FEEDBACK') {
+      setIsFeedbackListModalOpen(true);
+    } else if (notification.type === 'DAILY_WORK_REPORT') {
+      setIsDailyReportListModalOpen(true);
     }
     // PASSWORD_RESET: chỉ mark read, không cần mở gì
     if (onNotificationClick) {
@@ -111,7 +165,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     <div className="relative">
       {/* Bell Button */}
       <button
-        onClick={() => { if (!isOpen) loadNotifications(); setIsOpen(!isOpen); }}
+        onClick={() => { setIsOpen(!isOpen); }}
         className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
         title="Thông báo"
       >
@@ -129,11 +183,66 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
           {/* Header */}
           <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
             <h3 className="text-lg font-bold text-gray-800">Thông báo</h3>
+            <div className="flex items-center gap-2">
+              {/* Push notification toggle — only rendered in supported browsers */}
+              {pushSupported && (
+                <button
+                  onClick={handlePushToggle}
+                  disabled={pushLoading}
+                  title={pushEnabled ? 'Tắt thông báo đẩy' : 'Bật thông báo đẩy'}
+                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full border transition-colors ${
+                    pushLoading
+                      ? 'opacity-50 cursor-not-allowed border-gray-300 text-gray-400'
+                      : pushEnabled
+                      ? 'border-blue-500 text-blue-600 hover:bg-blue-50'
+                      : 'border-gray-300 text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  {pushEnabled ? (
+                    <Bell className="w-3 h-3" />
+                  ) : (
+                    <BellOff className="w-3 h-3" />
+                  )}
+                  {pushEnabled ? 'Tắt thông báo đẩy' : 'Bật thông báo đẩy'}
+                </button>
+              )}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Permission denied message */}
+          {pushDeniedMessage && (
+            <div className="px-4 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-200">
+              {pushDeniedMessage}
+            </div>
+          )}
+
+          {/* Filter tabs */}
+          <div className="flex gap-1 px-4 py-2 border-b border-gray-200 bg-white">
             <button
-              onClick={() => setIsOpen(false)}
-              className="text-gray-400 hover:text-gray-600"
+              onClick={() => setShowUnreadOnly(false)}
+              className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                !showUnreadOnly
+                  ? 'bg-blue-100 text-blue-700 font-medium'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
             >
-              <X className="w-5 h-5" />
+              Tất cả
+            </button>
+            <button
+              onClick={() => setShowUnreadOnly(true)}
+              className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                showUnreadOnly
+                  ? 'bg-blue-100 text-blue-700 font-medium'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              Chưa đọc {unreadCount > 0 && `(${unreadCount})`}
             </button>
           </div>
 
@@ -144,7 +253,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
             ) : notifications.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                <p>Không có thông báo</p>
+                <p>{showUnreadOnly ? 'Không có thông báo chưa đọc' : 'Không có thông báo'}</p>
               </div>
             ) : (
               notifications.map(notification => (
@@ -172,9 +281,33 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
                         {new Date(notification.createdAt).toLocaleString('vi-VN')}
                       </p>
                     </div>
-                    {!notification.isRead && (
-                      <div className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full mt-2" />
-                    )}
+                    <div className="flex-shrink-0 flex items-start gap-1">
+                      {!notification.isRead && (
+                        <div className="w-2 h-2 bg-blue-600 rounded-full mt-2" />
+                      )}
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenId(menuOpenId === notification.id ? null : notification.id);
+                          }}
+                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        {menuOpenId === notification.id && (
+                          <div className="absolute right-0 top-7 bg-white rounded-lg shadow-lg border border-gray-200 z-10 py-1 min-w-[120px]">
+                            <button
+                              onClick={(e) => handleDeleteNotification(e, notification.id)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Xóa
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))
@@ -200,6 +333,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       <TaskListModal
         isOpen={isTaskListModalOpen}
         onClose={() => setIsTaskListModalOpen(false)}
+        isAdmin={userIsAdmin}
       />
 
       {/* Evaluation Modal - opened when clicking EVALUATION notification */}
@@ -267,9 +401,21 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         canViewAll={userIsAdmin}
         canCreate={userIsAdmin || user?.role === 'department_head'}
       />
+
+      {/* Feedback List Modal - opened when clicking PRIVATE_FEEDBACK notification */}
+      <FeedbackListModal
+        isOpen={isFeedbackListModalOpen}
+        onClose={() => setIsFeedbackListModalOpen(false)}
+      />
+
+      {/* Daily Work Report List Modal - opened when clicking DAILY_WORK_REPORT notification */}
+      <DailyWorkReportListModal
+        isOpen={isDailyReportListModalOpen}
+        onClose={() => setIsDailyReportListModalOpen(false)}
+        isAdmin={userIsAdmin}
+      />
     </>
   );
 };
 
 export default NotificationBell;
-

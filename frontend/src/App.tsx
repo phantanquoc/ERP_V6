@@ -4,10 +4,10 @@ import { AuthProvider } from './contexts/AuthContext';
 import { SystemSettingsProvider } from './contexts/SystemSettingsContext';
 import ProtectedLayout from './components/ProtectedLayout';
 import ProtectedSubRoute from './components/ProtectedSubRoute';
+import Dashboard1 from './pages/Dashboard1';
 
 const Login = React.lazy(() => import('./pages/Login'));
 const ForgotPassword = React.lazy(() => import('./pages/ForgotPassword'));
-const Dashboard1 = React.lazy(() => import('./pages/Dashboard1'));
 
 // Common Management
 const CommonManagement = React.lazy(() => import('./pages/CommonManagement'));
@@ -66,77 +66,69 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* Protected Routes */}
+          {/* Protected Routes — single Layout instance, never unmounts */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={
-            <ProtectedLayout>
-              <Dashboard1 />
-            </ProtectedLayout>
-          } />
+          <Route element={<ProtectedLayout />}>
+            <Route path="/dashboard" element={<Dashboard1 />} />
 
-          {/* Common Management Routes */}
-          <Route path="/common" element={<ProtectedLayout><CommonManagement /></ProtectedLayout>} />
+            {/* Common Management Routes */}
+            <Route path="/common" element={<CommonManagement />} />
 
-          {/* Quality Management Routes */}
-          <Route path="/quality" element={<ProtectedLayout><QualityManagement /></ProtectedLayout>} />
-          <Route path="/quality/personnel" element={
-            <ProtectedLayout>
+            {/* Quality Management Routes */}
+            <Route path="/quality" element={<QualityManagement />} />
+            <Route path="/quality/personnel" element={
               <ProtectedSubRoute department="quality" subModule="personnel">
                 <QualityPersonnel />
               </ProtectedSubRoute>
-            </ProtectedLayout>
-          } />
-          <Route path="/quality/office" element={<ProtectedLayout><QualityOffice /></ProtectedLayout>} />
-          <Route path="/quality/production" element={<ProtectedLayout><QualityProduction /></ProtectedLayout>} />
-          <Route path="/quality/process" element={
-            <ProtectedLayout>
+            } />
+            <Route path="/quality/office" element={<QualityOffice />} />
+            <Route path="/quality/production" element={<QualityProduction />} />
+            <Route path="/quality/process" element={
               <ProtectedSubRoute department="quality" subModule="process">
                 <QualityProcess />
               </ProtectedSubRoute>
-            </ProtectedLayout>
-          } />
-          <Route path="/quality/process-list" element={
-            <ProtectedLayout>
+            } />
+            <Route path="/quality/process-list" element={
               <ProtectedSubRoute department="quality" subModule="process">
                 <ProcessList />
               </ProtectedSubRoute>
-            </ProtectedLayout>
-          } />
+            } />
 
-          {/* General Management Routes */}
-          <Route path="/general" element={<ProtectedLayout><GeneralManagement /></ProtectedLayout>} />
-          <Route path="/general/pricing" element={<ProtectedLayout><GeneralPricing /></ProtectedLayout>} />
-          <Route path="/general/partners" element={<ProtectedLayout><GeneralPartners /></ProtectedLayout>} />
+            {/* General Management Routes */}
+            <Route path="/general" element={<GeneralManagement />} />
+            <Route path="/general/pricing" element={<GeneralPricing />} />
+            <Route path="/general/partners" element={<GeneralPartners />} />
 
-          {/* Business Management Routes */}
-          <Route path="/business" element={<ProtectedLayout><BusinessReport /></ProtectedLayout>} />
-          <Route path="/business/management" element={<ProtectedLayout><BusinessManagement /></ProtectedLayout>} />
-          <Route path="/business/international" element={<ProtectedLayout><BusinessInternational /></ProtectedLayout>} />
-          <Route path="/business/domestic" element={<ProtectedLayout><BusinessDomestic /></ProtectedLayout>} />
+            {/* Business Management Routes */}
+            <Route path="/business" element={<BusinessReport />} />
+            <Route path="/business/management" element={<BusinessManagement />} />
+            <Route path="/business/international" element={<BusinessInternational />} />
+            <Route path="/business/domestic" element={<BusinessDomestic />} />
 
-          {/* Accounting Management Routes */}
-          <Route path="/accounting" element={<ProtectedLayout><AccountingManagement /></ProtectedLayout>} />
-          <Route path="/accounting/admin" element={<ProtectedLayout><AccountingAdmin /></ProtectedLayout>} />
-          <Route path="/accounting/tax" element={<ProtectedLayout><AccountingTax /></ProtectedLayout>} />
+            {/* Accounting Management Routes */}
+            <Route path="/accounting" element={<AccountingManagement />} />
+            <Route path="/accounting/admin" element={<AccountingAdmin />} />
+            <Route path="/accounting/tax" element={<AccountingTax />} />
 
-          {/* Purchasing Management Routes */}
-          <Route path="/purchasing" element={<ProtectedLayout><PurchasingManagement /></ProtectedLayout>} />
-          <Route path="/purchasing/materials" element={<ProtectedLayout><PurchasingMaterials /></ProtectedLayout>} />
-          <Route path="/purchasing/equipment" element={<ProtectedLayout><PurchasingEquipment /></ProtectedLayout>} />
+            {/* Purchasing Management Routes */}
+            <Route path="/purchasing" element={<PurchasingManagement />} />
+            <Route path="/purchasing/materials" element={<PurchasingMaterials />} />
+            <Route path="/purchasing/equipment" element={<PurchasingEquipment />} />
 
-          {/* Production Management Routes */}
-          <Route path="/production" element={<ProtectedLayout><ProductionManagement /></ProtectedLayout>} />
-          <Route path="/production/management" element={<ProtectedLayout><ProductionDepartment /></ProtectedLayout>} />
-          <Route path="/production/warehouse" element={<ProtectedLayout><ProductionWarehouse /></ProtectedLayout>} />
-          <Route path="/production/data" element={<ProtectedLayout><ProductionData /></ProtectedLayout>} />
+            {/* Production Management Routes */}
+            <Route path="/production" element={<ProductionManagement />} />
+            <Route path="/production/management" element={<ProductionDepartment />} />
+            <Route path="/production/warehouse" element={<ProductionWarehouse />} />
+            <Route path="/production/data" element={<ProductionData />} />
 
-          {/* Technical Management Routes */}
-          <Route path="/technical" element={<ProtectedLayout><TechnicalManagement /></ProtectedLayout>} />
-          <Route path="/technical/quality" element={<ProtectedLayout><TechnicalQuality /></ProtectedLayout>} />
-          <Route path="/technical/mechanical" element={<ProtectedLayout><TechnicalMechanical /></ProtectedLayout>} />
+            {/* Technical Management Routes */}
+            <Route path="/technical" element={<TechnicalManagement />} />
+            <Route path="/technical/quality" element={<TechnicalQuality />} />
+            <Route path="/technical/mechanical" element={<TechnicalMechanical />} />
 
-          {/* System Settings (Admin Only) */}
-          <Route path="/system-settings" element={<ProtectedLayout><SystemSettingsPage /></ProtectedLayout>} />
+            {/* System Settings (Admin Only) */}
+            <Route path="/system-settings" element={<SystemSettingsPage />} />
+          </Route>
         </Routes>
         </Suspense>
         </SystemSettingsProvider>
@@ -146,5 +138,3 @@ function App() {
 }
 
 export default App;
-
-

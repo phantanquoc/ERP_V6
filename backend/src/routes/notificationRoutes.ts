@@ -168,5 +168,36 @@ router.delete(
   notificationController.deleteNotification
 );
 
+// ---- Web Push routes ----
+
+/**
+ * GET /api/notifications/push/vapid-public-key
+ * No authentication required — returns the VAPID public key for the frontend to subscribe.
+ */
+router.get(
+  '/push/vapid-public-key',
+  notificationController.getVapidPublicKey
+);
+
+/**
+ * POST /api/notifications/push/subscribe
+ * Save a push subscription for the authenticated user.
+ */
+router.post(
+  '/push/subscribe',
+  authenticate,
+  notificationController.subscribePush
+);
+
+/**
+ * DELETE /api/notifications/push/unsubscribe
+ * Remove a push subscription for the authenticated user.
+ */
+router.delete(
+  '/push/unsubscribe',
+  authenticate,
+  notificationController.unsubscribePush
+);
+
 export default router;
 

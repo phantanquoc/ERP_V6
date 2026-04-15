@@ -1,6 +1,6 @@
 import apiClient from './apiClient';
 
-export interface Notification {
+export interface AppNotification {
   id: string;
   employeeId: string;
   type: string;
@@ -18,7 +18,7 @@ export interface Notification {
 }
 
 class NotificationService {
-  async getEmployeeNotifications(limit: number = 10): Promise<Notification[]> {
+  async getEmployeeNotifications(limit: number = 10): Promise<AppNotification[]> {
     try {
       const response = await apiClient.get('/notifications', {
         params: { limit },
@@ -40,7 +40,7 @@ class NotificationService {
     }
   }
 
-  async getUnreadNotifications(): Promise<Notification[]> {
+  async getUnreadNotifications(): Promise<AppNotification[]> {
     try {
       const response = await apiClient.get('/notifications/unread');
       return response.data || [];
@@ -50,7 +50,7 @@ class NotificationService {
     }
   }
 
-  async getLatestEvaluationNotification(): Promise<Notification | null> {
+  async getLatestEvaluationNotification(): Promise<AppNotification | null> {
     try {
       const response = await apiClient.get('/notifications/evaluation/latest');
       return response.data || null;
@@ -70,7 +70,7 @@ class NotificationService {
     }
   }
 
-  async markAsRead(notificationId: string): Promise<Notification> {
+  async markAsRead(notificationId: string): Promise<AppNotification> {
     try {
       const response = await apiClient.patch(`/notifications/${notificationId}/read`, {});
       return response.data;

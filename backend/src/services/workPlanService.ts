@@ -1,6 +1,8 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
 import { WorkPlanStatus, TaskPriority } from '@prisma/client';
+import notificationService from './notificationService';
+import { NotificationType } from '@types';
 
 class WorkPlanService {
   // Helper function to populate work plan with user information
@@ -86,6 +88,33 @@ class WorkPlanService {
         files: files || [],
       },
     });
+
+    // Notify supervisors about new work plan
+    try {
+      const creator = await prisma.user.findUnique({
+        where: { id: nguoiTaoId },
+        select: { firstName: true, lastName: true, supervisor1Id: true, supervisor2Id: true },
+      });
+
+      if (creator) {
+        const creatorName = `${creator.firstName} ${creator.lastName}`;
+        const title = 'Kế hoạch công việc mới';
+        const message = `${creatorName} đã tạo 1 kế hoạch công việc mới: "${data.tieuDe}"`;
+
+        const supervisorIds = [creator.supervisor1Id, creator.supervisor2Id].filter(Boolean) as string[];
+
+        for (const supervisorUserId of supervisorIds) {
+          await notificationService.createNotification({
+            userId: supervisorUserId,
+            type: NotificationType.WORK_PLAN,
+            title,
+            message,
+          });
+        }
+      }
+    } catch (error) {
+      logger.error('Error sending work plan notifications:', error);
+    }
 
     return workPlan;
   }
