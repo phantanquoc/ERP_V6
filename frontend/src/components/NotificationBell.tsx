@@ -179,7 +179,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 
       {/* Notification Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col">
+        <div className="fixed inset-x-0 top-14 mx-auto sm:absolute sm:inset-auto sm:right-0 sm:top-auto sm:mt-2 w-[calc(100vw-1rem)] sm:w-96 max-w-md bg-white rounded-lg shadow-2xl z-50 max-h-[80vh] sm:max-h-96 overflow-hidden flex flex-col">
           {/* Header */}
           <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
             <h3 className="text-lg font-bold text-gray-800">Thông báo</h3>
