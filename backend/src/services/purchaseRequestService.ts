@@ -140,6 +140,10 @@ class PurchaseRequestService {
       throw new ValidationError('Vui lòng thêm ít nhất một sản phẩm');
     }
 
+    if (data.supplyRequestId) {
+      await supplyRequestService.assertProcurementFlowSupported(data.supplyRequestId);
+    }
+
     const maYeuCau = await this.generatePurchaseRequestCode();
 
     const purchaseRequest = await prisma.$transaction(async (tx) => {

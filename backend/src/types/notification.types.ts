@@ -17,6 +17,7 @@ export const NotificationType = {
   SUPPLY_REQUEST: 'SUPPLY_REQUEST',
   SUPPLY_REQUEST_PROCESSING: 'SUPPLY_REQUEST_PROCESSING',
   SUPPLY_REQUEST_APPROVED: 'SUPPLY_REQUEST_APPROVED',
+  SUPPLY_REQUEST_REJECTED: 'SUPPLY_REQUEST_REJECTED',
   SUPPLY_REQUEST_FULFILLED: 'SUPPLY_REQUEST_FULFILLED',
   PASSWORD_RESET: 'PASSWORD_RESET',
 } as const;
@@ -46,4 +47,3 @@ export const LeaveRequestStatusConst = {
 } as const;
 
 export type LeaveRequestStatusConst = typeof LeaveRequestStatusConst[keyof typeof LeaveRequestStatusConst];
-

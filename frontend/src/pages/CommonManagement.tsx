@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../config/api';
+import { useNavigate } from 'react-router-dom';
 import FileUpload from '../components/FileUpload';
 import Modal from '../components/Modal';
 import SupplyRequestModal from '../components/SupplyRequestModal';
@@ -38,6 +39,7 @@ type RequestType = 'yeu_cau_sua_chua' | 'yeu_cau_bo_sung' | 'de_nghi_dieu_chinh'
 
 const CommonManagement = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<RequestType | ''>('');
   const [isProcessListOpen, setIsProcessListOpen] = useState<boolean>(false);
@@ -113,7 +115,7 @@ const CommonManagement = () => {
           title: 'Tạo yêu cầu bổ sung/cung cấp',
           icon: <Plus className="h-6 w-6" />,
           color: 'bg-green-500',
-          description: 'Yêu cầu bổ sung vật tư, thiết bị hoặc nhân lực'
+          description: 'Chọn loại yêu cầu để tạo luồng vật tư, thiết bị hoặc nhân lực phù hợp'
         },
         {
           id: 'de_nghi_dieu_chinh',
@@ -334,6 +336,45 @@ const CommonManagement = () => {
             </div>
           ))}
 
+          {isManagerOrAdmin && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold text-gray-900">Quản lý yêu cầu</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  onClick={() => navigate('/common/supply-requests')}
+                  className="p-4 rounded-lg border-2 border-gray-200 bg-white text-left transition-all hover:shadow-md hover:border-gray-300"
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className="p-2 rounded-lg text-white bg-emerald-600">
+                      <FileText className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900">Danh sách yêu cầu bổ sung/cung cấp</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Xem, kiểm tra và xử lý các yêu cầu bổ sung ngay trong khu vực Chung.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => navigate('/quality/personnel?tab=supplement-requests')}
+                  className="p-4 rounded-lg border-2 border-gray-200 bg-white text-left transition-all hover:shadow-md hover:border-gray-300"
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className="p-2 rounded-lg text-white bg-violet-600">
+                      <Users className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900">Danh sách yêu cầu bổ sung nhân sự</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Điều phối các yêu cầu nhân lực tại Phòng chất lượng nhân sự, tách khỏi luồng kho.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
 
         </div>
 

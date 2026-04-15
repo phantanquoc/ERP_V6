@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, X } from 'lucide-react';
 import notificationService, { Notification } from '@services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
+import type { RealtimeNotificationPayload } from '../contexts/AuthContext';
 import { getNotificationIcon } from '../utils/notificationIcons';
 import TaskListModal from './TaskListModal';
 import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
@@ -12,11 +13,17 @@ import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import OvertimePlanListModal from './OvertimePlanListModal';
 
+interface RealtimeToast {
+  id: string;
+  notification: Notification;
+}
+
 const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
-  const { user } = useAuth();
+  const { user, subscribeToNotifications } = useAuth();
   const navigate = useNavigate();
   const userIsAdmin = user?.role === 'admin';
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [toasts, setToasts] = useState<RealtimeToast[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -33,6 +40,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedLeaveRequestId, setSelectedLeaveRequestId] = useState<string | null>(null);
   const [selectedLeaveRequestMessage, setSelectedLeaveRequestMessage] = useState<string | undefined>(undefined);
   const [isOvertimePlanModalOpen, setIsOvertimePlanModalOpen] = useState(false);
+  const toastTimeoutsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     loadNotifications();
@@ -40,6 +48,71 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     const interval = setInterval(loadUnreadCount, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      toastTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      toastTimeoutsRef.current.clear();
+    };
+  }, []);
+
+  const dismissToast = (toastId: string) => {
+    const timeoutId = toastTimeoutsRef.current.get(toastId);
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+      toastTimeoutsRef.current.delete(toastId);
+    }
+    setToasts((prev) => prev.filter((toast) => toast.id !== toastId));
+  };
+
+  const pushToast = (notification: Notification) => {
+    setToasts((prev) => {
+      const nextToasts = [
+        { id: notification.id, notification },
+        ...prev.filter((toast) => toast.id !== notification.id),
+      ].slice(0, 3);
+      return nextToasts;
+    });
+
+    const previousTimeout = toastTimeoutsRef.current.get(notification.id);
+    if (previousTimeout) {
+      window.clearTimeout(previousTimeout);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      dismissToast(notification.id);
+    }, 6000);
+
+    toastTimeoutsRef.current.set(notification.id, timeoutId);
+  };
+
+  useEffect(() => {
+    return subscribeToNotifications((payload: RealtimeNotificationPayload) => {
+      const nextNotification: Notification = {
+        id: payload.id,
+        employeeId: '',
+        type: payload.type,
+        title: payload.title,
+        message: payload.message,
+        period: typeof payload.data?.period === 'string' ? payload.data.period : undefined,
+        evaluationId: typeof payload.data?.evaluationId === 'string' ? payload.data.evaluationId : undefined,
+        taskId: typeof payload.data?.taskId === 'string' ? payload.data.taskId : undefined,
+        acceptanceHandoverId: typeof payload.data?.acceptanceHandoverId === 'string' ? payload.data.acceptanceHandoverId : undefined,
+        leaveRequestId: typeof payload.data?.leaveRequestId === 'string' ? payload.data.leaveRequestId : undefined,
+        supplyRequestId: typeof payload.data?.supplyRequestId === 'string' ? payload.data.supplyRequestId : undefined,
+        isRead: payload.isRead,
+        createdAt: payload.createdAt,
+        updatedAt: payload.createdAt,
+      };
+
+      setNotifications((prev) => {
+        const withoutDuplicate = prev.filter((notification) => notification.id !== nextNotification.id);
+        return [nextNotification, ...withoutDuplicate].slice(0, 5);
+      });
+      setUnreadCount((prev) => prev + (payload.isRead ? 0 : 1));
+      pushToast(nextNotification);
+    });
+  }, [subscribeToNotifications]);
 
   const loadUnreadCount = async () => {
     const count = await notificationService.getUnreadCount();
@@ -61,8 +134,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const markAsRead = async (notificationId: string) => {
     try {
       await notificationService.markAsRead(notificationId);
-      setNotifications(notifications.map(n =>
-        n.id === notificationId ? { ...n, isRead: true } : n
+      setNotifications((prev) => prev.map((notification) =>
+        notification.id === notificationId ? { ...notification, isRead: true } : notification
       ));
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
@@ -70,7 +143,10 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     }
   };
 
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = (notification: Notification, options?: { dismissToastId?: string }) => {
+    if (options?.dismissToastId) {
+      dismissToast(options.dismissToastId);
+    }
     markAsRead(notification.id);
     if (notification.type === 'TASK') {
       setIsTaskListModalOpen(true);
@@ -95,9 +171,10 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setIsLeaveRequestModalOpen(true);
     } else if (notification.type === 'OVERTIME_PLAN' || notification.type === 'OVERTIME_PLAN_APPROVAL') {
       setIsOvertimePlanModalOpen(true);
-    } else if (['SUPPLY_REQUEST', 'SUPPLY_REQUEST_PROCESSING', 'SUPPLY_REQUEST_APPROVED', 'SUPPLY_REQUEST_FULFILLED'].includes(notification.type)) {
-      // Navigate đến trang quản lý yêu cầu cung ứng
-      navigate('/production/warehouse');
+    } else if (['SUPPLY_REQUEST', 'SUPPLY_REQUEST_PROCESSING', 'SUPPLY_REQUEST_APPROVED', 'SUPPLY_REQUEST_REJECTED', 'SUPPLY_REQUEST_FULFILLED'].includes(notification.type)) {
+      navigate(user?.subDepartment === 'personnel'
+        ? '/quality/personnel?tab=supplement-requests'
+        : '/common/supply-requests');
     }
     // PASSWORD_RESET: chỉ mark read, không cần mở gì
     if (onNotificationClick) {
@@ -108,7 +185,46 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 
   return (
     <>
-    <div className="relative">
+      <div className="fixed top-20 right-6 z-[100] flex w-full max-w-sm flex-col gap-3 pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => handleNotificationClick(toast.notification, { dismissToastId: toast.id })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                handleNotificationClick(toast.notification, { dismissToastId: toast.id });
+              }
+            }}
+            className="pointer-events-auto w-full overflow-hidden rounded-xl border border-blue-200 bg-white text-left shadow-2xl transition hover:border-blue-300 hover:bg-blue-50"
+          >
+            <div className="flex items-start gap-3 p-4">
+              <div className="mt-0.5 flex-shrink-0 text-blue-600">
+                {getNotificationIcon(toast.notification.type)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium uppercase tracking-wide text-blue-600">Thông báo mới</p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">{toast.notification.title}</p>
+                <p className="mt-1 line-clamp-2 text-sm text-gray-600">{toast.notification.message}</p>
+              </div>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  dismissToast(toast.id);
+                }}
+                className="rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+     <div className="relative">
       {/* Bell Button */}
       <button
         onClick={() => { if (!isOpen) loadNotifications(); setIsOpen(!isOpen); }}
@@ -272,4 +388,3 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 };
 
 export default NotificationBell;
-

@@ -69,6 +69,10 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
       return;
     }
 
+    if (supplyRequestId) {
+      await supplyRequestService.assertProcurementFlowSupported(supplyRequestId);
+    }
+
     const soLuongNhapFloat = parseFloat(soLuongNhap.toString());
     let resolvedLotProductId = inputLotProductId;
     let soLuongTruoc = 0;
@@ -203,6 +207,10 @@ export const batchCreateWarehouseReceipts = async (req: Request, res: Response, 
       return;
     }
 
+    if (supplyRequestId) {
+      await supplyRequestService.assertProcurementFlowSupported(supplyRequestId);
+    }
+
     const results: any[] = [];
 
     for (const item of items) {
@@ -288,4 +296,3 @@ export const batchCreateWarehouseReceipts = async (req: Request, res: Response, 
     next(error);
   }
 };
-

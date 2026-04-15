@@ -8,6 +8,7 @@ import logger from '@config/logger';
 import { swaggerSpec } from '@config/swagger';
 import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { registerRoutes } from '@routes/index';
+import { closeWebSocket, initWebSocket } from '@services/websocket';
 
 const app: Express = express();
 
@@ -81,9 +82,21 @@ const server = app.listen(PORT, () => {
   logger.info(`Environment: ${env.NODE_ENV}`);
 });
 
+initWebSocket(server);
+
 server.on('error', (error) => {
   logger.error('Server error:', error);
 });
 
-export default app;
+const shutdown = (signal: string) => {
+  logger.info(`Received ${signal}, shutting down gracefully`);
+  closeWebSocket();
+  server.close(() => {
+    process.exit(0);
+  });
+};
 
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+export default app;

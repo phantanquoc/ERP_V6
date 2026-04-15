@@ -17,10 +17,12 @@ import EmployeeEvaluationManagement from '@components/EmployeeEvaluationManageme
 import PayrollManagement from '@components/PayrollManagement';
 import AttendanceManagement from '@components/AttendanceManagement';
 import LeaveRequestManagement from '@components/LeaveRequestManagement';
+import SupplyRequestManagement from '@components/SupplyRequestManagement';
 import DatePicker from '@components/DatePicker';
 import employeeService from '@services/employeeService';
 import employeeEvaluationService, { EmployeeEvaluation } from '@services/employeeEvaluationService';
 import attendanceService, { AttendanceRecord } from '@services/attendanceService';
+import { useSearchParams } from 'react-router-dom';
 
 interface Employee {
   id: string;
@@ -33,8 +35,26 @@ interface Employee {
   };
 }
 
+type QualityPersonnelTab =
+  | 'employees'
+  | 'positions'
+  | 'responsibilities'
+  | 'levels'
+  | 'evaluations'
+  | 'payroll'
+  | 'attendance'
+  | 'leave-requests'
+  | 'supplement-requests'
+  | 'users';
+
+const isQualityPersonnelTab = (value: string | null): value is QualityPersonnelTab =>
+  !!value && ['employees', 'positions', 'responsibilities', 'levels', 'evaluations', 'payroll', 'attendance', 'leave-requests', 'supplement-requests', 'users'].includes(value);
+
 const QualityPersonnel = () => {
-  const [activeTab, setActiveTab] = useState<'employees' | 'positions' | 'responsibilities' | 'levels' | 'evaluations' | 'payroll' | 'attendance' | 'leave-requests' | 'users'>('employees');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<QualityPersonnelTab>(
+    isQualityPersonnelTab(searchParams.get('tab')) ? searchParams.get('tab') : 'employees'
+  );
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
@@ -51,6 +71,13 @@ const QualityPersonnel = () => {
   useEffect(() => {
     loadEmployees();
   }, []);
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab');
+    if (isQualityPersonnelTab(requestedTab)) {
+      setActiveTab(requestedTab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     loadEvaluations();
@@ -110,6 +137,7 @@ const QualityPersonnel = () => {
     { id: 'payroll', name: 'Bảng tính lương', icon: <DollarSign className="w-4 h-4" /> },
     { id: 'attendance', name: 'Bảng điểm danh nhân viên', icon: <FileText className="w-4 h-4" /> },
     { id: 'leave-requests', name: 'Danh sách đơn nghỉ phép', icon: <Calendar className="w-4 h-4" /> },
+    { id: 'supplement-requests', name: 'Yêu cầu bổ sung nhân sự', icon: <Users className="w-4 h-4" /> },
     { id: 'users', name: 'Quản lý user', icon: <Lock className="w-4 h-4" /> },
   ];
 
@@ -273,7 +301,10 @@ const QualityPersonnel = () => {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => {
+                    setActiveTab(tab.id as QualityPersonnelTab);
+                    setSearchParams({ tab: tab.id });
+                  }}
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
@@ -330,6 +361,20 @@ const QualityPersonnel = () => {
           {/* DANH SÁCH ĐƠN NGHỈ PHÉP */}
           {activeTab === 'leave-requests' && (
             <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><LeaveRequestManagement /></div></div>
+          )}
+
+          {/* YÊU CẦU BỔ SUNG NHÂN SỰ */}
+          {activeTab === 'supplement-requests' && (
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-6">
+                <SupplyRequestManagement
+                  title="Yêu cầu bổ sung nhân sự"
+                  description="Các yêu cầu nhân lực được điều phối và theo dõi tại đây, không đi qua luồng mua hàng hoặc kho."
+                  requestTypeFilter="manpower"
+                  emptyStateMessage="Chưa có yêu cầu bổ sung nhân sự"
+                />
+              </div>
+            </div>
           )}
 
           {/* QUẢN LÝ USER */}

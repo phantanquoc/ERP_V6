@@ -1090,7 +1090,11 @@ model SupplyRequest {
   mucDichYeuCau String
   mucDoUuTien   String
   ghiChu        String?
-  trangThai     String   @default("Chưa cung cấp")
+  trangThai     String   @default("Chờ duyệt")
+  approvedByEmployeeId String?
+  approvedByName       String?
+  approvedAt           DateTime?
+  rejectionReason      String?
   fileKemTheo   String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt

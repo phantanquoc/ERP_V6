@@ -459,7 +459,7 @@ const Dashboard1: React.FC = () => {
       stats: [
         { label: "Yêu cầu mua", value: purchaseRequestCount.toString(), link: "/purchasing" },
         { label: "Nhà cung cấp", value: suppliers.length.toString(), link: "/purchasing/materials" },
-        { label: "Yêu cầu cung ứng", value: supplyRequests.length.toString(), link: "/purchasing/equipment" },
+        { label: "Yêu cầu bổ sung", value: supplyRequests.length.toString(), link: "/common/supply-requests" },
         { label: "Chờ duyệt", value: purchaseRequestPendingCount.toString(), link: "/purchasing" }
       ]
     },

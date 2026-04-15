@@ -150,6 +150,21 @@ router.put(
   supplyRequestController.updateSupplyRequest
 );
 
+router.patch(
+  '/:id/status',
+  supplyRequestController.updateSupplyRequestStatus
+);
+
+router.patch(
+  '/:id/approve',
+  supplyRequestController.approveSupplyRequest
+);
+
+router.patch(
+  '/:id/reject',
+  supplyRequestController.rejectSupplyRequest
+);
+
 /**
  * @swagger
  * /api/supply-requests/{id}:
@@ -183,4 +198,3 @@ router.delete(
 );
 
 export default router;
-

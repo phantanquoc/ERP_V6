@@ -550,6 +550,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
         const loadedGeneralCosts = calculator.generalCosts.map((cost: any) => ({
           id: cost.id,
           costId: cost.generalCostId,
+          maChiPhi: cost.maChiPhi,
           tenChiPhi: cost.tenChiPhi,
           donViTinh: cost.donViTinh,
           keHoach: cost.keHoach,
@@ -565,10 +566,45 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           const loadedGroups = calculator.generalCostGroupsData.map((group: any) => {
             console.log('🔍 [Load] Processing group:', group);
             console.log('🔍 [Load] Group selectedProducts:', group.selectedProducts);
+            const normalizedSelectedCosts = (group.selectedCosts || [])
+              .map((item: any) => {
+                if (typeof item === 'string') {
+                  return loadedGeneralCosts.find(
+                    (cost: any) =>
+                      cost.maChiPhi === item ||
+                      cost.costId === item ||
+                      cost.id === item
+                  );
+                }
+
+                if (item && typeof item === 'object') {
+                  const matchedCost = loadedGeneralCosts.find(
+                    (cost: any) =>
+                      cost.maChiPhi === item.maChiPhi ||
+                      cost.costId === item.costId ||
+                      cost.costId === item.generalCostId ||
+                      cost.id === item.id
+                  );
+
+                  return {
+                    id: item.id || matchedCost?.id || item.costId || item.generalCostId || item.maChiPhi,
+                    costId: item.costId || item.generalCostId || matchedCost?.costId || item.id || '',
+                    maChiPhi: item.maChiPhi || matchedCost?.maChiPhi,
+                    tenChiPhi: item.tenChiPhi || matchedCost?.tenChiPhi || '',
+                    donViTinh: item.donViTinh || matchedCost?.donViTinh || '',
+                    keHoach: item.keHoach ?? matchedCost?.keHoach ?? 0,
+                    thucTe: item.thucTe ?? matchedCost?.thucTe ?? 0,
+                  };
+                }
+
+                return null;
+              })
+              .filter(Boolean);
+
             return {
               id: group.id,
               tenBangChiPhi: group.tenBangChiPhi,
-              selectedCosts: group.selectedCosts || [],
+              selectedCosts: normalizedSelectedCosts,
               selectedProducts: group.selectedProducts || [],
             };
           });
@@ -2167,6 +2203,13 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       // Get current user info from localStorage
       const userStr = localStorage.getItem('user');
       const user = userStr ? JSON.parse(userStr) : null;
+      const existingCalculatorResponse = await quotationCalculatorService.getByQuotationRequestId(quotationRequest.id);
+      const existingCalculator = existingCalculatorResponse?.data?.data;
+
+      if (!existingCalculator) {
+        alert('Vui lòng lưu bảng tính chi phí trước khi tạo báo giá.');
+        return;
+      }
 
       console.log('🔍 User from localStorage:', user);
 
@@ -6150,4 +6193,3 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 };
 
 export default QuotationCalculatorModal;
-

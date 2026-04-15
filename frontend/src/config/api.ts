@@ -3,6 +3,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:50
 
 // Server base URL (without /api suffix) - used for file/upload links
 export const SERVER_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
+export const WS_BASE_URL = import.meta.env.VITE_WS_URL || SERVER_BASE_URL.replace(/^http/, 'ws');
 
 // Helper function to get full API URL
 export const getApiUrl = (endpoint: string = '') => {
@@ -18,4 +19,3 @@ export const getFileUrl = (filePath: string = '') => {
   const path = filePath.startsWith('/') ? filePath : `/${filePath}`;
   return `${base}${path}`;
 };
-

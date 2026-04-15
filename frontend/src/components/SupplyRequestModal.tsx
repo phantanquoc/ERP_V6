@@ -4,6 +4,13 @@ import supplyRequestService from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
 import { internationalProductService, InternationalProduct } from '../services/internationalProductService';
+import {
+  MANPOWER_CATEGORY_OPTIONS,
+  getRequestTypeAllowedUnits,
+  getRequestTypeDefaultUnit,
+  getSupplyRequestTypeFromCategory,
+  getSupplyRequestTypeLabelByValue,
+} from '../utils/supplyRequestType';
 
 interface SupplyRequestModalProps {
   isOpen: boolean;
@@ -19,13 +26,15 @@ interface ItemRow {
   customProduct: boolean;
 }
 
-const emptyRow = (): ItemRow => ({
+type FormRequestType = 'material' | 'equipment' | 'manpower';
+
+const emptyRow = (requestType: FormRequestType): ItemRow => ({
   phanLoai: '',
   tenGoi: '',
   soLuong: 0,
-  donViTinh: 'Kg',
+  donViTinh: getRequestTypeDefaultUnit(requestType),
   customCategory: false,
-  customProduct: false,
+  customProduct: requestType === 'manpower',
 });
 
 const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose }) => {
@@ -33,7 +42,8 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<InternationalProduct[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [items, setItems] = useState<ItemRow[]>([emptyRow()]);
+  const [requestType, setRequestType] = useState<FormRequestType>('material');
+  const [items, setItems] = useState<ItemRow[]>([emptyRow('material')]);
   const [mucDichYeuCau, setMucDichYeuCau] = useState('');
   const [mucDoUuTien, setMucDoUuTien] = useState('Trung bình');
   const [ghiChu, setGhiChu] = useState('');
@@ -59,8 +69,16 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
     }
   };
 
+  const getAvailableCategories = (): string[] => {
+    if (requestType === 'manpower') {
+      return MANPOWER_CATEGORY_OPTIONS;
+    }
+
+    return categories.filter((category) => getSupplyRequestTypeFromCategory(category) === requestType);
+  };
+
   const getFilteredProducts = (phanLoai: string): InternationalProduct[] => {
-    if (!phanLoai) return [];
+    if (!phanLoai || requestType === 'manpower') return [];
     return products.filter(p => p.loaiSanPham === phanLoai);
   };
 
@@ -69,7 +87,12 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
   };
 
   const handleCategoryChange = (index: number, phanLoai: string) => {
-    updateItem(index, { phanLoai, tenGoi: '', donViTinh: 'Kg', customProduct: false });
+    updateItem(index, {
+      phanLoai,
+      tenGoi: '',
+      donViTinh: getRequestTypeDefaultUnit(requestType),
+      customProduct: requestType === 'manpower',
+    });
   };
 
   const handleProductChange = (index: number, tenSanPham: string) => {
@@ -81,7 +104,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
   };
 
   const addRow = () => {
-    setItems(prev => [...prev, emptyRow()]);
+    setItems(prev => [...prev, emptyRow(requestType)]);
   };
 
   const removeRow = (index: number) => {
@@ -90,13 +113,34 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
   };
 
   const resetForm = () => {
-    setItems([emptyRow()]);
+    setRequestType('material');
+    setItems([emptyRow('material')]);
     setMucDichYeuCau('');
     setMucDoUuTien('Trung bình');
     setGhiChu('');
   };
 
+  const handleRequestTypeChange = (nextType: FormRequestType) => {
+    setRequestType(nextType);
+    setItems([emptyRow(nextType)]);
+  };
+
   if (!isOpen) return null;
+
+  const requestTypeLabel = getSupplyRequestTypeLabelByValue(requestType);
+  const categoryOptions = getAvailableCategories();
+  const unitOptions = getRequestTypeAllowedUnits(requestType);
+  const itemLabel = requestType === 'manpower' ? 'Danh sách nhu cầu nhân sự' : 'Danh sách sản phẩm';
+  const itemNameLabel = requestType === 'manpower' ? 'Vị trí / nhu cầu' : 'Tên gọi';
+  const addRowLabel = requestType === 'manpower' ? 'Thêm nhu cầu' : 'Thêm sản phẩm';
+  const purposePlaceholder =
+    requestType === 'manpower'
+      ? 'Mô tả nhu cầu nhân sự, thời gian cần và lý do bổ sung'
+      : 'Mô tả mục đích yêu cầu';
+  const notePlaceholder =
+    requestType === 'manpower'
+      ? 'Ví dụ: cần 2 nhân sự hỗ trợ kiểm hàng trong 2 tuần'
+      : 'Ghi chú thêm (nếu có)';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,8 +153,12 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
     // Validate all rows
     for (let i = 0; i < items.length; i++) {
       const row = items[i];
+      if (!row.phanLoai || !row.phanLoai.trim()) {
+        alert(`Dòng ${i + 1}: Vui lòng chọn phân loại`);
+        return;
+      }
       if (!row.tenGoi || !row.tenGoi.trim()) {
-        alert(`Dòng ${i + 1}: Vui lòng nhập tên gọi sản phẩm`);
+        alert(`Dòng ${i + 1}: Vui lòng nhập ${requestType === 'manpower' ? 'vị trí / nhu cầu nhân sự' : 'tên gọi sản phẩm'}`);
         return;
       }
       if (!row.soLuong || row.soLuong <= 0) {
@@ -136,7 +184,11 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
         mucDoUuTien,
         ghiChu,
       });
-      alert('Tạo yêu cầu cung cấp thành công!');
+      alert(
+        requestType === 'manpower'
+          ? 'Tạo yêu cầu bổ sung nhân sự thành công! Danh sách sẽ được xử lý tại Phòng chất lượng nhân sự.'
+          : 'Tạo yêu cầu cung cấp thành công!'
+      );
       resetForm();
       onClose();
     } catch (error: any) {
@@ -165,6 +217,26 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
         {/* Body */}
         <div className="p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Loại yêu cầu <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={requestType}
+                onChange={(e) => handleRequestTypeChange(e.target.value as FormRequestType)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="material">Vật tư</option>
+                <option value="equipment">Thiết bị</option>
+                <option value="manpower">Nhân lực</option>
+              </select>
+              <p className="mt-2 text-xs text-gray-500">
+                {requestType === 'manpower'
+                  ? 'Yêu cầu nhân lực sẽ được chuyển đến Phòng chất lượng nhân sự để điều phối, không đi qua mua hàng hoặc kho.'
+                  : `Yêu cầu ${requestTypeLabel.toLowerCase()} sẽ tiếp tục theo luồng bổ sung/cung cấp hiện tại.`}
+              </p>
+            </div>
+
             {/* Tên nhân viên */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -181,7 +253,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  Danh sách sản phẩm <span className="text-red-500">*</span>
+                  {itemLabel} <span className="text-red-500">*</span>
                 </label>
                 <button
                   type="button"
@@ -189,7 +261,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                   className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >
                   <Plus className="h-4 w-4" />
-                  Thêm sản phẩm
+                  {addRowLabel}
                 </button>
               </div>
 
@@ -199,7 +271,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-8">#</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phân loại</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên gọi</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">{itemNameLabel}</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-24">Số lượng</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-28">Đơn vị</th>
                       <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase w-10"></th>
@@ -217,11 +289,16 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                               <input
                                 type="text"
                                 value={row.phanLoai}
-                                onChange={(e) => updateItem(index, { phanLoai: e.target.value, tenGoi: '', donViTinh: 'Kg', customProduct: true })}
+                                onChange={(e) => updateItem(index, {
+                                  phanLoai: e.target.value,
+                                  tenGoi: '',
+                                  donViTinh: getRequestTypeDefaultUnit(requestType),
+                                  customProduct: true,
+                                })}
                                 className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
                                 placeholder="Nhập phân loại"
                               />
-                              <button type="button" onClick={() => updateItem(index, { customCategory: false, customProduct: false, phanLoai: '', tenGoi: '' })} className="px-2 py-1 text-xs text-gray-600 border border-gray-300 rounded hover:bg-gray-50 whitespace-nowrap">DS</button>
+                              <button type="button" onClick={() => updateItem(index, { customCategory: false, customProduct: requestType === 'manpower', phanLoai: '', tenGoi: '' })} className="px-2 py-1 text-xs text-gray-600 border border-gray-300 rounded hover:bg-gray-50 whitespace-nowrap">DS</button>
                             </div>
                           ) : (
                             <div className="flex gap-1">
@@ -231,7 +308,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                                 className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
                               >
                                 <option value="">-- Chọn --</option>
-                                {categories.map(cat => (
+                                {categoryOptions.map(cat => (
                                   <option key={cat} value={cat}>{cat}</option>
                                 ))}
                               </select>
@@ -250,9 +327,9 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                                 onChange={(e) => updateItem(index, { tenGoi: e.target.value })}
                                 required
                                 className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
-                                placeholder="Nhập tên hàng hóa"
+                                placeholder={requestType === 'manpower' ? 'Nhập vị trí hoặc nhu cầu nhân sự' : 'Nhập tên hàng hóa'}
                               />
-                              {!row.customCategory && (
+                              {!row.customCategory && requestType !== 'manpower' && (
                                 <button type="button" onClick={() => updateItem(index, { customProduct: false, tenGoi: '' })} className="px-2 py-1 text-xs text-gray-600 border border-gray-300 rounded hover:bg-gray-50 whitespace-nowrap">DS</button>
                               )}
                             </div>
@@ -295,12 +372,9 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                             onChange={(e) => updateItem(index, { donViTinh: e.target.value })}
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                           >
-                            <option value="Kg">Kg</option>
-                            <option value="Cái">Cái</option>
-                            <option value="Hệ">Hệ</option>
-                            <option value="Lít">Lít</option>
-                            <option value="Thùng">Thùng</option>
-                            <option value="Bộ">Bộ</option>
+                            {unitOptions.map((unit) => (
+                              <option key={unit} value={unit}>{unit}</option>
+                            ))}
                           </select>
                         </td>
 
@@ -332,7 +406,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 rows={2}
-                placeholder="Mô tả mục đích yêu cầu"
+                placeholder={purposePlaceholder}
               />
             </div>
 
@@ -359,7 +433,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                 onChange={(e) => setGhiChu(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 rows={3}
-                placeholder="Ghi chú thêm (nếu có)"
+                placeholder={notePlaceholder}
               />
             </div>
 

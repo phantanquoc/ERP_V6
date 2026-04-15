@@ -13,8 +13,15 @@ ENV VITE_API_URL=$VITE_API_URL
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies.
+# npm can skip Rollup's platform package in Docker on some architectures, so
+# install the matching native package explicitly after npm ci.
+RUN npm ci && \
+    ROLLUP_PKG="$(node -p 'process.arch === "arm64" ? "@rollup/rollup-linux-arm64-gnu" : process.arch === "x64" ? "@rollup/rollup-linux-x64-gnu" : ""')" && \
+    if [ -n "$ROLLUP_PKG" ]; then \
+      ROLLUP_VERSION="$(node -p 'const pkg = process.arch === "arm64" ? "@rollup/rollup-linux-arm64-gnu" : "@rollup/rollup-linux-x64-gnu"; require("./package-lock.json").packages["node_modules/rollup"].optionalDependencies[pkg]')" && \
+      npm install --no-save "${ROLLUP_PKG}@${ROLLUP_VERSION}"; \
+    fi
 
 # Copy source code
 COPY . .
@@ -44,8 +51,7 @@ EXPOSE 80
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:80/ || exit 1
 
 # Start Nginx
 CMD ["nginx", "-g", "daemon off;"]
-

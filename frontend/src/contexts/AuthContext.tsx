@@ -1,6 +1,17 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { User, LoginRequest, RegisterRequest } from '../types/auth';
 import AuthService from '../services/authService';
+import { WS_BASE_URL } from '../config/api';
+
+export interface RealtimeNotificationPayload {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  data?: Record<string, unknown>;
+  createdAt: string;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -10,6 +21,7 @@ interface AuthContextType {
   register: (userData: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
+  subscribeToNotifications: (listener: (payload: RealtimeNotificationPayload) => void) => () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +33,62 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const socketRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const listenersRef = useRef(new Set<(payload: RealtimeNotificationPayload) => void>());
+
+  const cleanupSocket = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      window.clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    if (socketRef.current) {
+      socketRef.current.onopen = null;
+      socketRef.current.onmessage = null;
+      socketRef.current.onclose = null;
+      socketRef.current.onerror = null;
+      socketRef.current.close();
+      socketRef.current = null;
+    }
+  }, []);
+
+  const connectNotifications = useCallback(() => {
+    const token = AuthService.getAccessToken();
+    if (!token) {
+      cleanupSocket();
+      return;
+    }
+
+    const wsUrl = `${WS_BASE_URL}/ws?token=${encodeURIComponent(token)}`;
+    const socket = new WebSocket(wsUrl);
+    socketRef.current = socket;
+
+    socket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'NOTIFICATION' && message.payload) {
+          listenersRef.current.forEach((listener) => listener(message.payload as RealtimeNotificationPayload));
+        }
+      } catch (error) {
+        console.error('Notification socket message error:', error);
+      }
+    };
+
+    socket.onclose = () => {
+      if (!AuthService.getAccessToken()) {
+        return;
+      }
+
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        connectNotifications();
+      }, 3000);
+    };
+
+    socket.onerror = (error) => {
+      console.error('Notification socket error:', error);
+    };
+  }, [cleanupSocket]);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -41,6 +109,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      connectNotifications();
+      return cleanupSocket;
+    }
+
+    cleanupSocket();
+    return undefined;
+  }, [cleanupSocket, connectNotifications, user]);
 
   const login = async (credentials: LoginRequest): Promise<void> => {
     try {
@@ -73,6 +151,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       await AuthService.logout();
       setUser(null);
+      cleanupSocket();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -88,6 +167,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const subscribeToNotifications = useCallback((listener: (payload: RealtimeNotificationPayload) => void) => {
+    listenersRef.current.add(listener);
+    return () => {
+      listenersRef.current.delete(listener);
+    };
+  }, []);
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
@@ -96,6 +182,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     updateUser,
+    subscribeToNotifications,
   };
 
   return (

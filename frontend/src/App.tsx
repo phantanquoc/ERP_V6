@@ -11,6 +11,7 @@ const Dashboard1 = React.lazy(() => import('./pages/Dashboard1'));
 
 // Common Management
 const CommonManagement = React.lazy(() => import('./pages/CommonManagement'));
+const SupplyRequestsPage = React.lazy(() => import('./pages/SupplyRequestsPage'));
 
 // Quality Management
 const QualityManagement = React.lazy(() => import('./pages/QualityManagement'));
@@ -76,6 +77,7 @@ function App() {
 
           {/* Common Management Routes */}
           <Route path="/common" element={<ProtectedLayout><CommonManagement /></ProtectedLayout>} />
+          <Route path="/common/supply-requests" element={<ProtectedLayout><SupplyRequestsPage /></ProtectedLayout>} />
 
           {/* Quality Management Routes */}
           <Route path="/quality" element={<ProtectedLayout><QualityManagement /></ProtectedLayout>} />
@@ -146,5 +148,4 @@ function App() {
 }
 
 export default App;
-
 

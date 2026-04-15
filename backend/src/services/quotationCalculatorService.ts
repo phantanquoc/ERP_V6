@@ -35,8 +35,8 @@ export interface QuotationCalculatorProductData {
   tenQuyTrinhSanXuat?: string;
   flowchartData?: any; // Lưu flowchart đã chỉnh sửa
   thoiGianChoPhepToiDa?: number;
-  ngayBatDauSanXuat?: Date;
-  ngayBatDauSanXuatThucTe?: Date;
+  ngayBatDauSanXuat?: Date | string | null;
+  ngayBatDauSanXuatThucTe?: Date | string | null;
   ngayHoanThanhThucTe?: number; // Số ngày hoàn thành thực tế (có thể là số thập phân)
   chiPhiSanXuatKeHoach?: number;
   chiPhiSanXuatThucTe?: number;
@@ -65,6 +65,95 @@ export interface QuotationCalculatorProductData {
   tenChiPhiBoSung?: string; // Tên chi phí bổ sung
   originalTabId?: string; // ID gốc của tab để sử dụng khi load lại
 }
+
+const normalizeOptionalDate = (value: Date | string | null | undefined): Date | undefined => {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  }
+
+  return undefined;
+};
+
+const sanitizeCostEntries = (costs: QuotationCalculatorCostData[] | undefined) =>
+  (costs || []).filter(
+    (cost) =>
+      typeof cost?.costId === 'string' &&
+      cost.costId.trim().length > 0 &&
+      typeof cost?.tenChiPhi === 'string' &&
+      cost.tenChiPhi.trim().length > 0 &&
+      Number.isFinite(cost?.keHoach) &&
+      Number.isFinite(cost?.thucTe)
+  );
+
+const mapProductForPersistence = (product: QuotationCalculatorProductData) => ({
+  quotationRequestItemId: product.quotationRequestItemId,
+  productId: product.productId,
+  tenSanPham: product.tenSanPham,
+  soLuong: product.soLuong,
+  donViTinh: product.donViTinh,
+  maBaoGia: product.maBaoGia,
+  materialStandardId: product.materialStandardId,
+  maDinhMuc: product.maDinhMuc,
+  tenDinhMuc: product.tenDinhMuc,
+  tiLeThuHoi: product.tiLeThuHoi,
+  sanPhamDauRa: product.sanPhamDauRa,
+  thanhPhamTonKho: product.thanhPhamTonKho,
+  tongThanhPhamCanSxThem: product.tongThanhPhamCanSxThem,
+  tongNguyenLieuCanSanXuat: product.tongNguyenLieuCanSanXuat,
+  nguyenLieuTonKho: product.nguyenLieuTonKho,
+  nguyenLieuCanNhapThem: product.nguyenLieuCanNhapThem,
+  productionProcessId: product.productionProcessId,
+  maQuyTrinhSanXuat: product.maQuyTrinhSanXuat,
+  tenQuyTrinhSanXuat: product.tenQuyTrinhSanXuat,
+  flowchartData: product.flowchartData || null,
+  thoiGianChoPhepToiDa: product.thoiGianChoPhepToiDa,
+  ngayBatDauSanXuat: normalizeOptionalDate(product.ngayBatDauSanXuat),
+  ngayBatDauSanXuatThucTe: normalizeOptionalDate(product.ngayBatDauSanXuatThucTe),
+  ngayHoanThanhThucTe: product.ngayHoanThanhThucTe,
+  chiPhiSanXuatKeHoach: product.chiPhiSanXuatKeHoach,
+  chiPhiSanXuatThucTe: product.chiPhiSanXuatThucTe,
+  chiPhiChungKeHoach: product.chiPhiChungKeHoach,
+  chiPhiChungThucTe: product.chiPhiChungThucTe,
+  chiPhiXuatKhauKeHoach: product.chiPhiXuatKhauKeHoach,
+  chiPhiXuatKhauThucTe: product.chiPhiXuatKhauThucTe,
+  giaHoaVon: product.giaHoaVon,
+  loiNhuanCongThem: product.loiNhuanCongThem,
+  ghiChu: product.ghiChu,
+  tongKhoiLuongThanhPhamThucTe: product.tongKhoiLuongThanhPhamThucTe,
+  thanhPhamTonKhoThucTe: product.thanhPhamTonKhoThucTe,
+  tongThanhPhamCanSxThemThucTe: product.tongThanhPhamCanSxThemThucTe,
+  tongNguyenLieuCanSanXuatThucTe: product.tongNguyenLieuCanSanXuatThucTe,
+  loiNhuanCongThemThucTe: product.loiNhuanCongThemThucTe,
+  tiGiaUSD: product.tiGiaUSD,
+  isAdditionalCost: product.isAdditionalCost || false,
+  tenChiPhiBoSung: product.tenChiPhiBoSung,
+  originalTabId: product.originalTabId,
+  byProducts: product.byProducts
+    ? {
+        create: product.byProducts.map((bp) => ({
+          tenSanPham: bp.tenSanPham,
+          tiLe: bp.tiLe,
+          tiLeThuHoiThucTe: bp.tiLeThuHoiThucTe,
+          giaHoaVon: bp.giaHoaVon,
+          giaHoaVonThucTe: bp.giaHoaVonThucTe,
+        })),
+      }
+    : undefined,
+});
 
 export interface QuotationCalculatorCostData {
   costId: string;
@@ -117,6 +206,9 @@ class QuotationCalculatorService {
       ? data.generalCostGroups
       : Prisma.JsonNull;
 
+    const sanitizedGeneralCosts = sanitizeCostEntries(data.generalCosts);
+    const sanitizedExportCosts = sanitizeCostEntries(data.exportCosts);
+
     const calculator = await prisma.quotationCalculator.create({
       data: {
         quotationRequestId: data.quotationRequestId,
@@ -125,63 +217,10 @@ class QuotationCalculatorService {
         phanTramQuy: data.phanTramQuy,
         generalCostGroupsData: generalCostGroupsToSave,
         products: {
-          create: data.products.map(product => ({
-            quotationRequestItemId: product.quotationRequestItemId,
-            productId: product.productId,
-            tenSanPham: product.tenSanPham,
-            soLuong: product.soLuong,
-            donViTinh: product.donViTinh,
-            maBaoGia: product.maBaoGia,
-            materialStandardId: product.materialStandardId,
-            maDinhMuc: product.maDinhMuc,
-            tenDinhMuc: product.tenDinhMuc,
-            tiLeThuHoi: product.tiLeThuHoi,
-            sanPhamDauRa: product.sanPhamDauRa,
-            thanhPhamTonKho: product.thanhPhamTonKho,
-            tongThanhPhamCanSxThem: product.tongThanhPhamCanSxThem,
-            tongNguyenLieuCanSanXuat: product.tongNguyenLieuCanSanXuat,
-            nguyenLieuTonKho: product.nguyenLieuTonKho,
-            nguyenLieuCanNhapThem: product.nguyenLieuCanNhapThem,
-            productionProcessId: product.productionProcessId,
-            maQuyTrinhSanXuat: product.maQuyTrinhSanXuat,
-            tenQuyTrinhSanXuat: product.tenQuyTrinhSanXuat,
-            flowchartData: product.flowchartData || null,
-            thoiGianChoPhepToiDa: product.thoiGianChoPhepToiDa,
-            ngayBatDauSanXuat: product.ngayBatDauSanXuat,
-            ngayBatDauSanXuatThucTe: product.ngayBatDauSanXuatThucTe,
-            ngayHoanThanhThucTe: product.ngayHoanThanhThucTe,
-            chiPhiSanXuatKeHoach: product.chiPhiSanXuatKeHoach,
-            chiPhiSanXuatThucTe: product.chiPhiSanXuatThucTe,
-            chiPhiChungKeHoach: product.chiPhiChungKeHoach,
-            chiPhiChungThucTe: product.chiPhiChungThucTe,
-            chiPhiXuatKhauKeHoach: product.chiPhiXuatKhauKeHoach,
-            chiPhiXuatKhauThucTe: product.chiPhiXuatKhauThucTe,
-            giaHoaVon: product.giaHoaVon,
-            loiNhuanCongThem: product.loiNhuanCongThem,
-            ghiChu: product.ghiChu,
-            // Các trường thực tế mới
-            tongKhoiLuongThanhPhamThucTe: product.tongKhoiLuongThanhPhamThucTe,
-            thanhPhamTonKhoThucTe: product.thanhPhamTonKhoThucTe,
-            tongThanhPhamCanSxThemThucTe: product.tongThanhPhamCanSxThemThucTe,
-            tongNguyenLieuCanSanXuatThucTe: product.tongNguyenLieuCanSanXuatThucTe,
-            loiNhuanCongThemThucTe: product.loiNhuanCongThemThucTe,
-            tiGiaUSD: product.tiGiaUSD,
-            isAdditionalCost: product.isAdditionalCost || false,
-            tenChiPhiBoSung: product.tenChiPhiBoSung,
-            originalTabId: product.originalTabId,
-            byProducts: product.byProducts ? {
-              create: product.byProducts.map(bp => ({
-                tenSanPham: bp.tenSanPham,
-                tiLe: bp.tiLe,
-                tiLeThuHoiThucTe: bp.tiLeThuHoiThucTe,
-                giaHoaVon: bp.giaHoaVon,
-                giaHoaVonThucTe: bp.giaHoaVonThucTe,
-              })),
-            } : undefined,
-          })),
+          create: data.products.map(mapProductForPersistence),
         },
         generalCosts: {
-          create: data.generalCosts.map(cost => ({
+          create: sanitizedGeneralCosts.map(cost => ({
             generalCostId: cost.costId,
             maChiPhi: cost.maChiPhi,
             tenChiPhi: cost.tenChiPhi,
@@ -191,7 +230,7 @@ class QuotationCalculatorService {
           })),
         },
         exportCosts: {
-          create: data.exportCosts.map(cost => ({
+          create: sanitizedExportCosts.map(cost => ({
             exportCostId: cost.costId,
             maChiPhi: cost.maChiPhi,
             tenChiPhi: cost.tenChiPhi,
@@ -221,6 +260,8 @@ class QuotationCalculatorService {
     const generalCostGroupsToSave = data.generalCostGroups && data.generalCostGroups.length > 0
       ? data.generalCostGroups
       : Prisma.JsonNull;
+    const sanitizedGeneralCosts = sanitizeCostEntries(data.generalCosts);
+    const sanitizedExportCosts = sanitizeCostEntries(data.exportCosts);
 
     // Delete existing products, costs
     await prisma.quotationCalculatorProduct.deleteMany({
@@ -241,63 +282,10 @@ class QuotationCalculatorService {
         phanTramQuy: data.phanTramQuy,
         generalCostGroupsData: generalCostGroupsToSave,
         products: {
-          create: data.products.map(product => ({
-            quotationRequestItemId: product.quotationRequestItemId,
-            productId: product.productId,
-            tenSanPham: product.tenSanPham,
-            soLuong: product.soLuong,
-            donViTinh: product.donViTinh,
-            maBaoGia: product.maBaoGia,
-            materialStandardId: product.materialStandardId,
-            maDinhMuc: product.maDinhMuc,
-            tenDinhMuc: product.tenDinhMuc,
-            tiLeThuHoi: product.tiLeThuHoi,
-            sanPhamDauRa: product.sanPhamDauRa,
-            thanhPhamTonKho: product.thanhPhamTonKho,
-            tongThanhPhamCanSxThem: product.tongThanhPhamCanSxThem,
-            tongNguyenLieuCanSanXuat: product.tongNguyenLieuCanSanXuat,
-            nguyenLieuTonKho: product.nguyenLieuTonKho,
-            nguyenLieuCanNhapThem: product.nguyenLieuCanNhapThem,
-            productionProcessId: product.productionProcessId,
-            maQuyTrinhSanXuat: product.maQuyTrinhSanXuat,
-            tenQuyTrinhSanXuat: product.tenQuyTrinhSanXuat,
-            flowchartData: product.flowchartData || null,
-            thoiGianChoPhepToiDa: product.thoiGianChoPhepToiDa,
-            ngayBatDauSanXuat: product.ngayBatDauSanXuat,
-            ngayBatDauSanXuatThucTe: product.ngayBatDauSanXuatThucTe,
-            ngayHoanThanhThucTe: product.ngayHoanThanhThucTe,
-            chiPhiSanXuatKeHoach: product.chiPhiSanXuatKeHoach,
-            chiPhiSanXuatThucTe: product.chiPhiSanXuatThucTe,
-            chiPhiChungKeHoach: product.chiPhiChungKeHoach,
-            chiPhiChungThucTe: product.chiPhiChungThucTe,
-            chiPhiXuatKhauKeHoach: product.chiPhiXuatKhauKeHoach,
-            chiPhiXuatKhauThucTe: product.chiPhiXuatKhauThucTe,
-            giaHoaVon: product.giaHoaVon,
-            loiNhuanCongThem: product.loiNhuanCongThem,
-            ghiChu: product.ghiChu,
-            // Các trường thực tế mới
-            tongKhoiLuongThanhPhamThucTe: product.tongKhoiLuongThanhPhamThucTe,
-            thanhPhamTonKhoThucTe: product.thanhPhamTonKhoThucTe,
-            tongThanhPhamCanSxThemThucTe: product.tongThanhPhamCanSxThemThucTe,
-            tongNguyenLieuCanSanXuatThucTe: product.tongNguyenLieuCanSanXuatThucTe,
-            loiNhuanCongThemThucTe: product.loiNhuanCongThemThucTe,
-            tiGiaUSD: product.tiGiaUSD,
-            isAdditionalCost: product.isAdditionalCost || false,
-            tenChiPhiBoSung: product.tenChiPhiBoSung,
-            originalTabId: product.originalTabId,
-            byProducts: product.byProducts ? {
-              create: product.byProducts.map(bp => ({
-                tenSanPham: bp.tenSanPham,
-                tiLe: bp.tiLe,
-                tiLeThuHoiThucTe: bp.tiLeThuHoiThucTe,
-                giaHoaVon: bp.giaHoaVon,
-                giaHoaVonThucTe: bp.giaHoaVonThucTe,
-              })),
-            } : undefined,
-          })),
+          create: data.products.map(mapProductForPersistence),
         },
         generalCosts: {
-          create: data.generalCosts.map(cost => ({
+          create: sanitizedGeneralCosts.map(cost => ({
             generalCostId: cost.costId,
             maChiPhi: cost.maChiPhi,
             tenChiPhi: cost.tenChiPhi,
@@ -307,7 +295,7 @@ class QuotationCalculatorService {
           })),
         },
         exportCosts: {
-          create: data.exportCosts.map(cost => ({
+          create: sanitizedExportCosts.map(cost => ({
             exportCostId: cost.costId,
             maChiPhi: cost.maChiPhi,
             tenChiPhi: cost.tenChiPhi,
@@ -340,4 +328,3 @@ class QuotationCalculatorService {
 }
 
 export default new QuotationCalculatorService();
-

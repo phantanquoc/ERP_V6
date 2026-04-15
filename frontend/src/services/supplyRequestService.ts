@@ -28,10 +28,19 @@ export interface SupplyRequest {
   fileKemTheo?: string;
   createdAt: string;
   updatedAt: string;
+  approvedByEmployeeId?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
   items: SupplyRequestItem[];
+  requestType?: 'material' | 'equipment' | 'manpower' | 'mixed';
+  requestTypeLabel?: string;
+  supportsProcurementFlow?: boolean;
   purchaseRequests?: { id: string; trangThai: string; maYeuCau: string }[];
   warehouseReceipts?: { id: string; maPhieuNhap: string }[];
 }
+
+export type SupplyRequestType = 'material' | 'equipment' | 'manpower' | 'mixed';
 
 export interface CreateSupplyRequestRequest {
   employeeId: string;
@@ -54,10 +63,20 @@ export interface UpdateSupplyRequestRequest {
 }
 
 class SupplyRequestService {
-  async getAllSupplyRequests(page: number = 1, limit: number = 10, search?: string) {
+  async getAllSupplyRequests(
+    page: number = 1,
+    limit: number = 10,
+    filters?: {
+      search?: string;
+      requestType?: SupplyRequestType;
+    }
+  ) {
     const params: any = { page, limit };
-    if (search) {
-      params.search = search;
+    if (filters?.search) {
+      params.search = filters.search;
+    }
+    if (filters?.requestType) {
+      params.requestType = filters.requestType;
     }
 
     const response = await apiClient.get('/supply-requests', { params });
@@ -79,15 +98,31 @@ class SupplyRequestService {
     return response;
   }
 
+  async updateSupplyRequestStatus(id: string, trangThai: string) {
+    const response = await apiClient.patch(`/supply-requests/${id}/status`, { trangThai });
+    return response;
+  }
+
+  async approveSupplyRequest(id: string) {
+    const response = await apiClient.patch(`/supply-requests/${id}/approve`, {});
+    return response;
+  }
+
+  async rejectSupplyRequest(id: string, rejectionReason?: string) {
+    const response = await apiClient.patch(`/supply-requests/${id}/reject`, { rejectionReason });
+    return response;
+  }
+
   async deleteSupplyRequest(id: string) {
     const response = await apiClient.delete(`/supply-requests/${id}`);
     return response;
   }
 
-  async exportToExcel(filters?: { search?: string }): Promise<void> {
+  async exportToExcel(filters?: { search?: string; requestType?: SupplyRequestType }): Promise<void> {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
+    if (filters?.requestType) params.append('requestType', filters.requestType);
 
     const url = `${API_BASE_URL}/supply-requests/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {

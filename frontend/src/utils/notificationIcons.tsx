@@ -42,6 +42,8 @@ export const getNotificationIcon = (type: string): React.ReactNode => {
       return <Clock className="w-4 h-4 text-yellow-600" />;
     case 'SUPPLY_REQUEST_APPROVED':
       return <Truck className="w-4 h-4 text-blue-600" />;
+    case 'SUPPLY_REQUEST_REJECTED':
+      return <AlertCircle className="w-4 h-4 text-red-600" />;
     case 'SUPPLY_REQUEST_FULFILLED':
       return <PackageOpen className="w-4 h-4 text-green-600" />;
     case 'PASSWORD_RESET':

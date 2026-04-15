@@ -59,6 +59,10 @@ export const createWarehouseIssue = async (req: Request, res: Response, next: Ne
       supplyRequestId,
     } = req.body;
 
+    if (supplyRequestId) {
+      await supplyRequestService.assertProcurementFlowSupported(supplyRequestId);
+    }
+
     // Kiểm tra số lượng tồn kho
     const lotProduct = await prisma.lotProduct.findUnique({
       where: { id: lotProductId },
@@ -148,4 +152,3 @@ export const getAllWarehouseIssues = async (_req: Request, res: Response, next: 
     next(error);
   }
 };
-

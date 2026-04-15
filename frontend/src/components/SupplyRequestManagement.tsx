@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Eye, Edit, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus } from 'lucide-react';
-import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
+import { Trash2, Eye, Edit, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import supplyRequestService, { SupplyRequest, SupplyRequestType } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
 import CreatePurchaseRequestModal from './CreatePurchaseRequestModal';
@@ -8,9 +8,22 @@ import CreateWarehouseReceiptModal from './CreateWarehouseReceiptModal';
 import { parseNumberInput } from '../utils/numberInput';
 import warehouseService from '../services/warehouseService';
 import TableFilter, { FilterField } from './TableFilter';
+import {
+  getAllowedSupplyRequestStatuses,
+  getSupplyRequestType,
+  getSupplyRequestTypeLabel,
+  isSupplyRequestPendingApproval,
+  isSupplyRequestRejected,
+  supportsProcurementFlow,
+  SUPPLY_REQUEST_TABLE_STATUS_OPTIONS,
+} from '../utils/supplyRequestType';
 
 interface SupplyRequestManagementProps {
   onClose?: () => void;
+  title?: string;
+  description?: string;
+  requestTypeFilter?: SupplyRequestType;
+  emptyStateMessage?: string;
 }
 
 interface EditItemRow {
@@ -29,6 +42,10 @@ const emptyEditRow = (): EditItemRow => ({
 
 const getStatusColor = (status: string) => {
   switch (status) {
+    case 'Từ chối':
+      return 'text-red-700 bg-red-100';
+    case 'Đã duyệt':
+      return 'text-blue-700 bg-blue-100';
     case 'Đã cung cấp':
       return 'text-green-700 bg-green-100';
     case 'Đã mua hàng':
@@ -37,16 +54,46 @@ const getStatusColor = (status: string) => {
       return 'text-blue-700 bg-blue-100';
     case 'Đang xử lý':
       return 'text-yellow-700 bg-yellow-100';
+    case 'Chờ duyệt':
     case 'Chưa cung cấp':
     default:
       return 'text-gray-700 bg-gray-100';
   }
 };
 
-const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
+const getRequestTypeColor = (request: SupplyRequest) => {
+  const label = request.requestTypeLabel || getSupplyRequestTypeLabel(request);
+
+  switch (label) {
+    case 'Thiết bị':
+      return 'text-sky-700 bg-sky-100';
+    case 'Nhân lực':
+      return 'text-violet-700 bg-violet-100';
+    case 'Hỗn hợp':
+      return 'text-amber-700 bg-amber-100';
+    case 'Vật tư':
+    default:
+      return 'text-emerald-700 bg-emerald-100';
+  }
+};
+
+const canUseProcurementFlow = (request: SupplyRequest) =>
+  request.supportsProcurementFlow ?? supportsProcurementFlow(request);
+
+const getRequestType = (request: SupplyRequest) =>
+  request.requestType ?? getSupplyRequestType(request);
+
+const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = ({
+  title = 'Yêu cầu cung cấp',
+  description,
+  requestTypeFilter,
+  emptyStateMessage = 'Không có dữ liệu',
+}) => {
   const { user } = useAuth();
   const canEdit = user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead';
   const canDelete = user?.role === 'admin';
+  const isPurchasingStaff = user?.department === 'purchasing' || user?.secondaryDepartment === 'purchasing';
+  const isPersonnelStaff = user?.subDepartment === 'personnel' || user?.secondarySubDepartment === 'personnel';
   const [requests, setRequests] = useState<SupplyRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,10 +102,12 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     { key: 'maYeuCau', label: 'Mã yêu cầu', type: 'text' },
     { key: 'tenNhanVien', label: 'Tên nhân viên', type: 'text' },
     { key: 'boPhan', label: 'Bộ phận', type: 'text' },
-    { key: 'trangThai', label: 'Trạng thái', type: 'select', options: [
-      { value: 'Chưa cung cấp', label: 'Chưa cung cấp' },
-      { value: 'Đã cung cấp', label: 'Đã cung cấp' },
-    ]},
+    {
+      key: 'trangThai',
+      label: 'Trạng thái',
+      type: 'select',
+      options: SUPPLY_REQUEST_TABLE_STATUS_OPTIONS.map((status) => ({ value: status, label: status })),
+    },
     { key: 'mucDoUuTien', label: 'Mức độ ưu tiên', type: 'select', options: [
       { value: 'Cao', label: 'Cao' },
       { value: 'Trung bình', label: 'Trung bình' },
@@ -87,15 +136,22 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const [editMucDich, setEditMucDich] = useState('');
   const [editMucDoUuTien, setEditMucDoUuTien] = useState('Trung bình');
   const [editGhiChu, setEditGhiChu] = useState('');
+  const [pendingStatus, setPendingStatus] = useState('');
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
 
   useEffect(() => {
     fetchRequests();
-  }, [searchTerm, currentPage]);
+  }, [searchTerm, currentPage, requestTypeFilter]);
 
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const response = await supplyRequestService.getAllSupplyRequests(currentPage, itemsPerPage, searchTerm);
+      const response = await supplyRequestService.getAllSupplyRequests(currentPage, itemsPerPage, {
+        search: searchTerm,
+        requestType: requestTypeFilter,
+      });
       setRequests(response.data);
       setTotalItems(response.pagination?.totalItems || response.data.length);
     } catch (error: any) {
@@ -121,6 +177,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const handleView = (item: SupplyRequest) => {
     setModalMode('view');
     setSelectedRequest(item);
+    setPendingStatus(item.trangThai);
     setShowModal(true);
   };
 
@@ -230,6 +287,105 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     }
   };
 
+  const pushSuccess = (message: string) => {
+    setActionError('');
+    setActionSuccess(message);
+    window.setTimeout(() => setActionSuccess(''), 3500);
+  };
+
+  const pushError = (message: string) => {
+    setActionSuccess('');
+    setActionError(message);
+  };
+
+  const canManageStatus = (request: SupplyRequest) => {
+    if (canEdit) {
+      return true;
+    }
+
+    const requestType = getRequestType(request);
+    if (requestType === 'manpower') {
+      return isPersonnelStaff;
+    }
+    if (requestType === 'mixed') {
+      return isPersonnelStaff || isPurchasingStaff;
+    }
+    return isPurchasingStaff;
+  };
+
+  const canApproveRequest = (request: SupplyRequest) =>
+    canManageStatus(request) && isSupplyRequestPendingApproval(request.trangThai);
+
+  const canProgressRequest = (request: SupplyRequest) =>
+    canManageStatus(request) && !isSupplyRequestPendingApproval(request.trangThai) && !isSupplyRequestRejected(request.trangThai);
+
+  const canOpenOperationalActions = (request: SupplyRequest) =>
+    !isSupplyRequestPendingApproval(request.trangThai) && !isSupplyRequestRejected(request.trangThai);
+
+  const handleApproveRequest = async (request: SupplyRequest) => {
+    if (!window.confirm(`Duyệt yêu cầu ${request.maYeuCau}?`)) {
+      return;
+    }
+
+    setStatusLoading(true);
+    try {
+      const response = await supplyRequestService.approveSupplyRequest(request.id);
+      const updated = response.data;
+      setRequests((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      if (selectedRequest?.id === updated.id) {
+        setSelectedRequest(updated);
+        setPendingStatus(updated.trangThai);
+      }
+      pushSuccess(`Đã duyệt ${updated.maYeuCau} thành công.`);
+    } catch (error: any) {
+      pushError(error.response?.data?.message || 'Không thể duyệt yêu cầu.');
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const handleRejectRequest = async (request: SupplyRequest) => {
+    if (!window.confirm(`Từ chối yêu cầu ${request.maYeuCau}?`)) {
+      return;
+    }
+
+    setStatusLoading(true);
+    try {
+      const response = await supplyRequestService.rejectSupplyRequest(request.id);
+      const updated = response.data;
+      setRequests((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      if (selectedRequest?.id === updated.id) {
+        setSelectedRequest(updated);
+        setPendingStatus(updated.trangThai);
+      }
+      pushSuccess(`Đã từ chối ${updated.maYeuCau}.`);
+    } catch (error: any) {
+      pushError(error.response?.data?.message || 'Không thể từ chối yêu cầu.');
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const handleStatusUpdate = async () => {
+    if (!selectedRequest || !pendingStatus || pendingStatus === selectedRequest.trangThai) {
+      return;
+    }
+
+    setStatusLoading(true);
+    try {
+      const response = await supplyRequestService.updateSupplyRequestStatus(selectedRequest.id, pendingStatus);
+      const updated = response.data;
+      setSelectedRequest(updated);
+      setPendingStatus(updated.trangThai);
+      setRequests((prev) => prev.map((request) => (request.id === updated.id ? updated : request)));
+      pushSuccess(`Đã cập nhật trạng thái ${updated.maYeuCau}.`);
+    } catch (error: any) {
+      pushError(error.response?.data?.message || 'Lỗi khi cập nhật trạng thái yêu cầu');
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
   const filteredRequests = requests.filter(r => {
     const search = (filterValues._search || '').toLowerCase().trim();
     if (search) {
@@ -255,11 +411,17 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">Yêu cầu cung cấp</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
+            {description && <p className="mt-1 text-sm text-gray-600">{description}</p>}
+          </div>
           <button
             onClick={async () => {
               try {
-                await supplyRequestService.exportToExcel({ search: searchTerm || undefined });
+                await supplyRequestService.exportToExcel({
+                  search: searchTerm || undefined,
+                  requestType: requestTypeFilter,
+                });
               } catch (error) {
                 console.error('Error exporting to Excel:', error);
                 alert('Lỗi khi xuất Excel');
@@ -277,6 +439,18 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
           onChange={setFilterValues}
           searchPlaceholder="Tìm kiếm theo mã, tên nhân viên, bộ phận, sản phẩm..."
         />
+        {actionError && (
+          <div className="mt-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600" />
+            <span>{actionError}</span>
+          </div>
+        )}
+        {actionSuccess && (
+          <div className="mt-4 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-green-600" />
+            <span>{actionSuccess}</span>
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -290,6 +464,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã yêu cầu</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nhân viên</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại yêu cầu</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mức độ ưu tiên</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
@@ -299,14 +474,14 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                     Đang tải...
                   </td>
                 </tr>
               ) : filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
-                    Không có dữ liệu
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
+                    {emptyStateMessage}
                   </td>
                 </tr>
               ) : (
@@ -320,6 +495,11 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     <td className="px-6 py-4 text-sm font-medium text-indigo-600 border-r border-gray-200">{request.maYeuCau}</td>
                     <td className="px-6 py-4 text-sm border-r border-gray-200">{request.tenNhanVien}</td>
                     <td className="px-6 py-4 text-sm border-r border-gray-200">{request.boPhan}</td>
+                    <td className="px-6 py-4 text-sm border-r border-gray-200">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRequestTypeColor(request)}`}>
+                        {request.requestTypeLabel || getSupplyRequestTypeLabel(request)}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-sm border-r border-gray-200">
                       {request.items && request.items.length > 0 ? (
                         <span className="text-gray-700">{request.items.map(i => i.tenGoi).join(', ')}</span>
@@ -367,7 +547,30 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           </button>
                         )}
 
-                        {request.purchaseRequests?.some(pr => pr.trangThai === 'Đã duyệt' || pr.trangThai === 'Hoàn thành') && (() => {
+                        {canApproveRequest(request) && (
+                          <>
+                            <button
+                              onClick={() => handleApproveRequest(request)}
+                              disabled={statusLoading}
+                              className="rounded-full border border-green-200 bg-green-50 p-2 text-green-700 transition hover:bg-green-100 hover:text-green-800 disabled:opacity-50"
+                              title="Duyệt yêu cầu"
+                              aria-label="Duyệt yêu cầu"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleRejectRequest(request)}
+                              disabled={statusLoading}
+                              className="rounded-full border border-red-200 bg-red-50 p-2 text-red-700 transition hover:bg-red-100 hover:text-red-800 disabled:opacity-50"
+                              title="Từ chối yêu cầu"
+                              aria-label="Từ chối yêu cầu"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
+
+                        {canUseProcurementFlow(request) && canOpenOperationalActions(request) && request.purchaseRequests?.some(pr => pr.trangThai === 'Đã duyệt' || pr.trangThai === 'Hoàn thành') && (() => {
                           const daNhapKho = request.warehouseReceipts && request.warehouseReceipts.length > 0;
                           return (
                             <button
@@ -382,12 +585,13 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                                 ? "p-1.5 rounded-md text-gray-400 cursor-not-allowed"
                                 : "p-1.5 rounded-md text-green-600 hover:bg-green-100 hover:text-green-800 transition-colors"
                               }
-                              title={daNhapKho ? "Đã nhập kho" : "Nhập kho"}
+                              title={daNhapKho ? "Đã nhập kho" : "Nhập kho sau khi yêu cầu mua được duyệt"}
                             >
                               <PackagePlus className="h-4 w-4" />
                             </button>
                           );
                         })()}
+
                       </div>
                     </td>
                   </tr>
@@ -460,11 +664,53 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                 <div><span className="font-medium text-gray-600">Nhân viên:</span> {selectedRequest.tenNhanVien}</div>
                 <div><span className="font-medium text-gray-600">Bộ phận:</span> {selectedRequest.boPhan}</div>
                 <div className="col-span-2 flex items-center gap-2">
+                  <span className="font-medium text-gray-600">Loại yêu cầu:</span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRequestTypeColor(selectedRequest)}`}>
+                    {selectedRequest.requestTypeLabel || getSupplyRequestTypeLabel(selectedRequest)}
+                  </span>
+                </div>
+                <div className="col-span-2 flex items-center gap-2">
                   <span className="font-medium text-gray-600">Trạng thái:</span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedRequest.trangThai)}`}>
                     {selectedRequest.trangThai}
                   </span>
                 </div>
+                {selectedRequest.approvedByName && (
+                  <div className="col-span-2 text-gray-700">
+                    <span className="font-medium text-gray-600">Người duyệt/xử lý gần nhất:</span>{' '}
+                    {selectedRequest.approvedByName}
+                    {selectedRequest.approvedAt ? ` · ${new Date(selectedRequest.approvedAt).toLocaleString('vi-VN')}` : ''}
+                  </div>
+                )}
+                {selectedRequest.rejectionReason && (
+                  <div className="col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">
+                    <span className="font-medium">Lý do từ chối:</span> {selectedRequest.rejectionReason}
+                  </div>
+                )}
+                {modalMode === 'view' && canProgressRequest(selectedRequest) && (
+                  <div className="col-span-2 flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-gray-600">Cập nhật trạng thái:</span>
+                    <select
+                      value={pendingStatus}
+                      onChange={(e) => setPendingStatus(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      {getAllowedSupplyRequestStatuses(selectedRequest).map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleStatusUpdate}
+                      disabled={statusLoading || pendingStatus === selectedRequest.trangThai}
+                      className="px-3 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {statusLoading ? 'Đang cập nhật...' : 'Lưu trạng thái'}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {modalMode === 'view' ? (
@@ -516,7 +762,31 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                   {/* Action buttons */}
                   <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                     <div className="flex gap-2">
-                      {selectedRequest.items && selectedRequest.items.length > 0 && (
+                      {canApproveRequest(selectedRequest) && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleApproveRequest(selectedRequest)}
+                            disabled={statusLoading}
+                            className="rounded-full border border-green-200 bg-green-50 p-2 text-green-700 hover:bg-green-100 hover:text-green-800 disabled:opacity-50"
+                            title="Duyệt yêu cầu"
+                            aria-label="Duyệt yêu cầu"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRejectRequest(selectedRequest)}
+                            disabled={statusLoading}
+                            className="rounded-full border border-red-200 bg-red-50 p-2 text-red-700 hover:bg-red-100 hover:text-red-800 disabled:opacity-50"
+                            title="Từ chối yêu cầu"
+                            aria-label="Từ chối yêu cầu"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                      {canUseProcurementFlow(selectedRequest) && canOpenOperationalActions(selectedRequest) && selectedRequest.items && selectedRequest.items.length > 0 && (
                         <button
                           type="button"
                           onClick={() => {
@@ -529,28 +799,47 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           Kiểm tra tồn kho
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowModal(false);
-                          setShowWarehouseIssueModal(true);
-                        }}
-                        className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-1.5"
-                      >
-                        <Package className="h-3.5 w-3.5" />
-                        Tạo xuất kho
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowModal(false);
-                          setShowPurchaseRequestModal(true);
-                        }}
-                        className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-1.5"
-                      >
-                        <ShoppingCart className="h-3.5 w-3.5" />
-                        Tạo yêu cầu mua hàng
-                      </button>
+                      {canUseProcurementFlow(selectedRequest) && canOpenOperationalActions(selectedRequest) ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowModal(false);
+                              setShowWarehouseIssueModal(true);
+                            }}
+                            className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-1.5"
+                          >
+                            <Package className="h-3.5 w-3.5" />
+                            {getRequestType(selectedRequest) === 'equipment' ? 'Cấp phát / xuất kho' : 'Tạo xuất kho'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowModal(false);
+                              setShowPurchaseRequestModal(true);
+                            }}
+                            className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-1.5"
+                          >
+                            <ShoppingCart className="h-3.5 w-3.5" />
+                            {getRequestType(selectedRequest) === 'equipment' ? 'Tạo yêu cầu mua thiết bị' : 'Tạo yêu cầu mua hàng'}
+                          </button>
+                          {!selectedRequest.purchaseRequests?.some(pr => pr.trangThai === 'Đã duyệt' || pr.trangThai === 'Hoàn thành') && (
+                            <div className="px-3 py-2 text-xs rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                              Nhập kho chỉ mở sau khi yêu cầu mua đã được duyệt hoặc hoàn thành.
+                            </div>
+                          )}
+                        </>
+                      ) : !canOpenOperationalActions(selectedRequest) ? (
+                        <div className="px-3 py-2 text-xs rounded-md bg-slate-50 text-slate-700 border border-slate-200">
+                          {isSupplyRequestPendingApproval(selectedRequest.trangThai)
+                            ? 'Yêu cầu đang chờ duyệt. Duyệt hoặc từ chối ngay trên màn hình này để tiếp tục.'
+                            : 'Yêu cầu đã bị từ chối nên không thể tiếp tục luồng xử lý.'}
+                        </div>
+                      ) : (
+                        <div className="px-3 py-2 text-xs rounded-md bg-violet-50 text-violet-700 border border-violet-200">
+                          Loại yêu cầu này không có thao tác mua hàng hoặc nhập kho trực tiếp trên màn hình này.
+                        </div>
+                      )}
                     </div>
                     <button
                       type="button"
