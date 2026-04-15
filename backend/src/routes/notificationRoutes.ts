@@ -190,10 +190,10 @@ router.post(
 );
 
 /**
- * DELETE /api/notifications/push/unsubscribe
+ * POST /api/notifications/push/unsubscribe
  * Remove a push subscription for the authenticated user.
  */
-router.delete(
+router.post(
   '/push/unsubscribe',
   authenticate,
   notificationController.unsubscribePush

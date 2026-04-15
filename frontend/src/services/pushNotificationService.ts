@@ -20,10 +20,10 @@ class PushNotificationService {
    * Fetch the VAPID public key from the backend.
    */
   async getVapidPublicKey(): Promise<string> {
-    const response = await apiClient.get<{ publicKey: string }>(
+    const response = await apiClient.get<{ success: boolean; data: { publicKey: string } }>(
       '/notifications/push/vapid-public-key'
     );
-    return response.data?.publicKey ?? '';
+    return response.data?.data?.publicKey ?? response.data?.publicKey ?? '';
   }
 
   /**
@@ -96,9 +96,7 @@ class PushNotificationService {
       const endpoint = subscription.endpoint;
 
       // Remove from backend first, then unsubscribe locally
-      await apiClient.delete('/notifications/push/unsubscribe', {
-        data: { endpoint },
-      });
+      await apiClient.post('/notifications/push/unsubscribe', { endpoint });
 
       await subscription.unsubscribe();
     } catch (error) {
