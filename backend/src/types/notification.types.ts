@@ -28,6 +28,23 @@ export const NotificationType = {
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
 
+export const NotificationCategory = {
+  EVALUATION: 'EVALUATION',
+  TASK: 'TASK',
+  LEAVE: 'LEAVE',
+  PAYROLL: 'PAYROLL',
+  ACCEPTANCE: 'ACCEPTANCE',
+  OVERTIME: 'OVERTIME',
+  SUPPLY: 'SUPPLY',
+  AUTH: 'AUTH',
+  FEEDBACK: 'FEEDBACK',
+  REPORT: 'REPORT',
+  WORK_PLAN: 'WORK_PLAN',
+  SYSTEM: 'SYSTEM',
+} as const;
+
+export type NotificationCategory = typeof NotificationCategory[keyof typeof NotificationCategory];
+
 /**
  * Evaluation status constants
  * Tập trung tất cả evaluation statuses để tránh magic strings

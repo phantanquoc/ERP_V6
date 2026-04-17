@@ -1,0 +1,22 @@
+# Local development overrides — do NOT commit
+# Run with: docker compose up -d
+services:
+  backend:
+    ports:
+      - "5001:5000"
+    environment:
+      NODE_ENV: production
+      CORS_ORIGIN: "http://localhost:8080,http://localhost:3000"
+      API_URL: "http://localhost:5001/api"
+
+  frontend:
+    ports:
+      - "8080:80"
+    build:
+      args:
+        VITE_API_URL: "http://localhost:5001/api"
+
+  # Disable nginx in local dev — access via exposed ports directly
+  nginx:
+    profiles:
+      - production
