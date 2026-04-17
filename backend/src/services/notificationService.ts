@@ -1,8 +1,560 @@
+import logger from '@config/logger';
 import prisma from '@config/database';
-import { NotificationType } from '@types';
+import { Notification as PrismaNotification, Prisma, UserRole } from '@prisma/client';
+import {
+  NotificationCategory,
+  NotificationEnvelope,
+  NotificationMetadata,
+  NotificationRoutingEvent,
+  NotificationRoutingTargetType,
+  NotificationSettings,
+  NotificationType,
+} from '@types';
+import { NotFoundError } from '@utils/errors';
 import pushNotificationService from './pushNotificationService';
+import notificationRecipientService from './notificationRecipientService';
+import systemSettingsService from './systemSettingsService';
+import { wsManager } from './wsManager';
+
+interface NotificationWriteData {
+  type: string;
+  title: string;
+  message: string;
+  metadata?: NotificationMetadata;
+  period?: string;
+  evaluationId?: string;
+  taskId?: string;
+  acceptanceHandoverId?: string;
+  leaveRequestId?: string;
+  supplyRequestId?: string;
+}
+
+interface NotificationDescriptor {
+  eventName: string;
+  category: NotificationCategory;
+  entityType?: string;
+  entityId?: string;
+}
+
+interface NotificationWriteClient {
+  notification: {
+    create: typeof prisma.notification.create;
+    createMany: typeof prisma.notification.createMany;
+  };
+}
+
+interface NotificationWriteOptions {
+  dbClient?: NotificationWriteClient;
+  sendPush?: boolean;
+}
+
+interface WorkflowNotificationMetadataInput {
+  actorUserId?: string;
+  actionType: 'created' | 'updated' | 'status_changed' | 'confirmed';
+  actionLabel: string;
+  summary?: string;
+  changedFields?: string[];
+  entityType?: string;
+  entityId?: string;
+  entityCode?: string;
+  entityName?: string;
+}
+
+interface NotificationRecipientRoutingQuery {
+  employeeIds?: string[];
+  userIds?: string[];
+  roles?: UserRole[];
+  departmentCodes?: string[];
+  subDepartmentCodes?: string[];
+  excludeEmployeeIds?: string[];
+  excludeUserIds?: string[];
+}
 
 export class NotificationService {
+  private async getNotificationRuntimeSettings(): Promise<NotificationSettings> {
+    const settings = await systemSettingsService.getSettings();
+    return settings.notificationSettings;
+  }
+
+  private getCategoryForType(type: string): NotificationCategory {
+    return this.getDescriptor({ type } as PrismaNotification).category;
+  }
+
+  private async canDisplayNotificationType(type: string): Promise<boolean> {
+    const settings = await this.getNotificationRuntimeSettings();
+    if (!settings.channels.inAppEnabled) {
+      return false;
+    }
+
+    return settings.categories[this.getCategoryForType(type)] !== false;
+  }
+
+  private async canSendPushForType(type: string): Promise<boolean> {
+    const settings = await this.getNotificationRuntimeSettings();
+    if (!settings.channels.webPushEnabled) {
+      return false;
+    }
+
+    return settings.categories[this.getCategoryForType(type)] !== false;
+  }
+
+  private async resolveEmployeeIdByUserId(userId: string): Promise<string> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { employees: true },
+    });
+
+    if (!user?.employees) {
+      throw new Error('Employee not found for user');
+    }
+
+    return user.employees.id;
+  }
+
+  private async resolveRecipientEmployeeIdsForEvent(
+    eventKey: NotificationRoutingEvent,
+    fallbackQuery: NotificationRecipientRoutingQuery
+  ): Promise<string[]> {
+    const settings = await this.getNotificationRuntimeSettings();
+    const rule = settings.routingRules[eventKey];
+
+    if (!rule) {
+      return notificationRecipientService.resolveEmployeeIds(fallbackQuery);
+    }
+
+    if (!rule.enabled) {
+      return [];
+    }
+
+    const configuredQuery: NotificationRecipientRoutingQuery = {
+      roles: [],
+      departmentCodes: [],
+      subDepartmentCodes: [],
+      employeeIds: [],
+      userIds: [],
+      excludeEmployeeIds: fallbackQuery.excludeEmployeeIds,
+      excludeUserIds: fallbackQuery.excludeUserIds,
+    };
+
+    for (const recipient of rule.recipients) {
+      switch (recipient.type) {
+        case NotificationRoutingTargetType.ROLE:
+          configuredQuery.roles?.push(recipient.value as UserRole);
+          break;
+        case NotificationRoutingTargetType.DEPARTMENT:
+          configuredQuery.departmentCodes?.push(recipient.value);
+          break;
+        case NotificationRoutingTargetType.SUB_DEPARTMENT:
+          configuredQuery.subDepartmentCodes?.push(recipient.value);
+          break;
+        default:
+          break;
+      }
+    }
+
+    return notificationRecipientService.resolveEmployeeIds(configuredQuery);
+  }
+
+  private buildMetadata(notification: PrismaNotification): NotificationMetadata {
+    const storedMetadata = notification.metadata
+      && typeof notification.metadata === 'object'
+      && !Array.isArray(notification.metadata)
+      ? (notification.metadata as unknown as Partial<NotificationMetadata>)
+      : {};
+
+    return {
+      ...storedMetadata,
+      legacyType: notification.type,
+      period: storedMetadata.period ?? notification.period ?? undefined,
+      evaluationId: storedMetadata.evaluationId ?? notification.evaluationId ?? undefined,
+      taskId: storedMetadata.taskId ?? notification.taskId ?? undefined,
+      acceptanceHandoverId: storedMetadata.acceptanceHandoverId ?? notification.acceptanceHandoverId ?? undefined,
+      leaveRequestId: storedMetadata.leaveRequestId ?? notification.leaveRequestId ?? undefined,
+      supplyRequestId: storedMetadata.supplyRequestId ?? notification.supplyRequestId ?? undefined,
+    };
+  }
+
+  private async resolveActorMetadata(actorUserId?: string): Promise<NotificationMetadata['actor'] | undefined> {
+    if (!actorUserId) {
+      return undefined;
+    }
+
+    const actor = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      include: {
+        employees: {
+          include: {
+            subDepartment: {
+              include: {
+                department: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!actor) {
+      return undefined;
+    }
+
+    const fullName = `${actor.firstName} ${actor.lastName}`.trim() || actor.email;
+
+    return {
+      userId: actor.id,
+      employeeId: actor.employees?.id,
+      name: fullName,
+      email: actor.email,
+      employeeCode: actor.employees?.employeeCode,
+      role: actor.role,
+      departmentCode: actor.employees?.subDepartment?.department?.code,
+      departmentName: actor.employees?.subDepartment?.department?.name,
+      subDepartmentCode: actor.employees?.subDepartment?.code,
+      subDepartmentName: actor.employees?.subDepartment?.name,
+    };
+  }
+
+  async buildWorkflowMetadata(input: WorkflowNotificationMetadataInput): Promise<NotificationMetadata | undefined> {
+    const actor = await this.resolveActorMetadata(input.actorUserId);
+
+    if (!actor && !input.entityCode && !input.entityName && !input.summary && (!input.changedFields || input.changedFields.length === 0)) {
+      return undefined;
+    }
+
+    return {
+      legacyType: '',
+      actor,
+      action: {
+        type: input.actionType,
+        label: input.actionLabel,
+        summary: input.summary,
+        changedFields: input.changedFields?.filter(Boolean),
+      },
+      entity: {
+        type: input.entityType,
+        id: input.entityId,
+        code: input.entityCode,
+        name: input.entityName,
+      },
+    };
+  }
+
+  private getDescriptor(notification: PrismaNotification): NotificationDescriptor {
+    switch (notification.type) {
+      case NotificationType.EVALUATION:
+        return {
+          eventName: 'evaluation.assigned',
+          category: NotificationCategory.EVALUATION,
+          entityType: 'evaluation',
+          entityId: notification.evaluationId ?? undefined,
+        };
+      case NotificationType.QUOTATION_REQUEST:
+        return {
+          eventName: 'quotation-request.created',
+          category: NotificationCategory.REPORT,
+          entityType: 'quotation-request',
+        };
+      case NotificationType.QUOTATION:
+        return {
+          eventName: 'quotation.created',
+          category: NotificationCategory.REPORT,
+          entityType: 'quotation',
+        };
+      case NotificationType.ORDER:
+        return {
+          eventName: 'order.created',
+          category: NotificationCategory.REPORT,
+          entityType: 'order',
+        };
+      case NotificationType.TAX_REPORT:
+        return {
+          eventName: 'tax-report.created',
+          category: NotificationCategory.REPORT,
+          entityType: 'tax-report',
+        };
+      case NotificationType.INVOICE:
+        return {
+          eventName: 'invoice.created',
+          category: NotificationCategory.REPORT,
+          entityType: 'invoice',
+        };
+      case NotificationType.CUSTOMER_FEEDBACK:
+        return {
+          eventName: 'customer-feedback.created',
+          category: NotificationCategory.FEEDBACK,
+          entityType: 'customer-feedback',
+        };
+      case NotificationType.EVALUATION_SUPERVISOR1:
+        return {
+          eventName: 'evaluation.supervisor1.pending',
+          category: NotificationCategory.EVALUATION,
+          entityType: 'evaluation',
+          entityId: notification.evaluationId ?? undefined,
+        };
+      case NotificationType.EVALUATION_SUPERVISOR2:
+        return {
+          eventName: 'evaluation.supervisor2.pending',
+          category: NotificationCategory.EVALUATION,
+          entityType: 'evaluation',
+          entityId: notification.evaluationId ?? undefined,
+        };
+      case NotificationType.EVALUATION_COMPLETED:
+        return {
+          eventName: 'evaluation.completed',
+          category: NotificationCategory.EVALUATION,
+          entityType: 'evaluation',
+          entityId: notification.evaluationId ?? undefined,
+        };
+      case NotificationType.TASK:
+        return {
+          eventName: 'task.assigned',
+          category: NotificationCategory.TASK,
+          entityType: 'task',
+          entityId: notification.taskId ?? undefined,
+        };
+      case NotificationType.TASK_EVALUATED:
+        return {
+          eventName: 'task.evaluated',
+          category: NotificationCategory.TASK,
+          entityType: 'task',
+          entityId: notification.taskId ?? undefined,
+        };
+      case NotificationType.TASK_ADMIN:
+        return {
+          eventName: 'task.admin.visible',
+          category: NotificationCategory.TASK,
+          entityType: 'task',
+          entityId: notification.taskId ?? undefined,
+        };
+      case NotificationType.LEAVE_REQUEST:
+        return {
+          eventName: 'leave.request.created',
+          category: NotificationCategory.LEAVE,
+          entityType: 'leave-request',
+          entityId: notification.leaveRequestId ?? undefined,
+        };
+      case NotificationType.LEAVE_REQUEST_RESPONSE:
+        return {
+          eventName: 'leave.request.responded',
+          category: NotificationCategory.LEAVE,
+          entityType: 'leave-request',
+          entityId: notification.leaveRequestId ?? undefined,
+        };
+      case NotificationType.PAYROLL:
+        return {
+          eventName: 'payroll.ready',
+          category: NotificationCategory.PAYROLL,
+          entityType: 'payroll-period',
+          entityId: notification.period ?? undefined,
+        };
+      case NotificationType.ACCEPTANCE_HANDOVER:
+        return {
+          eventName: 'acceptance-handover.created',
+          category: NotificationCategory.ACCEPTANCE,
+          entityType: 'acceptance-handover',
+          entityId: notification.acceptanceHandoverId ?? undefined,
+        };
+      case NotificationType.OVERTIME_PLAN:
+        return {
+          eventName: 'overtime-plan.updated',
+          category: NotificationCategory.OVERTIME,
+        };
+      case NotificationType.OVERTIME_PLAN_APPROVAL:
+        return {
+          eventName: 'overtime-plan.approval-required',
+          category: NotificationCategory.OVERTIME,
+        };
+      case NotificationType.SUPPLY_REQUEST:
+        return {
+          eventName: 'supply.request.visible',
+          category: NotificationCategory.SUPPLY,
+          entityType: 'supply-request',
+          entityId: notification.supplyRequestId ?? undefined,
+        };
+      case NotificationType.SUPPLY_REQUEST_PROCESSING:
+        return {
+          eventName: 'supply.request.processing',
+          category: NotificationCategory.SUPPLY,
+          entityType: 'supply-request',
+          entityId: notification.supplyRequestId ?? undefined,
+        };
+      case NotificationType.SUPPLY_REQUEST_APPROVED:
+        return {
+          eventName: 'supply.request.approved',
+          category: NotificationCategory.SUPPLY,
+          entityType: 'supply-request',
+          entityId: notification.supplyRequestId ?? undefined,
+        };
+      case NotificationType.SUPPLY_REQUEST_FULFILLED:
+        return {
+          eventName: 'supply.request.fulfilled',
+          category: NotificationCategory.SUPPLY,
+          entityType: 'supply-request',
+          entityId: notification.supplyRequestId ?? undefined,
+        };
+      case NotificationType.PURCHASE_REQUEST:
+        return {
+          eventName: 'purchase-request.created',
+          category: NotificationCategory.SUPPLY,
+          entityType: 'purchase-request',
+          entityId: notification.supplyRequestId ?? undefined,
+        };
+      case NotificationType.PURCHASE_REQUEST_COMPLETED:
+        return {
+          eventName: 'purchase-request.completed',
+          category: NotificationCategory.SUPPLY,
+          entityType: 'purchase-request',
+          entityId: notification.supplyRequestId ?? undefined,
+        };
+      case NotificationType.PASSWORD_RESET:
+        return {
+          eventName: 'auth.password-reset',
+          category: NotificationCategory.AUTH,
+        };
+      case NotificationType.PRIVATE_FEEDBACK:
+        return {
+          eventName: 'feedback.private.created',
+          category: NotificationCategory.FEEDBACK,
+        };
+      case NotificationType.DAILY_WORK_REPORT:
+        return {
+          eventName: 'daily-work-report.created',
+          category: NotificationCategory.REPORT,
+        };
+      case NotificationType.WORK_PLAN:
+        return {
+          eventName: 'work-plan.created',
+          category: NotificationCategory.WORK_PLAN,
+        };
+      default:
+        return {
+          eventName: 'system.notification',
+          category: NotificationCategory.SYSTEM,
+        };
+    }
+  }
+
+  private toEnvelope(notification: PrismaNotification): NotificationEnvelope {
+    const descriptor = this.getDescriptor(notification);
+
+    return {
+      id: notification.id,
+      employeeId: notification.employeeId,
+      type: notification.type,
+      eventName: descriptor.eventName,
+      category: descriptor.category,
+      title: notification.title,
+      message: notification.message,
+      period: notification.period ?? undefined,
+      evaluationId: notification.evaluationId ?? undefined,
+      taskId: notification.taskId ?? undefined,
+      acceptanceHandoverId: notification.acceptanceHandoverId ?? undefined,
+      leaveRequestId: notification.leaveRequestId ?? undefined,
+      supplyRequestId: notification.supplyRequestId ?? undefined,
+      entityType: descriptor.entityType,
+      entityId: descriptor.entityId,
+      metadata: this.buildMetadata(notification),
+      isRead: notification.isRead,
+      readAt: notification.isRead ? notification.updatedAt.toISOString() : undefined,
+      createdAt: notification.createdAt,
+      updatedAt: notification.updatedAt,
+    };
+  }
+
+  private async createNotificationForEmployee(
+    employeeId: string,
+    data: NotificationWriteData,
+    dbClient: NotificationWriteClient = prisma
+  ): Promise<NotificationEnvelope> {
+    const notification = await dbClient.notification.create({
+        data: {
+          employeeId,
+          type: data.type,
+          title: data.title,
+          message: data.message,
+          metadata: data.metadata as Prisma.InputJsonValue | undefined,
+          period: data.period,
+          evaluationId: data.evaluationId,
+          taskId: data.taskId,
+        acceptanceHandoverId: data.acceptanceHandoverId,
+        leaveRequestId: data.leaveRequestId,
+        supplyRequestId: data.supplyRequestId,
+        isRead: false,
+      },
+    });
+
+    if (await this.canSendPushForType(data.type)) {
+      pushNotificationService
+        .sendPushToEmployee(employeeId, data.title, data.message)
+        .catch((error) => {
+          logger.error('[NotificationService] Failed to send push notification', {
+            employeeId,
+            type: data.type,
+            error,
+          });
+        });
+    }
+
+    // Push via WebSocket for immediate realtime delivery
+    wsManager.send(employeeId, this.toEnvelope(notification));
+
+    return this.toEnvelope(notification);
+  }
+
+  private async createNotificationsForEmployees(
+    employeeIds: string[],
+    data: NotificationWriteData,
+    options: NotificationWriteOptions = {}
+  ): Promise<void> {
+    if (employeeIds.length === 0) return;
+    const { dbClient = prisma, sendPush = true } = options;
+
+    await dbClient.notification.createMany({
+      data: employeeIds.map((employeeId) => ({
+        employeeId,
+        type: data.type,
+        title: data.title,
+        message: data.message,
+        metadata: data.metadata as Prisma.InputJsonValue | undefined,
+        period: data.period,
+        evaluationId: data.evaluationId,
+        taskId: data.taskId,
+        acceptanceHandoverId: data.acceptanceHandoverId,
+        leaveRequestId: data.leaveRequestId,
+        supplyRequestId: data.supplyRequestId,
+        isRead: false,
+      })),
+    });
+
+    if (!sendPush) {
+      // Still push WS even when VAPID push is disabled
+      employeeIds.forEach((employeeId) => {
+        wsManager.send(employeeId, { type: data.type, title: data.title, message: data.message, metadata: data.metadata });
+      });
+      return;
+    }
+
+    if (!(await this.canSendPushForType(data.type))) {
+      employeeIds.forEach((employeeId) => {
+        wsManager.send(employeeId, { type: data.type, title: data.title, message: data.message, metadata: data.metadata });
+      });
+      return;
+    }
+
+    await Promise.allSettled(
+      employeeIds.map((employeeId) => {
+        wsManager.send(employeeId, { type: data.type, title: data.title, message: data.message, metadata: data.metadata });
+        return pushNotificationService.sendPushToEmployee(employeeId, data.title, data.message).catch((error) => {
+          logger.error('[NotificationService] Failed to send push notification', {
+            employeeId,
+            type: data.type,
+            error,
+          });
+        });
+      })
+    );
+  }
+
   async createNotification(data: {
     userId: string;
     type: string;
@@ -11,35 +563,35 @@ export class NotificationService {
     evaluationId?: string;
     period?: string;
     taskId?: string;
-  }): Promise<any> {
-    // Get employee by userId
-    const user = await prisma.user.findUnique({
-      where: { id: data.userId },
-      include: { employees: true },
-    });
+    acceptanceHandoverId?: string;
+    leaveRequestId?: string;
+    supplyRequestId?: string;
+  }): Promise<NotificationEnvelope> {
+    const employeeId = await this.resolveEmployeeIdByUserId(data.userId);
+    return this.createNotificationForEmployee(employeeId, data);
+  }
 
-    if (!user?.employees) {
-      throw new Error('Employee not found for user');
-    }
+  async createNotificationForResolvedEmployee(
+    employeeId: string,
+    data: NotificationWriteData,
+    options?: NotificationWriteOptions
+  ): Promise<NotificationEnvelope> {
+    return this.createNotificationForEmployee(employeeId, data, options?.dbClient || prisma);
+  }
 
-    const notification = await prisma.notification.create({
-      data: {
-        employeeId: user.employees.id,
-        type: data.type,
-        title: data.title,
-        message: data.message,
-        evaluationId: data.evaluationId,
-        period: data.period,
-        taskId: data.taskId,
-        isRead: false,
-      },
-    });
+  async getConfiguredRecipientEmployeeIds(
+    eventKey: NotificationRoutingEvent,
+    fallbackQuery: NotificationRecipientRoutingQuery
+  ): Promise<string[]> {
+    return this.resolveRecipientEmployeeIdsForEvent(eventKey, fallbackQuery);
+  }
 
-    pushNotificationService
-      .sendPushToEmployee(user.employees.id, data.title, data.message)
-      .catch(() => {});
-
-    return notification;
+  async createNotificationsForResolvedEmployees(
+    employeeIds: string[],
+    data: NotificationWriteData,
+    options?: NotificationWriteOptions
+  ): Promise<void> {
+    return this.createNotificationsForEmployees(employeeIds, data, options);
   }
 
   async createEvaluationNotification(
@@ -47,52 +599,60 @@ export class NotificationService {
     month: number,
     year: number,
     evaluationId: string
-  ): Promise<any> {
+  ): Promise<NotificationEnvelope> {
     const period = `${year}-${String(month).padStart(2, '0')}`;
     const monthName = new Date(year, month - 1).toLocaleDateString('vi-VN', {
       month: 'long',
       year: 'numeric',
     });
 
-    const title = `Đánh giá tháng ${monthName}`;
-    const message = `Bạn có 1 đánh giá mới`;
-
-    const notification = await prisma.notification.create({
-      data: {
-        employeeId,
-        type: NotificationType.EVALUATION,
-        title,
-        message,
-        period,
-        evaluationId,
-        isRead: false,
-      },
+    return this.createNotificationForEmployee(employeeId, {
+      type: NotificationType.EVALUATION,
+      title: `Đánh giá tháng ${monthName}`,
+      message: 'Bạn có 1 đánh giá mới',
+      period,
+      evaluationId,
     });
-
-    pushNotificationService
-      .sendPushToEmployee(employeeId, title, message)
-      .catch(() => {});
-
-    return notification;
   }
 
-  async getEmployeeNotifications(employeeId: string, limit: number = 10): Promise<any[]> {
+  async getEmployeeNotifications(employeeId: string, limit: number = 10): Promise<NotificationEnvelope[]> {
+    const settings = await this.getNotificationRuntimeSettings();
+    if (!settings.channels.inAppEnabled) {
+      return [];
+    }
+
     const notifications = await prisma.notification.findMany({
       where: { employeeId },
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take: Math.min(Math.max(limit * 4, 50), 500),
     });
 
-    return notifications;
+    return notifications
+      .filter((notification) => settings.categories[this.getCategoryForType(notification.type)] !== false)
+      .slice(0, limit)
+      .map((notification) => this.toEnvelope(notification));
   }
 
   async getUnreadCount(employeeId: string): Promise<number> {
-    return prisma.notification.count({
+    const settings = await this.getNotificationRuntimeSettings();
+    if (!settings.channels.inAppEnabled) {
+      return 0;
+    }
+
+    const notifications = await prisma.notification.findMany({
       where: { employeeId, isRead: false },
+      select: { type: true },
     });
+
+    return notifications.filter((notification) => settings.categories[this.getCategoryForType(notification.type)] !== false).length;
   }
 
-  async getUnreadNotifications(employeeId: string): Promise<any[]> {
+  async getUnreadNotifications(employeeId: string): Promise<NotificationEnvelope[]> {
+    const settings = await this.getNotificationRuntimeSettings();
+    if (!settings.channels.inAppEnabled) {
+      return [];
+    }
+
     const notifications = await prisma.notification.findMany({
       where: {
         employeeId,
@@ -101,19 +661,29 @@ export class NotificationService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return notifications;
+    return notifications
+      .filter((notification) => settings.categories[this.getCategoryForType(notification.type)] !== false)
+      .map((notification) => this.toEnvelope(notification));
   }
 
-  async markAsRead(notificationId: string): Promise<any> {
-    const notification = await prisma.notification.update({
+  async markAsReadForEmployee(notificationId: string, employeeId: string): Promise<NotificationEnvelope> {
+    const notification = await prisma.notification.findFirst({
+      where: { id: notificationId, employeeId },
+    });
+
+    if (!notification) {
+      throw new NotFoundError('Notification not found');
+    }
+
+    const updated = await prisma.notification.update({
       where: { id: notificationId },
       data: { isRead: true },
     });
 
-    return notification;
+    return this.toEnvelope(updated);
   }
 
-  async markAllAsRead(employeeId: string): Promise<any> {
+  async markAllAsRead(employeeId: string): Promise<{ count: number }> {
     const result = await prisma.notification.updateMany({
       where: {
         employeeId,
@@ -122,30 +692,49 @@ export class NotificationService {
       data: { isRead: true },
     });
 
-    return result;
+    return { count: result.count };
   }
 
   async getUnreadCountByType(employeeId: string): Promise<Record<string, number>> {
-    const counts = await prisma.notification.groupBy({
-      by: ['type'],
+    const settings = await this.getNotificationRuntimeSettings();
+    if (!settings.channels.inAppEnabled) {
+      return {};
+    }
+
+    const notifications = await prisma.notification.findMany({
       where: { employeeId, isRead: false },
-      _count: { type: true },
+      select: { type: true },
     });
 
-    const result: Record<string, number> = {};
-    for (const item of counts) {
-      result[item.type] = item._count.type;
-    }
-    return result;
+    return notifications.reduce<Record<string, number>>((result, item) => {
+      if (settings.categories[this.getCategoryForType(item.type)] === false) {
+        return result;
+      }
+
+      result[item.type] = (result[item.type] || 0) + 1;
+      return result;
+    }, {});
   }
 
-  async deleteNotification(notificationId: string): Promise<void> {
+  async deleteNotificationForEmployee(notificationId: string, employeeId: string): Promise<void> {
+    const notification = await prisma.notification.findFirst({
+      where: { id: notificationId, employeeId },
+    });
+
+    if (!notification) {
+      throw new NotFoundError('Notification not found');
+    }
+
     await prisma.notification.delete({
       where: { id: notificationId },
     });
   }
 
-  async getLatestEvaluationNotification(employeeId: string): Promise<any | null> {
+  async getLatestEvaluationNotification(employeeId: string): Promise<NotificationEnvelope | null> {
+    if (!(await this.canDisplayNotificationType(NotificationType.EVALUATION))) {
+      return null;
+    }
+
     const notification = await prisma.notification.findFirst({
       where: {
         employeeId,
@@ -154,7 +743,7 @@ export class NotificationService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return notification;
+    return notification ? this.toEnvelope(notification) : null;
   }
 
   async createTaskNotification(
@@ -162,26 +751,13 @@ export class NotificationService {
     taskId: string,
     taskTitle: string,
     assignerName: string
-  ): Promise<any> {
-    const title = 'Nhiệm vụ mới';
-    const message = `${assignerName} đã giao cho bạn nhiệm vụ: "${taskTitle}"`;
-
-    const notification = await prisma.notification.create({
-      data: {
-        employeeId,
-        type: NotificationType.TASK,
-        title,
-        message,
-        taskId,
-        isRead: false,
-      },
+  ): Promise<NotificationEnvelope> {
+    return this.createNotificationForEmployee(employeeId, {
+      type: NotificationType.TASK,
+      title: 'Nhiệm vụ mới',
+      message: `${assignerName} đã giao cho bạn nhiệm vụ: "${taskTitle}"`,
+      taskId,
     });
-
-    pushNotificationService
-      .sendPushToEmployee(employeeId, title, message)
-      .catch(() => {});
-
-    return notification;
   }
 
   async createTaskNotifications(
@@ -190,27 +766,48 @@ export class NotificationService {
     taskTitle: string,
     assignerName: string
   ): Promise<void> {
-    if (employeeIds.length === 0) return;
-
-    const title = 'Nhiệm vụ mới';
-    const message = `${assignerName} đã giao cho bạn nhiệm vụ: "${taskTitle}"`;
-
-    const notifications = employeeIds.map((employeeId) => ({
-      employeeId,
+    await this.createNotificationsForEmployees(employeeIds, {
       type: NotificationType.TASK,
-      title,
-      message,
+      title: 'Nhiệm vụ mới',
+      message: `${assignerName} đã giao cho bạn nhiệm vụ: "${taskTitle}"`,
       taskId,
-      isRead: false,
-    }));
-
-    await prisma.notification.createMany({
-      data: notifications,
     });
+  }
+
+  async createTaskEvaluationNotifications(
+    employeeIds: string[],
+    taskId: string,
+    taskTitle: string,
+    evaluatorName: string,
+    score: number,
+    options?: NotificationWriteOptions
+  ): Promise<void> {
+    await this.createNotificationsForEmployees(employeeIds, {
+      type: NotificationType.TASK_EVALUATED,
+      title: 'Nhiệm vụ đã được đánh giá',
+      message: `${evaluatorName} đã đánh giá nhiệm vụ: "${taskTitle}". Điểm: ${score}/100`,
+      taskId,
+    }, options);
+  }
+
+  async sendPushNotifications(employeeIds: string[], title: string, message: string, type?: string): Promise<void> {
+    if (employeeIds.length === 0) {
+      return;
+    }
+
+    if (type && !(await this.canSendPushForType(type))) {
+      return;
+    }
 
     await Promise.allSettled(
       employeeIds.map((employeeId) =>
-        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
+        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch((error) => {
+          logger.error('[NotificationService] Failed to send push notification', {
+            employeeId,
+            title,
+            error,
+          });
+        })
       )
     );
   }
@@ -221,29 +818,12 @@ export class NotificationService {
     leaveTypeLabel: string,
     leaveRequestId?: string
   ): Promise<void> {
-    if (employeeIds.length === 0) return;
-
-    const title = 'Đơn nghỉ phép mới';
-    const message = `${employeeName} đã gửi đơn nghỉ phép ${leaveTypeLabel}`;
-
-    const notifications = employeeIds.map((employeeId) => ({
-      employeeId,
+    await this.createNotificationsForEmployees(employeeIds, {
       type: NotificationType.LEAVE_REQUEST,
-      title,
-      message,
+      title: 'Đơn nghỉ phép mới',
+      message: `${employeeName} đã gửi đơn nghỉ phép ${leaveTypeLabel}`,
       leaveRequestId,
-      isRead: false,
-    }));
-
-    await prisma.notification.createMany({
-      data: notifications,
     });
-
-    await Promise.allSettled(
-      employeeIds.map((employeeId) =>
-        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
-      )
-    );
   }
 
   async createLeaveRequestResponseNotification(
@@ -251,24 +831,13 @@ export class NotificationService {
     leaveCode: string,
     status: 'APPROVED' | 'REJECTED'
   ): Promise<void> {
-    const title = status === 'APPROVED' ? 'Đơn nghỉ phép được duyệt' : 'Đơn nghỉ phép bị từ chối';
-    const message = status === 'APPROVED'
-      ? `Đơn nghỉ phép ${leaveCode} của bạn đã được phê duyệt`
-      : `Đơn nghỉ phép ${leaveCode} của bạn đã bị từ chối`;
-
-    await prisma.notification.create({
-      data: {
-        employeeId,
-        type: NotificationType.LEAVE_REQUEST_RESPONSE,
-        title,
-        message,
-        isRead: false,
-      },
+    await this.createNotificationForEmployee(employeeId, {
+      type: NotificationType.LEAVE_REQUEST_RESPONSE,
+      title: status === 'APPROVED' ? 'Đơn nghỉ phép được duyệt' : 'Đơn nghỉ phép bị từ chối',
+      message: status === 'APPROVED'
+        ? `Đơn nghỉ phép ${leaveCode} của bạn đã được phê duyệt`
+        : `Đơn nghỉ phép ${leaveCode} của bạn đã bị từ chối`,
     });
-
-    pushNotificationService
-      .sendPushToEmployee(employeeId, title, message)
-      .catch(() => {});
   }
 
   async createPayrollNotifications(
@@ -277,29 +846,12 @@ export class NotificationService {
     year: number,
     period: string
   ): Promise<void> {
-    if (employeeIds.length === 0) return;
-
-    const title = `Bảng lương tháng ${month}/${year}`;
-    const message = `Bảng lương tháng ${month}/${year} của bạn đã sẵn sàng. Nhấn để xem chi tiết.`;
-
-    const notifications = employeeIds.map((employeeId) => ({
-      employeeId,
+    await this.createNotificationsForEmployees(employeeIds, {
       type: NotificationType.PAYROLL,
-      title,
-      message,
+      title: `Bảng lương tháng ${month}/${year}`,
+      message: `Bảng lương tháng ${month}/${year} của bạn đã sẵn sàng. Nhấn để xem chi tiết.`,
       period,
-      isRead: false,
-    }));
-
-    await prisma.notification.createMany({
-      data: notifications,
     });
-
-    await Promise.allSettled(
-      employeeIds.map((employeeId) =>
-        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
-      )
-    );
   }
 
   async createAcceptanceHandoverNotification(
@@ -309,23 +861,12 @@ export class NotificationService {
     nguoiBanGiao: string,
     acceptanceHandoverId: string
   ): Promise<void> {
-    const title = 'Nghiệm thu bàn giao mới';
-    const message = `${nguoiBanGiao} đã tạo nghiệm thu bàn giao ${maNghiemThu} cho thiết bị "${tenThietBi}". Vui lòng kiểm tra và xác nhận.`;
-
-    await prisma.notification.create({
-      data: {
-        employeeId,
-        type: NotificationType.ACCEPTANCE_HANDOVER,
-        title,
-        message,
-        acceptanceHandoverId,
-        isRead: false,
-      },
+    await this.createNotificationForEmployee(employeeId, {
+      type: NotificationType.ACCEPTANCE_HANDOVER,
+      title: 'Nghiệm thu bàn giao mới',
+      message: `${nguoiBanGiao} đã tạo nghiệm thu bàn giao ${maNghiemThu} cho thiết bị "${tenThietBi}". Vui lòng kiểm tra và xác nhận.`,
+      acceptanceHandoverId,
     });
-
-    pushNotificationService
-      .sendPushToEmployee(employeeId, title, message)
-      .catch(() => {});
   }
 
   async createSupplyRequestNotification(
@@ -335,20 +876,12 @@ export class NotificationService {
     message: string,
     supplyRequestId?: string
   ): Promise<void> {
-    await prisma.notification.create({
-      data: {
-        employeeId,
-        type,
-        title,
-        message,
-        supplyRequestId,
-        isRead: false,
-      },
+    await this.createNotificationForEmployee(employeeId, {
+      type,
+      title,
+      message,
+      supplyRequestId,
     });
-
-    pushNotificationService
-      .sendPushToEmployee(employeeId, title, message)
-      .catch(() => {});
   }
 
   async createSupplyRequestNotifications(
@@ -358,39 +891,27 @@ export class NotificationService {
     message: string,
     supplyRequestId?: string
   ): Promise<void> {
-    if (employeeIds.length === 0) return;
-
-    const notifications = employeeIds.map((employeeId) => ({
-      employeeId,
+    await this.createNotificationsForEmployees(employeeIds, {
       type,
       title,
       message,
       supplyRequestId,
-      isRead: false,
-    }));
-
-    await prisma.notification.createMany({
-      data: notifications,
     });
+  }
 
-    await Promise.allSettled(
-      employeeIds.map((employeeId) =>
-        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
-      )
-    );
+  async createWorkflowNotifications(
+    employeeIds: string[],
+    data: NotificationWriteData,
+    options?: NotificationWriteOptions
+  ): Promise<void> {
+    await this.createNotificationsForEmployees(employeeIds, data, options);
   }
 
   async getAdminEmployeeIds(excludeUserId?: string): Promise<string[]> {
-    const adminUsers = await prisma.user.findMany({
-      where: {
-        role: 'ADMIN',
-        ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
-      },
-      include: { employees: true },
+    return this.resolveRecipientEmployeeIdsForEvent(NotificationRoutingEvent.TASK_ADMIN_VISIBLE, {
+      roles: ['ADMIN'],
+      excludeUserIds: excludeUserId ? [excludeUserId] : undefined,
     });
-    return adminUsers
-      .filter(u => u.employees)
-      .map(u => u.employees!.id);
   }
 
   async createAdminTaskNotification(
@@ -400,55 +921,37 @@ export class NotificationService {
     excludeUserId?: string,
     recipientNames?: string
   ): Promise<void> {
-    const adminEmployeeIds = await this.getAdminEmployeeIds(excludeUserId);
+    const adminEmployeeIds = await this.resolveRecipientEmployeeIdsForEvent(NotificationRoutingEvent.TASK_ADMIN_VISIBLE, {
+      roles: ['ADMIN'],
+      excludeUserIds: excludeUserId ? [excludeUserId] : undefined,
+    });
     if (adminEmployeeIds.length === 0) return;
 
-    const title = 'Nhiệm vụ mới trong hệ thống';
-    const message = recipientNames
-      ? `${assignerName} đã giao cho ${recipientNames} nhiệm vụ: "${taskTitle}"`
-      : `${assignerName} đã giao nhiệm vụ: "${taskTitle}"`;
-
-    const notifications = adminEmployeeIds.map(employeeId => ({
-      employeeId,
+    await this.createNotificationsForEmployees(adminEmployeeIds, {
       type: NotificationType.TASK_ADMIN,
-      title,
-      message,
+      title: 'Nhiệm vụ mới trong hệ thống',
+      message: recipientNames
+        ? `${assignerName} đã giao cho ${recipientNames} nhiệm vụ: "${taskTitle}"`
+        : `${assignerName} đã giao nhiệm vụ: "${taskTitle}"`,
       taskId,
-      isRead: false,
-    }));
-    await prisma.notification.createMany({ data: notifications });
-
-    await Promise.allSettled(
-      adminEmployeeIds.map((employeeId) =>
-        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
-      )
-    );
+    });
   }
 
   async createAdminFeedbackNotification(
     employeeName: string,
     excludeUserId?: string
   ): Promise<void> {
-    const adminEmployeeIds = await this.getAdminEmployeeIds(excludeUserId);
+    const adminEmployeeIds = await this.resolveRecipientEmployeeIdsForEvent(NotificationRoutingEvent.FEEDBACK_ADMIN_VISIBLE, {
+      roles: ['ADMIN'],
+      excludeUserIds: excludeUserId ? [excludeUserId] : undefined,
+    });
     if (adminEmployeeIds.length === 0) return;
 
-    const title = 'Góp ý mới';
-    const message = `${employeeName} đã gửi góp ý mới`;
-
-    const notifications = adminEmployeeIds.map(employeeId => ({
-      employeeId,
+    await this.createNotificationsForEmployees(adminEmployeeIds, {
       type: NotificationType.PRIVATE_FEEDBACK,
-      title,
-      message,
-      isRead: false,
-    }));
-    await prisma.notification.createMany({ data: notifications });
-
-    await Promise.allSettled(
-      adminEmployeeIds.map((employeeId) =>
-        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
-      )
-    );
+      title: 'Góp ý mới',
+      message: `${employeeName} đã gửi góp ý mới`,
+    });
   }
 
   async createAdminDailyReportNotification(
@@ -456,26 +959,17 @@ export class NotificationService {
     reportDate: string,
     excludeUserId?: string
   ): Promise<void> {
-    const adminEmployeeIds = await this.getAdminEmployeeIds(excludeUserId);
+    const adminEmployeeIds = await this.resolveRecipientEmployeeIdsForEvent(NotificationRoutingEvent.DAILY_REPORT_ADMIN_VISIBLE, {
+      roles: ['ADMIN'],
+      excludeUserIds: excludeUserId ? [excludeUserId] : undefined,
+    });
     if (adminEmployeeIds.length === 0) return;
 
-    const title = 'Báo cáo công việc mới';
-    const message = `${employeeName} đã nộp báo cáo công việc ngày ${reportDate}`;
-
-    const notifications = adminEmployeeIds.map(employeeId => ({
-      employeeId,
+    await this.createNotificationsForEmployees(adminEmployeeIds, {
       type: NotificationType.DAILY_WORK_REPORT,
-      title,
-      message,
-      isRead: false,
-    }));
-    await prisma.notification.createMany({ data: notifications });
-
-    await Promise.allSettled(
-      adminEmployeeIds.map((employeeId) =>
-        pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
-      )
-    );
+      title: 'Báo cáo công việc mới',
+      message: `${employeeName} đã nộp báo cáo công việc ngày ${reportDate}`,
+    });
   }
 }
 
