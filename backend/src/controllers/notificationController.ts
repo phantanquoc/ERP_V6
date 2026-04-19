@@ -109,13 +109,16 @@ export class NotificationController {
   async markAsRead(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const notificationId = req.params.notificationId as string;
+      const userId = (req as any).user?.id;
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      const notification = await notificationService.markAsRead(notificationId);
+      const prismaClient = require('@config/database').default;
+      const employee = await prismaClient.employee.findUnique({ where: { userId } });
+      if (!employee) { res.status(404).json({ success: false, message: 'Employee not found' }); return; }
 
-      res.json({
-        success: true,
-        data: notification,
-      });
+      const notification = await notificationService.markAsReadForEmployee(notificationId, employee.id);
+
+      res.json({ success: true, data: notification });
     } catch (error) {
       next(error);
     }
@@ -161,13 +164,16 @@ export class NotificationController {
   async deleteNotification(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const notificationId = req.params.notificationId as string;
+      const userId = (req as any).user?.id;
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      await notificationService.deleteNotification(notificationId);
+      const prismaClient = require('@config/database').default;
+      const employee = await prismaClient.employee.findUnique({ where: { userId } });
+      if (!employee) { res.status(404).json({ success: false, message: 'Employee not found' }); return; }
 
-      res.json({
-        success: true,
-        message: 'Notification deleted',
-      });
+      await notificationService.deleteNotificationForEmployee(notificationId, employee.id);
+
+      res.json({ success: true, message: 'Notification deleted' });
     } catch (error) {
       next(error);
     }

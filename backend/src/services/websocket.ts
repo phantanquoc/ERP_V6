@@ -11,13 +11,14 @@ interface WsMessage {
 }
 
 export interface WsNotificationPayload {
-  id: string;
+  id?: string;
   type: string;
   title: string;
   message: string;
-  isRead: boolean;
+  isRead?: boolean;
   data?: Record<string, unknown>;
-  createdAt: string;
+  metadata?: Record<string, unknown>;
+  createdAt?: string;
 }
 
 export const wsState: { server: WebSocketServer | null } = { server: null };

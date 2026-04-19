@@ -31,6 +31,8 @@ export const NotificationType = {
   TAX_REPORT: 'TAX_REPORT',
   INVOICE: 'INVOICE',
   CUSTOMER_FEEDBACK: 'CUSTOMER_FEEDBACK',
+  PURCHASE_REQUEST: 'PURCHASE_REQUEST',
+  PURCHASE_REQUEST_COMPLETED: 'PURCHASE_REQUEST_COMPLETED',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
@@ -75,3 +77,53 @@ export const LeaveRequestStatusConst = {
 } as const;
 
 export type LeaveRequestStatusConst = typeof LeaveRequestStatusConst[keyof typeof LeaveRequestStatusConst];
+
+// ─── Envelope & Metadata types used by notificationService ───────────────────
+
+export interface NotificationMetadata {
+  legacyType?: string;
+  period?: string;
+  evaluationId?: string;
+  taskId?: string;
+  acceptanceHandoverId?: string;
+  leaveRequestId?: string;
+  supplyRequestId?: string;
+  entityType?: string;
+  entityId?: string;
+  entityCode?: string;
+  entityName?: string;
+  actor?: {
+    userId: string;
+    employeeId?: string;
+    name: string;
+    role?: string;
+  };
+  actionType?: 'created' | 'updated' | 'status_changed' | 'confirmed';
+  actionLabel?: string;
+  summary?: string;
+  changedFields?: string[];
+  [key: string]: unknown;
+}
+
+export interface NotificationEnvelope {
+  id: string;
+  employeeId: string;
+  type: string;
+  eventName: string;
+  category: string;
+  title: string;
+  message: string;
+  period?: string;
+  evaluationId?: string;
+  taskId?: string;
+  acceptanceHandoverId?: string;
+  leaveRequestId?: string;
+  supplyRequestId?: string;
+  entityType?: string;
+  entityId?: string;
+  metadata?: NotificationMetadata;
+  isRead: boolean;
+  readAt?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}

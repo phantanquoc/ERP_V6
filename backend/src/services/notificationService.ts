@@ -204,14 +204,12 @@ export class NotificationService {
       userId: actor.id,
       employeeId: actor.employees?.id,
       name: fullName,
-      email: actor.email,
-      employeeCode: actor.employees?.employeeCode,
       role: actor.role,
       departmentCode: actor.employees?.subDepartment?.department?.code,
       departmentName: actor.employees?.subDepartment?.department?.name,
       subDepartmentCode: actor.employees?.subDepartment?.code,
       subDepartmentName: actor.employees?.subDepartment?.name,
-    };
+    } as NotificationMetadata['actor'] & Record<string, unknown>;
   }
 
   async buildWorkflowMetadata(input: WorkflowNotificationMetadataInput): Promise<NotificationMetadata | undefined> {
@@ -1008,11 +1006,11 @@ export class NotificationService {
     const fallbackQuery =
       action === 'confirmed'
         ? {
-            roles: ['ADMIN'],
+            roles: ['ADMIN'] as UserRole[],
             departmentCodes: ['DEPT_BUSINESS'],
             subDepartmentCodes: ['SUBDEPT_PRODUCTION_MANAGEMENT', 'SUBDEPT_ACCOUNTING_ADMIN'],
           }
-        : { roles: ['ADMIN'], departmentCodes: ['DEPT_BUSINESS'] };
+        : { roles: ['ADMIN'] as UserRole[], departmentCodes: ['DEPT_BUSINESS'] };
     const employeeIds = await this.resolveRecipientEmployeeIdsForEvent(eventKey, fallbackQuery);
     if (employeeIds.length === 0) return;
     const titleMap: Record<string, string> = {

@@ -336,6 +336,7 @@ model Notification {
   acceptanceHandoverId  String?
   leaveRequestId        String?
   supplyRequestId       String?
+  metadata              Json?
   isRead                Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
