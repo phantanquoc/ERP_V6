@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Settings, Palette, Type, Save, Check, Bell, ToggleLeft, ToggleRight,
   Clock, History, ChevronRight, Users, ArrowRight, Info, AlertCircle,
-  Plus, Trash2, X, Edit3, BarChart2, List, BookOpen,
+  Plus, Trash2, X, BarChart2, List, BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSystemSettings } from '../contexts/SystemSettingsContext';
@@ -351,198 +351,226 @@ const SystemSettingsPage: React.FC = () => {
     const allEvents = ORDER_FLOW_STEPS.map(s => s.event);
     const otherEvents = Object.keys(rules).filter(k => !allEvents.includes(k));
 
-    const RuleRow = ({ eventKey, stepInfo }: { eventKey: string; stepInfo?: typeof ORDER_FLOW_STEPS[0] }) => {
+    const RuleCard = ({ eventKey, stepInfo }: { eventKey: string; stepInfo?: typeof ORDER_FLOW_STEPS[0] }) => {
       const rule = rules[eventKey];
       if (!rule) return null;
-      const isSelected = selectedEventKey === eventKey;
+      const isOpen = selectedEventKey === eventKey;
+      const colorCls = stepInfo ? STEP_COLOR_MAP[stepInfo.color] : 'bg-gray-100 border-gray-200 text-gray-600';
+
       return (
-        <div
-          onClick={() => selectRule(eventKey)}
-          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${
-            isSelected ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:bg-gray-50'
-          }`}
-        >
-          {stepInfo && (
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${STEP_COLOR_MAP[stepInfo.color]}`}>
-              {stepInfo.step}
-            </span>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{stepInfo?.label || eventKey}</p>
-            <p className="text-xs text-gray-400 truncate">{eventKey}</p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${rule.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-              {rule.enabled ? 'Bật' : 'Tắt'}
-            </span>
-            <span className="text-xs text-gray-400">{rule.recipients.length} người</span>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
-          </div>
-        </div>
-      );
-    };
-
-    return (
-      <div className="flex gap-4 min-h-[500px]">
-        {/* Left: event list */}
-        <div className="w-72 flex-shrink-0 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
-          <div className="p-3 border-b border-gray-100 bg-gray-50">
-            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Quy tắc định tuyến</p>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            <p className="text-xs font-medium text-gray-400 uppercase px-2 py-1">Luồng đơn hàng</p>
-            {ORDER_FLOW_STEPS.map(step => <RuleRow key={step.event} eventKey={step.event} stepInfo={step} />)}
-            {otherEvents.length > 0 && (
-              <>
-                <p className="text-xs font-medium text-gray-400 uppercase px-2 py-1 mt-2">Khác</p>
-                {otherEvents.map(ek => <RuleRow key={ek} eventKey={ek} />)}
-              </>
+        <div className={`rounded-xl border transition-all ${isOpen ? 'border-blue-400 shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
+          {/* ── Row header ── */}
+          <div
+            onClick={() => isOpen ? (setSelectedEventKey(null), setEditingRule(null)) : selectRule(eventKey)}
+            className={`flex items-center gap-4 p-4 cursor-pointer rounded-xl ${isOpen ? 'bg-blue-50 rounded-b-none' : 'bg-white hover:bg-gray-50'}`}
+          >
+            {/* Step badge */}
+            {stepInfo ? (
+              <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 border ${colorCls}`}>
+                {stepInfo.step}
+              </span>
+            ) : (
+              <span className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                <Bell className="w-4 h-4 text-gray-400" />
+              </span>
             )}
-          </div>
-        </div>
 
-        {/* Right: detail editor */}
-        <div className="flex-1">
-          {!selectedEventKey || !editingRule ? (
-            <div className="h-full bg-white rounded-xl border border-dashed border-gray-300 flex items-center justify-center">
-              <div className="text-center text-gray-400">
-                <Edit3 className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">Chọn một quy tắc bên trái để chỉnh sửa</p>
+            {/* Title + meta */}
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-900 leading-tight">
+                {stepInfo?.label || eventKey}
+              </p>
+              <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                {stepInfo?.actor && (
+                  <span className="text-xs text-gray-400 flex items-center gap-1">
+                    <Users className="w-3 h-3" />{stepInfo.actor}
+                  </span>
+                )}
+                <code className="text-xs text-gray-400">{eventKey}</code>
               </div>
             </div>
-          ) : (
-            <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full">
-              {/* Header */}
-              <div className="p-4 border-b border-gray-100 flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-gray-900">
-                    {ORDER_FLOW_STEPS.find(s => s.event === selectedEventKey)?.label || selectedEventKey}
-                  </p>
-                  <code className="text-xs text-gray-400">{selectedEventKey}</code>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-xs text-gray-600">Trạng thái:</span>
+
+            {/* Status + count + chevron */}
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${rule.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                {rule.enabled ? '● Bật' : '○ Tắt'}
+              </span>
+              <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+                <Users className="w-3 h-3" />{rule.recipients.length} người nhận
+              </span>
+              <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+            </div>
+          </div>
+
+          {/* ── Expanded editor ── */}
+          {isOpen && editingRule && (
+            <div className="border-t border-blue-200 bg-white rounded-b-xl">
+              {/* Toggle row */}
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Cấu hình quy tắc</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Trạng thái:</span>
                   <ToggleSwitch
                     value={editingRule.enabled}
                     onChange={v => setEditingRule(prev => prev ? { ...prev, enabled: v } : prev)}
                     size="sm"
                   />
-                  <span className={`text-xs font-medium ${editingRule.enabled ? 'text-green-600' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-semibold ${editingRule.enabled ? 'text-green-600' : 'text-gray-400'}`}>
                     {editingRule.enabled ? 'Bật' : 'Tắt'}
                   </span>
                 </div>
               </div>
 
-              {/* Recipients */}
-              <div className="p-4 flex-1 overflow-y-auto">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-blue-500" />Danh sách người nhận ({editingRule.recipients.length})
-                  </p>
-                  <button
-                    onClick={() => setShowAddRecipient(v => !v)}
-                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    <Plus className="w-3.5 h-3.5" />Thêm
-                  </button>
-                </div>
+              <div className="p-4 space-y-4">
+                {/* Recipients list */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-blue-500" />
+                      Người nhận ({editingRule.recipients.length})
+                    </p>
+                    <button
+                      onClick={() => setShowAddRecipient(v => !v)}
+                      className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg hover:bg-blue-700 font-medium"
+                    >
+                      <Plus className="w-3 h-3" />{showAddRecipient ? 'Đóng' : 'Thêm người nhận'}
+                    </button>
+                  </div>
 
-                {/* Current recipients */}
-                <div className="space-y-2 mb-3">
-                  {editingRule.recipients.length === 0 && (
-                    <p className="text-xs text-gray-400 italic py-2">Chưa có người nhận nào.</p>
-                  )}
-                  {editingRule.recipients.map(r => (
-                    <div key={r.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{r.label}</p>
-                        <p className="text-xs text-gray-400">{RECIPIENT_TYPE_LABELS[r.type] || r.type} · {r.value}</p>
-                      </div>
-                      <button onClick={() => removeRecipient(r.id)} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                  {editingRule.recipients.length === 0 ? (
+                    <div className="text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">
+                      <p className="text-xs text-gray-400 italic">Chưa có người nhận nào — nhấn "Thêm người nhận" để cấu hình</p>
                     </div>
-                  ))}
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {editingRule.recipients.map(r => (
+                        <div key={r.id} className="flex items-center justify-between p-2.5 bg-gray-50 border border-gray-100 rounded-lg">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{r.label}</p>
+                            <p className="text-xs text-gray-400">{RECIPIENT_TYPE_LABELS[r.type] || r.type} · <code>{r.value}</code></p>
+                          </div>
+                          <button
+                            onClick={() => removeRecipient(r.id)}
+                            className="ml-2 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Add recipient panel */}
                 {showAddRecipient && (
-                  <div className="border border-blue-200 bg-blue-50 rounded-lg p-3 space-y-3">
-                    <p className="text-xs font-semibold text-blue-700">Thêm người nhận</p>
+                  <div className="border border-blue-200 bg-blue-50/60 rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Thêm người nhận</p>
+
                     {/* Presets */}
                     <div>
-                      <p className="text-xs text-gray-500 mb-1.5">Chọn nhanh:</p>
-                      <div className="flex flex-wrap gap-1.5">
+                      <p className="text-xs text-gray-500 mb-2 font-medium">Chọn nhanh từ danh sách:</p>
+                      <div className="flex flex-wrap gap-2">
                         {PRESET_RECIPIENTS
                           .filter(p => !editingRule.recipients.some(r => r.id === p.id))
                           .map(p => (
                             <button
                               key={p.id}
                               onClick={() => addRecipientFromPreset(p)}
-                              className="text-xs bg-white border border-gray-300 text-gray-700 px-2 py-1 rounded-full hover:border-blue-400 hover:text-blue-700 transition-colors"
+                              className="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-full hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                             >
-                              {p.label}
+                              + {p.label}
                             </button>
                           ))}
+                        {PRESET_RECIPIENTS.filter(p => !editingRule.recipients.some(r => r.id === p.id)).length === 0 && (
+                          <p className="text-xs text-gray-400 italic">Đã thêm tất cả preset</p>
+                        )}
                       </div>
                     </div>
-                    {/* Custom */}
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1.5">Hoặc nhập tùy chỉnh:</p>
-                      <div className="flex gap-2 flex-wrap">
-                        <select
-                          value={newRecipient.type}
-                          onChange={e => setNewRecipient(p => ({ ...p, type: e.target.value as any }))}
-                          className="text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
-                        >
-                          <option value="role">Vai trò</option>
-                          <option value="department">Phòng ban</option>
-                          <option value="subDepartment">Bộ phận con</option>
-                        </select>
-                        <input
-                          placeholder="Value (e.g. ADMIN)"
-                          value={newRecipient.value || ''}
-                          onChange={e => setNewRecipient(p => ({ ...p, value: e.target.value }))}
-                          className="text-xs border border-gray-300 rounded px-2 py-1.5 flex-1 min-w-0"
-                        />
-                        <input
-                          placeholder="Tên hiển thị"
-                          value={newRecipient.label || ''}
-                          onChange={e => setNewRecipient(p => ({ ...p, label: e.target.value }))}
-                          className="text-xs border border-gray-300 rounded px-2 py-1.5 flex-1 min-w-0"
-                        />
-                        <button onClick={addCustomRecipient} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700">
-                          Thêm
-                        </button>
-                      </div>
+
+                    {/* Divider */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 border-t border-blue-200" />
+                      <span className="text-xs text-blue-400">hoặc nhập tùy chỉnh</span>
+                      <div className="flex-1 border-t border-blue-200" />
+                    </div>
+
+                    {/* Custom input */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        value={newRecipient.type}
+                        onChange={e => setNewRecipient(p => ({ ...p, type: e.target.value as any }))}
+                        className="text-xs border border-gray-300 rounded-lg px-2.5 py-2 bg-white"
+                      >
+                        <option value="role">Vai trò</option>
+                        <option value="department">Phòng ban</option>
+                        <option value="subDepartment">Bộ phận con</option>
+                      </select>
+                      <input
+                        placeholder="Value (VD: ADMIN)"
+                        value={newRecipient.value || ''}
+                        onChange={e => setNewRecipient(p => ({ ...p, value: e.target.value }))}
+                        className="text-xs border border-gray-300 rounded-lg px-2.5 py-2"
+                      />
+                      <input
+                        placeholder="Tên hiển thị"
+                        value={newRecipient.label || ''}
+                        onChange={e => setNewRecipient(p => ({ ...p, label: e.target.value }))}
+                        className="text-xs border border-gray-300 rounded-lg px-2.5 py-2"
+                      />
                     </div>
                     <div className="flex justify-end">
-                      <button onClick={() => setShowAddRecipient(false)} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
-                        <X className="w-3 h-3" />Đóng
+                      <button onClick={addCustomRecipient} className="text-xs bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-medium">
+                        Thêm người nhận
                       </button>
                     </div>
                   </div>
                 )}
-              </div>
 
-              {/* Save this rule */}
-              <div className="p-4 border-t border-gray-100 flex justify-between items-center">
-                <button
-                  onClick={() => { setSelectedEventKey(null); setEditingRule(null); }}
-                  className="text-sm text-gray-400 hover:text-gray-600"
-                >
-                  Hủy chỉnh sửa
-                </button>
-                <button
-                  onClick={() => { saveEditingRule(); setSelectedEventKey(null); setEditingRule(null); }}
-                  className="flex items-center gap-1.5 text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                >
-                  <Check className="w-3.5 h-3.5" />Áp dụng quy tắc
-                </button>
+                {/* Action buttons */}
+                <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                  <button
+                    onClick={() => { setSelectedEventKey(null); setEditingRule(null); setShowAddRecipient(false); }}
+                    className="text-sm text-gray-400 hover:text-gray-600"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={() => { saveEditingRule(); setSelectedEventKey(null); setEditingRule(null); setShowAddRecipient(false); }}
+                    className="flex items-center gap-1.5 text-sm bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    <Check className="w-3.5 h-3.5" />Lưu quy tắc
+                  </button>
+                </div>
               </div>
             </div>
           )}
         </div>
+      );
+    };
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-700">Luồng đơn hàng ({ORDER_FLOW_STEPS.length} bước)</p>
+          <p className="text-xs text-gray-400">Nhấn vào một bước để chỉnh sửa người nhận</p>
+        </div>
+
+        {/* Order flow steps */}
+        <div className="space-y-2">
+          {ORDER_FLOW_STEPS.map(step => (
+            <RuleCard key={step.event} eventKey={step.event} stepInfo={step} />
+          ))}
+        </div>
+
+        {/* Other events */}
+        {otherEvents.length > 0 && (
+          <div className="space-y-2 pt-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Sự kiện khác</p>
+            {otherEvents.map(ek => (
+              <RuleCard key={ek} eventKey={ek} />
+            ))}
+          </div>
+        )}
       </div>
     );
   };
