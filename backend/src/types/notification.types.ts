@@ -24,6 +24,13 @@ export const NotificationType = {
   PRIVATE_FEEDBACK: 'PRIVATE_FEEDBACK',
   DAILY_WORK_REPORT: 'DAILY_WORK_REPORT',
   WORK_PLAN: 'WORK_PLAN',
+  TASK_EVALUATED: 'TASK_EVALUATED',
+  QUOTATION_REQUEST: 'QUOTATION_REQUEST',
+  QUOTATION: 'QUOTATION',
+  ORDER: 'ORDER',
+  TAX_REPORT: 'TAX_REPORT',
+  INVOICE: 'INVOICE',
+  CUSTOMER_FEEDBACK: 'CUSTOMER_FEEDBACK',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];

@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import ExcelJS from 'exceljs';
+import notificationService from '@services/notificationService';
 
 interface CreateCustomerFeedbackData {
   customerId: string;
@@ -48,6 +49,13 @@ export const customerFeedbackService = {
           customer: true,
         },
       });
+
+      notificationService.createCustomerFeedbackNotification({
+        actorName: 'Kinh doanh',
+        customerName: (feedback as any).customer?.tenCongTy || (feedback as any).customer?.tenKhachHang || 'Khách hàng',
+        action: 'created',
+      }).catch(() => {/* fire and forget */});
+
       return feedback;
     } catch (error) {
       throw error;
@@ -146,6 +154,12 @@ export const customerFeedbackService = {
           customer: true,
         },
       });
+
+      notificationService.createCustomerFeedbackNotification({
+        actorName: 'Kinh doanh',
+        customerName: (updated as any).customer?.tenCongTy || (updated as any).customer?.tenKhachHang || 'Khách hàng',
+        action: 'updated',
+      }).catch(() => {/* fire and forget */});
 
       return updated;
     } catch (error) {

@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
+import notificationService from '@services/notificationService';
 
 export class QuotationRequestService {
   /**
@@ -269,12 +270,16 @@ export class QuotationRequestService {
       },
     });
 
+    notificationService.createQuotationRequestNotification({
+      actorName: `${employee.user.firstName} ${employee.user.lastName}`,
+      code: request.maYeuCauBaoGia,
+      action: 'created',
+    }).catch(() => {/* fire and forget */});
+
     return request;
   }
 
   async updateQuotationRequest(id: string, data: any): Promise<any> {
-    // Check if quotation request exists
-    await this.getQuotationRequestById(id);
 
     const updateData: any = {};
 
@@ -365,6 +370,15 @@ export class QuotationRequestService {
         },
       },
     });
+
+    const actorName = request.employee
+      ? `${(request.employee as any).user?.firstName ?? ''} ${(request.employee as any).user?.lastName ?? ''}`.trim()
+      : 'Nhân viên';
+    notificationService.createQuotationRequestNotification({
+      actorName,
+      code: request.maYeuCauBaoGia,
+      action: 'updated',
+    }).catch(() => {/* fire and forget */});
 
     return request;
   }

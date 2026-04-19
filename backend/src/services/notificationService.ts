@@ -971,6 +971,153 @@ export class NotificationService {
       message: `${employeeName} đã nộp báo cáo công việc ngày ${reportDate}`,
     });
   }
+
+  // ─── Order Flow Notifications ────────────────────────────────────────────────
+
+  async createQuotationRequestNotification(params: {
+    actorName: string;
+    code: string;
+    action?: 'created' | 'updated';
+  }): Promise<void> {
+    const { actorName, code, action = 'created' } = params;
+    const isCreate = action === 'created';
+    const employeeIds = await this.resolveRecipientEmployeeIdsForEvent(
+      NotificationRoutingEvent.QUOTATION_REQUEST_CREATED,
+      { roles: ['ADMIN'], subDepartmentCodes: ['SUBDEPT_GENERAL_PRICING'] }
+    );
+    if (employeeIds.length === 0) return;
+    await this.createNotificationsForEmployees(employeeIds, {
+      type: NotificationType.QUOTATION_REQUEST,
+      title: isCreate ? 'Yêu cầu báo giá mới' : 'Yêu cầu báo giá được cập nhật',
+      message: isCreate
+        ? `${actorName} vừa tạo yêu cầu báo giá ${code}`
+        : `${actorName} vừa cập nhật yêu cầu báo giá ${code}`,
+    });
+  }
+
+  async createQuotationNotification(params: {
+    actorName: string;
+    code: string;
+    action?: 'created' | 'updated' | 'confirmed';
+  }): Promise<void> {
+    const { actorName, code, action = 'created' } = params;
+    const eventKey =
+      action === 'confirmed'
+        ? NotificationRoutingEvent.QUOTATION_CUSTOMER_CONFIRMED
+        : NotificationRoutingEvent.QUOTATION_CREATED;
+    const fallbackQuery =
+      action === 'confirmed'
+        ? {
+            roles: ['ADMIN'],
+            departmentCodes: ['DEPT_BUSINESS'],
+            subDepartmentCodes: ['SUBDEPT_PRODUCTION_MANAGEMENT', 'SUBDEPT_ACCOUNTING_ADMIN'],
+          }
+        : { roles: ['ADMIN'], departmentCodes: ['DEPT_BUSINESS'] };
+    const employeeIds = await this.resolveRecipientEmployeeIdsForEvent(eventKey, fallbackQuery);
+    if (employeeIds.length === 0) return;
+    const titleMap: Record<string, string> = {
+      created: 'Báo giá mới',
+      updated: 'Báo giá được cập nhật',
+      confirmed: 'Khách hàng xác nhận báo giá',
+    };
+    const messageMap: Record<string, string> = {
+      created: `${actorName} vừa tạo báo giá ${code}`,
+      updated: `${actorName} vừa cập nhật báo giá ${code}`,
+      confirmed: `${actorName} xác nhận khách hàng đã chốt báo giá ${code}`,
+    };
+    await this.createNotificationsForEmployees(employeeIds, {
+      type: NotificationType.QUOTATION,
+      title: titleMap[action],
+      message: messageMap[action],
+    });
+  }
+
+  async createOrderNotification(params: {
+    actorName: string;
+    code: string;
+    action?: 'created' | 'updated';
+    statusLabel?: string;
+  }): Promise<void> {
+    const { actorName, code, action = 'created', statusLabel } = params;
+    const employeeIds = await this.resolveRecipientEmployeeIdsForEvent(
+      NotificationRoutingEvent.ORDER_CREATED,
+      { roles: ['ADMIN'], subDepartmentCodes: ['SUBDEPT_PRODUCTION_MANAGEMENT'] }
+    );
+    if (employeeIds.length === 0) return;
+    const isCreate = action === 'created';
+    await this.createNotificationsForEmployees(employeeIds, {
+      type: NotificationType.ORDER,
+      title: isCreate ? 'Đơn hàng mới' : 'Đơn hàng được cập nhật',
+      message: isCreate
+        ? `${actorName} vừa tạo đơn hàng ${code}`
+        : statusLabel
+        ? `${actorName} cập nhật đơn hàng ${code}: ${statusLabel}`
+        : `${actorName} vừa cập nhật đơn hàng ${code}`,
+    });
+  }
+
+  async createTaxReportNotification(params: {
+    actorName: string;
+    code: string;
+    action?: 'created' | 'updated';
+  }): Promise<void> {
+    const { actorName, code, action = 'created' } = params;
+    const isCreate = action === 'created';
+    const employeeIds = await this.resolveRecipientEmployeeIdsForEvent(
+      NotificationRoutingEvent.TAX_REPORT_CREATED,
+      { roles: ['ADMIN'], subDepartmentCodes: ['SUBDEPT_ACCOUNTING_TAX'] }
+    );
+    if (employeeIds.length === 0) return;
+    await this.createNotificationsForEmployees(employeeIds, {
+      type: NotificationType.TAX_REPORT,
+      title: isCreate ? 'Báo cáo thuế mới' : 'Báo cáo thuế được cập nhật',
+      message: isCreate
+        ? `${actorName} vừa tạo báo cáo thuế ${code}`
+        : `${actorName} vừa cập nhật báo cáo thuế ${code}`,
+    });
+  }
+
+  async createInvoiceNotification(params: {
+    actorName: string;
+    code: string;
+    action?: 'created' | 'updated';
+  }): Promise<void> {
+    const { actorName, code, action = 'created' } = params;
+    const isCreate = action === 'created';
+    const employeeIds = await this.resolveRecipientEmployeeIdsForEvent(
+      NotificationRoutingEvent.INVOICE_CREATED,
+      { roles: ['ADMIN'], subDepartmentCodes: ['SUBDEPT_ACCOUNTING_ADMIN'], departmentCodes: ['DEPT_BUSINESS'] }
+    );
+    if (employeeIds.length === 0) return;
+    await this.createNotificationsForEmployees(employeeIds, {
+      type: NotificationType.INVOICE,
+      title: isCreate ? 'Hóa đơn mới' : 'Hóa đơn được cập nhật',
+      message: isCreate
+        ? `${actorName} vừa tạo hóa đơn ${code}`
+        : `${actorName} vừa cập nhật hóa đơn ${code}`,
+    });
+  }
+
+  async createCustomerFeedbackNotification(params: {
+    actorName: string;
+    customerName: string;
+    action?: 'created' | 'updated';
+  }): Promise<void> {
+    const { actorName, customerName, action = 'created' } = params;
+    const isCreate = action === 'created';
+    const employeeIds = await this.resolveRecipientEmployeeIdsForEvent(
+      NotificationRoutingEvent.CUSTOMER_FEEDBACK_CREATED,
+      { roles: ['ADMIN'], departmentCodes: ['DEPT_BUSINESS'] }
+    );
+    if (employeeIds.length === 0) return;
+    await this.createNotificationsForEmployees(employeeIds, {
+      type: NotificationType.CUSTOMER_FEEDBACK,
+      title: isCreate ? 'Phản hồi khách hàng mới' : 'Phản hồi khách hàng được cập nhật',
+      message: isCreate
+        ? `${actorName} vừa ghi nhận phản hồi từ khách hàng ${customerName}`
+        : `${actorName} vừa cập nhật phản hồi từ khách hàng ${customerName}`,
+    });
+  }
 }
 
 export default new NotificationService();

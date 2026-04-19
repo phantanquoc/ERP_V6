@@ -1,6 +1,7 @@
 import prisma from '@config/database';
 import { TaxReportStatus } from '@prisma/client';
 import ExcelJS from 'exceljs';
+import notificationService from '@services/notificationService';
 
 // Interface for creating/updating tax report
 export interface CreateTaxReportInput {
@@ -118,7 +119,7 @@ class TaxReportService {
     const giaTriDonHang = order.giaTriDonHangUSD || order.giaTriDonHangVND || 0;
 
     // Create tax report
-    return await prisma.taxReport.create({
+    const report = await prisma.taxReport.create({
       data: {
         orderId,
         ngayDatHang: order.ngayDatHang,
@@ -141,11 +142,19 @@ class TaxReportService {
         },
       },
     });
+
+    notificationService.createTaxReportNotification({
+      actorName: 'Hệ thống',
+      code: report.maDonHang,
+      action: 'created',
+    }).catch(() => {/* fire and forget */});
+
+    return report;
   }
 
   // Update tax report
   async updateTaxReport(id: string, input: UpdateTaxReportInput) {
-    return await prisma.taxReport.update({
+    const report = await prisma.taxReport.update({
       where: { id },
       data: input,
       include: {
@@ -157,6 +166,14 @@ class TaxReportService {
         },
       },
     });
+
+    notificationService.createTaxReportNotification({
+      actorName: 'Kế toán thuế',
+      code: report.maDonHang,
+      action: 'updated',
+    }).catch(() => {/* fire and forget */});
+
+    return report;
   }
 
   // Delete tax report

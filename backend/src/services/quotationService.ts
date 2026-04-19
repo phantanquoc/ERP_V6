@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import ExcelJS from 'exceljs';
+import notificationService from '@services/notificationService';
 
 class QuotationService {
   /**
@@ -201,6 +202,12 @@ class QuotationService {
       },
     });
 
+    notificationService.createQuotationNotification({
+      actorName: 'Phòng giá thành',
+      code: quotation.maBaoGia,
+      action: 'created',
+    }).catch(() => {/* fire and forget */});
+
     return quotation;
   }
 
@@ -282,6 +289,13 @@ class QuotationService {
         items: true,
       },
     });
+
+    const actionType = data.tinhTrang === 'CONFIRMED' ? 'confirmed' : 'updated';
+    notificationService.createQuotationNotification({
+      actorName: 'Phòng giá thành',
+      code: updatedQuotation.maBaoGia,
+      action: actionType,
+    }).catch(() => {/* fire and forget */});
 
     return updatedQuotation;
   }

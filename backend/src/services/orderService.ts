@@ -3,6 +3,7 @@ import logger from '@config/logger';
 import { TaxReportStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import ExcelJS from 'exceljs';
+import notificationService from '@services/notificationService';
 
 class OrderService {
   // Generate order code
@@ -110,6 +111,12 @@ class OrderService {
       logger.error('⚠️ Failed to create tax report automatically:', error);
       // Don't throw error, just log it - order creation should still succeed
     }
+
+    notificationService.createOrderNotification({
+      actorName: quotation.tenNhanVien ?? 'Kinh doanh',
+      code: order.maDonHang,
+      action: 'created',
+    }).catch(() => {/* fire and forget */});
 
     return order;
   }
@@ -245,6 +252,13 @@ class OrderService {
         items: true,
       },
     });
+
+    notificationService.createOrderNotification({
+      actorName: 'Kinh doanh',
+      code: updatedOrder.maDonHang,
+      action: 'updated',
+      statusLabel: data.trangThaiSanXuat || data.trangThaiThanhToan,
+    }).catch(() => {/* fire and forget */});
 
     return updatedOrder;
   }

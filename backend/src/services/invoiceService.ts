@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
+import notificationService from '@services/notificationService';
 
 export class InvoiceService {
   /**
@@ -123,6 +124,13 @@ export class InvoiceService {
     data.thanhTien = tongTien + (tongTien * thue / 100);
 
     const invoice = await prisma.invoice.create({ data });
+
+    notificationService.createInvoiceNotification({
+      actorName: 'Kế toán',
+      code: invoice.soHoaDon,
+      action: 'created',
+    }).catch(() => {/* fire and forget */});
+
     return invoice;
   }
 
@@ -147,6 +155,13 @@ export class InvoiceService {
     }
 
     const invoice = await prisma.invoice.update({ where: { id }, data });
+
+    notificationService.createInvoiceNotification({
+      actorName: 'Kế toán',
+      code: invoice.soHoaDon,
+      action: 'updated',
+    }).catch(() => {/* fire and forget */});
+
     return invoice;
   }
 
