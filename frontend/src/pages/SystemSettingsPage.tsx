@@ -1,83 +1,123 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Settings, Palette, Type, Save, Check, Bell, ToggleLeft, ToggleRight,
-  Clock, History, ChevronRight, Users, ArrowRight, Info,
+  Clock, History, ChevronRight, Users, ArrowRight, Info, AlertCircle,
+  Plus, Trash2, X, Edit3, BarChart2, List, BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSystemSettings } from '../contexts/SystemSettingsContext';
 import { isAdmin } from '../utils/permissions';
-import systemSettingsService, { NotificationSettings, NotificationRoutingRule } from '../services/systemSettingsService';
+import systemSettingsService, {
+  NotificationSettings,
+  NotificationRoutingRule,
+  NotificationRoutingTarget,
+} from '../services/systemSettingsService';
+
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const THEMES = [
-  {
-    id: 'DEFAULT',
-    name: 'Mặc định',
-    description: 'Giao diện xanh dương chuyên nghiệp',
-    preview: 'bg-gradient-to-r from-blue-600 to-indigo-600',
-  },
-  {
-    id: 'TET',
-    name: 'Tết Nguyên Đán',
-    description: 'Giao diện đỏ với hoa mai',
-    preview: 'bg-gradient-to-r from-red-600 to-red-700',
-  },
-  {
-    id: 'APR30',
-    name: '30/4 - 1/5',
-    description: 'Ngày Giải phóng & Quốc tế Lao động',
-    preview: 'bg-gradient-to-r from-red-600 to-yellow-500',
-  },
-];
-
-// Order flow steps for the notification flow diagram
-const ORDER_FLOW_STEPS = [
-  { step: 1, event: 'quotation-request.created', label: 'Tạo yêu cầu báo giá', actor: 'Kinh doanh', recipients: 'Giá thành + Admin', color: 'bg-blue-100 border-blue-300 text-blue-800' },
-  { step: 2, event: 'quotation.created', label: 'Tạo báo giá', actor: 'Giá thành', recipients: 'Kinh doanh + Admin', color: 'bg-purple-100 border-purple-300 text-purple-800' },
-  { step: 3, event: 'quotation.customer-confirmed', label: 'Khách xác nhận báo giá', actor: 'Kinh doanh', recipients: 'Kinh doanh + Quản lý SX + Kế toán + Admin', color: 'bg-green-100 border-green-300 text-green-800' },
-  { step: 4, event: 'order.created', label: 'Tạo đơn hàng', actor: 'Hệ thống', recipients: 'Quản lý SX + Admin', color: 'bg-yellow-100 border-yellow-300 text-yellow-800' },
-  { step: 5, event: 'supply.request.created', label: 'Tạo yêu cầu cung ứng', actor: 'SX / Kho', recipients: 'Cung ứng / Mua hàng + Admin', color: 'bg-orange-100 border-orange-300 text-orange-800' },
-  { step: 6, event: 'supply.request.approved', label: 'Duyệt yêu cầu cung ứng', actor: 'Trưởng bộ phận', recipients: 'Mua hàng + Admin', color: 'bg-teal-100 border-teal-300 text-teal-800' },
-  { step: 7, event: 'purchase-request.completed', label: 'Hoàn tất mua hàng', actor: 'Mua hàng', recipients: 'Downstream + Admin', color: 'bg-cyan-100 border-cyan-300 text-cyan-800' },
-  { step: 8, event: 'tax-report.created', label: 'Tạo báo cáo thuế', actor: 'Hệ thống', recipients: 'Kế toán thuế + Admin', color: 'bg-indigo-100 border-indigo-300 text-indigo-800' },
-  { step: 9, event: 'invoice.created', label: 'Tạo hóa đơn', actor: 'Kế toán', recipients: 'Kế toán HC + Kinh doanh + Admin', color: 'bg-pink-100 border-pink-300 text-pink-800' },
-  { step: 10, event: 'customer-feedback.created', label: 'Phản hồi khách hàng', actor: 'Kinh doanh', recipients: 'Kinh doanh + Khối chung + Admin', color: 'bg-rose-100 border-rose-300 text-rose-800' },
+  { id: 'DEFAULT', name: 'Mặc định', description: 'Giao diện xanh dương chuyên nghiệp', preview: 'bg-gradient-to-r from-blue-600 to-indigo-600', icon: 'ABF' },
+  { id: 'TET', name: 'Tết Nguyên Đán', description: 'Giao diện đỏ với hoa mai', preview: 'bg-gradient-to-r from-red-600 to-red-700', icon: '🏮' },
+  { id: 'APR30', name: '30/4 - 1/5', description: 'Ngày Giải phóng & Quốc tế Lao động', preview: 'bg-gradient-to-r from-red-600 to-yellow-500', icon: '⭐' },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  EVALUATION: 'Đánh giá nhân viên',
-  TASK: 'Nhiệm vụ',
-  LEAVE: 'Nghỉ phép',
-  PAYROLL: 'Bảng lương',
-  ACCEPTANCE: 'Nghiệm thu',
-  OVERTIME: 'Tăng ca',
-  SUPPLY: 'Cung ứng / Mua hàng',
-  AUTH: 'Xác thực',
-  FEEDBACK: 'Góp ý',
-  REPORT: 'Báo cáo đơn hàng',
-  WORK_PLAN: 'Kế hoạch làm việc',
-  SYSTEM: 'Hệ thống',
+  EVALUATION: 'Đánh giá nhân viên', TASK: 'Nhiệm vụ', LEAVE: 'Nghỉ phép',
+  PAYROLL: 'Bảng lương', ACCEPTANCE: 'Nghiệm thu', OVERTIME: 'Tăng ca',
+  SUPPLY: 'Cung ứng / Mua hàng', AUTH: 'Xác thực', FEEDBACK: 'Góp ý',
+  REPORT: 'Báo cáo đơn hàng', WORK_PLAN: 'Kế hoạch làm việc', SYSTEM: 'Hệ thống',
 };
 
-type Tab = 'general' | 'notifications';
+// 10 bước luồng đơn hàng — event keys phải khớp với NotificationRoutingEvent backend
+const ORDER_FLOW_STEPS = [
+  { step: 1, event: 'quotation-request.created', label: 'Tạo yêu cầu báo giá', actor: 'Kinh doanh', color: 'blue' },
+  { step: 2, event: 'quotation.created', label: 'Tạo báo giá', actor: 'Giá thành', color: 'purple' },
+  { step: 3, event: 'quotation.customer-confirmed', label: 'Khách xác nhận báo giá', actor: 'Kinh doanh', color: 'green' },
+  { step: 4, event: 'order.created', label: 'Tạo đơn hàng', actor: 'Hệ thống', color: 'yellow' },
+  { step: 5, event: 'supply.request.created', label: 'Tạo yêu cầu cung ứng', actor: 'SX / Kho', color: 'orange' },
+  { step: 6, event: 'supply.request.approved', label: 'Duyệt yêu cầu cung ứng', actor: 'Trưởng bộ phận', color: 'teal' },
+  { step: 7, event: 'purchase-request.completed', label: 'Hoàn tất mua hàng', actor: 'Mua hàng', color: 'cyan' },
+  { step: 8, event: 'tax-report.created', label: 'Tạo báo cáo thuế', actor: 'Hệ thống', color: 'indigo' },
+  { step: 9, event: 'invoice.created', label: 'Tạo hóa đơn', actor: 'Kế toán', color: 'pink' },
+  { step: 10, event: 'customer-feedback.created', label: 'Phản hồi khách hàng', actor: 'Kinh doanh', color: 'rose' },
+];
+
+const STEP_COLOR_MAP: Record<string, string> = {
+  blue: 'bg-blue-50 border-blue-200 text-blue-800',
+  purple: 'bg-purple-50 border-purple-200 text-purple-800',
+  green: 'bg-green-50 border-green-200 text-green-800',
+  yellow: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+  orange: 'bg-orange-50 border-orange-200 text-orange-800',
+  teal: 'bg-teal-50 border-teal-200 text-teal-800',
+  cyan: 'bg-cyan-50 border-cyan-200 text-cyan-800',
+  indigo: 'bg-indigo-50 border-indigo-200 text-indigo-800',
+  pink: 'bg-pink-50 border-pink-200 text-pink-800',
+  rose: 'bg-rose-50 border-rose-200 text-rose-800',
+};
+
+const RECIPIENT_TYPE_LABELS: Record<string, string> = {
+  role: 'Vai trò', department: 'Phòng ban', subDepartment: 'Bộ phận con',
+};
+
+const PRESET_RECIPIENTS: NotificationRoutingTarget[] = [
+  { id: 'role-admin', type: 'role', value: 'ADMIN', label: 'Admin' },
+  { id: 'role-manager', type: 'role', value: 'MANAGER', label: 'Quản lý' },
+  { id: 'dept-business', type: 'department', value: 'DEPT_BUSINESS', label: 'Phòng kinh doanh' },
+  { id: 'dept-production', type: 'department', value: 'DEPT_PRODUCTION', label: 'Phòng sản xuất' },
+  { id: 'dept-accounting', type: 'department', value: 'DEPT_ACCOUNTING', label: 'Phòng kế toán' },
+  { id: 'subdept-pricing', type: 'subDepartment', value: 'SUBDEPT_GENERAL_PRICING', label: 'Tổng hợp / Tính giá' },
+  { id: 'subdept-prod-mgmt', type: 'subDepartment', value: 'SUBDEPT_PRODUCTION_MANAGEMENT', label: 'Quản lý sản xuất' },
+  { id: 'subdept-procurement', type: 'subDepartment', value: 'SUBDEPT_PROCUREMENT', label: 'Mua hàng' },
+  { id: 'subdept-accounting-admin', type: 'subDepartment', value: 'SUBDEPT_ACCOUNTING_ADMIN', label: 'Kế toán admin' },
+  { id: 'subdept-accounting-tax', type: 'subDepartment', value: 'SUBDEPT_ACCOUNTING_TAX', label: 'Kế toán thuế' },
+];
+
+type MainTab = 'general' | 'notifications';
+type NotifSubTab = 'overview' | 'routing' | 'reference';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const ToggleSwitch: React.FC<{ value: boolean; onChange: (v: boolean) => void; size?: 'sm' | 'md' }> = ({ value, onChange, size = 'md' }) => {
+  const sz = size === 'sm' ? 'w-6 h-6' : 'w-8 h-8';
+  return (
+    <button onClick={() => onChange(!value)} className="flex-shrink-0">
+      {value ? <ToggleRight className={`${sz} text-blue-600`} /> : <ToggleLeft className={`${sz} text-gray-400`} />}
+    </button>
+  );
+};
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 const SystemSettingsPage: React.FC = () => {
   const { user } = useAuth();
   const { settings, refreshSettings } = useSystemSettings();
 
-  const [activeTab, setActiveTab] = useState<Tab>('general');
+  const [mainTab, setMainTab] = useState<MainTab>('general');
+  const [notifTab, setNotifTab] = useState<NotifSubTab>('overview');
 
-  // General tab state
+  // General
   const [selectedTheme, setSelectedTheme] = useState('DEFAULT');
   const [slogan, setSlogan] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savingGeneral, setSavingGeneral] = useState(false);
+  const [savedGeneral, setSavedGeneral] = useState(false);
 
-  // Notification tab state
+  // Notifications
   const [notifSettings, setNotifSettings] = useState<NotificationSettings | null>(null);
+  const [notifDirty, setNotifDirty] = useState(false);
   const [savingNotif, setSavingNotif] = useState(false);
   const [savedNotif, setSavedNotif] = useState(false);
-  const [expandedRule, setExpandedRule] = useState<string | null>(null);
+  const [notifError, setNotifError] = useState<string | null>(null);
 
+  // Routing master/detail
+  const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
+  const [editingRule, setEditingRule] = useState<NotificationRoutingRule | null>(null);
+  const [showAddRecipient, setShowAddRecipient] = useState(false);
+  const [newRecipient, setNewRecipient] = useState<Partial<NotificationRoutingTarget>>({ type: 'role' });
+
+  // Reference flow collapse
+  const [refFlowExpanded, setRefFlowExpanded] = useState(false);
+
+  // ── Load settings ──
   useEffect(() => {
     if (settings) {
       setSelectedTheme(settings.activeTheme);
@@ -87,6 +127,15 @@ const SystemSettingsPage: React.FC = () => {
       }
     }
   }, [settings]);
+
+  // Fetch notification settings directly if not in context
+  useEffect(() => {
+    if (!notifSettings) {
+      systemSettingsService.getSettings().then(s => {
+        if (s.notificationSettings) setNotifSettings(s.notificationSettings);
+      }).catch(() => {});
+    }
+  }, [notifSettings]);
 
   if (!user || !isAdmin(user.department)) {
     return (
@@ -100,143 +149,511 @@ const SystemSettingsPage: React.FC = () => {
     );
   }
 
+  // ── Notification mutators ──
+  const updateNotif = useCallback((updater: (prev: NotificationSettings) => NotificationSettings) => {
+    setNotifSettings(prev => { if (!prev) return prev; const next = updater(prev); setNotifDirty(true); return next; });
+  }, []);
+
+  const toggleChannel = (key: keyof NotificationSettings['channels']) =>
+    updateNotif(p => ({ ...p, channels: { ...p.channels, [key]: !p.channels[key] } }));
+
+  const updateUi = (key: keyof NotificationSettings['ui'], value: number | boolean) =>
+    updateNotif(p => ({ ...p, ui: { ...p.ui, [key]: value } }));
+
+  const toggleCategory = (cat: string) =>
+    updateNotif(p => ({ ...p, categories: { ...p.categories, [cat]: !p.categories[cat] } }));
+
+  const toggleRuleEnabled = (eventKey: string) =>
+    updateNotif(p => ({
+      ...p,
+      routingRules: {
+        ...p.routingRules,
+        [eventKey]: { ...p.routingRules[eventKey], enabled: !p.routingRules[eventKey].enabled },
+      },
+    }));
+
+  // ── Select rule for editing ──
+  const selectRule = (eventKey: string) => {
+    const rule = notifSettings?.routingRules[eventKey];
+    if (!rule) return;
+    setSelectedEventKey(eventKey);
+    setEditingRule(JSON.parse(JSON.stringify(rule))); // deep copy
+    setShowAddRecipient(false);
+  };
+
+  const saveEditingRule = () => {
+    if (!editingRule || !selectedEventKey) return;
+    updateNotif(p => ({
+      ...p,
+      routingRules: { ...p.routingRules, [selectedEventKey]: editingRule },
+    }));
+  };
+
+  const removeRecipient = (id: string) => {
+    if (!editingRule) return;
+    setEditingRule(prev => prev ? { ...prev, recipients: prev.recipients.filter(r => r.id !== id) } : prev);
+  };
+
+  const addRecipientFromPreset = (preset: NotificationRoutingTarget) => {
+    if (!editingRule) return;
+    if (editingRule.recipients.some(r => r.id === preset.id)) return;
+    setEditingRule(prev => prev ? { ...prev, recipients: [...prev.recipients, preset] } : prev);
+  };
+
+  const addCustomRecipient = () => {
+    if (!newRecipient.value || !newRecipient.label || !editingRule) return;
+    const id = `custom-${Date.now()}`;
+    setEditingRule(prev => prev ? {
+      ...prev,
+      recipients: [...prev.recipients, { id, type: newRecipient.type as any, value: newRecipient.value!, label: newRecipient.label! }],
+    } : prev);
+    setNewRecipient({ type: 'role' });
+    setShowAddRecipient(false);
+  };
+
+  // ── Save handlers ──
   const handleSaveGeneral = async () => {
-    setSaving(true);
-    setSaved(false);
+    setSavingGeneral(true); setSavedGeneral(false);
     try {
       await systemSettingsService.updateSettings({ activeTheme: selectedTheme, slogan });
       await refreshSettings();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch {
-      alert('Có lỗi xảy ra khi lưu cài đặt.');
-    } finally {
-      setSaving(false);
-    }
+      setSavedGeneral(true);
+      setTimeout(() => setSavedGeneral(false), 3000);
+    } catch { alert('Có lỗi xảy ra khi lưu cài đặt giao diện.'); }
+    finally { setSavingGeneral(false); }
   };
 
   const handleSaveNotifications = async () => {
     if (!notifSettings) return;
-    setSavingNotif(true);
-    setSavedNotif(false);
+    setSavingNotif(true); setSavedNotif(false); setNotifError(null);
     try {
       await systemSettingsService.updateSettings({ notificationSettings: notifSettings });
       await refreshSettings();
+      setNotifDirty(false);
       setSavedNotif(true);
       setTimeout(() => setSavedNotif(false), 3000);
-    } catch {
-      alert('Có lỗi xảy ra khi lưu cài đặt thông báo.');
-    } finally {
-      setSavingNotif(false);
-    }
+    } catch { setNotifError('Có lỗi xảy ra khi lưu cài đặt thông báo.'); }
+    finally { setSavingNotif(false); }
   };
 
-  const updateChannel = (key: keyof NotificationSettings['channels'], value: boolean) => {
-    setNotifSettings(prev => prev ? { ...prev, channels: { ...prev.channels, [key]: value } } : prev);
-  };
+  // ── Computed stats ──
+  const notifStats = notifSettings ? {
+    totalRules: Object.keys(notifSettings.routingRules).length,
+    enabledRules: Object.values(notifSettings.routingRules).filter(r => r.enabled).length,
+    totalCategories: Object.keys(notifSettings.categories).length,
+    enabledCategories: Object.values(notifSettings.categories).filter(Boolean).length,
+    channels: [notifSettings.channels.inAppEnabled, notifSettings.channels.webPushEnabled].filter(Boolean).length,
+  } : null;
 
-  const updateUi = (key: keyof NotificationSettings['ui'], value: number | boolean) => {
-    setNotifSettings(prev => prev ? { ...prev, ui: { ...prev.ui, [key]: value } } : prev);
-  };
+  // ── Sub-components ─────────────────────────────────────────────────────────
 
-  const updateCategory = (cat: string, value: boolean) => {
-    setNotifSettings(prev => prev ? { ...prev, categories: { ...prev.categories, [cat]: value } } : prev);
-  };
+  const SaveBtn: React.FC<{ onClick: () => void; saving: boolean; saved: boolean; dirty?: boolean }> =
+    ({ onClick, saving, saved, dirty }) => (
+      <button
+        onClick={onClick}
+        disabled={saving}
+        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium text-white text-sm transition-all ${
+          saved ? 'bg-green-500' : (dirty === false ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700')
+        } disabled:opacity-60`}
+      >
+        {saving
+          ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Đang lưu...</>
+          : saved
+            ? <><Check className="w-4 h-4" />Đã lưu!</>
+            : <><Save className="w-4 h-4" />Lưu thay đổi</>}
+      </button>
+    );
 
-  const toggleRuleEnabled = (eventKey: string, enabled: boolean) => {
-    setNotifSettings(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        routingRules: {
-          ...prev.routingRules,
-          [eventKey]: { ...prev.routingRules[eventKey], enabled },
-        },
-      };
-    });
-  };
+  // ── Panels ────────────────────────────────────────────────────────────────
 
-  const SaveButton = ({ onClick, saving: s, saved: sv }: { onClick: () => void; saving: boolean; saved: boolean }) => (
-    <button
-      onClick={onClick}
-      disabled={s}
-      className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium text-white transition-all duration-200 ${
-        sv ? 'bg-green-500 hover:bg-green-600' : 'bg-blue-600 hover:bg-blue-700'
-      } disabled:opacity-50 disabled:cursor-not-allowed`}
-    >
-      {s ? (
-        <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />Đang lưu...</>
-      ) : sv ? (
-        <><Check className="w-5 h-5" />Đã lưu!</>
-      ) : (
-        <><Save className="w-5 h-5" />Lưu thay đổi</>
+  const OverviewPanel = () => (
+    <div className="space-y-6">
+      {/* Stats */}
+      {notifStats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Kênh bật', value: `${notifStats.channels}/2`, icon: Bell, color: 'text-blue-600 bg-blue-50' },
+            { label: 'Quy tắc bật', value: `${notifStats.enabledRules}/${notifStats.totalRules}`, icon: ArrowRight, color: 'text-green-600 bg-green-50' },
+            { label: 'Danh mục bật', value: `${notifStats.enabledCategories}/${notifStats.totalCategories}`, icon: List, color: 'text-purple-600 bg-purple-50' },
+            { label: 'Polling (giây)', value: String(notifSettings!.ui.unreadPollingIntervalSeconds), icon: Clock, color: 'text-orange-600 bg-orange-50' },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <div key={label} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+                <Icon className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-lg font-bold text-gray-900">{value}</p>
+                <p className="text-xs text-gray-500">{label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
-    </button>
+
+      {/* Channels */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Bell className="w-4 h-4 text-blue-600" />Kênh thông báo</h3>
+        <div className="space-y-3">
+          {[
+            { key: 'inAppEnabled' as const, label: 'Thông báo trong ứng dụng', desc: 'Hiển thị chuông và hộp thư trên giao diện' },
+            { key: 'webPushEnabled' as const, label: 'Web Push Notification', desc: 'Gửi push đến trình duyệt khi không mở ứng dụng' },
+          ].map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div><p className="font-medium text-sm text-gray-900">{label}</p><p className="text-xs text-gray-500">{desc}</p></div>
+              <ToggleSwitch value={notifSettings!.channels[key]} onChange={() => toggleChannel(key)} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* UI Settings */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Clock className="w-4 h-4 text-purple-600" />Cấu hình hiển thị</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          {[
+            { key: 'unreadPollingIntervalSeconds' as const, label: 'Polling interval (giây)', min: 10, max: 300 },
+            { key: 'recentLimit' as const, label: 'Số thông báo gần đây', min: 5, max: 100 },
+            { key: 'historyWindowDays' as const, label: 'Lịch sử (ngày)', min: 7, max: 365 },
+          ].map(({ key, label, min, max }) => (
+            <div key={key}>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+              <input type="number" min={min} max={max}
+                value={notifSettings!.ui[key] as number}
+                onChange={e => updateUi(key, parseInt(e.target.value) || min)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div><p className="text-sm font-medium text-gray-900">Hiển thị sơ đồ luồng cho Admin</p></div>
+          <ToggleSwitch value={notifSettings!.ui.showAdminFlowOverview} onChange={v => updateUi('showAdminFlowOverview', v)} />
+        </div>
+      </div>
+
+      {/* Categories */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><History className="w-4 h-4 text-teal-600" />Danh mục thông báo</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {Object.entries(notifSettings!.categories).map(([cat, enabled]) => (
+            <div key={cat} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <span className="text-sm font-medium text-gray-700">{CATEGORY_LABELS[cat] || cat}</span>
+              <ToggleSwitch value={enabled as boolean} onChange={() => toggleCategory(cat)} size="sm" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 
+  const RoutingPanel = () => {
+    const rules = notifSettings!.routingRules;
+    const allEvents = ORDER_FLOW_STEPS.map(s => s.event);
+    const otherEvents = Object.keys(rules).filter(k => !allEvents.includes(k));
+
+    const RuleRow = ({ eventKey, stepInfo }: { eventKey: string; stepInfo?: typeof ORDER_FLOW_STEPS[0] }) => {
+      const rule = rules[eventKey];
+      if (!rule) return null;
+      const isSelected = selectedEventKey === eventKey;
+      return (
+        <div
+          onClick={() => selectRule(eventKey)}
+          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${
+            isSelected ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:bg-gray-50'
+          }`}
+        >
+          {stepInfo && (
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${STEP_COLOR_MAP[stepInfo.color]}`}>
+              {stepInfo.step}
+            </span>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">{stepInfo?.label || eventKey}</p>
+            <p className="text-xs text-gray-400 truncate">{eventKey}</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${rule.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {rule.enabled ? 'Bật' : 'Tắt'}
+            </span>
+            <span className="text-xs text-gray-400">{rule.recipients.length} người</span>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="flex gap-4 min-h-[500px]">
+        {/* Left: event list */}
+        <div className="w-72 flex-shrink-0 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
+          <div className="p-3 border-b border-gray-100 bg-gray-50">
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Quy tắc định tuyến</p>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            <p className="text-xs font-medium text-gray-400 uppercase px-2 py-1">Luồng đơn hàng</p>
+            {ORDER_FLOW_STEPS.map(step => <RuleRow key={step.event} eventKey={step.event} stepInfo={step} />)}
+            {otherEvents.length > 0 && (
+              <>
+                <p className="text-xs font-medium text-gray-400 uppercase px-2 py-1 mt-2">Khác</p>
+                {otherEvents.map(ek => <RuleRow key={ek} eventKey={ek} />)}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Right: detail editor */}
+        <div className="flex-1">
+          {!selectedEventKey || !editingRule ? (
+            <div className="h-full bg-white rounded-xl border border-dashed border-gray-300 flex items-center justify-center">
+              <div className="text-center text-gray-400">
+                <Edit3 className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">Chọn một quy tắc bên trái để chỉnh sửa</p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full">
+              {/* Header */}
+              <div className="p-4 border-b border-gray-100 flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-gray-900">
+                    {ORDER_FLOW_STEPS.find(s => s.event === selectedEventKey)?.label || selectedEventKey}
+                  </p>
+                  <code className="text-xs text-gray-400">{selectedEventKey}</code>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs text-gray-600">Trạng thái:</span>
+                  <ToggleSwitch
+                    value={editingRule.enabled}
+                    onChange={v => setEditingRule(prev => prev ? { ...prev, enabled: v } : prev)}
+                    size="sm"
+                  />
+                  <span className={`text-xs font-medium ${editingRule.enabled ? 'text-green-600' : 'text-gray-400'}`}>
+                    {editingRule.enabled ? 'Bật' : 'Tắt'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Recipients */}
+              <div className="p-4 flex-1 overflow-y-auto">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-blue-500" />Danh sách người nhận ({editingRule.recipients.length})
+                  </p>
+                  <button
+                    onClick={() => setShowAddRecipient(v => !v)}
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    <Plus className="w-3.5 h-3.5" />Thêm
+                  </button>
+                </div>
+
+                {/* Current recipients */}
+                <div className="space-y-2 mb-3">
+                  {editingRule.recipients.length === 0 && (
+                    <p className="text-xs text-gray-400 italic py-2">Chưa có người nhận nào.</p>
+                  )}
+                  {editingRule.recipients.map(r => (
+                    <div key={r.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{r.label}</p>
+                        <p className="text-xs text-gray-400">{RECIPIENT_TYPE_LABELS[r.type] || r.type} · {r.value}</p>
+                      </div>
+                      <button onClick={() => removeRecipient(r.id)} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add recipient panel */}
+                {showAddRecipient && (
+                  <div className="border border-blue-200 bg-blue-50 rounded-lg p-3 space-y-3">
+                    <p className="text-xs font-semibold text-blue-700">Thêm người nhận</p>
+                    {/* Presets */}
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1.5">Chọn nhanh:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {PRESET_RECIPIENTS
+                          .filter(p => !editingRule.recipients.some(r => r.id === p.id))
+                          .map(p => (
+                            <button
+                              key={p.id}
+                              onClick={() => addRecipientFromPreset(p)}
+                              className="text-xs bg-white border border-gray-300 text-gray-700 px-2 py-1 rounded-full hover:border-blue-400 hover:text-blue-700 transition-colors"
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                    {/* Custom */}
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1.5">Hoặc nhập tùy chỉnh:</p>
+                      <div className="flex gap-2 flex-wrap">
+                        <select
+                          value={newRecipient.type}
+                          onChange={e => setNewRecipient(p => ({ ...p, type: e.target.value as any }))}
+                          className="text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
+                        >
+                          <option value="role">Vai trò</option>
+                          <option value="department">Phòng ban</option>
+                          <option value="subDepartment">Bộ phận con</option>
+                        </select>
+                        <input
+                          placeholder="Value (e.g. ADMIN)"
+                          value={newRecipient.value || ''}
+                          onChange={e => setNewRecipient(p => ({ ...p, value: e.target.value }))}
+                          className="text-xs border border-gray-300 rounded px-2 py-1.5 flex-1 min-w-0"
+                        />
+                        <input
+                          placeholder="Tên hiển thị"
+                          value={newRecipient.label || ''}
+                          onChange={e => setNewRecipient(p => ({ ...p, label: e.target.value }))}
+                          className="text-xs border border-gray-300 rounded px-2 py-1.5 flex-1 min-w-0"
+                        />
+                        <button onClick={addCustomRecipient} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700">
+                          Thêm
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <button onClick={() => setShowAddRecipient(false)} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                        <X className="w-3 h-3" />Đóng
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Save this rule */}
+              <div className="p-4 border-t border-gray-100 flex justify-between items-center">
+                <button
+                  onClick={() => { setSelectedEventKey(null); setEditingRule(null); }}
+                  className="text-sm text-gray-400 hover:text-gray-600"
+                >
+                  Hủy chỉnh sửa
+                </button>
+                <button
+                  onClick={() => { saveEditingRule(); setSelectedEventKey(null); setEditingRule(null); }}
+                  className="flex items-center gap-1.5 text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  <Check className="w-3.5 h-3.5" />Áp dụng quy tắc
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const ReferenceFlowPanel = () => (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <button
+        onClick={() => setRefFlowExpanded(v => !v)}
+        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-5 h-5 text-orange-600" />
+          <span className="font-semibold text-gray-900">Sơ đồ luồng thông báo đơn hàng</span>
+          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Chỉ xem</span>
+        </div>
+        <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${refFlowExpanded ? 'rotate-90' : ''}`} />
+      </button>
+
+      {refFlowExpanded && (
+        <div className="border-t border-gray-100 p-4">
+          <p className="text-sm text-gray-500 mb-4">Tổng quan từ khi tạo yêu cầu báo giá đến khi nhận phản hồi khách hàng. Admin luôn nhận thông báo ở mọi bước.</p>
+          <div className="space-y-1">
+            {ORDER_FLOW_STEPS.map((step, idx) => {
+              const rule = notifSettings?.routingRules[step.event];
+              return (
+                <div key={step.event}>
+                  <div className={`flex items-center gap-3 p-3 rounded-lg border ${STEP_COLOR_MAP[step.color]}`}>
+                    <span className="w-6 h-6 rounded-full bg-white/70 flex items-center justify-center text-xs font-bold flex-shrink-0">{step.step}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{step.label}</p>
+                      <p className="text-xs opacity-70">Thực hiện bởi: {step.actor}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {rule && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${rule.enabled ? 'bg-white/70 text-green-700' : 'bg-white/40 text-gray-500'}`}>
+                          {rule.enabled ? `${rule.recipients.length} người nhận` : 'Tắt'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {idx < ORDER_FLOW_STEPS.length - 1 && (
+                    <div className="flex justify-center">
+                      <div className="w-0.5 h-3 bg-gray-300" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto pb-24">
+      {/* Page header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-          <Settings className="w-7 h-7 text-blue-600" />
-          Cài đặt hệ thống
+          <Settings className="w-7 h-7 text-blue-600" />Cài đặt hệ thống
         </h1>
         <p className="text-gray-500 mt-1">Quản lý theme, slogan và cấu hình thông báo</p>
       </div>
 
-      {/* Tab bar */}
+      {/* Main tabs */}
       <div className="flex gap-1 mb-6 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab('general')}
-          className={`px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            activeTab === 'general'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <span className="flex items-center gap-2"><Palette className="w-4 h-4" />Giao diện</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('notifications')}
-          className={`px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            activeTab === 'notifications'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <span className="flex items-center gap-2"><Bell className="w-4 h-4" />Thông báo</span>
-        </button>
+        {([['general', <Palette key="p" className="w-4 h-4" />, 'Giao diện'], ['notifications', <Bell key="b" className="w-4 h-4" />, 'Thông báo']] as const).map(([tab, icon, label]) => (
+          <button
+            key={tab}
+            onClick={() => setMainTab(tab)}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              mainTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {icon}{label}
+            {tab === 'notifications' && notifDirty && (
+              <span className="w-2 h-2 bg-orange-400 rounded-full" title="Có thay đổi chưa lưu" />
+            )}
+          </button>
+        ))}
       </div>
 
       {/* ── General tab ── */}
-      {activeTab === 'general' && (
-        <>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+      {mainTab === 'general' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Palette className="w-5 h-5 text-purple-600" />Theme hệ thống
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {THEMES.map((theme) => (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {THEMES.map(theme => (
                 <div
                   key={theme.id}
                   onClick={() => setSelectedTheme(theme.id)}
-                  className={`cursor-pointer rounded-xl border-2 transition-all duration-200 overflow-hidden ${
-                    selectedTheme === theme.id ? 'border-blue-500 shadow-lg scale-[1.02]' : 'border-gray-200 hover:border-gray-300'
+                  className={`cursor-pointer rounded-xl border-2 overflow-hidden transition-all ${
+                    selectedTheme === theme.id ? 'border-blue-500 shadow-md scale-[1.02]' : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <div className={`h-20 ${theme.preview} flex items-center justify-center`}>
-                    {theme.id === 'TET' && <span className="text-3xl">🏮</span>}
-                    {theme.id === 'APR30' && <span className="text-3xl">⭐</span>}
-                    {theme.id === 'DEFAULT' && <span className="text-3xl text-white/80">ABF</span>}
+                  <div className={`h-16 ${theme.preview} flex items-center justify-center`}>
+                    <span className="text-2xl">{theme.icon}</span>
                   </div>
-                  <div className="p-4 flex items-center justify-between">
+                  <div className="p-3 flex items-center justify-between">
                     <div>
-                      <h3 className="font-semibold text-gray-900">{theme.name}</h3>
-                      <p className="text-sm text-gray-500 mt-0.5">{theme.description}</p>
+                      <p className="font-semibold text-sm text-gray-900">{theme.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{theme.description}</p>
                     </div>
                     {selectedTheme === theme.id && (
-                      <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Check className="w-4 h-4 text-white" />
+                      <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Check className="w-3 h-3 text-white" />
                       </div>
                     )}
                   </div>
@@ -245,14 +662,14 @@ const SystemSettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Type className="w-5 h-5 text-green-600" />Slogan hệ thống
             </h2>
             <textarea
               value={slogan}
-              onChange={(e) => setSlogan(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              onChange={e => setSlogan(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 resize-none"
               rows={3}
               maxLength={500}
             />
@@ -260,192 +677,84 @@ const SystemSettingsPage: React.FC = () => {
           </div>
 
           <div className="flex justify-end">
-            <SaveButton onClick={handleSaveGeneral} saving={saving} saved={saved} />
+            <SaveBtn onClick={handleSaveGeneral} saving={savingGeneral} saved={savedGeneral} />
           </div>
-        </>
+        </div>
       )}
 
       {/* ── Notifications tab ── */}
-      {activeTab === 'notifications' && (
-        <>
+      {mainTab === 'notifications' && (
+        <div>
           {!notifSettings ? (
-            <div className="text-center py-12 text-gray-400">Đang tải cấu hình thông báo...</div>
+            <div className="flex items-center justify-center h-48 bg-white rounded-xl border border-gray-200">
+              <div className="text-center text-gray-400">
+                <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm">Đang tải cấu hình thông báo...</p>
+              </div>
+            </div>
           ) : (
             <>
-              {/* ─ Channels ─ */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Bell className="w-5 h-5 text-blue-600" />Kênh thông báo
-                </h2>
-                <div className="space-y-3">
-                  {[
-                    { key: 'inAppEnabled' as const, label: 'Thông báo trong ứng dụng (In-app)', desc: 'Hiển thị chuông và hộp thư thông báo trên giao diện' },
-                    { key: 'webPushEnabled' as const, label: 'Web Push Notification', desc: 'Gửi thông báo push đến trình duyệt khi không mở ứng dụng' },
-                  ].map(({ key, label, desc }) => (
-                    <div key={key} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">{label}</p>
-                        <p className="text-sm text-gray-500">{desc}</p>
-                      </div>
-                      <button onClick={() => updateChannel(key, !notifSettings.channels[key])} className="flex-shrink-0">
-                        {notifSettings.channels[key]
-                          ? <ToggleRight className="w-8 h-8 text-blue-600" />
-                          : <ToggleLeft className="w-8 h-8 text-gray-400" />}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* ─ UI settings ─ */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-purple-600" />Cấu hình hiển thị
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {[
-                    { key: 'unreadPollingIntervalSeconds' as const, label: 'Polling interval (giây)', min: 10, max: 300 },
-                    { key: 'recentLimit' as const, label: 'Số thông báo gần đây', min: 5, max: 100 },
-                    { key: 'historyWindowDays' as const, label: 'Lịch sử (ngày)', min: 7, max: 365 },
-                  ].map(({ key, label, min, max }) => (
-                    <div key={key}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-                      <input
-                        type="number"
-                        min={min}
-                        max={max}
-                        value={notifSettings.ui[key] as number}
-                        onChange={(e) => updateUi(key, parseInt(e.target.value) || min)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">Hiển thị sơ đồ luồng đơn hàng</p>
-                    <p className="text-sm text-gray-500">Hiển thị luồng thông báo quy trình đơn hàng cho Admin</p>
-                  </div>
-                  <button onClick={() => updateUi('showAdminFlowOverview', !notifSettings.ui.showAdminFlowOverview)}>
-                    {notifSettings.ui.showAdminFlowOverview
-                      ? <ToggleRight className="w-8 h-8 text-blue-600" />
-                      : <ToggleLeft className="w-8 h-8 text-gray-400" />}
+              {/* Notif sub-tabs */}
+              <div className="flex gap-1 mb-5 bg-gray-100 rounded-xl p-1">
+                {([
+                  ['overview', BarChart2, 'Tổng quan'],
+                  ['routing', List, 'Quy tắc định tuyến'],
+                  ['reference', BookOpen, 'Sơ đồ luồng'],
+                ] as const).map(([tab, Icon, label]) => (
+                  <button
+                    key={tab}
+                    onClick={() => setNotifTab(tab)}
+                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg flex-1 justify-center transition-colors ${
+                      notifTab === tab ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />{label}
                   </button>
+                ))}
+              </div>
+
+              {notifTab === 'overview' && <OverviewPanel />}
+              {notifTab === 'routing' && <RoutingPanel />}
+              {notifTab === 'reference' && (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <Info className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-700">Đây là sơ đồ tham chiếu chỉ đọc. Để chỉnh sửa người nhận của từng bước, hãy dùng tab <strong>Quy tắc định tuyến</strong>.</p>
+                  </div>
+                  <ReferenceFlowPanel />
                 </div>
-              </div>
-
-              {/* ─ Category toggles ─ */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <History className="w-5 h-5 text-teal-600" />Phân loại thông báo
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Object.entries(notifSettings.categories).map(([cat, enabled]) => (
-                    <div key={cat} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-700">{CATEGORY_LABELS[cat] || cat}</span>
-                      <button onClick={() => updateCategory(cat, !enabled)}>
-                        {enabled
-                          ? <ToggleRight className="w-7 h-7 text-blue-600" />
-                          : <ToggleLeft className="w-7 h-7 text-gray-400" />}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* ─ Order flow diagram ─ */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                  <ArrowRight className="w-5 h-5 text-orange-600" />Luồng thông báo quy trình đơn hàng
-                </h2>
-                <p className="text-sm text-gray-500 mb-5">Tổng quan các bước gửi thông báo từ khi tạo yêu cầu báo giá đến khi nhận phản hồi khách hàng. Admin luôn nhận thông báo ở mọi bước.</p>
-
-                <div className="space-y-2">
-                  {ORDER_FLOW_STEPS.map((step, idx) => {
-                    const rule = notifSettings.routingRules[step.event];
-                    const isExpanded = expandedRule === step.event;
-                    return (
-                      <div key={step.event} className="border border-gray-200 rounded-lg overflow-hidden">
-                        <div
-                          className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 ${step.color}`}
-                          onClick={() => setExpandedRule(isExpanded ? null : step.event)}
-                        >
-                          <span className="w-6 h-6 rounded-full bg-white/70 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {step.step}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{step.label}</p>
-                            <p className="text-xs opacity-70">Người thực hiện: {step.actor}</p>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <span className="text-xs bg-white/60 px-2 py-0.5 rounded-full hidden sm:block">
-                              → {step.recipients}
-                            </span>
-                            {rule && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); toggleRuleEnabled(step.event, !rule.enabled); }}
-                                title={rule.enabled ? 'Tắt thông báo bước này' : 'Bật thông báo bước này'}
-                              >
-                                {rule.enabled
-                                  ? <ToggleRight className="w-6 h-6" />
-                                  : <ToggleLeft className="w-6 h-6 opacity-50" />}
-                              </button>
-                            )}
-                            <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                          </div>
-                        </div>
-
-                        {isExpanded && rule && (
-                          <div className="p-4 bg-white border-t border-gray-100">
-                            <div className="flex items-start gap-2 mb-3">
-                              <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                              <p className="text-xs text-gray-600">
-                                Sự kiện: <code className="bg-gray-100 px-1 rounded">{step.event}</code>
-                                <span className="ml-2">• Trạng thái: </span>
-                                <span className={rule.enabled ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
-                                  {rule.enabled ? 'Đang bật' : 'Đang tắt'}
-                                </span>
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium text-gray-700 mb-2 flex items-center gap-1">
-                                <Users className="w-3.5 h-3.5" /> Người nhận hiện tại:
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {rule.recipients.map((r) => (
-                                  <span key={r.id} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-1 rounded-full">
-                                    {r.label}
-                                  </span>
-                                ))}
-                                {rule.recipients.length === 0 && (
-                                  <span className="text-xs text-gray-400 italic">Chưa cấu hình người nhận</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {idx < ORDER_FLOW_STEPS.length - 1 && (
-                          <div className="flex justify-center -my-1 relative z-10">
-                            <div className="w-0.5 h-4 bg-gray-300" />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <SaveButton onClick={handleSaveNotifications} saving={savingNotif} saved={savedNotif} />
-              </div>
+              )}
             </>
           )}
-        </>
+        </div>
+      )}
+
+      {/* ── Sticky save bar for notifications ── */}
+      {mainTab === 'notifications' && notifSettings && (
+        <div className={`fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${notifDirty ? 'translate-y-0' : 'translate-y-full'}`}>
+          <div className="max-w-5xl mx-auto px-6 pb-4">
+            <div className="bg-white border border-gray-200 shadow-lg rounded-xl px-5 py-3 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2 text-sm text-amber-700">
+                <AlertCircle className="w-4 h-4 text-amber-500" />
+                Có thay đổi chưa được lưu
+              </div>
+              {notifError && <p className="text-xs text-red-500">{notifError}</p>}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setNotifDirty(false); if (settings?.notificationSettings) setNotifSettings(settings.notificationSettings); }}
+                  className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2"
+                >
+                  Hoàn tác
+                </button>
+                <SaveBtn onClick={handleSaveNotifications} saving={savingNotif} saved={savedNotif} />
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 };
 
-export default SystemSettingsPage;
 
+export default SystemSettingsPage;

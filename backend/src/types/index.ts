@@ -114,3 +114,6 @@ export * from './notification.types';
 
 // Export overtime plan types
 export * from './overtimePlan.types';
+
+// Export system settings types
+export * from './systemSettings.types';
