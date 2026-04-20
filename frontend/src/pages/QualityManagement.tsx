@@ -114,10 +114,10 @@ const QualityManagement = () => {
   }
 
   const statCards = [
-    { label: 'Nhân viên', value: employeeTotal, sub: `Đang làm việc: ${employeeActive}`, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Quy trình', value: processTotal, sub: 'Tổng quy trình', icon: Settings, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Đánh giá chất lượng', value: evalTotal, sub: 'Tổng đánh giá', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { label: 'Kiểm tra nội bộ', value: inspectionTotal, sub: 'Tổng kiểm tra', icon: ClipboardList, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { label: 'Nhân viên', value: employeeTotal, sub: `Đang làm việc: ${employeeActive}`, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', link: '/quality/personnel' },
+    { label: 'Quy trình', value: processTotal, sub: 'Tổng quy trình', icon: Settings, color: 'text-green-600', bg: 'bg-green-50', link: '/quality/process' },
+    { label: 'Đánh giá chất lượng', value: evalTotal, sub: 'Tổng đánh giá', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-50', link: '/quality/production' },
+    { label: 'Kiểm tra nội bộ', value: inspectionTotal, sub: 'Tổng kiểm tra', icon: ClipboardList, color: 'text-orange-600', bg: 'bg-orange-50', link: '/quality/office' },
   ];
 
   return (
@@ -131,7 +131,9 @@ const QualityManagement = () => {
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           {statCards.map((card) => (
-            <div key={card.label} className="bg-white rounded-xl shadow-lg border-2 border-gray-300 p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200">
+            <div key={card.label} className="bg-white rounded-xl shadow-lg border-2 border-gray-300 p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 cursor-pointer"
+              onClick={() => window.location.href = card.link}
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className={`${card.bg} p-3 rounded-lg`}>
                   <card.icon className={`w-6 h-6 ${card.color}`} />

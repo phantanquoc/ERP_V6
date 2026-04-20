@@ -34,7 +34,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
   
   const allMenuItems = [
     {
-      path: '/',
+      path: '/dashboard',
       name: 'Dashboard',
       icon: <LayoutDashboard size={20} />,
       subItems: [],
@@ -156,11 +156,11 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
         <ul className="py-2">
           {menuItems.map((item) => (
             <li key={item.path} className="mb-1">
-              {(item.path === '/' || item.path === '/common') ? (
+              {(item.path === '/dashboard' || item.path === '/common') ? (
                 <Link
                   to={item.path}
                   className={`flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors ${
-                    location.pathname === item.path ? 'bg-gray-800 text-white' : ''
+                    location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/') ? 'bg-gray-800 text-white' : ''
                   }`}
                   title={collapsed ? item.name : ''}
                 >

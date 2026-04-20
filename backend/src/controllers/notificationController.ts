@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import notificationService from '@services/notificationService';
+import pushNotificationService from '@services/pushNotificationService';
 
 export class NotificationController {
   async getEmployeeNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -231,7 +232,86 @@ export class NotificationController {
       next(error);
     }
   }
+
+  // ---- Web Push endpoints ----
+
+  /**
+   * GET /api/notifications/push/vapid-public-key
+   * Returns the VAPID public key so the frontend can subscribe.
+   * No authentication required.
+   */
+  async getVapidPublicKey(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      res.json({
+        success: true,
+        data: { publicKey: process.env.VAPID_PUBLIC_KEY ?? '' },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/notifications/push/subscribe
+   * Saves a push subscription for the authenticated user.
+   * Body: { endpoint, keys: { p256dh, auth } }
+   */
+  async subscribePush(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const { endpoint, keys } = req.body ?? {};
+
+      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid subscription: endpoint, keys.p256dh, and keys.auth are required',
+        });
+        return;
+      }
+
+      await pushNotificationService.saveSubscription(userId, endpoint, keys.p256dh, keys.auth);
+
+      res.json({ success: true, message: 'Subscribed to push notifications' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * DELETE /api/notifications/push/unsubscribe
+   * Removes a push subscription for the authenticated user.
+   * Body: { endpoint }
+   */
+  async unsubscribePush(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const { endpoint } = req.body ?? {};
+
+      if (!endpoint) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid request: endpoint is required',
+        });
+        return;
+      }
+
+      await pushNotificationService.removeSubscription(userId, endpoint);
+
+      res.json({ success: true, message: 'Unsubscribed from push notifications' });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new NotificationController();
-

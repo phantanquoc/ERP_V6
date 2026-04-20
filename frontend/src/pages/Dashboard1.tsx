@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   ShoppingCart,
   ShieldCheck,
@@ -32,7 +32,6 @@ import PlanCombinedModal from "../components/PlanCombinedModal";
 import { overtimePlanService, OvertimePlanStatus } from "../services/overtimePlanService";
 import EmployeeSelfEvaluationModal from "../components/EmployeeSelfEvaluationModal";
 
-import notificationService, { Notification } from "../services/notificationService";
 import { useTasksCount, usePrivateFeedbackStats } from "../hooks";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { orderService } from "../services/orderService";
@@ -52,15 +51,17 @@ import supplyRequestService from "../services/supplyRequestService";
 import taxReportService from "../services/taxReportService";
 import qualityEvaluationService from "../services/qualityEvaluationService";
 import { workPlanService } from "../services/workPlanService";
+import employeeEvaluationService from "../services/employeeEvaluationService";
+import dailyWorkReportService from "../services/dailyWorkReportService";
 
 // Quick Stats for Overview
-const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0, overtimeCount: number = 0, overtimePendingCount: number = 0) => [
+const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0, overtimeCount: number = 0, overtimePendingCount: number = 0, evaluationPendingCount: number = 0, reportUnreadCount: number = 0) => [
   { label: "Mua hàng", value: purchaseRequestCount.toString(), change: `Chờ duyệt: ${purchaseRequestPendingCount}`, icon: <ShoppingCart className="h-4 w-4" />, color: "text-blue-600", bgColor: "bg-blue-50", clickable: true, type: 'purchaseRequests' },
   { label: "Nhiệm vụ", value: tasksCount.toString(), change: `${tasksCount} nhiệm vụ`, icon: <CheckSquare className="h-4 w-4" />, color: "text-green-600", bgColor: "bg-green-50", clickable: true, type: 'tasks' },
-  { label: "Kế hoạch", value: (workPlanCount + overtimeCount).toString(), change: `TC chờ duyệt: ${overtimePendingCount}`, icon: <Calendar className="h-4 w-4" />, color: overtimePendingCount > 0 ? "text-red-600" : "text-purple-600", bgColor: overtimePendingCount > 0 ? "bg-red-50" : "bg-purple-50", clickable: true, type: 'plans', hasNotification: overtimePendingCount > 0 },
+  { label: "Kế hoạch", value: (workPlanCount + overtimeCount).toString(), change: `TC chờ duyệt: ${overtimePendingCount}`, icon: <Calendar className="h-4 w-4" />, color: overtimePendingCount > 0 ? "text-red-600" : "text-purple-600", bgColor: overtimePendingCount > 0 ? "bg-red-50" : "bg-purple-50", clickable: true, type: 'plans' },
   { label: "Góp ý & KK", value: feedbackCount.toString(), change: `${feedbackCount} góp ý`, icon: <AlertTriangle className="h-4 w-4" />, color: "text-orange-600", bgColor: "bg-orange-50", clickable: true, type: 'feedbacks' },
-  { label: "Đánh giá", value: "Xem", change: "Đánh giá cấp dưới", icon: <Award className="h-4 w-4" />, color: "text-purple-600", bgColor: "bg-purple-50", clickable: true, type: 'evaluation' },
-  { label: "Báo cáo", value: "Xem", change: "Hàng ngày", icon: <FileText className="h-4 w-4" />, color: "text-teal-600", bgColor: "bg-teal-50", clickable: true, type: 'dailyReports' }
+  { label: "Đánh giá", value: "", change: `${evaluationPendingCount} chưa đánh giá`, icon: <Award className="h-4 w-4" />, color: "text-purple-600", bgColor: "bg-purple-50", clickable: true, type: 'evaluation' },
+  { label: "Báo cáo", value: "", change: `${reportUnreadCount} chưa xem`, icon: <FileText className="h-4 w-4" />, color: "text-teal-600", bgColor: "bg-teal-50", clickable: true, type: 'dailyReports' }
 ];
 
 // Component for Department Card
@@ -112,20 +113,11 @@ const DepartmentCard: React.FC<{
 const QuickStatCard: React.FC<{
   stat: any;
   onClick?: () => void;
-  notifCount?: number;
-}> = ({ stat, onClick, notifCount = 0 }) => (
+}> = ({ stat, onClick }) => (
   <div
-    className={`bg-white rounded-lg shadow-sm px-3 py-4 border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-100'} ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 transition-all' : ''} relative`}
+    className={`bg-white rounded-lg shadow-sm px-3 py-4 border border-gray-100 ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 transition-all' : ''} relative`}
     onClick={stat.clickable ? onClick : undefined}
   >
-    {stat.hasNotification && (
-      <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-    )}
-    {notifCount > 0 && !stat.hasNotification && (
-      <div className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 bg-red-500 rounded-full flex items-center justify-center">
-        <span className="text-[10px] font-bold text-white">{notifCount > 99 ? '99+' : notifCount}</span>
-      </div>
-    )}
     <div className="flex items-center gap-2.5">
       <div className={`p-2 rounded-lg ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0`}>
         {stat.icon}
@@ -167,23 +159,11 @@ const Dashboard1: React.FC = () => {
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
   const [approveLoading, setApproveLoading] = useState<string | null>(null);
-  const [unreadByType, setUnreadByType] = useState<Record<string, number>>({});
   const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<any | null>(null);
 
   const userIsAdmin = user ? isAdmin(user.department) : false;
   const { settings } = useSystemSettings();
   const activeTheme = settings?.activeTheme || 'DEFAULT';
-
-  // Load unread notification counts by type
-  useEffect(() => {
-    const loadUnreadByType = async () => {
-      const counts = await notificationService.getUnreadCountByType();
-      setUnreadByType(counts);
-    };
-    loadUnreadByType();
-    const interval = setInterval(loadUnreadByType, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Use React Query hooks for data fetching with caching
   const { data: tasksCount = 0 } = useTasksCount();
@@ -318,6 +298,20 @@ const Dashboard1: React.FC = () => {
     enabled: userIsAdmin,
   });
 
+  const { data: evaluationPendingCount = 0 } = useQuery({
+    queryKey: ['dashboard', 'evaluationPendingCount'],
+    queryFn: () => employeeEvaluationService.getPendingCount(),
+    enabled: userIsAdmin,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const { data: reportUnreadCount = 0 } = useQuery({
+    queryKey: ['dashboard', 'reportSubmittedCount'],
+    queryFn: () => dailyWorkReportService.getSubmittedCount(),
+    enabled: userIsAdmin,
+    staleTime: 2 * 60 * 1000,
+  });
+
   // Compute department stats from real data
   const orders = ordersData?.data || [];
   const quotations = quotationsData?.data || [];
@@ -383,18 +377,7 @@ const Dashboard1: React.FC = () => {
 
   // Nếu là admin, hiển thị Admin Dashboard
   const departmentName = getDepartmentDisplayName(user.department);
-  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, overtimeCount, overtimePendingCount);
-
-  // Map stat type to unread notification count
-  const getNotifCount = (type: string): number => {
-    switch (type) {
-      case 'tasks': return unreadByType['TASK'] || 0;
-      case 'plans': return (unreadByType['OVERTIME_PLAN'] || 0) + (unreadByType['OVERTIME_PLAN_APPROVAL'] || 0);
-      case 'evaluation': return (unreadByType['EVALUATION'] || 0) + (unreadByType['EVALUATION_SUPERVISOR1'] || 0) + (unreadByType['EVALUATION_SUPERVISOR2'] || 0) + (unreadByType['EVALUATION_COMPLETED'] || 0);
-      case 'purchaseRequests': return (unreadByType['SUPPLY_REQUEST'] || 0) + (unreadByType['SUPPLY_REQUEST_PROCESSING'] || 0) + (unreadByType['SUPPLY_REQUEST_APPROVED'] || 0) + (unreadByType['SUPPLY_REQUEST_FULFILLED'] || 0);
-      default: return 0;
-    }
-  };
+  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, overtimeCount, overtimePendingCount, evaluationPendingCount, reportUnreadCount);
 
   const departmentStats = {
     general: {
@@ -493,7 +476,6 @@ const Dashboard1: React.FC = () => {
             <QuickStatCard
               key={index}
               stat={stat}
-              notifCount={getNotifCount(stat.type)}
               onClick={stat.clickable ? () => {
                 if (stat.type === 'tasks') {
                   setIsTaskListModalOpen(true);

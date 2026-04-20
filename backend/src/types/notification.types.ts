@@ -20,6 +20,10 @@ export const NotificationType = {
   SUPPLY_REQUEST_REJECTED: 'SUPPLY_REQUEST_REJECTED',
   SUPPLY_REQUEST_FULFILLED: 'SUPPLY_REQUEST_FULFILLED',
   PASSWORD_RESET: 'PASSWORD_RESET',
+  TASK_ADMIN: 'TASK_ADMIN',
+  PRIVATE_FEEDBACK: 'PRIVATE_FEEDBACK',
+  DAILY_WORK_REPORT: 'DAILY_WORK_REPORT',
+  WORK_PLAN: 'WORK_PLAN',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];

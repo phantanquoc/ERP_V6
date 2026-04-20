@@ -17,6 +17,7 @@ import Modal from './Modal';
 import dailyWorkReportService, { DailyWorkReport } from '../services/dailyWorkReportService';
 import DailyWorkReportModal from './DailyWorkReportModal';
 import { getFileUrl } from '../config/api';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface DailyWorkReportListModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
   onClose,
   isAdmin = false,
 }) => {
+  const queryClient = useQueryClient();
   const [reports, setReports] = useState<DailyWorkReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -37,19 +39,21 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
   const [selectedReport, setSelectedReport] = useState<DailyWorkReport | null>(null);
   const [viewReport, setViewReport] = useState<DailyWorkReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
   useEffect(() => {
     if (isOpen) {
       loadReports();
     }
-  }, [isOpen, page]);
+  }, [isOpen, page, filterStatus]);
 
   const loadReports = async () => {
     try {
       setLoading(true);
       setError(null);
+      const statusParam = filterStatus === 'ALL' ? undefined : filterStatus;
       const response = isAdmin
-        ? await dailyWorkReportService.getAllReports(page, 5)
+        ? await dailyWorkReportService.getAllReports(page, 5, statusParam)
         : await dailyWorkReportService.getMyReports(page, 5);
       setReports(response.data);
       setTotalPages(response.pagination.totalPages);
@@ -66,8 +70,18 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
     setIsCreateModalOpen(true);
   };
 
-  const handleView = (report: DailyWorkReport) => {
+  const handleView = async (report: DailyWorkReport) => {
     setViewReport(report);
+    // Auto-mark as REVIEWED when admin views a SUBMITTED report
+    if (isAdmin && report.status === 'SUBMITTED') {
+      try {
+        await dailyWorkReportService.updateReport(report.id, { status: 'REVIEWED' });
+        loadReports();
+        queryClient.invalidateQueries({ queryKey: ['dashboard', 'reportSubmittedCount'] });
+      } catch (error) {
+        console.error('Error marking report as reviewed:', error);
+      }
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -124,6 +138,29 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
 
           {/* Content */}
           <div className="p-6 max-h-[calc(90vh-80px)] overflow-y-auto">
+            {/* Filter Tabs */}
+            {isAdmin && (
+              <div className="flex gap-2 mb-4">
+                {[
+                  { key: 'ALL', label: 'Tất cả' },
+                  { key: 'SUBMITTED', label: 'Chưa xem' },
+                  { key: 'REVIEWED', label: 'Đã xem' },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => { setFilterStatus(tab.key); setPage(1); }}
+                    className={`text-sm px-4 py-1.5 rounded-full transition-colors ${
+                      filterStatus === tab.key
+                        ? 'bg-green-100 text-green-700 font-medium'
+                        : 'text-gray-500 hover:bg-gray-100'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Error Message */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">

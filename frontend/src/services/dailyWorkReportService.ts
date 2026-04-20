@@ -74,11 +74,11 @@ export interface ReportStatistics {
 }
 
 class DailyWorkReportService {
-  async getAllReports(page: number = 1, limit: number = 10): Promise<any> {
+  async getAllReports(page: number = 1, limit: number = 10, status?: string): Promise<any> {
     try {
-      const response = await apiClient.get('/daily-work-reports', {
-        params: { page, limit },
-      });
+      const params: any = { page, limit };
+      if (status) params.status = status;
+      const response = await apiClient.get('/daily-work-reports', { params });
       return response;
     } catch (error: any) {
       throw new Error(error instanceof Error ? error.message : 'Không thể tải báo cáo');
@@ -167,6 +167,15 @@ class DailyWorkReportService {
        await apiClient.delete(`/daily-work-reports/${id}`);
     } catch (error: any) {
        throw new Error(error instanceof Error ? error.message : 'Không thể xóa báo cáo');
+    }
+  }
+
+  async getSubmittedCount(): Promise<number> {
+    try {
+      const response = await apiClient.get('/daily-work-reports/submitted-count');
+      return response.data?.count ?? 0;
+    } catch (error: any) {
+      throw new Error(error instanceof Error ? error.message : 'Không thể tải số báo cáo');
     }
   }
 }

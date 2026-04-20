@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import notificationService, { Notification } from '@services/notificationService';
+import notificationService, { AppNotification } from '@services/notificationService';
 import { getNotificationIcon } from '../utils/notificationIcons';
 
 interface AllNotificationsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onNotificationClick: (notification: Notification) => void;
+  onNotificationClick: (notification: AppNotification) => void;
 }
 
 const ITEMS_PER_PAGE = 10;
 
 const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, onClose, onNotificationClick }) => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -39,12 +40,16 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
     }
   };
 
-  const handleClick = (notification: Notification) => {
+  const handleClick = (notification: AppNotification) => {
     onNotificationClick(notification);
   };
 
-  const totalPages = Math.ceil(notifications.length / ITEMS_PER_PAGE);
-  const paginatedNotifications = notifications.slice(
+  const displayedNotifications = showUnreadOnly
+    ? notifications.filter(n => !n.isRead)
+    : notifications;
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const totalPages = Math.ceil(displayedNotifications.length / ITEMS_PER_PAGE);
+  const paginatedNotifications = displayedNotifications.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
@@ -60,11 +65,35 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
             <Bell className="w-6 h-6 text-white" />
             <div>
               <h2 className="text-xl font-bold text-white">Tất cả thông báo</h2>
-              <p className="text-blue-100 text-sm">Trong 1 tháng gần nhất · {notifications.length} thông báo</p>
+              <p className="text-blue-100 text-sm">Trong 1 tháng gần nhất · {displayedNotifications.length} thông báo</p>
             </div>
           </div>
           <button onClick={onClose} className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors">
             <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-1 px-6 py-2 border-b border-gray-200 bg-white">
+          <button
+            onClick={() => { setShowUnreadOnly(false); setCurrentPage(1); }}
+            className={`text-sm px-4 py-1.5 rounded-full transition-colors ${
+              !showUnreadOnly
+                ? 'bg-blue-100 text-blue-700 font-medium'
+                : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            Tất cả
+          </button>
+          <button
+            onClick={() => { setShowUnreadOnly(true); setCurrentPage(1); }}
+            className={`text-sm px-4 py-1.5 rounded-full transition-colors ${
+              showUnreadOnly
+                ? 'bg-blue-100 text-blue-700 font-medium'
+                : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            Chưa đọc {unreadCount > 0 && `(${unreadCount})`}
           </button>
         </div>
 
@@ -75,11 +104,11 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
               <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
               <p className="mt-4 text-gray-600">Đang tải thông báo...</p>
             </div>
-          ) : notifications.length === 0 ? (
+          ) : displayedNotifications.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
               <Bell className="w-16 h-16 mx-auto mb-3 text-gray-300" />
-              <p className="text-lg font-medium">Không có thông báo</p>
-              <p className="text-sm mt-1">Trong 1 tháng gần nhất không có thông báo nào</p>
+              <p className="text-lg font-medium">{showUnreadOnly ? 'Không có thông báo chưa đọc' : 'Không có thông báo'}</p>
+              <p className="text-sm mt-1">{showUnreadOnly ? 'Tất cả thông báo đã được đọc' : 'Trong 1 tháng gần nhất không có thông báo nào'}</p>
             </div>
           ) : (
             paginatedNotifications.map(notification => (

@@ -4,6 +4,7 @@ import { CreateTaskRequest, UpdateTaskRequest, TaskListQuery, TaskPriority, Task
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import { Task } from '@prisma/client';
 import notificationService from './notificationService';
+import pushNotificationService from './pushNotificationService';
 
 class TaskService {
   // Helper function to populate task with user information
@@ -122,6 +123,25 @@ class TaskService {
     } catch (error) {
       logger.error('❌ Error sending task notifications:', error);
       // Don't fail the task creation if notification fails
+    }
+
+    // Notify admin about new task (who assigned what to whom)
+    try {
+      const assignerName = `${nguoiGiao.firstName} ${nguoiGiao.lastName}`;
+      const nguoiNhanUsers = await prisma.user.findMany({
+        where: { id: { in: nguoiNhanUserIds } },
+        select: { firstName: true, lastName: true },
+      });
+      const recipientNames = nguoiNhanUsers.map(u => `${u.firstName} ${u.lastName}`).join(', ');
+      await notificationService.createAdminTaskNotification(
+        data.noiDung,
+        assignerName,
+        task.id,
+        nguoiGiaoId,
+        recipientNames
+      );
+    } catch (error) {
+      logger.error('Error sending admin task notification:', error);
     }
 
     return task;
@@ -341,6 +361,44 @@ class TaskService {
         noiDungDanhGia: data.noiDungDanhGia || null,
       },
     });
+
+    // Notify recipients about evaluation
+    try {
+      const nguoiGiao = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true },
+      });
+      const evaluatorName = nguoiGiao ? `${nguoiGiao.firstName} ${nguoiGiao.lastName}` : 'Người giao';
+
+      // Get employee IDs from user IDs in nguoiNhanIds
+      const recipientEmployees = await prisma.employee.findMany({
+        where: { userId: { in: task.nguoiNhanIds } },
+        select: { id: true },
+      });
+
+      const title = 'Nhiệm vụ đã được đánh giá';
+      const message = `${evaluatorName} đã đánh giá nhiệm vụ: "${task.noiDung}". Điểm: ${data.diemDanhGia}/100`;
+
+      if (recipientEmployees.length > 0) {
+        const notifData = recipientEmployees.map(emp => ({
+          employeeId: emp.id,
+          type: 'TASK' as const,
+          title,
+          message,
+          taskId: taskId,
+          isRead: false,
+        }));
+        await prisma.notification.createMany({ data: notifData });
+
+        await Promise.allSettled(
+          recipientEmployees.map(emp =>
+            pushNotificationService.sendPushToEmployee(emp.id, title, message).catch(() => {})
+          )
+        );
+      }
+    } catch (error) {
+      logger.error('Error sending task evaluation notification:', error);
+    }
 
     return this.populateTaskWithUsers(updatedTask);
   }

@@ -11,3 +11,10 @@ createRoot(document.getElementById('root')!).render(
     </QueryProvider>
   </StrictMode>,
 )
+
+// Register service worker for Web Push Notifications.
+// Registration happens unconditionally so the SW is always installed early.
+// The subscribe/unsubscribe (permission-gated) flow lives in NotificationBell.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(console.error);
+}

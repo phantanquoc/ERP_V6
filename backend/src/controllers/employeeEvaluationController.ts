@@ -158,6 +158,19 @@ export class EmployeeEvaluationController {
     }
   }
 
+  async getPendingCount(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const now = new Date();
+      const month = now.getMonth() + 1;
+      const year = now.getFullYear();
+      const userId = req.user?.id;
+      const count = await employeeEvaluationService.getPendingEvaluationCount(userId!, month, year);
+      res.json({ success: true, data: { count } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getSubordinatesForEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { month, year } = req.params;

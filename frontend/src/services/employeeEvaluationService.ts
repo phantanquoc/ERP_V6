@@ -170,6 +170,15 @@ class EmployeeEvaluationService {
     }
   }
 
+  async getPendingCount(): Promise<number> {
+    try {
+      const response = await apiClient.get('/employee-evaluations/pending-count');
+      return response.data?.count ?? 0;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   async getSubordinatesForEvaluation(month: number, year: number): Promise<any[]> {
     try {
       const response = await apiClient.get(

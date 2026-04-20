@@ -1,8 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, X, CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign, PackageCheck, CalendarDays, ShoppingCart, Truck, FileText } from 'lucide-react';
-import notificationService, { Notification } from '@services/notificationService';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, X, BellOff, MoreVertical, Trash2 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import notificationService, { AppNotification } from '@services/notificationService';
+import pushNotificationService from '@services/pushNotificationService';
 import { useAuth } from '../contexts/AuthContext';
-import { UserRole } from '../types/auth';
+import { getNotificationIcon } from '../utils/notificationIcons';
 import TaskListModal from './TaskListModal';
 import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
 import AllNotificationsModal from './AllNotificationsModal';
@@ -10,88 +13,28 @@ import EmployeePayrollModal from './EmployeePayrollModal';
 import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import OvertimePlanListModal from './OvertimePlanListModal';
-import MeetingModal from './MeetingModal';
-import { meetingService, Meeting } from '../services/meetingService';
 import FeedbackListModal from './FeedbackListModal';
-import SupplyAdjustmentModal from './SupplyAdjustmentModal';
-import OrderDetailModal from './OrderDetailModal';
-import PurchaseRequestDetailModal from './PurchaseRequestDetailModal';
-import WorkPlanDetailModal from './WorkPlanDetailModal';
-import DailyWorkReportDetailModal from './DailyWorkReportDetailModal';
+import DailyWorkReportListModal from './DailyWorkReportListModal';
 
-/**
- * Returns a human-readable relative time string in Vietnamese.
- * e.g. "2 phút trước", "1 giờ trước", "Hôm nay", "Hôm qua"
- */
-function getRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMinutes = Math.floor(diffMs / 60_000);
-  const diffHours = Math.floor(diffMs / 3_600_000);
-  const diffDays = Math.floor(diffMs / 86_400_000);
+// Whether the current browser environment supports Web Push
+const pushSupported =
+  typeof window !== 'undefined' &&
+  'serviceWorker' in navigator &&
+  'PushManager' in window;
 
-  if (diffMinutes < 1) return 'Vừa xong';
-  if (diffMinutes < 60) return `${diffMinutes} phút trước`;
-  if (diffHours < 24) return `${diffHours} giờ trước`;
-  if (diffDays === 1) return 'Hôm qua';
-  if (diffDays < 7) return `${diffDays} ngày trước`;
-
-  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-/**
- * Groups notifications by date: "Hôm nay", "Hôm qua", or "Trước đó"
- */
-function groupByDate(notifications: Notification[]): Array<{ label: string; items: Notification[] }> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  const groups: Array<{ label: string; items: Notification[] }> = [];
-  const todayItems: Notification[] = [];
-  const yesterdayItems: Notification[] = [];
-  const earlierItems: Notification[] = [];
-
-  for (const n of notifications) {
-    const notifDate = new Date(n.createdAt);
-    notifDate.setHours(0, 0, 0, 0);
-
-    if (notifDate.getTime() === today.getTime()) {
-      todayItems.push(n);
-    } else if (notifDate.getTime() === yesterday.getTime()) {
-      yesterdayItems.push(n);
-    } else {
-      earlierItems.push(n);
-    }
-  }
-
-  if (todayItems.length > 0) groups.push({ label: 'Hôm nay', items: todayItems });
-  if (yesterdayItems.length > 0) groups.push({ label: 'Hôm qua', items: yesterdayItems });
-  if (earlierItems.length > 0) groups.push({ label: 'Trước đó', items: earlierItems });
-
-  return groups;
-}
-
-/**
- * Returns a navigation link for clicking on a notification.
- * Returns null if no specific link is available.
- */
-const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: Notification) => void }) => {
-  const { user, subscribeToNotifications } = useAuth();
-  // isAdmin = role is ADMIN or MANAGER (DEPARTMENT_HEAD / TEAM_LEAD are mapped to MANAGER)
-  const userIsAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (notification: AppNotification) => void }) => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const userIsAdmin = user?.role === 'admin';
   const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
-  const [selectedEvaluationNotification, setSelectedEvaluationNotification] = useState<Notification | null>(null);
+  const [selectedEvaluationNotification, setSelectedEvaluationNotification] = useState<AppNotification | null>(null);
   const [isAllNotificationsOpen, setIsAllNotificationsOpen] = useState(false);
   const [isPayrollModalOpen, setIsPayrollModalOpen] = useState(false);
-  const [selectedPayrollNotification, setSelectedPayrollNotification] = useState<Notification | null>(null);
+  const [selectedPayrollNotification, setSelectedPayrollNotification] = useState<AppNotification | null>(null);
   const [isAcceptanceModalOpen, setIsAcceptanceModalOpen] = useState(false);
   const [selectedAcceptanceHandoverId, setSelectedAcceptanceHandoverId] = useState<string | null>(null);
   const [selectedAcceptanceMessage, setSelectedAcceptanceMessage] = useState<string | undefined>(undefined);
@@ -99,64 +42,62 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedLeaveRequestId, setSelectedLeaveRequestId] = useState<string | null>(null);
   const [selectedLeaveRequestMessage, setSelectedLeaveRequestMessage] = useState<string | undefined>(undefined);
   const [isOvertimePlanModalOpen, setIsOvertimePlanModalOpen] = useState(false);
-  const [selectedOvertimePlanId, setSelectedOvertimePlanId] = useState<string | null>(null);
-  const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
-  const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
-  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
-  const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
-  const [isSupplyAdjustmentModalOpen, setIsSupplyAdjustmentModalOpen] = useState(false);
-  const [selectedSupplyAdjustmentId, setSelectedSupplyAdjustmentId] = useState<string | null>(null);
-  const [isOrderDetailModalOpen, setIsOrderDetailModalOpen] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [isPurchaseRequestModalOpen, setIsPurchaseRequestModalOpen] = useState(false);
-  const [selectedPurchaseRequestId, setSelectedPurchaseRequestId] = useState<string | null>(null);
-  const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState(false);
-  const [selectedWorkPlanId, setSelectedWorkPlanId] = useState<string | null>(null);
-  const [isDailyWorkReportModalOpen, setIsDailyWorkReportModalOpen] = useState(false);
-  const [selectedDailyWorkReportId, setSelectedDailyWorkReportId] = useState<string | null>(null);
+  const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
+  const [isDailyReportListModalOpen, setIsDailyReportListModalOpen] = useState(false);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
-  // Maximum notifications to show in the dropdown
-  const MAX_SHOWN = 50;
+  // Web Push state
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushDeniedMessage, setPushDeniedMessage] = useState('');
 
-  // Ref for scroll container — used to auto-scroll to top on new notifications
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const loadNotifications = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await notificationService.getEmployeeNotifications(MAX_SHOWN);
-      setNotifications(data);
-    } catch (error) {
-      console.error('Error loading notifications:', error);
-    } finally {
-      setLoading(false);
-    }
+  // Initialise push enabled state on mount
+  useEffect(() => {
+    if (!pushSupported) return;
+    pushNotificationService.isSubscribed().then(setPushEnabled).catch(() => {});
   }, []);
 
-  // Load on mount + WS subscription + 20-second polling fallback
-  useEffect(() => {
-    loadNotifications();
-
-    // WS push: refresh when backend sends a notification event
-    const unsubscribe = subscribeToNotifications((_notification) => {
-      loadNotifications();
-    });
-
-    // Polling fallback (20 s) — fires even when WS is unavailable
-    const interval = setInterval(loadNotifications, 20_000);
-
-    return () => {
-      unsubscribe();
-      clearInterval(interval);
-    };
-  }, [subscribeToNotifications, loadNotifications]);
-
-  // Refresh immediately whenever the dropdown is opened
-  useEffect(() => {
-    if (isOpen) {
-      loadNotifications();
+  const handlePushToggle = async () => {
+    if (pushLoading) return;
+    setPushDeniedMessage('');
+    setPushLoading(true);
+    try {
+      if (pushEnabled) {
+        await pushNotificationService.unsubscribeFromPush();
+        setPushEnabled(false);
+      } else {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          await pushNotificationService.subscribeToPush();
+          setPushEnabled(true);
+        } else {
+          setPushDeniedMessage('Vui lòng cho phép thông báo trong cài đặt trình duyệt');
+        }
+      }
+    } catch (error) {
+      console.error('[NotificationBell] Push toggle error:', error);
+    } finally {
+      setPushLoading(false);
     }
-  }, [isOpen, loadNotifications]);
+  };
+
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ['notifications', 'unreadCount'],
+    queryFn: () => notificationService.getUnreadCount(),
+    refetchInterval: 10000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: notifications = [], isFetching: loading } = useQuery({
+    queryKey: ['notifications', 'recent', showUnreadOnly],
+    queryFn: () => showUnreadOnly
+      ? notificationService.getUnreadNotifications()
+      : notificationService.getEmployeeNotifications(20),
+    enabled: isOpen,
+    staleTime: 0,
+  });
 
   // Auto-scroll to top when notifications list updates while dropdown is open
   useEffect(() => {
@@ -168,20 +109,28 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const markAsRead = async (notificationId: string) => {
     try {
       await notificationService.markAsRead(notificationId);
-      setNotifications(notifications.map(n =>
-        n.id === notificationId ? { ...n, isRead: true } : n
-      ));
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'unreadCount'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'unreadCountByType'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'recent'] });
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
   };
 
-  const handleNotificationClick = (notification: Notification) => {
-    markAsRead(notification.id);
+  const handleDeleteNotification = async (e: React.MouseEvent, notificationId: string) => {
+    e.stopPropagation();
+    setMenuOpenId(null);
+    try {
+      await notificationService.deleteNotification(notificationId);
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
+  };
 
-    // Open contextual modals for certain notification types
-    if (notification.type === 'TASK') {
-      setSelectedTaskId(notification.taskId || null);
+  const handleNotificationClick = (notification: AppNotification) => {
+    markAsRead(notification.id);
+    if (notification.type === 'TASK' || notification.type === 'TASK_ADMIN') {
       setIsTaskListModalOpen(true);
     } else if (['EVALUATION', 'EVALUATION_SUPERVISOR1', 'EVALUATION_SUPERVISOR2', 'EVALUATION_COMPLETED'].includes(notification.type)) {
       setSelectedEvaluationNotification(notification);
@@ -193,227 +142,206 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setSelectedAcceptanceHandoverId(notification.acceptanceHandoverId || null);
       setSelectedAcceptanceMessage(notification.message);
       setIsAcceptanceModalOpen(true);
-    } else if (notification.type === 'LEAVE_REQUEST' || notification.type === 'LEAVE_REQUEST_RESPONSE') {
+    } else if (notification.type === 'LEAVE_REQUEST') {
+      setSelectedLeaveRequestId(notification.leaveRequestId || null);
+      setSelectedLeaveRequestMessage(notification.message);
+      setIsLeaveRequestModalOpen(true);
+    } else if (notification.type === 'LEAVE_REQUEST_RESPONSE') {
+      // NV xem kết quả đơn nghỉ phép — mở modal xem đơn của mình
       setSelectedLeaveRequestId(notification.leaveRequestId || null);
       setSelectedLeaveRequestMessage(notification.message);
       setIsLeaveRequestModalOpen(true);
     } else if (notification.type === 'OVERTIME_PLAN' || notification.type === 'OVERTIME_PLAN_APPROVAL') {
-      setSelectedOvertimePlanId(notification.overtimePlanId || null);
       setIsOvertimePlanModalOpen(true);
-    } else if (['MEETING_CREATED', 'MEETING_UPDATED', 'MEETING_CANCELLED', 'MEETING_REMINDER'].includes(notification.type)) {
-      if (notification.meetingId) {
-        meetingService.getById(notification.meetingId)
-          .then(meeting => { setSelectedMeeting(meeting); setIsMeetingModalOpen(true); })
-          .catch(() => {});
-      }
+    } else if (['SUPPLY_REQUEST', 'SUPPLY_REQUEST_PROCESSING', 'SUPPLY_REQUEST_APPROVED', 'SUPPLY_REQUEST_FULFILLED'].includes(notification.type)) {
+      // Navigate đến trang quản lý yêu cầu cung ứng
+      navigate('/production/warehouse');
     } else if (notification.type === 'PRIVATE_FEEDBACK') {
-      setSelectedFeedbackId(notification.privateFeedbackId || null);
-      setIsFeedbackModalOpen(true);
-    } else if (['SUPPLY_ADJUSTMENT_CREATED', 'SUPPLY_ADJUSTMENT_APPROVED', 'SUPPLY_ADJUSTMENT_REJECTED'].includes(notification.type)) {
-      setSelectedSupplyAdjustmentId(notification.supplyAdjustmentId || null);
-      setIsSupplyAdjustmentModalOpen(true);
-    } else if (notification.type === 'ORDER') {
-      setSelectedOrderId(notification.orderId || null);
-      setIsOrderDetailModalOpen(true);
-    } else if (notification.type === 'PURCHASE_REQUEST') {
-      setSelectedPurchaseRequestId(notification.purchaseRequestId || null);
-      setIsPurchaseRequestModalOpen(true);
-    } else if (notification.type === 'WORK_PLAN') {
-      setSelectedWorkPlanId(notification.workPlanId || null);
-      setIsWorkPlanModalOpen(true);
+      setIsFeedbackListModalOpen(true);
     } else if (notification.type === 'DAILY_WORK_REPORT') {
-      setSelectedDailyWorkReportId(notification.dailyWorkReportId || null);
-      setIsDailyWorkReportModalOpen(true);
+      setIsDailyReportListModalOpen(true);
     }
-
+    // PASSWORD_RESET: chỉ mark read, không cần mở gì
     if (onNotificationClick) {
       onNotificationClick(notification);
     }
     setIsOpen(false);
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'EVALUATION':
-        return <ClipboardList className="w-4 h-4 text-orange-600" />;
-      case 'EVALUATION_SUPERVISOR1':
-      case 'EVALUATION_SUPERVISOR2':
-        return <Clock className="w-4 h-4 text-blue-600" />;
-      case 'EVALUATION_COMPLETED':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'TASK':
-        return <Target className="w-4 h-4 text-indigo-600" />;
-      case 'PAYROLL':
-        return <DollarSign className="w-4 h-4 text-green-600" />;
-      case 'ACCEPTANCE_HANDOVER':
-        return <PackageCheck className="w-4 h-4 text-teal-600" />;
-      case 'LEAVE_REQUEST':
-      case 'LEAVE_REQUEST_RESPONSE':
-        return <CalendarDays className="w-4 h-4 text-purple-600" />;
-      case 'OVERTIME_PLAN':
-      case 'OVERTIME_PLAN_APPROVAL':
-        return <Clock className="w-4 h-4 text-orange-600" />;
-      case 'ORDER':
-        return <ShoppingCart className="w-4 h-4 text-blue-600" />;
-      case 'SUPPLY_REQUEST':
-        return <ShoppingCart className="w-4 h-4 text-yellow-600" />;
-      case 'WAREHOUSE_RECEIPT':
-        return <Truck className="w-4 h-4 text-gray-600" />;
-      case 'MEETING_CREATED':
-      case 'MEETING_UPDATED':
-      case 'MEETING_CANCELLED':
-      case 'MEETING_REMINDER':
-        return <CalendarDays className="w-4 h-4 text-red-600" />;
-      case 'SUPPLY_ADJUSTMENT_CREATED':
-      case 'SUPPLY_ADJUSTMENT_APPROVED':
-      case 'SUPPLY_ADJUSTMENT_REJECTED':
-        return <ShoppingCart className="w-4 h-4 text-emerald-600" />;
-      case 'PURCHASE_REQUEST':
-        return <ShoppingCart className="w-4 h-4 text-teal-600" />;
-      case 'WORK_PLAN':
-        return <ClipboardList className="w-4 h-4 text-violet-600" />;
-      case 'DAILY_WORK_REPORT':
-        return <FileText className="w-4 h-4 text-cyan-600" />;
-      default:
-        return <AlertCircle className="w-4 h-4 text-gray-600" />;
-    }
-  };
-
-  // Group notifications by date
-  const groupedNotifications = groupByDate(notifications);
-
   return (
     <>
-      <div className="relative">
-        {/* Bell Button */}
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
-          title="Thông báo"
-        >
-          <Bell className="w-6 h-6" />
-          {unreadCount > 0 && (
-            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </button>
+    <div className="relative">
+      {/* Bell Button */}
+      <button
+        onClick={() => { setIsOpen(!isOpen); }}
+        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+        title="Thông báo"
+      >
+        <Bell className="w-6 h-6" />
+        {unreadCount > 0 && (
+          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
 
-        {/* Notification Dropdown */}
-        {isOpen && (
-          <div className="absolute right-0 mt-2 w-[22rem] bg-white rounded-lg shadow-2xl z-50 max-h-[42rem] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
-              <h3 className="text-lg font-bold text-gray-800">Thông báo</h3>
-              <div className="flex items-center gap-2">
-                {unreadCount > 0 && (
-                  <button
-                    onClick={async () => {
-                      await notificationService.markAllAsRead();
-                      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
-                    }}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                  >
-                    Đánh dấu tất cả đã đọc
-                  </button>
-                )}
+      {/* Notification Dropdown */}
+      {isOpen && (
+        <div className="fixed inset-x-0 top-14 mx-auto sm:absolute sm:inset-auto sm:right-0 sm:top-auto sm:mt-2 w-[calc(100vw-1rem)] sm:w-96 max-w-md bg-white rounded-lg shadow-2xl z-50 max-h-[80vh] sm:max-h-96 overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
+            <h3 className="text-lg font-bold text-gray-800">Thông báo</h3>
+            <div className="flex items-center gap-2">
+              {/* Push notification toggle — only rendered in supported browsers */}
+              {pushSupported && (
                 <button
-                  onClick={() => setIsOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  onClick={handlePushToggle}
+                  disabled={pushLoading}
+                  title={pushEnabled ? 'Tắt thông báo đẩy' : 'Bật thông báo đẩy'}
+                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full border transition-colors ${
+                    pushLoading
+                      ? 'opacity-50 cursor-not-allowed border-gray-300 text-gray-400'
+                      : pushEnabled
+                      ? 'border-blue-500 text-blue-600 hover:bg-blue-50'
+                      : 'border-gray-300 text-gray-500 hover:bg-gray-100'
+                  }`}
                 >
-                  <X className="w-5 h-5" />
+                  {pushEnabled ? (
+                    <Bell className="w-3 h-3" />
+                  ) : (
+                    <BellOff className="w-3 h-3" />
+                  )}
+                  {pushEnabled ? 'Tắt thông báo đẩy' : 'Bật thông báo đẩy'}
                 </button>
-              </div>
-            </div>
-
-            {/* Notifications List — grouped by date */}
-            <div ref={scrollRef} className="overflow-y-auto flex-1">
-              {loading ? (
-                <div className="p-8 text-center text-gray-500">Đang tải...</div>
-              ) : notifications.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
-                  <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>Không có thông báo</p>
-                </div>
-              ) : (
-                <>
-                  {groupedNotifications.map(group => (
-                    <div key={group.label}>
-                      {/* Group header */}
-                      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          {group.label}
-                        </span>
-                      </div>
-
-                      {group.items.map(notification => {
-                        const content = (
-                          <div
-                            className={`p-4 border-b border-gray-100 cursor-pointer transition-colors ${
-                              notification.isRead
-                                ? 'bg-white hover:bg-gray-50'
-                                : 'bg-blue-50 hover:bg-blue-100'
-                            }`}
-                          >
-                            <div className="flex gap-3">
-                              <div className="flex-shrink-0 mt-1">
-                                {getNotificationIcon(notification.type)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-900">
-                                  {notification.title}
-                                </p>
-                                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                                  {notification.message}
-                                </p>
-                                <p className="text-xs text-gray-400 mt-2">
-                                  {getRelativeTime(notification.createdAt)}
-                                </p>
-                              </div>
-                              {!notification.isRead && (
-                                <div className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full mt-2" />
-                              )}
-                            </div>
-                          </div>
-                        );
-
-                        return (
-                          <div
-                            key={notification.id}
-                            onClick={() => handleNotificationClick(notification)}
-                          >
-                            {content}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </>
               )}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
+          </div>
 
-            {/* Footer */}
-            {notifications.length > 0 && (
-              <div className="p-3 border-t border-gray-200 bg-gray-50 text-center">
-                <button
-                  onClick={() => { setIsOpen(false); setIsAllNotificationsOpen(true); }}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  Xem tất cả thông báo
-                </button>
+          {/* Permission denied message */}
+          {pushDeniedMessage && (
+            <div className="px-4 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-200">
+              {pushDeniedMessage}
+            </div>
+          )}
+
+          {/* Filter tabs */}
+          <div className="flex gap-1 px-4 py-2 border-b border-gray-200 bg-white">
+            <button
+              onClick={() => setShowUnreadOnly(false)}
+              className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                !showUnreadOnly
+                  ? 'bg-blue-100 text-blue-700 font-medium'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              Tất cả
+            </button>
+            <button
+              onClick={() => setShowUnreadOnly(true)}
+              className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                showUnreadOnly
+                  ? 'bg-blue-100 text-blue-700 font-medium'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              Chưa đọc {unreadCount > 0 && `(${unreadCount})`}
+            </button>
+          </div>
+
+          {/* Notifications List */}
+          <div ref={scrollRef} className="overflow-y-auto flex-1">
+            {loading ? (
+              <div className="p-4 text-center text-gray-500">Đang tải...</div>
+            ) : notifications.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                <p>{showUnreadOnly ? 'Không có thông báo chưa đọc' : 'Không có thông báo'}</p>
               </div>
+            ) : (
+              notifications.map(notification => (
+                <div
+                  key={notification.id}
+                  onClick={() => handleNotificationClick(notification)}
+                  className={`p-4 border-b border-gray-100 cursor-pointer transition-colors ${
+                    notification.isRead
+                      ? 'bg-white hover:bg-gray-50'
+                      : 'bg-blue-50 hover:bg-blue-100'
+                  }`}
+                >
+                  <div className="flex gap-3">
+                    <div className="flex-shrink-0 mt-1">
+                      {getNotificationIcon(notification.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {notification.title}
+                      </p>
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                        {notification.message}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-2">
+                        {new Date(notification.createdAt).toLocaleString('vi-VN')}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0 flex items-start gap-1">
+                      {!notification.isRead && (
+                        <div className="w-2 h-2 bg-blue-600 rounded-full mt-2" />
+                      )}
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenId(menuOpenId === notification.id ? null : notification.id);
+                          }}
+                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        {menuOpenId === notification.id && (
+                          <div className="absolute right-0 top-7 bg-white rounded-lg shadow-lg border border-gray-200 z-10 py-1 min-w-[120px]">
+                            <button
+                              onClick={(e) => handleDeleteNotification(e, notification.id)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Xóa
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
             )}
           </div>
-        )}
-      </div>
+
+          {/* Footer */}
+          {notifications.length > 0 && (
+            <div className="p-3 border-t border-gray-200 bg-gray-50 text-center">
+              <button
+                onClick={() => { setIsAllNotificationsOpen(true); setIsOpen(false); }}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Xem tất cả thông báo
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
 
       {/* Task List Modal - opened when clicking TASK notification */}
       <TaskListModal
         isOpen={isTaskListModalOpen}
-        onClose={() => { setIsTaskListModalOpen(false); setSelectedTaskId(null); }}
-        initialTaskId={selectedTaskId}
+        onClose={() => setIsTaskListModalOpen(false)}
+        isAdmin={userIsAdmin}
       />
 
       {/* Evaluation Modal - opened when clicking EVALUATION notification */}
@@ -473,63 +401,26 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       />
 
       {/* Overtime Plan Modal - opened when clicking OVERTIME_PLAN notification */}
+      {/* #3 Fix: Pass isAdmin prop so admin sees all plans with approve buttons */}
       <OvertimePlanListModal
         isOpen={isOvertimePlanModalOpen}
-        onClose={() => { setIsOvertimePlanModalOpen(false); setSelectedOvertimePlanId(null); }}
+        onClose={() => setIsOvertimePlanModalOpen(false)}
         isAdmin={userIsAdmin}
-        initialPlanId={selectedOvertimePlanId}
-        onInitialPlanIdConsumed={() => setSelectedOvertimePlanId(null)}
+        canViewAll={userIsAdmin}
+        canCreate={userIsAdmin || user?.role === 'department_head'}
       />
 
-      {/* Meeting Modal - opened when clicking MEETING notification */}
-      {isMeetingModalOpen && (
-        <MeetingModal
-          meeting={selectedMeeting}
-          onClose={() => { setIsMeetingModalOpen(false); setSelectedMeeting(null); }}
-          onSuccess={() => { setIsMeetingModalOpen(false); setSelectedMeeting(null); }}
-        />
-      )}
-
-      {/* Feedback Modal - opened when clicking PRIVATE_FEEDBACK notification */}
+      {/* Feedback List Modal - opened when clicking PRIVATE_FEEDBACK notification */}
       <FeedbackListModal
-        isOpen={isFeedbackModalOpen}
-        onClose={() => { setIsFeedbackModalOpen(false); setSelectedFeedbackId(null); }}
-        initialFeedbackId={selectedFeedbackId}
+        isOpen={isFeedbackListModalOpen}
+        onClose={() => setIsFeedbackListModalOpen(false)}
       />
 
-      {/* Supply Adjustment Modal - opened when clicking SUPPLY_ADJUSTMENT_* notification */}
-      <SupplyAdjustmentModal
-        isOpen={isSupplyAdjustmentModalOpen}
-        onClose={() => { setIsSupplyAdjustmentModalOpen(false); setSelectedSupplyAdjustmentId(null); }}
-        initialId={selectedSupplyAdjustmentId}
-      />
-
-      {/* Order Detail Modal - opened when clicking ORDER notification */}
-      <OrderDetailModal
-        isOpen={isOrderDetailModalOpen}
-        onClose={() => { setIsOrderDetailModalOpen(false); setSelectedOrderId(null); }}
-        orderId={selectedOrderId}
-      />
-
-      {/* Purchase Request Modal - opened when clicking PURCHASE_REQUEST notification */}
-      <PurchaseRequestDetailModal
-        isOpen={isPurchaseRequestModalOpen}
-        onClose={() => { setIsPurchaseRequestModalOpen(false); setSelectedPurchaseRequestId(null); }}
-        purchaseRequestId={selectedPurchaseRequestId}
-      />
-
-      {/* Work Plan Modal */}
-      <WorkPlanDetailModal
-        isOpen={isWorkPlanModalOpen}
-        onClose={() => { setIsWorkPlanModalOpen(false); setSelectedWorkPlanId(null); }}
-        workPlanId={selectedWorkPlanId}
-      />
-
-      {/* Daily Work Report Modal */}
-      <DailyWorkReportDetailModal
-        isOpen={isDailyWorkReportModalOpen}
-        onClose={() => { setIsDailyWorkReportModalOpen(false); setSelectedDailyWorkReportId(null); }}
-        reportId={selectedDailyWorkReportId}
+      {/* Daily Work Report List Modal - opened when clicking DAILY_WORK_REPORT notification */}
+      <DailyWorkReportListModal
+        isOpen={isDailyReportListModalOpen}
+        onClose={() => setIsDailyReportListModalOpen(false)}
+        isAdmin={userIsAdmin}
       />
     </>
   );
