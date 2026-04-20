@@ -73,7 +73,7 @@ router.get('/',
  *         description: Không đủ quyền hạn
  */
 router.post('/generate-code',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.EMPLOYEE),
   internationalCustomerController.generateCustomerCode
 );
 
@@ -177,7 +177,7 @@ router.get('/:id',
  *         description: Không đủ quyền hạn
  */
 router.post('/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.EMPLOYEE),
   zodValidate(createCustomerSchema),
   internationalCustomerController.createCustomer
 );
@@ -214,7 +214,7 @@ router.post('/',
  *         description: Không tìm thấy khách hàng
  */
 router.patch('/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.EMPLOYEE),
   zodValidate(updateCustomerSchema),
   internationalCustomerController.updateCustomer
 );
