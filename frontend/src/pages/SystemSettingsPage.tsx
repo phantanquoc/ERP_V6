@@ -1,17 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings, Palette, Type, Save, Check, Bell, ToggleLeft, ToggleRight,
   Clock, History, ChevronRight, Users, ArrowRight, Info, AlertCircle,
-  Plus, Trash2, X, BarChart2, List, BookOpen,
+  Plus, Trash2, BarChart2, List, BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSystemSettings } from '../contexts/SystemSettingsContext';
 import { isAdmin } from '../utils/permissions';
+import departmentService from '../services/departmentService';
 import systemSettingsService, {
   NotificationSettings,
   NotificationRoutingRule,
   NotificationRoutingTarget,
 } from '../services/systemSettingsService';
+import subDepartmentService from '../services/subDepartmentService';
+import userService from '../services/userService';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -55,22 +58,49 @@ const STEP_COLOR_MAP: Record<string, string> = {
   rose: 'bg-rose-50 border-rose-200 text-rose-800',
 };
 
-const RECIPIENT_TYPE_LABELS: Record<string, string> = {
-  role: 'Vai trò', department: 'Phòng ban', subDepartment: 'Bộ phận con',
+type RecipientTargetType = NotificationRoutingTarget['type'];
+
+interface RecipientOption {
+  id: string;
+  type: RecipientTargetType;
+  value: string;
+  label: string;
+}
+
+const RECIPIENT_TYPE_LABELS: Record<RecipientTargetType, string> = {
+  role: 'Vai trò',
+  department: 'Phòng ban',
+  subDepartment: 'Bộ phận con',
+  user: 'Người dùng',
 };
 
-const PRESET_RECIPIENTS: NotificationRoutingTarget[] = [
-  { id: 'role-admin', type: 'role', value: 'ADMIN', label: 'Admin' },
-  { id: 'role-manager', type: 'role', value: 'MANAGER', label: 'Quản lý' },
-  { id: 'dept-business', type: 'department', value: 'DEPT_BUSINESS', label: 'Phòng kinh doanh' },
-  { id: 'dept-production', type: 'department', value: 'DEPT_PRODUCTION', label: 'Phòng sản xuất' },
-  { id: 'dept-accounting', type: 'department', value: 'DEPT_ACCOUNTING', label: 'Phòng kế toán' },
-  { id: 'subdept-pricing', type: 'subDepartment', value: 'SUBDEPT_GENERAL_PRICING', label: 'Tổng hợp / Tính giá' },
-  { id: 'subdept-prod-mgmt', type: 'subDepartment', value: 'SUBDEPT_PRODUCTION_MANAGEMENT', label: 'Quản lý sản xuất' },
-  { id: 'subdept-procurement', type: 'subDepartment', value: 'SUBDEPT_PROCUREMENT', label: 'Mua hàng' },
-  { id: 'subdept-accounting-admin', type: 'subDepartment', value: 'SUBDEPT_ACCOUNTING_ADMIN', label: 'Kế toán admin' },
-  { id: 'subdept-accounting-tax', type: 'subDepartment', value: 'SUBDEPT_ACCOUNTING_TAX', label: 'Kế toán thuế' },
+const ROLE_RECIPIENT_OPTIONS: RecipientOption[] = [
+  { id: 'role-admin', type: 'role', value: 'ADMIN', label: 'Quản trị viên' },
+  { id: 'role-department-head', type: 'role', value: 'DEPARTMENT_HEAD', label: 'Trưởng phòng' },
+  { id: 'role-team-lead', type: 'role', value: 'TEAM_LEAD', label: 'Tổ trưởng' },
+  { id: 'role-employee', type: 'role', value: 'EMPLOYEE', label: 'Nhân viên' },
 ];
+
+interface RecipientSources {
+  users: RecipientOption[];
+  departments: RecipientOption[];
+  subDepartments: RecipientOption[];
+}
+
+const getRecipientOptions = (type: RecipientTargetType, sources: RecipientSources): RecipientOption[] => {
+  switch (type) {
+    case 'role':
+      return ROLE_RECIPIENT_OPTIONS;
+    case 'department':
+      return sources.departments;
+    case 'subDepartment':
+      return sources.subDepartments;
+    case 'user':
+      return sources.users;
+    default:
+      return [];
+  }
+};
 
 type MainTab = 'general' | 'notifications';
 type NotifSubTab = 'overview' | 'routing' | 'reference';
@@ -112,7 +142,12 @@ const SystemSettingsPage: React.FC = () => {
   const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<NotificationRoutingRule | null>(null);
   const [showAddRecipient, setShowAddRecipient] = useState(false);
-  const [newRecipient, setNewRecipient] = useState<Partial<NotificationRoutingTarget>>({ type: 'role' });
+  const [recipientType, setRecipientType] = useState<RecipientTargetType>('user');
+  const [recipientSearch, setRecipientSearch] = useState('');
+  const [recipientSourceError, setRecipientSourceError] = useState<string | null>(null);
+  const [recipientUsers, setRecipientUsers] = useState<RecipientOption[]>([]);
+  const [recipientDepartments, setRecipientDepartments] = useState<RecipientOption[]>([]);
+  const [recipientSubDepartments, setRecipientSubDepartments] = useState<RecipientOption[]>([]);
 
   // Reference flow collapse
   const [refFlowExpanded, setRefFlowExpanded] = useState(false);
@@ -137,6 +172,80 @@ const SystemSettingsPage: React.FC = () => {
     }
   }, [notifSettings]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRecipientSources = async () => {
+      const [usersResult, departmentsResult, subDepartmentsResult] = await Promise.allSettled([
+        userService.getAllUsers(1, 1000),
+        departmentService.getAllDepartments(),
+        subDepartmentService.getAllSubDepartments(),
+      ]);
+
+      if (cancelled) return;
+
+      const errors: string[] = [];
+
+      if (usersResult.status === 'fulfilled') {
+        setRecipientUsers(
+          usersResult.value.data
+            .filter((user: { isActive?: boolean }) => user.isActive !== false)
+            .map((user: { id: string; firstName: string; lastName: string; email: string; role: string }) => ({
+              id: `user-${user.id}`,
+              type: 'user',
+              value: user.id,
+              label: `${[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email} (${user.email})`,
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'vi')),
+        );
+      } else {
+        errors.push('danh sách người dùng');
+      }
+
+      if (departmentsResult.status === 'fulfilled') {
+        setRecipientDepartments(
+          departmentsResult.value
+            .map((department: { id: string; code: string; name: string }) => ({
+              id: `department-${department.id}`,
+              type: 'department',
+              value: department.code,
+              label: department.name,
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'vi')),
+        );
+      } else {
+        errors.push('danh sách phòng ban');
+      }
+
+      if (subDepartmentsResult.status === 'fulfilled') {
+        setRecipientSubDepartments(
+          subDepartmentsResult.value
+            .map((subDepartment: { id: string; code: string; name: string; department?: { name?: string } }) => ({
+              id: `subDepartment-${subDepartment.id}`,
+              type: 'subDepartment',
+              value: subDepartment.code,
+              label: subDepartment.department?.name ? `${subDepartment.name} · ${subDepartment.department.name}` : subDepartment.name,
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'vi')),
+        );
+      } else {
+        errors.push('danh sách bộ phận con');
+      }
+
+      setRecipientSourceError(errors.length ? `Không tải được ${errors.join(', ')}.` : null);
+    };
+
+    loadRecipientSources().catch(() => {
+      if (!cancelled) {
+        setRecipientSourceError('Không thể tải danh sách người nhận.');
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (!user || !isAdmin(user.department)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -150,9 +259,9 @@ const SystemSettingsPage: React.FC = () => {
   }
 
   // ── Notification mutators ──
-  const updateNotif = useCallback((updater: (prev: NotificationSettings) => NotificationSettings) => {
+  const updateNotif = (updater: (prev: NotificationSettings) => NotificationSettings) => {
     setNotifSettings(prev => { if (!prev) return prev; const next = updater(prev); setNotifDirty(true); return next; });
-  }, []);
+  };
 
   const toggleChannel = (key: keyof NotificationSettings['channels']) =>
     updateNotif(p => ({ ...p, channels: { ...p.channels, [key]: !p.channels[key] } }));
@@ -162,15 +271,6 @@ const SystemSettingsPage: React.FC = () => {
 
   const toggleCategory = (cat: string) =>
     updateNotif(p => ({ ...p, categories: { ...p.categories, [cat]: !p.categories[cat] } }));
-
-  const toggleRuleEnabled = (eventKey: string) =>
-    updateNotif(p => ({
-      ...p,
-      routingRules: {
-        ...p.routingRules,
-        [eventKey]: { ...p.routingRules[eventKey], enabled: !p.routingRules[eventKey].enabled },
-      },
-    }));
 
   // ── Select rule for editing ──
   const selectRule = (eventKey: string) => {
@@ -194,22 +294,21 @@ const SystemSettingsPage: React.FC = () => {
     setEditingRule(prev => prev ? { ...prev, recipients: prev.recipients.filter(r => r.id !== id) } : prev);
   };
 
-  const addRecipientFromPreset = (preset: NotificationRoutingTarget) => {
+  const addRecipient = (recipient: RecipientOption) => {
     if (!editingRule) return;
-    if (editingRule.recipients.some(r => r.id === preset.id)) return;
-    setEditingRule(prev => prev ? { ...prev, recipients: [...prev.recipients, preset] } : prev);
+    if (editingRule.recipients.some(r => r.id === recipient.id)) return;
+    setEditingRule(prev => prev ? { ...prev, recipients: [...prev.recipients, recipient] } : prev);
   };
 
-  const addCustomRecipient = () => {
-    if (!newRecipient.value || !newRecipient.label || !editingRule) return;
-    const id = `custom-${Date.now()}`;
-    setEditingRule(prev => prev ? {
-      ...prev,
-      recipients: [...prev.recipients, { id, type: newRecipient.type as any, value: newRecipient.value!, label: newRecipient.label! }],
-    } : prev);
-    setNewRecipient({ type: 'role' });
-    setShowAddRecipient(false);
-  };
+  const allRecipientOptions = getRecipientOptions(recipientType, {
+    users: recipientUsers,
+    departments: recipientDepartments,
+    subDepartments: recipientSubDepartments,
+  }).filter(p => !editingRule?.recipients.some(r => r.id === p.id));
+  const filteredRecipientOptions = allRecipientOptions.filter((option) => {
+    const haystack = `${option.label} ${option.value}`.toLowerCase();
+    return haystack.includes(recipientSearch.trim().toLowerCase());
+  });
 
   // ── Save handlers ──
   const handleSaveGeneral = async () => {
@@ -430,7 +529,16 @@ const SystemSettingsPage: React.FC = () => {
                       Người nhận ({editingRule.recipients.length})
                     </p>
                     <button
-                      onClick={() => setShowAddRecipient(v => !v)}
+                      onClick={() => {
+                        setShowAddRecipient(v => {
+                          const next = !v;
+                          if (next) {
+                            setRecipientType('user');
+                            setRecipientSearch('');
+                          }
+                          return next;
+                        });
+                      }}
                       className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg hover:bg-blue-700 font-medium"
                     >
                       <Plus className="w-3 h-3" />{showAddRecipient ? 'Đóng' : 'Thêm người nhận'}
@@ -464,65 +572,69 @@ const SystemSettingsPage: React.FC = () => {
                 {/* Add recipient panel */}
                 {showAddRecipient && (
                   <div className="border border-blue-200 bg-blue-50/60 rounded-xl p-4 space-y-3">
-                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Thêm người nhận</p>
-
-                    {/* Presets */}
-                    <div>
-                      <p className="text-xs text-gray-500 mb-2 font-medium">Chọn nhanh từ danh sách:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {PRESET_RECIPIENTS
-                          .filter(p => !editingRule.recipients.some(r => r.id === p.id))
-                          .map(p => (
-                            <button
-                              key={p.id}
-                              onClick={() => addRecipientFromPreset(p)}
-                              className="text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-full hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                            >
-                              + {p.label}
-                            </button>
-                          ))}
-                        {PRESET_RECIPIENTS.filter(p => !editingRule.recipients.some(r => r.id === p.id)).length === 0 && (
-                          <p className="text-xs text-gray-400 italic">Đã thêm tất cả preset</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 border-t border-blue-200" />
-                      <span className="text-xs text-blue-400">hoặc nhập tùy chỉnh</span>
-                      <div className="flex-1 border-t border-blue-200" />
-                    </div>
-
-                    {/* Custom input */}
-                    <div className="grid grid-cols-3 gap-2">
-                      <select
-                        value={newRecipient.type}
-                        onChange={e => setNewRecipient(p => ({ ...p, type: e.target.value as any }))}
-                        className="text-xs border border-gray-300 rounded-lg px-2.5 py-2 bg-white"
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Chọn người nhận trực tiếp</p>
+                      <button
+                        onClick={() => setShowAddRecipient(false)}
+                        className="text-xs text-blue-700 hover:text-blue-900"
                       >
-                        <option value="role">Vai trò</option>
-                        <option value="department">Phòng ban</option>
-                        <option value="subDepartment">Bộ phận con</option>
-                      </select>
-                      <input
-                        placeholder="Value (VD: ADMIN)"
-                        value={newRecipient.value || ''}
-                        onChange={e => setNewRecipient(p => ({ ...p, value: e.target.value }))}
-                        className="text-xs border border-gray-300 rounded-lg px-2.5 py-2"
-                      />
-                      <input
-                        placeholder="Tên hiển thị"
-                        value={newRecipient.label || ''}
-                        onChange={e => setNewRecipient(p => ({ ...p, label: e.target.value }))}
-                        className="text-xs border border-gray-300 rounded-lg px-2.5 py-2"
-                      />
-                    </div>
-                    <div className="flex justify-end">
-                      <button onClick={addCustomRecipient} className="text-xs bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-medium">
-                        Thêm người nhận
+                        Đóng
                       </button>
                     </div>
+                    {recipientSourceError && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        {recipientSourceError}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {(['user', 'department', 'subDepartment', 'role'] as RecipientTargetType[]).map(type => (
+                        <button
+                          key={type}
+                          onClick={() => setRecipientType(type)}
+                          className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                            recipientType === type
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-700'
+                          }`}
+                        >
+                          {RECIPIENT_TYPE_LABELS[type]}
+                        </button>
+                      ))}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Tìm nhanh</label>
+                      <input
+                        value={recipientSearch}
+                        onChange={e => setRecipientSearch(e.target.value)}
+                        placeholder="Gõ tên, email hoặc mã..."
+                        className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white"
+                      />
+                    </div>
+                    <div className="max-h-64 overflow-y-auto rounded-xl border border-blue-100 bg-white">
+                      {filteredRecipientOptions.length === 0 ? (
+                        <div className="p-4 text-xs text-gray-400 text-center">
+                          Không có người nhận phù hợp.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3">
+                          {filteredRecipientOptions.map(option => (
+                            <button
+                              key={option.id}
+                              onClick={() => addRecipient(option)}
+                              className="text-left p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                            >
+                              <p className="text-sm font-medium text-gray-900">{option.label}</p>
+                              <p className="text-xs text-gray-500">
+                                <span className="font-medium">{RECIPIENT_TYPE_LABELS[option.type]}</span> · <code>{option.value}</code>
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-500">
+                      Chọn trực tiếp từ dữ liệu thật của hệ thống, không nhập tay để tránh sai mã.
+                    </p>
                   </div>
                 )}
 

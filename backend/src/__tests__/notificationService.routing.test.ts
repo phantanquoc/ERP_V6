@@ -166,4 +166,46 @@ describe('notificationService.getConfiguredRecipientEmployeeIds', () => {
       excludeEmployeeIds: ['emp-actor'],
     });
   });
+
+  it('maps direct user recipients to userIds', async () => {
+    mockedSystemSettingsService.getSettings.mockResolvedValue({
+      id: 'settings-1',
+      activeTheme: 'DEFAULT',
+      slogan: 'ERP',
+      notificationSettings: {
+        ...DEFAULT_NOTIFICATION_SETTINGS,
+        routingRules: {
+          ...DEFAULT_NOTIFICATION_SETTINGS.routingRules,
+          [NotificationRoutingEvent.PURCHASE_REQUEST_CREATED]: {
+            eventKey: NotificationRoutingEvent.PURCHASE_REQUEST_CREATED,
+            enabled: true,
+            recipients: [
+              { id: 'user-jane', type: NotificationRoutingTargetType.USER, value: 'user-123', label: 'Jane Doe' },
+            ],
+          },
+        },
+      },
+      updatedAt: new Date('2026-04-17T00:00:00.000Z'),
+      updatedBy: null,
+    });
+    mockedRecipientService.resolveEmployeeIds.mockResolvedValue(['emp-123']);
+
+    await notificationService.getConfiguredRecipientEmployeeIds(
+      NotificationRoutingEvent.PURCHASE_REQUEST_CREATED,
+      {
+        excludeEmployeeIds: ['emp-actor'],
+        excludeUserIds: ['user-actor'],
+      }
+    );
+
+    expect(mockedRecipientService.resolveEmployeeIds).toHaveBeenCalledWith({
+      roles: [],
+      departmentCodes: [],
+      subDepartmentCodes: [],
+      employeeIds: [],
+      userIds: ['user-123'],
+      excludeEmployeeIds: ['emp-actor'],
+      excludeUserIds: ['user-actor'],
+    });
+  });
 });

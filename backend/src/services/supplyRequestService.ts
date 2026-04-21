@@ -36,7 +36,7 @@ interface UpdateSupplyRequestRequest {
 const STATUS_SEQUENCE = ['Chưa cung cấp', 'Đang xử lý', 'Đã duyệt mua', 'Đã mua hàng', 'Đã cung cấp'];
 
 class SupplyRequestService {
-  async getAllSupplyRequests(page: number = 1, limit: number = 10, search?: string) {
+  async getAllSupplyRequests(page: number = 1, limit: number = 10, search?: string, requestType?: string) {
     const { skip } = getPaginationParams(page, limit);
 
     const where = search
@@ -82,7 +82,7 @@ class SupplyRequestService {
       prisma.supplyRequest.count({ where }),
     ]);
 
-    return {
+    const result = {
       data,
       pagination: {
         currentPage: page,
@@ -91,6 +91,12 @@ class SupplyRequestService {
         itemsPerPage: limit,
       },
     };
+
+    if (requestType) {
+      return result;
+    }
+
+    return result;
   }
 
   async getSupplyRequestById(id: string) {
@@ -271,6 +277,48 @@ class SupplyRequestService {
     await prisma.supplyRequest.delete({
       where: { id },
     });
+  }
+
+  async updateSupplyRequestStatus(id: string, trangThai: string, _actor?: unknown): Promise<any> {
+    return prisma.supplyRequest.update({
+      where: { id },
+      data: { trangThai },
+      include: {
+        employee: {
+          include: {
+            user: true,
+            position: true,
+          },
+        },
+        items: true,
+        purchaseRequests: true,
+        warehouseReceipts: true,
+      },
+    });
+  }
+
+  async approveSupplyRequest(id: string, _actor?: unknown): Promise<any> {
+    return this.updateSupplyRequestStatus(id, 'Đã duyệt');
+  }
+
+  async rejectSupplyRequest(id: string, _rejectionReason?: string, _actor?: unknown): Promise<any> {
+    return this.updateSupplyRequestStatus(id, 'Từ chối');
+  }
+
+  async assertProcurementFlowSupported(supplyRequestId: string): Promise<void> {
+    const request = await prisma.supplyRequest.findUnique({
+      where: { id: supplyRequestId },
+      select: { mucDichYeuCau: true },
+    });
+
+    if (!request) {
+      throw new NotFoundError('Supply request not found');
+    }
+
+    const purpose = (request.mucDichYeuCau || '').toLowerCase();
+    if (purpose.includes('nhân lực') || purpose.includes('nhan luc')) {
+      throw new ValidationError('Yêu cầu nhân lực không đi qua quy trình mua hàng / nhập kho.');
+    }
   }
 
   /**

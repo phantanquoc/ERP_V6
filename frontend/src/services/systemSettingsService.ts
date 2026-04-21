@@ -2,7 +2,7 @@ import { API_BASE_URL } from '../config/api';
 
 export interface NotificationRoutingTarget {
   id: string;
-  type: 'role' | 'department' | 'subDepartment';
+  type: 'role' | 'department' | 'subDepartment' | 'user';
   value: string;
   label: string;
 }
@@ -84,4 +84,3 @@ class SystemSettingsService {
 
 const systemSettingsService = new SystemSettingsService();
 export default systemSettingsService;
-

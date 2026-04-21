@@ -147,6 +147,9 @@ export class NotificationService {
         case NotificationRoutingTargetType.SUB_DEPARTMENT:
           configuredQuery.subDepartmentCodes?.push(recipient.value);
           break;
+        case NotificationRoutingTargetType.USER:
+          configuredQuery.userIds?.push(recipient.value);
+          break;
         default:
           break;
       }

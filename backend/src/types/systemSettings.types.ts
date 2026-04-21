@@ -4,6 +4,7 @@ export const NotificationRoutingTargetType = {
   ROLE: 'role',
   DEPARTMENT: 'department',
   SUB_DEPARTMENT: 'subDepartment',
+  USER: 'user',
 } as const;
 
 export type NotificationRoutingTargetType =

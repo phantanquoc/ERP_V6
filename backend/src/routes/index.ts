@@ -9,6 +9,7 @@ const ROUTE_MAP: Record<string, string> = {
   user: '/api/users',
   employee: '/api/employees',
   department: '/api/departments',
+  subDepartment: '/api/sub-departments',
   position: '/api/positions',
   positionResponsibility: '/api/position-responsibilities',
   positionLevel: '/api/position-levels',
@@ -88,4 +89,3 @@ export const registerRoutes = (app: Express): void => {
 
   logger.info(`Registered ${registered} API routes`);
 };
-
