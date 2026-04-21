@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getFileUrl } from '../../config/api';
 import {
   Activity,
@@ -26,6 +27,7 @@ type TabType = 'machineSystems' | 'machineActivity' | 'orders' | 'repairRequests
 
 const TechnicalQuality = () => {
   const [activeTab, setActiveTab] = useState<TabType>('machineSystems');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [acceptanceData, setAcceptanceData] = useState<AcceptanceHandover[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,6 +35,13 @@ const TechnicalQuality = () => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   // Load acceptance handover data
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'repairRequests' || tab === 'acceptance' || tab === 'orders' || tab === 'machineActivity' || tab === 'machineSystems') {
+      setActiveTab(tab as TabType);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     if (activeTab === 'acceptance') {
       loadAcceptanceData();
@@ -105,7 +114,10 @@ const TechnicalQuality = () => {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as TabType)}
+                  onClick={() => {
+                    setActiveTab(tab.id as TabType);
+                    setSearchParams({ tab: tab.id });
+                  }}
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'

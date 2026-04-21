@@ -208,4 +208,42 @@ describe('notificationService.getConfiguredRecipientEmployeeIds', () => {
       excludeUserIds: ['user-actor'],
     });
   });
+
+  it('routes repair requests to technical personnel and admins', async () => {
+    mockedRecipientService.resolveEmployeeIds.mockResolvedValue(['emp-1', 'emp-2']);
+
+    await notificationService.getConfiguredRecipientEmployeeIds(NotificationRoutingEvent.REPAIR_REQUEST_CREATED, {
+      roles: ['TEAM_LEAD'],
+      excludeEmployeeIds: ['emp-actor'],
+    });
+
+    expect(mockedRecipientService.resolveEmployeeIds).toHaveBeenCalledWith({
+      roles: ['ADMIN'],
+      departmentCodes: [],
+      subDepartmentCodes: ['SUBDEPT_QUALITY_PERSONNEL'],
+      employeeIds: [],
+      userIds: [],
+      excludeEmployeeIds: ['emp-actor'],
+      excludeUserIds: undefined,
+    });
+  });
+
+  it('routes repair processing separately from repair creation', async () => {
+    mockedRecipientService.resolveEmployeeIds.mockResolvedValue(['emp-3']);
+
+    await notificationService.getConfiguredRecipientEmployeeIds(NotificationRoutingEvent.REPAIR_REQUEST_PROCESSING, {
+      roles: ['TEAM_LEAD'],
+      excludeEmployeeIds: ['emp-actor'],
+    });
+
+    expect(mockedRecipientService.resolveEmployeeIds).toHaveBeenCalledWith({
+      roles: ['ADMIN'],
+      departmentCodes: [],
+      subDepartmentCodes: ['SUBDEPT_QUALITY_PERSONNEL'],
+      employeeIds: [],
+      userIds: [],
+      excludeEmployeeIds: ['emp-actor'],
+      excludeUserIds: undefined,
+    });
+  });
 });

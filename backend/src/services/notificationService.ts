@@ -71,6 +71,13 @@ interface NotificationRecipientRoutingQuery {
 }
 
 export class NotificationService {
+  private readonly REPAIR_PROCESSING_STATUSES = new Set([
+    'Đã tiếp nhận',
+    'Đang sửa chữa',
+    'Chờ linh kiện',
+    'Tạm dừng',
+  ]);
+
   private async getNotificationRuntimeSettings(): Promise<NotificationSettings> {
     const settings = await systemSettingsService.getSettings();
     return settings.notificationSettings;
@@ -354,6 +361,12 @@ export class NotificationService {
           category: NotificationCategory.ACCEPTANCE,
           entityType: 'acceptance-handover',
           entityId: notification.acceptanceHandoverId ?? undefined,
+        };
+      case NotificationType.REPAIR_REQUEST:
+        return {
+          eventName: 'repair-request.created',
+          category: NotificationCategory.TECHNICAL,
+          entityType: 'repair-request',
         };
       case NotificationType.OVERTIME_PLAN:
         return {
@@ -867,6 +880,48 @@ export class NotificationService {
       title: 'Nghiệm thu bàn giao mới',
       message: `${nguoiBanGiao} đã tạo nghiệm thu bàn giao ${maNghiemThu} cho thiết bị "${tenThietBi}". Vui lòng kiểm tra và xác nhận.`,
       acceptanceHandoverId,
+    });
+  }
+
+  async createRepairRequestNotification(params: {
+    maYeuCau: string;
+    tenHeThong: string;
+    repairRequestId: number;
+    action?: 'created' | 'updated';
+    status?: string;
+  }): Promise<void> {
+    const isProcessingStatus = params.action === 'updated' && !!params.status && this.REPAIR_PROCESSING_STATUSES.has(params.status);
+    const eventKey = isProcessingStatus
+      ? NotificationRoutingEvent.REPAIR_REQUEST_PROCESSING
+      : NotificationRoutingEvent.REPAIR_REQUEST_CREATED;
+
+    const employeeIds = await this.resolveRecipientEmployeeIdsForEvent(eventKey, {
+      roles: ['ADMIN'],
+      subDepartmentCodes: ['SUBDEPT_QUALITY_PERSONNEL'],
+    });
+
+    if (employeeIds.length === 0) {
+      return;
+    }
+
+    const isCreate = params.action !== 'updated';
+    const title = isCreate ? 'Yêu cầu sửa chữa mới' : 'Yêu cầu sửa chữa đã được cập nhật';
+    const message = isCreate
+      ? `Yêu cầu sửa chữa ${params.maYeuCau} cho hệ thống "${params.tenHeThong}" đã được tạo.`
+      : `Yêu cầu sửa chữa ${params.maYeuCau} cho hệ thống "${params.tenHeThong}" đã chuyển sang trạng thái ${params.status || 'mới'}.`;
+
+    await this.createNotificationsForEmployees(employeeIds, {
+      type: NotificationType.REPAIR_REQUEST,
+      title,
+      message,
+      metadata: {
+        entityType: 'repair-request',
+        entityId: String(params.repairRequestId),
+        entityCode: params.maYeuCau,
+        entityName: params.tenHeThong,
+        actionType: isCreate ? 'created' : 'updated',
+        summary: message,
+      },
     });
   }
 

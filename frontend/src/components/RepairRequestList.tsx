@@ -5,6 +5,15 @@ import { API_BASE_URL, getFileUrl } from '../config/api';
 import FileUpload from './FileUpload';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
 
+const REPAIR_STATUS_OPTIONS = [
+  'Chờ xử lý',
+  'Đã tiếp nhận',
+  'Đang sửa chữa',
+  'Chờ linh kiện',
+  'Tạm dừng',
+  'Hoàn thành',
+];
+
 interface RepairRequest {
   id: number;
   ngayThang: string;
@@ -309,6 +318,9 @@ const RepairRequestList = () => {
     switch (status) {
       case 'Hoàn thành': return 'bg-green-100 text-green-800';
       case 'Đang sửa chữa': return 'bg-blue-100 text-blue-800';
+      case 'Đã tiếp nhận': return 'bg-cyan-100 text-cyan-800';
+      case 'Chờ linh kiện': return 'bg-amber-100 text-amber-800';
+      case 'Tạm dừng': return 'bg-rose-100 text-rose-800';
       case 'Chờ xử lý': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -549,9 +561,9 @@ const RepairRequestList = () => {
                     required
                     disabled={isViewMode}
                   >
-                    <option value="Chờ xử lý">Chờ xử lý</option>
-                    <option value="Đang sửa chữa">Đang sửa chữa</option>
-                    <option value="Hoàn thành">Hoàn thành</option>
+                    {REPAIR_STATUS_OPTIONS.map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -657,4 +669,3 @@ const RepairRequestList = () => {
 };
 
 export default RepairRequestList;
-

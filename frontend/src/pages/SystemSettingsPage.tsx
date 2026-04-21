@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Settings, Palette, Type, Save, Check, Bell, ToggleLeft, ToggleRight,
   Clock, History, ChevronRight, Users, ArrowRight, Info, AlertCircle,
-  Plus, Trash2, BarChart2, List, BookOpen,
+  Plus, Trash2, BarChart2, List, BookOpen, Wrench,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSystemSettings } from '../contexts/SystemSettingsContext';
@@ -26,7 +26,7 @@ const THEMES = [
 
 const CATEGORY_LABELS: Record<string, string> = {
   EVALUATION: 'Đánh giá nhân viên', TASK: 'Nhiệm vụ', LEAVE: 'Nghỉ phép',
-  PAYROLL: 'Bảng lương', ACCEPTANCE: 'Nghiệm thu', OVERTIME: 'Tăng ca',
+  PAYROLL: 'Bảng lương', ACCEPTANCE: 'Nghiệm thu', TECHNICAL: 'Kỹ thuật', OVERTIME: 'Tăng ca',
   SUPPLY: 'Cung ứng / Mua hàng', AUTH: 'Xác thực', FEEDBACK: 'Góp ý',
   REPORT: 'Báo cáo đơn hàng', WORK_PLAN: 'Kế hoạch làm việc', SYSTEM: 'Hệ thống',
 };
@@ -45,8 +45,16 @@ const ORDER_FLOW_STEPS = [
   { step: 10, event: 'customer-feedback.created', label: 'Phản hồi khách hàng', actor: 'Kinh doanh', color: 'rose' },
 ];
 
+const REPAIR_FLOW_STEPS = [
+  { id: 'repair-create', step: 1, event: 'repair-request.created', label: 'Tạo yêu cầu sửa chữa', actor: 'Người dùng', color: 'red' },
+  { id: 'repair-process', step: 2, event: 'repair-request.processing', label: 'Phòng kỹ thuật tiếp nhận', actor: 'Chất lượng kỹ thuật', color: 'amber' },
+  { id: 'repair-complete', step: 3, event: 'repair-request.completed', label: 'Nghiệm thu bàn giao', actor: 'Chất lượng kỹ thuật', color: 'green' },
+];
+
 const STEP_COLOR_MAP: Record<string, string> = {
+  red: 'bg-red-50 border-red-200 text-red-800',
   blue: 'bg-blue-50 border-blue-200 text-blue-800',
+  amber: 'bg-amber-50 border-amber-200 text-amber-800',
   purple: 'bg-purple-50 border-purple-200 text-purple-800',
   green: 'bg-green-50 border-green-200 text-green-800',
   yellow: 'bg-yellow-50 border-yellow-200 text-yellow-800',
@@ -151,6 +159,7 @@ const SystemSettingsPage: React.FC = () => {
 
   // Reference flow collapse
   const [refFlowExpanded, setRefFlowExpanded] = useState(false);
+  const [refFlowTab, setRefFlowTab] = useState<'order' | 'repair'>('order');
 
   // ── Load settings ──
   useEffect(() => {
@@ -389,6 +398,22 @@ const SystemSettingsPage: React.FC = () => {
         </div>
       )}
 
+      {/* Repair flow highlight */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <Wrench className="w-4 h-4 text-red-600" />
+          Luồng thông báo sửa chữa
+        </h3>
+        <div className="flex flex-wrap gap-2 mb-3">
+          <span className="px-3 py-1.5 rounded-full bg-red-50 text-red-700 text-xs font-medium">Tạo yêu cầu sửa chữa</span>
+          <span className="px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 text-xs font-medium">Phòng kỹ thuật tiếp nhận</span>
+          <span className="px-3 py-1.5 rounded-full bg-green-50 text-green-700 text-xs font-medium">Nghiệm thu bàn giao</span>
+        </div>
+        <p className="text-sm text-gray-600">
+          Thông báo sửa chữa được đẩy ngay cho phòng kỹ thuật và admin khi tạo phiếu, sau đó cập nhật lại khi có nghiệm thu bàn giao hoàn tất.
+        </p>
+      </div>
+
       {/* Channels */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Bell className="w-4 h-4 text-blue-600" />Kênh thông báo</h3>
@@ -448,6 +473,7 @@ const SystemSettingsPage: React.FC = () => {
   const RoutingPanel = () => {
     const rules = notifSettings!.routingRules;
     const allEvents = ORDER_FLOW_STEPS.map(s => s.event);
+    const repairEvents = REPAIR_FLOW_STEPS.map(s => s.event);
     const otherEvents = Object.keys(rules).filter(k => !allEvents.includes(k));
 
     const RuleCard = ({ eventKey, stepInfo }: { eventKey: string; stepInfo?: typeof ORDER_FLOW_STEPS[0] }) => {
@@ -674,11 +700,23 @@ const SystemSettingsPage: React.FC = () => {
           ))}
         </div>
 
+        <div className="pt-4">
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <Wrench className="w-4 h-4 text-red-600" />
+            <p className="text-sm font-semibold text-gray-700">Luồng sửa chữa</p>
+          </div>
+          <div className="space-y-2">
+            {REPAIR_FLOW_STEPS.map(step => (
+              <RuleCard key={step.id} eventKey={step.event} />
+            ))}
+          </div>
+        </div>
+
         {/* Other events */}
-        {otherEvents.length > 0 && (
+        {otherEvents.filter(eventKey => !repairEvents.includes(eventKey)).length > 0 && (
           <div className="space-y-2 pt-2">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Sự kiện khác</p>
-            {otherEvents.map(ek => (
+            {otherEvents.filter(eventKey => !repairEvents.includes(eventKey)).map(ek => (
               <RuleCard key={ek} eventKey={ek} />
             ))}
           </div>
@@ -695,7 +733,7 @@ const SystemSettingsPage: React.FC = () => {
       >
         <div className="flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-orange-600" />
-          <span className="font-semibold text-gray-900">Sơ đồ luồng thông báo đơn hàng</span>
+          <span className="font-semibold text-gray-900">Sơ đồ luồng thông báo</span>
           <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Chỉ xem</span>
         </div>
         <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${refFlowExpanded ? 'rotate-90' : ''}`} />
@@ -703,35 +741,106 @@ const SystemSettingsPage: React.FC = () => {
 
       {refFlowExpanded && (
         <div className="border-t border-gray-100 p-4">
-          <p className="text-sm text-gray-500 mb-4">Tổng quan từ khi tạo yêu cầu báo giá đến khi nhận phản hồi khách hàng. Admin luôn nhận thông báo ở mọi bước.</p>
-          <div className="space-y-1">
-            {ORDER_FLOW_STEPS.map((step, idx) => {
-              const rule = notifSettings?.routingRules[step.event];
-              return (
-                <div key={step.event}>
-                  <div className={`flex items-center gap-3 p-3 rounded-lg border ${STEP_COLOR_MAP[step.color]}`}>
-                    <span className="w-6 h-6 rounded-full bg-white/70 flex items-center justify-center text-xs font-bold flex-shrink-0">{step.step}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{step.label}</p>
-                      <p className="text-xs opacity-70">Thực hiện bởi: {step.actor}</p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {rule && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${rule.enabled ? 'bg-white/70 text-green-700' : 'bg-white/40 text-gray-500'}`}>
-                          {rule.enabled ? `${rule.recipients.length} người nhận` : 'Tắt'}
-                        </span>
+          <p className="text-sm text-gray-500 mb-4">Chọn một thẻ để xem đúng sơ đồ tương ứng.</p>
+
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setRefFlowTab('order')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                refFlowTab === 'order'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-700'
+              }`}
+            >
+              Luồng đơn hàng
+            </button>
+            <button
+              onClick={() => setRefFlowTab('repair')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                refFlowTab === 'repair'
+                  ? 'bg-red-600 text-white border-red-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-red-400 hover:text-red-700'
+              }`}
+            >
+              Luồng sửa chữa
+            </button>
+          </div>
+
+          {refFlowTab === 'order' ? (
+            <div className="border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart2 className="w-4 h-4 text-blue-600" />
+                <p className="text-sm font-semibold text-gray-900">Luồng thông báo đơn hàng</p>
+              </div>
+              <div className="space-y-1">
+                {ORDER_FLOW_STEPS.map((step, idx) => {
+                  const rule = notifSettings?.routingRules[step.event];
+                  return (
+                    <div key={step.event}>
+                      <div className={`flex items-center gap-3 p-3 rounded-lg border ${STEP_COLOR_MAP[step.color]}`}>
+                        <span className="w-6 h-6 rounded-full bg-white/70 flex items-center justify-center text-xs font-bold flex-shrink-0">{step.step}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{step.label}</p>
+                          <p className="text-xs opacity-70">Thực hiện bởi: {step.actor}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {rule && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${rule.enabled ? 'bg-white/70 text-green-700' : 'bg-white/40 text-gray-500'}`}>
+                              {rule.enabled ? `${rule.recipients.length} người nhận` : 'Tắt'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {idx < ORDER_FLOW_STEPS.length - 1 && (
+                        <div className="flex justify-center">
+                          <div className="w-0.5 h-3 bg-gray-300" />
+                        </div>
                       )}
                     </div>
-                  </div>
-                  {idx < ORDER_FLOW_STEPS.length - 1 && (
-                    <div className="flex justify-center">
-                      <div className="w-0.5 h-3 bg-gray-300" />
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Wrench className="w-4 h-4 text-red-600" />
+                <p className="text-sm font-semibold text-gray-900">Luồng thông báo sửa chữa</p>
+              </div>
+              <div className="space-y-1">
+                {REPAIR_FLOW_STEPS.map((step, idx) => {
+                  const rule = notifSettings?.routingRules[step.event];
+                  return (
+                    <div key={step.id}>
+                      <div className={`flex items-center gap-3 p-3 rounded-lg border ${STEP_COLOR_MAP[step.color]}`}>
+                        <span className="w-6 h-6 rounded-full bg-white/70 flex items-center justify-center text-xs font-bold flex-shrink-0">{step.step}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{step.label}</p>
+                          <p className="text-xs opacity-70">Thực hiện bởi: {step.actor}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {rule ? (
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${rule.enabled ? 'bg-white/70 text-green-700' : 'bg-white/40 text-gray-500'}`}>
+                              {rule.enabled ? `${rule.recipients.length} người nhận` : 'Tắt'}
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-white/40 text-gray-500">
+                              Chưa cấu hình
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {idx < REPAIR_FLOW_STEPS.length - 1 && (
+                        <div className="flex justify-center">
+                          <div className="w-0.5 h-3 bg-gray-300" />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

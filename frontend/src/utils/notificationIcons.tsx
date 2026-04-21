@@ -3,6 +3,7 @@ import {
   CheckCircle, Clock, AlertCircle, Target, ClipboardList, DollarSign,
   PackageCheck, CalendarDays, ShoppingCart, Truck, PackageOpen, KeyRound,
   MessageSquare, FileText, Bell, Receipt, BarChart2,
+  Wrench,
 } from 'lucide-react';
 import { AppNotification } from '../services/notificationService';
 
@@ -17,6 +18,7 @@ export const NotificationActionTarget = {
   FEEDBACK_LIST: 'FEEDBACK_LIST',
   DAILY_WORK_REPORT_LIST: 'DAILY_WORK_REPORT_LIST',
   WORK_PLAN_LIST: 'WORK_PLAN_LIST',
+  REPAIR_REQUEST: 'REPAIR_REQUEST',
   QUOTATION_REQUEST: 'QUOTATION_REQUEST',
   QUOTATION: 'QUOTATION',
   ORDER: 'ORDER',
@@ -62,6 +64,8 @@ export const getNotificationConfig = (notification: AppNotification): Notificati
       return { actionType: 'modal', actionTarget: NotificationActionTarget.DAILY_WORK_REPORT_LIST };
     case 'WORK_PLAN':
       return { actionType: 'modal', actionTarget: NotificationActionTarget.WORK_PLAN_LIST };
+    case 'REPAIR_REQUEST':
+      return { actionType: 'route', actionTarget: NotificationActionTarget.REPAIR_REQUEST };
     case 'QUOTATION_REQUEST':
       return { actionType: 'route', actionTarget: NotificationActionTarget.QUOTATION_REQUEST };
     case 'QUOTATION':
@@ -95,6 +99,7 @@ export const resolveNotificationRoute = (target: NotificationActionTarget): stri
     case NotificationActionTarget.CUSTOMER_FEEDBACK: return '/business/domestic';
     case NotificationActionTarget.SUPPLY_REQUEST: return '/common/supply-requests';
     case NotificationActionTarget.PURCHASE_REQUEST: return '/general/purchase';
+    case NotificationActionTarget.REPAIR_REQUEST: return '/technical/quality?tab=repairRequests';
     default: return null;
   }
 };
@@ -123,6 +128,7 @@ export const getNotificationIcon = (type: string): React.ReactNode => {
     case 'PRIVATE_FEEDBACK': return <MessageSquare className="w-4 h-4 text-orange-600" />;
     case 'DAILY_WORK_REPORT': return <FileText className="w-4 h-4 text-teal-600" />;
     case 'WORK_PLAN': return <CalendarDays className="w-4 h-4 text-purple-600" />;
+    case 'REPAIR_REQUEST': return <Wrench className="w-4 h-4 text-red-600" />;
     case 'QUOTATION_REQUEST': return <FileText className="w-4 h-4 text-blue-600" />;
     case 'QUOTATION': return <BarChart2 className="w-4 h-4 text-purple-600" />;
     case 'ORDER': return <ShoppingCart className="w-4 h-4 text-yellow-600" />;

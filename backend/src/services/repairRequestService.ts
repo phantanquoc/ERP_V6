@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError } from '@utils/errors';
 import ExcelJS from 'exceljs';
+import notificationService from './notificationService';
 
 interface CreateRepairRequestData {
   ngayThang: Date;
@@ -103,6 +104,13 @@ class RepairRequestService {
       },
     });
 
+    await notificationService.createRepairRequestNotification({
+      maYeuCau: request.maYeuCau,
+      tenHeThong: request.tenHeThong,
+      repairRequestId: request.id,
+      action: 'created',
+    });
+
     return request;
   }
 
@@ -111,12 +119,22 @@ class RepairRequestService {
    */
   async updateRepairRequest(id: number, data: UpdateRepairRequestData) {
     // Check if exists
-    await this.getRepairRequestById(id);
+    const existing = await this.getRepairRequestById(id);
 
     const updated = await prisma.repairRequest.update({
       where: { id },
       data,
     });
+
+    if (data.trangThai && data.trangThai !== existing.trangThai) {
+      await notificationService.createRepairRequestNotification({
+        maYeuCau: updated.maYeuCau,
+        tenHeThong: updated.tenHeThong,
+        repairRequestId: updated.id,
+        action: 'updated',
+        status: updated.trangThai,
+      });
+    }
 
     return updated;
   }
@@ -197,4 +215,3 @@ class RepairRequestService {
 }
 
 export default new RepairRequestService();
-

@@ -16,6 +16,9 @@ export const NotificationRoutingEvent = {
   QUOTATION_CUSTOMER_CONFIRMED: 'quotation.customer-confirmed',
   ORDER_CREATED: 'order.created',
   LEAVE_REQUEST_CREATED: 'leave.request.created',
+  REPAIR_REQUEST_CREATED: 'repair-request.created',
+  REPAIR_REQUEST_PROCESSING: 'repair-request.processing',
+  REPAIR_REQUEST_COMPLETED: 'repair-request.completed',
   SUPPLY_REQUEST_CREATED: 'supply.request.created',
   SUPPLY_REQUEST_APPROVED: 'supply.request.approved',
   PURCHASE_REQUEST_CREATED: 'purchase-request.created',
@@ -169,6 +172,60 @@ export const DEFAULT_NOTIFICATION_ROUTING_RULES: NotificationRoutingRules = {
         type: NotificationRoutingTargetType.SUB_DEPARTMENT,
         value: 'SUBDEPT_QUALITY_PERSONNEL',
         label: 'Chất lượng nhân sự',
+      },
+    ],
+  },
+  [NotificationRoutingEvent.REPAIR_REQUEST_CREATED]: {
+    eventKey: NotificationRoutingEvent.REPAIR_REQUEST_CREATED,
+    enabled: true,
+    recipients: [
+      {
+        id: 'repair-quality-personnel',
+        type: NotificationRoutingTargetType.SUB_DEPARTMENT,
+        value: 'SUBDEPT_QUALITY_PERSONNEL',
+        label: 'Chất lượng kỹ thuật',
+      },
+      {
+        id: 'repair-admin',
+        type: NotificationRoutingTargetType.ROLE,
+        value: 'ADMIN',
+        label: 'Admin',
+      },
+    ],
+  },
+  [NotificationRoutingEvent.REPAIR_REQUEST_PROCESSING]: {
+    eventKey: NotificationRoutingEvent.REPAIR_REQUEST_PROCESSING,
+    enabled: true,
+    recipients: [
+      {
+        id: 'repair-processing-quality-personnel',
+        type: NotificationRoutingTargetType.SUB_DEPARTMENT,
+        value: 'SUBDEPT_QUALITY_PERSONNEL',
+        label: 'Chất lượng kỹ thuật',
+      },
+      {
+        id: 'repair-processing-admin',
+        type: NotificationRoutingTargetType.ROLE,
+        value: 'ADMIN',
+        label: 'Admin',
+      },
+    ],
+  },
+  [NotificationRoutingEvent.REPAIR_REQUEST_COMPLETED]: {
+    eventKey: NotificationRoutingEvent.REPAIR_REQUEST_COMPLETED,
+    enabled: true,
+    recipients: [
+      {
+        id: 'repair-completed-quality-personnel',
+        type: NotificationRoutingTargetType.SUB_DEPARTMENT,
+        value: 'SUBDEPT_QUALITY_PERSONNEL',
+        label: 'Chất lượng kỹ thuật',
+      },
+      {
+        id: 'repair-completed-admin',
+        type: NotificationRoutingTargetType.ROLE,
+        value: 'ADMIN',
+        label: 'Admin',
       },
     ],
   },
@@ -383,6 +440,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
     [NotificationCategory.LEAVE]: true,
     [NotificationCategory.PAYROLL]: true,
     [NotificationCategory.ACCEPTANCE]: true,
+    [NotificationCategory.TECHNICAL]: true,
     [NotificationCategory.OVERTIME]: true,
     [NotificationCategory.SUPPLY]: true,
     [NotificationCategory.AUTH]: true,

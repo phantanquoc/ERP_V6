@@ -213,6 +213,94 @@ describe('notificationService.getEmployeeNotifications', () => {
       entityId: 'purchase-1',
     });
   });
+
+  it('should map repair request notifications to technical events', async () => {
+    (mockedPrisma.notification.findMany as jest.Mock).mockResolvedValue([
+      {
+        ...baseNotification,
+        id: 'notif-6',
+        type: 'REPAIR_REQUEST',
+        title: 'Yêu cầu sửa chữa mới',
+      },
+    ]);
+
+    const [result] = await notificationService.getEmployeeNotifications('emp-1', 10);
+
+    expect(result).toMatchObject({
+      type: 'REPAIR_REQUEST',
+      eventName: 'repair-request.created',
+      category: 'TECHNICAL',
+      entityType: 'repair-request',
+    });
+  });
+});
+
+describe('notificationService.createRepairRequestNotification', () => {
+  it('uses the processing route when repair status becomes in progress', async () => {
+    const resolveRecipientsSpy = jest
+      .spyOn(notificationService as any, 'resolveRecipientEmployeeIdsForEvent')
+      .mockResolvedValue(['emp-1']);
+    const createNotificationsSpy = jest
+      .spyOn(notificationService as any, 'createNotificationsForEmployees')
+      .mockResolvedValue(undefined);
+
+    await notificationService.createRepairRequestNotification({
+      maYeuCau: 'YC-100',
+      tenHeThong: 'Máy nén khí',
+      repairRequestId: 10,
+      action: 'updated',
+      status: 'Đang sửa chữa',
+    });
+
+    expect(resolveRecipientsSpy).toHaveBeenCalledWith('repair-request.processing', {
+      roles: ['ADMIN'],
+      subDepartmentCodes: ['SUBDEPT_QUALITY_PERSONNEL'],
+    });
+    expect(createNotificationsSpy).toHaveBeenCalledWith(
+      ['emp-1'],
+      expect.objectContaining({
+        type: 'REPAIR_REQUEST',
+        title: 'Yêu cầu sửa chữa đã được cập nhật',
+        message: expect.stringContaining('Đang sửa chữa'),
+      })
+    );
+
+    resolveRecipientsSpy.mockRestore();
+    createNotificationsSpy.mockRestore();
+  });
+
+  it('uses the processing route for intermediate repair statuses', async () => {
+    const resolveRecipientsSpy = jest
+      .spyOn(notificationService as any, 'resolveRecipientEmployeeIdsForEvent')
+      .mockResolvedValue(['emp-1']);
+    const createNotificationsSpy = jest
+      .spyOn(notificationService as any, 'createNotificationsForEmployees')
+      .mockResolvedValue(undefined);
+
+    await notificationService.createRepairRequestNotification({
+      maYeuCau: 'YC-101',
+      tenHeThong: 'Băng tải',
+      repairRequestId: 11,
+      action: 'updated',
+      status: 'Chờ linh kiện',
+    });
+
+    expect(resolveRecipientsSpy).toHaveBeenCalledWith('repair-request.processing', {
+      roles: ['ADMIN'],
+      subDepartmentCodes: ['SUBDEPT_QUALITY_PERSONNEL'],
+    });
+    expect(createNotificationsSpy).toHaveBeenCalledWith(
+      ['emp-1'],
+      expect.objectContaining({
+        type: 'REPAIR_REQUEST',
+        title: 'Yêu cầu sửa chữa đã được cập nhật',
+        message: expect.stringContaining('Chờ linh kiện'),
+      })
+    );
+
+    resolveRecipientsSpy.mockRestore();
+    createNotificationsSpy.mockRestore();
+  });
 });
 
 describe('notificationService.markAsReadForEmployee', () => {

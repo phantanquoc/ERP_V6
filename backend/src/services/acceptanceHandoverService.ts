@@ -2,6 +2,8 @@ import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError } from '@utils/errors';
 import ExcelJS from 'exceljs';
+import notificationService from './notificationService';
+import { NotificationRoutingEvent, NotificationType } from '@types';
 
 interface CreateAcceptanceHandoverRequest {
   repairRequestId: number;
@@ -106,21 +108,61 @@ class AcceptanceHandoverService {
   async createAcceptanceHandover(data: CreateAcceptanceHandoverRequest) {
     const maNghiemThu = await this.generateAcceptanceHandoverCode();
 
-    const handover = await prisma.acceptanceHandover.create({
-      data: {
-        maNghiemThu,
-        repairRequestId: data.repairRequestId,
-        maYeuCauSuaChua: data.maYeuCauSuaChua,
-        tenHeThongThietBi: data.tenHeThongThietBi,
-        tinhTrangTruocSuaChua: data.tinhTrangTruocSuaChua,
-        tinhTrangSauSuaChua: data.tinhTrangSauSuaChua,
-        nguoiBanGiao: data.nguoiBanGiao,
-        nguoiNhan: data.nguoiNhan,
-        nguoiNhanId: data.nguoiNhanId,
-        fileDinhKem: data.fileDinhKem,
-        ghiChu: data.ghiChu,
-      },
+    const handover = await prisma.$transaction(async (tx) => {
+      const created = await tx.acceptanceHandover.create({
+        data: {
+          maNghiemThu,
+          repairRequestId: data.repairRequestId,
+          maYeuCauSuaChua: data.maYeuCauSuaChua,
+          tenHeThongThietBi: data.tenHeThongThietBi,
+          tinhTrangTruocSuaChua: data.tinhTrangTruocSuaChua,
+          tinhTrangSauSuaChua: data.tinhTrangSauSuaChua,
+          nguoiBanGiao: data.nguoiBanGiao,
+          nguoiNhan: data.nguoiNhan,
+          nguoiNhanId: data.nguoiNhanId,
+          fileDinhKem: data.fileDinhKem,
+          ghiChu: data.ghiChu,
+        },
+      });
+
+      await tx.repairRequest.update({
+        where: { id: data.repairRequestId },
+        data: {
+          trangThai: 'Hoàn thành',
+        },
+      });
+
+      return created;
     });
+
+    const recipientEmployeeIds = await notificationService.getConfiguredRecipientEmployeeIds(
+      NotificationRoutingEvent.REPAIR_REQUEST_COMPLETED,
+      {
+        roles: ['ADMIN'],
+        subDepartmentCodes: ['SUBDEPT_QUALITY_PERSONNEL'],
+        excludeEmployeeIds: data.nguoiNhanId ? [data.nguoiNhanId] : undefined,
+      }
+    );
+
+    const directRecipients = data.nguoiNhanId ? [data.nguoiNhanId] : [];
+    const employeeIds = Array.from(new Set([...recipientEmployeeIds, ...directRecipients]));
+
+    if (employeeIds.length > 0) {
+      await notificationService.createWorkflowNotifications(employeeIds, {
+        type: NotificationType.ACCEPTANCE_HANDOVER,
+        title: 'Nghiệm thu bàn giao hoàn tất',
+        message: `Phiếu nghiệm thu ${maNghiemThu} cho yêu cầu ${data.maYeuCauSuaChua} đã hoàn tất. Vui lòng kiểm tra nội dung bàn giao và xác nhận.`,
+        acceptanceHandoverId: handover.id,
+        metadata: {
+          entityType: 'repair-request',
+          entityId: String(data.repairRequestId),
+          entityCode: data.maYeuCauSuaChua,
+          entityName: data.tenHeThongThietBi,
+          actionType: 'confirmed',
+          summary: `Nghiệm thu bàn giao ${maNghiemThu} đã được tạo cho yêu cầu sửa chữa ${data.maYeuCauSuaChua}.`,
+        },
+      });
+    }
 
     return handover;
   }
@@ -223,4 +265,3 @@ class AcceptanceHandoverService {
 }
 
 export default new AcceptanceHandoverService();
-
