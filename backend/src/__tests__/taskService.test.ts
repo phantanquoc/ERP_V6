@@ -45,8 +45,8 @@ const baseTask = {
   files: [],
   mucDoUuTien: 'CAO',
   trangThaiTiepNhan: {},
-  thoiHanHoanThanh: new Date('2026-04-20T00:00:00.000Z'),
-  ngayGiao: new Date('2026-04-16T00:00:00.000Z'),
+  thoiHanHoanThanh: new Date('2026-05-20T00:00:00.000Z'),
+  ngayGiao: new Date('2026-04-21T00:00:00.000Z'),
   diemDanhGia: null,
   noiDungDanhGia: null,
 } as any;
@@ -169,8 +169,8 @@ describe('taskService.createTask admin notification routing', () => {
       files: [],
       mucDoUuTien: 'CAO',
       trangThaiTiepNhan: { 'user-a': 'CHUA_TIEP_NHAN', 'user-b': 'CHUA_TIEP_NHAN' },
-      thoiHanHoanThanh: new Date('2026-04-20T00:00:00.000Z'),
-      ngayGiao: new Date('2026-04-16T00:00:00.000Z'),
+      thoiHanHoanThanh: new Date('2026-05-20T00:00:00.000Z'),
+      ngayGiao: new Date('2026-04-21T00:00:00.000Z'),
     });
     (mockedPrisma.user.findMany as jest.Mock).mockResolvedValue([
       { firstName: 'User', lastName: 'A' },
@@ -181,7 +181,7 @@ describe('taskService.createTask admin notification routing', () => {
       {
         nguoiNhan: ['emp-1', 'emp-2'],
         noiDung: 'Soạn báo cáo tuần',
-        thoiHanHoanThanh: '2026-04-20',
+        thoiHanHoanThanh: '2026-05-20',
         mucDoUuTien: 'CAO',
       } as any,
       'user-giao'

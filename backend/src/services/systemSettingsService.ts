@@ -18,12 +18,21 @@ class SystemSettingsService {
     };
   }
 
+  private normalizeRecipients(recipients: any[]): any[] {
+    if (!Array.isArray(recipients)) return [];
+    return recipients.filter(r => r && r.value && r.value.trim());
+  }
+
   private mergeRoutingRules(saved: any): any {
     const merged: any = { ...DEFAULT_NOTIFICATION_ROUTING_RULES };
     if (!saved) return merged;
     for (const key of Object.keys(DEFAULT_NOTIFICATION_ROUTING_RULES) as NotificationRoutingEvent[]) {
       if (saved[key]) {
-        merged[key] = { ...merged[key], ...saved[key] };
+        const rule = { ...merged[key], ...saved[key] };
+        if (rule.recipients) {
+          rule.recipients = this.normalizeRecipients(rule.recipients);
+        }
+        merged[key] = rule;
       }
     }
     return merged;
@@ -57,10 +66,28 @@ class SystemSettingsService {
     if (data.notificationSettings !== undefined) {
       // Merge with existing
       const existing = settings?.notificationSettings as any;
-      updateData.notificationSettings = {
-        ...(existing || DEFAULT_NOTIFICATION_SETTINGS),
+      const base = existing || DEFAULT_NOTIFICATION_SETTINGS;
+      const merged = {
+        ...base,
         ...data.notificationSettings,
       };
+
+      // Merge routing rules properly - preserve defaults for untouched rules
+      if (data.notificationSettings.routingRules) {
+        const mergedRules: any = { ...base.routingRules };
+        for (const [key, rule] of Object.entries(data.notificationSettings.routingRules)) {
+          const r = rule as any;
+          // Merge with default rule, preserving recipients if not provided
+          mergedRules[key] = {
+            ...mergedRules[key],
+            ...r,
+            recipients: r.recipients ? this.normalizeRecipients(r.recipients) : mergedRules[key]?.recipients,
+          };
+        }
+        merged.routingRules = mergedRules;
+      }
+
+      updateData.notificationSettings = merged;
     }
 
     if (!settings) {

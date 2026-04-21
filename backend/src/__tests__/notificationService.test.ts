@@ -99,7 +99,7 @@ describe('notificationService.getEmployeeNotifications', () => {
       id: 'notif-1',
       type: 'TASK',
       eventName: 'task.assigned',
-      category: 'task',
+      category: 'TASK',
       entityType: 'task',
       entityId: 'task-1',
       metadata: {
@@ -111,7 +111,7 @@ describe('notificationService.getEmployeeNotifications', () => {
       id: 'notif-2',
       type: 'WORK_PLAN',
       eventName: 'work-plan.created',
-      category: 'work-plan',
+      category: 'WORK_PLAN',
     });
   });
 
@@ -174,7 +174,7 @@ describe('notificationService.getEmployeeNotifications', () => {
       id: 'notif-3',
       type: 'TASK_EVALUATED',
       eventName: 'task.evaluated',
-      category: 'task',
+      category: 'TASK',
       entityType: 'task',
       entityId: 'task-1',
     });
