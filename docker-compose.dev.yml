@@ -41,6 +41,7 @@ services:
       CORS_ORIGIN: http://localhost:5173
       API_URL: http://localhost:5003
       LOG_LEVEL: debug
+      AI_SERVICE_URL: http://ai-service:8001
     ports:
       - "5003:5000"
     volumes:
@@ -48,6 +49,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - erp_dev_network
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: erp_dev_ai
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     networks:
       - erp_dev_network
 

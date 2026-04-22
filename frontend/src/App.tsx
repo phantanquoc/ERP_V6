@@ -55,6 +55,10 @@ const TechnicalMechanical = React.lazy(() => import('./pages/technical/Technical
 // System Settings
 const SystemSettingsPage = React.lazy(() => import('./pages/SystemSettingsPage'));
 
+// Face Attendance
+const FaceAdminPage = React.lazy(() => import('./pages/face/FaceAdminPage'));
+const FaceKioskPage = React.lazy(() => import('./pages/face/FaceKioskPage'));
+
 function App() {
   return (
     <Router>
@@ -65,6 +69,7 @@ function App() {
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/diemdanh/nhanvien" element={<FaceKioskPage />} />
 
           {/* Protected Routes — single Layout instance, never unmounts */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -128,6 +133,9 @@ function App() {
 
             {/* System Settings (Admin Only) */}
             <Route path="/system-settings" element={<SystemSettingsPage />} />
+
+            {/* Face Attendance Admin */}
+            <Route path="/diemdanh/admin" element={<FaceAdminPage />} />
           </Route>
         </Routes>
         </Suspense>

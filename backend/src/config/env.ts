@@ -24,6 +24,7 @@ export const env = {
   LOG_LEVEL: process.env.LOG_LEVEL || 'info',
   MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE || '104857600', 10), // 100MB
   UPLOAD_DIR: process.env.UPLOAD_DIR || './uploads',
+  AI_SERVICE_URL: process.env.AI_SERVICE_URL || 'http://localhost:8001',
 };
 
 export const isDevelopment = env.NODE_ENV === 'development';

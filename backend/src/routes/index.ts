@@ -60,6 +60,7 @@ const ROUTE_MAP: Record<string, string> = {
   workShift: '/api/work-shifts',
   overtimePlan: '/api/overtime-plans',
   systemSettings: '/api/system-settings',
+  faceAttendance: '/api/face-attendance',
 };
 
 export const registerRoutes = (app: Express): void => {

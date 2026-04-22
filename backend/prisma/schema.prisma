@@ -258,6 +258,7 @@ model Employee {
   leaveRequests      LeaveRequest[]
   purchaseRequests   PurchaseRequest[]
   suppliers          Supplier[]          @relation("SupplierCreatedBy")
+  faceProfile        FaceProfile?
 
   @@map("employees")
   @@schema("common")
@@ -2172,5 +2173,64 @@ model SystemSettings {
   updatedBy   String?
 
   @@map("system_settings")
+  @@schema("common")
+}
+// ─── Face Recognition Attendance ───────────────────────────────────────────
+
+model FaceProfile {
+  id          String      @id @default(cuid())
+  employeeId  String      @unique
+  isActive    Boolean     @default(true)
+  enrolledAt  DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  employee    Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  images      FaceImage[]
+  logs        FaceAttendanceLog[]
+
+  @@map("face_profiles")
+  @@schema("common")
+}
+
+model FaceImage {
+  id            String      @id @default(cuid())
+  faceProfileId String
+  imagePath     String      // relative path under uploads/faces/
+  embedding     String?     // JSON array from AI service
+  createdAt     DateTime    @default(now())
+  faceProfile   FaceProfile @relation(fields: [faceProfileId], references: [id], onDelete: Cascade)
+
+  @@index([faceProfileId])
+  @@map("face_images")
+  @@schema("common")
+}
+
+model FaceAttendanceLog {
+  id            String      @id @default(cuid())
+  faceProfileId String?
+  employeeId    String?
+  action        String      // "CHECK_IN" | "CHECK_OUT" | "UNRECOGNIZED"
+  confidence    Float?      // similarity score 0-1
+  snapshotPath  String?     // snapshot image path
+  deviceId      String?
+  ipAddress     String?
+  attendanceId  String?     // linked Attendance record if success
+  createdAt     DateTime    @default(now())
+  faceProfile   FaceProfile? @relation(fields: [faceProfileId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, createdAt])
+  @@map("face_attendance_logs")
+  @@schema("common")
+}
+
+model AttendanceDevice {
+  id        String   @id @default(cuid())
+  name      String
+  apiKey    String   @unique @default(cuid())
+  location  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("attendance_devices")
   @@schema("common")
 }
