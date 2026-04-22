@@ -7,11 +7,11 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y dumb-init && rm -rf /var/lib/apt/lists/*
 
-# Copy package files
-COPY package*.json ./
+# Copy package files (chỉ package.json để npm install lại cho Linux platform)
+COPY package.json ./
 
-# Install all deps
-RUN npm ci
+# Install all deps (npm install thay vì npm ci để resolve platform-specific binaries đúng)
+RUN npm install
 
 # Copy source code
 COPY . .

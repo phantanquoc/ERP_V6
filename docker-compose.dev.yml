@@ -39,10 +39,10 @@ services:
       JWT_REFRESH_SECRET: dev_jwt_refresh_secret_key_localhost
       JWT_REFRESH_EXPIRE: 30d
       CORS_ORIGIN: http://localhost:5173
-      API_URL: http://localhost:5000
+      API_URL: http://localhost:5003
       LOG_LEVEL: debug
     ports:
-      - "5000:5000"
+      - "5003:5000"
     volumes:
       - backend_uploads_dev:/app/uploads
     depends_on:
@@ -58,7 +58,7 @@ services:
     container_name: erp_dev_frontend
     restart: unless-stopped
     environment:
-      VITE_API_URL: http://localhost:5000/api
+      VITE_API_URL: http://localhost:5003/api
     ports:
       - "5173:5173"
     depends_on:
