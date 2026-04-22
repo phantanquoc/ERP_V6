@@ -1,0 +1,24 @@
+# Frontend Dockerfile - Development (localhost)
+# Dùng Vite dev server, không nginx
+
+FROM node:20-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y dumb-init && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY package*.json ./
+
+# Install all deps
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Expose Vite dev port
+EXPOSE 5173
+
+ENTRYPOINT ["dumb-init", "--"]
+# --host 0.0.0.0 để bind ra ngoài container
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

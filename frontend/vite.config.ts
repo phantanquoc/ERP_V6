@@ -21,8 +21,10 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   server: {
+    host: '0.0.0.0',
     allowedHosts: [
-      '.csb.app'
+      '.csb.app',
+      'localhost',
     ]
   }
 })

@@ -1,0 +1,28 @@
+# Backend Dockerfile - Development (localhost)
+# Dùng full deps + ts-node để chạy migrate và dev mode
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache dumb-init
+
+# Copy package files
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install ALL deps (bao gồm devDependencies để có prisma CLI + ts-node)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Expose port
+EXPOSE 5000
+
+# Chạy migrate trước rồi mới start
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run dev"]
