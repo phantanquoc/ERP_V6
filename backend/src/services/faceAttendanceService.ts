@@ -85,6 +85,7 @@ interface AiBatchVerifyResult {
   matched: boolean;
   profile_id: string | null;
   confidence: number;
+  vote_count: number;
   message: string;
 }
 
@@ -95,7 +96,7 @@ async function callAiBatchVerify(
   const res = await fetch(`${AI_URL}/verify-batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: imageFaceCrop, profiles }),
+    body: JSON.stringify({ image: imageFaceCrop, profiles, anti_spoofing: true }),
   });
   if (!res.ok) {
     const err = await res.text();

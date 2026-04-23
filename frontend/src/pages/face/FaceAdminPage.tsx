@@ -3,11 +3,16 @@ import { Camera, CheckCircle, XCircle, RefreshCw, ToggleLeft, ToggleRight, User 
 import faceAttendanceService, { EmployeeFaceProfile } from '../../services/faceAttendanceService';
 
 const POSES = [
-  { label: 'Chính diện', emoji: '😐', hint: 'Nhìn thẳng vào camera' },
-  { label: 'Xoay trái',  emoji: '⬅️', hint: 'Xoay mặt sang trái nhẹ (~30°)' },
-  { label: 'Xoay phải',  emoji: '➡️', hint: 'Xoay mặt sang phải nhẹ (~30°)' },
-  { label: 'Ngẩng lên',  emoji: '⬆️', hint: 'Ngẩng đầu nhẹ lên trên' },
-  { label: 'Cúi xuống',  emoji: '⬇️', hint: 'Cúi đầu nhẹ xuống dưới' },
+  { label: 'Chính diện',      emoji: '😐', hint: 'Nhìn thẳng vào camera' },
+  { label: 'Mỉm cười',        emoji: '😊', hint: 'Nhìn thẳng và mỉm cười tự nhiên' },
+  { label: 'Xoay trái nhẹ',   emoji: '↖️', hint: 'Xoay mặt sang trái nhẹ (~20°)' },
+  { label: 'Xoay trái nhiều', emoji: '⬅️', hint: 'Xoay mặt sang trái (~40°)' },
+  { label: 'Xoay phải nhẹ',   emoji: '↗️', hint: 'Xoay mặt sang phải nhẹ (~20°)' },
+  { label: 'Xoay phải nhiều', emoji: '➡️', hint: 'Xoay mặt sang phải (~40°)' },
+  { label: 'Ngẩng lên',       emoji: '⬆️', hint: 'Ngẩng đầu nhẹ lên trên (~20°)' },
+  { label: 'Cúi xuống',       emoji: '⬇️', hint: 'Cúi đầu nhẹ xuống dưới (~20°)' },
+  { label: 'Ánh sáng khác',   emoji: '💡', hint: 'Giữ nguyên — thay đổi hướng ánh sáng nếu có thể' },
+  { label: 'Biểu cảm tự nhiên', emoji: '🧍', hint: 'Nhìn thẳng với biểu cảm bình thường nhất' },
 ];
 
 type EnrollState = 'idle' | 'capturing' | 'submitting' | 'done' | 'error';
@@ -92,7 +97,7 @@ const FaceAdminPage: React.FC = () => {
     if (newImages.length < POSES.length) {
       setCurrentPose(newImages.length);
     } else {
-      // All 5 poses captured — stop camera and ready to submit
+      // All poses captured — stop camera and ready to submit
       stopCamera();
       setEnrollState('idle');
     }
