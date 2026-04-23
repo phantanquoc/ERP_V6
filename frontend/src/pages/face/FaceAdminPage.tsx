@@ -13,15 +13,127 @@ const POSES = [
   { label: 'Mỉm cười',      emoji: '😊',  hint: 'Nhìn thẳng và mỉm cười tự nhiên',     arrow: null },
 ];
 
-const STABLE_MS   = 900;   // thời gian mặt phải giữ ổn định trước khi chụp
-const COOLDOWN_MS = 1200;  // thời gian chờ sau khi chụp trước lần tiếp theo
-const MIN_SCORE   = 0.55;  // ngưỡng face-api score tối thiểu
-const OVAL_PAD_X  = 0.18;  // kích thước oval (% chiều rộng frame)
-const OVAL_PAD_Y  = 0.06;
+const STABLE_MS   = 900;   // ms giữ ổn định trước khi chụp
+const COOLDOWN_MS = 1200;  // ms chờ sau khi chụp
+const MIN_SCORE   = 0.50;  // ngưỡng face-api score
+const OVAL_PAD_X  = 0.18;  // oval width padding (fraction)
+const OVAL_PAD_Y  = 0.06;  // oval height padding
+
+// Ngưỡng góc mặt (tính từ 68 landmarks)
+const YAW_FRONT  = 0.15;  // |yaw| < này = chính diện
+const YAW_SIDE   = 0.22;  // |yaw| > này = đã xoay đủ
+const PITCH_UP   = -0.13; // pitch < này = ngẩng lên đủ
+const PITCH_DOWN =  0.13; // pitch > này = cúi xuống đủ
+const SMILE_MIN  =  0.18; // tỷ lệ mở miệng khi cười
+
+// ─── Pose metrics (tính từ face landmarks) ───────────────────────────────────
+interface PoseMetrics {
+  yaw:    number;  // < 0 = xoay trái (user's left), > 0 = phải (user's right)
+  pitch:  number;  // < 0 = ngẩng lên, > 0 = cúi xuống
+  smile:  number;  // 0..∞ mouthH/mouthW
+  inOval: boolean;
+}
+
+function computePoseMetrics(
+  lm: faceapi.FaceLandmarks68, vw: number, vh: number
+): PoseMetrics {
+  const pts = lm.positions;
+
+  // Eye centers (pts 36-41 = left eye, 42-47 = right eye)
+  const avg = (idxs: number[]) => idxs.reduce(
+    (a, i) => ({ x: a.x + pts[i].x / idxs.length, y: a.y + pts[i].y / idxs.length }),
+    { x: 0, y: 0 }
+  );
+  const leftEye   = avg([36,37,38,39,40,41]);
+  const rightEye  = avg([42,43,44,45,46,47]);
+  const eyeCenter = { x: (leftEye.x + rightEye.x) / 2, y: (leftEye.y + rightEye.y) / 2 };
+  const eyeWidth  = Math.abs(rightEye.x - leftEye.x);
+
+  const noseTip   = pts[30];  // nose tip
+  const mouthL    = pts[48];  // left corner
+  const mouthR    = pts[54];  // right corner
+  const mouthTop  = pts[51];  // upper lip center
+  const mouthBot  = pts[57];  // lower lip center
+
+  // Mouth center Y (avg of all mouth pts)
+  const mouthCenterY = avg([48,49,50,51,52,53,54,55,56,57,58,59]).y;
+
+  // Yaw: how far nose deviates from eye midpoint (normalised by eye width)
+  // negative = user turns their left, positive = user turns their right
+  const yaw = eyeWidth > 0 ? (noseTip.x - eyeCenter.x) / eyeWidth : 0;
+
+  // Pitch: (eyeToNose - noseToMouth) / total
+  // negative = looking up, positive = looking down
+  const eyeToNose    = noseTip.y - eyeCenter.y;   // always +
+  const noseToMouth  = mouthCenterY - noseTip.y;  // always +
+  const totalV       = eyeToNose + noseToMouth;
+  const pitch        = totalV > 0 ? (eyeToNose - noseToMouth) / totalV : 0;
+
+  // Smile: mouth height / mouth width
+  const mouthW = Math.abs(mouthR.x - mouthL.x);
+  const mouthH = Math.abs(mouthBot.y - mouthTop.y);
+  const smile  = mouthW > 0 ? mouthH / mouthW : 0;
+
+  // Oval check using nose tip as face center
+  const faceCx = noseTip.x;
+  const faceCy = eyeCenter.y + (mouthCenterY - eyeCenter.y) * 0.45;
+  const rx = vw * (0.5 - OVAL_PAD_X);
+  const ry = vh * (0.5 - OVAL_PAD_Y);
+  const dx = (faceCx - vw / 2) / rx;
+  const dy = (faceCy - vh / 2) / ry;
+  const inOval = (dx * dx + dy * dy) <= 1.0;
+
+  return { yaw, pitch, smile, inOval };
+}
+
+function checkPoseMatch(poseIdx: number, m: PoseMetrics): { ok: boolean; hint: string } {
+  const { yaw, pitch, smile } = m;
+
+  switch (poseIdx) {
+    case 0: // Chính diện
+      if (Math.abs(yaw) > YAW_FRONT + 0.08)
+        return { ok: false, hint: yaw > 0 ? 'Xoay sang trái thêm' : 'Xoay sang phải thêm' };
+      if (pitch < PITCH_UP - 0.05)
+        return { ok: false, hint: 'Hạ đầu xuống nhẹ' };
+      if (pitch > PITCH_DOWN + 0.05)
+        return { ok: false, hint: 'Ngẩng đầu lên nhẹ' };
+      return { ok: true, hint: '✓ Tốt! Giữ nguyên...' };
+
+    case 1: // Xoay trái (user's left → yaw < 0 in raw frame)
+      if (yaw > -YAW_SIDE)
+        return { ok: false, hint: 'Xoay mặt sang trái thêm' };
+      return { ok: true, hint: '✓ Đúng góc! Giữ nguyên...' };
+
+    case 2: // Xoay phải (user's right → yaw > 0 in raw frame)
+      if (yaw < YAW_SIDE)
+        return { ok: false, hint: 'Xoay mặt sang phải thêm' };
+      return { ok: true, hint: '✓ Đúng góc! Giữ nguyên...' };
+
+    case 3: // Ngẩng lên (pitch < PITCH_UP)
+      if (pitch > PITCH_UP)
+        return { ok: false, hint: 'Ngẩng đầu lên thêm' };
+      return { ok: true, hint: '✓ Đúng góc! Giữ nguyên...' };
+
+    case 4: // Cúi xuống (pitch > PITCH_DOWN)
+      if (pitch < PITCH_DOWN)
+        return { ok: false, hint: 'Cúi đầu xuống thêm' };
+      return { ok: true, hint: '✓ Đúng góc! Giữ nguyên...' };
+
+    case 5: // Mỉm cười
+      if (smile < SMILE_MIN)
+        return { ok: false, hint: 'Mỉm cười to hơn nhé 😄' };
+      if (Math.abs(yaw) > YAW_FRONT + 0.12)
+        return { ok: false, hint: 'Nhìn thẳng vào camera khi cười' };
+      return { ok: true, hint: '✓ Nụ cười đẹp! Giữ nguyên...' };
+
+    default:
+      return { ok: true, hint: '✓ Tốt!' };
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type EnrollState = 'idle' | 'capturing' | 'submitting' | 'done' | 'error';
-type OvalState   = 'waiting' | 'detecting' | 'stable' | 'flash';
+type OvalState   = 'waiting' | 'detecting' | 'wrong-pose' | 'stable' | 'flash';
 
 const FaceAdminPage: React.FC = () => {
   const videoRef   = useRef<HTMLVideoElement>(null);
@@ -46,19 +158,21 @@ const FaceAdminPage: React.FC = () => {
   const [ovalState,     setOvalState]     = useState<OvalState>('waiting');
   const [modelsLoaded,  setModelsLoaded]  = useState(false);
   const [stableProgress,setStableProgress]= useState(0); // 0–100
+  const [poseFeedback,  setPoseFeedback]  = useState('');  // guidance text
 
   // Refs mirroring state for use in RAF loop
   const capturedImagesRef = useRef<string[]>([]);
   const currentPoseRef    = useRef(0);
   const captureActiveRef  = useRef(false);
 
-  // ─── Load face-api models ──────────────────────────────────────────────────
+  // ─── Load face-api models (detector + 68-landmark) ───────────────────────
   useEffect(() => {
     if (modelsRef.current) return;
     modelsRef.current = true;
-    faceapi.nets.tinyFaceDetector.loadFromUri('/models').then(() => {
-      setModelsLoaded(true);
-    }).catch(console.error);
+    Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri('/models'),
+    ]).then(() => setModelsLoaded(true)).catch(console.error);
   }, []);
 
   // ─── Employee list ─────────────────────────────────────────────────────────
@@ -185,9 +299,10 @@ const FaceAdminPage: React.FC = () => {
     // Oval border
     let color = '#ffffff66';
     let lineW  = 2;
-    if (state === 'flash') { color = '#22c55e'; lineW = 5; }
-    else if (state === 'stable') { color = '#22c55e'; lineW = 4; }
-    else if (inOval && detected) { color = '#facc15'; lineW = 3; }
+    if (state === 'flash')      { color = '#22c55e'; lineW = 5; }
+    else if (state === 'stable'){ color = '#22c55e'; lineW = 4; }
+    else if (state === 'wrong-pose') { color = '#f97316'; lineW = 3; }
+    else if (state === 'detecting')  { color = '#facc15'; lineW = 3; }
 
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
@@ -227,66 +342,67 @@ const FaceAdminPage: React.FC = () => {
       const vw = video.videoWidth  || 640;
       const vh = video.videoHeight || 480;
 
-      // After cooldown, try detect
-      const now = Date.now();
-      if (now < cooldownRef.current) {
+      // During cooldown: just draw "waiting"
+      if (Date.now() < cooldownRef.current) {
         drawOverlay(vw, vh, false, false, 0, 'waiting');
         loopRef.current = requestAnimationFrame(detect);
         return;
       }
 
-      let detected = false;
-      let inOval   = false;
+      let ovalSt: OvalState = 'waiting';
+      let feedback = '';
       let box: { x: number; y: number; width: number; height: number } | undefined;
+      let poseOk = false;
 
       try {
-        const result = await faceapi.detectSingleFace(
-          video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: MIN_SCORE })
-        );
+        const result = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: MIN_SCORE }))
+          .withFaceLandmarks(true);  // true = tiny model
 
         if (result) {
-          detected = true;
-          const b = result.box;
-          // Mirror X (video is CSS-flipped, so detection box X is mirrored)
+          const b = result.detection.box;
           const mirroredX = vw - b.x - b.width;
           box = { x: mirroredX, y: b.y, width: b.width, height: b.height };
 
-          // Check face center is inside oval
-          const faceCx = mirroredX + b.width  / 2;
-          const faceCy = b.y      + b.height / 2;
-          const ovalCx = vw / 2;
-          const ovalCy = vh / 2;
-          const rx = vw * (0.5 - OVAL_PAD_X);
-          const ry = vh * (0.5 - OVAL_PAD_Y);
-          const dx = (faceCx - ovalCx) / rx;
-          const dy = (faceCy - ovalCy) / ry;
-          inOval = (dx * dx + dy * dy) <= 1.0;
+          // Compute pose metrics from landmarks
+          const metrics = computePoseMetrics(result.landmarks, vw, vh);
+
+          if (!metrics.inOval) {
+            ovalSt   = 'detecting';
+            feedback = 'Đưa mặt vào khung oval';
+          } else {
+            // Face in oval — now check pose
+            const check = checkPoseMatch(currentPoseRef.current, metrics);
+            poseOk = check.ok;
+            feedback = check.hint;
+            ovalSt = check.ok ? 'stable' : 'wrong-pose';
+          }
         }
       } catch { /* ignore */ }
 
-      if (detected && inOval) {
+      if (poseOk) {
         if (!stableRef.current) stableRef.current = Date.now();
         const elapsed  = Date.now() - stableRef.current;
         const progress = Math.min(100, (elapsed / STABLE_MS) * 100);
         setStableProgress(progress);
 
         if (elapsed >= STABLE_MS) {
-          // Auto capture!
           drawOverlay(vw, vh, true, true, 100, 'flash', box);
           setOvalState('flash');
+          setPoseFeedback('✓ Chụp!');
           doAutoCapture();
           loopRef.current = requestAnimationFrame(detect);
           return;
         }
-        setOvalState('stable');
         drawOverlay(vw, vh, true, true, progress, 'stable', box);
       } else {
         stableRef.current = null;
         setStableProgress(0);
-        setOvalState(detected ? 'detecting' : 'waiting');
-        drawOverlay(vw, vh, detected, inOval, 0, detected ? 'detecting' : 'waiting', box);
+        drawOverlay(vw, vh, !!box, false, 0, ovalSt, box);
       }
 
+      setOvalState(ovalSt);
+      setPoseFeedback(feedback);
       loopRef.current = requestAnimationFrame(detect);
     };
 
@@ -337,6 +453,7 @@ const FaceAdminPage: React.FC = () => {
     setEnrollMode('new');
     setOvalState('waiting');
     setStableProgress(0);
+    setPoseFeedback('');
   };
 
   const selectEmployee = (emp: EmployeeFaceProfile) => {
@@ -358,9 +475,9 @@ const FaceAdminPage: React.FC = () => {
   // ─── Oval status message ───────────────────────────────────────────────────
   const ovalMsg = (() => {
     if (!cameraOn) return '';
-    if (ovalState === 'flash')     return '✓ Đã chụp!';
-    if (ovalState === 'stable')    return 'Giữ nguyên...';
-    if (ovalState === 'detecting') return 'Di chuyển mặt vào khung';
+    if (ovalState === 'flash')      return '📸 Đã chụp!';
+    if (poseFeedback)               return poseFeedback;
+    if (ovalState === 'waiting')    return 'Đưa mặt vào khung oval';
     return 'Đưa mặt vào khung oval';
   })();
 
@@ -488,11 +605,12 @@ const FaceAdminPage: React.FC = () => {
                         </p>
                         <p className="text-sm text-gray-400">{pose.hint}</p>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full border font-medium ${
-                        ovalState === 'flash'    ? 'bg-green-900/50 text-green-400 border-green-700' :
-                        ovalState === 'stable'   ? 'bg-yellow-900/50 text-yellow-400 border-yellow-700 animate-pulse' :
-                        ovalState === 'detecting'? 'bg-blue-900/50 text-blue-400 border-blue-700' :
-                                                   'bg-gray-800 text-gray-400 border-gray-700'
+                      <span className={`text-xs px-2 py-1 rounded-full border font-medium transition-all ${
+                        ovalState === 'flash'      ? 'bg-green-900/50 text-green-400 border-green-700' :
+                        ovalState === 'stable'     ? 'bg-yellow-900/50 text-yellow-400 border-yellow-700 animate-pulse' :
+                        ovalState === 'wrong-pose' ? 'bg-orange-900/50 text-orange-400 border-orange-700' :
+                        ovalState === 'detecting'  ? 'bg-blue-900/50 text-blue-400 border-blue-700' :
+                                                     'bg-gray-800 text-gray-400 border-gray-700'
                       }`}>{ovalMsg}</span>
                     </div>
 
