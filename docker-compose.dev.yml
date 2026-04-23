@@ -46,6 +46,8 @@ services:
       - "5003:5000"
     volumes:
       - backend_uploads_dev:/app/uploads
+      - ./backend/src:/app/src:ro
+      - ./backend/prisma:/app/prisma:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +81,9 @@ services:
       VITE_API_URL: http://localhost:5003/api
     ports:
       - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
     depends_on:
       - backend
     networks:
