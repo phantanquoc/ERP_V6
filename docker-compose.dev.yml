@@ -62,12 +62,14 @@ services:
     restart: unless-stopped
     ports:
       - "8001:8001"
+    volumes:
+      - deepface_weights:/root/.deepface/weights  # persist model weights (tránh download lại mỗi rebuild)
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 120s
     networks:
       - erp_dev_network
 
@@ -94,6 +96,8 @@ volumes:
     driver: local
   backend_uploads_dev:
     driver: local
+  deepface_weights:
+    driver: local  # persist ArcFace/FaceNet weights across rebuilds
 
 networks:
   erp_dev_network:

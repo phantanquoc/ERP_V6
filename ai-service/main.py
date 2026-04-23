@@ -30,9 +30,10 @@ app.add_middleware(
 
 MODEL_NAME        = "ArcFace"      # ArcFace: 99.83% trên LFW — chuẩn công nghiệp
 ENROLL_DETECTOR   = "retinaface"   # accurate detector cho enrollment
-VERIFY_DETECTOR   = "opencv"       # fast detector cho realtime kiosk (~10x nhanh hơn)
+VERIFY_DETECTOR   = "yunet"        # OpenCV DNN detector: fast + reliable cho webcam kiosk
+VERIFY_DETECTOR_FB= "ssd"          # fallback nếu yunet miss
 THRESHOLD         = 0.68           # ArcFace cosine distance threshold (recommended)
-ENROLL_MIN_CONF   = 0.85           # quality filter: bỏ qua ảnh chất lượng thấp
+ENROLL_MIN_CONF   = 0.70           # quality filter: giảm từ 0.85 để không bỏ sót ảnh hợp lệ
 VOTE_WEIGHT_COUNT = 0.40           # trọng số số phiếu trong top-K voting
 VOTE_WEIGHT_DIST  = 0.60           # trọng số khoảng cách trung bình
 
@@ -43,16 +44,17 @@ _models_loaded = False
 
 @app.on_event("startup")
 async def warmup():
-    """Pre-load ArcFace + opencv model weights."""
+    """Pre-load ArcFace + yunet/ssd detector weights."""
     global _models_loaded
     try:
-        logger.info("Warming up ArcFace + opencv detector...")
+        logger.info("Warming up ArcFace + yunet/ssd detectors...")
         dummy = np.zeros((112, 112, 3), dtype=np.uint8)
-        try:
-            DeepFace.represent(dummy, model_name=MODEL_NAME, detector_backend=VERIFY_DETECTOR,
-                               enforce_detection=False)
-        except Exception:
-            pass
+        for det in [VERIFY_DETECTOR, VERIFY_DETECTOR_FB]:
+            try:
+                DeepFace.represent(dummy, model_name=MODEL_NAME, detector_backend=det,
+                                   enforce_detection=False)
+            except Exception:
+                pass
         _models_loaded = True
         logger.info("Warmup complete")
     except Exception as e:
@@ -84,21 +86,38 @@ def get_embedding(img_array: np.ndarray, detector: str = ENROLL_DETECTOR,
                   anti_spoofing: bool = False) -> tuple[np.ndarray, float]:
     """
     Trả về (embedding L2-normalized, face_confidence).
-    Raises ValueError nếu không phát hiện được khuôn mặt hoặc phát hiện giả mạo.
+    Nếu detector chính fail, thử fallback detector.
+    Raises ValueError nếu không phát hiện được khuôn mặt.
     """
     img_array = preprocess_image(img_array)
-    result = DeepFace.represent(
-        img_path=img_array,
-        model_name=MODEL_NAME,
-        detector_backend=detector,
-        enforce_detection=True,
-        anti_spoofing=anti_spoofing,
-    )
-    if not result:
-        raise ValueError("No face detected")
-    face_conf = result[0].get("face_confidence", 1.0)
-    emb = np.array(result[0]["embedding"], dtype=np.float32)
-    return normalize_vec(emb), float(face_conf)
+
+    detectors_to_try = [detector]
+    # Thêm fallback nếu đang dùng verify detector
+    if detector == VERIFY_DETECTOR and detector != VERIFY_DETECTOR_FB:
+        detectors_to_try.append(VERIFY_DETECTOR_FB)
+
+    last_err = None
+    for det in detectors_to_try:
+        try:
+            result = DeepFace.represent(
+                img_path=img_array,
+                model_name=MODEL_NAME,
+                detector_backend=det,
+                enforce_detection=True,
+                anti_spoofing=anti_spoofing,
+            )
+            if not result:
+                continue
+            face_conf = result[0].get("face_confidence", 1.0)
+            emb = np.array(result[0]["embedding"], dtype=np.float32)
+            if det != detector:
+                logger.info(f"Used fallback detector '{det}' (primary '{detector}' failed)")
+            return normalize_vec(emb), float(face_conf)
+        except Exception as e:
+            last_err = e
+            continue
+
+    raise ValueError(str(last_err) if last_err else "No face detected")
 
 
 def cosine_distance_batch(probe: np.ndarray, gallery: np.ndarray) -> np.ndarray:
@@ -147,7 +166,7 @@ class ProfileEmbeddings(BaseModel):
 class BatchVerifyRequest(BaseModel):
     image: str
     profiles: list[ProfileEmbeddings]
-    anti_spoofing: bool = True   # mặc định bật anti-spoofing ở kiosk
+    anti_spoofing: bool = False  # tắt default: deepface anti-spoof quá aggressive với webcam thật
 
 class BatchVerifyResponse(BaseModel):
     matched: bool

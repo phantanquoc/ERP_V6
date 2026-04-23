@@ -96,7 +96,7 @@ async function callAiBatchVerify(
   const res = await fetch(`${AI_URL}/verify-batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: imageFaceCrop, profiles, anti_spoofing: true }),
+    body: JSON.stringify({ image: imageFaceCrop, profiles, anti_spoofing: false }),
   });
   if (!res.ok) {
     const err = await res.text();
