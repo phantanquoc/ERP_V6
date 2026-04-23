@@ -9,20 +9,28 @@ type FacePos    = 'none' | 'centered' | 'offcenter';
 // Face must be within this fraction of the frame center to trigger scan
 const CENTER_ZONE = 0.30; // ±30% from center on each axis
 
-// Liveness — adaptive blink detection (Eye Aspect Ratio)
-// Fixed threshold is unreliable across face shapes/glasses/cameras.
-// Instead: build a rolling baseline of "open eye" EAR, detect blink
-// when EAR drops ≥30% below that baseline (adapts per person).
-const EAR_HISTORY_SIZE = 40;   // ~4s at 10fps
-const EAR_MIN_OPEN     = 0.15; // ignore values below this when building baseline
-const EAR_BLINK_RATIO  = 0.72; // EAR < baseline * 0.72 = eye closing
-const EAR_FALLBACK     = 0.28; // fallback baseline before enough history
-const BLINK_CONSEC_MIN = 1;    // ≥1 consecutive closed-eye frame to start blink
+// Liveness — head nod detection via pitch (up/down tilt from face landmarks)
+// Same approach used by Alipay, WeChat Pay: require intentional head movement.
+// A static photo cannot change pitch → cannot spoof.
+// Pitch > NOD_DOWN_THRESH = head dipping forward (nodding down)
+// After nod detected, pitch returns to neutral → liveness confirmed.
+const NOD_DOWN_THRESH  = 0.12;  // pitch > this = head tilted down (nod)
+const NOD_NEUTRAL_MAX  = 0.06;  // pitch < this = head back to neutral
+const NOD_HOLD_FRAMES  = 2;     // frames pitch must stay in "down" zone to register
 
-/** Compute Eye Aspect Ratio for 6 eye landmark points (standard 68-point order) */
-function calcEAR(pts: faceapi.Point[]): number {
-  const d = (a: faceapi.Point, b: faceapi.Point) => Math.hypot(a.x - b.x, a.y - b.y);
-  return (d(pts[1], pts[5]) + d(pts[2], pts[4])) / (2 * d(pts[0], pts[3]));
+/** Compute face pitch (up/down tilt) from 68 landmarks.
+ *  Returns value > 0 when head tilts forward/down, < 0 when tilted back/up.
+ *  Uses vertical distances: eye center → nose tip, nose tip → mouth center.
+ */
+function calcPitch(p: faceapi.Point[]): number {
+  const eyeCenterY = (p[36].y + p[37].y + p[38].y + p[39].y + p[40].y + p[41].y +
+                      p[42].y + p[43].y + p[44].y + p[45].y + p[46].y + p[47].y) / 12;
+  const noseTipY   = p[30].y;
+  const mouthY     = (p[48].y + p[54].y) / 2;
+  const eyeToNose  = noseTipY  - eyeCenterY;
+  const noseToMouth= mouthY    - noseTipY;
+  const total = eyeToNose + noseToMouth;
+  return total > 0 ? (eyeToNose - noseToMouth) / total : 0;
 }
 
 interface ResultDisplay {
@@ -60,9 +68,9 @@ const FaceKioskPage: React.FC = () => {
   const faceDetected  = useRef(false);
   const lastFaceAt    = useRef<number>(Date.now()); // timestamp of last face detection
   const detectInterval= useRef<number>(DETECT_FAST_MS); // current poll interval
-  const livenessOk    = useRef(false);   // true after blink detected
-  const blinkFrames   = useRef(0);       // consecutive frames with closed eyes
-  const earHistory    = useRef<number[]>([]); // rolling EAR buffer for adaptive baseline
+  const livenessOk    = useRef(false);   // true after nod detected
+  const nodFrames     = useRef(0);       // consecutive frames in "down" nod zone
+  const nodPhase      = useRef<'neutral'|'nodding'>('neutral'); // nod state machine
 
   const [kioskState, setKioskState]   = useState<KioskState>('loading');
   const [result, setResult]           = useState<ResultDisplay | null>(null);
@@ -70,7 +78,7 @@ const FaceKioskPage: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [facePos, setFacePos]         = useState<FacePos>('none');
   const [dimmed, setDimmed]           = useState(false); // screen dim state
-  const [needBlink, setNeedBlink]     = useState(true);  // waiting for liveness blink
+  const [needBlink, setNeedBlink]     = useState(true);  // waiting for liveness nod
 
   // Clock
   useEffect(() => {
@@ -140,32 +148,22 @@ const FaceKioskPage: React.FC = () => {
       faceDetected.current = isCentered;
       setFacePos(isCentered ? 'centered' : 'offcenter');
 
-      // ── Adaptive blink / liveness detection via EAR ─────────────────────
+      // ── Head-nod liveness detection via pitch ───────────────────────────
       if (det.landmarks) {
-        const p = det.landmarks.positions;
-        const ear = (
-          calcEAR([p[36], p[37], p[38], p[39], p[40], p[41]]) +
-          calcEAR([p[42], p[43], p[44], p[45], p[46], p[47]])
-        ) / 2;
+        const pitch = calcPitch(det.landmarks.positions);
 
-        // Build adaptive baseline from recent "open eye" frames
-        earHistory.current.push(ear);
-        if (earHistory.current.length > EAR_HISTORY_SIZE) earHistory.current.shift();
-        const openFrames = earHistory.current.filter(e => e > EAR_MIN_OPEN);
-        const baseline = openFrames.length > 6
-          ? openFrames.reduce((a, b) => a + b, 0) / openFrames.length
-          : EAR_FALLBACK;
-
-        const eyeClosed = ear < baseline * EAR_BLINK_RATIO;
-
-        if (eyeClosed) {
-          blinkFrames.current++;
-        } else {
-          if (blinkFrames.current >= BLINK_CONSEC_MIN && !livenessOk.current) {
+        if (nodPhase.current === 'neutral') {
+          if (pitch > NOD_DOWN_THRESH) {
+            nodFrames.current++;
+            if (nodFrames.current >= NOD_HOLD_FRAMES) nodPhase.current = 'nodding';
+          } else {
+            nodFrames.current = 0;
+          }
+        } else { // 'nodding'
+          if (pitch < NOD_NEUTRAL_MAX && !livenessOk.current) {
             livenessOk.current = true;
             setNeedBlink(false);
           }
-          blinkFrames.current = 0;
         }
       }
       // ─────────────────────────────────────────────────────────────────────
@@ -190,10 +188,10 @@ const FaceKioskPage: React.FC = () => {
     } else {
       faceDetected.current = false;
       setFacePos('none');
-      // Reset liveness — require blink again when face returns
-      livenessOk.current  = false;
-      blinkFrames.current = 0;
-      earHistory.current  = [];
+      // Reset liveness — require nod again when face returns
+      livenessOk.current = false;
+      nodFrames.current  = 0;
+      nodPhase.current   = 'neutral';
       setNeedBlink(true);
 
       const idleMs = now - lastFaceAt.current;
@@ -239,10 +237,10 @@ const FaceKioskPage: React.FC = () => {
 
     processing.current = true;
     setKioskState('processing');
-    // Reset liveness — require fresh blink for next person
-    livenessOk.current  = false;
-    blinkFrames.current = 0;
-    earHistory.current  = [];
+    // Reset liveness — require fresh nod for next person
+    livenessOk.current = false;
+    nodFrames.current  = 0;
+    nodPhase.current   = 'neutral';
     setNeedBlink(true);
     try {
       const res = await faceAttendanceService.kioskVerifyDev(image);
@@ -416,8 +414,8 @@ const FaceKioskPage: React.FC = () => {
           )}
           {facePos === 'centered' && needBlink && (
             <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-yellow-400/40">
-              <span className="text-lg">👁️</span>
-              <span className="text-sm font-medium text-yellow-200">Vui lòng chớp mắt một lần để xác minh</span>
+              <span className="text-lg">🙇</span>
+              <span className="text-sm font-medium text-yellow-200">Gật đầu nhẹ một lần để xác minh</span>
             </div>
           )}
           {facePos === 'centered' && !needBlink && (
