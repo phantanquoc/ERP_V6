@@ -104,7 +104,7 @@ const FaceKioskPage: React.FC = () => {
         });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          await videoRef.current.play();
+          videoRef.current.play().catch(() => {/* autoPlay handles it */});
         }
         // Start continuous scan
         scanTimer.current = setInterval(doScan, SCAN_INTERVAL_MS);
@@ -170,7 +170,7 @@ const FaceKioskPage: React.FC = () => {
           <video
             ref={videoRef}
             className="w-full h-full object-cover"
-            muted playsInline
+            muted playsInline autoPlay
             style={{ transform: 'scaleX(-1)' }}
           />
           <canvas ref={canvasRef} className="hidden" />
