@@ -277,7 +277,10 @@ export class FaceAttendanceService {
     // Load employee data (not in cache to keep cache lean)
     const employee = await prisma.employee.findUniqueOrThrow({
       where: { id: matchedCached.employeeId },
-      include: { user: { select: { firstName: true, lastName: true } } },
+      include: {
+        user: { select: { firstName: true, lastName: true } },
+        subDepartment: { select: { name: true } },
+      },
     });
 
     const today = new Date();
@@ -323,7 +326,12 @@ export class FaceAttendanceService {
       return {
         matched: true,
         action: 'ALREADY_RECORDED',
-        employee: { id: employee.id, fullName: `${employee.user.lastName} ${employee.user.firstName}`, employeeCode: employee.employeeCode },
+        employee: {
+          id: employee.id,
+          fullName: `${employee.user.lastName} ${employee.user.firstName}`,
+          employeeCode: employee.employeeCode,
+          department: employee.subDepartment?.name ?? null,
+        },
         confidence: bestConfidence,
         message: 'Hôm nay bạn đã chấm công đầy đủ rồi',
       };
@@ -336,7 +344,12 @@ export class FaceAttendanceService {
     return {
       matched: true,
       action,
-      employee: { id: employee.id, fullName: `${employee.user.lastName} ${employee.user.firstName}`, employeeCode: employee.employeeCode },
+      employee: {
+        id: employee.id,
+        fullName: `${employee.user.lastName} ${employee.user.firstName}`,
+        employeeCode: employee.employeeCode,
+        department: employee.subDepartment?.name ?? null,
+      },
       confidence: bestConfidence,
       message: action === 'CHECK_IN' ? 'Chấm công vào thành công' : 'Chấm công ra thành công',
     };

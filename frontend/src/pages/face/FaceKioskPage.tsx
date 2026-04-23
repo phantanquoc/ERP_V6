@@ -154,12 +154,16 @@ const FaceKioskPage: React.FC = () => {
   // Show result overlay and auto-reset
   const showResult = useCallback((res: VerifyResult) => {
     const cfg = actionConfig[res.action] ?? { title: res.action, type: 'info' as const };
+    const emp = res.employee;
+    const nameLine = emp
+      ? emp.department
+        ? `${emp.fullName} — ${emp.department}`
+        : emp.fullName
+      : undefined;
     setResult({
       type: cfg.type,
       title: cfg.title,
-      employee: res.employee
-        ? `${res.employee.fullName} (${res.employee.employeeCode})`
-        : undefined,
+      employee: nameLine,
       time: new Date().toLocaleTimeString('vi-VN'),
     });
     setKioskState('result');

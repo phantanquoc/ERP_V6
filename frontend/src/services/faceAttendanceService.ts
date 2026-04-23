@@ -37,7 +37,7 @@ export interface AttendanceDevice {
 
 export interface VerifyResult {
   action: 'CHECK_IN' | 'CHECK_OUT' | 'ALREADY_RECORDED' | 'NO_MATCH';
-  employee?: { fullName: string; employeeCode: string; department?: { name: string } };
+  employee?: { fullName: string; employeeCode: string; department?: string | null };
   confidence?: number;
   message: string;
 }
