@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import * as faceapi from 'face-api.js';
 import { CheckCircle, XCircle, AlertCircle, Clock } from 'lucide-react';
 import faceAttendanceService, { VerifyResult } from '../../services/faceAttendanceService';
 
-type KioskState = 'waiting' | 'processing' | 'result' | 'error';
+type KioskState = 'loading' | 'waiting' | 'processing' | 'result' | 'error';
 
 interface ResultDisplay {
   type: 'success' | 'info' | 'error';
@@ -11,8 +12,9 @@ interface ResultDisplay {
   time?: string;
 }
 
-const SCAN_INTERVAL_MS = 1000;   // scan every 1s
-const RESULT_DISPLAY_MS = 4000;  // show result 4s then auto-reset
+const SCAN_INTERVAL_MS = 1500;  // AI scan every 1.5s when face detected
+const RESULT_DISPLAY_MS = 4000; // show result 4s then auto-reset
+const MODELS_URL = '/models';
 
 const actionConfig: Record<string, { title: string; type: 'success' | 'info' | 'error' }> = {
   CHECK_IN:         { title: 'Check-in thành công ✅', type: 'success' },
@@ -22,16 +24,21 @@ const actionConfig: Record<string, { title: string; type: 'success' | 'info' | '
 };
 
 const FaceKioskPage: React.FC = () => {
-  const videoRef   = useRef<HTMLVideoElement>(null);
-  const canvasRef  = useRef<HTMLCanvasElement>(null);
-  const scanTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const processing = useRef(false);
+  const videoRef      = useRef<HTMLVideoElement>(null);
+  const overlayRef    = useRef<HTMLCanvasElement>(null); // for drawing landmarks
+  const captureRef    = useRef<HTMLCanvasElement>(null); // hidden, for AI capture
+  const rafRef        = useRef<number>(0);
+  const scanTimer     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resetTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const processing    = useRef(false);
+  const faceDetected  = useRef(false);
 
-  const [kioskState, setKioskState]   = useState<KioskState>('waiting');
+
+  const [kioskState, setKioskState]   = useState<KioskState>('loading');
   const [result, setResult]           = useState<ResultDisplay | null>(null);
   const [cameraError, setCameraError] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [hasFace, setHasFace]         = useState(false);
 
   // Clock
   useEffect(() => {
@@ -39,10 +46,10 @@ const FaceKioskPage: React.FC = () => {
     return () => clearInterval(t);
   }, []);
 
-  // Capture frame from video
+  // Capture frame for AI (from hidden canvas, no mirror flip)
   const captureFrame = useCallback((): string | null => {
     const video  = videoRef.current;
-    const canvas = canvasRef.current;
+    const canvas = captureRef.current;
     if (!video || !canvas || video.readyState < 2) return null;
     canvas.width  = video.videoWidth  || 640;
     canvas.height = video.videoHeight || 480;
@@ -50,6 +57,70 @@ const FaceKioskPage: React.FC = () => {
     if (!ctx) return null;
     ctx.drawImage(video, 0, 0);
     return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+  }, []);
+
+  // Draw face landmarks on overlay canvas (realtime RAF loop)
+  const drawLoop = useCallback(async () => {
+    const video   = videoRef.current;
+    const overlay = overlayRef.current;
+    if (!video || !overlay || video.readyState < 2) {
+      rafRef.current = requestAnimationFrame(drawLoop);
+      return;
+    }
+
+    // Sync overlay size to video display size
+    const { width, height } = video.getBoundingClientRect();
+    if (overlay.width !== width || overlay.height !== height) {
+      overlay.width  = width;
+      overlay.height = height;
+    }
+
+    const detections = await faceapi
+      .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
+      .withFaceLandmarks(true);
+
+    const ctx = overlay.getContext('2d');
+    if (!ctx) { rafRef.current = requestAnimationFrame(drawLoop); return; }
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+    if (detections.length > 0) {
+      faceDetected.current = true;
+      setHasFace(true);
+
+      // Resize detections to overlay display size (video is CSS-scaled)
+      const resized = faceapi.resizeResults(detections, { width, height });
+
+      resized.forEach(det => {
+        const box = det.detection.box;
+
+        // Bounding box
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth   = 2;
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+        // Landmark dots
+        const pts = det.landmarks.positions;
+        pts.forEach(pt => {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 2, 0, Math.PI * 2);
+          ctx.fillStyle = '#00ff88';
+          ctx.fill();
+        });
+
+        // Confidence score
+        ctx.fillStyle    = '#00ff88';
+        ctx.font         = 'bold 12px monospace';
+        ctx.fillText(
+          `${(det.detection.score * 100).toFixed(0)}%`,
+          box.x, box.y > 14 ? box.y - 6 : box.y + 14
+        );
+      });
+    } else {
+      faceDetected.current = false;
+      setHasFace(false);
+    }
+
+    rafRef.current = requestAnimationFrame(drawLoop);
   }, []);
 
   // Show result overlay and auto-reset
@@ -73,9 +144,9 @@ const FaceKioskPage: React.FC = () => {
     }, RESULT_DISPLAY_MS);
   }, []);
 
-  // Single scan attempt
+  // Single AI scan — only fires when faceDetected.current === true
   const doScan = useCallback(async () => {
-    if (processing.current) return;
+    if (processing.current || !faceDetected.current) return;
     const image = captureFrame();
     if (!image) return;
 
@@ -95,40 +166,46 @@ const FaceKioskPage: React.FC = () => {
     }
   }, [captureFrame, showResult]);
 
-  // Start camera + auto-scan on mount
+  // Load models → start camera → start loops
   useEffect(() => {
+    let active = true;
     const init = async () => {
       try {
+        // Load face-api.js models
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL),
+          faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODELS_URL),
+        ]);
+        if (!active) return;
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
         });
+        if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {/* autoPlay handles it */});
+          videoRef.current.play().catch(() => {});
         }
-        // Start continuous scan
+
+        setKioskState('waiting');
+        rafRef.current = requestAnimationFrame(drawLoop);
         scanTimer.current = setInterval(doScan, SCAN_INTERVAL_MS);
       } catch (e) {
-        setCameraError('Không thể mở camera. Kiểm tra quyền truy cập trình duyệt.');
+        if (active) setCameraError('Không thể khởi động camera hoặc tải model nhận diện.');
       }
     };
     init();
 
     return () => {
+      active = false;
+      cancelAnimationFrame(rafRef.current);
       if (scanTimer.current)  clearInterval(scanTimer.current);
       if (resetTimer.current) clearTimeout(resetTimer.current);
-      if (videoRef.current?.srcObject) {
+      if (videoRef.current?.srcObject)
         (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
-      }
     };
-  }, []); // run once on mount — doScan captured via ref logic
-
-  // Keep interval's closure fresh when doScan changes
-  useEffect(() => {
-    if (!scanTimer.current) return;
-    clearInterval(scanTimer.current);
-    scanTimer.current = setInterval(doScan, SCAN_INTERVAL_MS);
-  }, [doScan]);
+  }, [drawLoop, doScan]);
 
   // ── Result overlay colors ──
   const overlayBg: Record<string, string> = {
@@ -173,10 +250,19 @@ const FaceKioskPage: React.FC = () => {
             muted playsInline autoPlay
             style={{ transform: 'scaleX(-1)' }}
           />
-          <canvas ref={canvasRef} className="hidden" />
 
-          {/* Face guide oval */}
-          {kioskState === 'waiting' && (
+          {/* Overlay canvas for face landmarks */}
+          <canvas
+            ref={overlayRef}
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={{ transform: 'scaleX(-1)' }}
+          />
+
+          {/* Hidden canvas for AI capture (no flip) */}
+          <canvas ref={captureRef} className="hidden" />
+
+          {/* Face guide oval — only show when no face detected */}
+          {kioskState === 'waiting' && !hasFace && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div
                 className="border-2 border-blue-400 border-dashed rounded-full opacity-60 animate-pulse"
@@ -185,6 +271,14 @@ const FaceKioskPage: React.FC = () => {
               <p className="absolute bottom-4 text-blue-300 text-sm font-medium">
                 Đặt khuôn mặt vào khung
               </p>
+            </div>
+          )}
+
+          {/* Loading models */}
+          {kioskState === 'loading' && (
+            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center">
+              <div className="w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mb-3" />
+              <p className="text-white text-sm">Đang tải model nhận diện...</p>
             </div>
           )}
 
@@ -209,9 +303,11 @@ const FaceKioskPage: React.FC = () => {
       {/* ── Status bar ──────────────────────────────── */}
       {!cameraError && kioskState === 'waiting' && (
         <div className="absolute bottom-6 left-0 right-0 flex justify-center">
-          <div className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-full text-gray-400 text-sm">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            Camera đang hoạt động — đứng trước camera để điểm danh
+          <div className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-full text-sm">
+            <span className={`w-2 h-2 rounded-full animate-pulse ${hasFace ? 'bg-green-400' : 'bg-yellow-400'}`} />
+            <span className={hasFace ? 'text-green-300' : 'text-yellow-300'}>
+              {hasFace ? 'Phát hiện khuôn mặt — đang xử lý...' : 'Chưa phát hiện khuôn mặt'}
+            </span>
           </div>
         </div>
       )}
