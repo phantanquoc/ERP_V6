@@ -60,7 +60,10 @@ function computePoseMetrics(
 
   // Yaw: how far nose deviates from eye midpoint (normalised by eye width)
   // negative = user turns their left, positive = user turns their right
-  const yaw = eyeWidth > 0 ? (noseTip.x - eyeCenter.x) / eyeWidth : 0;
+  // Negate yaw: video is CSS-mirrored (scaleX(-1)), but detection runs on raw frame.
+  // User turning LEFT moves nose RIGHT in raw frame → positive raw yaw.
+  // Negating makes yaw < 0 = user left, yaw > 0 = user right (mirror-correct).
+  const yaw = eyeWidth > 0 ? -(noseTip.x - eyeCenter.x) / eyeWidth : 0;
 
   // Pitch: (eyeToNose - noseToMouth) / total
   // negative = looking up, positive = looking down
