@@ -9,9 +9,15 @@ type FacePos    = 'none' | 'centered' | 'offcenter';
 // Face must be within this fraction of the frame center to trigger scan
 const CENTER_ZONE = 0.30; // ±30% from center on each axis
 
-// Liveness — blink detection (Eye Aspect Ratio)
-const BLINK_EAR_THRESHOLD = 0.22;  // EAR below this = eye closed
-const BLINK_CONSEC_MIN    = 1;     // frames eyes must stay closed to count
+// Liveness — adaptive blink detection (Eye Aspect Ratio)
+// Fixed threshold is unreliable across face shapes/glasses/cameras.
+// Instead: build a rolling baseline of "open eye" EAR, detect blink
+// when EAR drops ≥30% below that baseline (adapts per person).
+const EAR_HISTORY_SIZE = 40;   // ~4s at 10fps
+const EAR_MIN_OPEN     = 0.15; // ignore values below this when building baseline
+const EAR_BLINK_RATIO  = 0.72; // EAR < baseline * 0.72 = eye closing
+const EAR_FALLBACK     = 0.28; // fallback baseline before enough history
+const BLINK_CONSEC_MIN = 1;    // ≥1 consecutive closed-eye frame to start blink
 
 /** Compute Eye Aspect Ratio for 6 eye landmark points (standard 68-point order) */
 function calcEAR(pts: faceapi.Point[]): number {
@@ -56,6 +62,7 @@ const FaceKioskPage: React.FC = () => {
   const detectInterval= useRef<number>(DETECT_FAST_MS); // current poll interval
   const livenessOk    = useRef(false);   // true after blink detected
   const blinkFrames   = useRef(0);       // consecutive frames with closed eyes
+  const earHistory    = useRef<number[]>([]); // rolling EAR buffer for adaptive baseline
 
   const [kioskState, setKioskState]   = useState<KioskState>('loading');
   const [result, setResult]           = useState<ResultDisplay | null>(null);
@@ -133,16 +140,25 @@ const FaceKioskPage: React.FC = () => {
       faceDetected.current = isCentered;
       setFacePos(isCentered ? 'centered' : 'offcenter');
 
-      // ── Blink / liveness detection via EAR ──────────────────────────────
+      // ── Adaptive blink / liveness detection via EAR ─────────────────────
       if (det.landmarks) {
         const p = det.landmarks.positions;
-        // Left eye: 36-41, Right eye: 42-47
         const ear = (
           calcEAR([p[36], p[37], p[38], p[39], p[40], p[41]]) +
           calcEAR([p[42], p[43], p[44], p[45], p[46], p[47]])
         ) / 2;
 
-        if (ear < BLINK_EAR_THRESHOLD) {
+        // Build adaptive baseline from recent "open eye" frames
+        earHistory.current.push(ear);
+        if (earHistory.current.length > EAR_HISTORY_SIZE) earHistory.current.shift();
+        const openFrames = earHistory.current.filter(e => e > EAR_MIN_OPEN);
+        const baseline = openFrames.length > 6
+          ? openFrames.reduce((a, b) => a + b, 0) / openFrames.length
+          : EAR_FALLBACK;
+
+        const eyeClosed = ear < baseline * EAR_BLINK_RATIO;
+
+        if (eyeClosed) {
           blinkFrames.current++;
         } else {
           if (blinkFrames.current >= BLINK_CONSEC_MIN && !livenessOk.current) {
@@ -152,7 +168,7 @@ const FaceKioskPage: React.FC = () => {
           blinkFrames.current = 0;
         }
       }
-      // ────────────────────────────────────────────────────────────────────
+      // ─────────────────────────────────────────────────────────────────────
 
       const color = isCentered ? '#00ff88' : '#ffaa00';
       ctx.strokeStyle = color;
@@ -177,6 +193,7 @@ const FaceKioskPage: React.FC = () => {
       // Reset liveness — require blink again when face returns
       livenessOk.current  = false;
       blinkFrames.current = 0;
+      earHistory.current  = [];
       setNeedBlink(true);
 
       const idleMs = now - lastFaceAt.current;
@@ -225,6 +242,7 @@ const FaceKioskPage: React.FC = () => {
     // Reset liveness — require fresh blink for next person
     livenessOk.current  = false;
     blinkFrames.current = 0;
+    earHistory.current  = [];
     setNeedBlink(true);
     try {
       const res = await faceAttendanceService.kioskVerifyDev(image);
