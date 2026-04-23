@@ -2,18 +2,18 @@ import apiClient from './apiClient';
 
 const BASE = '/api/face-attendance';
 
-export interface FaceProfile {
-  id: string;
+/** Shape returned by GET /api/face-attendance/profiles */
+export interface EmployeeFaceProfile {
   employeeId: string;
-  isActive: boolean;
-  enrolledAt: string;
-  employee: {
+  employeeCode: string;
+  fullName: string;
+  email: string;
+  faceProfile: {
     id: string;
-    fullName: string;
-    employeeCode: string;
-    department?: { name: string };
-  };
-  _count?: { images: number };
+    isActive: boolean;
+    enrolledAt: string;
+    imageCount: number;
+  } | null;
 }
 
 export interface FaceAttendanceLog {
@@ -43,26 +43,24 @@ export interface VerifyResult {
 }
 
 const faceAttendanceService = {
-  // Admin: profiles
+  /** Returns all employees with their face profile status */
   listProfiles: () =>
-    apiClient.get<FaceProfile[]>(`${BASE}/profiles`),
+    apiClient.get<EmployeeFaceProfile[]>(`${BASE}/profiles`),
 
   enrollFace: (employeeId: string, images: string[]) =>
-    apiClient.post<FaceProfile>(`${BASE}/profiles/${employeeId}/enroll`, { images }),
+    apiClient.post<{ id: string }>(`${BASE}/profiles/${employeeId}/enroll`, { images }),
 
   toggleProfile: (profileId: string) =>
-    apiClient.patch<FaceProfile>(`${BASE}/profiles/${profileId}/toggle`, {}),
+    apiClient.patch<{ isActive: boolean }>(`${BASE}/profiles/${profileId}/toggle`, {}),
 
   deleteProfile: (employeeId: string) =>
     apiClient.delete<void>(`${BASE}/profiles/${employeeId}`),
 
-  // Admin: logs
   getLogs: (page = 1, limit = 50) =>
     apiClient.get<{ logs: FaceAttendanceLog[]; total: number; page: number; totalPages: number }>(
       `${BASE}/logs`, { params: { page, limit } }
     ),
 
-  // Admin: devices
   listDevices: () =>
     apiClient.get<AttendanceDevice[]>(`${BASE}/devices`),
 
@@ -72,7 +70,7 @@ const faceAttendanceService = {
   toggleDevice: (deviceId: string) =>
     apiClient.patch<AttendanceDevice>(`${BASE}/devices/${deviceId}/toggle`, {}),
 
-  // Kiosk: dev mode (no device key)
+  /** Dev-only kiosk verify (no device key required) */
   kioskVerifyDev: (image: string) =>
     apiClient.post<VerifyResult>(`${BASE}/kiosk/verify-dev`, { image }),
 };
