@@ -220,92 +220,93 @@ const FaceKioskPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col select-none overflow-hidden relative">
+    <div className="fixed inset-0 bg-black select-none overflow-hidden">
 
-      {/* ── Top bar ─────────────────────────────────── */}
-      <div className="flex items-center justify-between px-8 py-4 z-10">
-        <div className="text-white">
-          <p className="text-xl font-bold tracking-wide">CHẤM CÔNG KHUÔN MẶT</p>
-          <p className="text-gray-400 text-sm">Đứng trước camera để điểm danh</p>
+      {/* ── Camera: full screen ──────────────────────── */}
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-cover"
+        muted playsInline autoPlay
+        style={{ transform: 'scaleX(-1)' }}
+      />
+
+      {/* Overlay canvas — landmarks (full screen, same flip) */}
+      <canvas
+        ref={overlayRef}
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        style={{ transform: 'scaleX(-1)' }}
+      />
+
+      {/* Hidden canvas for AI capture (no flip) */}
+      <canvas ref={captureRef} className="hidden" />
+
+      {/* ── Top overlay bar ─────────────────────────── */}
+      <div
+        className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-8 py-5"
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
+      >
+        <div className="text-white drop-shadow">
+          <p className="text-2xl font-bold tracking-widest uppercase">Chấm Công Khuôn Mặt</p>
+          <p className="text-white/60 text-sm mt-0.5">Đứng trước camera để điểm danh tự động</p>
         </div>
-        <div className="text-right text-white">
-          <p className="text-4xl font-mono font-bold tabular-nums">
+        <div className="text-right text-white drop-shadow">
+          <p className="text-5xl font-mono font-bold tabular-nums leading-none">
             {currentTime.toLocaleTimeString('vi-VN')}
           </p>
-          <p className="text-gray-400 text-sm">
+          <p className="text-white/60 text-sm mt-1">
             {currentTime.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
           </p>
         </div>
       </div>
 
-      {/* ── Camera ──────────────────────────────────── */}
-      <div className="flex-1 flex items-center justify-center px-8 pb-8">
-        <div
-          className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-gray-700 bg-black"
-          style={{ width: 'min(640px, 90vw)', aspectRatio: '4/3' }}
-        >
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            muted playsInline autoPlay
-            style={{ transform: 'scaleX(-1)' }}
-          />
-
-          {/* Overlay canvas for face landmarks */}
-          <canvas
-            ref={overlayRef}
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            style={{ transform: 'scaleX(-1)' }}
-          />
-
-          {/* Hidden canvas for AI capture (no flip) */}
-          <canvas ref={captureRef} className="hidden" />
-
-          {/* Face guide oval — only show when no face detected */}
-          {kioskState === 'waiting' && !hasFace && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div
-                className="border-2 border-blue-400 border-dashed rounded-full opacity-60 animate-pulse"
-                style={{ width: '55%', height: '80%' }}
-              />
-              <p className="absolute bottom-4 text-blue-300 text-sm font-medium">
-                Đặt khuôn mặt vào khung
-              </p>
-            </div>
-          )}
-
-          {/* Loading models */}
-          {kioskState === 'loading' && (
-            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center">
-              <div className="w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mb-3" />
-              <p className="text-white text-sm">Đang tải model nhận diện...</p>
-            </div>
-          )}
-
-          {/* Processing spinner */}
-          {kioskState === 'processing' && (
-            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center">
-              <div className="w-14 h-14 border-4 border-white border-t-transparent rounded-full animate-spin mb-3" />
-              <p className="text-white text-lg font-medium">Đang nhận diện...</p>
-            </div>
-          )}
-
-          {/* Camera error */}
-          {cameraError && (
-            <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center p-8 text-center">
-              <AlertCircle className="w-16 h-16 text-red-400 mb-4" />
-              <p className="text-white text-lg">{cameraError}</p>
-            </div>
-          )}
+      {/* ── Face guide oval ─────────────────────────── */}
+      {kioskState === 'waiting' && !hasFace && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="flex flex-col items-center">
+            <div
+              className="border-2 border-white/50 border-dashed rounded-full animate-pulse"
+              style={{ width: 'min(320px, 40vw)', height: 'min(420px, 55vh)' }}
+            />
+            <p className="mt-4 text-white/70 text-base font-medium tracking-wide drop-shadow">
+              Đặt khuôn mặt vào khung
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ── Status bar ──────────────────────────────── */}
+      {/* ── Loading models ───────────────────────────── */}
+      {kioskState === 'loading' && (
+        <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-20">
+          <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-white text-lg font-medium">Đang tải model nhận diện...</p>
+        </div>
+      )}
+
+      {/* ── Processing spinner ───────────────────────── */}
+      {kioskState === 'processing' && (
+        <div className="absolute inset-0 bg-black/30 flex flex-col items-center justify-center z-20">
+          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-white text-xl font-semibold drop-shadow">Đang nhận diện...</p>
+        </div>
+      )}
+
+      {/* ── Camera error ────────────────────────────── */}
+      {cameraError && (
+        <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-20 p-8 text-center">
+          <AlertCircle className="w-20 h-20 text-red-400 mb-6" />
+          <p className="text-white text-xl">{cameraError}</p>
+        </div>
+      )}
+
+      {/* ── Status bar (bottom) ─────────────────────── */}
       {!cameraError && kioskState === 'waiting' && (
-        <div className="absolute bottom-6 left-0 right-0 flex justify-center">
-          <div className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-full text-sm">
-            <span className={`w-2 h-2 rounded-full animate-pulse ${hasFace ? 'bg-green-400' : 'bg-yellow-400'}`} />
-            <span className={hasFace ? 'text-green-300' : 'text-yellow-300'}>
+        <div
+          className="absolute bottom-0 left-0 right-0 z-10 flex justify-center items-end pb-8 pt-16"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)' }}
+        >
+          <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-white/10">
+            <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${hasFace ? 'bg-green-400' : 'bg-yellow-400'}`} />
+            <span className={`text-sm font-medium ${hasFace ? 'text-green-300' : 'text-yellow-200'}`}>
               {hasFace ? 'Phát hiện khuôn mặt — đang xử lý...' : 'Chưa phát hiện khuôn mặt'}
             </span>
           </div>
@@ -314,15 +315,15 @@ const FaceKioskPage: React.FC = () => {
 
       {/* ── Result overlay (full screen) ────────────── */}
       {kioskState === 'result' && result && (
-        <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center ${overlayBg[result.type]} bg-opacity-95`}>
+        <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center ${overlayBg[result.type]} bg-opacity-90 backdrop-blur-sm`}>
           {overlayIcon[result.type]}
-          <h2 className="text-4xl font-bold text-white mt-5 text-center px-4">{result.title}</h2>
+          <h2 className="text-5xl font-bold text-white mt-6 text-center px-8 drop-shadow-lg">{result.title}</h2>
           {result.employee && (
-            <p className="text-2xl text-white/90 mt-3 font-semibold text-center">{result.employee}</p>
+            <p className="text-3xl text-white/90 mt-4 font-semibold text-center drop-shadow">{result.employee}</p>
           )}
           {result.time && (
-            <p className="text-white/60 mt-4 flex items-center gap-2 text-lg">
-              <Clock className="w-5 h-5" /> {result.time}
+            <p className="text-white/60 mt-6 flex items-center gap-2 text-xl">
+              <Clock className="w-6 h-6" /> {result.time}
             </p>
           )}
         </div>
