@@ -9,6 +9,16 @@ type FacePos    = 'none' | 'centered' | 'offcenter';
 // Face must be within this fraction of the frame center to trigger scan
 const CENTER_ZONE = 0.30; // ±30% from center on each axis
 
+// Liveness — blink detection (Eye Aspect Ratio)
+const BLINK_EAR_THRESHOLD = 0.22;  // EAR below this = eye closed
+const BLINK_CONSEC_MIN    = 1;     // frames eyes must stay closed to count
+
+/** Compute Eye Aspect Ratio for 6 eye landmark points (standard 68-point order) */
+function calcEAR(pts: faceapi.Point[]): number {
+  const d = (a: faceapi.Point, b: faceapi.Point) => Math.hypot(a.x - b.x, a.y - b.y);
+  return (d(pts[1], pts[5]) + d(pts[2], pts[4])) / (2 * d(pts[0], pts[3]));
+}
+
 interface ResultDisplay {
   type: 'success' | 'info' | 'error';
   title: string;
@@ -44,6 +54,8 @@ const FaceKioskPage: React.FC = () => {
   const faceDetected  = useRef(false);
   const lastFaceAt    = useRef<number>(Date.now()); // timestamp of last face detection
   const detectInterval= useRef<number>(DETECT_FAST_MS); // current poll interval
+  const livenessOk    = useRef(false);   // true after blink detected
+  const blinkFrames   = useRef(0);       // consecutive frames with closed eyes
 
   const [kioskState, setKioskState]   = useState<KioskState>('loading');
   const [result, setResult]           = useState<ResultDisplay | null>(null);
@@ -51,6 +63,7 @@ const FaceKioskPage: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [facePos, setFacePos]         = useState<FacePos>('none');
   const [dimmed, setDimmed]           = useState(false); // screen dim state
+  const [needBlink, setNeedBlink]     = useState(true);  // waiting for liveness blink
 
   // Clock
   useEffect(() => {
@@ -120,6 +133,27 @@ const FaceKioskPage: React.FC = () => {
       faceDetected.current = isCentered;
       setFacePos(isCentered ? 'centered' : 'offcenter');
 
+      // ── Blink / liveness detection via EAR ──────────────────────────────
+      if (det.landmarks) {
+        const p = det.landmarks.positions;
+        // Left eye: 36-41, Right eye: 42-47
+        const ear = (
+          calcEAR([p[36], p[37], p[38], p[39], p[40], p[41]]) +
+          calcEAR([p[42], p[43], p[44], p[45], p[46], p[47]])
+        ) / 2;
+
+        if (ear < BLINK_EAR_THRESHOLD) {
+          blinkFrames.current++;
+        } else {
+          if (blinkFrames.current >= BLINK_CONSEC_MIN && !livenessOk.current) {
+            livenessOk.current = true;
+            setNeedBlink(false);
+          }
+          blinkFrames.current = 0;
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────
+
       const color = isCentered ? '#00ff88' : '#ffaa00';
       ctx.strokeStyle = color;
       ctx.lineWidth   = 3;
@@ -140,6 +174,10 @@ const FaceKioskPage: React.FC = () => {
     } else {
       faceDetected.current = false;
       setFacePos('none');
+      // Reset liveness — require blink again when face returns
+      livenessOk.current  = false;
+      blinkFrames.current = 0;
+      setNeedBlink(true);
 
       const idleMs = now - lastFaceAt.current;
       // Slow down detection when idle
@@ -176,14 +214,18 @@ const FaceKioskPage: React.FC = () => {
     }, RESULT_DISPLAY_MS);
   }, []);
 
-  // Single AI scan — only fires when faceDetected.current === true
+  // Single AI scan — only fires when face centered AND liveness confirmed
   const doScan = useCallback(async () => {
-    if (processing.current || !faceDetected.current) return;
+    if (processing.current || !faceDetected.current || !livenessOk.current) return;
     const image = captureFrame();
     if (!image) return;
 
     processing.current = true;
     setKioskState('processing');
+    // Reset liveness — require fresh blink for next person
+    livenessOk.current  = false;
+    blinkFrames.current = 0;
+    setNeedBlink(true);
     try {
       const res = await faceAttendanceService.kioskVerifyDev(image);
       if (res.data) {
@@ -354,7 +396,13 @@ const FaceKioskPage: React.FC = () => {
               <span className="text-sm font-medium text-orange-300">Vui lòng di chuyển ra giữa màn hình</span>
             </div>
           )}
-          {facePos === 'centered' && (
+          {facePos === 'centered' && needBlink && (
+            <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-yellow-400/40">
+              <span className="text-lg">👁️</span>
+              <span className="text-sm font-medium text-yellow-200">Vui lòng chớp mắt một lần để xác minh</span>
+            </div>
+          )}
+          {facePos === 'centered' && !needBlink && (
             <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-green-400/40">
               <span className="w-2.5 h-2.5 rounded-full animate-pulse bg-green-400" />
               <span className="text-sm font-medium text-green-300">Phát hiện khuôn mặt — đang xác minh...</span>
