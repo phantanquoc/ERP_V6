@@ -1,6 +1,6 @@
 import apiClient from './apiClient';
 
-const BASE = '/api/face-attendance';
+const BASE = '/face-attendance';
 
 /** Shape returned by GET /api/face-attendance/profiles */
 export interface EmployeeFaceProfile {
