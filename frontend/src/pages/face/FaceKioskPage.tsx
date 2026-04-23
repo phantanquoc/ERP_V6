@@ -4,6 +4,10 @@ import { CheckCircle, XCircle, AlertCircle, Clock } from 'lucide-react';
 import faceAttendanceService, { VerifyResult } from '../../services/faceAttendanceService';
 
 type KioskState = 'loading' | 'waiting' | 'processing' | 'result' | 'error';
+type FacePos    = 'none' | 'centered' | 'offcenter';
+
+// Face must be within this fraction of the frame center to trigger scan
+const CENTER_ZONE = 0.30; // ±30% from center on each axis
 
 interface ResultDisplay {
   type: 'success' | 'info' | 'error';
@@ -38,7 +42,7 @@ const FaceKioskPage: React.FC = () => {
   const [result, setResult]           = useState<ResultDisplay | null>(null);
   const [cameraError, setCameraError] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [hasFace, setHasFace]         = useState(false);
+  const [facePos, setFacePos]         = useState<FacePos>('none');
 
   // Clock
   useEffect(() => {
@@ -87,37 +91,46 @@ const FaceKioskPage: React.FC = () => {
     ctx.clearRect(0, 0, vw, vh);
 
     if (detections.length > 0) {
-      faceDetected.current = true;
-      setHasFace(true);
+      const det = detections[0]; // use largest/first face
+      const box = det.detection.box;
 
-      detections.forEach(det => {
-        const box = det.detection.box;
+      // Check if face center is within CENTER_ZONE of frame center
+      const faceCx = box.x + box.width  / 2;
+      const faceCy = box.y + box.height / 2;
+      const dx = Math.abs(faceCx / vw - 0.5); // 0..0.5
+      const dy = Math.abs(faceCy / vh - 0.5);
+      const isCentered = dx < CENTER_ZONE && dy < CENTER_ZONE;
 
-        // Bounding box
-        ctx.strokeStyle = '#00ff88';
-        ctx.lineWidth   = 3;
-        ctx.strokeRect(box.x, box.y, box.width, box.height);
+      faceDetected.current = isCentered;
+      setFacePos(isCentered ? 'centered' : 'offcenter');
 
-        // 68 landmark dots
-        det.landmarks.positions.forEach(pt => {
-          ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
-          ctx.fillStyle = '#00ff88';
-          ctx.fill();
-        });
+      // Color: green = centered, orange = off-center
+      const color = isCentered ? '#00ff88' : '#ffaa00';
 
-        // Confidence label
-        ctx.fillStyle = '#00ff88';
-        ctx.font      = `bold ${Math.round(vw / 40)}px monospace`;
-        ctx.fillText(
-          `${(det.detection.score * 100).toFixed(0)}%`,
-          box.x + 4,
-          box.y > 20 ? box.y - 6 : box.y + 20
-        );
+      // Bounding box
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 3;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+      // 68 landmark dots
+      det.landmarks.positions.forEach(pt => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
       });
+
+      // Confidence label
+      ctx.fillStyle = color;
+      ctx.font      = `bold ${Math.round(vw / 40)}px monospace`;
+      ctx.fillText(
+        `${(det.detection.score * 100).toFixed(0)}%`,
+        box.x + 4,
+        box.y > 20 ? box.y - 6 : box.y + 20
+      );
     } else {
       faceDetected.current = false;
-      setHasFace(false);
+      setFacePos('none');
     }
 
     rafRef.current = requestAnimationFrame(drawLoop);
@@ -260,7 +273,7 @@ const FaceKioskPage: React.FC = () => {
       </div>
 
       {/* ── Face guide oval ─────────────────────────── */}
-      {kioskState === 'waiting' && !hasFace && (
+      {kioskState === 'waiting' && facePos === 'none' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="flex flex-col items-center">
             <div
@@ -304,12 +317,24 @@ const FaceKioskPage: React.FC = () => {
           className="absolute bottom-0 left-0 right-0 z-10 flex justify-center items-end pb-8 pt-16"
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)' }}
         >
-          <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-white/10">
-            <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${hasFace ? 'bg-green-400' : 'bg-yellow-400'}`} />
-            <span className={`text-sm font-medium ${hasFace ? 'text-green-300' : 'text-yellow-200'}`}>
-              {hasFace ? 'Phát hiện khuôn mặt — đang xử lý...' : 'Chưa phát hiện khuôn mặt'}
-            </span>
-          </div>
+          {facePos === 'none' && (
+            <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-white/10">
+              <span className="w-2.5 h-2.5 rounded-full animate-pulse bg-yellow-400" />
+              <span className="text-sm font-medium text-yellow-200">Chưa phát hiện khuôn mặt</span>
+            </div>
+          )}
+          {facePos === 'offcenter' && (
+            <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-orange-400/40">
+              <span className="w-2.5 h-2.5 rounded-full animate-pulse bg-orange-400" />
+              <span className="text-sm font-medium text-orange-300">Vui lòng di chuyển ra giữa màn hình</span>
+            </div>
+          )}
+          {facePos === 'centered' && (
+            <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-green-400/40">
+              <span className="w-2.5 h-2.5 rounded-full animate-pulse bg-green-400" />
+              <span className="text-sm font-medium text-green-300">Phát hiện khuôn mặt — đang xác minh...</span>
+            </div>
+          )}
         </div>
       )}
 
