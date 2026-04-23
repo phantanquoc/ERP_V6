@@ -30,7 +30,18 @@ app.add_middleware(
 MODEL_NAME = "Facenet512"
 DETECTOR = "retinaface"
 DISTANCE_METRIC = "cosine"
-THRESHOLD = 0.30  # cosine distance threshold (lower = more strict)
+# FaceNet512 + cosine: DeepFace recommended threshold is 0.40.
+# Using 0.38 — robust enough for glasses/lighting variation, strict enough to avoid false matches.
+THRESHOLD = 0.38
+
+
+def preprocess_image(img: np.ndarray) -> np.ndarray:
+    """Normalize brightness/contrast before embedding to handle lighting variation."""
+    pil = Image.fromarray(img)
+    # Auto-level: stretch histogram to [0,255] per channel
+    import PIL.ImageOps
+    pil = PIL.ImageOps.autocontrast(pil, cutoff=1)
+    return np.array(pil)
 
 
 def base64_to_image(b64: str) -> np.ndarray:
@@ -44,6 +55,7 @@ def base64_to_image(b64: str) -> np.ndarray:
 
 def get_embedding(img_array: np.ndarray) -> list[float]:
     """Extract face embedding from image array."""
+    img_array = preprocess_image(img_array)
     result = DeepFace.represent(
         img_path=img_array,
         model_name=MODEL_NAME,

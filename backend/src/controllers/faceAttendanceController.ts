@@ -32,6 +32,22 @@ export class FaceAttendanceController {
     }
   }
 
+  async enrollVariation(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { employeeId } = req.params;
+      const { images } = req.body as { images: string[] };
+
+      if (!images || !Array.isArray(images) || images.length === 0) {
+        throw new ValidationError('Cần truyền mảng images (base64)');
+      }
+
+      const result = await faceAttendanceService.enrollVariation(employeeId, images);
+      res.json({ success: true, data: result, message: `Đã thêm ${result.addedCount} biến thể, tổng ${result.totalCount} ảnh` });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async toggleProfile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { profileId } = req.params;

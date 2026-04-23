@@ -50,6 +50,9 @@ const faceAttendanceService = {
   enrollFace: (employeeId: string, images: string[]) =>
     apiClient.post<{ id: string }>(`${BASE}/profiles/${employeeId}/enroll`, { images }),
 
+  enrollVariation: (employeeId: string, images: string[]) =>
+    apiClient.post<{ addedCount: number; totalCount: number }>(`${BASE}/profiles/${employeeId}/enroll-variation`, { images }),
+
   toggleProfile: (profileId: string) =>
     apiClient.patch<{ isActive: boolean }>(`${BASE}/profiles/${profileId}/toggle`, {}),
 

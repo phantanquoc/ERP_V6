@@ -12,6 +12,9 @@ router.get('/profiles', authenticate, authorize('ADMIN'), faceAttendanceControll
 /** POST /api/face-attendance/profiles/:employeeId/enroll — đăng ký khuôn mặt */
 router.post('/profiles/:employeeId/enroll', authenticate, authorize('ADMIN'), faceAttendanceController.enrollFace.bind(faceAttendanceController));
 
+/** POST /api/face-attendance/profiles/:employeeId/enroll-variation — thêm biến thể (kính, v.v.) */
+router.post('/profiles/:employeeId/enroll-variation', authenticate, authorize('ADMIN'), faceAttendanceController.enrollVariation.bind(faceAttendanceController));
+
 /** PATCH /api/face-attendance/profiles/:profileId/toggle — bật/tắt face profile */
 router.patch('/profiles/:profileId/toggle', authenticate, authorize('ADMIN'), faceAttendanceController.toggleProfile.bind(faceAttendanceController));
 

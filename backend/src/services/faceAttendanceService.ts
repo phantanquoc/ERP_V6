@@ -119,6 +119,38 @@ export class FaceAttendanceService {
     return { profileId: profile.id, imageCount: created.length };
   }
 
+  /** Thêm biến thể khuôn mặt (ví dụ: có kính) — KHÔNG xoá embeddings cũ */
+  async enrollVariation(employeeId: string, images: string[]) {
+    if (!images || images.length === 0) {
+      throw new ValidationError('Cần ít nhất 1 ảnh để thêm biến thể');
+    }
+
+    const profile = await prisma.faceProfile.findUnique({ where: { employeeId } });
+    if (!profile) throw new NotFoundError('Nhân viên chưa đăng ký khuôn mặt, hãy đăng ký lần đầu trước');
+
+    logger.info(`Adding face variation for employee ${employeeId}, ${images.length} images`);
+    const embeddings = await callAiEnroll(images);
+
+    const uploadDir = path.join(env.UPLOAD_DIR, 'faces', employeeId);
+    const created = await Promise.all(
+      embeddings.map(async (emb, i) => {
+        const filename = `face_var_${Date.now()}_${i}.jpg`;
+        saveBase64Image(images[i], uploadDir, filename);
+        return prisma.faceImage.create({
+          data: {
+            faceProfileId: profile.id,
+            imagePath: `faces/${employeeId}/${filename}`,
+            embedding: JSON.stringify(emb),
+          },
+        });
+      })
+    );
+
+    const total = await prisma.faceImage.count({ where: { faceProfileId: profile.id } });
+    logger.info(`Added ${created.length} variation images for employee ${employeeId}, total=${total}`);
+    return { profileId: profile.id, addedCount: created.length, totalCount: total };
+  }
+
   /** Toggle active/inactive face profile */
   async toggleProfile(profileId: string) {
     const profile = await prisma.faceProfile.findUnique({ where: { id: profileId } });

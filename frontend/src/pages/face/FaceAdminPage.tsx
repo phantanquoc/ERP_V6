@@ -26,6 +26,7 @@ const FaceAdminPage: React.FC = () => {
   const [currentPose, setCurrentPose] = useState(0);
   const [enrollState, setEnrollState] = useState<EnrollState>('idle');
   const [enrollMsg, setEnrollMsg] = useState('');
+  const [enrollMode, setEnrollMode] = useState<'new' | 'variation'>('new');
 
   const loadEmployees = useCallback(async () => {
     try {
@@ -101,9 +102,15 @@ const FaceAdminPage: React.FC = () => {
     if (!selected || capturedImages.length !== POSES.length) return;
     setEnrollState('submitting');
     try {
-      await faceAttendanceService.enrollFace(selected.employeeId, capturedImages);
-      setEnrollState('done');
-      setEnrollMsg(`Đã đăng ký khuôn mặt thành công cho ${selected.fullName}!`);
+      if (enrollMode === 'variation') {
+        const res = await faceAttendanceService.enrollVariation(selected.employeeId, capturedImages);
+        setEnrollState('done');
+        setEnrollMsg(`Đã thêm ${res.data?.addedCount} biến thể (tổng ${res.data?.totalCount} ảnh) cho ${selected.fullName}!`);
+      } else {
+        await faceAttendanceService.enrollFace(selected.employeeId, capturedImages);
+        setEnrollState('done');
+        setEnrollMsg(`Đã đăng ký khuôn mặt thành công cho ${selected.fullName}!`);
+      }
       setCapturedImages([]);
       await loadEmployees();
     } catch (e: any) {
@@ -135,6 +142,12 @@ const FaceAdminPage: React.FC = () => {
     setCurrentPose(0);
     setEnrollState('idle');
     setEnrollMsg('');
+    setEnrollMode('new');
+  };
+
+  const startVariation = async () => {
+    setEnrollMode('variation');
+    await startCamera();
   };
 
   const filtered = employees.filter(e =>
@@ -292,6 +305,12 @@ const FaceAdminPage: React.FC = () => {
                 {/* ── STEP: Idle / Start ── */}
                 {enrollState === 'idle' && !allCaptured && (
                   <div className="text-center py-6">
+                    {enrollMode === 'variation' && (
+                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
+                        <span>👓</span>
+                        <span>Chế độ <strong>thêm biến thể</strong> — ảnh cũ sẽ được giữ nguyên, chỉ thêm mới.</span>
+                      </div>
+                    )}
                     <p className="text-gray-500 mb-4 text-sm">
                       Cần chụp <strong>5 góc</strong>: chính diện, trái, phải, ngẩng lên, cúi xuống
                     </p>
@@ -303,12 +322,23 @@ const FaceAdminPage: React.FC = () => {
                         </div>
                       ))}
                     </div>
-                    <button
-                      onClick={startCamera}
-                      className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 flex items-center gap-2 mx-auto"
-                    >
-                      <Camera className="w-5 h-5" /> Mở camera bắt đầu chụp
-                    </button>
+                    <div className="flex flex-col gap-2 items-center">
+                      <button
+                        onClick={startCamera}
+                        className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 flex items-center gap-2 mx-auto"
+                      >
+                        <Camera className="w-5 h-5" />
+                        {selected?.faceProfile ? 'Đăng ký lại khuôn mặt' : 'Mở camera bắt đầu chụp'}
+                      </button>
+                      {selected?.faceProfile && enrollMode === 'new' && (
+                        <button
+                          onClick={startVariation}
+                          className="px-6 py-2.5 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 flex items-center gap-2 mx-auto text-sm"
+                        >
+                          👓 Thêm biến thể (đeo kính, v.v.)
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -338,7 +368,8 @@ const FaceAdminPage: React.FC = () => {
                         onClick={handleEnroll}
                         className="flex-1 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 flex items-center justify-center gap-2"
                       >
-                        <CheckCircle className="w-5 h-5" /> Đăng ký khuôn mặt
+                        <CheckCircle className="w-5 h-5" />
+                        {enrollMode === 'variation' ? '👓 Thêm biến thể khuôn mặt' : 'Đăng ký khuôn mặt'}
                       </button>
                     </div>
                   </>
