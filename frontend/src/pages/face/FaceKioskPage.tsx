@@ -16,9 +16,15 @@ interface ResultDisplay {
   time?: string;
 }
 
-const SCAN_INTERVAL_MS = 1500;  // AI scan every 1.5s when face detected
-const RESULT_DISPLAY_MS = 4000; // show result 4s then auto-reset
-const MODELS_URL = '/models';
+const SCAN_INTERVAL_MS   = 1500;   // AI scan every 1.5s when face detected
+const RESULT_DISPLAY_MS  = 4000;   // show result 4s then auto-reset
+const MODELS_URL         = '/models';
+
+// Standby / power-save settings
+const IDLE_SLOW_MS       = 30_000; // after 30s no face → slow detection (save CPU)
+const IDLE_DIM_MS        = 120_000; // after 2min no face → dim screen
+const DETECT_FAST_MS     = 100;    // ~10fps when active
+const DETECT_SLOW_MS     = 500;    // ~2fps when idle (saves ~80% CPU)
 
 const actionConfig: Record<string, { title: string; type: 'success' | 'info' | 'error' }> = {
   CHECK_IN:         { title: 'Check-in thành công ✅', type: 'success' },
@@ -29,20 +35,22 @@ const actionConfig: Record<string, { title: string; type: 'success' | 'info' | '
 
 const FaceKioskPage: React.FC = () => {
   const videoRef      = useRef<HTMLVideoElement>(null);
-  const overlayRef    = useRef<HTMLCanvasElement>(null); // for drawing landmarks
-  const captureRef    = useRef<HTMLCanvasElement>(null); // hidden, for AI capture
+  const overlayRef    = useRef<HTMLCanvasElement>(null);
+  const captureRef    = useRef<HTMLCanvasElement>(null);
   const rafRef        = useRef<number>(0);
   const scanTimer     = useRef<ReturnType<typeof setInterval> | null>(null);
   const resetTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const processing    = useRef(false);
   const faceDetected  = useRef(false);
-
+  const lastFaceAt    = useRef<number>(Date.now()); // timestamp of last face detection
+  const detectInterval= useRef<number>(DETECT_FAST_MS); // current poll interval
 
   const [kioskState, setKioskState]   = useState<KioskState>('loading');
   const [result, setResult]           = useState<ResultDisplay | null>(null);
   const [cameraError, setCameraError] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [facePos, setFacePos]         = useState<FacePos>('none');
+  const [dimmed, setDimmed]           = useState(false); // screen dim state
 
   // Clock
   useEffect(() => {
@@ -63,17 +71,19 @@ const FaceKioskPage: React.FC = () => {
     return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
   }, []);
 
-  // Draw face landmarks on overlay canvas (realtime RAF loop)
+  // Adaptive detection loop:
+  // - Runs at DETECT_FAST_MS (~10fps) when active
+  // - Drops to DETECT_SLOW_MS (~2fps) after IDLE_SLOW_MS of no face
+  // - Dims screen after IDLE_DIM_MS of no face; brightens on face detected
   const drawLoop = useCallback(async () => {
     const video   = videoRef.current;
     const overlay = overlayRef.current;
 
     if (!video || !overlay || video.readyState < 2 || !video.videoWidth) {
-      rafRef.current = requestAnimationFrame(drawLoop);
+      rafRef.current = window.setTimeout(drawLoop, DETECT_FAST_MS);
       return;
     }
 
-    // Use video's NATURAL pixel dimensions — no resize needed, CSS stretches canvas
     const vw = video.videoWidth;
     const vh = video.videoHeight;
     if (overlay.width !== vw || overlay.height !== vh) {
@@ -82,7 +92,7 @@ const FaceKioskPage: React.FC = () => {
     }
 
     const ctx = overlay.getContext('2d');
-    if (!ctx) { rafRef.current = requestAnimationFrame(drawLoop); return; }
+    if (!ctx) { rafRef.current = window.setTimeout(drawLoop, detectInterval.current); return; }
 
     const detections = await faceapi
       .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.45 }))
@@ -90,37 +100,36 @@ const FaceKioskPage: React.FC = () => {
 
     ctx.clearRect(0, 0, vw, vh);
 
+    const now = Date.now();
+
     if (detections.length > 0) {
-      const det = detections[0]; // use largest/first face
+      const det = detections[0];
       const box = det.detection.box;
 
-      // Check if face center is within CENTER_ZONE of frame center
       const faceCx = box.x + box.width  / 2;
       const faceCy = box.y + box.height / 2;
-      const dx = Math.abs(faceCx / vw - 0.5); // 0..0.5
+      const dx = Math.abs(faceCx / vw - 0.5);
       const dy = Math.abs(faceCy / vh - 0.5);
       const isCentered = dx < CENTER_ZONE && dy < CENTER_ZONE;
+
+      // Face seen — reset idle timers, wake screen
+      lastFaceAt.current = now;
+      detectInterval.current = DETECT_FAST_MS;
+      setDimmed(false);
 
       faceDetected.current = isCentered;
       setFacePos(isCentered ? 'centered' : 'offcenter');
 
-      // Color: green = centered, orange = off-center
       const color = isCentered ? '#00ff88' : '#ffaa00';
-
-      // Bounding box
       ctx.strokeStyle = color;
       ctx.lineWidth   = 3;
       ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-      // 68 landmark dots
       det.landmarks.positions.forEach(pt => {
         ctx.beginPath();
         ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
       });
-
-      // Confidence label
       ctx.fillStyle = color;
       ctx.font      = `bold ${Math.round(vw / 40)}px monospace`;
       ctx.fillText(
@@ -131,9 +140,15 @@ const FaceKioskPage: React.FC = () => {
     } else {
       faceDetected.current = false;
       setFacePos('none');
+
+      const idleMs = now - lastFaceAt.current;
+      // Slow down detection when idle
+      if (idleMs > IDLE_SLOW_MS) detectInterval.current = DETECT_SLOW_MS;
+      // Dim screen when very idle
+      if (idleMs > IDLE_DIM_MS) setDimmed(true);
     }
 
-    rafRef.current = requestAnimationFrame(drawLoop);
+    rafRef.current = window.setTimeout(drawLoop, detectInterval.current);
   }, []);
 
   // Show result overlay and auto-reset
@@ -202,7 +217,7 @@ const FaceKioskPage: React.FC = () => {
         }
 
         setKioskState('waiting');
-        rafRef.current = requestAnimationFrame(drawLoop);
+        rafRef.current = window.setTimeout(drawLoop, DETECT_FAST_MS);
         scanTimer.current = setInterval(doScan, SCAN_INTERVAL_MS);
       } catch (e) {
         if (active) setCameraError('Không thể khởi động camera hoặc tải model nhận diện.');
@@ -212,7 +227,7 @@ const FaceKioskPage: React.FC = () => {
 
     return () => {
       active = false;
-      cancelAnimationFrame(rafRef.current);
+      clearTimeout(rafRef.current);
       if (scanTimer.current)  clearInterval(scanTimer.current);
       if (resetTimer.current) clearTimeout(resetTimer.current);
       if (videoRef.current?.srcObject)
@@ -234,6 +249,12 @@ const FaceKioskPage: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-black select-none overflow-hidden">
+
+      {/* ── Dim overlay — fades in after 2min no face, instant wake on face detected ── */}
+      <div
+        className="absolute inset-0 z-40 bg-black pointer-events-none transition-opacity duration-[3000ms]"
+        style={{ opacity: dimmed ? 0.82 : 0 }}
+      />
 
       {/* ── Camera: full screen ──────────────────────── */}
       <video
