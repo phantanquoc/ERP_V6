@@ -63,56 +63,56 @@ const FaceKioskPage: React.FC = () => {
   const drawLoop = useCallback(async () => {
     const video   = videoRef.current;
     const overlay = overlayRef.current;
-    if (!video || !overlay || video.readyState < 2) {
+
+    if (!video || !overlay || video.readyState < 2 || !video.videoWidth) {
       rafRef.current = requestAnimationFrame(drawLoop);
       return;
     }
 
-    // Sync overlay size to video display size
-    const { width, height } = video.getBoundingClientRect();
-    if (overlay.width !== width || overlay.height !== height) {
-      overlay.width  = width;
-      overlay.height = height;
+    // Use video's NATURAL pixel dimensions — no resize needed, CSS stretches canvas
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (overlay.width !== vw || overlay.height !== vh) {
+      overlay.width  = vw;
+      overlay.height = vh;
     }
-
-    const detections = await faceapi
-      .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
-      .withFaceLandmarks(true);
 
     const ctx = overlay.getContext('2d');
     if (!ctx) { rafRef.current = requestAnimationFrame(drawLoop); return; }
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+    const detections = await faceapi
+      .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.45 }))
+      .withFaceLandmarks(true);
+
+    ctx.clearRect(0, 0, vw, vh);
 
     if (detections.length > 0) {
       faceDetected.current = true;
       setHasFace(true);
 
-      // Resize detections to overlay display size (video is CSS-scaled)
-      const resized = faceapi.resizeResults(detections, { width, height });
-
-      resized.forEach(det => {
+      detections.forEach(det => {
         const box = det.detection.box;
 
         // Bounding box
         ctx.strokeStyle = '#00ff88';
-        ctx.lineWidth   = 2;
+        ctx.lineWidth   = 3;
         ctx.strokeRect(box.x, box.y, box.width, box.height);
 
-        // Landmark dots
-        const pts = det.landmarks.positions;
-        pts.forEach(pt => {
+        // 68 landmark dots
+        det.landmarks.positions.forEach(pt => {
           ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 2, 0, Math.PI * 2);
+          ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
           ctx.fillStyle = '#00ff88';
           ctx.fill();
         });
 
-        // Confidence score
-        ctx.fillStyle    = '#00ff88';
-        ctx.font         = 'bold 12px monospace';
+        // Confidence label
+        ctx.fillStyle = '#00ff88';
+        ctx.font      = `bold ${Math.round(vw / 40)}px monospace`;
         ctx.fillText(
           `${(det.detection.score * 100).toFixed(0)}%`,
-          box.x, box.y > 14 ? box.y - 6 : box.y + 14
+          box.x + 4,
+          box.y > 20 ? box.y - 6 : box.y + 20
         );
       });
     } else {
