@@ -45,21 +45,25 @@ const FaceAdminPage: React.FC = () => {
     return () => { streamRef.current?.getTracks().forEach(t => t.stop()); };
   }, []);
 
+  // Set srcObject AFTER React renders the <video> element
+  useEffect(() => {
+    if (cameraOn && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(console.error);
+    }
+  }, [cameraOn]);
+
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480, facingMode: 'user' },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-      setCameraOn(true);
       setCapturedImages([]);
       setCurrentPose(0);
-      setEnrollState('capturing');
       setEnrollMsg('');
+      setEnrollState('capturing'); // renders <video>, then useEffect fires
+      setCameraOn(true);
     } catch (e) {
       alert('Không thể mở camera: ' + (e as Error).message);
     }
@@ -267,7 +271,7 @@ const FaceAdminPage: React.FC = () => {
 
                     {/* Camera feed */}
                     <div className="relative bg-black rounded-xl overflow-hidden mb-3" style={{ aspectRatio: '4/3', maxHeight: '280px' }}>
-                      <video ref={videoRef} className="w-full h-full object-cover" muted playsInline style={{ transform: 'scaleX(-1)' }} />
+                      <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay style={{ transform: 'scaleX(-1)' }} />
                       {/* Face guide overlay */}
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <div className="border-2 border-blue-400 border-dashed rounded-full opacity-50"
