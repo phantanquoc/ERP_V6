@@ -27,8 +27,10 @@ CREATE TABLE "common"."face_attendance_logs" (
     "employeeId" TEXT,
     "action" TEXT NOT NULL,
     "confidence" DOUBLE PRECISION,
-    "deviceId" TEXT,
     "snapshotPath" TEXT,
+    "deviceId" TEXT,
+    "ipAddress" TEXT,
+    "attendanceId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "face_attendance_logs_pkey" PRIMARY KEY ("id")
