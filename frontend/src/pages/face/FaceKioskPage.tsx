@@ -2,7 +2,6 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { CheckCircle, XCircle, AlertCircle, Clock } from 'lucide-react';
 import faceAttendanceService, { VerifyResult } from '../../services/faceAttendanceService';
-import { checkLiveness, loadAntispoofModel, REAL_THRESHOLD } from '../../services/antispoofService';
 
 type KioskState = 'loading' | 'waiting' | 'processing' | 'result' | 'error';
 type FacePos    = 'none' | 'centered' | 'offcenter';
@@ -45,10 +44,11 @@ const FaceKioskPage: React.FC = () => {
   const faceDetected  = useRef(false);
   const lastFaceAt    = useRef<number>(Date.now());
   const detectInterval= useRef<number>(DETECT_FAST_MS);
-  // Passive liveness: rolling score buffer (last N MiniFASNet inferences)
-  const livenessScores = useRef<number[]>([]);
-  const livenessOk     = useRef(false);
-  const antispoofFrame = useRef(0); // run antispoof every Nth detection frame
+  // Liveness: blink detection + motion
+  const lastEye       = useRef<{ leftEAR: number; rightEAR: number } | null>(null);
+  const blinks        = useRef<number>(0); // blink count for liveness
+  const hasMoved      = useRef<boolean>(false); // head/face moved
+  const lastFaceBox   = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const [kioskState, setKioskState]   = useState<KioskState>('loading');
   const [result, setResult]           = useState<ResultDisplay | null>(null);
@@ -56,7 +56,7 @@ const FaceKioskPage: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [facePos, setFacePos]         = useState<FacePos>('none');
   const [dimmed, setDimmed]           = useState(false);
-  const [livenessScore, setLivenessScore] = useState(0); // 0–1 for UI display
+  const [livenessStatus, setLivenessStatus] = useState(''); // UI feedback
 
   // Clock
   useEffect(() => {
@@ -126,21 +126,60 @@ const FaceKioskPage: React.FC = () => {
       faceDetected.current = isCentered;
       setFacePos(isCentered ? 'centered' : 'offcenter');
 
-      // ── Passive liveness: MiniFASNetV2 every 3rd frame ──────────────────
-      antispoofFrame.current++;
-      if (antispoofFrame.current % 3 === 0) {
-        const rawBox = det.detection.box;
-        checkLiveness(video, { x: rawBox.x, y: rawBox.y, width: rawBox.width, height: rawBox.height })
-          .then(score => {
-            livenessScores.current.push(score);
-            if (livenessScores.current.length > 5) livenessScores.current.shift();
-            const avg = livenessScores.current.reduce((a, b) => a + b, 0) / livenessScores.current.length;
-            setLivenessScore(avg);
-            if (avg > REAL_THRESHOLD && livenessScores.current.length >= 3) {
-              livenessOk.current = true;
-            }
-          })
-          .catch(() => { /* ignore single-frame errors */ });
+      // ── Simple liveness: blink + motion detection ──────────────────
+      // Blink: EAR dip below 0.20 then recovery
+      // Motion: face moved > 10% width
+      if (det.landmarks) {
+        const landmarks = det.landmarks.positions;
+        
+        // Compute EAR for both eyes
+        const computeEAR = (topIdx: number, botIdx: number, inIdx: number, outIdx: number) => {
+          const top = landmarks[topIdx];
+          const bot = landmarks[botIdx];
+          const inn = landmarks[inIdx];
+          const out = landmarks[outIdx];
+          
+          const vert = Math.hypot(top.y - bot.y, top.x - bot.x);
+          const horiz = Math.hypot(out.x - inn.x, out.y - inn.y);
+          return vert / (2 * horiz);
+        };
+        
+        // face-api.js landmark indices (68-point model):
+        // left eye: 36-41, right eye: 42-47
+        const leftEAR = computeEAR(37, 40, 36, 39);   // top, bot, inner, outer
+        const rightEAR = computeEAR(43, 46, 42, 45);
+        const currentEAR = (leftEAR + rightEAR) / 2;
+        
+        // Detect blink: EAR < 0.20 (closed), then recovery to > 0.25 (open)
+        if (lastEye.current) {
+          const prevEAR = (lastEye.current.leftEAR + lastEye.current.rightEAR) / 2;
+          const wasClosed = prevEAR < 0.20;
+          const isOpen = currentEAR > 0.25;
+          if (wasClosed && isOpen) {
+            blinks.current++;
+            console.log('[kiosk] blink detected:', blinks.current);
+          }
+        }
+        lastEye.current = { leftEAR, rightEAR };
+        
+        // Detect motion: face moved significantly
+        if (lastFaceBox.current) {
+          const dx = Math.abs(box.x - lastFaceBox.current.x);
+          const dy = Math.abs(box.y - lastFaceBox.current.y);
+          const dw = Math.abs(box.width - lastFaceBox.current.width);
+          if (dx > box.width * 0.10 || dy > box.height * 0.10 || dw > box.width * 0.10) {
+            hasMoved.current = true;
+          }
+        }
+        lastFaceBox.current = { x: box.x, y: box.y, width: box.width, height: box.height };
+        
+        // Liveness OK: ≥1 blink OR significant motion
+        const livenessOk = blinks.current >= 1 || hasMoved.current;
+        setLivenessStatus(
+          livenessOk
+            ? `✓ Đã xác minh (blinks: ${blinks.current})`
+            : `Vui lòng chớp mắt hoặc xoay đầu (blinks: ${blinks.current})`
+        );
       }
       // ─────────────────────────────────────────────────────────────────────
 
@@ -165,10 +204,11 @@ const FaceKioskPage: React.FC = () => {
       faceDetected.current = false;
       setFacePos('none');
       // Reset liveness when face leaves frame
-      livenessOk.current     = false;
-      livenessScores.current = [];
-      antispoofFrame.current = 0;
-      setLivenessScore(0);
+      lastEye.current     = null;
+      lastFaceBox.current = null;
+      blinks.current      = 0;
+      hasMoved.current    = false;
+      setLivenessStatus('');
 
       const idleMs = now - lastFaceAt.current;
       // Slow down detection when idle
@@ -207,17 +247,19 @@ const FaceKioskPage: React.FC = () => {
 
   // Single AI scan — only fires when face centered AND liveness confirmed
   const doScan = useCallback(async () => {
-    if (processing.current || !faceDetected.current || !livenessOk.current) return;
+    const livenessOk = blinks.current >= 1 || hasMoved.current;
+    if (processing.current || !faceDetected.current || !livenessOk) return;
     const image = captureFrame();
     if (!image) return;
 
     processing.current = true;
     setKioskState('processing');
     // Reset liveness for next person
-    livenessOk.current     = false;
-    livenessScores.current = [];
-    antispoofFrame.current = 0;
-    setLivenessScore(0);
+    blinks.current      = 0;
+    hasMoved.current    = false;
+    lastEye.current     = null;
+    lastFaceBox.current = null;
+    setLivenessStatus('');
     try {
       const res = await faceAttendanceService.kioskVerifyDev(image);
       if (res.data) {
@@ -237,11 +279,10 @@ const FaceKioskPage: React.FC = () => {
     let active = true;
     const init = async () => {
       try {
-        // Load face-api.js models + MiniFASNetV2 antispoof model in parallel
+        // Load face-api.js models
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL),
           faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODELS_URL),
-          loadAntispoofModel(),
         ]);
         if (!active) return;
 
@@ -389,18 +430,10 @@ const FaceKioskPage: React.FC = () => {
               <span className="text-sm font-medium text-orange-300">Vui lòng di chuyển ra giữa màn hình</span>
             </div>
           )}
-          {facePos === 'centered' && !livenessOk.current && (
-            <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-yellow-400/40">
-              <span className="w-2.5 h-2.5 rounded-full animate-pulse bg-yellow-400" />
-              <span className="text-sm font-medium text-yellow-200">
-                Đang kiểm tra liveness… {livenessScore > 0 ? `(${Math.round(livenessScore * 100)}%)` : ''}
-              </span>
-            </div>
-          )}
-          {facePos === 'centered' && livenessOk.current && (
-            <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-green-400/40">
-              <span className="w-2.5 h-2.5 rounded-full animate-pulse bg-green-400" />
-              <span className="text-sm font-medium text-green-300">Phát hiện khuôn mặt thật — đang xác minh...</span>
+       {facePos === 'centered' && (
+            <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-blue-400/40">
+              <span className="w-2.5 h-2.5 rounded-full animate-pulse bg-blue-400" />
+              <span className="text-sm font-medium text-blue-200">{livenessStatus || 'Vui lòng chớp mắt hoặc xoay đầu...'}</span>
             </div>
           )}
         </div>

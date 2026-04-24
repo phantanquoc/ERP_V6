@@ -57,57 +57,69 @@ export async function checkLiveness(
   video: HTMLVideoElement,
   box: { x: number; y: number; width: number; height: number },
 ): Promise<number> {
-  const session = await loadAntispoofModel();
+  try {
+    const session = await loadAntispoofModel();
 
-  const vw = video.videoWidth  || 640;
-  const vh = video.videoHeight || 480;
+    const vw = video.videoWidth  || 640;
+    const vh = video.videoHeight || 480;
 
-  // Expand bbox around face center by FACE_SCALE
-  const cx   = box.x + box.width  / 2;
-  const cy   = box.y + box.height / 2;
-  const side = Math.max(box.width, box.height) * FACE_SCALE;
-  const sx   = Math.max(0, cx - side / 2);
-  const sy   = Math.max(0, cy - side / 2);
-  const sw   = Math.min(side, vw - sx);
-  const sh   = Math.min(side, vh - sy);
+    // Expand bbox around face center by FACE_SCALE
+    const cx   = box.x + box.width  / 2;
+    const cy   = box.y + box.height / 2;
+    const side = Math.max(box.width, box.height) * FACE_SCALE;
+    const sx   = Math.max(0, cx - side / 2);
+    const sy   = Math.max(0, cy - side / 2);
+    const sw   = Math.min(side, vw - sx);
+    const sh   = Math.min(side, vh - sy);
 
-  // Draw cropped face region to 80×80 canvas
-  const canvas = document.createElement('canvas');
-  canvas.width  = INPUT_SIZE;
-  canvas.height = INPUT_SIZE;
-  const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, INPUT_SIZE, INPUT_SIZE);
+    // Draw cropped face region to 80×80 canvas
+    const canvas = document.createElement('canvas');
+    canvas.width  = INPUT_SIZE;
+    canvas.height = INPUT_SIZE;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas context failed');
+    
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, INPUT_SIZE, INPUT_SIZE);
 
-  const imageData = ctx.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE);
-  const pixels    = imageData.data; // RGBA uint8
+    const imageData = ctx.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE);
+    const pixels    = imageData.data; // RGBA uint8
 
-  // RGBA → Float32 NCHW [1, 3, 80, 80] with ImageNet normalization
-  const mean = [0.485, 0.456, 0.406];
-  const std  = [0.229, 0.224, 0.225];
-  const hw   = INPUT_SIZE * INPUT_SIZE;
-  const f32  = new Float32Array(3 * hw);
+    // RGBA → Float32 NCHW [1, 3, 80, 80] with ImageNet normalization
+    const mean = [0.485, 0.456, 0.406];
+    const std  = [0.229, 0.224, 0.225];
+    const hw   = INPUT_SIZE * INPUT_SIZE;
+    const f32  = new Float32Array(3 * hw);
 
-  for (let i = 0; i < hw; i++) {
-    f32[i]        = (pixels[i * 4 + 0] / 255 - mean[0]) / std[0]; // R
-    f32[hw + i]   = (pixels[i * 4 + 1] / 255 - mean[1]) / std[1]; // G
-    f32[2 * hw + i] = (pixels[i * 4 + 2] / 255 - mean[2]) / std[2]; // B
+    for (let i = 0; i < hw; i++) {
+      f32[i]        = (pixels[i * 4 + 0] / 255 - mean[0]) / std[0]; // R
+      f32[hw + i]   = (pixels[i * 4 + 1] / 255 - mean[1]) / std[1]; // G
+      f32[2 * hw + i] = (pixels[i * 4 + 2] / 255 - mean[2]) / std[2]; // B
+    }
+
+    const tensor  = new ort.Tensor('float32', f32, [1, 3, INPUT_SIZE, INPUT_SIZE]);
+    const results = await session.run({ input: tensor });
+    const raw     = results.output.data as Float32Array; // raw logits [3]
+
+    // Softmax over 3 classes
+    const maxLogit = Math.max(raw[0], raw[1], raw[2]);
+    const exp      = [
+      Math.exp(raw[0] - maxLogit),
+      Math.exp(raw[1] - maxLogit),
+      Math.exp(raw[2] - maxLogit),
+    ];
+    const sum    = exp[0] + exp[1] + exp[2];
+    const scores = exp.map(e => e / sum);
+
+    const realScore = scores[REAL_CLASS_IDX];
+    if (realScore === undefined || isNaN(realScore)) {
+      console.warn('[antispoof] Invalid score:', scores);
+      return 0;
+    }
+    return realScore;
+  } catch (err) {
+    console.error('[antispoof] checkLiveness failed:', err);
+    return 0;
   }
-
-  const tensor  = new ort.Tensor('float32', f32, [1, 3, INPUT_SIZE, INPUT_SIZE]);
-  const results = await session.run({ input: tensor });
-  const raw     = results.output.data as Float32Array; // raw logits [3]
-
-  // Softmax over 3 classes
-  const maxLogit = Math.max(raw[0], raw[1], raw[2]);
-  const exp      = [
-    Math.exp(raw[0] - maxLogit),
-    Math.exp(raw[1] - maxLogit),
-    Math.exp(raw[2] - maxLogit),
-  ];
-  const sum    = exp[0] + exp[1] + exp[2];
-  const scores = exp.map(e => e / sum);
-
-  return scores[REAL_CLASS_IDX];
 }
 
 export { REAL_THRESHOLD };
