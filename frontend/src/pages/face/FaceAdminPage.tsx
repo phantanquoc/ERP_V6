@@ -167,6 +167,7 @@ const FaceAdminPage: React.FC = () => {
   const capturedImagesRef = useRef<string[]>([]);
   const currentPoseRef    = useRef(0);
   const captureActiveRef  = useRef(false);
+  const [scanStarted,     setScanStarted]    = useState(false);  // user clicked "start scanning"
 
   // ─── Load face-api models (detector + 68-landmark) ───────────────────────
   useEffect(() => {
@@ -216,7 +217,8 @@ const FaceAdminPage: React.FC = () => {
       streamRef.current = stream;
       capturedImagesRef.current = [];
       currentPoseRef.current    = 0;
-      captureActiveRef.current  = true;
+      captureActiveRef.current  = false;  // Don't capture yet! Wait for user to click "start scanning"
+      setScanStarted(false);
       setCapturedImages([]);
       setCurrentPose(0);
       setEnrollMsg('');
@@ -333,11 +335,11 @@ const FaceAdminPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!cameraOn || !captureActiveRef.current) return;
+    if (!cameraOn || !scanStarted) return;
 
     const detect = async () => {
       const video = videoRef.current;
-      if (!video || video.readyState < 2 || !captureActiveRef.current) {
+      if (!video || video.readyState < 2 || !scanStarted) {
         loopRef.current = requestAnimationFrame(detect);
         return;
       }
@@ -413,7 +415,7 @@ const FaceAdminPage: React.FC = () => {
     return () => {
       if (loopRef.current) cancelAnimationFrame(loopRef.current);
     };
-  }, [cameraOn, drawOverlay, doAutoCapture]);
+  }, [cameraOn, scanStarted, drawOverlay, doAutoCapture]);
 
   // ─── Enroll submit ─────────────────────────────────────────────────────────
   const handleEnroll = useCallback(async () => {
@@ -457,7 +459,15 @@ const FaceAdminPage: React.FC = () => {
     setOvalState('waiting');
     setStableProgress(0);
     setPoseFeedback('');
+    setScanStarted(false);
   };
+
+  const startScanning = useCallback(() => {
+    captureActiveRef.current = true;
+    setScanStarted(true);
+    stableRef.current = null;
+    cooldownRef.current = 0;
+  }, []);
 
   const selectEmployee = (emp: EmployeeFaceProfile) => {
     resetEnroll();
@@ -662,6 +672,21 @@ const FaceAdminPage: React.FC = () => {
                           </div>
                         ))}
                       </div>
+
+                      {/* Start scanning button (when camera open but not yet scanning) */}
+                      {!scanStarted && (
+                        <div className="mt-4 pt-4 border-t border-gray-700">
+                          <button
+                            onClick={startScanning}
+                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+                          >
+                            ▶ Bắt đầu quét
+                          </button>
+                          <p className="text-xs text-gray-500 text-center mt-2">
+                            Canh mặt vào giữa khung hình, sau đó nhấn để tự động chụp
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
