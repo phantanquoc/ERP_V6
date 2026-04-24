@@ -30,9 +30,10 @@ export async function loadAntispoofModel(): Promise<ort.InferenceSession> {
 
   _loading = true;
 
-  // Point ONNX Runtime WASM files to CDN to avoid Vite bundling issues
+  // Point ONNX Runtime WASM files to CDN
+  // jsdelivr serves from node_modules, path must end with /
   ort.env.wasm.wasmPaths =
-    'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/';
+    'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
 
   _loadPromise = ort.InferenceSession.create(MODEL_PATH, {
     executionProviders: ['webgl', 'wasm'],
