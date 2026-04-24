@@ -1,9 +1,12 @@
 import prisma from '@config/database';
 import { env } from '@config/env';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import { decryptText, encryptText } from '@utils/crypto';
 import logger from '@config/logger';
 import fs from 'fs';
 import path from 'path';
+import { EmployeeStatus } from '@prisma/client';
+import attendanceService from './attendanceService';
 
 const AI_URL = env.AI_SERVICE_URL;
 
@@ -14,7 +17,6 @@ const AI_URL = env.AI_SERVICE_URL;
 interface CachedProfile {
   id: string;
   employeeId: string;
-  employee: { id: string; employeeCode: string; user: { firstName: string; lastName: string } };
   embeddings: number[][];  // pre-parsed, pre-normalized unit vectors
 }
 
@@ -35,23 +37,15 @@ async function getEmbeddingCache(): Promise<CachedProfile[]> {
     where: { isActive: true },
     include: {
       images: { select: { embedding: true } },
-      employee: {
-        select: {
-          id: true,
-          employeeCode: true,
-          user: { select: { firstName: true, lastName: true } },
-        },
-      },
     },
   });
   embeddingCache = profiles
     .map(p => ({
       id: p.id,
       employeeId: p.employeeId,
-      employee: p.employee,
       // Pre-parse + pre-normalize all embeddings so verify is pure math
       embeddings: p.images
-        .map(img => img.embedding ? normalizeVec(JSON.parse(img.embedding) as number[]) : null)
+        .map(img => img.embedding ? normalizeVec(JSON.parse(decryptText(img.embedding)) as number[]) : null)
         .filter((e): e is number[] => e !== null),
     }))
     .filter(p => p.embeddings.length > 0);
@@ -127,6 +121,7 @@ export class FaceAttendanceService {
         user: { select: { email: true, firstName: true, lastName: true } },
         faceProfile: { select: { id: true, isActive: true, enrolledAt: true, images: { select: { id: true } } } },
       },
+      where: { status: EmployeeStatus.ACTIVE },
       orderBy: { employeeCode: 'asc' },
     });
 
@@ -178,7 +173,7 @@ export class FaceAttendanceService {
           data: {
             faceProfileId: profile.id,
             imagePath: `faces/${employeeId}/${filename}`,
-            embedding: JSON.stringify(emb),
+            embedding: encryptText(JSON.stringify(emb)),
           },
         });
       })
@@ -210,7 +205,7 @@ export class FaceAttendanceService {
           data: {
             faceProfileId: profile.id,
             imagePath: `faces/${employeeId}/${filename}`,
-            embedding: JSON.stringify(emb),
+            embedding: encryptText(JSON.stringify(emb)),
           },
         });
       })
@@ -287,41 +282,35 @@ export class FaceAttendanceService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const existing = await prisma.attendance.findFirst({
+    const todaysAttendances = await prisma.attendance.findMany({
       where: { employeeId: employee.id, attendanceDate: today },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, checkInTime: true, checkOutTime: true },
     });
+    const openAttendance = todaysAttendances.find(item => item.checkInTime && !item.checkOutTime) ?? null;
 
     let action: 'CHECK_IN' | 'CHECK_OUT';
     let attendanceId: string;
 
-    if (!existing) {
-      const attendance = await prisma.attendance.create({
-        data: { employeeId: employee.id, attendanceDate: today, checkInTime: new Date(), status: 'PRESENT' },
-      });
+    if (openAttendance) {
+      const attendance = await attendanceService.checkOut(employee.id, new Date());
+      action = 'CHECK_OUT';
+      attendanceId = attendance.id;
+    } else if (todaysAttendances.length === 0) {
+      const attendance = await attendanceService.checkIn(employee.id, new Date());
       action = 'CHECK_IN';
       attendanceId = attendance.id;
-    } else if (existing.checkInTime && !existing.checkOutTime) {
-      const checkOut = new Date();
-      const workHours = Math.max(0, Math.round(
-        ((checkOut.getTime() - existing.checkInTime.getTime()) / 3600000) * 100
-      ) / 100);
-      const updated = await prisma.attendance.update({
-        where: { id: existing.id },
-        data: { checkOutTime: checkOut, workHours },
-      });
-      action = 'CHECK_OUT';
-      attendanceId = updated.id;
     } else {
       await prisma.faceAttendanceLog.create({
         data: {
           faceProfileId: matchedCached.id,
           employeeId: employee.id,
-          action: 'CHECK_OUT',
+          action: 'ALREADY_RECORDED',
           confidence: bestConfidence,
           snapshotPath,
           deviceId,
           ipAddress,
-          attendanceId: existing.id,
+          attendanceId: todaysAttendances[0]?.id,
         },
       });
       return {
@@ -357,9 +346,9 @@ export class FaceAttendanceService {
   }
 
   /** Validate device API key */
-  async validateDevice(apiKey: string): Promise<boolean> {
+  async validateDevice(apiKey: string) {
     const device = await prisma.attendanceDevice.findUnique({ where: { apiKey } });
-    return !!(device?.isActive);
+    return device?.isActive ? device : null;
   }
 
   /** Lấy danh sách logs */

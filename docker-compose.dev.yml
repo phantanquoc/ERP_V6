@@ -42,6 +42,7 @@ services:
       API_URL: http://localhost:5003
       LOG_LEVEL: debug
       AI_SERVICE_URL: http://ai-service:8001
+      FACE_DATA_SECRET: dev_face_data_secret_key_localhost
     ports:
       - "5003:5000"
     volumes:
@@ -81,6 +82,8 @@ services:
     restart: unless-stopped
     environment:
       VITE_API_URL: http://localhost:5003/api
+      VITE_FACE_DEVICE_KEY: ${VITE_FACE_DEVICE_KEY:-}
+      VITE_FACE_DEVICE_ID: ${VITE_FACE_DEVICE_ID:-}
     ports:
       - "5173:5173"
     volumes:

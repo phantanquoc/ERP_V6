@@ -78,6 +78,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-https://anbinhfoods.net,https://www.anbinhfoods.net}
       API_URL: ${API_URL:-https://anbinhfoods.net/api}
       LOG_LEVEL: warn
+      FACE_DATA_SECRET: ${FACE_DATA_SECRET:-change_me_face_data_secret}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@anbinhfoods.net}
@@ -110,10 +111,14 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-https://anbinhfoods.net/api}
+        VITE_FACE_DEVICE_KEY: ${VITE_FACE_DEVICE_KEY:-}
+        VITE_FACE_DEVICE_ID: ${VITE_FACE_DEVICE_ID:-}
     container_name: erp_frontend
     restart: unless-stopped
     environment:
       VITE_API_URL: ${VITE_API_URL:-https://anbinhfoods.net/api}
+      VITE_FACE_DEVICE_KEY: ${VITE_FACE_DEVICE_KEY:-}
+      VITE_FACE_DEVICE_ID: ${VITE_FACE_DEVICE_ID:-}
     depends_on:
       - backend
     networks:
@@ -166,4 +171,3 @@ volumes:
 networks:
   erp_network:
     driver: bridge
-

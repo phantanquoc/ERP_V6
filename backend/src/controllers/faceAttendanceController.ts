@@ -131,9 +131,7 @@ export class FaceAttendanceController {
       if (!image) throw new ValidationError('Cần truyền image (base64)');
 
       const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '';
-      const deviceId = req.headers['x-device-id'] as string | undefined;
-
-      const result = await faceAttendanceService.verifyAndRecord(image, deviceId, ipAddress);
+      const result = await faceAttendanceService.verifyAndRecord(image, valid.id, ipAddress);
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);

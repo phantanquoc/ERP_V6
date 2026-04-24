@@ -1,6 +1,12 @@
 import apiClient from './apiClient';
+import { API_BASE_URL } from '../config/api';
 
 const BASE = '/face-attendance';
+
+interface KioskConfig {
+  deviceKey: string;
+  deviceId?: string;
+}
 
 /** Shape returned by GET /api/face-attendance/profiles */
 export interface EmployeeFaceProfile {
@@ -72,6 +78,32 @@ const faceAttendanceService = {
 
   toggleDevice: (deviceId: string) =>
     apiClient.patch<AttendanceDevice>(`${BASE}/devices/${deviceId}/toggle`, {}),
+
+  getKioskConfig(): KioskConfig {
+    return {
+      deviceKey: localStorage.getItem('faceAttendance.deviceKey') || import.meta.env.VITE_FACE_DEVICE_KEY || '',
+      deviceId: localStorage.getItem('faceAttendance.deviceId') || import.meta.env.VITE_FACE_DEVICE_ID,
+    };
+  },
+
+  async kioskVerify(image: string, deviceKey: string, deviceId?: string) {
+    const response = await fetch(`${API_BASE_URL}${BASE}/kiosk/verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-device-key': deviceKey,
+        ...(deviceId ? { 'x-device-id': deviceId } : {}),
+      },
+      body: JSON.stringify({ image }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || `HTTP ${response.status}`);
+    }
+
+    return data as { success: boolean; data?: VerifyResult; message?: string };
+  },
 
   /** Dev-only kiosk verify (no device key required) */
   kioskVerifyDev: (image: string) =>

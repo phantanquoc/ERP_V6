@@ -25,8 +25,8 @@ export const env = {
   MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE || '104857600', 10), // 100MB
   UPLOAD_DIR: process.env.UPLOAD_DIR || './uploads',
   AI_SERVICE_URL: process.env.AI_SERVICE_URL || 'http://localhost:8001',
+  FACE_DATA_SECRET: getRequiredEnv('FACE_DATA_SECRET', 'dev_face_data_secret_change_me'),
 };
 
 export const isDevelopment = env.NODE_ENV === 'development';
 export const isProduction = env.NODE_ENV === 'production';
-

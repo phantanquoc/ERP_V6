@@ -19,6 +19,7 @@ interface ResultDisplay {
 const SCAN_INTERVAL_MS   = 1500;   // AI scan every 1.5s when face detected
 const RESULT_DISPLAY_MS  = 4000;   // show result 4s then auto-reset
 const MODELS_URL         = '/models';
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
 // Standby / power-save settings
 const IDLE_SLOW_MS       = 30_000; // after 30s no face → slow detection (save CPU)
@@ -57,6 +58,9 @@ const FaceKioskPage: React.FC = () => {
   const [facePos, setFacePos]         = useState<FacePos>('none');
   const [dimmed, setDimmed]           = useState(false);
   const [livenessStatus, setLivenessStatus] = useState(''); // UI feedback
+
+  const kioskConfig = faceAttendanceService.getKioskConfig();
+  const isLocalDev = import.meta.env.DEV || LOCAL_HOSTS.has(window.location.hostname);
 
   // Clock
   useEffect(() => {
@@ -261,18 +265,23 @@ const FaceKioskPage: React.FC = () => {
     lastFaceBox.current = null;
     setLivenessStatus('');
     try {
-      const res = await faceAttendanceService.kioskVerifyDev(image);
+      const res = kioskConfig.deviceKey
+        ? await faceAttendanceService.kioskVerify(image, kioskConfig.deviceKey, kioskConfig.deviceId)
+        : isLocalDev
+          ? await faceAttendanceService.kioskVerifyDev(image)
+          : (() => { throw new Error('Thiết bị chưa được cấu hình device key'); })();
       if (res.data) {
         showResult(res.data);
       } else {
         processing.current = false;
         setKioskState('waiting');
       }
-    } catch {
+    } catch (error) {
       processing.current = false;
       setKioskState('waiting');
+      setCameraError(error instanceof Error ? error.message : 'Kiosk verify thất bại');
     }
-  }, [captureFrame, showResult]);
+  }, [captureFrame, showResult, isLocalDev, kioskConfig.deviceId, kioskConfig.deviceKey]);
 
   // Load models → start camera → start loops
   useEffect(() => {
@@ -285,6 +294,11 @@ const FaceKioskPage: React.FC = () => {
           faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODELS_URL),
         ]);
         if (!active) return;
+
+        if (!kioskConfig.deviceKey && !isLocalDev) {
+          setCameraError('Thiết bị chưa được cấu hình device key cho kiosk production.');
+          return;
+        }
 
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
@@ -313,7 +327,7 @@ const FaceKioskPage: React.FC = () => {
       if (videoRef.current?.srcObject)
         (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     };
-  }, [drawLoop, doScan]);
+  }, [drawLoop, doScan, isLocalDev, kioskConfig.deviceKey]);
 
   // ── Result overlay colors ──
   const overlayBg: Record<string, string> = {

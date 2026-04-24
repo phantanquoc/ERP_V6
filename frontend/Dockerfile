@@ -9,6 +9,10 @@ WORKDIR /app
 # Accept build argument for API URL
 ARG VITE_API_URL=http://localhost:5000/api
 ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_FACE_DEVICE_KEY=
+ENV VITE_FACE_DEVICE_KEY=$VITE_FACE_DEVICE_KEY
+ARG VITE_FACE_DEVICE_ID=
+ENV VITE_FACE_DEVICE_ID=$VITE_FACE_DEVICE_ID
 
 # Copy package files
 COPY package*.json ./
@@ -48,4 +52,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Start Nginx
 CMD ["nginx", "-g", "daemon off;"]
-
