@@ -13,8 +13,10 @@ import PIL.ImageOps
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
 import deepface.DeepFace as DeepFace
+from uniface import RetinaFace
+from uniface.spoofing import MiniFASNet
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,18 +38,25 @@ THRESHOLD         = 0.68           # ArcFace cosine distance threshold (recommen
 ENROLL_MIN_CONF   = 0.70           # quality filter: giảm từ 0.85 để không bỏ sót ảnh hợp lệ
 VOTE_WEIGHT_COUNT = 0.40           # trọng số số phiếu trong top-K voting
 VOTE_WEIGHT_DIST  = 0.60           # trọng số khoảng cách trung bình
+LIVENESS_MIN_VALID_FRAMES = 3
+LIVENESS_PASS_RATIO = 0.70
+LIVENESS_MIN_SCORE = 0.80
+LIVENESS_MAX_FRAMES = 4
 
 
 # ─── Startup: warm up models ─────────────────────────────────────────────────
 
 _models_loaded = False
+_liveness_detector: Optional[RetinaFace] = None
+_liveness_spoofer: Optional[MiniFASNet] = None
 
 @app.on_event("startup")
 async def warmup():
     """Pre-load ArcFace + yunet/ssd detector weights."""
     global _models_loaded
     try:
-        logger.info("Warming up ArcFace + yunet/ssd detectors...")
+        global _liveness_detector, _liveness_spoofer
+        logger.info("Warming up ArcFace + yunet/ssd detectors + MiniFASNet...")
         dummy = np.zeros((112, 112, 3), dtype=np.uint8)
         for det in [VERIFY_DETECTOR, VERIFY_DETECTOR_FB]:
             try:
@@ -55,6 +64,8 @@ async def warmup():
                                    enforce_detection=False)
             except Exception:
                 pass
+        _liveness_detector = RetinaFace()
+        _liveness_spoofer = MiniFASNet()
         _models_loaded = True
         logger.info("Warmup complete")
     except Exception as e:
@@ -147,6 +158,71 @@ def top_k_vote(probe: np.ndarray, embeddings: np.ndarray) -> tuple[float, int]:
     return score, votes
 
 
+def _pick_primary_face(image: np.ndarray):
+    if _liveness_detector is None:
+      raise ValueError("Liveness detector not initialized")
+
+    faces = _liveness_detector.detect(image)
+    if not faces:
+        raise ValueError("No face detected for liveness")
+
+    def face_area(face: Any) -> float:
+        x1, y1, x2, y2 = face.bbox[:4]
+        return max(0.0, float(x2 - x1)) * max(0.0, float(y2 - y1))
+
+    return max(faces, key=face_area)
+
+
+def _parse_spoof_result(result: Any) -> tuple[bool, float]:
+    if hasattr(result, "is_real"):
+        return bool(result.is_real), float(result.confidence)
+
+    if isinstance(result, (tuple, list)) and len(result) >= 2:
+        label_idx, score = result[0], result[1]
+        return int(label_idx) == 1, float(score)
+
+    raise ValueError(f"Unsupported spoofing result format: {type(result)!r}")
+
+
+def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
+    if _liveness_spoofer is None:
+        raise ValueError("Liveness spoofer not initialized")
+
+    if not frames:
+        return False, 0.0, "No frames provided"
+
+    frames = frames[:LIVENESS_MAX_FRAMES]
+
+    valid_scores: list[float] = []
+    real_scores: list[float] = []
+
+    for idx, frame_b64 in enumerate(frames):
+        try:
+            frame = base64_to_image(frame_b64)
+            face = _pick_primary_face(frame)
+            is_real, score = _parse_spoof_result(_liveness_spoofer.predict(frame, face.bbox))
+            valid_scores.append(float(score))
+            if is_real:
+                real_scores.append(float(score))
+            logger.info("Liveness frame %s: is_real=%s score=%.4f", idx + 1, is_real, score)
+        except Exception as exc:
+            logger.warning("Liveness frame %s failed: %s", idx + 1, exc)
+
+    if len(valid_scores) < LIVENESS_MIN_VALID_FRAMES:
+        return False, 0.0, "Không đủ frame hợp lệ để xác minh người thật"
+
+    pass_ratio = len(real_scores) / len(valid_scores)
+    avg_real_score = float(np.mean(real_scores)) if real_scores else 0.0
+
+    if pass_ratio < LIVENESS_PASS_RATIO or avg_real_score < LIVENESS_MIN_SCORE:
+        return False, avg_real_score, (
+            f"Phát hiện giả mạo hoặc replay attack "
+            f"(pass_ratio={pass_ratio:.2f}, score={avg_real_score:.2f})"
+        )
+
+    return True, avg_real_score, "Liveness passed"
+
+
 # ─── Request/Response Models ─────────────────────────────────────────────────
 
 class EnrollRequest(BaseModel):
@@ -165,14 +241,17 @@ class ProfileEmbeddings(BaseModel):
 
 class BatchVerifyRequest(BaseModel):
     image: str
+    frames: list[str] = []
     profiles: list[ProfileEmbeddings]
-    anti_spoofing: bool = False  # tắt default: deepface anti-spoof quá aggressive với webcam thật
+    require_liveness: bool = True
 
 class BatchVerifyResponse(BaseModel):
     matched: bool
     profile_id: Optional[str]
     confidence: float
     vote_count: int
+    liveness_passed: bool
+    liveness_score: float
     message: str
 
 class VerifyRequest(BaseModel):
@@ -189,7 +268,7 @@ class VerifyResponse(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "OK", "model": MODEL_NAME, "models_loaded": _models_loaded}
+    return {"status": "OK", "model": MODEL_NAME, "models_loaded": _models_loaded, "liveness": "MiniFASNet"}
 
 
 @app.post("/enroll", response_model=EnrollResponse)
@@ -242,21 +321,41 @@ def verify_batch(req: BatchVerifyRequest):
     """
     if not req.profiles:
         return BatchVerifyResponse(matched=False, profile_id=None, confidence=0.0,
-                                   vote_count=0, message="No profiles")
+                                   vote_count=0, liveness_passed=False,
+                                   liveness_score=0.0, message="No profiles")
 
-    # 1. Extract probe + optional anti-spoofing
+    if req.require_liveness:
+        liveness_ok, liveness_score, liveness_message = analyze_liveness_frames(req.frames or [req.image])
+        if not liveness_ok:
+            logger.warning("Liveness failed: %s", liveness_message)
+            return BatchVerifyResponse(
+                matched=False,
+                profile_id=None,
+                confidence=0.0,
+                vote_count=0,
+                liveness_passed=False,
+                liveness_score=round(liveness_score, 4),
+                message=liveness_message,
+            )
+    else:
+        liveness_score = 0.0
+
+    # 1. Extract probe embedding only after liveness passes
     try:
         probe, _ = get_embedding(base64_to_image(req.image),
                                  detector=VERIFY_DETECTOR,
-                                 anti_spoofing=req.anti_spoofing)
+                                 anti_spoofing=False)
     except Exception as e:
         err_msg = str(e)
-        is_spoof = "spoof" in err_msg.lower() or "fake" in err_msg.lower()
-        logger.warning(f"Probe failed ({'spoofing detected' if is_spoof else err_msg})")
+        logger.warning(f"Probe failed ({err_msg})")
         return BatchVerifyResponse(
-            matched=False, profile_id=None, confidence=0.0, vote_count=0,
-            message="Phát hiện giả mạo — vui lòng không dùng ảnh hoặc video" if is_spoof
-                    else f"No face detected: {err_msg}",
+            matched=False,
+            profile_id=None,
+            confidence=0.0,
+            vote_count=0,
+            liveness_passed=req.require_liveness,
+            liveness_score=round(liveness_score, 4),
+            message=f"No face detected: {err_msg}",
         )
 
     # 2. Top-K voting across all profiles
@@ -290,6 +389,8 @@ def verify_batch(req: BatchVerifyRequest):
         profile_id=best_id if matched else None,
         confidence=confidence,
         vote_count=best_votes,
+        liveness_passed=req.require_liveness,
+        liveness_score=round(liveness_score, 4),
         message="Match found" if matched else "No match",
     )
 
@@ -316,4 +417,3 @@ def verify(req: VerifyRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
-

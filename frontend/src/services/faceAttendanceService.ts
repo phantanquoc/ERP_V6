@@ -42,7 +42,8 @@ export interface AttendanceDevice {
 }
 
 export interface VerifyResult {
-  action: 'CHECK_IN' | 'CHECK_OUT' | 'ALREADY_RECORDED' | 'NO_MATCH';
+  matched?: boolean;
+  action?: 'CHECK_IN' | 'CHECK_OUT' | 'ALREADY_RECORDED' | 'NO_MATCH';
   employee?: { fullName: string; employeeCode: string; department?: string | null };
   confidence?: number;
   message: string;
@@ -86,7 +87,7 @@ const faceAttendanceService = {
     };
   },
 
-  async kioskVerify(image: string, deviceKey: string, deviceId?: string) {
+  async kioskVerify(image: string, frames: string[], deviceKey: string, deviceId?: string) {
     const response = await fetch(`${API_BASE_URL}${BASE}/kiosk/verify`, {
       method: 'POST',
       headers: {
@@ -94,7 +95,7 @@ const faceAttendanceService = {
         'x-device-key': deviceKey,
         ...(deviceId ? { 'x-device-id': deviceId } : {}),
       },
-      body: JSON.stringify({ image }),
+      body: JSON.stringify({ image, frames }),
     });
 
     const data = await response.json();
@@ -106,8 +107,8 @@ const faceAttendanceService = {
   },
 
   /** Dev-only kiosk verify (no device key required) */
-  kioskVerifyDev: (image: string) =>
-    apiClient.post<VerifyResult>(`${BASE}/kiosk/verify-dev`, { image }),
+  kioskVerifyDev: (image: string, frames: string[]) =>
+    apiClient.post<VerifyResult>(`${BASE}/kiosk/verify-dev`, { image, frames }),
 };
 
 export default faceAttendanceService;

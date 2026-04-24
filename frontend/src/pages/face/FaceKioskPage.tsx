@@ -26,12 +26,16 @@ const IDLE_SLOW_MS       = 30_000; // after 30s no face → slow detection (save
 const IDLE_DIM_MS        = 120_000; // after 2min no face → dim screen
 const DETECT_FAST_MS     = 100;    // ~10fps when active
 const DETECT_SLOW_MS     = 500;    // ~2fps when idle (saves ~80% CPU)
+const CAPTURE_FRAME_COUNT = 4;
+const CAPTURE_FRAME_INTERVAL_MS = 90;
+const CAPTURE_SIZE = 256;
+const FACE_CROP_PADDING = 0.28;
 
 const actionConfig: Record<string, { title: string; type: 'success' | 'info' | 'error' }> = {
   CHECK_IN:         { title: 'Check-in thành công ✅', type: 'success' },
   CHECK_OUT:        { title: 'Check-out thành công 👋', type: 'success' },
   ALREADY_RECORDED: { title: 'Đã điểm danh hôm nay ℹ️', type: 'info' },
-  NO_MATCH:         { title: 'Không nhận ra khuôn mặt ❌', type: 'error' },
+  NO_MATCH:         { title: 'Vui lòng thử lại', type: 'error' },
 };
 
 const FaceKioskPage: React.FC = () => {
@@ -50,6 +54,7 @@ const FaceKioskPage: React.FC = () => {
   const blinks        = useRef<number>(0); // blink count for liveness
   const hasMoved      = useRef<boolean>(false); // head/face moved
   const lastFaceBox   = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const currentFaceBox = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const [kioskState, setKioskState]   = useState<KioskState>('loading');
   const [result, setResult]           = useState<ResultDisplay | null>(null);
@@ -73,13 +78,43 @@ const FaceKioskPage: React.FC = () => {
     const video  = videoRef.current;
     const canvas = captureRef.current;
     if (!video || !canvas || video.readyState < 2) return null;
-    canvas.width  = video.videoWidth  || 640;
-    canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    ctx.drawImage(video, 0, 0);
-    return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+
+    const vw = video.videoWidth || 640;
+    const vh = video.videoHeight || 480;
+    const faceBox = currentFaceBox.current;
+
+    if (faceBox) {
+      const padX = faceBox.width * FACE_CROP_PADDING;
+      const padY = faceBox.height * FACE_CROP_PADDING;
+      const sx = Math.max(0, Math.floor(faceBox.x - padX));
+      const sy = Math.max(0, Math.floor(faceBox.y - padY));
+      const sw = Math.min(vw - sx, Math.ceil(faceBox.width + padX * 2));
+      const sh = Math.min(vh - sy, Math.ceil(faceBox.height + padY * 2));
+      canvas.width = CAPTURE_SIZE;
+      canvas.height = CAPTURE_SIZE;
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE);
+    } else {
+      canvas.width = CAPTURE_SIZE;
+      canvas.height = CAPTURE_SIZE;
+      ctx.drawImage(video, 0, 0, vw, vh, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE);
+    }
+
+    return canvas.toDataURL('image/jpeg', 0.72).split(',')[1];
   }, []);
+
+  const captureFrames = useCallback(async (): Promise<string[]> => {
+    const frames: string[] = [];
+    for (let i = 0; i < CAPTURE_FRAME_COUNT; i += 1) {
+      const frame = captureFrame();
+      if (frame) frames.push(frame);
+      if (i < CAPTURE_FRAME_COUNT - 1) {
+        await new Promise(resolve => window.setTimeout(resolve, CAPTURE_FRAME_INTERVAL_MS));
+      }
+    }
+    return frames;
+  }, [captureFrame]);
 
   // Adaptive detection loop:
   // - Runs at DETECT_FAST_MS (~10fps) when active
@@ -129,6 +164,7 @@ const FaceKioskPage: React.FC = () => {
 
       faceDetected.current = isCentered;
       setFacePos(isCentered ? 'centered' : 'offcenter');
+      currentFaceBox.current = { x: box.x, y: box.y, width: box.width, height: box.height };
 
       // ── Simple liveness: blink + motion detection ──────────────────
       // Blink: EAR dip below 0.20 then recovery
@@ -187,26 +223,35 @@ const FaceKioskPage: React.FC = () => {
       }
       // ─────────────────────────────────────────────────────────────────────
 
-      const color = isCentered ? '#00ff88' : '#ffaa00';
-      ctx.strokeStyle = color;
-      ctx.lineWidth   = 3;
-      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      const color = isCentered ? '#22d3ee' : '#f59e0b';
+
+      // 4-corner square marker only
+      const cornerLen = Math.max(8, Math.min(box.width, box.height) * 0.10);
+      const drawCorner = (x: number, y: number, sx: 1 | -1, sy: 1 | -1) => {
+        ctx.beginPath();
+        ctx.moveTo(x, y + sy * cornerLen);
+        ctx.lineTo(x, y);
+        ctx.lineTo(x + sx * cornerLen, y);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      };
+      drawCorner(box.x, box.y, 1, 1);
+      drawCorner(box.x + box.width, box.y, -1, 1);
+      drawCorner(box.x, box.y + box.height, 1, -1);
+      drawCorner(box.x + box.width, box.y + box.height, -1, -1);
+
+      // Small landmark dots for face alignment
       det.landmarks.positions.forEach(pt => {
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
+        ctx.arc(pt.x, pt.y, 1.1, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
       });
-      ctx.fillStyle = color;
-      ctx.font      = `bold ${Math.round(vw / 40)}px monospace`;
-      ctx.fillText(
-        `${(det.detection.score * 100).toFixed(0)}%`,
-        box.x + 4,
-        box.y > 20 ? box.y - 6 : box.y + 20
-      );
     } else {
       faceDetected.current = false;
       setFacePos('none');
+      currentFaceBox.current = null;
       // Reset liveness when face leaves frame
       lastEye.current     = null;
       lastFaceBox.current = null;
@@ -226,13 +271,17 @@ const FaceKioskPage: React.FC = () => {
 
   // Show result overlay and auto-reset
   const showResult = useCallback((res: VerifyResult) => {
-    const cfg = actionConfig[res.action] ?? { title: res.action, type: 'info' as const };
+    const hasValidAction = !!res.action && !!actionConfig[res.action];
+    const isFailed = res.matched === false || !hasValidAction || res.action === 'NO_MATCH';
+    const cfg = isFailed
+      ? { title: 'Vui lòng thử lại', type: 'error' as const }
+      : actionConfig[res.action as keyof typeof actionConfig];
     const emp = res.employee;
     const nameLine = emp
       ? emp.department
         ? `${emp.fullName} — ${emp.department}`
         : emp.fullName
-      : undefined;
+      : res.message;
     setResult({
       type: cfg.type,
       title: cfg.title,
@@ -253,9 +302,6 @@ const FaceKioskPage: React.FC = () => {
   const doScan = useCallback(async () => {
     const livenessOk = blinks.current >= 1 || hasMoved.current;
     if (processing.current || !faceDetected.current || !livenessOk) return;
-    const image = captureFrame();
-    if (!image) return;
-
     processing.current = true;
     setKioskState('processing');
     // Reset liveness for next person
@@ -265,10 +311,17 @@ const FaceKioskPage: React.FC = () => {
     lastFaceBox.current = null;
     setLivenessStatus('');
     try {
+      const frames = await captureFrames();
+      const image = frames[Math.floor(frames.length / 2)];
+      if (!image) {
+        processing.current = false;
+        setKioskState('waiting');
+        return;
+      }
       const res = kioskConfig.deviceKey
-        ? await faceAttendanceService.kioskVerify(image, kioskConfig.deviceKey, kioskConfig.deviceId)
+        ? await faceAttendanceService.kioskVerify(image, frames, kioskConfig.deviceKey, kioskConfig.deviceId)
         : isLocalDev
-          ? await faceAttendanceService.kioskVerifyDev(image)
+          ? await faceAttendanceService.kioskVerifyDev(image, frames)
           : (() => { throw new Error('Thiết bị chưa được cấu hình device key'); })();
       if (res.data) {
         showResult(res.data);
@@ -281,7 +334,7 @@ const FaceKioskPage: React.FC = () => {
       setKioskState('waiting');
       setCameraError(error instanceof Error ? error.message : 'Kiosk verify thất bại');
     }
-  }, [captureFrame, showResult, isLocalDev, kioskConfig.deviceId, kioskConfig.deviceKey]);
+  }, [captureFrames, showResult, isLocalDev, kioskConfig.deviceId, kioskConfig.deviceKey]);
 
   // Load models → start camera → start loops
   useEffect(() => {
@@ -301,7 +354,7 @@ const FaceKioskPage: React.FC = () => {
         }
 
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
         });
         if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
 
@@ -361,7 +414,7 @@ const FaceKioskPage: React.FC = () => {
       {/* Overlay canvas — landmarks (full screen, same flip) */}
       <canvas
         ref={overlayRef}
-        className="absolute inset-0 w-full h-full pointer-events-none"
+        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
         style={{ transform: 'scaleX(-1)' }}
       />
 

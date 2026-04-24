@@ -80,17 +80,20 @@ interface AiBatchVerifyResult {
   profile_id: string | null;
   confidence: number;
   vote_count: number;
+  liveness_passed: boolean;
+  liveness_score: number;
   message: string;
 }
 
 async function callAiBatchVerify(
   imageFaceCrop: string,
-  profiles: Array<{ profile_id: string; embeddings: number[][] }>
+  profiles: Array<{ profile_id: string; embeddings: number[][] }>,
+  frames: string[] = []
 ): Promise<AiBatchVerifyResult> {
   const res = await fetch(`${AI_URL}/verify-batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: imageFaceCrop, profiles, anti_spoofing: false }),
+    body: JSON.stringify({ image: imageFaceCrop, frames, profiles, require_liveness: true }),
   });
   if (!res.ok) {
     const err = await res.text();
@@ -244,7 +247,7 @@ export class FaceAttendanceService {
    * 2. Gọi AI service 1 lần duy nhất với TẤT CẢ profiles (batch)
    * 3. AI dùng vectorized cosine similarity với opencv detector (10x nhanh hơn retinaface)
    */
-  async verifyAndRecord(imageB64: string, deviceId?: string, ipAddress?: string) {
+  async verifyAndRecord(imageB64: string, frames: string[] = [], deviceId?: string, ipAddress?: string) {
     const cachedProfiles = await getEmbeddingCache();
 
     if (cachedProfiles.length === 0) {
@@ -254,7 +257,8 @@ export class FaceAttendanceService {
     // Single batch call: AI extracts probe embedding once, compares against all profiles
     const aiResult = await callAiBatchVerify(
       imageB64,
-      cachedProfiles.map(p => ({ profile_id: p.id, embeddings: p.embeddings }))
+      cachedProfiles.map(p => ({ profile_id: p.id, embeddings: p.embeddings })),
+      frames
     );
 
     const snapshotPath = this.saveSnapshot(imageB64, aiResult.profile_id ?? undefined);
