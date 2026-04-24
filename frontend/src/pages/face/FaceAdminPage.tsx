@@ -334,44 +334,13 @@ const FaceAdminPage: React.FC = () => {
     }
   }, []);
 
-  // Draw oval guide even when not scanning
+  // Unified detection loop - handles both guide display and face detection
   useEffect(() => {
     if (!cameraOn) return;
 
-    const drawGuide = () => {
-      const video = videoRef.current;
-      if (!video || video.readyState < 2) {
-        loopRef.current = requestAnimationFrame(drawGuide);
-        return;
-      }
-
-      const vw = video.videoWidth  || 640;
-      const vh = video.videoHeight || 480;
-
-      // If not scanning yet, just draw the guide oval
-      if (!scanStarted) {
-        drawOverlay(vw, vh, false, false, 0, 'waiting');
-        loopRef.current = requestAnimationFrame(drawGuide);
-        return;
-      }
-
-      // If scanning, stop this loop - the detect loop takes over
-      if (loopRef.current) cancelAnimationFrame(loopRef.current);
-    };
-
-    loopRef.current = requestAnimationFrame(drawGuide);
-    return () => {
-      if (loopRef.current) cancelAnimationFrame(loopRef.current);
-    };
-  }, [cameraOn, scanStarted, drawOverlay]);
-
-  // Detection loop (only when scanning)
-  useEffect(() => {
-    if (!cameraOn || !scanStarted) return;
-
     const detect = async () => {
       const video = videoRef.current;
-      if (!video || video.readyState < 2 || !scanStarted) {
+      if (!video || video.readyState < 2) {
         loopRef.current = requestAnimationFrame(detect);
         return;
       }
@@ -379,6 +348,14 @@ const FaceAdminPage: React.FC = () => {
       const vw = video.videoWidth  || 640;
       const vh = video.videoHeight || 480;
 
+      // If not scanning yet: just draw guide oval and wait
+      if (!scanStarted) {
+        drawOverlay(vw, vh, false, false, 0, 'waiting');
+        loopRef.current = requestAnimationFrame(detect);
+        return;
+      }
+
+      // ─── SCANNING MODE ───────────────────────────────────────────────
       // During cooldown: just draw "waiting"
       if (Date.now() < cooldownRef.current) {
         drawOverlay(vw, vh, false, false, 0, 'waiting');
