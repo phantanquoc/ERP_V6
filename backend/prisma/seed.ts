@@ -641,6 +641,139 @@ async function main(): Promise<void> {
 
   console.log('✅ Roles assigned to users');
 
+  // Create Office Accounts (Tài khoản văn phòng)
+  console.log('\n🏢 Creating office accounts...');
+
+  for (let i = 1; i <= 5; i++) {
+    const officeEmail = `office${i}@example.com`;
+    const officePassword = await bcrypt.hash(`office${i}123`, 10);
+
+    const officeUser = await prisma.user.upsert({
+      where: { email: officeEmail },
+      update: { password: officePassword },
+      create: {
+        email: officeEmail,
+        password: officePassword,
+        firstName: `Văn phòng`,
+        lastName: `${i}`,
+        role: 'USER' as any,
+        isActive: true,
+        departmentId: generalDept.id,
+      },
+    });
+
+    await prisma.employee.upsert({
+      where: { employeeCode: `VP00${i}` },
+      update: { userId: officeUser.id },
+      create: {
+        userId: officeUser.id,
+        employeeCode: `VP00${i}`,
+        gender: 'MALE',
+        dateOfBirth: new Date('1990-01-01'),
+        phoneNumber: `090000000${i}`,
+        address: 'TP.HCM',
+        positionId: qcStaffPos.id,
+        hireDate: new Date('2023-01-01'),
+        contractType: 'PERMANENT',
+        educationLevel: 'BACHELOR',
+        specialization: 'Hành chính',
+        baseSalary: 8000000,
+        kpiLevel: 80,
+        weight: 70,
+        height: 170,
+        shirtSize: 'M',
+        pantSize: '30',
+        shoeSize: '40',
+        bankAccount: `000000000${i}`,
+        lockerNumber: `VP${i}`,
+        notes: `Tài khoản văn phòng số ${i}`,
+      },
+    });
+
+    console.log(`✅ Office account ${i} created: ${officeEmail}`);
+  }
+
+  // Create 20 Employees with different names and departments
+  console.log('\n👥 Creating 20 employees...');
+
+  const employeeData = [
+    { firstName: 'Nguyễn', lastName: 'Văn A', dept: generalDept, pos: 'POS_001', phone: '0901111111' },
+    { firstName: 'Trần', lastName: 'Thị B', dept: qualityDept, pos: 'POS_002', phone: '0901111112' },
+    { firstName: 'Lê', lastName: 'Văn C', dept: businessDept, pos: 'POS_003', phone: '0901111113' },
+    { firstName: 'Phạm', lastName: 'Thị D', dept: accountingDept, pos: 'POS_004', phone: '0901111114' },
+    { firstName: 'Hoàng', lastName: 'Văn E', dept: purchasingDept, pos: 'POS_005', phone: '0901111115' },
+    { firstName: 'Vũ', lastName: 'Thị F', dept: productionDept, pos: 'POS_006', phone: '0901111116' },
+    { firstName: 'Đặng', lastName: 'Văn G', dept: technicalDept, pos: 'POS_007', phone: '0901111117' },
+    { firstName: 'Bùi', lastName: 'Thị H', dept: generalDept, pos: 'POS_008', phone: '0901111118' },
+    { firstName: 'Dương', lastName: 'Văn I', dept: qualityDept, pos: 'POS_009', phone: '0901111119' },
+    { firstName: 'Tô', lastName: 'Thị J', dept: businessDept, pos: 'POS_010', phone: '0901111120' },
+    { firstName: 'Cao', lastName: 'Văn K', dept: accountingDept, pos: 'POS_011', phone: '0901111121' },
+    { firstName: 'Nông', lastName: 'Thị L', dept: purchasingDept, pos: 'POS_012', phone: '0901111122' },
+    { firstName: 'Tạ', lastName: 'Văn M', dept: productionDept, pos: 'POS_013', phone: '0901111123' },
+    { firstName: 'Hà', lastName: 'Thị N', dept: technicalDept, pos: 'POS_014', phone: '0901111124' },
+    { firstName: 'Phan', lastName: 'Văn O', dept: generalDept, pos: 'POS_015', phone: '0901111125' },
+    { firstName: 'Võ', lastName: 'Thị P', dept: qualityDept, pos: 'POS_016', phone: '0901111126' },
+    { firstName: 'Tây', lastName: 'Văn Q', dept: businessDept, pos: 'POS_017', phone: '0901111127' },
+    { firstName: 'Sơn', lastName: 'Thị R', dept: accountingDept, pos: 'POS_018', phone: '0901111128' },
+    { firstName: 'Mạnh', lastName: 'Văn S', dept: purchasingDept, pos: 'POS_019', phone: '0901111129' },
+    { firstName: 'Linh', lastName: 'Thị T', dept: productionDept, pos: 'POS_020', phone: '0901111130' },
+  ];
+
+  for (let i = 0; i < employeeData.length; i++) {
+    const emp = employeeData[i];
+    const empCode = `NV${String(i + 1).padStart(3, '0')}`;
+    const empEmail = `${emp.firstName.toLowerCase()}${emp.lastName.toLowerCase()}@example.com`;
+    const empPassword = await bcrypt.hash('employee123', 10);
+
+    const empUser = await prisma.user.upsert({
+      where: { email: empEmail },
+      update: { password: empPassword },
+      create: {
+        email: empEmail,
+        password: empPassword,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        role: 'USER' as any,
+        isActive: true,
+        departmentId: emp.dept.id,
+      },
+    });
+
+    const position = await prisma.position.findUnique({
+      where: { code: emp.pos },
+    });
+
+    await prisma.employee.upsert({
+      where: { employeeCode: empCode },
+      update: { userId: empUser.id },
+      create: {
+        userId: empUser.id,
+        employeeCode: empCode,
+        gender: i % 2 === 0 ? 'MALE' : 'FEMALE',
+        dateOfBirth: new Date(1990 + Math.floor(i / 2), Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1),
+        phoneNumber: emp.phone,
+        address: 'TP.HCM',
+        positionId: position?.id || qcStaffPos.id,
+        hireDate: new Date(2022 + Math.floor(i / 5), Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1),
+        contractType: 'PERMANENT',
+        educationLevel: i % 3 === 0 ? 'BACHELOR' : i % 3 === 1 ? 'MASTER' : 'ASSOCIATE',
+        specialization: emp.dept.name,
+        baseSalary: 6000000 + Math.floor(Math.random() * 4000000),
+        kpiLevel: 70 + Math.floor(Math.random() * 30),
+        weight: 60 + Math.floor(Math.random() * 20),
+        height: 160 + Math.floor(Math.random() * 20),
+        shirtSize: ['S', 'M', 'L', 'XL'][Math.floor(Math.random() * 4)],
+        pantSize: String(28 + Math.floor(Math.random() * 8)),
+        shoeSize: String(36 + Math.floor(Math.random() * 8)),
+        bankAccount: `${String(i + 1).padStart(10, '0')}`,
+        lockerNumber: `L${String(i + 1).padStart(3, '0')}`,
+        notes: `Nhân viên ${emp.firstName} ${emp.lastName} - Bộ phận ${emp.dept.name}`,
+      },
+    });
+
+    console.log(`✅ Employee ${i + 1}/20 created: ${emp.firstName} ${emp.lastName} (${empEmail})`);
+  }
+
   console.log('✨ Database seeding completed!');
 }
 

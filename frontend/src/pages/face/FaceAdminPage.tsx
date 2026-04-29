@@ -1,83 +1,85 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { CheckCircle, XCircle, RefreshCw, ToggleLeft, ToggleRight, User, Loader2 } from 'lucide-react';
-import * as faceapi from 'face-api.js';
 import faceAttendanceService, { EmployeeFaceProfile } from '../../services/faceAttendanceService';
+import { loadFaceMesh } from '../../utils/loadFaceMesh';
 
-// ─── Pose definitions ────────────────────────────────────────────────────────
+// MediaPipe FaceMesh — loaded via dynamic script injection
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+// ─── Pose definitions ──────────────────────────────────────────────────────────
 const POSES = [
-  { label: 'Chính diện',    emoji: '😐',  hint: 'Nhìn thẳng vào camera',              arrow: null },
-  { label: 'Xoay trái',     emoji: '⬅️',  hint: 'Xoay mặt sang trái nhẹ (~30°)',       arrow: 'left' },
-  { label: 'Xoay phải',     emoji: '➡️',  hint: 'Xoay mặt sang phải nhẹ (~30°)',       arrow: 'right' },
-  { label: 'Ngẩng lên',     emoji: '⬆️',  hint: 'Ngẩng đầu lên nhẹ (~20°)',            arrow: 'up' },
-  { label: 'Cúi xuống',     emoji: '⬇️',  hint: 'Cúi đầu xuống nhẹ (~20°)',            arrow: 'down' },
-  { label: 'Mỉm cười',      emoji: '😊',  hint: 'Nhìn thẳng và mỉm cười tự nhiên',     arrow: null },
+  { label: 'Chính diện',  emoji: '😐', hint: 'Nhìn thẳng vào camera',              arrow: null },
+  { label: 'Xoay trái',    emoji: '⬅️', hint: 'Xoay mặt sang trái nhẹ (~30°)',       arrow: 'left' },
+  { label: 'Xoay phải',  emoji: '➡️', hint: 'Xoay mặt sang phải nhẹ (~30°)',       arrow: 'right' },
+  { label: 'Ngẩng lên',  emoji: '⬆️', hint: 'Ngẩng đầu lên nhẹ (~20°)',            arrow: 'up' },
+  { label: 'Cúi xuống',  emoji: '⬇️', hint: 'Cúi đầu xuống nhẹ (~20°)',            arrow: 'down' },
+  { label: 'Mỉm cười',   emoji: '😊', hint: 'Nhìn thẳng và mỉm cười tự nhiên',     arrow: null },
 ];
 
-const STABLE_MS   = 900;   // ms giữ ổn định trước khi chụp
-const COOLDOWN_MS = 1200;  // ms chờ sau khi chụp
-const MIN_SCORE   = 0.50;  // ngưỡng face-api score
-const OVAL_PAD_X  = 0.18;  // oval width padding (fraction)
-const OVAL_PAD_Y  = 0.06;  // oval height padding
+const STABLE_MS   = 900;
+const COOLDOWN_MS = 1200;
+const OVAL_PAD_X  = 0.18;
+const OVAL_PAD_Y  = 0.06;
 
-// Ngưỡng góc mặt (tính từ 68 landmarks)
-const YAW_FRONT  = 0.15;  // |yaw| < này = chính diện
-const YAW_SIDE   = 0.22;  // |yaw| > này = đã xoay đủ
-const PITCH_UP   = -0.13; // pitch < này = ngẩng lên đủ
-const PITCH_DOWN =  0.13; // pitch > này = cúi xuống đủ
-const SMILE_MIN  =  0.18; // tỷ lệ mở miệng khi cười
+// Ngưỡng góc mặt
+const YAW_FRONT  = 0.15;
+const YAW_SIDE   = 0.22;
+const PITCH_UP   = -0.13;
+const PITCH_DOWN =  0.13;
+const SMILE_MIN  =  0.18;
 
-// ─── Pose metrics (tính từ face landmarks) ───────────────────────────────────
+// ── MediaPipe FaceMesh landmark indices ──────────────────────────────────────
+const L_EYE   = [33, 160, 158, 133, 153, 144];
+const R_EYE   = [362, 385, 387, 263, 373, 380];
+const NOSE_TIP = 1;
+const MOUTH   = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375];
+const MOUTH_L = 61, MOUTH_R = 291;
+const LIP_TOP = 13, LIP_BOT = 14;
+
+// Normalized landmark type
+type NLM = { x: number; y: number; z: number };
+
+// ─── Pose metrics ─────────────────────────────────────────────────────────────
 interface PoseMetrics {
-  yaw:    number;  // < 0 = xoay trái (user's left), > 0 = phải (user's right)
-  pitch:  number;  // < 0 = ngẩng lên, > 0 = cúi xuống
-  smile:  number;  // 0..∞ mouthH/mouthW
+  yaw:    number;
+  pitch:  number;
+  smile:  number;
   inOval: boolean;
 }
 
 function computePoseMetrics(
-  lm: faceapi.FaceLandmarks68, vw: number, vh: number
+  lms: NLM[], vw: number, vh: number
 ): PoseMetrics {
-  const pts = lm.positions;
-
-  // Eye centers (pts 36-41 = left eye, 42-47 = right eye)
-  const avg = (idxs: number[]) => idxs.reduce(
-    (a, i) => ({ x: a.x + pts[i].x / idxs.length, y: a.y + pts[i].y / idxs.length }),
-    { x: 0, y: 0 }
-  );
-  const leftEye   = avg([36,37,38,39,40,41]);
-  const rightEye  = avg([42,43,44,45,46,47]);
+  const avgPx = (idxs: number[]) => {
+    const x = idxs.reduce((s, i) => s + lms[i].x * vw, 0) / idxs.length;
+    const y = idxs.reduce((s, i) => s + lms[i].y * vh, 0) / idxs.length;
+    return { x, y };
+  };
+  const leftEye   = avgPx(L_EYE);
+  const rightEye  = avgPx(R_EYE);
   const eyeCenter = { x: (leftEye.x + rightEye.x) / 2, y: (leftEye.y + rightEye.y) / 2 };
   const eyeWidth  = Math.abs(rightEye.x - leftEye.x);
 
-  const noseTip   = pts[30];  // nose tip
-  const mouthL    = pts[48];  // left corner
-  const mouthR    = pts[54];  // right corner
-  const mouthTop  = pts[51];  // upper lip center
-  const mouthBot  = pts[57];  // lower lip center
+  const noseTip = { x: lms[NOSE_TIP].x * vw, y: lms[NOSE_TIP].y * vh };
+  const mouthL  = { x: lms[MOUTH_L].x * vw, y: lms[MOUTH_L].y * vh };
+  const mouthR  = { x: lms[MOUTH_R].x * vw, y: lms[MOUTH_R].y * vh };
+  const lipTop   = { x: lms[LIP_TOP].x * vw, y: lms[LIP_TOP].y * vh };
+  const lipBot   = { x: lms[LIP_BOT].x * vw, y: lms[LIP_BOT].y * vh };
+  const mouthCenterY = MOUTH.reduce((s, i) => s + lms[i].y * vh, 0) / MOUTH.length;
 
-  // Mouth center Y (avg of all mouth pts)
-  const mouthCenterY = avg([48,49,50,51,52,53,54,55,56,57,58,59]).y;
-
-  // Yaw: how far nose deviates from eye midpoint (normalised by eye width)
-  // negative = user turns their left, positive = user turns their right
-  // Negate yaw: video is CSS-mirrored (scaleX(-1)), but detection runs on raw frame.
-  // User turning LEFT moves nose RIGHT in raw frame → positive raw yaw.
-  // Negating makes yaw < 0 = user left, yaw > 0 = user right (mirror-correct).
+  // Yaw: negated for CSS-mirrored video
   const yaw = eyeWidth > 0 ? -(noseTip.x - eyeCenter.x) / eyeWidth : 0;
 
-  // Pitch: (eyeToNose - noseToMouth) / total
-  // negative = looking up, positive = looking down
-  const eyeToNose    = noseTip.y - eyeCenter.y;   // always +
-  const noseToMouth  = mouthCenterY - noseTip.y;  // always +
-  const totalV       = eyeToNose + noseToMouth;
-  const pitch        = totalV > 0 ? (eyeToNose - noseToMouth) / totalV : 0;
+  const eyeToNose   = noseTip.y - eyeCenter.y;
+  const noseToMouth = mouthCenterY - noseTip.y;
+  const totalV      = eyeToNose + noseToMouth;
+  const pitch       = totalV > 0 ? (eyeToNose - noseToMouth) / totalV : 0;
 
-  // Smile: mouth height / mouth width
   const mouthW = Math.abs(mouthR.x - mouthL.x);
-  const mouthH = Math.abs(mouthBot.y - mouthTop.y);
+  const mouthH = Math.abs(lipBot.y - lipTop.y);
   const smile  = mouthW > 0 ? mouthH / mouthW : 0;
 
-  // Oval check using nose tip as face center
+  // Oval check — use raw (unmirrored) x for math, mirror for display in drawOverlay
   const faceCx = noseTip.x;
   const faceCy = eyeCenter.y + (mouthCenterY - eyeCenter.y) * 0.45;
   const rx = vw * (0.5 - OVAL_PAD_X);
@@ -91,9 +93,8 @@ function computePoseMetrics(
 
 function checkPoseMatch(poseIdx: number, m: PoseMetrics): { ok: boolean; hint: string } {
   const { yaw, pitch, smile } = m;
-
   switch (poseIdx) {
-    case 0: // Chính diện
+    case 0:
       if (Math.abs(yaw) > YAW_FRONT + 0.08)
         return { ok: false, hint: yaw > 0 ? 'Xoay sang trái thêm' : 'Xoay sang phải thêm' };
       if (pitch < PITCH_UP - 0.05)
@@ -102,27 +103,27 @@ function checkPoseMatch(poseIdx: number, m: PoseMetrics): { ok: boolean; hint: s
         return { ok: false, hint: 'Ngẩng đầu lên nhẹ' };
       return { ok: true, hint: '✓ Tốt! Giữ nguyên...' };
 
-    case 1: // Xoay trái (user's left → yaw < 0 in raw frame)
+    case 1:
       if (yaw > -YAW_SIDE)
         return { ok: false, hint: 'Xoay mặt sang trái thêm' };
       return { ok: true, hint: '✓ Đúng góc! Giữ nguyên...' };
 
-    case 2: // Xoay phải (user's right → yaw > 0 in raw frame)
+    case 2:
       if (yaw < YAW_SIDE)
         return { ok: false, hint: 'Xoay mặt sang phải thêm' };
       return { ok: true, hint: '✓ Đúng góc! Giữ nguyên...' };
 
-    case 3: // Ngẩng lên (pitch < PITCH_UP)
+    case 3:
       if (pitch > PITCH_UP)
         return { ok: false, hint: 'Ngẩng đầu lên thêm' };
       return { ok: true, hint: '✓ Đúng góc! Giữ nguyên...' };
 
-    case 4: // Cúi xuống (pitch > PITCH_DOWN)
+    case 4:
       if (pitch < PITCH_DOWN)
         return { ok: false, hint: 'Cúi đầu xuống thêm' };
       return { ok: true, hint: '✓ Đúng góc! Giữ nguyên...' };
 
-    case 5: // Mỉm cười
+    case 5:
       if (smile < SMILE_MIN)
         return { ok: false, hint: 'Mỉm cười to hơn nhé 😄' };
       if (Math.abs(yaw) > YAW_FRONT + 0.12)
@@ -139,45 +140,33 @@ type EnrollState = 'idle' | 'capturing' | 'submitting' | 'done' | 'error';
 type OvalState   = 'waiting' | 'detecting' | 'wrong-pose' | 'stable' | 'flash';
 
 const FaceAdminPage: React.FC = () => {
-  const videoRef   = useRef<HTMLVideoElement>(null);
-  const overlayRef = useRef<HTMLCanvasElement>(null);
-  const captureRef = useRef<HTMLCanvasElement>(null);
-  const streamRef  = useRef<MediaStream | null>(null);
-  const loopRef    = useRef<number | null>(null);
-  const stableRef  = useRef<number | null>(null);   // timestamp khi bắt đầu stable
-  const cooldownRef= useRef<number>(0);             // timestamp cooldown kết thúc
-  const modelsRef  = useRef(false);
+  const videoRef    = useRef<HTMLVideoElement>(null);
+  const overlayRef  = useRef<HTMLCanvasElement>(null);
+  const captureRef  = useRef<HTMLCanvasElement>(null);
+  const streamRef   = useRef<MediaStream | null>(null);
+  const loopRef     = useRef<number | null>(null);
+  const stableRef   = useRef<number | null>(null);
+  const cooldownRef = useRef<number>(0);
+  const scanStartedRef = useRef(false);
+  const faceMeshRef = useRef<any | null>(null);
+  const latestLms   = useRef<NLM[] | null>(null);
 
-  const [employees,     setEmployees]     = useState<EmployeeFaceProfile[]>([]);
-  const [loading,       setLoading]       = useState(true);
-  const [search,        setSearch]        = useState('');
-  const [selected,      setSelected]      = useState<EmployeeFaceProfile | null>(null);
-  const [cameraOn,      setCameraOn]      = useState(false);
-  const [capturedImages,setCapturedImages]= useState<string[]>([]);
-  const [currentPose,   setCurrentPose]   = useState(0);
-  const [enrollState,   setEnrollState]   = useState<EnrollState>('idle');
-  const [enrollMsg,     setEnrollMsg]     = useState('');
-  const [enrollMode,    setEnrollMode]    = useState<'new' | 'variation'>('new');
-  const [ovalState,     setOvalState]     = useState<OvalState>('waiting');
-  const [modelsLoaded,  setModelsLoaded]  = useState(false);
-  const [stableProgress,setStableProgress]= useState(0); // 0–100
-  const [poseFeedback,  setPoseFeedback]  = useState('');  // guidance text
+  const [employees,      setEmployees]      = useState<EmployeeFaceProfile[]>([]);
+  const [loading,        setLoading]        = useState(true);
+  const [search,         setSearch]         = useState('');
+  const [selected,       setSelected]       = useState<EmployeeFaceProfile | null>(null);
+  const [cameraOn,       setCameraOn]       = useState(false);
+  const [capturedImages, setCapturedImages] = useState<string[]>([]);
+  const [currentPose,    setCurrentPose]    = useState(0);
+  const [enrollState,    setEnrollState]    = useState<EnrollState>('idle');
+  const [enrollMsg,      setEnrollMsg]      = useState('');
+  const [enrollMode,     setEnrollMode]     = useState<'new' | 'variation'>('new');
+  const [ovalState,      setOvalState]      = useState<OvalState>('waiting');
+  const [stableProgress,  setStableProgress] = useState(0);
+  const [poseFeedback,    setPoseFeedback]    = useState('');
 
-  // Refs mirroring state for use in RAF loop
   const capturedImagesRef = useRef<string[]>([]);
-  const currentPoseRef    = useRef(0);
-  const captureActiveRef  = useRef(false);
-  const [scanStarted,     setScanStarted]    = useState(false);  // user clicked "start scanning"
-
-  // ─── Load face-api models (detector + 68-landmark) ───────────────────────
-  useEffect(() => {
-    if (modelsRef.current) return;
-    modelsRef.current = true;
-    Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri('/models'),
-    ]).then(() => setModelsLoaded(true)).catch(console.error);
-  }, []);
+  const currentPoseRef  = useRef(0);
 
   // ─── Employee list ─────────────────────────────────────────────────────────
   const loadEmployees = useCallback(async () => {
@@ -187,12 +176,11 @@ const FaceAdminPage: React.FC = () => {
   }, []);
   useEffect(() => { loadEmployees(); }, [loadEmployees]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => { stopCamera(); };
   }, []);
 
-  // ─── Set video srcObject after render ────────────────────────────────────
+  // ─── Gắn stream vào video element sau khi cameraOn ────────────────────────
   useEffect(() => {
     if (cameraOn && streamRef.current && videoRef.current) {
       videoRef.current.srcObject = streamRef.current;
@@ -200,12 +188,12 @@ const FaceAdminPage: React.FC = () => {
     }
   }, [cameraOn]);
 
-  // ─── Camera helpers ────────────────────────────────────────────────────────
+  // ─── Camera helpers ─────────────────────────────────────────────────────────
   const stopCamera = useCallback(() => {
     if (loopRef.current) { cancelAnimationFrame(loopRef.current); loopRef.current = null; }
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
-    captureActiveRef.current = false;
+    latestLms.current  = null;
     setCameraOn(false);
   }, []);
 
@@ -216,16 +204,15 @@ const FaceAdminPage: React.FC = () => {
       });
       streamRef.current = stream;
       capturedImagesRef.current = [];
-      currentPoseRef.current    = 0;
-      captureActiveRef.current  = false;  // Don't capture yet! Wait for user to click "start scanning"
-      setScanStarted(false);
+      currentPoseRef.current     = 0;
+      scanStartedRef.current     = false;
       setCapturedImages([]);
       setCurrentPose(0);
       setEnrollMsg('');
       setOvalState('waiting');
       setStableProgress(0);
       stableRef.current  = null;
-      cooldownRef.current= 0;
+      cooldownRef.current = 0;
       setEnrollState('capturing');
       setCameraOn(true);
     } catch (e) {
@@ -233,30 +220,53 @@ const FaceAdminPage: React.FC = () => {
     }
   }, []);
 
-  // ─── Face detection loop ───────────────────────────────────────────────────
+  // ─── FaceMesh init (sau khi camera bật) ──────────────────────────────────
+  const initFaceMesh = useCallback(async () => {
+    const FaceMeshCtor = await loadFaceMesh();
+    const mesh = new FaceMeshCtor({
+      locateFile: (file: string) => `/mediapipe/${file}`,
+    });
+    mesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+    mesh.onResults((results: any) => {
+      latestLms.current = (results.multiFaceLandmarks?.[0] as NLM[]) ?? null;
+    });
+    faceMeshRef.current = mesh;
+    return mesh.initialize();
+  }, []);
+
+  // ─── Capture helpers ──────────────────────────────────────────────────────
   const captureFrame = useCallback((): string | null => {
     const video = videoRef.current;
     const canvas = captureRef.current;
     if (!video || !canvas || video.readyState < 2) return null;
-    canvas.width  = video.videoWidth  || 640;
-    canvas.height = video.videoHeight || 480;
+    const vw = video.videoWidth  || 640;
+    const vh = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    ctx.drawImage(video, 0, 0);
-    return canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
+    // Crop vuông trung tâm — nhất quán với kiosk captureFrame
+    // Enroll và verify cùng format → embedding gần nhau hơn
+    const side = Math.min(vw, vh);
+    const sx   = Math.round((vw - side) / 2);
+    const sy   = Math.round((vh - side) / 2);
+    canvas.width  = 480;
+    canvas.height = 480;
+    ctx.drawImage(video, sx, sy, side, side, 0, 0, 480, 480);
+    return canvas.toDataURL('image/jpeg', 0.90).split(',')[1];
   }, []);
 
   const doAutoCapture = useCallback(() => {
     const b64 = captureFrame();
     if (!b64) return;
-
     const newImages = [...capturedImagesRef.current, b64];
     capturedImagesRef.current = newImages;
     setCapturedImages([...newImages]);
-
     setOvalState('flash');
     setTimeout(() => setOvalState('waiting'), 300);
-
     const nextPose = newImages.length;
     if (nextPose < POSES.length) {
       currentPoseRef.current = nextPose;
@@ -265,18 +275,19 @@ const FaceAdminPage: React.FC = () => {
       cooldownRef.current = Date.now() + COOLDOWN_MS;
       setStableProgress(0);
     } else {
-      // All poses done
       captureActiveRef.current = false;
       stopCamera();
       setEnrollState('idle');
     }
   }, [captureFrame, stopCamera]);
 
-  // Draw oval on overlay canvas
+  const captureActiveRef = useRef(false);
+
+  // ─── Draw oval overlay ─────────────────────────────────────────────────────
   const drawOverlay = useCallback((
     ow: number, oh: number,
     detected: boolean, inOval: boolean, progress: number, state: OvalState,
-    box?: { x: number; y: number; width: number; height: number },
+    boxMirrored?: { x: number; y: number; width: number; height: number },
   ) => {
     const canvas = overlayRef.current;
     if (!canvas) return;
@@ -291,7 +302,6 @@ const FaceAdminPage: React.FC = () => {
     const rx = ow * (0.5 - OVAL_PAD_X);
     const ry = oh * (0.5 - OVAL_PAD_Y);
 
-    // Darken outside oval
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, ow, oh);
@@ -301,11 +311,9 @@ const FaceAdminPage: React.FC = () => {
     ctx.fillRect(0, 0, ow, oh);
     ctx.restore();
 
-    // Oval border
-    let color = '#ffffff66';
-    let lineW  = 2;
-    if (state === 'flash')      { color = '#22c55e'; lineW = 5; }
-    else if (state === 'stable'){ color = '#22c55e'; lineW = 4; }
+    let color = '#ffffff66', lineW = 2;
+    if (state === 'flash')        { color = '#22c55e'; lineW = 5; }
+    else if (state === 'stable') { color = '#22c55e'; lineW = 4; }
     else if (state === 'wrong-pose') { color = '#f97316'; lineW = 3; }
     else if (state === 'detecting')  { color = '#facc15'; lineW = 3; }
 
@@ -315,7 +323,6 @@ const FaceAdminPage: React.FC = () => {
     ctx.lineWidth   = lineW;
     ctx.stroke();
 
-    // Progress arc (stable countdown)
     if (state === 'stable' && progress > 0) {
       const start = -Math.PI / 2;
       const end   = start + (progress / 100) * 2 * Math.PI;
@@ -326,17 +333,17 @@ const FaceAdminPage: React.FC = () => {
       ctx.stroke();
     }
 
-    // Face bounding box (debug aid — subtle)
-    if (box && detected) {
+    if (boxMirrored && detected) {
       ctx.strokeStyle = 'rgba(255,255,255,0.25)';
       ctx.lineWidth   = 1;
-      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      ctx.strokeRect(boxMirrored.x, boxMirrored.y, boxMirrored.width, boxMirrored.height);
     }
   }, []);
 
-  // Unified detection loop - handles both guide display and face detection
+  // ─── Detection loop ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!cameraOn) return;
+    let closed = false;
 
     const detect = async () => {
       const video = videoRef.current;
@@ -348,15 +355,14 @@ const FaceAdminPage: React.FC = () => {
       const vw = video.videoWidth  || 640;
       const vh = video.videoHeight || 480;
 
-      // If not scanning yet: just draw guide oval and wait
-      if (!scanStarted) {
+      // Chỉ vẽ oval guide khi chưa bắt đầu scan
+      if (!scanStartedRef.current) {
         drawOverlay(vw, vh, false, false, 0, 'waiting');
         loopRef.current = requestAnimationFrame(detect);
         return;
       }
 
-      // ─── SCANNING MODE ───────────────────────────────────────────────
-      // During cooldown: just draw "waiting"
+      // Cooldown: chờ sau khi chụp
       if (Date.now() < cooldownRef.current) {
         drawOverlay(vw, vh, false, false, 0, 'waiting');
         loopRef.current = requestAnimationFrame(detect);
@@ -365,34 +371,38 @@ const FaceAdminPage: React.FC = () => {
 
       let ovalSt: OvalState = 'waiting';
       let feedback = '';
-      let box: { x: number; y: number; width: number; height: number } | undefined;
+      let boxMirrored: { x: number; y: number; width: number; height: number } | undefined;
       let poseOk = false;
 
-      try {
-        const result = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: MIN_SCORE }))
-          .withFaceLandmarks(true);  // true = tiny model
+      // Gửi frame vào FaceMesh
+      if (faceMeshRef.current) {
+        await faceMeshRef.current.send({ image: video });
+      }
 
-        if (result) {
-          const b = result.detection.box;
-          const mirroredX = vw - b.x - b.width;
-          box = { x: mirroredX, y: b.y, width: b.width, height: b.height };
+      const lms = latestLms.current;
+      if (lms && lms.length > 0) {
+        // Tính bounding box từ landmarks (raw coords)
+        const xs = lms.map(p => p.x * vw);
+        const ys = lms.map(p => p.y * vh);
+        const rawX = Math.min(...xs), rawY = Math.min(...ys);
+        const bw = Math.max(...xs) - rawX, bh = Math.max(...ys) - rawY;
+        // Mirror X cho overlay (video bị CSS scaleX(-1))
+        const mirroredX = vw - rawX - bw;
+        boxMirrored = { x: mirroredX, y: rawY, width: bw, height: bh };
 
-          // Compute pose metrics from landmarks
-          const metrics = computePoseMetrics(result.landmarks, vw, vh);
+        // Pose metrics
+        const metrics = computePoseMetrics(lms, vw, vh);
 
-          if (!metrics.inOval) {
-            ovalSt   = 'detecting';
-            feedback = 'Đưa mặt vào khung oval';
-          } else {
-            // Face in oval — now check pose
-            const check = checkPoseMatch(currentPoseRef.current, metrics);
-            poseOk = check.ok;
-            feedback = check.hint;
-            ovalSt = check.ok ? 'stable' : 'wrong-pose';
-          }
+        if (!metrics.inOval) {
+          ovalSt   = 'detecting';
+          feedback = 'Đưa mặt vào khung oval';
+        } else {
+          const check = checkPoseMatch(currentPoseRef.current, metrics);
+          poseOk    = check.ok;
+          feedback  = check.hint;
+          ovalSt    = check.ok ? 'stable' : 'wrong-pose';
         }
-      } catch { /* ignore */ }
+      }
 
       if (poseOk) {
         if (!stableRef.current) stableRef.current = Date.now();
@@ -401,18 +411,18 @@ const FaceAdminPage: React.FC = () => {
         setStableProgress(progress);
 
         if (elapsed >= STABLE_MS) {
-          drawOverlay(vw, vh, true, true, 100, 'flash', box);
+          drawOverlay(vw, vh, true, true, 100, 'flash', boxMirrored);
           setOvalState('flash');
           setPoseFeedback('✓ Chụp!');
           doAutoCapture();
           loopRef.current = requestAnimationFrame(detect);
           return;
         }
-        drawOverlay(vw, vh, true, true, progress, 'stable', box);
+        drawOverlay(vw, vh, true, true, progress, 'stable', boxMirrored);
       } else {
         stableRef.current = null;
         setStableProgress(0);
-        drawOverlay(vw, vh, !!box, false, 0, ovalSt, box);
+        drawOverlay(vw, vh, !!boxMirrored, false, 0, ovalSt, boxMirrored);
       }
 
       setOvalState(ovalSt);
@@ -422,9 +432,26 @@ const FaceAdminPage: React.FC = () => {
 
     loopRef.current = requestAnimationFrame(detect);
     return () => {
+      closed = true;
       if (loopRef.current) cancelAnimationFrame(loopRef.current);
+      faceMeshRef.current?.close();
     };
-  }, [cameraOn, scanStarted, drawOverlay, doAutoCapture]);
+  }, [cameraOn, drawOverlay, doAutoCapture]);
+
+  // ─── Camera on effect: init FaceMesh sau khi video element ready ─────────────
+  useEffect(() => {
+    if (!cameraOn || !videoRef.current) return;
+    let active = true;
+
+    const go = async () => {
+      await initFaceMesh();
+      if (!active || !videoRef.current) return;
+      // Camera is now streaming; detection loop handles sending frames
+    };
+    go();
+
+    return () => { active = false; };
+  }, [cameraOn, initFaceMesh]);
 
   // ─── Enroll submit ─────────────────────────────────────────────────────────
   const handleEnroll = useCallback(async () => {
@@ -448,7 +475,6 @@ const FaceAdminPage: React.FC = () => {
     }
   }, [selected, enrollMode, loadEmployees]);
 
-  // Auto-submit when all poses captured
   useEffect(() => {
     if (capturedImages.length === POSES.length && enrollState === 'idle') {
       handleEnroll();
@@ -468,15 +494,15 @@ const FaceAdminPage: React.FC = () => {
     setOvalState('waiting');
     setStableProgress(0);
     setPoseFeedback('');
-    setScanStarted(false);
+    scanStartedRef.current = false;
   };
 
-  const startScanning = useCallback(() => {
+  const startScanning = () => {
     captureActiveRef.current = true;
-    setScanStarted(true);
-    stableRef.current = null;
+    scanStartedRef.current = true;
+    stableRef.current   = null;
     cooldownRef.current = 0;
-  }, []);
+  };
 
   const selectEmployee = (emp: EmployeeFaceProfile) => {
     resetEnroll();
@@ -494,12 +520,10 @@ const FaceAdminPage: React.FC = () => {
     e.employeeCode.toLowerCase().includes(search.toLowerCase())
   );
 
-  // ─── Oval status message ───────────────────────────────────────────────────
   const ovalMsg = (() => {
     if (!cameraOn) return '';
-    if (ovalState === 'flash')      return '📸 Đã chụp!';
-    if (poseFeedback)               return poseFeedback;
-    if (ovalState === 'waiting')    return 'Đưa mặt vào khung oval';
+    if (ovalState === 'flash')     return '📸 Đã chụp!';
+    if (poseFeedback)              return poseFeedback;
     return 'Đưa mặt vào khung oval';
   })();
 
@@ -517,7 +541,7 @@ const FaceAdminPage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-          {/* ── Employee list ─────────────────────────────────────────── */}
+          {/* ── Employee list ────────────────────────────────────────────── */}
           <div className="lg:col-span-2 bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
             <div className="p-3 border-b border-gray-800 flex gap-2">
               <input
@@ -576,7 +600,7 @@ const FaceAdminPage: React.FC = () => {
             </div>
           </div>
 
-          {/* ── Enroll panel ──────────────────────────────────────────── */}
+          {/* ── Enroll panel ─────────────────────────────────────────────── */}
           <div className="lg:col-span-3 flex flex-col gap-4">
             {!selected ? (
               <div className="bg-gray-900 rounded-2xl border border-gray-800 flex flex-col items-center justify-center h-96 text-gray-600">
@@ -615,7 +639,7 @@ const FaceAdminPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* ── Camera + auto-capture UI ───────────────────────── */}
+                {/* ── Camera + auto-capture ─────────────────────────────────── */}
                 {enrollState === 'capturing' && (
                   <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
                     {/* Pose instruction */}
@@ -636,7 +660,7 @@ const FaceAdminPage: React.FC = () => {
                       }`}>{ovalMsg}</span>
                     </div>
 
-                    {/* Camera view with oval overlay */}
+                    {/* Camera view */}
                     <div className="relative bg-black mx-4 mb-3 rounded-xl overflow-hidden" style={{ aspectRatio: '4/3' }}>
                       <video
                         ref={videoRef} muted playsInline autoPlay
@@ -648,18 +672,8 @@ const FaceAdminPage: React.FC = () => {
                         className="absolute inset-0 w-full h-full"
                         style={{ transform: 'scaleX(-1)' }}
                       />
-                      {/* Flash effect */}
                       {ovalState === 'flash' && (
                         <div className="absolute inset-0 bg-white opacity-40 pointer-events-none rounded-xl animate-ping" />
-                      )}
-                      {/* Models loading indicator */}
-                      {!modelsLoaded && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-                          <div className="text-center">
-                            <Loader2 className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-2" />
-                            <p className="text-sm text-gray-300">Đang tải model nhận diện...</p>
-                          </div>
-                        </div>
                       )}
                     </div>
 
@@ -682,8 +696,8 @@ const FaceAdminPage: React.FC = () => {
                         ))}
                       </div>
 
-                      {/* Start scanning button (when camera open but not yet scanning) */}
-                      {!scanStarted && (
+                      {/* Start scanning button */}
+                      {!scanStartedRef.current && (
                         <div className="mt-4 pt-4 border-t border-gray-700">
                           <button
                             onClick={startScanning}
@@ -700,7 +714,7 @@ const FaceAdminPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* ── Idle: start button ─────────────────────────────── */}
+                {/* ── Idle: start button ─────────────────────────────────────── */}
                 {enrollState === 'idle' && capturedImages.length === 0 && (
                   <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 text-center">
                     {enrollMode === 'variation' && (
@@ -708,7 +722,6 @@ const FaceAdminPage: React.FC = () => {
                         <span>👓</span> Chế độ <strong>thêm biến thể</strong> — ảnh cũ được giữ lại.
                       </div>
                     )}
-                    {/* Pose preview */}
                     <div className="flex justify-center gap-4 mb-6 flex-wrap">
                       {POSES.map((p, i) => (
                         <div key={i} className="flex flex-col items-center gap-1 text-gray-500">
@@ -722,15 +735,14 @@ const FaceAdminPage: React.FC = () => {
                     </p>
                     <button
                       onClick={startCamera}
-                      disabled={!modelsLoaded}
-                      className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto transition"
+                      className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-500 flex items-center gap-2 mx-auto transition"
                     >
-                      {modelsLoaded ? '📷 Bắt đầu đăng ký' : <><Loader2 className="w-4 h-4 animate-spin" /> Đang tải model...</>}
+                      📷 Bắt đầu đăng ký
                     </button>
                   </div>
                 )}
 
-                {/* ── Submitting ─────────────────────────────────────── */}
+                {/* ── Submitting ────────────────────────────────────────────── */}
                 {enrollState === 'submitting' && (
                   <div className="bg-gray-900 rounded-2xl border border-gray-800 p-10 text-center">
                     <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -738,7 +750,7 @@ const FaceAdminPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* ── Done / Error ───────────────────────────────────── */}
+                {/* ── Done / Error ───────────────────────────────────────────── */}
                 {(enrollState === 'done' || enrollState === 'error') && enrollMsg && (
                   <div className={`rounded-2xl p-5 flex items-start gap-3 ${
                     enrollState === 'done'

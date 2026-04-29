@@ -25,11 +25,25 @@ export interface EmployeeFaceProfile {
 export interface FaceAttendanceLog {
   id: string;
   employeeId: string;
-  action: 'CHECK_IN' | 'CHECK_OUT' | 'FAILED' | 'ALREADY_RECORDED';
+  action: 'CHECK_IN' | 'CHECK_OUT' | 'FAILED' | 'ALREADY_RECORDED' | 'UNRECOGNIZED' | 'LIVENESS_FAILED';
   confidence: number | null;
   timestamp: string;
   ipAddress: string | null;
   employee?: { fullName: string; employeeCode: string };
+}
+
+export interface VerifyTopKMatch {
+  rank: number;
+  profileId: string;
+  employeeId: string | null;
+  employeeCode: string | null;
+  fullName: string | null;
+  position: string | null;
+  department: string | null;
+  confidence: number;
+  minDistance: number;
+  voteCount: number;
+  score: number;
 }
 
 export interface AttendanceDevice {
@@ -43,9 +57,13 @@ export interface AttendanceDevice {
 
 export interface VerifyResult {
   matched?: boolean;
-  action?: 'CHECK_IN' | 'CHECK_OUT' | 'ALREADY_RECORDED' | 'NO_MATCH';
+  action?: 'CHECK_IN' | 'CHECK_OUT' | 'ALREADY_RECORDED' | 'NO_MATCH' | 'COOLDOWN';
   employee?: { fullName: string; employeeCode: string; department?: string | null };
   confidence?: number;
+  livenessPassed?: boolean;
+  livenessScore?: number;
+  lateMinutes?: number;
+  topK?: VerifyTopKMatch[];
   message: string;
 }
 

@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
+    "@mediapipe/face_mesh": "^0.4.1633559619",
     "@tanstack/react-query": "^5.90.20",
-    "face-api.js": "^0.22.2",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

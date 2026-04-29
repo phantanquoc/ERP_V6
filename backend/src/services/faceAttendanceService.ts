@@ -23,10 +23,162 @@ interface CachedProfile {
 let embeddingCache: CachedProfile[] | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
+const PROFILE_CLUSTER_DISTANCE = 0.48;
+const MIN_PROFILE_EMBEDDINGS = 2;
+const LOW_PROFILE_EMBEDDINGS_WARNING = 3;
+const MAX_EXHAUSTIVE_CLUSTER_SIZE = 12;
+
+// ─── Cooldown: chống quẹt liên tục ───────────────────────────────────────────
+// Sau khi CHECK_IN / CHECK_OUT thành công, block cùng employeeId trong 5 phút.
+const COOLDOWN_MS = 5 * 60 * 1000; // 5 phút
+const recentScans = new Map<string, number>(); // employeeId → timestamp lần quẹt cuối
+
+function isCoolingDown(employeeId: string): boolean {
+  const last = recentScans.get(employeeId);
+  if (!last) return false;
+  return Date.now() - last < COOLDOWN_MS;
+}
+
+function setCooldown(employeeId: string) {
+  recentScans.set(employeeId, Date.now());
+  // Tự dọn sau khi hết cooldown để không leak memory
+  setTimeout(() => recentScans.delete(employeeId), COOLDOWN_MS + 1000);
+}
+
+
+// Tự động lưu embedding mới sau mỗi lần nhận diện thành công (giống Face ID).
+const ADAPTIVE_MIN_CONFIDENCE  = 0.60;  // trigger khi nhận diện được (confidence ≥ 0.60)
+const ADAPTIVE_MIN_DISTANCE    = 0.08;  // không lưu nếu quá giống embedding cũ (duplicate)
+const ADAPTIVE_MAX_DISTANCE    = 0.42;  // không lưu nếu quá khác (uncertain)
+const MAX_ADAPTIVE_EMBEDDINGS  = 20;
+
+// ─── Late detection ───────────────────────────────────────────────────────────
+const LATE_GRACE_MINUTES = 5; // cho phép trễ 5 phút trước khi tính muộn
+
+/**
+ * Tính số phút đi muộn so với ca làm gần nhất.
+ * Trả về số phút dương nếu muộn, 0 nếu đúng giờ hoặc không tìm thấy ca.
+ */
+async function getLateMinutes(checkInTime: Date): Promise<{ lateMinutes: number; shiftName: string | null }> {
+  const shifts = await prisma.workShift.findMany({ where: { isActive: true } });
+  if (shifts.length === 0) return { lateMinutes: 0, shiftName: null };
+
+  const nowMinutes = checkInTime.getHours() * 60 + checkInTime.getMinutes();
+
+  // Tìm ca phù hợp (giống logic determineShift)
+  let bestShift: { name: string; startMinutes: number } | null = null;
+  let bestDiff = Infinity;
+
+  for (const shift of shifts) {
+    const [sh, sm] = shift.startTime.split(':').map(Number);
+    const [eh, em] = shift.endTime.split(':').map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin   = eh * 60 + em;
+
+    const inShift = endMin > startMin
+      ? nowMinutes >= startMin && nowMinutes < endMin
+      : nowMinutes >= startMin || nowMinutes < endMin;
+
+    if (inShift) {
+      const diff = (nowMinutes - startMin + 1440) % 1440;
+      if (diff < bestDiff) { bestDiff = diff; bestShift = { name: shift.name, startMinutes: startMin }; }
+    }
+  }
+
+  if (!bestShift) return { lateMinutes: 0, shiftName: null };
+
+  const rawLate = (nowMinutes - bestShift.startMinutes + 1440) % 1440;
+  const lateMinutes = rawLate > LATE_GRACE_MINUTES ? rawLate : 0;
+  return { lateMinutes, shiftName: bestShift.name };
+}
 
 function normalizeVec(v: number[]): number[] {
   const norm = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
   return norm === 0 ? v : v.map(x => x / norm);
+}
+
+function cosineDistance(a: number[], b: number[]): number {
+  let dot = 0;
+  for (let i = 0; i < a.length; i += 1) dot += a[i] * b[i];
+  return 1 - dot;
+}
+
+function centerClusterIndices(embeddings: number[][], threshold = PROFILE_CLUSTER_DISTANCE): number[] {
+  if (embeddings.length <= 2) return embeddings.map((_, index) => index);
+
+  let best: number[] = [];
+  for (let i = 0; i < embeddings.length; i += 1) {
+    const cluster: number[] = [];
+    for (let j = 0; j < embeddings.length; j += 1) {
+      if (cosineDistance(embeddings[i], embeddings[j]) <= threshold) {
+        cluster.push(j);
+      }
+    }
+    if (cluster.length > best.length) best = cluster;
+  }
+
+  return best.length >= MIN_PROFILE_EMBEDDINGS ? best : embeddings.map((_, index) => index);
+}
+
+function isPairwiseCohesive(indices: number[], embeddings: number[][], threshold = PROFILE_CLUSTER_DISTANCE): boolean {
+  for (let i = 0; i < indices.length; i += 1) {
+    for (let j = i + 1; j < indices.length; j += 1) {
+      if (cosineDistance(embeddings[indices[i]], embeddings[indices[j]]) > threshold) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function averageInternalDistance(indices: number[], embeddings: number[][]): number {
+  let total = 0;
+  let count = 0;
+  for (let i = 0; i < indices.length; i += 1) {
+    for (let j = i + 1; j < indices.length; j += 1) {
+      total += cosineDistance(embeddings[indices[i]], embeddings[indices[j]]);
+      count += 1;
+    }
+  }
+  return count === 0 ? 0 : total / count;
+}
+
+function pairwiseCohesiveSubsetIndices(embeddings: number[][]): number[] {
+  if (embeddings.length <= MIN_PROFILE_EMBEDDINGS) {
+    return embeddings.map((_, index) => index);
+  }
+
+  // Exhaustive largest-clique search is cheap for normal enroll batches (6-12 images)
+  // and avoids retaining bridge/outlier embeddings that are close to the center only.
+  if (embeddings.length > MAX_EXHAUSTIVE_CLUSTER_SIZE) {
+    return centerClusterIndices(embeddings);
+  }
+
+  let best: number[] = [];
+  const totalMasks = 1 << embeddings.length;
+  for (let mask = 1; mask < totalMasks; mask += 1) {
+    const indices: number[] = [];
+    for (let index = 0; index < embeddings.length; index += 1) {
+      if (mask & (1 << index)) indices.push(index);
+    }
+    if (indices.length < MIN_PROFILE_EMBEDDINGS || !isPairwiseCohesive(indices, embeddings)) {
+      continue;
+    }
+    if (
+      indices.length > best.length ||
+      (indices.length === best.length && averageInternalDistance(indices, embeddings) < averageInternalDistance(best, embeddings))
+    ) {
+      best = indices;
+    }
+  }
+
+  return best.length >= MIN_PROFILE_EMBEDDINGS ? best : embeddings.map((_, index) => index);
+}
+
+function filterEmbeddingOutliers(embeddings: number[][]): number[][] {
+  const normalized = embeddings.map(normalizeVec);
+  const indices = pairwiseCohesiveSubsetIndices(normalized);
+  return indices.map(index => normalized[index]);
 }
 
 async function getEmbeddingCache(): Promise<CachedProfile[]> {
@@ -40,15 +192,26 @@ async function getEmbeddingCache(): Promise<CachedProfile[]> {
     },
   });
   embeddingCache = profiles
-    .map(p => ({
-      id: p.id,
-      employeeId: p.employeeId,
-      // Pre-parse + pre-normalize all embeddings so verify is pure math
-      embeddings: p.images
-        .map(img => img.embedding ? normalizeVec(JSON.parse(decryptText(img.embedding)) as number[]) : null)
-        .filter((e): e is number[] => e !== null),
-    }))
-    .filter(p => p.embeddings.length > 0);
+    .map(p => {
+      const parsedEmbeddings = p.images
+        .map(img => img.embedding ? JSON.parse(decryptText(img.embedding)) as number[] : null)
+        .filter((e): e is number[] => e !== null);
+      const filteredEmbeddings = filterEmbeddingOutliers(parsedEmbeddings);
+      if (parsedEmbeddings.length !== filteredEmbeddings.length) {
+        logger.warn(
+          `Filtered face embedding outliers for profile ${p.id}: ${parsedEmbeddings.length} -> ${filteredEmbeddings.length}`
+        );
+      }
+      if (filteredEmbeddings.length <= LOW_PROFILE_EMBEDDINGS_WARNING) {
+        logger.warn(`Face profile ${p.id} has only ${filteredEmbeddings.length} usable embeddings; re-enrollment recommended`);
+      }
+      return {
+        id: p.id,
+        employeeId: p.employeeId,
+        embeddings: filteredEmbeddings,
+      };
+    })
+    .filter(p => p.embeddings.length >= MIN_PROFILE_EMBEDDINGS);
   cacheTimestamp = Date.now();
   logger.info(`Embedding cache refreshed: ${embeddingCache.length} profiles`);
   return embeddingCache;
@@ -83,6 +246,29 @@ interface AiBatchVerifyResult {
   liveness_passed: boolean;
   liveness_score: number;
   message: string;
+  top_k_matches?: AiTopKMatch[];
+}
+
+interface AiTopKMatch {
+  profile_id: string;
+  confidence: number;
+  min_distance: number;
+  vote_count: number;
+  score: number;
+}
+
+interface HydratedTopKMatch {
+  rank: number;
+  profileId: string;
+  employeeId: string | null;
+  employeeCode: string | null;
+  fullName: string | null;
+  position: string | null;
+  department: string | null;
+  confidence: number;
+  minDistance: number;
+  voteCount: number;
+  score: number;
 }
 
 async function callAiBatchVerify(
@@ -102,8 +288,79 @@ async function callAiBatchVerify(
   return res.json() as Promise<AiBatchVerifyResult>;
 }
 
-// ─── Utility ─────────────────────────────────────────────────────────────────
+/**
+ * Adaptive enrollment — tự động lưu thêm embedding sau khi nhận diện thành công.
+ * Chạy background (fire-and-forget), không block response chấm công.
+ *
+ * Logic:
+ * 1. Gọi AI extract embedding từ ảnh vừa verify
+ * 2. Tính khoảng cách đến centroid của gallery hiện tại
+ * 3. Chỉ lưu nếu: confidence đủ cao && khoảng cách trong ngưỡng "hợp lý"
+ *    (không quá gần — tránh duplicate, không quá xa — tránh poisoning)
+ * 4. Cập nhật DB và invalidate cache
+ */
+async function adaptiveEnroll(profileId: string, imageB64: string): Promise<void> {
+  try {
+    // Extract embedding mới từ AI service
+    const newEmbeddings = await callAiEnroll([imageB64]);
+    if (!newEmbeddings || newEmbeddings.length === 0) return;
+    const newEmb = normalizeVec(newEmbeddings[0]);
 
+    // Load embedding gallery hiện tại của profile
+    const images = await prisma.faceImage.findMany({
+      where: { faceProfileId: profileId },
+      select: { embedding: true },
+    });
+    const gallery = images
+      .map(img => img.embedding ? JSON.parse(decryptText(img.embedding)) as number[] : null)
+      .filter((e): e is number[] => e !== null);
+
+    if (gallery.length === 0) return;
+
+    const filteredGallery = filterEmbeddingOutliers(gallery);
+    if (filteredGallery.length === 0) return;
+
+    // Tính centroid của gallery (L2-normalized vectors → centroid normalized lại)
+    const centroid = normalizeVec(
+      filteredGallery[0].map((_, i) =>
+        filteredGallery.reduce((s, v) => s + v[i], 0) / filteredGallery.length
+      )
+    );
+
+    const distToCentroid = cosineDistance(newEmb, centroid);
+    if (distToCentroid < ADAPTIVE_MIN_DISTANCE) {
+      logger.debug(`Adaptive enroll skipped for ${profileId}: too similar to centroid (d=${distToCentroid.toFixed(4)})`);
+      return;
+    }
+    if (distToCentroid > ADAPTIVE_MAX_DISTANCE) {
+      logger.debug(`Adaptive enroll skipped for ${profileId}: too different from gallery (d=${distToCentroid.toFixed(4)})`);
+      return;
+    }
+
+    // Giới hạn số embedding
+    if (gallery.length >= MAX_ADAPTIVE_EMBEDDINGS) {
+      logger.debug(`Adaptive enroll skipped for ${profileId}: max embeddings reached (${gallery.length})`);
+      return;
+    }
+
+    // Lưu embedding mới — imagePath để trống vì adaptive không lưu ảnh gốc
+    await prisma.faceImage.create({
+      data: {
+        faceProfileId: profileId,
+        imagePath: '',
+        embedding: encryptText(JSON.stringify(newEmb)),
+      },
+    });
+
+    logger.info(`Adaptive enrolled new embedding for profile ${profileId}: dist=${distToCentroid.toFixed(4)}, total=${gallery.length + 1}`);
+    invalidateEmbeddingCache();
+  } catch (err) {
+    // Fire-and-forget — không ảnh hưởng gì nếu thất bại
+    logger.warn(`Adaptive enroll failed for profile ${profileId}: ${err}`);
+  }
+}
+
+// ─── Utility ─────────────────────────────────────────────────────────────────
 function saveBase64Image(b64: string, dir: string, filename: string): string {
   const data = b64.includes(',') ? b64.split(',')[1] : b64;
   const buffer = Buffer.from(data, 'base64');
@@ -155,7 +412,17 @@ export class FaceAttendanceService {
 
     // Gọi AI service lấy embeddings
     logger.info(`Enrolling face for employee ${employeeId}, ${images.length} images`);
-    const embeddings = await callAiEnroll(images);
+    const rawEmbeddings = await callAiEnroll(images);
+    const normalizedEmbeddings = rawEmbeddings.map(normalizeVec);
+    const keepIndices = pairwiseCohesiveSubsetIndices(normalizedEmbeddings);
+    const embeddings = keepIndices.map((index: number) => normalizedEmbeddings[index]);
+    const keptImages = keepIndices.map((index: number) => images[index]);
+    if (embeddings.length < MIN_PROFILE_EMBEDDINGS) {
+      throw new ValidationError('Ảnh đăng ký khuôn mặt không nhất quán, vui lòng đăng ký lại với nhiều góc rõ mặt hơn');
+    }
+    if (embeddings.length !== rawEmbeddings.length) {
+      logger.warn(`Enrollment filtered outlier images for employee ${employeeId}: ${rawEmbeddings.length} -> ${embeddings.length}`);
+    }
 
     // Upsert FaceProfile
     const profile = await prisma.faceProfile.upsert({
@@ -171,7 +438,7 @@ export class FaceAttendanceService {
     const created = await Promise.all(
       embeddings.map(async (emb, i) => {
         const filename = `face_${Date.now()}_${i}.jpg`;
-        saveBase64Image(images[i], uploadDir, filename);
+        saveBase64Image(keptImages[i], uploadDir, filename);
         return prisma.faceImage.create({
           data: {
             faceProfileId: profile.id,
@@ -197,13 +464,22 @@ export class FaceAttendanceService {
     if (!profile) throw new NotFoundError('Nhân viên chưa đăng ký khuôn mặt, hãy đăng ký lần đầu trước');
 
     logger.info(`Adding face variation for employee ${employeeId}, ${images.length} images`);
-    const embeddings = await callAiEnroll(images);
+    const rawEmbeddings = await callAiEnroll(images);
+    const normalizedEmbeddings = rawEmbeddings.map(normalizeVec);
+    const keepIndices = rawEmbeddings.length >= MIN_PROFILE_EMBEDDINGS
+      ? pairwiseCohesiveSubsetIndices(normalizedEmbeddings)
+      : normalizedEmbeddings.map((_, index: number) => index);
+    const embeddings = keepIndices.map((index: number) => normalizedEmbeddings[index]);
+    const keptImages = keepIndices.map((index: number) => images[index]);
+    if (embeddings.length !== rawEmbeddings.length) {
+      logger.warn(`Variation enrollment filtered outlier images for employee ${employeeId}: ${rawEmbeddings.length} -> ${embeddings.length}`);
+    }
 
     const uploadDir = path.join(env.UPLOAD_DIR, 'faces', employeeId);
     const created = await Promise.all(
       embeddings.map(async (emb, i) => {
         const filename = `face_var_${Date.now()}_${i}.jpg`;
-        saveBase64Image(images[i], uploadDir, filename);
+        saveBase64Image(keptImages[i], uploadDir, filename);
         return prisma.faceImage.create({
           data: {
             faceProfileId: profile.id,
@@ -261,17 +537,51 @@ export class FaceAttendanceService {
       frames
     );
 
-    const snapshotPath = this.saveSnapshot(imageB64, aiResult.profile_id ?? undefined);
+    const topK = await this.hydrateTopK(aiResult.top_k_matches ?? [], cachedProfiles);
     const matchedCached = aiResult.matched && aiResult.profile_id
       ? cachedProfiles.find(p => p.id === aiResult.profile_id) ?? null
       : null;
     const bestConfidence = aiResult.confidence;
+    const snapshotOwnerId = matchedCached?.employeeId ?? topK[0]?.employeeId ?? undefined;
+    const snapshotPath = this.saveSnapshot(imageB64, snapshotOwnerId);
+
+    if (!aiResult.liveness_passed) {
+      await prisma.faceAttendanceLog.create({
+        data: {
+          action: 'LIVENESS_FAILED',
+          confidence: bestConfidence,
+          snapshotPath,
+          deviceId,
+          ipAddress,
+        },
+      });
+      logger.warn(
+        `Face liveness failed: score=${aiResult.liveness_score}, message=${aiResult.message}, device=${deviceId || 'unknown'}`
+      );
+      return {
+        matched: false,
+        action: 'NO_MATCH',
+        confidence: bestConfidence,
+        livenessPassed: false,
+        livenessScore: aiResult.liveness_score,
+        topK,
+        message: aiResult.message || 'Không xác minh được người thật',
+      };
+    }
 
     if (!matchedCached) {
       await prisma.faceAttendanceLog.create({
         data: { action: 'UNRECOGNIZED', confidence: bestConfidence, snapshotPath, deviceId, ipAddress },
       });
-      return { matched: false, message: 'Không nhận diện được khuôn mặt' };
+      return {
+        matched: false,
+        action: 'NO_MATCH',
+        confidence: bestConfidence,
+        livenessPassed: true,
+        livenessScore: aiResult.liveness_score,
+        topK,
+        message: 'Không nhận diện được khuôn mặt',
+      };
     }
 
     // Load employee data (not in cache to keep cache lean)
@@ -282,6 +592,26 @@ export class FaceAttendanceService {
         subDepartment: { select: { name: true } },
       },
     });
+
+    // Cooldown: chặn quẹt liên tục trong 5 phút
+    if (isCoolingDown(employee.id)) {
+      logger.info(`Cooldown active for employee ${employee.id}, skipping scan`);
+      return {
+        matched: true,
+        action: 'COOLDOWN',
+        employee: {
+          id: employee.id,
+          fullName: `${employee.user.lastName} ${employee.user.firstName}`,
+          employeeCode: employee.employeeCode,
+          department: employee.subDepartment?.name ?? null,
+        },
+        confidence: bestConfidence,
+        livenessPassed: true,
+        livenessScore: aiResult.liveness_score,
+        topK,
+        message: 'Vui lòng chờ 5 phút trước khi quẹt lại',
+      };
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -317,6 +647,10 @@ export class FaceAttendanceService {
           attendanceId: todaysAttendances[0]?.id,
         },
       });
+      // Vẫn học thêm embedding dù đã chấm công — cơ hội tốt để adaptive
+      if (bestConfidence >= ADAPTIVE_MIN_CONFIDENCE) {
+        adaptiveEnroll(matchedCached.id, imageB64).catch(() => {});
+      }
       return {
         matched: true,
         action: 'ALREADY_RECORDED',
@@ -327,6 +661,9 @@ export class FaceAttendanceService {
           department: employee.subDepartment?.name ?? null,
         },
         confidence: bestConfidence,
+        livenessPassed: true,
+        livenessScore: aiResult.liveness_score,
+        topK,
         message: 'Hôm nay bạn đã chấm công đầy đủ rồi',
       };
     }
@@ -335,6 +672,22 @@ export class FaceAttendanceService {
       data: { faceProfileId: matchedCached.id, employeeId: employee.id, action, confidence: bestConfidence, snapshotPath, deviceId, ipAddress, attendanceId },
     });
 
+    // Set cooldown sau khi chấm công thành công
+    setCooldown(employee.id);
+
+    // Adaptive enrollment
+    if (bestConfidence >= ADAPTIVE_MIN_CONFIDENCE) {
+      adaptiveEnroll(matchedCached.id, imageB64).catch(() => {});
+    }
+
+    // Tính đi muộn khi CHECK_IN
+    let lateMinutes = 0;
+    if (action === 'CHECK_IN') {
+      const lateInfo = await getLateMinutes(new Date());
+      lateMinutes = lateInfo.lateMinutes;
+    }
+
+    const baseMessage = action === 'CHECK_IN' ? 'Chấm công vào thành công' : 'Chấm công ra thành công';
     return {
       matched: true,
       action,
@@ -345,7 +698,13 @@ export class FaceAttendanceService {
         department: employee.subDepartment?.name ?? null,
       },
       confidence: bestConfidence,
-      message: action === 'CHECK_IN' ? 'Chấm công vào thành công' : 'Chấm công ra thành công',
+      livenessPassed: true,
+      livenessScore: aiResult.liveness_score,
+      lateMinutes,
+      topK,
+      message: lateMinutes > 0
+        ? `${baseMessage} — Đi muộn ${lateMinutes} phút`
+        : baseMessage,
     };
   }
 
@@ -401,6 +760,46 @@ export class FaceAttendanceService {
     } catch {
       return '';
     }
+  }
+
+  private async hydrateTopK(aiTopK: AiTopKMatch[], cachedProfiles: CachedProfile[]): Promise<HydratedTopKMatch[]> {
+    if (aiTopK.length === 0) return [];
+
+    const profileToEmployee = new Map(cachedProfiles.map(profile => [profile.id, profile.employeeId]));
+    const employeeIds = aiTopK
+      .map(item => profileToEmployee.get(item.profile_id))
+      .filter((employeeId): employeeId is string => Boolean(employeeId));
+
+    const employees = employeeIds.length > 0
+      ? await prisma.employee.findMany({
+          where: { id: { in: employeeIds } },
+          include: {
+            user: { select: { firstName: true, lastName: true } },
+            position: { select: { name: true } },
+            subDepartment: { select: { name: true } },
+          },
+        })
+      : [];
+
+    const employeeById = new Map(employees.map(employee => [employee.id, employee]));
+
+    return aiTopK.map((item, index) => {
+      const employeeId = profileToEmployee.get(item.profile_id) ?? null;
+      const employee = employeeId ? employeeById.get(employeeId) : null;
+      return {
+        rank: index + 1,
+        profileId: item.profile_id,
+        employeeId,
+        employeeCode: employee?.employeeCode ?? null,
+        fullName: employee ? `${employee.user.lastName} ${employee.user.firstName}` : null,
+        position: employee?.position?.name ?? null,
+        department: employee?.subDepartment?.name ?? null,
+        confidence: item.confidence,
+        minDistance: item.min_distance,
+        voteCount: item.vote_count,
+        score: item.score,
+      };
+    });
   }
 }
 

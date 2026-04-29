@@ -18,7 +18,7 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    exclude: ['lucide-react'],
+    exclude: ['lucide-react', '@mediapipe/face_mesh'],
   },
   server: {
     host: '0.0.0.0',
