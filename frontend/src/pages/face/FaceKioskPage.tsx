@@ -2,35 +2,44 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { CheckCircle, XCircle, AlertCircle, Clock } from 'lucide-react';
 import faceAttendanceService, { VerifyResult } from '../../services/faceAttendanceService';
 import { loadFaceMesh } from '../../utils/loadFaceMesh';
+import { ScreenSpoofDetector } from '../../utils/screenSpoofDetector';
 
-// MediaPipe FaceMesh — loaded via dynamic script injection (không dùng ES import vì Vite/WASM conflict)
-// Không dùng ES import vì WASM conflict với Vite bundler
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type FaceMeshInstance = any;
 type NLM = { x: number; y: number; z: number };
 
-type KioskState = 'loading' | 'waiting' | 'processing' | 'result' | 'error';
+type KioskState = 'loading' | 'waiting' | 'challenge' | 'returning' | 'processing' | 'result' | 'error';
 type FacePos    = 'none' | 'centered' | 'offcenter' | 'multiface';
+type ChallengePhase = 'active' | 'returning' | 'done';
+
+type ChallengeType = 'look_left' | 'look_right' | 'look_up' | 'blink';
 
 const CENTER_ZONE       = 0.30;
 const MAX_YAW           = 0.25;
 const MAX_PITCH         = 0.28;
 const MIN_FACE_AREA     = 0.04;
-const QUALITY_GATE      = 5;     // cần 5 frame liên tiếp (~0.5s) thay vì 8
+const QUALITY_GATE      = 8;
+const RETURN_FRAMES     = 3;
 
-// ── MediaPipe FaceMesh landmark indices ──────────────────────────────────────
-// Left eye contour
+const CHALLENGE_YAW_THRESHOLD  = 0.22;
+const CHALLENGE_PITCH_THRESHOLD = 0.20;
+const CHALLENGE_EAR_THRESHOLD   = 0.18;
+const CHALLENGE_EAR_FRAMES      = 2;
+const CHALLENGE_TIMEOUT_MS      = 8000;
+
 const L_EYE = [33, 160, 158, 133, 153, 144];
-// Right eye contour
 const R_EYE = [362, 385, 387, 263, 373, 380];
-// Nose tip
 const NOSE_TIP = 1;
-// Mouth outer contour (12 pts)
 const MOUTH = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375];
-// EAR: left top/bot lid, inner/outer corner
-const L_EAR_TOP = 159, L_EAR_BOT = 145, L_EAR_IN = 33, L_EAR_OUT = 133;
-// EAR: right top/bot lid, inner/outer corner
-const R_EAR_TOP = 386, R_EAR_BOT = 374, R_EAR_IN = 362, R_EAR_OUT = 263;
+
+const CHALLENGES: ChallengeType[] = ['blink'];
+
+const CHALLENGE_LABELS: Record<ChallengeType, string> = {
+  look_left:  'QUAY SANG TRÁI',
+  look_right: 'QUAY SANG PHẢI',
+  look_up:    'NHÌN LÊN TRÊN',
+  blink:      'CHỚP MẮT',
+};
 
 interface ResultDisplay {
   type: 'success' | 'info' | 'error' | 'warning';
@@ -43,15 +52,13 @@ interface ResultDisplay {
 const RESULT_DISPLAY_MS = 4000;
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
-// Standby / power-save
 const IDLE_SLOW_MS   = 30_000;
 const IDLE_DIM_MS    = 60_000;
 const DETECT_FAST_MS = 100;
 const DETECT_SLOW_MS = 500;
-const CAPTURE_SIZE   = 480;  // tăng từ 256 để AI có nhiều chi tiết hơn
+const CAPTURE_SIZE   = 480;
 const FACE_CROP_PADDING = 0.30;
 
-/** Tính yaw/pitch từ MediaPipe 468-point landmarks (coords normalized 0-1). */
 function computeKioskPose(lms: NLM[], vw: number, vh: number): { yaw: number; pitch: number } {
   const avgPx = (idxs: number[]) => {
     const x = idxs.reduce((s, i) => s + lms[i].x * vw, 0) / idxs.length;
@@ -73,6 +80,13 @@ function computeKioskPose(lms: NLM[], vw: number, vh: number): { yaw: number; pi
   return { yaw, pitch };
 }
 
+function computeEAR(lms: NLM[]): { left: number; right: number } {
+  const dist = (a: number, b: number) => Math.hypot(lms[a].x - lms[b].x, lms[a].y - lms[b].y);
+  const leftEAR = (dist(160, 144) + dist(158, 153)) / (2 * dist(33, 133) || 1);
+  const rightEAR = (dist(385, 380) + dist(387, 373)) / (2 * dist(362, 263) || 1);
+  return { left: leftEAR, right: rightEAR };
+}
+
 const actionConfig: Record<string, { title: string; type: 'success' | 'info' | 'error' | 'warning' }> = {
   CHECK_IN:         { title: 'Check-in thành công ✅', type: 'success' },
   CHECK_OUT:        { title: 'Check-out thành công 👋', type: 'success' },
@@ -80,6 +94,10 @@ const actionConfig: Record<string, { title: string; type: 'success' | 'info' | '
   NO_MATCH:         { title: 'Vui lòng thử lại', type: 'error' },
   COOLDOWN:         { title: 'Vui lòng chờ ⏳', type: 'warning' },
 };
+
+function pickChallenge(): ChallengeType {
+  return CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)];
+}
 
 const FaceKioskPage: React.FC = () => {
   const videoRef       = useRef<HTMLVideoElement>(null);
@@ -92,18 +110,18 @@ const FaceKioskPage: React.FC = () => {
   const detectInterval = useRef<number>(DETECT_FAST_MS);
   const currentFaceBox = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const faceMeshRef    = useRef<FaceMeshInstance | null>(null);
-  // Bridge: onResults callback → drawLoop
   const latestDet      = useRef<{ lms: NLM[]; box: { x: number; y: number; width: number; height: number }; score: number; faceCount: number } | null>(null);
   const audioCtxRef    = useRef<AudioContext | null>(null);
 
-  // Quality gate
   const qualityBuffer  = useRef<{ frame: string; score: number }[]>([]);
+  const spoofDetector  = useRef<ScreenSpoofDetector>(new ScreenSpoofDetector());
 
-  // Liveness hints
-  const lastEye        = useRef<{ leftEAR: number; rightEAR: number } | null>(null);
-  const lastFaceBox    = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
-  const blinks         = useRef<number>(0);
-  const hasMoved       = useRef<boolean>(false);
+  // Liveness challenge state
+  const challengeRef       = useRef<ChallengeType | null>(null);
+  const challengeStartRef  = useRef<number>(0);
+  const challengePhaseRef  = useRef<ChallengePhase>('active');
+  const blinkCountRef      = useRef(0);
+  const prevEARDetected     = useRef(false);
 
   const [kioskState, setKioskState]     = useState<KioskState>('loading');
   const [result, setResult]             = useState<ResultDisplay | null>(null);
@@ -113,11 +131,13 @@ const FaceKioskPage: React.FC = () => {
   const [dimmed, setDimmed]             = useState(false);
   const [qualityCount, setQualityCount] = useState(0);
   const [statusHint, setStatusHint]     = useState('');
+  const [spoofDetected, setSpoofDetected] = useState(false);
+  const [activeChallenge, setActiveChallenge] = useState<ChallengeType | null>(null);
+  const [returnCount, setReturnCount]   = useState(0);
 
   const kioskConfig = faceAttendanceService.getKioskConfig();
   const isLocalDev  = import.meta.env.DEV || LOCAL_HOSTS.has(window.location.hostname);
 
-  // ── Web Audio beep ────────────────────────────────────────────────────────
   const playBeep = useCallback((type: 'success' | 'error' | 'warning' | 'info') => {
     try {
       if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
@@ -138,10 +158,9 @@ const FaceKioskPage: React.FC = () => {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + duration);
-    } catch { /* AudioContext blocked by browser policy — ignore */ }
+    } catch { /* AudioContext blocked */ }
   }, []);
 
-  // Clock
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
@@ -157,8 +176,6 @@ const FaceKioskPage: React.FC = () => {
     const vh = video.videoHeight || 480;
     const faceBox = currentFaceBox.current;
     if (faceBox) {
-      // Crop vuông — lấy cạnh lớn hơn (thường là height) làm kích thước chuẩn
-      // để tránh méo mặt khi ép vào canvas vuông CAPTURE_SIZE×CAPTURE_SIZE
       const side   = Math.max(faceBox.width, faceBox.height);
       const padded = side * (1 + FACE_CROP_PADDING * 2);
       const cx     = faceBox.x + faceBox.width  / 2;
@@ -171,7 +188,6 @@ const FaceKioskPage: React.FC = () => {
       canvas.height = CAPTURE_SIZE;
       ctx.drawImage(video, sx, sy, sw, sh, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE);
     } else {
-      // Không có face box — crop trung tâm vuông từ video
       const side = Math.min(vw, vh);
       const sx = Math.round((vw - side) / 2);
       const sy = Math.round((vh - side) / 2);
@@ -179,12 +195,24 @@ const FaceKioskPage: React.FC = () => {
       canvas.height = CAPTURE_SIZE;
       ctx.drawImage(video, sx, sy, side, side, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE);
     }
-    return canvas.toDataURL('image/jpeg', 0.90).split(',')[1]; // tăng từ 0.72 → 0.90
+    return canvas.toDataURL('image/jpeg', 0.90).split(',')[1];
   }, []);
 
   const resetQualityGate = useCallback(() => {
     qualityBuffer.current = [];
     setQualityCount(0);
+  }, []);
+
+  const startChallenge = useCallback(() => {
+    const ch = pickChallenge();
+    challengeRef.current = ch;
+    challengeStartRef.current = Date.now();
+    challengePhaseRef.current = 'active';
+    blinkCountRef.current = 0;
+    prevEARDetected.current = false;
+    setActiveChallenge(ch);
+    setReturnCount(0);
+    setKioskState('challenge');
   }, []);
 
   const showResult = useCallback((res: VerifyResult) => {
@@ -198,7 +226,6 @@ const FaceKioskPage: React.FC = () => {
       ? emp.department ? `${emp.fullName} — ${emp.department}` : emp.fullName
       : res.message;
 
-    // Subtitle: đi muộn hoặc cooldown message
     let subtitle: string | undefined;
     if (res.action === 'CHECK_IN' && res.lateMinutes && res.lateMinutes > 0) {
       subtitle = `Đi muộn ${res.lateMinutes} phút`;
@@ -214,6 +241,10 @@ const FaceKioskPage: React.FC = () => {
       setResult(null);
       setKioskState('waiting');
       processing.current = false;
+      challengeRef.current = null;
+      challengePhaseRef.current = 'active';
+      setActiveChallenge(null);
+      setReturnCount(0);
     }, RESULT_DISPLAY_MS);
   }, [playBeep]);
 
@@ -222,10 +253,8 @@ const FaceKioskPage: React.FC = () => {
     processing.current = true;
     setKioskState('processing');
     setStatusHint('');
-    blinks.current   = 0;
-    hasMoved.current = false;
-    lastEye.current  = null;
-    lastFaceBox.current = null;
+    setActiveChallenge(null);
+    setReturnCount(0);
     try {
       const res = kioskConfig.deviceKey
         ? await faceAttendanceService.kioskVerify(bestImage, frames, kioskConfig.deviceKey, kioskConfig.deviceId)
@@ -245,11 +274,19 @@ const FaceKioskPage: React.FC = () => {
       } else {
         processing.current = false;
         setKioskState('waiting');
+        challengeRef.current = null;
+        challengePhaseRef.current = 'active';
+        setActiveChallenge(null);
+        setReturnCount(0);
       }
     } catch (error) {
       processing.current = false;
       setKioskState('waiting');
       setCameraError(error instanceof Error ? error.message : 'Kiosk verify thất bại');
+      challengeRef.current = null;
+      challengePhaseRef.current = 'active';
+      setActiveChallenge(null);
+      setReturnCount(0);
     }
   }, [showResult, isLocalDev, kioskConfig.deviceId, kioskConfig.deviceKey]);
 
@@ -273,7 +310,6 @@ const FaceKioskPage: React.FC = () => {
     const ctx = overlay.getContext('2d');
     if (!ctx) { rafRef.current = window.setTimeout(drawLoop, detectInterval.current); return; }
 
-    // Gửi frame vào FaceMesh — kết quả nhận trong onResults callback (latestDet)
     if (faceMeshRef.current) {
       await faceMeshRef.current.send({ image: video });
     }
@@ -290,7 +326,6 @@ const FaceKioskPage: React.FC = () => {
       setFacePos('multiface');
       if (!processing.current) resetQualityGate();
 
-      // Vẽ cảnh báo
       ctx.fillStyle = 'rgba(239,68,68,0.25)';
       ctx.fillRect(0, 0, vw, vh);
       ctx.strokeStyle = '#ef4444';
@@ -302,6 +337,19 @@ const FaceKioskPage: React.FC = () => {
 
     if (detection) {
       const { lms, box, score: detScore } = detection;
+
+      // ── Screen spoof detection ──────────────────────────────────────────
+      spoofDetector.current.addLandmarkSnapshot(lms, vw, vh);
+      const spoofResult = spoofDetector.current.detect(video, box, vw, vh);
+      setSpoofDetected(spoofResult.isSpoof);
+
+      if (spoofResult.isSpoof && !processing.current) {
+        resetQualityGate();
+        setStatusHint('Phát hiện màn hình — vui lòng không dùng ảnh trên điện thoại');
+        setFacePos('centered');
+        rafRef.current = window.setTimeout(drawLoop, detectInterval.current);
+        return;
+      }
 
       const faceCx = box.x + box.width  / 2;
       const faceCy = box.y + box.height / 2;
@@ -315,70 +363,183 @@ const FaceKioskPage: React.FC = () => {
       setFacePos(isCentered ? 'centered' : 'offcenter');
       currentFaceBox.current = box;
 
-      // ── Pose + EAR ──────────────────────────────────────────────────────
-      const computeEAR = (ti: number, bi: number, ini: number, outi: number) => {
-        const top = { x: lms[ti].x * vw, y: lms[ti].y * vh };
-        const bot = { x: lms[bi].x * vw, y: lms[bi].y * vh };
-        const inn = { x: lms[ini].x * vw, y: lms[ini].y * vh };
-        const out = { x: lms[outi].x * vw, y: lms[outi].y * vh };
-        const vert  = Math.hypot(top.y - bot.y, top.x - bot.x);
-        const horiz = Math.hypot(out.x - inn.x, out.y - inn.y);
-        return horiz > 0 ? vert / (2 * horiz) : 0;
-      };
-      const leftEAR  = computeEAR(L_EAR_TOP, L_EAR_BOT, L_EAR_IN, L_EAR_OUT);
-      const rightEAR = computeEAR(R_EAR_TOP, R_EAR_BOT, R_EAR_IN, R_EAR_OUT);
-      if (lastEye.current) {
-        const prevEAR = (lastEye.current.leftEAR + lastEye.current.rightEAR) / 2;
-        if (prevEAR < 0.20 && (leftEAR + rightEAR) / 2 > 0.25) blinks.current++;
-      }
-      lastEye.current = { leftEAR, rightEAR };
-
-      if (lastFaceBox.current) {
-        const mdx = Math.abs(box.x - lastFaceBox.current.x);
-        const mdy = Math.abs(box.y - lastFaceBox.current.y);
-        const mdw = Math.abs(box.width - lastFaceBox.current.width);
-        if (mdx > box.width * 0.10 || mdy > box.height * 0.10 || mdw > box.width * 0.10)
-          hasMoved.current = true;
-      }
-      lastFaceBox.current = box;
-
       const { yaw, pitch } = computeKioskPose(lms, vw, vh);
       const isFacingStraight = Math.abs(yaw) <= MAX_YAW && Math.abs(pitch) <= MAX_PITCH;
-      // ────────────────────────────────────────────────────────────────────
 
-      // ── Quality gate ─────────────────────────────────────────────────────
-      const isGoodFrame = isCentered && isFacingStraight
-        && detScore >= 0.3  // proxy score — inter-eye distance based
-        && faceAreaRatio >= MIN_FACE_AREA;
+      // ── Liveness challenge detection ────────────────────────────────────
+      if (challengeRef.current && challengePhaseRef.current === 'active' && !processing.current) {
+        const ch = challengeRef.current;
+        let challengePassed = false;
 
-      if (isGoodFrame && !processing.current) {
-        const frame = captureFrame();
-        if (frame) {
-          qualityBuffer.current.push({ frame, score: detScore });
-          const count = qualityBuffer.current.length;
-          setQualityCount(count);
-          setStatusHint(`Giữ nguyên... (${count}/${QUALITY_GATE})`);
-          if (count >= QUALITY_GATE) {
-            const buf  = qualityBuffer.current;
-            const best = buf.reduce((a, b) => b.score > a.score ? b : a);
-            const frames = buf.map(f => f.frame);
-            qualityBuffer.current = [];
-            setQualityCount(0);
-            doScan(best.frame, frames);
+        switch (ch) {
+          case 'look_left':
+            challengePassed = yaw < -CHALLENGE_YAW_THRESHOLD;
+            break;
+          case 'look_right':
+            challengePassed = yaw > CHALLENGE_YAW_THRESHOLD;
+            break;
+          case 'look_up':
+            challengePassed = pitch < -CHALLENGE_PITCH_THRESHOLD;
+            break;
+          case 'blink': {
+            const ear = computeEAR(lms);
+            const avgEAR = (ear.left + ear.right) / 2;
+            const eyesClosed = avgEAR < CHALLENGE_EAR_THRESHOLD;
+            if (eyesClosed && !prevEARDetected.current) {
+              blinkCountRef.current++;
+            }
+            prevEARDetected.current = eyesClosed;
+            challengePassed = blinkCountRef.current >= 1;
+            break;
           }
         }
-      } else if (!processing.current) {
-        if (qualityBuffer.current.length > 0) resetQualityGate();
-        if (!isCentered)           setStatusHint('Di chuyển vào giữa màn hình');
-        else if (!isFacingStraight) setStatusHint('Nhìn thẳng vào camera');
-        else if (faceAreaRatio < MIN_FACE_AREA) setStatusHint('Lại gần camera hơn');
-        else setStatusHint('Giữ nguyên để xác minh...');
+
+        // Timeout: reset challenge if too long
+        if (now - challengeStartRef.current > CHALLENGE_TIMEOUT_MS) {
+          challengeRef.current = null;
+          challengePhaseRef.current = 'active';
+          setActiveChallenge(null);
+          setReturnCount(0);
+          setKioskState('waiting');
+          resetQualityGate();
+        } else if (challengePassed) {
+          // For head-pose challenges: enter "return to center" phase
+          // For blink: already facing straight, go directly to done
+          if (ch === 'blink') {
+            challengePhaseRef.current = 'done';
+            setActiveChallenge(null);
+          } else {
+            challengePhaseRef.current = 'returning';
+            setActiveChallenge(null);
+            setKioskState('returning');
+            // Reset quality buffer — we need fresh straight-facing frames
+            resetQualityGate();
+            setReturnCount(0);
+          }
+        }
       }
-      // ────────────────────────────────────────────────────────────────────
 
-      const color = isGoodFrame ? '#22d3ee' : '#f59e0b';
+      // ── Return-to-center phase (after head pose challenge) ────────────
+      if (challengeRef.current && challengePhaseRef.current === 'returning' && !processing.current) {
+        if (isCentered && isFacingStraight) {
+          const frame = captureFrame();
+          if (frame) {
+            qualityBuffer.current.push({ frame, score: detScore });
+            const count = qualityBuffer.current.length;
+            setReturnCount(count);
+            setQualityCount(count);
 
-      // 4-corner marker
+            if (count >= RETURN_FRAMES) {
+              // Enough straight-facing frames after returning — proceed to scan
+              challengePhaseRef.current = 'done';
+              const buf  = qualityBuffer.current;
+              const best = buf.reduce((a, b) => b.score > a.score ? b : a);
+              const frames = buf.map(f => f.frame);
+              qualityBuffer.current = [];
+              setQualityCount(0);
+              setReturnCount(0);
+              const savedChallenge = challengeRef.current;
+              challengeRef.current = null;
+              challengePhaseRef.current = 'active';
+              spoofDetector.current.reset();
+              doScan(best.frame, frames);
+            } else {
+              setStatusHint(`Nhìn thẳng... (${count}/${RETURN_FRAMES})`);
+            }
+          }
+        } else {
+          // Not facing straight yet — discard any partial frames
+          if (qualityBuffer.current.length > 0) {
+            qualityBuffer.current = [];
+            setReturnCount(0);
+            setQualityCount(0);
+          }
+          if (!isCentered) setStatusHint('Di chuyển vào giữa màn hình');
+          else setStatusHint('Nhìn thẳng vào camera');
+        }
+
+        // Draw face box with green color during return phase
+        const retColor = '#22c55e';
+        const cornerLen = Math.max(8, Math.min(box.width, box.height) * 0.10);
+        const drawRetCorner = (x: number, y: number, sx: 1 | -1, sy: 1 | -1) => {
+          ctx.beginPath();
+          ctx.moveTo(x, y + sy * cornerLen);
+          ctx.lineTo(x, y);
+          ctx.lineTo(x + sx * cornerLen, y);
+          ctx.strokeStyle = retColor;
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+        };
+        drawRetCorner(box.x, box.y, 1, 1);
+        drawRetCorner(box.x + box.width, box.y, -1, 1);
+        drawRetCorner(box.x, box.y + box.height, 1, -1);
+        drawRetCorner(box.x + box.width, box.y + box.height, -1, -1);
+        lms.forEach(pt => {
+          ctx.beginPath();
+          ctx.arc(pt.x * vw, pt.y * vh, 1.0, 0, Math.PI * 2);
+          ctx.fillStyle = retColor;
+          ctx.fill();
+        });
+
+        rafRef.current = window.setTimeout(drawLoop, detectInterval.current);
+        return;
+      }
+
+      // ── Quality gate (only when not in active challenge or returning) ──
+      const isGoodFrame = isCentered && isFacingStraight
+        && detScore >= 0.3
+        && faceAreaRatio >= MIN_FACE_AREA;
+
+      const canCollectFrames = !processing.current && (
+        challengePhaseRef.current === 'done' || !challengeRef.current
+      );
+
+      if (isGoodFrame && canCollectFrames) {
+        const frame = captureFrame();
+        if (frame) {
+          if (qualityBuffer.current.length < QUALITY_GATE) {
+            qualityBuffer.current.push({ frame, score: detScore });
+          } else {
+            qualityBuffer.current.shift();
+            qualityBuffer.current.push({ frame, score: detScore });
+          }
+          const count = qualityBuffer.current.length;
+          setQualityCount(count);
+
+          if (count >= QUALITY_GATE) {
+            if (challengePhaseRef.current === 'done') {
+              // Challenge passed (blink) — scan with existing buffer
+              const buf  = qualityBuffer.current;
+              const best = buf.reduce((a, b) => b.score > a.score ? b : a);
+              const frames = buf.map(f => f.frame);
+              qualityBuffer.current = [];
+              setQualityCount(0);
+              challengeRef.current = null;
+              challengePhaseRef.current = 'active';
+              spoofDetector.current.reset();
+              doScan(best.frame, frames);
+            } else if (!challengeRef.current) {
+              // No challenge yet — start one
+              startChallenge();
+            }
+          } else {
+            if (!challengeRef.current) {
+              setStatusHint(`Giữ nguyên... (${count}/${QUALITY_GATE})`);
+            }
+          }
+        }
+      } else if (!processing.current && !challengeRef.current) {
+        if (qualityBuffer.current.length > 0) resetQualityGate();
+        if (!isCentered)            setStatusHint('Di chuyển vào giữa màn hình');
+        else if (!isFacingStraight)  setStatusHint('Nhìn thẳng vào màn hình');
+        else if (faceAreaRatio < MIN_FACE_AREA) setStatusHint('Lại gần camera hơn');
+        else setStatusHint('Giữ nguyên...');
+      }
+
+      const color = challengeRef.current && challengePhaseRef.current === 'active'
+        ? '#f59e0b'
+        : isGoodFrame ? '#22d3ee' : '#f59e0b';
+
       const cornerLen = Math.max(8, Math.min(box.width, box.height) * 0.10);
       const drawCorner = (x: number, y: number, sx: 1 | -1, sy: 1 | -1) => {
         ctx.beginPath();
@@ -394,7 +555,6 @@ const FaceKioskPage: React.FC = () => {
       drawCorner(box.x,             box.y + box.height,  1, -1);
       drawCorner(box.x + box.width, box.y + box.height, -1, -1);
 
-      // 468 landmark dots
       lms.forEach(pt => {
         ctx.beginPath();
         ctx.arc(pt.x * vw, pt.y * vh, 1.0, 0, Math.PI * 2);
@@ -405,10 +565,16 @@ const FaceKioskPage: React.FC = () => {
     } else {
       setFacePos('none');
       currentFaceBox.current = null;
-      lastEye.current        = null;
-      lastFaceBox.current    = null;
-      blinks.current         = 0;
-      hasMoved.current       = false;
+      spoofDetector.current.reset();
+      setSpoofDetected(false);
+      // Reset challenge if face is lost
+      if (challengeRef.current && challengePhaseRef.current !== 'done') {
+        challengeRef.current = null;
+        challengePhaseRef.current = 'active';
+        setActiveChallenge(null);
+        setReturnCount(0);
+        setKioskState('waiting');
+      }
       if (!processing.current) {
         resetQualityGate();
         setStatusHint('');
@@ -419,14 +585,13 @@ const FaceKioskPage: React.FC = () => {
     }
 
     rafRef.current = window.setTimeout(drawLoop, detectInterval.current);
-  }, [captureFrame, doScan, resetQualityGate]);
+  }, [captureFrame, doScan, resetQualityGate, startChallenge]);
 
   // ─── Init: FaceMesh + Camera ─────────────────────────────────────────────────
   useEffect(() => {
     let active = true;
 
     const init = async () => {
-      // ── Bước 1: Khởi tạo FaceMesh ─────────────────────────────────────────
       let mesh: FaceMeshInstance | null = null;
       try {
         const FaceMeshCtor = await loadFaceMesh();
@@ -435,7 +600,7 @@ const FaceKioskPage: React.FC = () => {
         });
         mesh.setOptions({
           maxNumFaces: 4,
-          refineLandmarks: false,
+          refineLandmarks: true,
           minDetectionConfidence: 0.5,
           minTrackingConfidence: 0.5,
         });
@@ -462,8 +627,6 @@ const FaceKioskPage: React.FC = () => {
 
           latestDet.current = { lms, box: { x: bx, y: by, width: bw, height: bh }, score, faceCount };
         });
-        // FaceMesh is ready after construction + setOptions + onResults
-        // No explicit initialize() call needed
       } catch (modelErr) {
         const errMsg = modelErr instanceof Error ? `${modelErr.name}: ${modelErr.message}` : String(modelErr);
         console.error('[FaceKiosk] FaceMesh init failed:', modelErr);
@@ -481,7 +644,6 @@ const FaceKioskPage: React.FC = () => {
         return;
       }
 
-      // ── Bước 2: Khởi động camera ──────────────────────────────────────────
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
@@ -528,7 +690,7 @@ const FaceKioskPage: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-black select-none overflow-hidden">
 
-      {/* Standby overlay — hiện sau 1 phút không thấy mặt */}
+      {/* Standby overlay */}
       {dimmed && (
         <div className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-[2000ms]">
           <div className="flex flex-col items-center gap-6 opacity-40">
@@ -580,7 +742,7 @@ const FaceKioskPage: React.FC = () => {
       </div>
 
       {/* Face guide oval */}
-      {kioskState === 'waiting' && facePos === 'none' && (
+      {kioskState === 'waiting' && facePos === 'none' && !spoofDetected && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="flex flex-col items-center">
             <div
@@ -589,6 +751,101 @@ const FaceKioskPage: React.FC = () => {
             />
             <p className="mt-4 text-white/70 text-base font-medium tracking-wide drop-shadow">
               Đặt khuôn mặt vào khung
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Screen spoof warning */}
+      {spoofDetected && kioskState === 'waiting' && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
+          <div className="bg-red-600/90 backdrop-blur-sm rounded-2xl px-8 py-6 flex flex-col items-center gap-4 shadow-2xl border border-red-400/40 animate-pulse">
+            <AlertCircle className="w-16 h-16 text-white" />
+            <p className="text-white text-2xl font-bold text-center">Phát hiện màn hình thiết bị</p>
+            <p className="text-white/80 text-base text-center max-w-md">
+              Vui lòng không sử dụng ảnh trên điện thoại hoặc máy tính bảng để điểm danh.
+              Hãy đứng trực tiếp trước camera.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Liveness challenge overlay */}
+      {(kioskState === 'challenge' && activeChallenge) && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative z-10 flex flex-col items-center gap-4">
+            <div className="relative" style={{ width: 'min(200px, 30vw)', height: 'min(200px, 30vw)' }}>
+              {activeChallenge === 'look_left' && (
+                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
+                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
+                  <path d="M130 60 L70 100 L130 140" fill="none" stroke="#facc15" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round">
+                    <animate attributeName="d" values="M130 60 L70 100 L130 140;M120 55 L55 100 L120 145;M130 60 L70 100 L130 140" dur="1s" repeatCount="indefinite" />
+                  </path>
+                </svg>
+              )}
+              {activeChallenge === 'look_right' && (
+                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
+                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
+                  <path d="M70 60 L130 100 L70 140" fill="none" stroke="#facc15" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round">
+                    <animate attributeName="d" values="M70 60 L130 100 L70 140;M80 55 L145 100 L80 145;M70 60 L130 100 L70 140" dur="1s" repeatCount="indefinite" />
+                  </path>
+                </svg>
+              )}
+              {activeChallenge === 'look_up' && (
+                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
+                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
+                  <path d="M60 130 L100 70 L140 130" fill="none" stroke="#facc15" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round">
+                    <animate attributeName="d" values="M60 130 L100 70 L140 130;M55 140 L100 55 L145 140;M60 130 L100 70 L140 130" dur="1s" repeatCount="indefinite" />
+                  </path>
+                </svg>
+              )}
+              {activeChallenge === 'blink' && (
+                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
+                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
+                  <ellipse cx="100" cy="88" rx="45" ry="30" fill="none" stroke="#facc15" strokeWidth="5">
+                    <animate attributeName="ry" values="30;3;30" dur="1.8s" repeatCount="indefinite" keyTimes="0;0.25;0.5" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline" />
+                  </ellipse>
+                  <circle cx="100" cy="88" r="14" fill="#facc15">
+                    <animate attributeName="opacity" values="1;0;1" dur="1.8s" repeatCount="indefinite" />
+                    <animate attributeName="r" values="14;2;14" dur="1.8s" repeatCount="indefinite" keyTimes="0;0.25;0.5" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline" />
+                  </circle>
+                  <path d="M50 140 Q100 165 150 140" fill="none" stroke="#facc15" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+              )}
+            </div>
+            <p className="text-4xl font-black text-yellow-300 text-center drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] tracking-wider" style={{ fontSize: 'min(10vw, 48px)' }}>
+              {CHALLENGE_LABELS[activeChallenge]}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Return-to-center overlay (after head pose challenge) */}
+      {kioskState === 'returning' && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="relative z-10 flex flex-col items-center gap-4">
+            <div className="relative" style={{ width: 'min(160px, 24vw)', height: 'min(160px, 24vw)' }}>
+              <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(34,197,94,0.7)]">
+                <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#22c55e" strokeWidth="5" />
+                <circle cx="100" cy="82" r="30" fill="#22c55e">
+                  <animate attributeName="r" values="30;30;34;30" dur="2s" repeatCount="indefinite" />
+                </circle>
+                <path d="M70 70 L60 55" fill="none" stroke="#22c55e" strokeWidth="5" strokeLinecap="round">
+                  <animate attributeName="d" values="M70 70 L60 55;M70 70 L55 50;M70 70 L60 55" dur="2s" repeatCount="indefinite" />
+                </path>
+                <path d="M130 70 L140 55" fill="none" stroke="#22c55e" strokeWidth="5" strokeLinecap="round">
+                  <animate attributeName="d" values="M130 70 L140 55;M130 70 L145 50;M130 70 L140 55" dur="2s" repeatCount="indefinite" />
+                </path>
+                <path d="M55 140 Q100 175 145 140" fill="none" stroke="#22c55e" strokeWidth="5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <p className="text-4xl font-black text-green-400 text-center drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] tracking-wider" style={{ fontSize: 'min(9vw, 44px)' }}>
+              NHÌN THẲNG
+            </p>
+            <p className="text-white/70 text-lg text-center">
+              Giữ mặt nhìn thẳng vào camera ({returnCount}/{RETURN_FRAMES})
             </p>
           </div>
         </div>
@@ -619,7 +876,7 @@ const FaceKioskPage: React.FC = () => {
       )}
 
       {/* Status bar */}
-      {!cameraError && kioskState === 'waiting' && (
+      {!cameraError && (kioskState === 'waiting' || kioskState === 'challenge' || kioskState === 'returning') && (
         <div
           className="absolute bottom-0 left-0 right-0 z-10 flex flex-col justify-center items-center pb-8 pt-16 gap-3"
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)' }}
@@ -644,13 +901,13 @@ const FaceKioskPage: React.FC = () => {
           )}
           {facePos === 'centered' && (
             <>
-              <div className={`flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border ${qualityCount > 0 ? 'border-cyan-400/60' : 'border-blue-400/40'}`}>
-                <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${qualityCount > 0 ? 'bg-cyan-400' : 'bg-blue-400'}`} />
-                <span className={`text-sm font-medium ${qualityCount > 0 ? 'text-cyan-200' : 'text-blue-200'}`}>
-                  {statusHint || 'Giữ nguyên để xác minh...'}
+              <div className={`flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border ${kioskState === 'challenge' ? 'border-amber-400/60' : qualityCount > 0 ? 'border-cyan-400/60' : 'border-blue-400/40'}`}>
+                <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${kioskState === 'challenge' ? 'bg-amber-400' : qualityCount > 0 ? 'bg-cyan-400' : 'bg-blue-400'}`} />
+                <span className={`text-sm font-medium ${kioskState === 'challenge' ? 'text-amber-200' : qualityCount > 0 ? 'text-cyan-200' : 'text-blue-200'}`}>
+                  {statusHint || (kioskState === 'challenge' ? CHALLENGE_LABELS[activeChallenge || 'look_left'] : 'Nhìn thẳng vào màn hình')}
                 </span>
               </div>
-              {qualityCount > 0 && (
+              {qualityCount > 0 && kioskState !== 'challenge' && (
                 <div className="w-48 h-1.5 bg-white/20 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-cyan-400 rounded-full transition-all duration-100"
