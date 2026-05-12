@@ -46,14 +46,16 @@ VOTE_WEIGHT_COUNT = 0.40
 VOTE_WEIGHT_DIST  = 0.60
 LIVENESS_MIN_VALID_FRAMES = 4
 LIVENESS_PASS_RATIO = 0.65
-LIVENESS_MIN_SCORE = 0.72          # nới từ 0.78 — webcam thường không đủ điều kiện lý tưởng
-LIVENESS_FINAL_MIN_SCORE = 0.68   # nới từ 0.72
+LIVENESS_MIN_SCORE = 0.78          # khôi phục mức gốc — chặn phone screen tốt hơn
+LIVENESS_FINAL_MIN_SCORE = 0.72   # khôi phục mức gốc
 LIVENESS_MAX_FRAMES = 12
 LIVENESS_MIN_BRIGHTNESS = 35.0
 LIVENESS_MAX_BRIGHTNESS = 225.0
 LIVENESS_MIN_BLUR = 18.0
 FLAT_MOTION_MIN_SHIFT = 0.08
 FLAT_MOTION_MAX_ALIGNED_DIFF = 0.018
+# LBP texture analysis — detect screen moiré pattern
+LBP_SCREEN_THRESHOLD = 0.35       # LBP variance below this → likely screen/print
 TOP_K_MATCHES = 5
 MAX_FACE_TILT_DEG  = 20.0   # roll > 20° → nghiêng đầu quá nhiều
 MIN_EYE_SPAN_RATIO = 0.22   # inter-eye-width/face-width < 0.22 → quay ngang quá nhiều
@@ -67,11 +69,11 @@ _liveness_spoofer: Optional[MiniFASNet] = None
 
 @app.on_event("startup")
 async def warmup():
-    """Pre-load ArcFace + yunet/ssd detector weights."""
+    """Pre-load ArcFace + yunet/ssd detector weights + anti-spoofing models."""
     global _models_loaded
     try:
         global _liveness_detector, _liveness_spoofer
-        logger.info("Warming up ArcFace + yunet/ssd detectors + MiniFASNet...")
+        logger.info("Warming up ArcFace + yunet/ssd detectors + MiniFASNet + DeepFace anti-spoof...")
         dummy = np.zeros((112, 112, 3), dtype=np.uint8)
         for det in [VERIFY_DETECTOR, VERIFY_DETECTOR_FB]:
             try:
@@ -79,12 +81,22 @@ async def warmup():
                                    enforce_detection=False)
             except Exception:
                 pass
+        # Warmup DeepFace anti-spoofing (downloads MiniFASNetV1+V2 on first run)
+        try:
+            DeepFace.extract_faces(dummy, detector_backend="skip", anti_spoofing=True, enforce_detection=False)
+        except Exception:
+            pass
         _liveness_detector = RetinaFace()
         _liveness_spoofer = MiniFASNet()
         _models_loaded = True
         logger.info("Warmup complete")
     except Exception as e:
         logger.warning(f"Warmup failed (non-fatal): {e}")
+
+    # Init RAG chatbot (non-blocking)
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, _init_rag)
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -314,6 +326,48 @@ def _crop_aligned_face(image: np.ndarray, bbox: Any) -> np.ndarray:
     return cv2.resize(gray, (96, 96), interpolation=cv2.INTER_AREA)
 
 
+def _lbp_texture_score(image: np.ndarray, bbox: Any) -> float:
+    """
+    Compute LBP (Local Binary Pattern) texture variance on face region.
+    Real skin has rich micro-texture → high LBP entropy.
+    Screen/print has uniform pixel grid (moiré) → low LBP entropy.
+    Returns normalized score 0-1 (higher = more likely real).
+    """
+    h, w = image.shape[:2]
+    x1, y1, x2, y2 = [int(v) for v in bbox[:4]]
+    # Crop face region with small padding
+    pad = int((x2 - x1) * 0.05)
+    sx, sy = max(0, x1 - pad), max(0, y1 - pad)
+    ex, ey = min(w, x2 + pad), min(h, y2 + pad)
+    face_crop = image[sy:ey, sx:ex]
+    if face_crop.size == 0:
+        return 1.0  # can't analyze, don't penalize
+
+    gray = cv2.cvtColor(face_crop, cv2.COLOR_RGB2GRAY) if len(face_crop.shape) == 3 else face_crop
+    gray = cv2.resize(gray, (128, 128), interpolation=cv2.INTER_AREA).astype(np.int16)
+
+    # Vectorized LBP computation (8-neighbor, radius=1)
+    center = gray[1:-1, 1:-1]
+    lbp = np.zeros(center.shape, dtype=np.uint8)
+    lbp |= ((gray[0:-2, 0:-2] >= center).astype(np.uint8) << 7)
+    lbp |= ((gray[0:-2, 1:-1] >= center).astype(np.uint8) << 6)
+    lbp |= ((gray[0:-2, 2:]   >= center).astype(np.uint8) << 5)
+    lbp |= ((gray[1:-1, 2:]   >= center).astype(np.uint8) << 4)
+    lbp |= ((gray[2:,   2:]   >= center).astype(np.uint8) << 3)
+    lbp |= ((gray[2:,   1:-1] >= center).astype(np.uint8) << 2)
+    lbp |= ((gray[2:,   0:-2] >= center).astype(np.uint8) << 1)
+    lbp |= ((gray[1:-1, 0:-2] >= center).astype(np.uint8) << 0)
+
+    # Entropy of LBP histogram — higher entropy = more texture variety = real
+    hist, _ = np.histogram(lbp.ravel(), bins=256, range=(0, 256))
+    hist = hist.astype(np.float64)
+    hist /= max(hist.sum(), 1.0)
+    hist_nonzero = hist[hist > 0]
+    entropy = -np.sum(hist_nonzero * np.log2(hist_nonzero))
+    # Normalize: max entropy for 256 bins = 8.0
+    return float(entropy / 8.0)
+
+
 def _analyze_temporal_liveness(samples: list[dict[str, Any]]) -> tuple[bool, float, str]:
     if len(samples) < LIVENESS_MIN_VALID_FRAMES:
         return False, 0.0, "Không đủ frame hợp lệ để phân tích chuyển động"
@@ -370,9 +424,6 @@ def _analyze_temporal_liveness(samples: list[dict[str, Any]]) -> tuple[bool, flo
 
 
 def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
-    if _liveness_spoofer is None:
-        raise ValueError("Liveness spoofer not initialized")
-
     if not frames:
         return False, 0.0, "No frames provided"
 
@@ -381,29 +432,71 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
     valid_scores: list[float] = []
     real_scores: list[float] = []
     quality_scores: list[float] = []
+    lbp_scores: list[float] = []
     temporal_samples: list[dict[str, Any]] = []
 
     for idx, frame_b64 in enumerate(frames):
         try:
             frame = base64_to_image(frame_b64)
-            face = _detect_liveness_face(frame)
-            quality_score, quality_message = _frame_quality(frame, face.bbox)
-            if quality_score <= 0.0:
-                logger.warning("Liveness frame %s quality failed: %s", idx + 1, quality_message)
-                continue
 
-            is_real, score = _parse_spoof_result(_liveness_spoofer.predict(frame, face.bbox))
-            valid_scores.append(float(score))
-            quality_scores.append(float(quality_score))
-            temporal_samples.append({
-                "bbox": face.bbox,
-                "crop": _crop_aligned_face(frame, face.bbox),
-            })
-            if is_real:
-                real_scores.append(float(score))
+            # Use DeepFace anti_spoofing (MiniFASNetV1 + V2 combined)
+            try:
+                face_objs = DeepFace.extract_faces(
+                    img_path=frame,
+                    detector_backend=VERIFY_DETECTOR,
+                    enforce_detection=True,
+                    anti_spoofing=True,
+                )
+                if not face_objs:
+                    logger.warning("Liveness frame %s: no face detected by DeepFace", idx + 1)
+                    continue
+                face_obj = face_objs[0]
+                is_real = face_obj.get("is_real", False)
+                score = float(face_obj.get("antispoof_score", 0.0))
+            except ValueError as ve:
+                # DeepFace raises ValueError on spoof detection or no face
+                logger.warning("Liveness frame %s: DeepFace error: %s", idx + 1, ve)
+                is_real = False
+                score = 0.0
+
+            # Also run uniface MiniFASNet for comparison/ensemble
+            try:
+                face = _detect_liveness_face(frame)
+                uniface_real, uniface_score = _parse_spoof_result(_liveness_spoofer.predict(frame, face.bbox))
+
+                quality_score, quality_message = _frame_quality(frame, face.bbox)
+                if quality_score <= 0.0:
+                    logger.warning("Liveness frame %s quality failed: %s", idx + 1, quality_message)
+                    continue
+
+                temporal_samples.append({
+                    "bbox": face.bbox,
+                    "crop": _crop_aligned_face(frame, face.bbox),
+                })
+                quality_scores.append(float(quality_score))
+
+                # LBP texture analysis
+                lbp_score = _lbp_texture_score(frame, face.bbox)
+                lbp_scores.append(lbp_score)
+            except Exception:
+                uniface_real = is_real
+                uniface_score = score
+                quality_scores.append(0.5)
+                lbp_scores.append(0.7)
+
+            # Ensemble: both DeepFace AND uniface must agree it's real
+            # Use average score from both
+            combined_score = (score + uniface_score) / 2.0
+            combined_real = is_real and uniface_real
+
+            valid_scores.append(combined_score)
+            if combined_real:
+                real_scores.append(combined_score)
+
             logger.info(
-                "Liveness frame %s: is_real=%s score=%.4f quality=%.4f",
-                idx + 1, is_real, score, quality_score,
+                "Liveness frame %s: deepface(real=%s, score=%.4f) uniface(real=%s, score=%.4f) combined=%.4f lbp=%.4f",
+                idx + 1, is_real, score, uniface_real, uniface_score, combined_score,
+                lbp_scores[-1] if lbp_scores else 0,
             )
         except Exception as exc:
             logger.warning("Liveness frame %s failed: %s", idx + 1, exc)
@@ -420,23 +513,32 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
             f"(pass_ratio={pass_ratio:.2f}, score={avg_real_score:.2f})"
         )
 
+    # LBP texture check
+    avg_lbp = float(np.mean(lbp_scores)) if lbp_scores else 1.0
+    if avg_lbp < LBP_SCREEN_THRESHOLD:
+        return False, avg_real_score, (
+            f"Phát hiện texture bất thường — nghi ngờ màn hình/ảnh in "
+            f"(lbp_score={avg_lbp:.3f}, threshold={LBP_SCREEN_THRESHOLD})"
+        )
+
     temporal_ok, temporal_score, temporal_message = _analyze_temporal_liveness(temporal_samples)
     if not temporal_ok:
         return False, avg_real_score, temporal_message
 
     quality_score = float(np.mean(quality_scores)) if quality_scores else 0.0
     final_score = (
-        0.60 * _clamp01(avg_real_score) +
-        0.25 * _clamp01(temporal_score) +
-        0.15 * _clamp01(quality_score)
+        0.50 * _clamp01(avg_real_score) +
+        0.20 * _clamp01(temporal_score) +
+        0.15 * _clamp01(quality_score) +
+        0.15 * _clamp01(avg_lbp)
     )
     if final_score < LIVENESS_FINAL_MIN_SCORE:
         return False, final_score, (
             f"Liveness score thấp (final={final_score:.2f}, anti_spoof={avg_real_score:.2f}, "
-            f"temporal={temporal_score:.2f}, quality={quality_score:.2f})"
+            f"temporal={temporal_score:.2f}, quality={quality_score:.2f}, lbp={avg_lbp:.2f})"
         )
 
-    return True, final_score, f"Liveness passed; {temporal_message}"
+    return True, final_score, f"Liveness passed; {temporal_message}; lbp={avg_lbp:.3f}"
 
 
 # ─── Request/Response Models ─────────────────────────────────────────────────
@@ -679,6 +781,796 @@ def verify(req: VerifyRequest):
     matched = votes > 0
     return VerifyResponse(matched=matched, confidence=round(max(0.0, 1.0 - min_dist), 4),
                           message="Match" if matched else "No match")
+
+
+# ─── RAG Chatbot ─────────────────────────────────────────────────────────────
+
+import glob as _glob
+import re as _re
+import threading as _threading
+from pathlib import Path as _Path
+from typing import List as _List
+
+_rag_init_lock = _threading.Lock()
+
+# Lazy-loaded RAG components
+_chroma_client = None
+_chroma_collection = None
+_embedder = None
+_bm25_index = None
+_bm25_chunks: _List[dict] = []
+_reranker = None
+_rag_ready = False
+
+# Semantic cache: list of (query_embedding, answer, sources)
+_sem_cache: _List[tuple] = []
+SEM_CACHE_THRESHOLD = 0.95   # cosine similarity ≥ này → cache hit
+SEM_CACHE_MAX = 200          # tối đa 200 entries
+
+DOCS_DIR = _Path("/app/docs/chatbot")
+CHROMA_DIR = _Path("/app/chroma_data")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+# LLM_PROVIDER: "groq" (nhanh, free) hoặc "ollama" (local, không cần internet)
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "groq" if GROQ_API_KEY else "ollama")
+COMMON_FILE = "00-chung.md"
+CONFIDENCE_THRESHOLD = 0.20  # hạ xuống để bắt được câu hỏi về mã/enum cụ thể
+
+SYSTEM_PROMPT = """Bạn là trợ lý ERP An Binh Foods. Hướng dẫn nhân viên sử dụng hệ thống theo ngôn ngữ người dùng thông thường.
+
+NGUYÊN TẮC QUAN TRỌNG:
+1. TUYỆT ĐỐI không dùng tên kỹ thuật/component như: Modal, Component, Tab ID, camelCase, PascalCase
+   - SAI: "Mở PrivateFeedbackModal", "vào QuotationRequestManagement", "tab quotationRequests"
+   - ĐÚNG: "Nhấn nút **Góp ý riêng**", "vào tab **Danh sách yêu cầu BG**"
+2. Dùng đúng tên hiển thị trên giao diện (in đậm), ví dụ:
+   - Tên menu/tab: **Chức năng chung**, **Danh sách yêu cầu BG**, **Bộ phận kế toán**
+   - Tên nút: **"Thêm mới"**, **"Lưu"**, **"Xin nghỉ phép"**, **"Góp ý riêng"**
+   - Tên trường: **Loại nghỉ phép**, **Ngày bắt đầu**, **Lý do**
+3. Hướng dẫn theo đường dẫn thực tế: Menu → Tab → Nút → Form
+4. Trường bắt buộc ghi ✅, không bắt buộc bỏ qua
+5. Sau câu trả lời, gợi ý 1-2 câu hỏi tiếp theo ngắn gọn
+6. Chỉ dùng thông tin trong CONTEXT, không bịa đặt
+
+VÍ DỤ ĐÚNG:
+Câu hỏi: "Tôi muốn góp ý với sếp"
+Trả lời:
+Vào menu **Chức năng chung** → nhấn **"Góp ý riêng"**. Điền:
+- **Nội dung góp ý** ✅
+- **Mục đích góp ý** ✅
+- Ghi chú, File đính kèm (tùy chọn)
+Nhấn **"Gửi"** để hoàn tất.
+
+Bạn có thể hỏi thêm: "Ai có thể xem góp ý của tôi?" hoặc "Nêu khó khăn khác với Góp ý riêng như thế nào?"
+
+VÍ DỤ ĐÚNG:
+Câu hỏi: "Tạo YCBG như thế nào?"
+Trả lời:
+Vào **Bộ phận kinh doanh** → tab **Danh sách yêu cầu BG** → nhấn **"Thêm yêu cầu báo giá"**. Điền:
+- **Khách hàng** ✅ — chọn từ danh sách
+- **Sản phẩm** ✅ — nhấn **"Thêm sản phẩm"** để thêm dòng, điền Số lượng ✅ và Đơn vị tính ✅
+- Hình thức vận chuyển, thanh toán, Ghi chú (tùy chọn)
+Nhấn **"Tạo mới"** để lưu.
+
+Bạn có thể hỏi thêm: "Hình thức thanh toán có những lựa chọn nào?" hoặc "Sau khi tạo YCBG thì làm gì tiếp?"
+"""
+
+
+def _parse_frontmatter(content: str) -> tuple[dict, str]:
+    """Parse YAML frontmatter từ markdown file."""
+    if not content.startswith("---"):
+        return {}, content
+    end = content.find("---", 3)
+    if end == -1:
+        return {}, content
+    fm_text = content[3:end].strip()
+    body = content[end + 3:].strip()
+    meta = {}
+    for line in fm_text.splitlines():
+        if ":" in line:
+            key, _, val = line.partition(":")
+            meta[key.strip()] = val.strip().strip('"')
+    return meta, body
+
+
+def _extract_tables(text: str) -> _List[str]:
+    """Trích xuất các bảng markdown từ text."""
+    tables = []
+    lines = text.splitlines()
+    current: _List[str] = []
+    in_table = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("|") and "|" in stripped[1:]:
+            in_table = True
+            current.append(line)
+        else:
+            if in_table and current:
+                tables.append("\n".join(current))
+                current = []
+            in_table = False
+    if in_table and current:
+        tables.append("\n".join(current))
+    return tables
+
+
+def _summarize_table(table_md: str, section_title: str) -> str:
+    """
+    Tóm tắt bảng markdown thành plain-text để retrieval tốt hơn.
+    Không dùng LLM, parse trực tiếp để nhanh và không tốn tài nguyên.
+    """
+    lines = [l.strip() for l in table_md.strip().splitlines() if l.strip()]
+    # Lọc dòng separator (|---|---|)
+    data_lines = [l for l in lines if not _re.match(r"^\|[-| :]+\|$", l)]
+    if not data_lines:
+        return ""
+
+    # Parse header
+    headers = [c.strip() for c in data_lines[0].strip("|").split("|")]
+    rows = []
+    for line in data_lines[1:]:
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) == len(headers):
+            rows.append(dict(zip(headers, cells)))
+
+    if not rows:
+        return ""
+
+    # Sinh plain-text summary
+    parts = [f"Bảng '{section_title}' gồm {len(rows)} dòng với các cột: {', '.join(headers)}."]
+    # Liệt kê tối đa 5 dòng đầu
+    for row in rows[:5]:
+        row_text = "; ".join(f"{k}: {v}" for k, v in row.items() if v and v not in ("-", "—", ""))
+        if row_text:
+            parts.append(row_text)
+    if len(rows) > 5:
+        parts.append(f"... và {len(rows) - 5} dòng khác.")
+    return "\n".join(parts)
+
+
+def _chunk_by_header(body: str, meta: dict, filename: str) -> _List[dict]:
+    """
+    Chunk markdown theo mọi cấp heading (##, ###, ####).
+    Mỗi chunk = 1 section nhỏ, giữ nguyên nội dung bảng/list bên trong.
+    Heading cha được prepend vào chunk con để giữ context.
+    Sinh thêm chunk tóm tắt plain-text cho mỗi bảng markdown.
+    """
+    chunks = []
+    lines = body.splitlines()
+
+    heading_stack: list[tuple[int, str]] = []
+    current_lines: list[str] = []
+    current_title = ""
+    current_level = 0
+
+    def _heading_level(line: str) -> int:
+        m = _re.match(r"^(#{2,4})\s", line)
+        return len(m.group(1)) if m else 0
+
+    def _flush(title: str, level: int, content_lines: list[str]):
+        text = "\n".join(content_lines).strip()
+        if not text:
+            return
+        breadcrumb = " > ".join(t for _, t in heading_stack if _ < level)
+        full_title = f"{breadcrumb} > {title}" if breadcrumb else title
+        chunk_text = f"## {full_title}\n\n{text}"
+        chunks.append({
+            "text": chunk_text,
+            "metadata": {
+                "department": meta.get("department", "ALL"),
+                "filename": filename,
+                "section": full_title,
+                "type": "content",
+            }
+        })
+        # Sinh thêm table summary chunks
+        for table_md in _extract_tables(text):
+            summary = _summarize_table(table_md, full_title)
+            if summary:
+                chunks.append({
+                    "text": summary,
+                    "metadata": {
+                        "department": meta.get("department", "ALL"),
+                        "filename": filename,
+                        "section": full_title,
+                        "type": "table_summary",
+                    }
+                })
+
+    for line in lines:
+        lvl = _heading_level(line)
+        if lvl >= 2:
+            if current_title:
+                _flush(current_title, current_level, current_lines)
+            heading_stack = [(l, t) for l, t in heading_stack if l < lvl]
+            heading_stack.append((lvl, line.lstrip("#").strip()))
+            current_title = line.lstrip("#").strip()
+            current_level = lvl
+            current_lines = []
+        else:
+            current_lines.append(line)
+
+    if current_title:
+        _flush(current_title, current_level, current_lines)
+
+    return chunks
+
+
+def _docs_hash() -> str:
+    """Tính hash của tất cả docs để phát hiện thay đổi."""
+    import hashlib
+    h = hashlib.md5()
+    for f in sorted(DOCS_DIR.glob("*.md")):
+        h.update(f.read_bytes())
+    return h.hexdigest()
+
+
+def _init_rag():
+    """Khởi tạo RAG: load docs, embed, lưu vào ChromaDB + BM25 + FlashRank. Chỉ rebuild khi docs thay đổi."""
+    global _chroma_client, _chroma_collection, _embedder, _bm25_index, _bm25_chunks, _reranker, _rag_ready
+
+    if _rag_ready:
+        return
+
+    with _rag_init_lock:
+        if _rag_ready:  # double-checked locking
+            return
+
+        try:
+            import chromadb
+            from sentence_transformers import SentenceTransformer
+            from rank_bm25 import BM25Okapi
+            from flashrank import Ranker
+
+            logger.info("Initializing RAG chatbot...")
+
+            _embedder = SentenceTransformer("AITeamVN/Vietnamese_Embedding_v2")
+            _reranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", cache_dir=str(CHROMA_DIR / "flashrank_cache"))
+            logger.info("FlashRank reranker loaded")
+
+            CHROMA_DIR.mkdir(parents=True, exist_ok=True)
+            _chroma_client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+
+            current_hash = _docs_hash()
+            hash_file = CHROMA_DIR / "docs_hash.txt"
+            stored_hash = hash_file.read_text().strip() if hash_file.exists() else ""
+
+            collection_exists = "erp_docs" in _chroma_client.list_collections()
+
+            doc_files = sorted(DOCS_DIR.glob("*.md"))
+            if not doc_files:
+                logger.warning(f"No docs found in {DOCS_DIR}")
+                return
+
+            all_chunks = []
+            for doc_path in doc_files:
+                content = doc_path.read_text(encoding="utf-8")
+                meta, body = _parse_frontmatter(content)
+                chunks = _chunk_by_header(body, meta, doc_path.name)
+                all_chunks.extend(chunks)
+
+            if not all_chunks:
+                logger.warning("No chunks loaded from docs")
+                return
+
+            tokenized = [_re.findall(r"\w+", c["text"].lower()) for c in all_chunks]
+            _bm25_index = BM25Okapi(tokenized)
+            _bm25_chunks = all_chunks
+            logger.info(f"BM25 index built: {len(all_chunks)} chunks (incl. table summaries)")
+
+            if collection_exists and stored_hash == current_hash:
+                logger.info("Docs unchanged — reusing existing ChromaDB index")
+                _chroma_collection = _chroma_client.get_collection("erp_docs")
+                _rag_ready = True
+                return
+
+            logger.info("Docs changed or first run — rebuilding ChromaDB index...")
+            try:
+                _chroma_client.delete_collection("erp_docs")
+            except Exception:
+                pass
+
+            _chroma_collection = _chroma_client.create_collection(
+                name="erp_docs",
+                metadata={"hnsw:space": "cosine"}
+            )
+
+            batch_size = 50
+            for i in range(0, len(all_chunks), batch_size):
+                batch = all_chunks[i:i + batch_size]
+                texts = [c["text"] for c in batch]
+                embeddings = _embedder.encode(texts, normalize_embeddings=True).tolist()
+                _chroma_collection.add(
+                    ids=[f"chunk_{i + j}" for j in range(len(batch))],
+                    embeddings=embeddings,
+                    documents=texts,
+                    metadatas=[c["metadata"] for c in batch],
+                )
+                logger.info(f"  Indexed {min(i + batch_size, len(all_chunks))}/{len(all_chunks)} chunks")
+
+            hash_file.write_text(current_hash)
+            _rag_ready = True
+            logger.info(f"RAG ready: {len(all_chunks)} chunks indexed")
+
+        except Exception as e:
+            logger.error(f"RAG init failed: {e}")
+
+
+class ChatMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    department: str = ""
+    role: str = ""
+    history: _List[ChatMessage] = []
+
+
+class ChatResponse(BaseModel):
+    answer: str
+    sources: _List[str] = []
+    context_texts: _List[str] = []  # raw chunk texts cho RAGAS evaluation
+
+
+def _rrf_fuse(
+    dense_ids: list[str],
+    dense_docs: list[str],
+    dense_metas: list[dict],
+    dense_distances: list[float],
+    bm25_chunks: list[dict],
+    bm25_indices: list[int],
+    k: int = 60,
+    top_n: int = 20,
+) -> list[dict]:
+    """
+    Reciprocal Rank Fusion: kết hợp kết quả dense (ChromaDB) và sparse (BM25).
+    BM25 dùng cùng ID scheme `chunk_N` với ChromaDB để deduplication hoạt động đúng.
+    Trả về top_n chunks kèm _cosine_sim để dùng cho confidence gate.
+    """
+    scores: dict[str, float] = {}
+    chunk_map: dict[str, dict] = {}
+    dist_map: dict[str, float] = {}
+
+    # Dense results — IDs dạng "chunk_N"
+    for rank, (cid, doc, meta, dist) in enumerate(zip(dense_ids, dense_docs, dense_metas, dense_distances)):
+        scores[cid] = scores.get(cid, 0.0) + 1.0 / (k + rank + 1)
+        chunk_map[cid] = {"text": doc, "metadata": meta}
+        dist_map[cid] = dist  # cosine distance (0=identical)
+
+    # BM25 results — dùng cùng ID "chunk_N" để dedup với dense
+    for rank, idx in enumerate(bm25_indices):
+        cid = f"chunk_{idx}"  # khớp với ChromaDB IDs
+        scores[cid] = scores.get(cid, 0.0) + 1.0 / (k + rank + 1)
+        if cid not in chunk_map:
+            chunk_map[cid] = bm25_chunks[idx]
+            # BM25-only chunk: dùng score BM25 làm proxy confidence (normalize về [0,1])
+            # Không có cosine distance → đặt dist=0.4 (tương đương sim=0.6, trên threshold)
+            dist_map[cid] = 0.4
+
+    sorted_ids = sorted(scores, key=lambda x: scores[x], reverse=True)
+
+    result = []
+    for cid in sorted_ids[:top_n]:
+        chunk = dict(chunk_map[cid])
+        chunk["_rrf_score"] = scores[cid]
+        chunk["_cosine_sim"] = 1.0 - dist_map.get(cid, 1.0)
+        result.append(chunk)
+    return result
+
+
+def _rerank(query: str, candidates: list[dict], top_n: int) -> list[dict]:
+    """
+    FlashRank cross-encoder reranking: score lại candidates theo relevance với query.
+    Fallback về RRF order nếu reranker chưa sẵn sàng.
+    """
+    if _reranker is None:
+        return candidates[:top_n]
+    try:
+        from flashrank import RerankRequest
+        passages = [{"id": i, "text": c["text"]} for i, c in enumerate(candidates)]
+        request = RerankRequest(query=query, passages=passages)
+        results = _reranker.rerank(request)
+        # results là list[dict] với "id" và "score"
+        reranked = sorted(results, key=lambda x: x["score"], reverse=True)[:top_n]
+        return [candidates[r["id"]] for r in reranked]
+    except Exception as e:
+        logger.warning(f"Reranking failed, using RRF order: {e}")
+        return candidates[:top_n]
+
+
+def _build_retrieval(
+    query_text: str,
+    original_message: str,
+    department: str,
+    role: str = "",
+) -> tuple[list[dict], bool]:
+    """
+    Pipeline retrieval: dense + BM25 -> RRF -> confidence gate -> rerank.
+    Tra ve (chunks, is_confident).
+    """
+    # ADMIN hoặc câu hỏi hỏi về bộ phận khác -> không filter, tìm toàn bộ KB
+    CROSS_DEPT_KEYWORDS = ["bộ phận", "phòng ban", "kế toán", "kinh doanh", "thu mua",
+                           "sản xuất", "kỹ thuật", "chất lượng", "tổng hợp", "admin"]
+    is_admin = role.upper() == "ADMIN"
+    is_cross_dept = any(kw in original_message.lower() for kw in CROSS_DEPT_KEYWORDS)
+    use_filter = department and not is_admin and not is_cross_dept
+
+    # Dense retrieval
+    query_embedding = _embedder.encode([query_text], normalize_embeddings=True).tolist()[0]
+
+    where_filter = None
+    if use_filter:
+        where_filter = {
+            "$or": [
+                {"department": {"$eq": department}},
+                {"filename": {"$eq": COMMON_FILE}},
+            ]
+        }
+
+    dense_results = _chroma_collection.query(
+        query_embeddings=[query_embedding],
+        n_results=20,
+        where=where_filter,
+        include=["documents", "metadatas", "distances"],
+    )
+    dense_ids = dense_results.get("ids", [[]])[0]
+    dense_docs = dense_results.get("documents", [[]])[0]
+    dense_metas = dense_results.get("metadatas", [[]])[0]
+    dense_distances = dense_results.get("distances", [[]])[0]
+
+    # BM25 retrieval
+    query_tokens = _re.findall(r"\w+", query_text.lower())
+    bm25_scores = _bm25_index.get_scores(query_tokens).copy()
+    if use_filter:
+        for i, chunk in enumerate(_bm25_chunks):
+            dept = chunk["metadata"].get("department", "ALL")
+            fname = chunk["metadata"].get("filename", "")
+            if dept != department and fname != COMMON_FILE:
+                bm25_scores[i] = 0.0
+    bm25_top = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:20]
+
+    # RRF fusion — lấy top-20 candidates cho reranker
+    candidates = _rrf_fuse(
+        dense_ids, dense_docs, dense_metas, dense_distances,
+        _bm25_chunks, bm25_top,
+        k=60, top_n=20,
+    )
+
+    if not candidates:
+        return [], False
+
+    # Confidence gate: kiểm tra top-1 cosine similarity
+    top_sim = candidates[0].get("_cosine_sim", 0.0)
+    is_confident = top_sim >= CONFIDENCE_THRESHOLD
+
+    if not is_confident:
+        logger.info(f"Low confidence (top_sim={top_sim:.3f}) for query: {original_message[:60]}")
+        return [], False
+
+    # Rerank top-20 → top-N
+    how_to_kw = ["làm thế nào", "hướng dẫn", "tạo", "thêm", "điền",
+                 "nhập", "các bước", "quy trình", "form", "trường", "ô"]
+    top_n = 8 if any(kw in original_message.lower() for kw in how_to_kw) else 5
+    reranked = _rerank(original_message, candidates, top_n)
+
+    # Lost-in-the-middle mitigation
+    if len(reranked) > 2:
+        reranked = [reranked[0]] + reranked[1:-1] + [reranked[-1]]
+
+    return reranked, True
+
+
+# ─── Semantic Cache ───────────────────────────────────────────────────────────
+
+def _cosine_sim_vec(a: list[float], b: list[float]) -> float:
+    """Cosine similarity giữa 2 vectors đã normalize."""
+    dot = sum(x * y for x, y in zip(a, b))
+    return min(1.0, max(-1.0, dot))
+
+
+def _sem_cache_lookup(query_emb: list[float]) -> tuple | None:
+    """Tìm cache hit: trả về (answer, sources) nếu similarity >= threshold."""
+    best_sim = 0.0
+    best_entry = None
+    for cached_emb, answer, sources in _sem_cache:
+        sim = _cosine_sim_vec(query_emb, cached_emb)
+        if sim > best_sim:
+            best_sim = sim
+            best_entry = (answer, sources)
+    if best_sim >= SEM_CACHE_THRESHOLD and best_entry:
+        logger.info(f"Semantic cache hit (sim={best_sim:.3f})")
+        return best_entry
+    return None
+
+
+def _sem_cache_put(query_emb: list[float], answer: str, sources: list[str]):
+    """Lưu vào cache, giữ tối đa SEM_CACHE_MAX entries (FIFO)."""
+    _sem_cache.append((query_emb, answer, sources))
+    if len(_sem_cache) > SEM_CACHE_MAX:
+        _sem_cache.pop(0)
+
+
+# ─── Faithfulness Check ───────────────────────────────────────────────────────
+
+_FAITHFULNESS_PROMPT = """Bạn là một hệ thống kiểm tra tính trung thực.
+
+CONTEXT:
+{context}
+
+CÂU TRẢ LỜI CẦN KIỂM TRA:
+{answer}
+
+Hãy đánh giá: Câu trả lời có mâu thuẫn hoặc bịa đặt thông tin KHÔNG có trong CONTEXT không?
+Chỉ trả lời một trong hai: PASS hoặc FAIL
+- PASS: câu trả lời dựa trên context, không bịa đặt
+- FAIL: câu trả lời có thông tin không có trong context hoặc mâu thuẫn với context"""
+
+
+def _faithfulness_check(answer: str, chunks: list[dict]) -> bool:
+    """
+    Dùng Ollama (model nhỏ hơn) để kiểm tra answer có faithful với context không.
+    Trả về True nếu PASS, False nếu FAIL.
+    Fallback True nếu check lỗi (không block response).
+    """
+    try:
+        import ollama as _ollama
+        # Dùng model nhỏ hơn để tránh self-preference bias và tiết kiệm tài nguyên
+        grader_model = os.environ.get("OLLAMA_GRADER_MODEL", "gemma2:2b")
+        context_short = "\n\n".join(c["text"][:300] for c in chunks[:3])
+        prompt = _FAITHFULNESS_PROMPT.format(
+            context=context_short,
+            answer=answer[:500],
+        )
+        client = _ollama.Client(host=OLLAMA_HOST)
+        resp = client.generate(
+            model=grader_model,
+            prompt=prompt,
+            options={"temperature": 0.0, "num_predict": 10, "num_ctx": 2048},
+        )
+        verdict = (resp.response or "").strip().upper()
+        passed = "PASS" in verdict
+        if not passed:
+            logger.warning(f"Faithfulness FAIL — verdict: {verdict[:50]}")
+        return passed
+    except Exception as e:
+        logger.warning(f"Faithfulness check skipped: {e}")
+        return True  # fail-open: không block nếu grader lỗi
+
+
+# ─── LLM Abstraction (Groq / Ollama) ─────────────────────────────────────────
+
+def _call_llm(messages: list[dict]) -> str:
+    """Goi LLM (Groq hoac Ollama) va tra ve full response string."""
+    if LLM_PROVIDER == "groq" and GROQ_API_KEY:
+        from groq import Groq
+        client = Groq(api_key=GROQ_API_KEY)
+        resp = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=messages,
+            temperature=0.1,
+            max_tokens=600,
+        )
+        return resp.choices[0].message.content.strip()
+    else:
+        import ollama as _ollama
+        client = _ollama.Client(host=OLLAMA_HOST)
+        resp = client.chat(
+            model=OLLAMA_MODEL,
+            messages=messages,
+            options={"temperature": 0.1, "num_predict": 600, "num_ctx": 3072},
+        )
+        return resp.message.content.strip()
+
+
+def _stream_llm(messages: list[dict]):
+    """Generator: yield tung token tu LLM."""
+    if LLM_PROVIDER == "groq" and GROQ_API_KEY:
+        from groq import Groq
+        client = Groq(api_key=GROQ_API_KEY)
+        stream = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=messages,
+            temperature=0.1,
+            max_tokens=600,
+            stream=True,
+        )
+        for chunk in stream:
+            token = chunk.choices[0].delta.content or ""
+            if token:
+                yield token
+    else:
+        import ollama as _ollama
+        client = _ollama.Client(host=OLLAMA_HOST)
+        for chunk in client.chat(
+            model=OLLAMA_MODEL,
+            messages=messages,
+            stream=True,
+            options={"temperature": 0.1, "num_predict": 600, "num_ctx": 3072},
+        ):
+            token = (chunk.message.content or "") if chunk.message else ""
+            if token:
+                yield token
+
+
+SYNONYMS = {
+    "đh": "đơn hàng",
+    "ncc": "nhà cung cấp",
+    "nvl": "nguyên vật liệu",
+    "kh": "khách hàng",
+    "nv": "nhân viên",
+    "sl": "số lượng",
+    "đvt": "đơn vị tính",
+    "tt": "thanh toán",
+    "sx": "sản xuất",
+    "kd": "kinh doanh",
+}
+
+
+def _expand_query(message: str) -> str:
+    expanded = message.lower()
+    for abbr, full in SYNONYMS.items():
+        expanded = _re.sub(rf"\b{abbr}\b", full, expanded)
+    return message if expanded == message.lower() else f"{message} {expanded}"
+
+
+def _build_messages(req: "ChatRequest", chunks: list[dict]) -> list[dict]:
+    # Chỉ dùng content chunks cho LLM context, bỏ table_summary (đã dùng để retrieve)
+    content_chunks = [c for c in chunks if c.get("metadata", {}).get("type") != "table_summary"]
+    # Fallback: nếu không có content chunk nào thì dùng tất cả
+    if not content_chunks:
+        content_chunks = chunks
+
+    # Giới hạn context: tối đa 4 chunks, mỗi chunk tối đa 800 ký tự
+    MAX_CHUNKS = 4
+    MAX_CHUNK_CHARS = 800
+    trimmed = []
+    for c in content_chunks[:MAX_CHUNKS]:
+        text = c["text"]
+        if len(text) > MAX_CHUNK_CHARS:
+            text = text[:MAX_CHUNK_CHARS] + "\n...(còn nữa)"
+        trimmed.append(text)
+
+    context = "\n\n---\n\n".join(trimmed)
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for h in req.history[-4:]:  # giảm history để tiết kiệm context
+        messages.append({"role": h.role, "content": h.content})
+    role_line = f"[Vai trò: {req.role}] " if req.role else ""
+    messages.append({"role": "user", "content": (
+        f"CONTEXT:\n{context}\n\n---\n\n{role_line}CÂU HỎI: {req.message}"
+    )})
+    return messages
+
+
+@app.post("/chat", response_model=ChatResponse)
+def chat(req: ChatRequest):
+    """RAG chatbot: semantic cache + hybrid search + confidence gate + reranking + faithfulness."""
+    if not _rag_ready:
+        _init_rag()
+        if not _rag_ready:
+            raise HTTPException(status_code=503, detail="RAG not ready, please retry")
+
+    try:
+        query_text = _expand_query(req.message)
+        query_emb = _embedder.encode([query_text], normalize_embeddings=True).tolist()[0]
+
+        # ── Semantic cache lookup ─────────────────────────────────────────────
+        if not req.history:
+            cached = _sem_cache_lookup(query_emb)
+            if cached:
+                return ChatResponse(answer=cached[0], sources=cached[1])
+
+        # ── Retrieval ─────────────────────────────────────────────────────────
+        chunks, confident = _build_retrieval(query_text, req.message, req.department, req.role)
+
+        if not confident or not chunks:
+            return ChatResponse(
+                answer="Tôi không tìm thấy thông tin liên quan trong tài liệu ERP. Vui lòng thử hỏi theo cách khác hoặc liên hệ quản trị viên.",
+                sources=[]
+            )
+
+        sources = []
+        context_texts = []
+        for c in chunks:
+            meta = c.get("metadata", {})
+            label = f"{meta.get('filename', '')} - {meta.get('section', '')}".strip(" -")
+            if label and label not in sources:
+                sources.append(label)
+            context_texts.append(c["text"])
+
+        # ── Generate ──────────────────────────────────────────────────────────
+        messages = _build_messages(req, chunks)
+        answer = _call_llm(messages)
+
+        # ── Faithfulness check ────────────────────────────────────────────────
+        if not _faithfulness_check(answer, chunks):
+            answer = (
+                "Xin lỗi, tôi không thể đưa ra câu trả lời chắc chắn dựa trên tài liệu hiện có. "
+                "Vui lòng liên hệ quản trị viên hoặc trưởng phòng để được hỗ trợ."
+            )
+            return ChatResponse(answer=answer, sources=sources, context_texts=context_texts)
+
+        # ── Cache kết quả ─────────────────────────────────────────────────────
+        if not req.history:
+            _sem_cache_put(query_emb, answer, sources)
+
+        return ChatResponse(answer=answer, sources=sources, context_texts=context_texts)
+
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+
+
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest):
+    """Streaming RAG: semantic cache + hybrid search + confidence gate + reranking."""
+    from fastapi.responses import StreamingResponse as _StreamingResponse
+
+    if not _rag_ready:
+        _init_rag()
+        if not _rag_ready:
+            raise HTTPException(status_code=503, detail="RAG not ready, please retry")
+
+    query_text = _expand_query(req.message)
+    query_emb = _embedder.encode([query_text], normalize_embeddings=True).tolist()[0]
+
+    # Semantic cache (chỉ khi không có history)
+    if not req.history:
+        cached = _sem_cache_lookup(query_emb)
+        if cached:
+            async def _from_cache():
+                yield cached[0]
+            return _StreamingResponse(_from_cache(), media_type="text/plain; charset=utf-8")
+
+    chunks, confident = _build_retrieval(query_text, req.message, req.department)
+
+    if not confident or not chunks:
+        async def _no_info():
+            yield "Tôi không tìm thấy thông tin liên quan trong tài liệu ERP. Vui lòng thử hỏi theo cách khác hoặc liên hệ quản trị viên."
+        return _StreamingResponse(_no_info(), media_type="text/plain; charset=utf-8")
+
+    messages = _build_messages(req, chunks)
+
+    collected: list[str] = []
+    sources = []
+    for c in chunks:
+        meta = c.get("metadata", {})
+        label = f"{meta.get('filename', '')} - {meta.get('section', '')}".strip(" -")
+        if label and label not in sources:
+            sources.append(label)
+
+    async def _generate():
+        import asyncio
+        import queue as _queue
+
+        token_queue: _queue.Queue = _queue.Queue()
+        loop = asyncio.get_event_loop()
+
+        def _sync_stream():
+            try:
+                for token in _stream_llm(messages):
+                    token_queue.put(token)
+            finally:
+                token_queue.put(None)
+
+        loop.run_in_executor(None, _sync_stream)
+
+        while True:
+            try:
+                token = await loop.run_in_executor(None, lambda: token_queue.get(timeout=300))
+            except Exception:
+                break
+            if token is None:
+                break
+            collected.append(token)
+            yield token
+
+        if not req.history and collected:
+            _sem_cache_put(query_emb, "".join(collected), sources)
+
+    return _StreamingResponse(_generate(), media_type="text/plain; charset=utf-8")
 
 
 if __name__ == "__main__":

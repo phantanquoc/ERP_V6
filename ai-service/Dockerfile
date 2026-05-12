@@ -1,4 +1,4 @@
-# AI Service - Face Recognition (DeepFace + FaceNet512)
+# AI Service - Face Recognition + RAG Chatbot
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -12,9 +12,22 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps
+# Upgrade pip
+RUN pip install --upgrade pip
+
+# Copy pre-downloaded heavy wheels (tránh network timeout khi build)
+COPY wheels/ /tmp/wheels/
+
+# Install torch + tensorflow từ local wheels (deps nhỏ lấy từ PyPI)
+RUN pip install --no-cache-dir --find-links=/tmp/wheels \
+    "torch>=2.0.0" "tensorflow>=2.13.0,<2.18.0" tf-keras
+
+# Install các deps còn lại
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Cleanup wheels
+RUN rm -rf /tmp/wheels
 
 # Copy app
 COPY main.py .

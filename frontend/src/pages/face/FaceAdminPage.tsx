@@ -2,6 +2,7 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { CheckCircle, XCircle, RefreshCw, ToggleLeft, ToggleRight, User, Loader2 } from 'lucide-react';
 import faceAttendanceService, { EmployeeFaceProfile } from '../../services/faceAttendanceService';
 import { loadFaceMesh } from '../../utils/loadFaceMesh';
+import { SERVER_BASE_URL } from '../../config/api';
 
 // MediaPipe FaceMesh — loaded via dynamic script injection
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -17,6 +18,7 @@ const POSES = [
 ];
 
 const STABLE_MS   = 900;
+const SMILE_STABLE_MS = 550;
 const COOLDOWN_MS = 1200;
 const OVAL_PAD_X  = 0.18;
 const OVAL_PAD_Y  = 0.06;
@@ -26,7 +28,7 @@ const YAW_FRONT  = 0.15;
 const YAW_SIDE   = 0.22;
 const PITCH_UP   = -0.13;
 const PITCH_DOWN =  0.13;
-const SMILE_MIN  =  0.18;
+const SMILE_MIN  =  0.12;
 
 // ── MediaPipe FaceMesh landmark indices ──────────────────────────────────────
 const L_EYE   = [33, 160, 158, 133, 153, 144];
@@ -125,9 +127,11 @@ function checkPoseMatch(poseIdx: number, m: PoseMetrics): { ok: boolean; hint: s
 
     case 5:
       if (smile < SMILE_MIN)
-        return { ok: false, hint: 'Mỉm cười to hơn nhé 😄' };
-      if (Math.abs(yaw) > YAW_FRONT + 0.12)
+        return { ok: false, hint: 'Mỉm cười rõ hơn một chút 😄' };
+      if (Math.abs(yaw) > YAW_FRONT + 0.16)
         return { ok: false, hint: 'Nhìn thẳng vào camera khi cười' };
+      if (Math.abs(pitch) > PITCH_DOWN + 0.14)
+        return { ok: false, hint: 'Giữ đầu thẳng khi cười' };
       return { ok: true, hint: '✓ Nụ cười đẹp! Giữ nguyên...' };
 
     default:
@@ -150,6 +154,7 @@ const FaceAdminPage: React.FC = () => {
   const scanStartedRef = useRef(false);
   const faceMeshRef = useRef<any | null>(null);
   const latestLms   = useRef<NLM[] | null>(null);
+  const currentFaceBox = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const [employees,      setEmployees]      = useState<EmployeeFaceProfile[]>([]);
   const [loading,        setLoading]        = useState(true);
@@ -165,6 +170,14 @@ const FaceAdminPage: React.FC = () => {
   const [stableProgress,  setStableProgress] = useState(0);
   const [poseFeedback,    setPoseFeedback]    = useState('');
 
+  // Gallery popup state
+  const [showGallery, setShowGallery] = useState(false);
+  const [galleryData, setGalleryData] = useState<{
+    images: { id: string; url: string; createdAt: string; source: 'enroll' | 'adaptive'; metrics: { distanceToCentroid: number; minDistanceToOther: number; maxDistanceToOther: number; hasEmbedding: boolean } }[];
+    summary: { totalImages: number; totalEmbeddings: number; embeddingsOnlyCount: number; enrollCount: number; adaptiveCount: number; avgInternalDistance: number; maxInternalDistance: number; qualityRating: string };
+  } | null>(null);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+
   const capturedImagesRef = useRef<string[]>([]);
   const currentPoseRef  = useRef(0);
 
@@ -175,6 +188,21 @@ const FaceAdminPage: React.FC = () => {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { loadEmployees(); }, [loadEmployees]);
+
+  // Open gallery popup — fetch data on demand
+  const openGallery = useCallback(async () => {
+    if (!selected?.faceProfile) return;
+    setGalleryLoading(true);
+    setShowGallery(true);
+    try {
+      const res = await faceAttendanceService.getProfileImages(selected.employeeId);
+      setGalleryData(res.data || null);
+    } catch {
+      setGalleryData(null);
+    } finally {
+      setGalleryLoading(false);
+    }
+  }, [selected]);
 
   useEffect(() => {
     return () => { stopCamera(); };
@@ -199,6 +227,11 @@ const FaceAdminPage: React.FC = () => {
 
   const startCamera = useCallback(async () => {
     try {
+      // Kiểm tra browser support
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Trình duyệt không hỗ trợ camera. Vui lòng dùng Chrome/Edge/Firefox phiên bản mới và truy cập qua localhost hoặc HTTPS.');
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480, facingMode: 'user' },
       });
@@ -216,7 +249,16 @@ const FaceAdminPage: React.FC = () => {
       setEnrollState('capturing');
       setCameraOn(true);
     } catch (e) {
-      alert('Không thể mở camera: ' + (e as Error).message);
+      const err = e as Error;
+      let msg = 'Không thể mở camera: ' + err.message;
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        msg = 'Trình duyệt chặn quyền camera. Vui lòng:\n1. Nhấn vào biểu tượng khóa/camera trên thanh địa chỉ\n2. Cho phép quyền camera\n3. Tải lại trang';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        msg = 'Không tìm thấy camera. Vui lòng kiểm tra camera đã được kết nối chưa.';
+      } else if (err.name === 'NotReadableError') {
+        msg = 'Camera đang được sử dụng bởi ứng dụng khác. Vui lòng đóng các ứng dụng khác đang dùng camera.';
+      }
+      alert(msg);
     }
   }, []);
 
@@ -248,14 +290,29 @@ const FaceAdminPage: React.FC = () => {
     const vh = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    // Crop vuông trung tâm — nhất quán với kiosk captureFrame
-    // Enroll và verify cùng format → embedding gần nhau hơn
-    const side = Math.min(vw, vh);
-    const sx   = Math.round((vw - side) / 2);
-    const sy   = Math.round((vh - side) / 2);
-    canvas.width  = 480;
-    canvas.height = 480;
-    ctx.drawImage(video, sx, sy, side, side, 0, 0, 480, 480);
+    const faceBox = currentFaceBox.current;
+    if (faceBox) {
+      // Crop vuông theo face box + 30% padding — nhất quán với kiosk
+      const side   = Math.max(faceBox.width, faceBox.height);
+      const padded = side * 1.60; // 30% padding each side
+      const cx     = faceBox.x + faceBox.width  / 2;
+      const cy     = faceBox.y + faceBox.height / 2;
+      const sx = Math.max(0, Math.round(cx - padded / 2));
+      const sy = Math.max(0, Math.round(cy - padded / 2));
+      const sw = Math.min(vw - sx, Math.round(padded));
+      const sh = Math.min(vh - sy, Math.round(padded));
+      canvas.width  = 480;
+      canvas.height = 480;
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, 480, 480);
+    } else {
+      // Fallback: crop vuông trung tâm
+      const side = Math.min(vw, vh);
+      const sx   = Math.round((vw - side) / 2);
+      const sy   = Math.round((vh - side) / 2);
+      canvas.width  = 480;
+      canvas.height = 480;
+      ctx.drawImage(video, sx, sy, side, side, 0, 0, 480, 480);
+    }
     return canvas.toDataURL('image/jpeg', 0.90).split(',')[1];
   }, []);
 
@@ -386,6 +443,8 @@ const FaceAdminPage: React.FC = () => {
         const ys = lms.map(p => p.y * vh);
         const rawX = Math.min(...xs), rawY = Math.min(...ys);
         const bw = Math.max(...xs) - rawX, bh = Math.max(...ys) - rawY;
+        // Save raw face box for captureFrame crop
+        currentFaceBox.current = { x: rawX, y: rawY, width: bw, height: bh };
         // Mirror X cho overlay (video bị CSS scaleX(-1))
         const mirroredX = vw - rawX - bw;
         boxMirrored = { x: mirroredX, y: rawY, width: bw, height: bh };
@@ -410,7 +469,8 @@ const FaceAdminPage: React.FC = () => {
         const progress = Math.min(100, (elapsed / STABLE_MS) * 100);
         setStableProgress(progress);
 
-        if (elapsed >= STABLE_MS) {
+        const requiredStableMs = currentPoseRef.current === 5 ? SMILE_STABLE_MS : STABLE_MS;
+        if (elapsed >= requiredStableMs) {
           drawOverlay(vw, vh, true, true, 100, 'flash', boxMirrored);
           setOvalState('flash');
           setPoseFeedback('✓ Chụp!');
@@ -444,9 +504,12 @@ const FaceAdminPage: React.FC = () => {
     let active = true;
 
     const go = async () => {
-      await initFaceMesh();
+      try {
+        await initFaceMesh();
+      } catch (e) {
+        console.error('FaceMesh init failed:', e);
+      }
       if (!active || !videoRef.current) return;
-      // Camera is now streaming; detection loop handles sending frames
     };
     go();
 
@@ -638,6 +701,139 @@ const FaceAdminPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+
+                {/* ── View enrolled images button ─────────────────────────── */}
+                {selected.faceProfile && enrollState === 'idle' && !cameraOn && (
+                  <button
+                    onClick={openGallery}
+                    className="w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl border border-gray-700 transition text-sm font-medium"
+                  >
+                    🖼
+                  </button>
+                )}
+
+                {/* ── Gallery popup modal ──────────────────────────────────── */}
+                {showGallery && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowGallery(false)}>
+                    <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-3xl max-h-[90vh] overflow-y-auto m-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                      {/* Header */}
+                      <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                        <div>
+                          <h3 className="text-lg font-bold text-white">Ảnh đăng ký — {selected.fullName}</h3>
+                          <p className="text-xs text-gray-500 mt-0.5">{selected.employeeCode}</p>
+                        </div>
+                        <button onClick={() => setShowGallery(false)} className="text-gray-500 hover:text-white text-2xl leading-none">&times;</button>
+                      </div>
+
+                      {galleryLoading ? (
+                        <div className="p-10 text-center text-gray-500 flex items-center justify-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin" /> Đang tải...
+                        </div>
+                      ) : galleryData ? (
+                        <div className="p-6 space-y-5">
+                          {/* Summary card */}
+                          <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-sm font-semibold text-gray-300">Chất lượng tổng thể</span>
+                              <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                                galleryData.summary.qualityRating === 'excellent' ? 'bg-green-900/50 text-green-400 border border-green-700' :
+                                galleryData.summary.qualityRating === 'good' ? 'bg-blue-900/50 text-blue-400 border border-blue-700' :
+                                galleryData.summary.qualityRating === 'fair' ? 'bg-yellow-900/50 text-yellow-400 border border-yellow-700' :
+                                'bg-red-900/50 text-red-400 border border-red-700'
+                              }`}>
+                                {galleryData.summary.qualityRating === 'excellent' ? 'Xuất sắc' :
+                                 galleryData.summary.qualityRating === 'good' ? 'Tốt' :
+                                 galleryData.summary.qualityRating === 'fair' ? 'Trung bình' : 'Kém'}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 text-center">
+                              <div>
+                                <p className="text-2xl font-bold text-white">{galleryData.summary.enrollCount}</p>
+                                <p className="text-[10px] text-gray-500 uppercase">Đăng ký</p>
+                              </div>
+                              <div>
+                                <p className="text-2xl font-bold text-purple-400">{galleryData.summary.adaptiveCount}</p>
+                                <p className="text-[10px] text-gray-500 uppercase">Tự học</p>
+                              </div>
+                              <div>
+                                <p className="text-2xl font-bold text-white">{galleryData.summary.totalEmbeddings}</p>
+                                <p className="text-[10px] text-gray-500 uppercase">Embeddings</p>
+                              </div>
+                              <div>
+                                <p className="text-2xl font-bold text-cyan-400">{galleryData.summary.avgInternalDistance}</p>
+                                <p className="text-[10px] text-gray-500 uppercase">Avg Dist</p>
+                              </div>
+                              <div>
+                                <p className="text-2xl font-bold text-orange-400">{galleryData.summary.maxInternalDistance}</p>
+                                <p className="text-[10px] text-gray-500 uppercase">Max Dist</p>
+                              </div>
+                              <div>
+                                <p className="text-2xl font-bold text-gray-500">{galleryData.summary.embeddingsOnlyCount}</p>
+                                <p className="text-[10px] text-gray-500 uppercase">Không ảnh</p>
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-gray-600 mt-3">
+                              Distance thấp = các ảnh nhất quán. Avg &lt; 0.35 là xuất sắc, &lt; 0.45 là tốt.
+                            </p>
+                          </div>
+
+                          {/* Image grid */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {galleryData.images.map((img, idx) => (
+                              <div key={img.id} className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
+                                <img
+                                  src={`${SERVER_BASE_URL}${img.url}`}
+                                  alt={`Ảnh ${idx + 1}`}
+                                  className="w-full aspect-square object-cover"
+                                  crossOrigin="anonymous"
+                                />
+                                <div className="px-3 py-2 space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-medium text-gray-300">
+                                      {img.source === 'adaptive' ? `Tự học ${idx + 1}` : `Ảnh ${idx + 1}`}
+                                    </span>
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                                      img.source === 'adaptive' ? 'bg-purple-900/50 text-purple-400' : 'bg-blue-900/50 text-blue-400'
+                                    }`}>
+                                      {img.source === 'adaptive' ? 'adaptive' : 'enroll'}
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-gray-500 space-y-0.5">
+                                    <div className="flex justify-between">
+                                      <span>Centroid dist:</span>
+                                      <span className={img.metrics.distanceToCentroid <= 0.25 ? 'text-green-400' : img.metrics.distanceToCentroid <= 0.40 ? 'text-yellow-400' : 'text-red-400'}>
+                                        {img.metrics.distanceToCentroid}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>Min dist:</span>
+                                      <span className="text-gray-400">{img.metrics.minDistanceToOther}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>Max dist:</span>
+                                      <span className={img.metrics.maxDistanceToOther <= 0.45 ? 'text-green-400' : 'text-orange-400'}>
+                                        {img.metrics.maxDistanceToOther}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Legend */}
+                          <div className="text-[10px] text-gray-600 border-t border-gray-800 pt-3 space-y-1">
+                            <p><span className="text-green-400">Centroid dist</span> = khoảng cách tới trung tâm tất cả embeddings (thấp = ảnh đại diện tốt)</p>
+                            <p><span className="text-gray-400">Min/Max dist</span> = khoảng cách gần nhất/xa nhất tới ảnh khác trong bộ</p>
+                            <p>Nếu Max dist &gt; 0.60 → ảnh đó quá khác biệt, có thể ảnh hưởng nhận diện</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-10 text-center text-gray-500">Không có dữ liệu</div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* ── Camera + auto-capture ─────────────────────────────────── */}
                 {enrollState === 'capturing' && (

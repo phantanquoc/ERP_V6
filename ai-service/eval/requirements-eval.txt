@@ -1,0 +1,5 @@
+# Eval-only dependencies (không cần trong runtime service)
+# Cài thủ công khi chạy eval: pip install -r eval/requirements-eval.txt
+ragas==0.2.14
+datasets==3.3.2
+langchain-ollama==0.3.3

@@ -76,9 +76,90 @@ Phòng thu mua NVL quản lý toàn bộ chu trình thu mua nguyên vật liệu
 
 ### 3.4. Tab Danh sách đơn hàng (NVL)
 
-- Hiển thị danh sách đơn hàng mua NVL thông qua component **OrderManagement**.
-- Cho phép tạo, xem chi tiết và cập nhật trạng thái đơn hàng.
-- Tích hợp file đính kèm qua component **FileUpload**.
+**Truy cập:** `/purchasing/materials` → tab **"Danh sách đơn hàng"**
+
+#### Bộ lọc
+
+| Bộ lọc | Loại | Placeholder |
+|---|---|---|
+| Mã ĐH | Văn bản | — |
+| Mã BG | Văn bản | — |
+| Khách hàng | Văn bản | — |
+| Trạng thái SX | Văn bản | — |
+| Tìm kiếm tổng | Văn bản | "Tìm kiếm mã ĐH, mã BG, khách hàng..." |
+
+#### Nút header
+
+| Nút | Hành động |
+|---|---|
+| **Xuất Excel** | Xuất danh sách ra file Excel |
+
+#### Cột bảng danh sách
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Ngày đặt hàng | Ngày tạo đơn |
+| Mã đơn hàng | Mã định danh (chữ xanh đậm) |
+| Mã báo giá | Mã BG liên kết |
+| Khách hàng | Tên khách hàng |
+| Số lượng SP | Số sản phẩm trong đơn |
+| Trạng thái SX | Badge trạng thái sản xuất |
+| Trạng thái TT | Badge trạng thái thanh toán |
+| Hành động | Xem / Xem bảng tính / Sửa / Xóa |
+
+#### Nút hành động trên mỗi dòng
+
+| Nút | Hành động |
+|---|---|
+| Mắt (Xem) | Mở modal xem chi tiết đơn hàng |
+| Máy tính (Xem bảng tính) | Mở bảng tính báo giá |
+| Bút (Sửa) | Mở form chỉnh sửa |
+| Thùng rác (Xóa) | Xác nhận: "Bạn có chắc chắn muốn xóa đơn hàng này?" |
+
+#### Trạng thái sản xuất (`trangThaiSanXuat`)
+
+| Giá trị | Nhãn hiển thị |
+|---|---|
+| `CHO_LEN_KE_HOACH` | Chờ lên kế hoạch |
+| `CHO_SAN_XUAT` | Chờ sản xuất |
+| `DANG_SAN_XUAT` | Đang sản xuất |
+| `CHO_GIAO_HANG` | Chờ giao hàng |
+| `DA_LEN_CONTAINER` | Đã lên container |
+| `DANG_VAN_CHUYEN` | Đang vận chuyển |
+| `DA_GIAO_CHO_KHACH_HANG` | Đã giao cho khách hàng |
+
+#### Trạng thái thanh toán (`trangThaiThanhToan`)
+
+| Giá trị | Nhãn hiển thị |
+|---|---|
+| `DA_THANH_TOAN_DOT_1` | Đã thanh toán đợt 1 |
+| `CHO_THANH_TOAN_DOT_2` | Chờ thanh toán đợt 2 |
+| `DA_THANH_TOAN_DU` | Đã thanh toán đủ |
+
+#### Form chỉnh sửa đơn hàng
+
+| Nhóm | Trường | Loại nhập |
+|---|---|---|
+| Giá trị | Giá trị đơn hàng (USD) | Số (bước 0.01) |
+| Giá trị | Giá trị đơn hàng (VNĐ) | Số |
+| Thanh toán đợt 1 | Xuất khẩu (USD) | Số (bước 0.01) |
+| Thanh toán đợt 1 | Nội địa (VNĐ) | Số |
+| Thanh toán đợt 1 | Ngày thanh toán | Chọn ngày |
+| Thanh toán đợt 2 | Xuất khẩu (USD) | Số (bước 0.01) |
+| Thanh toán đợt 2 | Nội địa (VNĐ) | Số |
+| Thanh toán đợt 2 | Ngày thanh toán | Chọn ngày |
+| Sản xuất | Ngày bắt đầu SX (KH) | Chọn ngày |
+| Sản xuất | Ngày hoàn thành SX (KH) | Chọn ngày |
+| Sản xuất | Ngày hoàn thành thực tế | Chọn ngày |
+| Sản xuất | Ngày giao hàng | Chọn ngày |
+| Trạng thái | Trạng thái sản xuất | Dropdown (7 giá trị trên) |
+| Trạng thái | Trạng thái thanh toán | Dropdown (3 giá trị trên) |
+| | Ghi chú | Văn bản dài (4 dòng), placeholder: "Nhập ghi chú..." |
+
+**Nút:** "Lưu thay đổi" / "Hủy"
+
+> **Lưu ý file đính kèm:** Tích hợp component `FileUpload` — hỗ trợ PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG.
 
 ### 3.5. Tab Danh sách mua hàng (NVL)
 
@@ -145,8 +226,7 @@ Cấu trúc tương tự phòng NVL, nhưng:
 
 ### 4.4. Tab Danh sách đơn hàng (Thiết bị)
 
-- Dùng component **OrderManagement**, tương tự phòng NVL.
-- Tích hợp **FileUpload** cho file đính kèm hợp đồng, biên bản.
+Dùng cùng component **OrderManagement** và cấu trúc giống hệt phòng NVL (xem mục 3.4 ở trên). Chỉ khác về loại hàng hóa (thiết bị, máy móc) và màu giao diện tím (`purple`). Tích hợp **FileUpload** cho file đính kèm hợp đồng, biên bản.
 
 ### 4.5. Tab Danh sách mua hàng (Thiết bị)
 

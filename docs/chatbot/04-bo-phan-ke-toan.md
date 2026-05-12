@@ -88,13 +88,46 @@ Số hóa đơn · Ngày lập · Khách hàng · Mã số thuế · Loại hóa
 - Lọc theo trạng thái thanh toán
 - Tìm theo số hóa đơn hoặc tên khách hàng
 
-### 3.2 Tab Tài sản / Lô hàng (AssetManagement)
+### 3.2 Tab Tài sản / Lô hàng (tab **Quản lý tài sản**)
 
-Quản lý tài sản kho và lô hàng, chủ yếu dùng để **cập nhật đơn giá**.
+**Truy cập:** `/accounting/admin` → tab **"Quản lý tài sản"**
 
-- Xem danh sách kho / lô hàng
-- Cập nhật đơn giá (`giaThanh`) cho từng sản phẩm trong lô
-- Giá trị tài sản tổng được tính: Σ(số lượng × đơn giá) trên tất cả lô
+#### Bộ lọc
+
+| Bộ lọc | Loại | Ghi chú |
+|---|---|---|
+| Tên lô | Văn bản | Placeholder: "Lọc theo tên lô..." |
+| Tìm kiếm | Văn bản | Placeholder: "Tìm kiếm tên, mã sản phẩm..." |
+
+#### Cấu trúc hiển thị
+
+- Các tab kho (tự động tạo theo danh sách kho trong hệ thống)
+- Thanh tóm tắt: **Tổng số lô** và **Tổng thành tiền** (VNĐ) của kho đang chọn
+- Mỗi lô hiển thị tên lô, số sản phẩm, tổng thành tiền
+
+#### Cột bảng sản phẩm trong lô
+
+| Cột | Nội dung |
+|---|---|
+| Tên hàng hóa | Tên sản phẩm (phụ: "Mã: {maSanPham}") |
+| Số lượng | Số lượng tồn |
+| Đơn vị | Đơn vị tính |
+| Đơn giá | Giá thành (VNĐ) |
+| Thành tiền | Số lượng × Đơn giá (chữ xanh lá) |
+| Hành động | Nút **Xem** (mắt) + **Sửa** (bút) |
+
+#### Cập nhật đơn giá — form "Chỉnh sửa giá thành"
+
+Nhấn nút **Sửa** (bút) trên dòng sản phẩm:
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Sản phẩm | | Chỉ đọc | Tên sản phẩm (không sửa được) |
+| Số lượng | | Chỉ đọc | Số lượng + đơn vị (không sửa được) |
+| Đơn giá (VND) | ✅ | Số (min 0) | Placeholder: "Nhập đơn giá" |
+| Thành tiền | | Tự tính | Cập nhật tự động = Số lượng × Đơn giá |
+
+**Nút:** "Lưu" / "Hủy"
 
 ### 3.3 Tab Đơn hàng (OrderManagement)
 
@@ -183,13 +216,45 @@ Ngày phát sinh · Loại chi phí · Mã NCC · Tên NCC · Loại cung cấp 
 | `DA_QUYET_TOAN` | Đã quyết toán | Hoàn tất quyết toán thuế |
 
 #### Chức năng TaxReportTab
-- **Xem danh sách**: Hiển thị tất cả báo cáo thuế theo kỳ.
-- **Lọc**: Theo trạng thái, kỳ báo cáo (tháng/quý/năm).
-- **Tạo mới**: Nhập thông tin báo cáo thuế và chọn trạng thái ban đầu.
-- **Cập nhật trạng thái**: Chuyển tiếp trạng thái theo quy trình kế toán.
-- **Xuất báo cáo**: Xuất dữ liệu báo cáo thuế ra file.
 
-#### Dashboard tổng quan (AccountingTax)
+**Nút header:** "Xuất Excel"
+
+#### Cột bảng danh sách
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Ngày đặt hàng | Ngày của đơn hàng gốc |
+| Mã Đơn Hàng | Mã đơn hàng (chữ xanh đậm) |
+| Tên hàng hoá | Tên sản phẩm |
+| Số lượng | Số lượng |
+| Đơn vị | Đơn vị tính |
+| Giá trị đơn hàng | Tổng giá trị (VNĐ) |
+| Số tiền đóng thuế | Số tiền thuế (VNĐ), hiển thị "-" nếu chưa nhập |
+| Trạng thái | Badge màu |
+| Ghi chú | Ghi chú ngắn, hiển thị "-" nếu trống |
+| File đính kèm | Link "Xem file" nếu có, "-" nếu không |
+| Hoạt động | Nút **Sửa** (bút) + **Xóa** (thùng rác) |
+
+#### Form chỉnh sửa báo cáo thuế
+
+Nhấn nút **Sửa** để mở modal "Chỉnh sửa báo cáo thuế":
+
+**Phần chỉ đọc** (lấy từ đơn hàng, không sửa được):
+- Mã đơn hàng, Ngày đặt hàng, Tên hàng hóa, Số lượng + đơn vị, Giá trị đơn hàng
+
+**Phần có thể sửa:**
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Số tiền đóng thuế | | Số | Placeholder: "Nhập số tiền đóng thuế" |
+| Trạng thái | | Dropdown | Xem bảng trạng thái bên dưới |
+| Ghi chú | | Văn bản dài (3 dòng) | Placeholder: "Nhập ghi chú" |
+| File đính kèm (URL) | | Văn bản | Placeholder: "Nhập URL file đính kèm" |
+
+**Nút:** "Lưu thay đổi" / "Hủy"
+
+#### Dashboard tổng quan (trang **Phòng KT Thuế**)
 | Chỉ số | Mô tả |
 |--------|-------|
 | Tổng số báo cáo | Tổng tất cả kỳ |

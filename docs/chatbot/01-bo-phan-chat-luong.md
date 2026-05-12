@@ -105,10 +105,53 @@ Trang gồm 9 tab:
 - **Chỉnh sửa**: Mở form sửa thông tin.
 - **Xóa**: Xác nhận trước khi xóa.
 
-### 3.2 Đánh giá nhân viên (EmployeeEvaluationManagement)
+### 3.2 Đánh giá nhân viên (mục **Đánh giá nhân viên**)
 
-- Lọc theo **tháng** (1–12) và **năm**.
-- Mỗi đánh giá gắn với một nhân viên, ghi nhận điểm KPI và nhận xét.
+**Truy cập:** `/quality/personnel` → tab **"Đánh giá nhân viên"**
+
+#### Bộ lọc
+
+| Bộ lọc | Loại | Tùy chọn |
+|---|---|---|
+| Tháng | Dropdown | Tháng 1 – 12 |
+| Năm | Dropdown | 5 năm (năm hiện tại ±2) |
+| Trạng thái đánh giá | Dropdown | "Đã đánh giá" / "Chưa đánh giá" |
+| Tìm kiếm | Văn bản | Placeholder: "Tìm kiếm theo mã hoặc tên nhân viên..." |
+
+#### Nút header
+
+| Nút | Hành động |
+|---|---|
+| **Tạo đánh giá** | Tạo chu kỳ đánh giá cho tất cả nhân viên trong tháng đã chọn. Hiển thị "Đang tạo..." trong khi xử lý |
+
+#### Cột bảng danh sách
+
+| Cột | Nội dung |
+|---|---|
+| MNV | Mã nhân viên |
+| Tên NV | Họ tên nhân viên |
+| Vị trí | Chức danh |
+| % Tự đánh giá | Điểm tự đánh giá (ví dụ: 85.0%) |
+| % Cấp trên 1 | Điểm từ cấp trên trực tiếp |
+| % Cấp trên 2 | Điểm từ cấp trên thứ 2 |
+| Hành động | Nút **mắt (Xem)** — chỉ hiển thị nếu nhân viên đã có đánh giá |
+
+#### Chi tiết đánh giá (modal xem)
+
+Mỗi dòng trong bảng chi tiết gồm:
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Trách nhiệm | Tên trách nhiệm + mô tả phụ |
+| Tỷ trọng (%) | Trọng số của trách nhiệm |
+| Cá nhân tự đánh giá | Điểm tự chấm (x.x%) |
+| Cấp trên 1 | Điểm cấp trên 1 chấm |
+| Cấp trên 2 | Điểm cấp trên 2 chấm |
+
+> **Lưu ý:** Điểm nhập ở dạng phần trăm (0–100%). Nhân viên tự đánh giá qua form **Tự đánh giá** từ Dashboard. Quản lý chấm điểm từ trang này.
+
+**Nút:** "Đóng"
 - Dashboard tổng quan hiển thị: tổng đánh giá tháng, phân bố đánh giá.
 
 ### 3.3 Bảng tính lương (PayrollManagement)
@@ -239,7 +282,69 @@ MSNV · Tên nhân viên · Tên quy trình · Loại quy trình · Ngày tạo 
 
 ---
 
-## 5. Danh sách quy trình nội bộ (ProcessList)
+## 5. Kiểm tra nội bộ (tab **Kiểm tra nội bộ**)
+
+**Truy cập:** `/quality/process` → tab **"Kiểm tra nội bộ"**
+
+### 5.1 Bộ lọc
+
+| Bộ lọc | Loại | Tùy chọn |
+|---|---|---|
+| Tháng | Dropdown | Tháng 1 – 12 |
+| Năm | Dropdown | 5 năm gần nhất |
+| Mức độ vi phạm | Dropdown | "Quy định" / "Quy phạm quản lý" / "Khác" |
+| Người kiểm tra | Văn bản | Placeholder: "Lọc người kiểm tra..." |
+| Mã vi phạm | Văn bản | Placeholder: "Lọc mã vi phạm..." |
+| Tìm kiếm tổng | Văn bản | Placeholder: "Tìm kiếm mã kiểm tra, mã vi phạm, người kiểm tra..." |
+
+### 5.2 Nút header
+
+| Nút | Hành động |
+|---|---|
+| **Xuất Excel** | Xuất danh sách ra file Excel |
+| **Thêm mới** | Mở form tạo kiểm tra mới |
+
+### 5.3 Cột bảng danh sách
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Mã kiểm tra | `inspectionCode` |
+| Ngày kiểm tra | Ngày thực hiện |
+| Mã vi phạm | `violationCode` |
+| Nội dung vi phạm | Tóm tắt nội dung (rút gọn) |
+| Mức độ | Mức độ vi phạm |
+| Người kiểm tra | Tên người thực hiện |
+| Trạng thái | Badge màu |
+| Thao tác | Nút **Sửa** (bút) + **Xóa** (thùng rác) |
+
+### 5.4 Form tạo / chỉnh sửa kiểm tra
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Ngày kiểm tra | | Chọn ngày | Mặc định hôm nay |
+| Mã kế hoạch kiểm tra | | Văn bản | |
+| Mã vi phạm | | Văn bản | |
+| Mức độ vi phạm | | Dropdown | "-- Chọn --" / "Quy định" / "Quy phạm quản lý" / "Khác" |
+| Loại vi phạm | | Văn bản | |
+| Người kiểm tra | | Văn bản | |
+| Nội dung vi phạm | | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng |
+| Mô tả chi tiết | | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng |
+| Trạng thái | | Dropdown | "Chờ xử lý" (`PENDING`) / "Đã xác nhận" (`VERIFIED`) / "Đã đóng" (`CLOSED`) |
+
+**Nút:** "Lưu" / "Hủy"
+
+### 5.5 Trạng thái kiểm tra
+
+| Giá trị | Nhãn | Màu badge |
+|---|---|---|
+| `PENDING` | Chờ xử lý | Vàng |
+| `VERIFIED` | Đã xác nhận | Xanh dương |
+| `CLOSED` | Đã đóng | Xanh lá |
+
+---
+
+## 6. Danh sách quy trình nội bộ (ProcessList)
 
 Bảng theo dõi các bước quy trình sản xuất mẫu:
 

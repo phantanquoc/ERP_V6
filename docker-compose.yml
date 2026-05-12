@@ -79,6 +79,7 @@ services:
       API_URL: ${API_URL:-https://anbinhfoods.net/api}
       LOG_LEVEL: warn
       FACE_DATA_SECRET: ${FACE_DATA_SECRET:-change_me_face_data_secret}
+      AI_SERVICE_URL: http://erp_ai:8001
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@anbinhfoods.net}
@@ -158,6 +159,55 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  # Ollama — local LLM server
+  ollama:
+    image: ollama/ollama:latest
+    container_name: erp_ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - erp_network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '1'
+          memory: 4G
+
+  # AI Service — Face Recognition + RAG Chatbot
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: erp_ai
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: http://erp_ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+    volumes:
+      - ./docs/chatbot:/app/docs/chatbot:ro
+      - ai_chroma_data:/app/chroma_data
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - erp_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
 volumes:
   postgres_data:
     driver: local
@@ -166,6 +216,10 @@ volumes:
   backend_logs:
     driver: local
   nginx_logs:
+    driver: local
+  ollama_data:
+    driver: local
+  ai_chroma_data:
     driver: local
 
 networks:

@@ -38,7 +38,7 @@ ERP An Binh Foods là hệ thống quản lý doanh nghiệp nội bộ, truy c�
 
 | Đường dẫn | Trang |
 |---|---|
-| `/dashboard` | Trang tổng quan cá nhân (EmployeeDashboard) |
+| `/dashboard` | Trang tổng quan cá nhân (trang **Dashboard cá nhân**) |
 | `/common` | Chức năng chung (yêu cầu, nhiệm vụ, kế hoạch, góp ý…) |
 | `/quality/*` | Các trang bộ phận chất lượng |
 | `/general/*` | Các trang bộ phận tổng hợp |

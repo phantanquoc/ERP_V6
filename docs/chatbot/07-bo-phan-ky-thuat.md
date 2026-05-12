@@ -34,16 +34,74 @@ Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo
 
 ## 3. Phòng QLHTM
 
-### 3.1 Hệ thống máy (`MachineSystemList`)
+### 3.1 Hệ thống máy (tab **Hệ thống máy**)
 
-Danh sách toàn bộ hệ thống máy móc đang quản lý. Hiển thị trạng thái:
-- **HOAT_DONG** — đang vận hành bình thường
-- **BẢO_TRÌ** — đang bảo trì định kỳ
-- **NGỪNG_HOẠT_ĐỘNG** — dừng hoạt động
+**Truy cập:** `/technical/quality` → tab **"Hệ thống máy"**
 
-Dashboard thống kê nhanh: Tổng số máy · Đang hoạt động · Bảo trì · Ngừng hoạt động.
+#### Nút header
 
-### 3.2 Báo cáo hoạt động của máy (`MachineActivityReport`)
+| Nút | Hành động |
+|---|---|
+| **Xuất Excel** | Xuất danh sách ra file `.xlsx` |
+| **Thêm mới** | Mở form tạo hệ thống mới |
+
+#### Cột bảng danh sách (13 cột)
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Khu vực | `khuVuc` |
+| Vị trí | `viTri` |
+| Mã hệ thống | `maHeThong` (chữ xanh) |
+| Tên hệ thống | `tenHeThong` |
+| Chức năng | `chucNang` |
+| Mã thiết bị | `maThietBi` |
+| Tên thiết bị | `tenThietBi` |
+| Nhiệm vụ | `nhiemVu` |
+| Mã NTH | `maNguoiThucHien` (mã người thực hiện) |
+| Người thực hiện | `nguoiThucHien` |
+| File | Link "Xem file" nếu có |
+| Hoạt động | Nút **Xem** / **Sửa** / **Xóa** |
+
+#### Form thêm / chỉnh sửa hệ thống
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Khu vực | ✅ | Văn bản | |
+| Vị trí | ✅ | Văn bản | |
+| Mã hệ thống | ✅ | Văn bản | |
+| Tên hệ thống | ✅ | Văn bản | |
+| Chức năng | | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng |
+| Mã thiết bị | | Văn bản | |
+| Tên thiết bị | | Văn bản | |
+| Nhiệm vụ | | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng |
+| Mã người thực hiện | | Văn bản | |
+| Người thực hiện | | Văn bản | |
+| File đính kèm | | Tải tệp | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG |
+
+**Nút:** "Thêm mới" (tạo) / "Cập nhật" (sửa) / "Đóng"
+
+#### Quản lý máy móc (tab **Quản lý máy móc**) — tab "Quản lý máy móc"
+
+**Nút header:** "Thêm máy mới"
+
+**Bộ lọc:** Mã máy (văn bản), Tên máy (văn bản), Trạng thái (dropdown)
+
+**Cột bảng:** Mã máy · Tên máy · Mô tả · Trạng thái (badge) · Ghi chú · Hành động (Sửa / Xóa)
+
+**Form thêm / sửa máy:**
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Mã máy | | Chỉ đọc | Tự động tạo, placeholder: "Tự động tạo..." |
+| Tên máy | ✅ | Văn bản | Placeholder: "VD: Máy sấy 1". Lỗi: "Vui lòng nhập tên máy" |
+| Trạng thái | ✅ | Dropdown | Hoạt động (`HOAT_DONG`) / Bảo trì (`BẢO_TRÌ`) / Ngừng hoạt động (`NGỪNG_HOẠT_ĐỘNG`) |
+| Mô tả | | Văn bản dài (3 dòng) | Placeholder: "Mô tả chi tiết về máy" |
+| Ghi chú | | Văn bản | Placeholder: "Ghi chú thêm" |
+
+**Nút:** "Thêm mới" / "Cập nhật" / "Hủy"
+
+### 3.2 Báo cáo hoạt động của máy (tab **Báo cáo hoạt động máy**)
 
 **8 trường trong form báo cáo:**
 
@@ -62,7 +120,7 @@ Dashboard thống kê nhanh: Tổng số máy · Đang hoạt động · Bảo t
 
 ### 3.3 Thông số vận hành hệ thống
 
-Được quản lý qua `SystemOperationManagement` — theo dõi 4 giai đoạn, mỗi giai đoạn có **3 thông số**:
+Được quản lý qua tab **Thông số vận hành** — theo dõi 4 giai đoạn, mỗi giai đoạn có **3 thông số**:
 
 | Giai đoạn | Thông số |
 |---|---|
@@ -77,7 +135,7 @@ Các trường bổ sung: Mã chiên · Tên máy · Thời gian chiên · Khố
 
 ## 4. Phòng cơ-điện
 
-### 4.1 Yêu cầu sửa chữa (`RepairRequestList`)
+### 4.1 Yêu cầu sửa chữa (tab **Yêu cầu sửa chữa**)
 
 **10 trường trong form:**
 

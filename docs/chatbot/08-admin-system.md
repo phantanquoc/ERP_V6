@@ -53,7 +53,7 @@ Chọn theme bằng cách click vào card → theme được chọn có viền x
 
 ---
 
-## 4. Quản lý người dùng (`UserManagement`)
+## 4. Quản lý người dùng (tab **Quản lý người dùng**)
 
 ### 4.1 Danh sách người dùng
 
@@ -78,12 +78,19 @@ Bảng hiển thị các cột: **Tên · Email · Vai trò · Trạng thái · 
 
 ### 4.3 Gán role và khóa tài khoản
 
-- **Gán role**: chọn từ dropdown Vai trò khi tạo hoặc sửa tài khoản
-- **Khóa tài khoản**: cột **Trạng thái** — toggle để kích hoạt/vô hiệu hóa tài khoản
+- **Gán role**: chọn từ dropdown **Vai trò** khi tạo hoặc sửa tài khoản (`EMPLOYEE · TEAM_LEAD · DEPARTMENT_HEAD · ADMIN`)
+- **Khóa tài khoản**: cột **Trạng thái** trong bảng danh sách người dùng — nhấn nút **toggle** (công tắc) để chuyển đổi:
+
+| Trạng thái | Mô tả |
+|---|---|
+| **Hoạt động** | Tài khoản đang sử dụng bình thường |
+| **Khóa** | Tài khoản bị vô hiệu hóa, không đăng nhập được |
+
+> Để khóa: tìm người dùng trong bảng → nhấn toggle ở cột Trạng thái → xác nhận. Để mở khóa: thực hiện lại thao tác tương tự.
 
 ---
 
-## 5. Quản lý chấm công (`AttendanceManagement`)
+## 5. Quản lý chấm công (tab **Điểm danh**)
 
 ### 5.1 Chức năng
 

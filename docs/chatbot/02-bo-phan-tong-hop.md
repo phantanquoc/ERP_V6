@@ -17,7 +17,7 @@ Bộ phận tổng hợp gồm hai phòng chức năng chính:
 | **Phòng giá thành** | Quản lý yêu cầu báo giá, báo giá, đơn hàng và chi phí chung | `/general/pricing` |
 | **Phòng chăm sóc đối tác** | Quản lý khách hàng, nhà cung cấp và dịch vụ logistics | `/general/partners` |
 
-Ngoài ra, bộ phận tổng hợp có quyền truy cập module **Bảng lương** (`PayrollManagement`) để theo dõi và tính toán lương nhân viên trong phòng.
+Ngoài ra, bộ phận tổng hợp có quyền truy cập module **Bảng lương** (tab **Bảng lương**) để theo dõi và tính toán lương nhân viên trong phòng.
 
 ---
 
@@ -44,16 +44,188 @@ Phòng giá thành quản lý toàn bộ quy trình từ tiếp nhận yêu cầ
 - **Tổng quan báo giá** — tổng số báo giá đã lập
 - **Tổng quan đơn hàng** — tổng số đơn hàng, xu hướng theo tháng
 
-### 3.2. Các tab chức năng
+### 3.2. Chi tiết các tab — Phòng giá thành
 
-| Tab | ID | Mô tả |
+#### Tab 1: Danh sách YCBG (`requests`)
+
+**Truy cập:** `/general/pricing` → tab **"Danh sách YCBG"**
+
+> **Lưu ý:** Phòng giá thành chỉ có quyền **xem** và **tạo báo giá từ YCBG**, không tạo/sửa/xóa YCBG (đó là quyền của Phòng kinh doanh).
+
+**Cột bảng danh sách:**
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Ngày yêu cầu | Ngày tạo YCBG |
+| Mã YC | Mã yêu cầu báo giá |
+| Nhân viên | Tên + mã nhân viên tạo |
+| Khách hàng | Tên + mã khách hàng |
+| Sản phẩm | Số lượng sản phẩm + tên sản phẩm đầu tiên |
+| Số lượng | Tổng số lượng + đơn vị |
+| Hành động | Nút **"Xem"** (mắt) và **"Tạo báo giá"** (biểu tượng file) |
+
+**Bộ lọc:** Mã YC (văn bản), Nhân viên (văn bản), Khách hàng (văn bản), ô tìm kiếm tổng (placeholder: "Tìm kiếm mã YC, nhân viên, khách hàng...")
+
+**Tạo báo giá từ YCBG:** Nhấn biểu tượng **"Tạo báo giá"** trên dòng YCBG → mở bảng tính báo giá để lập báo giá.
+
+---
+
+#### Tab 2: Danh sách báo giá (`quotes`)
+
+**Truy cập:** `/general/pricing` → tab **"Danh sách báo giá"**
+
+**Cột bảng danh sách:**
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Ngày BG | Ngày lập báo giá |
+| Mã báo giá | Mã định danh |
+| Giá báo khách | Giá (VNĐ, có thể kèm USD nếu có tỷ giá) |
+| TG giao hàng | Thời gian giao hàng (số ngày) |
+| Hiệu lực | Hiệu lực báo giá (số ngày) |
+| Nhân viên | Người lập báo giá |
+| Trạng thái | Badge màu (xem bảng trạng thái) |
+| Ghi chú | Ghi chú ngắn |
+| Hành động | Xem / Sửa / Tạo đơn hàng / Xóa |
+
+**Trạng thái báo giá (`tinhTrang`):**
+
+| Giá trị | Nhãn hiển thị |
+|---|---|
+| `DRAFT` | Nháp |
+| `DANG_CHO_PHAN_HOI` | Đang chờ phản hồi |
+| `DANG_CHO_GUI_DON_HANG` | Đang chờ gửi đơn hàng |
+| `DA_DAT_HANG` | Đã đặt hàng |
+| `KHONG_DAT_HANG` | Không đặt hàng |
+| `SENT` | Đã gửi |
+| `APPROVED` | Đã duyệt |
+| `REJECTED` | Từ chối |
+| `EXPIRED` | Hết hạn |
+
+**Nút hành động trên mỗi dòng:**
+
+| Nút | Hành động |
+|---|---|
+| Mắt (Xem) | Mở modal xem chi tiết báo giá |
+| Bút (Sửa) | Mở form chỉnh sửa |
+| Giỏ hàng (Tạo đơn hàng) | Xác nhận: "Bạn có chắc chắn muốn tạo đơn hàng từ báo giá này?" |
+| Thùng rác (Xóa) | Xác nhận: "Bạn có chắc chắn muốn xóa báo giá này?" |
+
+**Form chỉnh sửa báo giá** — các trường có thể sửa:
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Giá báo khách (VNĐ/KG) | ✅ | Số (bước 0.01, min 0) | Placeholder: "Nhập giá báo khách" |
+| Thời gian giao hàng (ngày) | ✅ | Số (min 1) | Placeholder: "Nhập thời gian giao hàng" |
+| Hiệu lực báo giá (ngày) | ✅ | Số (min 1) | Placeholder: "Nhập hiệu lực báo giá" |
+| Trạng thái | ✅ | Dropdown | Đang chờ phản hồi / Đang chờ gửi đơn hàng / Đã đặt hàng / Không đặt hàng |
+| Ghi chú | | Văn bản dài (4 dòng) | Placeholder: "Nhập ghi chú (nếu có)" |
+
+**Nút:** "Lưu thay đổi" / "Hủy"
+
+---
+
+#### Tab 3: Danh sách đơn hàng (`orders`)
+
+**Truy cập:** `/general/pricing` → tab **"Danh sách đơn hàng"**
+
+**Cột bảng danh sách:**
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Ngày đặt hàng | Ngày tạo đơn |
+| Mã đơn hàng | Mã định danh (chữ xanh đậm) |
+| Mã báo giá | Mã BG liên kết |
+| Khách hàng | Tên khách hàng |
+| Số lượng SP | Số sản phẩm trong đơn |
+| Trạng thái SX | Badge trạng thái sản xuất |
+| Trạng thái TT | Badge trạng thái thanh toán |
+| Hành động | Xem / Xem bảng tính / Sửa / Xóa |
+
+**Trạng thái sản xuất (`trangThaiSanXuat`):**
+
+| Giá trị | Nhãn hiển thị |
+|---|---|
+| `CHO_LEN_KE_HOACH` | Chờ lên kế hoạch |
+| `CHO_SAN_XUAT` | Chờ sản xuất |
+| `DANG_SAN_XUAT` | Đang sản xuất |
+| `CHO_GIAO_HANG` | Chờ giao hàng |
+| `DA_LEN_CONTAINER` | Đã lên container |
+| `DANG_VAN_CHUYEN` | Đang vận chuyển |
+| `DA_GIAO_CHO_KHACH_HANG` | Đã giao cho khách hàng |
+
+**Trạng thái thanh toán (`trangThaiThanhToan`):**
+
+| Giá trị | Nhãn hiển thị |
+|---|---|
+| `DA_THANH_TOAN_DOT_1` | Đã thanh toán đợt 1 |
+| `CHO_THANH_TOAN_DOT_2` | Chờ thanh toán đợt 2 |
+| `DA_THANH_TOAN_DU` | Đã thanh toán đủ |
+
+**Form chỉnh sửa đơn hàng** — các trường có thể sửa:
+
+| Nhóm | Trường | Loại nhập |
 |---|---|---|
-| Danh sách YCBG | `requests` | Quản lý yêu cầu báo giá từ khách hàng |
-| Danh sách báo giá | `quotes` | Lập và theo dõi báo giá |
-| Danh sách đơn hàng | `orders` | Quản lý đơn hàng liên quan chi phí |
-| Chi phí chung | `costs` | Theo dõi và phân bổ chi phí chung |
+| Giá trị | Giá trị đơn hàng (USD) | Số (bước 0.01) |
+| Giá trị | Giá trị đơn hàng (VNĐ) | Số |
+| Thanh toán đợt 1 | Xuất khẩu (USD) | Số (bước 0.01) |
+| Thanh toán đợt 1 | Nội địa (VNĐ) | Số |
+| Thanh toán đợt 1 | Ngày thanh toán | Chọn ngày |
+| Thanh toán đợt 2 | Xuất khẩu (USD) | Số (bước 0.01) |
+| Thanh toán đợt 2 | Nội địa (VNĐ) | Số |
+| Thanh toán đợt 2 | Ngày thanh toán | Chọn ngày |
+| Sản xuất | Ngày bắt đầu SX (KH) | Chọn ngày |
+| Sản xuất | Ngày hoàn thành SX (KH) | Chọn ngày |
+| Sản xuất | Ngày hoàn thành thực tế | Chọn ngày |
+| Sản xuất | Ngày giao hàng | Chọn ngày |
+| Trạng thái | Trạng thái sản xuất | Dropdown (7 giá trị trên) |
+| Trạng thái | Trạng thái thanh toán | Dropdown (3 giá trị trên) |
+| | Ghi chú | Văn bản dài (4 dòng), placeholder: "Nhập ghi chú..." |
 
-**Truy cập trực tiếp theo tab:** `/general/pricing?tab=<id>`
+**Nút:** "Lưu thay đổi" / "Hủy"
+
+---
+
+#### Tab 4: Chi phí (`costs`)
+
+**Truy cập:** `/general/pricing` → tab **"Chi phí"**
+
+Có 2 loại chi phí, chuyển đổi bằng nút toggle:
+
+| Nút | Loại |
+|---|---|
+| **Chi phí Xuất khẩu** | Chi phí liên quan xuất khẩu |
+| **Chi phí Chung** | Chi phí vận hành chung |
+
+**Cột bảng danh sách:**
+
+| Cột | Nội dung |
+|---|---|
+| Mã chi phí | `maChiPhi` |
+| Tên chi phí | `tenChiPhi` |
+| Loại chi phí | `loaiChiPhi` |
+| Đơn vị tính | `donViTinh` |
+| Giá thành/ngày | Số tiền + đơn vị tiền (VND/USD) |
+| Người tạo | Tên nhân viên |
+| Thao tác | Nút **Sửa** (bút) + **Xóa** (thùng rác) |
+
+**Nút header:** "Xuất Excel" + "Tạo chi phí xuất khẩu" / "Tạo chi phí chung"
+
+**Form tạo/sửa chi phí:**
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Tên chi phí | ✅ | Văn bản | Lỗi: "Vui lòng nhập đầy đủ thông tin bắt buộc" |
+| Loại chi phí | ✅ | Văn bản | Lỗi: "Vui lòng nhập đầy đủ thông tin bắt buộc" |
+| Đơn vị tính | | Văn bản | |
+| Giá thành/ngày | | Số (bước 0.01) | Placeholder: "Nhập giá thành/ngày" |
+| Đơn vị tiền | | Dropdown | VND / USD (mặc định: VND) |
+| Ghi chú | | Văn bản dài | |
+
+**Nút:** "Tạo mới" / "Cập nhật" / "Hủy"
 
 ### 3.3. Bảng lương (PayrollManagement)
 
@@ -145,7 +317,7 @@ Khi gặp sự cố hoặc vượt thẩm quyền, thực hiện theo trình t�
 ## 6. FAQ
 
 **Q1: Làm thế nào để tạo một yêu cầu báo giá (YCBG)?**
-> Vào **Phòng giá thành** → tab **Danh sách YCBG** → nhấn nút **Tạo mới**. Điền đầy đủ thông tin và lưu.
+> Phòng giá thành **không tạo YCBG** — đó là quyền của Phòng kinh doanh. Phòng giá thành chỉ xem YCBG và tạo báo giá từ đó. Vào tab **"Danh sách YCBG"** → tìm YCBG cần xử lý → nhấn biểu tượng **"Tạo báo giá"** (file) trên dòng đó → điền các trường: Giá báo khách (VNĐ/KG), Thời gian giao hàng (ngày), Hiệu lực báo giá (ngày), Trạng thái, Ghi chú → nhấn **"Tạo mới"**.
 
 **Q2: Bảng lương tháng hiển thị sai, tôi cần làm gì?**
 > Kiểm tra lại các thông số cài đặt: **Số ngày công chuẩn / tháng** và **Giá tiền OT**. Nếu đã đúng, kiểm tra lại số ngày nghỉ và giờ OT của nhân viên đó rồi lưu lại.

@@ -61,6 +61,7 @@ const ROUTE_MAP: Record<string, string> = {
   overtimePlan: '/api/overtime-plans',
   systemSettings: '/api/system-settings',
   faceAttendance: '/api/face-attendance',
+  chat: '/api/chat',
 };
 
 export const registerRoutes = (app: Express): void => {

@@ -35,17 +35,43 @@ Hệ thống quản lý sản xuất được chia thành **3 khu vực chức n
 
 ## 3. Phòng QLSX
 
-### 3.1 Lệnh sản xuất (Danh sách đơn hàng)
+### 3.1 Lệnh sản xuất — Tab "Danh sách đơn hàng" (`orderList`)
 
-Quản lý các đơn hàng/lệnh sản xuất với trạng thái:
-- **Chờ sản xuất** — đơn hàng mới tạo
-- **Đang sản xuất** — đang được thực hiện
-- **Vận chuyển** — hàng đang giao
-- **Đã giao** — hoàn tất
+**Truy cập:** `/production` → tab **"Phòng QLSX"** → tab con **"Danh sách đơn hàng"**
+
+#### Cột bảng danh sách
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Ngày đặt hàng | Ngày tạo đơn |
+| Mã đơn hàng | Mã định danh (chữ xanh đậm) |
+| Mã báo giá | Mã BG liên kết |
+| Khách hàng | Tên khách hàng |
+| Số lượng SP | Số sản phẩm trong đơn |
+| Trạng thái SX | Badge trạng thái sản xuất |
+| Trạng thái TT | Badge trạng thái thanh toán |
+| Hành động | Xem / Xem bảng tính / Sửa / Xóa |
+
+#### Trạng thái sản xuất
+
+| Giá trị | Nhãn hiển thị |
+|---|---|
+| `CHO_LEN_KE_HOACH` | Chờ lên kế hoạch |
+| `CHO_SAN_XUAT` | Chờ sản xuất |
+| `DANG_SAN_XUAT` | Đang sản xuất |
+| `CHO_GIAO_HANG` | Chờ giao hàng |
+| `DA_LEN_CONTAINER` | Đã lên container |
+| `DANG_VAN_CHUYEN` | Đang vận chuyển |
+| `DA_GIAO_CHO_KHACH_HANG` | Đã giao cho khách hàng |
+
+#### Cập nhật trạng thái đơn hàng
+
+Nhấn nút **Sửa** (bút) → form chỉnh sửa gồm: Giá trị đơn hàng (USD/VNĐ), Thanh toán đợt 1 & 2 (USD/VNĐ + ngày), Ngày bắt đầu/hoàn thành SX (kế hoạch + thực tế), Ngày giao hàng, Trạng thái SX, Trạng thái TT, Ghi chú → nhấn **"Lưu thay đổi"**.
 
 ### 3.2 Quy trình sản xuất
 
-**Form tạo quy trình** (`ProductionProcessManagement`):
+**Form tạo quy trình** (tab **Quy trình sản xuất**):
 
 | Trường | Ghi chú |
 |---|---|
@@ -62,7 +88,7 @@ Quản lý các đơn hàng/lệnh sản xuất với trạng thái:
 
 ### 3.3 Thông số vận hành hệ thống
 
-**Form thông số** (`SystemOperationManagement`) — theo dõi 4 giai đoạn chiên/sấy:
+**Form thông số** (tab **Thông số vận hành**) — theo dõi 4 giai đoạn chiên/sấy:
 
 | Trường chung | Ghi chú |
 |---|---|
@@ -88,7 +114,7 @@ Trường tổng hợp: **Tổng thời gian sấy** (tự động tính).
 
 ### 3.4 Thành phẩm đầu ra
 
-**Form thành phẩm** (`FinishedProductManagement`) — nhập liệu theo mã chiên:
+**Form thành phẩm** (tab **Thành phẩm đầu ra**) — nhập liệu theo mã chiên:
 
 | Loại thành phẩm | Trường khối lượng | Trường tỉ lệ |
 |---|---|---|
@@ -107,14 +133,14 @@ Trường tổng hợp: **Tổng thời gian sấy** (tự động tính).
 
 ## 4. Quản lý kho
 
-### 4.1 Quản lý kho và lô hàng (`WarehouseManagement`)
+### 4.1 Quản lý kho và lô hàng (tab **Quản lý kho**)
 
 - Tạo/xóa **kho** (nhập tên kho)
 - Tạo/xóa **lô hàng** trong kho (nhập tên lô)
 - Thêm/xóa sản phẩm trong lô
 - **Di chuyển sản phẩm** sang lô khác
 
-### 4.2 Phiếu nhập kho (`WarehouseReceiptTab`)
+### 4.2 Phiếu nhập kho (tab **Phiếu nhập kho**)
 
 **Bộ lọc danh sách:**
 
@@ -140,7 +166,7 @@ Trường tổng hợp: **Tổng thời gian sấy** (tự động tính).
 | Số lượng nhập kho | ✅ | Nhập số lượng |
 | Ghi chú | — | Nhập ghi chú (nếu có) |
 
-### 4.3 Phiếu xuất kho (`WarehouseIssueTab`)
+### 4.3 Phiếu xuất kho (tab **Phiếu xuất kho**)
 
 **Bộ lọc danh sách:**
 
