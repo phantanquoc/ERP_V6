@@ -79,6 +79,7 @@ services:
       API_URL: ${API_URL:-https://anbinhfoods.net/api}
       LOG_LEVEL: warn
       FACE_DATA_SECRET: ${FACE_DATA_SECRET:-change_me_face_data_secret}
+      AI_SERVICE_URL: http://erp_ai_service:8001
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@anbinhfoods.net}
@@ -132,6 +133,35 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  # AI Service - Face Recognition
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: erp_ai_service
+    restart: unless-stopped
+    environment:
+      - TF_CPP_MIN_LOG_LEVEL=2
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - deepface_weights:/root/.deepface/weights
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+    networks:
+      - erp_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
   # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
@@ -147,6 +177,7 @@ services:
     depends_on:
       - frontend
       - backend
+      - ai-service
     networks:
       - erp_network
     deploy:
@@ -166,6 +197,8 @@ volumes:
   backend_logs:
     driver: local
   nginx_logs:
+    driver: local
+  deepface_weights:
     driver: local
 
 networks:
