@@ -144,7 +144,7 @@ services:
       - TF_CPP_MIN_LOG_LEVEL=2
       - PYTHONUNBUFFERED=1
     volumes:
-      - deepface_weights:/root/.deepface/weights
+      - deepface_weights:/home/appuser/.deepface/weights
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
