@@ -1,8 +1,9 @@
 import prisma from '@config/database';
 import { NotFoundError } from '@utils/errors';
-import { AttendanceStatus } from '@prisma/client';
+import { AttendanceStatus, Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import workShiftService from './workShiftService';
+import { getTodayInAppTz } from '@utils/dateUtils';
 
 export class AttendanceService {
   /**
@@ -145,15 +146,15 @@ export class AttendanceService {
     }));
   }
 
-  async checkIn(employeeId: string, checkInTime: Date): Promise<any> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  async checkIn(employeeId: string, checkInTime: Date, tx?: Prisma.TransactionClient): Promise<any> {
+    const db = tx ?? prisma;
+    const today = getTodayInAppTz();
 
     // Determine work shift based on check-in time
     const shiftName = await workShiftService.determineShift(checkInTime);
 
     // Tìm ca đang mở (chưa checkout) trong ngày
-    const openAttendance = await prisma.attendance.findFirst({
+    const openAttendance = await db.attendance.findFirst({
       where: {
         employeeId,
         attendanceDate: today,
@@ -165,7 +166,7 @@ export class AttendanceService {
 
     if (openAttendance) {
       // Có ca đang mở → cập nhật giờ checkin
-      return await prisma.attendance.update({
+      return await db.attendance.update({
         where: { id: openAttendance.id },
         data: {
           checkInTime,
@@ -176,7 +177,7 @@ export class AttendanceService {
     }
 
     // Không có ca đang mở → tạo ca mới (cho phép nhiều ca trong ngày)
-    return await prisma.attendance.create({
+    return await db.attendance.create({
       data: {
         employeeId,
         attendanceDate: today,
@@ -187,12 +188,12 @@ export class AttendanceService {
     });
   }
 
-  async checkOut(employeeId: string, checkOutTime: Date): Promise<any> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  async checkOut(employeeId: string, checkOutTime: Date, tx?: Prisma.TransactionClient): Promise<any> {
+    const db = tx ?? prisma;
+    const today = getTodayInAppTz();
 
     // Tìm ca đang mở (chưa checkout) trong ngày
-    const attendance = await prisma.attendance.findFirst({
+    const attendance = await db.attendance.findFirst({
       where: {
         employeeId,
         attendanceDate: today,
@@ -209,7 +210,7 @@ export class AttendanceService {
     const checkInTime = attendance.checkInTime;
     const workHours = this.calculateWorkHours(checkInTime, checkOutTime);
 
-    return await prisma.attendance.update({
+    return await db.attendance.update({
       where: { id: attendance.id },
       data: {
         checkOutTime,
@@ -219,8 +220,7 @@ export class AttendanceService {
   }
 
   async overtimeCheckIn(employeeId: string, checkInTime: Date): Promise<any> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInAppTz();
 
     // Tìm ca tăng ca đang mở (chưa checkout)
     const openAttendance = await prisma.attendance.findFirst({
@@ -257,8 +257,7 @@ export class AttendanceService {
   }
 
   async overtimeCheckOut(employeeId: string, checkOutTime: Date): Promise<any> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInAppTz();
 
     // Tìm ca tăng ca đang mở (chưa checkout)
     const attendance = await prisma.attendance.findFirst({

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { CheckCircle, XCircle, RefreshCw, ToggleLeft, ToggleRight, User, Loader2 } from 'lucide-react';
+import { CheckCircle, XCircle, RefreshCw, ToggleLeft, ToggleRight, User, Loader2, ScanFace } from 'lucide-react';
 import faceAttendanceService, { EmployeeFaceProfile } from '../../services/faceAttendanceService';
 import { loadFaceMesh } from '../../utils/loadFaceMesh';
 
@@ -774,6 +774,17 @@ const FaceAdminPage: React.FC = () => {
         </div>
       </div>
       <canvas ref={captureRef} className="hidden" />
+
+      {/* Floating button — Tiến hành chấm công */}
+      <a
+        href="/diemdanh/nhanvien"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-full shadow-lg shadow-blue-600/30 transition-all hover:scale-105 font-medium"
+      >
+        <ScanFace className="w-5 h-5" />
+        Tiến hành chấm công
+      </a>
     </div>
   );
 };

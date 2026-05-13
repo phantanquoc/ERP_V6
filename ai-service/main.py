@@ -44,14 +44,14 @@ MATCH_MIN_VOTE_RATIO = 0.30
 ENROLL_MIN_CONF   = 0.65           # quality filter enroll
 VOTE_WEIGHT_COUNT = 0.40
 VOTE_WEIGHT_DIST  = 0.60
-LIVENESS_MIN_VALID_FRAMES = 4
+LIVENESS_MIN_VALID_FRAMES = 2
 LIVENESS_PASS_RATIO = 0.65
 LIVENESS_MIN_SCORE = 0.72          # nới từ 0.78 — webcam thường không đủ điều kiện lý tưởng
 LIVENESS_FINAL_MIN_SCORE = 0.68   # nới từ 0.72
 LIVENESS_MAX_FRAMES = 12
 LIVENESS_MIN_BRIGHTNESS = 35.0
 LIVENESS_MAX_BRIGHTNESS = 225.0
-LIVENESS_MIN_BLUR = 18.0
+LIVENESS_MIN_BLUR = 12.0
 FLAT_MOTION_MIN_SHIFT = 0.08
 FLAT_MOTION_MAX_ALIGNED_DIFF = 0.018
 TOP_K_MATCHES = 5
@@ -284,13 +284,13 @@ def _frame_quality(image: np.ndarray, bbox: Any) -> tuple[float, str]:
     face_area_ratio = (face_w * face_h) / max(1, w * h)
 
     if brightness < LIVENESS_MIN_BRIGHTNESS:
-        return 0.0, f"Frame quá tối ({brightness:.1f})"
+        return 0.0, f"brightness_low: value={brightness:.1f} threshold={LIVENESS_MIN_BRIGHTNESS}"
     if brightness > LIVENESS_MAX_BRIGHTNESS:
-        return 0.0, f"Frame quá sáng ({brightness:.1f})"
+        return 0.0, f"brightness_high: value={brightness:.1f} threshold={LIVENESS_MAX_BRIGHTNESS}"
     if blur < LIVENESS_MIN_BLUR:
-        return 0.0, f"Frame bị mờ ({blur:.1f})"
+        return 0.0, f"blur_low: value={blur:.1f} threshold={LIVENESS_MIN_BLUR}"
     if face_area_ratio < 0.035:
-        return 0.0, f"Khuôn mặt quá nhỏ ({face_area_ratio:.3f})"
+        return 0.0, f"face_area_low: value={face_area_ratio:.3f} threshold=0.035"
 
     brightness_score = 1.0 - min(abs(brightness - 125.0) / 125.0, 1.0)
     blur_score = _clamp01((blur - LIVENESS_MIN_BLUR) / 120.0)
@@ -382,6 +382,15 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
     real_scores: list[float] = []
     quality_scores: list[float] = []
     temporal_samples: list[dict[str, Any]] = []
+    reject_reasons: dict[str, int] = {
+        "detect_fail": 0,
+        "brightness_low": 0,
+        "brightness_high": 0,
+        "blur_low": 0,
+        "face_area_low": 0,
+        "multi_face": 0,
+        "other": 0,
+    }
 
     for idx, frame_b64 in enumerate(frames):
         try:
@@ -389,7 +398,11 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
             face = _detect_liveness_face(frame)
             quality_score, quality_message = _frame_quality(frame, face.bbox)
             if quality_score <= 0.0:
-                logger.warning("Liveness frame %s quality failed: %s", idx + 1, quality_message)
+                reason_code = quality_message.split(":")[0] if ":" in quality_message else "other"
+                if reason_code not in reject_reasons:
+                    reason_code = "other"
+                reject_reasons[reason_code] += 1
+                logger.warning("Frame %s rejected: reason=%s details=%s", idx + 1, reason_code, quality_message)
                 continue
 
             is_real, score = _parse_spoof_result(_liveness_spoofer.predict(frame, face.bbox))
@@ -406,7 +419,20 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
                 idx + 1, is_real, score, quality_score,
             )
         except Exception as exc:
-            logger.warning("Liveness frame %s failed: %s", idx + 1, exc)
+            exc_str = str(exc)
+            if "No face detected" in exc_str:
+                reason_code = "detect_fail"
+            elif "Multiple faces detected" in exc_str:
+                reason_code = "multi_face"
+            else:
+                reason_code = "other"
+            reject_reasons[reason_code] += 1
+            logger.warning("Frame %s rejected: reason=%s exc=%s", idx + 1, reason_code, exc)
+
+    logger.info(
+        "Liveness batch: %d frames input, %d valid, rejects=%s",
+        len(frames), len(valid_scores), dict(reject_reasons),
+    )
 
     if len(valid_scores) < LIVENESS_MIN_VALID_FRAMES:
         return False, 0.0, "Không đủ frame hợp lệ để xác minh người thật"

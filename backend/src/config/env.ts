@@ -26,6 +26,7 @@ export const env = {
   UPLOAD_DIR: process.env.UPLOAD_DIR || './uploads',
   AI_SERVICE_URL: process.env.AI_SERVICE_URL || 'http://localhost:8001',
   FACE_DATA_SECRET: getRequiredEnv('FACE_DATA_SECRET', 'dev_face_data_secret_change_me'),
+  APP_TIMEZONE: process.env.APP_TIMEZONE || 'Asia/Ho_Chi_Minh',
 };
 
 export const isDevelopment = env.NODE_ENV === 'development';

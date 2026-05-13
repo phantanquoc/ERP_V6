@@ -3,11 +3,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import path from 'path';
+import pg from 'pg';
 import { env, isProduction } from '@config/env';
 import logger from '@config/logger';
 import { swaggerSpec } from '@config/swagger';
 import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { registerRoutes } from '@routes/index';
+import { startSnapshotCleanup } from '@utils/snapshotCleanup';
+import { setPgNotifier, resetLocalEmbeddingCache } from '@services/faceAttendanceService';
 
 const app: Express = express();
 
@@ -77,13 +80,59 @@ process.on('unhandledRejection', (reason) => {
 // Start server
 const PORT = env.PORT;
 const server = app.listen(PORT, () => {
-  logger.info(`🚀 Server is running on http://localhost:${PORT}`);
+  logger.info(`Server is running on http://localhost:${PORT}`);
   logger.info(`Environment: ${env.NODE_ENV}`);
+  startSnapshotCleanup();
 });
 
 server.on('error', (error) => {
   logger.error('Server error:', error);
 });
+
+// ─── Postgres LISTEN/NOTIFY for embedding cache invalidation ─────────────────
+// A dedicated pg client subscribes to face_profile_changed so that when any
+// backend instance calls invalidateEmbeddingCache(), all instances reset their
+// local embedding caches within notification delivery latency.
+const listenClient = new pg.Client({ connectionString: env.DATABASE_URL });
+
+listenClient.connect()
+  .then(async () => {
+    await listenClient.query('LISTEN face_profile_changed');
+    logger.info('LISTEN registered on channel face_profile_changed');
+
+    // Wire up the notifier so invalidateEmbeddingCache() can NOTIFY all instances
+    setPgNotifier(async () => {
+      await listenClient.query("NOTIFY face_profile_changed, 'invalidate'");
+    });
+
+    listenClient.on('notification', (msg) => {
+      if (msg.channel === 'face_profile_changed') {
+        logger.debug('Received face_profile_changed notification — resetting local embedding cache');
+        resetLocalEmbeddingCache();
+      }
+    });
+  })
+  .catch(err => {
+    logger.error('Failed to connect pg LISTEN client:', err);
+  });
+
+async function gracefulShutdown(signal: string) {
+  logger.info(`${signal} received — shutting down gracefully`);
+  try {
+    await listenClient.query('UNLISTEN face_profile_changed');
+    await listenClient.end();
+    logger.info('pg LISTEN client disconnected');
+  } catch (err) {
+    logger.warn('Error during pg LISTEN client shutdown:', err);
+  }
+  server.close(() => {
+    logger.info('HTTP server closed');
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;
 

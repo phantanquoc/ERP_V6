@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BarChart2, Briefcase, Calculator, ShoppingCart, Factory, Settings, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, BarChart2, Briefcase, Calculator, ShoppingCart, Factory, Settings, ChevronDown, ChevronRight, ChevronLeft, ScanFace } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { hasModuleAccess, hasSubModuleAccess, isAdmin } from '../utils/permissions';
@@ -232,6 +232,16 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
       {/* System Settings - Admin Only */}
       {user && isAdmin(user.department) && (
         <div className="border-t border-gray-800 p-2">
+          <Link
+            to="/diemdanh/admin"
+            className={`flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors rounded-lg ${
+              location.pathname === '/diemdanh/admin' ? 'bg-gray-800 text-white' : ''
+            }`}
+            title={collapsed ? 'Chấm công khuôn mặt' : ''}
+          >
+            <span className={collapsed ? '' : 'mr-3'}><ScanFace size={20} /></span>
+            {!collapsed && <span>Chấm công khuôn mặt</span>}
+          </Link>
           <Link
             to="/system-settings"
             className={`flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors rounded-lg ${

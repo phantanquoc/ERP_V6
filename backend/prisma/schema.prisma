@@ -259,6 +259,7 @@ model Employee {
   purchaseRequests   PurchaseRequest[]
   suppliers          Supplier[]          @relation("SupplierCreatedBy")
   faceProfile        FaceProfile?
+  lastFaceScanAt     DateTime?
 
   @@map("employees")
   @@schema("common")

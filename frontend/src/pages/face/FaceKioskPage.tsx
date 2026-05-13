@@ -8,21 +8,18 @@ import { ScreenSpoofDetector } from '../../utils/screenSpoofDetector';
 type FaceMeshInstance = any;
 type NLM = { x: number; y: number; z: number };
 
-type KioskState = 'loading' | 'waiting' | 'challenge' | 'returning' | 'processing' | 'result' | 'error';
+type KioskState = 'loading' | 'waiting' | 'challenge' | 'processing' | 'result' | 'error';
 type FacePos    = 'none' | 'centered' | 'offcenter' | 'multiface';
-type ChallengePhase = 'active' | 'returning' | 'done';
+type ChallengePhase = 'active' | 'done';
 
-type ChallengeType = 'look_left' | 'look_right' | 'look_up' | 'blink';
+type ChallengeType = 'blink';
 
 const CENTER_ZONE       = 0.30;
 const MAX_YAW           = 0.25;
 const MAX_PITCH         = 0.28;
 const MIN_FACE_AREA     = 0.04;
-const QUALITY_GATE      = 8;
-const RETURN_FRAMES     = 3;
+const QUALITY_GATE      = 6;
 
-const CHALLENGE_YAW_THRESHOLD  = 0.22;
-const CHALLENGE_PITCH_THRESHOLD = 0.20;
 const CHALLENGE_EAR_THRESHOLD   = 0.18;
 const CHALLENGE_EAR_FRAMES      = 2;
 const CHALLENGE_TIMEOUT_MS      = 8000;
@@ -32,13 +29,8 @@ const R_EYE = [362, 385, 387, 263, 373, 380];
 const NOSE_TIP = 1;
 const MOUTH = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375];
 
-const CHALLENGES: ChallengeType[] = ['blink'];
-
 const CHALLENGE_LABELS: Record<ChallengeType, string> = {
-  look_left:  'QUAY SANG TRÁI',
-  look_right: 'QUAY SANG PHẢI',
-  look_up:    'NHÌN LÊN TRÊN',
-  blink:      'CHỚP MẮT',
+  blink: 'CHỚP MẮT',
 };
 
 interface ResultDisplay {
@@ -54,10 +46,11 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
 const IDLE_SLOW_MS   = 30_000;
 const IDLE_DIM_MS    = 60_000;
+const IDLE_SLEEP_MS  = 120_000; // 2 phút → tắt camera hoàn toàn
 const DETECT_FAST_MS = 100;
 const DETECT_SLOW_MS = 500;
 const CAPTURE_SIZE   = 480;
-const FACE_CROP_PADDING = 0.30;
+const FACE_CROP_PADDING = 0.60;
 
 function computeKioskPose(lms: NLM[], vw: number, vh: number): { yaw: number; pitch: number } {
   const avgPx = (idxs: number[]) => {
@@ -95,10 +88,6 @@ const actionConfig: Record<string, { title: string; type: 'success' | 'info' | '
   COOLDOWN:         { title: 'Vui lòng chờ ⏳', type: 'warning' },
 };
 
-function pickChallenge(): ChallengeType {
-  return CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)];
-}
-
 const FaceKioskPage: React.FC = () => {
   const videoRef       = useRef<HTMLVideoElement>(null);
   const overlayRef     = useRef<HTMLCanvasElement>(null);
@@ -112,6 +101,7 @@ const FaceKioskPage: React.FC = () => {
   const faceMeshRef    = useRef<FaceMeshInstance | null>(null);
   const latestDet      = useRef<{ lms: NLM[]; box: { x: number; y: number; width: number; height: number }; score: number; faceCount: number } | null>(null);
   const audioCtxRef    = useRef<AudioContext | null>(null);
+  const drawLoopRef    = useRef<() => void>(() => {});
 
   const qualityBuffer  = useRef<{ frame: string; score: number }[]>([]);
   const spoofDetector  = useRef<ScreenSpoofDetector>(new ScreenSpoofDetector());
@@ -129,11 +119,11 @@ const FaceKioskPage: React.FC = () => {
   const [currentTime, setCurrentTime]   = useState(new Date());
   const [facePos, setFacePos]           = useState<FacePos>('none');
   const [dimmed, setDimmed]             = useState(false);
+  const [sleeping, setSleeping]         = useState(false);
   const [qualityCount, setQualityCount] = useState(0);
   const [statusHint, setStatusHint]     = useState('');
   const [spoofDetected, setSpoofDetected] = useState(false);
   const [activeChallenge, setActiveChallenge] = useState<ChallengeType | null>(null);
-  const [returnCount, setReturnCount]   = useState(0);
 
   const kioskConfig = faceAttendanceService.getKioskConfig();
   const isLocalDev  = import.meta.env.DEV || LOCAL_HOSTS.has(window.location.hostname);
@@ -161,10 +151,61 @@ const FaceKioskPage: React.FC = () => {
     } catch { /* AudioContext blocked */ }
   }, []);
 
+  const speak = useCallback((text: string) => {
+    try {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'vi-VN';
+      utter.rate = 0.85;
+      utter.volume = 1.0;
+      window.speechSynthesis.speak(utter);
+    } catch { /* Speech not supported */ }
+  }, []);
+
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // ─── Sleep / Wake (tiết kiệm tài nguyên tablet) ──────────────────────────────
+  const enterSleep = useCallback(() => {
+    clearTimeout(rafRef.current);
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    latestDet.current = null;
+    currentFaceBox.current = null;
+    spoofDetector.current.reset();
+    setSleeping(true);
+    setDimmed(true);
+    setFacePos('none');
+    setStatusHint('');
+    setQualityCount(0);
+  }, []);
+
+  const wakeUp = useCallback(async () => {
+    if (!sleeping) return;
+    setSleeping(false);
+    setDimmed(false);
+    lastFaceAt.current = Date.now();
+    detectInterval.current = DETECT_FAST_MS;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+      setKioskState('waiting');
+      rafRef.current = window.setTimeout(() => drawLoopRef.current(), DETECT_FAST_MS);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setCameraError(`Không thể bật lại camera: ${errMsg}`);
+    }
+  }, [sleeping]);
 
   const captureFrame = useCallback((): string | null => {
     const video  = videoRef.current;
@@ -204,14 +245,12 @@ const FaceKioskPage: React.FC = () => {
   }, []);
 
   const startChallenge = useCallback(() => {
-    const ch = pickChallenge();
-    challengeRef.current = ch;
+    challengeRef.current = 'blink';
     challengeStartRef.current = Date.now();
     challengePhaseRef.current = 'active';
     blinkCountRef.current = 0;
     prevEARDetected.current = false;
-    setActiveChallenge(ch);
-    setReturnCount(0);
+    setActiveChallenge('blink');
     setKioskState('challenge');
   }, []);
 
@@ -234,6 +273,8 @@ const FaceKioskPage: React.FC = () => {
     }
 
     playBeep(cfg.type);
+    if (res.action === 'CHECK_IN' && emp) speak(`${emp.fullName} đã chấm công vào`);
+    else if (res.action === 'CHECK_OUT' && emp) speak(`${emp.fullName} đã chấm công ra`);
     setResult({ type: cfg.type, title: cfg.title, employee: nameLine, subtitle, time: new Date().toLocaleTimeString('vi-VN') });
     setKioskState('result');
     if (resetTimer.current) clearTimeout(resetTimer.current);
@@ -244,9 +285,8 @@ const FaceKioskPage: React.FC = () => {
       challengeRef.current = null;
       challengePhaseRef.current = 'active';
       setActiveChallenge(null);
-      setReturnCount(0);
     }, RESULT_DISPLAY_MS);
-  }, [playBeep]);
+  }, [playBeep, speak]);
 
   const doScan = useCallback(async (bestImage: string, frames: string[]) => {
     if (processing.current) return;
@@ -254,7 +294,6 @@ const FaceKioskPage: React.FC = () => {
     setKioskState('processing');
     setStatusHint('');
     setActiveChallenge(null);
-    setReturnCount(0);
     try {
       const res = kioskConfig.deviceKey
         ? await faceAttendanceService.kioskVerify(bestImage, frames, kioskConfig.deviceKey, kioskConfig.deviceId)
@@ -277,7 +316,6 @@ const FaceKioskPage: React.FC = () => {
         challengeRef.current = null;
         challengePhaseRef.current = 'active';
         setActiveChallenge(null);
-        setReturnCount(0);
       }
     } catch (error) {
       processing.current = false;
@@ -286,7 +324,6 @@ const FaceKioskPage: React.FC = () => {
       challengeRef.current = null;
       challengePhaseRef.current = 'active';
       setActiveChallenge(null);
-      setReturnCount(0);
     }
   }, [showResult, isLocalDev, kioskConfig.deviceId, kioskConfig.deviceKey]);
 
@@ -368,124 +405,29 @@ const FaceKioskPage: React.FC = () => {
 
       // ── Liveness challenge detection ────────────────────────────────────
       if (challengeRef.current && challengePhaseRef.current === 'active' && !processing.current) {
-        const ch = challengeRef.current;
-        let challengePassed = false;
-
-        switch (ch) {
-          case 'look_left':
-            challengePassed = yaw < -CHALLENGE_YAW_THRESHOLD;
-            break;
-          case 'look_right':
-            challengePassed = yaw > CHALLENGE_YAW_THRESHOLD;
-            break;
-          case 'look_up':
-            challengePassed = pitch < -CHALLENGE_PITCH_THRESHOLD;
-            break;
-          case 'blink': {
-            const ear = computeEAR(lms);
-            const avgEAR = (ear.left + ear.right) / 2;
-            const eyesClosed = avgEAR < CHALLENGE_EAR_THRESHOLD;
-            if (eyesClosed && !prevEARDetected.current) {
-              blinkCountRef.current++;
-            }
-            prevEARDetected.current = eyesClosed;
-            challengePassed = blinkCountRef.current >= 1;
-            break;
-          }
+        const ear = computeEAR(lms);
+        const avgEAR = (ear.left + ear.right) / 2;
+        const eyesClosed = avgEAR < CHALLENGE_EAR_THRESHOLD;
+        if (eyesClosed && !prevEARDetected.current) {
+          blinkCountRef.current++;
         }
+        prevEARDetected.current = eyesClosed;
+        const challengePassed = blinkCountRef.current >= 1;
 
         // Timeout: reset challenge if too long
         if (now - challengeStartRef.current > CHALLENGE_TIMEOUT_MS) {
           challengeRef.current = null;
           challengePhaseRef.current = 'active';
           setActiveChallenge(null);
-          setReturnCount(0);
           setKioskState('waiting');
           resetQualityGate();
         } else if (challengePassed) {
-          // For head-pose challenges: enter "return to center" phase
-          // For blink: already facing straight, go directly to done
-          if (ch === 'blink') {
-            challengePhaseRef.current = 'done';
-            setActiveChallenge(null);
-          } else {
-            challengePhaseRef.current = 'returning';
-            setActiveChallenge(null);
-            setKioskState('returning');
-            // Reset quality buffer — we need fresh straight-facing frames
-            resetQualityGate();
-            setReturnCount(0);
-          }
+          challengePhaseRef.current = 'done';
+          setActiveChallenge(null);
         }
       }
 
-      // ── Return-to-center phase (after head pose challenge) ────────────
-      if (challengeRef.current && challengePhaseRef.current === 'returning' && !processing.current) {
-        if (isCentered && isFacingStraight) {
-          const frame = captureFrame();
-          if (frame) {
-            qualityBuffer.current.push({ frame, score: detScore });
-            const count = qualityBuffer.current.length;
-            setReturnCount(count);
-            setQualityCount(count);
-
-            if (count >= RETURN_FRAMES) {
-              // Enough straight-facing frames after returning — proceed to scan
-              challengePhaseRef.current = 'done';
-              const buf  = qualityBuffer.current;
-              const best = buf.reduce((a, b) => b.score > a.score ? b : a);
-              const frames = buf.map(f => f.frame);
-              qualityBuffer.current = [];
-              setQualityCount(0);
-              setReturnCount(0);
-              const savedChallenge = challengeRef.current;
-              challengeRef.current = null;
-              challengePhaseRef.current = 'active';
-              spoofDetector.current.reset();
-              doScan(best.frame, frames);
-            } else {
-              setStatusHint(`Nhìn thẳng... (${count}/${RETURN_FRAMES})`);
-            }
-          }
-        } else {
-          // Not facing straight yet — discard any partial frames
-          if (qualityBuffer.current.length > 0) {
-            qualityBuffer.current = [];
-            setReturnCount(0);
-            setQualityCount(0);
-          }
-          if (!isCentered) setStatusHint('Di chuyển vào giữa màn hình');
-          else setStatusHint('Nhìn thẳng vào camera');
-        }
-
-        // Draw face box with green color during return phase
-        const retColor = '#22c55e';
-        const cornerLen = Math.max(8, Math.min(box.width, box.height) * 0.10);
-        const drawRetCorner = (x: number, y: number, sx: 1 | -1, sy: 1 | -1) => {
-          ctx.beginPath();
-          ctx.moveTo(x, y + sy * cornerLen);
-          ctx.lineTo(x, y);
-          ctx.lineTo(x + sx * cornerLen, y);
-          ctx.strokeStyle = retColor;
-          ctx.lineWidth = 2.5;
-          ctx.stroke();
-        };
-        drawRetCorner(box.x, box.y, 1, 1);
-        drawRetCorner(box.x + box.width, box.y, -1, 1);
-        drawRetCorner(box.x, box.y + box.height, 1, -1);
-        drawRetCorner(box.x + box.width, box.y + box.height, -1, -1);
-        lms.forEach(pt => {
-          ctx.beginPath();
-          ctx.arc(pt.x * vw, pt.y * vh, 1.0, 0, Math.PI * 2);
-          ctx.fillStyle = retColor;
-          ctx.fill();
-        });
-
-        rafRef.current = window.setTimeout(drawLoop, detectInterval.current);
-        return;
-      }
-
-      // ── Quality gate (only when not in active challenge or returning) ──
+      // ── Quality gate (only when challenge is done or not yet started) ──
       const isGoodFrame = isCentered && isFacingStraight
         && detScore >= 0.3
         && faceAreaRatio >= MIN_FACE_AREA;
@@ -572,7 +514,6 @@ const FaceKioskPage: React.FC = () => {
         challengeRef.current = null;
         challengePhaseRef.current = 'active';
         setActiveChallenge(null);
-        setReturnCount(0);
         setKioskState('waiting');
       }
       if (!processing.current) {
@@ -582,10 +523,13 @@ const FaceKioskPage: React.FC = () => {
       const idleMs = now - lastFaceAt.current;
       if (idleMs > IDLE_SLOW_MS) detectInterval.current = DETECT_SLOW_MS;
       if (idleMs > IDLE_DIM_MS)  setDimmed(true);
+      if (idleMs > IDLE_SLEEP_MS) { enterSleep(); return; }
     }
 
     rafRef.current = window.setTimeout(drawLoop, detectInterval.current);
-  }, [captureFrame, doScan, resetQualityGate, startChallenge]);
+  }, [captureFrame, doScan, resetQualityGate, startChallenge, enterSleep]);
+
+  drawLoopRef.current = drawLoop;
 
   // ─── Init: FaceMesh + Camera ─────────────────────────────────────────────────
   useEffect(() => {
@@ -690,15 +634,21 @@ const FaceKioskPage: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-black select-none overflow-hidden">
 
-      {/* Standby overlay */}
+      {/* Standby / Sleep overlay */}
       {dimmed && (
-        <div className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-[2000ms]">
+        <div
+          className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-[2000ms] cursor-pointer"
+          onClick={sleeping ? wakeUp : undefined}
+          onTouchStart={sleeping ? wakeUp : undefined}
+        >
           <div className="flex flex-col items-center gap-6 opacity-40">
             <div
               className="border-2 border-white/60 border-dashed rounded-full animate-pulse"
               style={{ width: 'min(220px, 30vw)', height: 'min(280px, 38vh)' }}
             />
-            <p className="text-white text-xl font-light tracking-widest uppercase">Chế độ chờ</p>
+            <p className="text-white text-xl font-light tracking-widest uppercase">
+              {sleeping ? 'Chạm để chấm công' : 'Chế độ chờ'}
+            </p>
             <p className="text-white/50 text-sm">{currentTime.toLocaleTimeString('vi-VN')}</p>
           </div>
         </div>
@@ -776,76 +726,20 @@ const FaceKioskPage: React.FC = () => {
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative z-10 flex flex-col items-center gap-4">
             <div className="relative" style={{ width: 'min(200px, 30vw)', height: 'min(200px, 30vw)' }}>
-              {activeChallenge === 'look_left' && (
-                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
-                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
-                  <path d="M130 60 L70 100 L130 140" fill="none" stroke="#facc15" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round">
-                    <animate attributeName="d" values="M130 60 L70 100 L130 140;M120 55 L55 100 L120 145;M130 60 L70 100 L130 140" dur="1s" repeatCount="indefinite" />
-                  </path>
-                </svg>
-              )}
-              {activeChallenge === 'look_right' && (
-                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
-                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
-                  <path d="M70 60 L130 100 L70 140" fill="none" stroke="#facc15" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round">
-                    <animate attributeName="d" values="M70 60 L130 100 L70 140;M80 55 L145 100 L80 145;M70 60 L130 100 L70 140" dur="1s" repeatCount="indefinite" />
-                  </path>
-                </svg>
-              )}
-              {activeChallenge === 'look_up' && (
-                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
-                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
-                  <path d="M60 130 L100 70 L140 130" fill="none" stroke="#facc15" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round">
-                    <animate attributeName="d" values="M60 130 L100 70 L140 130;M55 140 L100 55 L145 140;M60 130 L100 70 L140 130" dur="1s" repeatCount="indefinite" />
-                  </path>
-                </svg>
-              )}
-              {activeChallenge === 'blink' && (
-                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
-                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
-                  <ellipse cx="100" cy="88" rx="45" ry="30" fill="none" stroke="#facc15" strokeWidth="5">
-                    <animate attributeName="ry" values="30;3;30" dur="1.8s" repeatCount="indefinite" keyTimes="0;0.25;0.5" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline" />
-                  </ellipse>
-                  <circle cx="100" cy="88" r="14" fill="#facc15">
-                    <animate attributeName="opacity" values="1;0;1" dur="1.8s" repeatCount="indefinite" />
-                    <animate attributeName="r" values="14;2;14" dur="1.8s" repeatCount="indefinite" keyTimes="0;0.25;0.5" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline" />
-                  </circle>
-                  <path d="M50 140 Q100 165 150 140" fill="none" stroke="#facc15" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-              )}
-            </div>
-            <p className="text-4xl font-black text-yellow-300 text-center drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] tracking-wider" style={{ fontSize: 'min(10vw, 48px)' }}>
-              {CHALLENGE_LABELS[activeChallenge]}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Return-to-center overlay (after head pose challenge) */}
-      {kioskState === 'returning' && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="relative z-10 flex flex-col items-center gap-4">
-            <div className="relative" style={{ width: 'min(160px, 24vw)', height: 'min(160px, 24vw)' }}>
-              <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(34,197,94,0.7)]">
-                <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#22c55e" strokeWidth="5" />
-                <circle cx="100" cy="82" r="30" fill="#22c55e">
-                  <animate attributeName="r" values="30;30;34;30" dur="2s" repeatCount="indefinite" />
+              <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
+                <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
+                <ellipse cx="100" cy="88" rx="45" ry="30" fill="none" stroke="#facc15" strokeWidth="5">
+                  <animate attributeName="ry" values="30;3;30" dur="1.8s" repeatCount="indefinite" keyTimes="0;0.25;0.5" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline" />
+                </ellipse>
+                <circle cx="100" cy="88" r="14" fill="#facc15">
+                  <animate attributeName="opacity" values="1;0;1" dur="1.8s" repeatCount="indefinite" />
+                  <animate attributeName="r" values="14;2;14" dur="1.8s" repeatCount="indefinite" keyTimes="0;0.25;0.5" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline" />
                 </circle>
-                <path d="M70 70 L60 55" fill="none" stroke="#22c55e" strokeWidth="5" strokeLinecap="round">
-                  <animate attributeName="d" values="M70 70 L60 55;M70 70 L55 50;M70 70 L60 55" dur="2s" repeatCount="indefinite" />
-                </path>
-                <path d="M130 70 L140 55" fill="none" stroke="#22c55e" strokeWidth="5" strokeLinecap="round">
-                  <animate attributeName="d" values="M130 70 L140 55;M130 70 L145 50;M130 70 L140 55" dur="2s" repeatCount="indefinite" />
-                </path>
-                <path d="M55 140 Q100 175 145 140" fill="none" stroke="#22c55e" strokeWidth="5" strokeLinecap="round" />
+                <path d="M50 140 Q100 165 150 140" fill="none" stroke="#facc15" strokeWidth="3" strokeLinecap="round" />
               </svg>
             </div>
-            <p className="text-4xl font-black text-green-400 text-center drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] tracking-wider" style={{ fontSize: 'min(9vw, 44px)' }}>
-              NHÌN THẲNG
-            </p>
-            <p className="text-white/70 text-lg text-center">
-              Giữ mặt nhìn thẳng vào camera ({returnCount}/{RETURN_FRAMES})
+            <p className="text-4xl font-black text-yellow-300 text-center drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] tracking-wider" style={{ fontSize: 'min(10vw, 48px)' }}>
+              {CHALLENGE_LABELS.blink}
             </p>
           </div>
         </div>
@@ -876,7 +770,7 @@ const FaceKioskPage: React.FC = () => {
       )}
 
       {/* Status bar */}
-      {!cameraError && (kioskState === 'waiting' || kioskState === 'challenge' || kioskState === 'returning') && (
+      {!cameraError && (kioskState === 'waiting' || kioskState === 'challenge') && (
         <div
           className="absolute bottom-0 left-0 right-0 z-10 flex flex-col justify-center items-center pb-8 pt-16 gap-3"
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)' }}
@@ -904,7 +798,7 @@ const FaceKioskPage: React.FC = () => {
               <div className={`flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border ${kioskState === 'challenge' ? 'border-amber-400/60' : qualityCount > 0 ? 'border-cyan-400/60' : 'border-blue-400/40'}`}>
                 <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${kioskState === 'challenge' ? 'bg-amber-400' : qualityCount > 0 ? 'bg-cyan-400' : 'bg-blue-400'}`} />
                 <span className={`text-sm font-medium ${kioskState === 'challenge' ? 'text-amber-200' : qualityCount > 0 ? 'text-cyan-200' : 'text-blue-200'}`}>
-                  {statusHint || (kioskState === 'challenge' ? CHALLENGE_LABELS[activeChallenge || 'look_left'] : 'Nhìn thẳng vào màn hình')}
+                  {statusHint || (kioskState === 'challenge' ? CHALLENGE_LABELS.blink : 'Nhìn thẳng vào màn hình')}
                 </span>
               </div>
               {qualityCount > 0 && kioskState !== 'challenge' && (

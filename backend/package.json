@@ -36,6 +36,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
+    "date-fns-tz": "3.2.0",
     "pg": "^8.16.3",
     "prisma": "^6.17.1",
     "swagger-jsdoc": "^6.2.8",
@@ -46,6 +47,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/pg": "^8.11.6",
     "@types/cors": "^2.8.19",
     "@types/exceljs": "^0.5.3",
     "@types/express": "^5.0.3",

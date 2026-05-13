@@ -7,6 +7,8 @@ import fs from 'fs';
 import path from 'path';
 import { EmployeeStatus } from '@prisma/client';
 import attendanceService from './attendanceService';
+import { getTodayInAppTz, nowInAppTz } from '@utils/dateUtils';
+import { format } from 'date-fns';
 
 const AI_URL = env.AI_SERVICE_URL;
 
@@ -22,27 +24,52 @@ interface CachedProfile {
 
 let embeddingCache: CachedProfile[] | null = null;
 let cacheTimestamp = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
+const CACHE_TTL_MS = 30 * 1000; // 30 seconds (reduced from 5 min for faster cross-instance propagation)
 const PROFILE_CLUSTER_DISTANCE = 0.48;
 const MIN_PROFILE_EMBEDDINGS = 2;
 const LOW_PROFILE_EMBEDDINGS_WARNING = 3;
 const MAX_EXHAUSTIVE_CLUSTER_SIZE = 12;
 
 // ─── Cooldown: chống quẹt liên tục ───────────────────────────────────────────
-// Sau khi CHECK_IN / CHECK_OUT thành công, block cùng employeeId trong 5 phút.
-const COOLDOWN_MS = 5 * 60 * 1000; // 5 phút
+// Sau khi CHECK_IN / CHECK_OUT thành công, block cùng employeeId trong 10 phút.
+// Dual-store: in-memory Map (fast path) + DB column lastFaceScanAt (cross-instance).
+const COOLDOWN_MS = 10 * 60 * 1000; // 10 phút
 const recentScans = new Map<string, number>(); // employeeId → timestamp lần quẹt cuối
 
-function isCoolingDown(employeeId: string): boolean {
+async function isCoolingDown(employeeId: string): Promise<boolean> {
+  // Fast path: check in-memory Map first (avoids DB round-trip on same instance)
   const last = recentScans.get(employeeId);
-  if (!last) return false;
-  return Date.now() - last < COOLDOWN_MS;
+  if (last !== undefined) {
+    return Date.now() - last < COOLDOWN_MS;
+  }
+  // Fallback: query DB for cross-instance cooldown check
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { lastFaceScanAt: true },
+  });
+  if (employee?.lastFaceScanAt) {
+    const elapsed = Date.now() - employee.lastFaceScanAt.getTime();
+    if (elapsed < COOLDOWN_MS) {
+      // Populate Map so subsequent checks on this instance are fast
+      recentScans.set(employeeId, employee.lastFaceScanAt.getTime());
+      setTimeout(() => recentScans.delete(employeeId), COOLDOWN_MS - elapsed + 1000);
+      return true;
+    }
+  }
+  return false;
 }
 
-function setCooldown(employeeId: string) {
-  recentScans.set(employeeId, Date.now());
-  // Tự dọn sau khi hết cooldown để không leak memory
+// tx is the Prisma transaction client from verifyAndRecord — must be called inside the transaction
+// so that lastFaceScanAt is written atomically with the attendance record.
+async function setCooldown(employeeId: string, tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) {
+  const now = Date.now();
+  recentScans.set(employeeId, now);
   setTimeout(() => recentScans.delete(employeeId), COOLDOWN_MS + 1000);
+  // Persist to DB inside the transaction for cross-instance visibility
+  await tx.employee.update({
+    where: { id: employeeId },
+    data: { lastFaceScanAt: new Date(now) },
+  });
 }
 
 
@@ -59,11 +86,12 @@ const LATE_GRACE_MINUTES = 5; // cho phép trễ 5 phút trước khi tính mu�
  * Tính số phút đi muộn so với ca làm gần nhất.
  * Trả về số phút dương nếu muộn, 0 nếu đúng giờ hoặc không tìm thấy ca.
  */
-async function getLateMinutes(checkInTime: Date): Promise<{ lateMinutes: number; shiftName: string | null }> {
+async function getLateMinutes(_checkInTime: Date): Promise<{ lateMinutes: number; shiftName: string | null }> {
   const shifts = await prisma.workShift.findMany({ where: { isActive: true } });
   if (shifts.length === 0) return { lateMinutes: 0, shiftName: null };
 
-  const nowMinutes = checkInTime.getHours() * 60 + checkInTime.getMinutes();
+  const { hour, minute } = nowInAppTz();
+  const nowMinutes = hour * 60 + minute;
 
   // Tìm ca phù hợp (giống logic determineShift)
   let bestShift: { name: string; startMinutes: number } | null = null;
@@ -217,7 +245,29 @@ async function getEmbeddingCache(): Promise<CachedProfile[]> {
   return embeddingCache;
 }
 
+// ─── LISTEN/NOTIFY notifier ───────────────────────────────────────────────────
+// Set by index.ts after the pg LISTEN client is created.
+// Allows invalidateEmbeddingCache to broadcast to all backend instances.
+let _pgNotify: (() => Promise<void>) | null = null;
+
+export function setPgNotifier(fn: () => Promise<void>) {
+  _pgNotify = fn;
+}
+
 export function invalidateEmbeddingCache() {
+  embeddingCache = null;
+  cacheTimestamp = 0;
+  // Broadcast to all instances via Postgres NOTIFY (fire-and-forget)
+  if (_pgNotify) {
+    _pgNotify().catch(err => logger.warn('NOTIFY face_profile_changed failed:', err));
+  }
+}
+
+/**
+ * Reset only the local cache without re-broadcasting NOTIFY.
+ * Called by the LISTEN handler in index.ts when a notification arrives from another instance.
+ */
+export function resetLocalEmbeddingCache() {
   embeddingCache = null;
   cacheTimestamp = 0;
 }
@@ -542,7 +592,7 @@ export class FaceAttendanceService {
       ? cachedProfiles.find(p => p.id === aiResult.profile_id) ?? null
       : null;
     const bestConfidence = aiResult.confidence;
-    const snapshotOwnerId = matchedCached?.employeeId ?? topK[0]?.employeeId ?? undefined;
+    const snapshotOwnerId = matchedCached?.employeeId ?? undefined;
     const snapshotPath = this.saveSnapshot(imageB64, snapshotOwnerId);
 
     if (!aiResult.liveness_passed) {
@@ -593,8 +643,8 @@ export class FaceAttendanceService {
       },
     });
 
-    // Cooldown: chặn quẹt liên tục trong 5 phút
-    if (isCoolingDown(employee.id)) {
+    // Cooldown: chặn quẹt liên tục trong 10 phút
+    if (await isCoolingDown(employee.id)) {
       logger.info(`Cooldown active for employee ${employee.id}, skipping scan`);
       return {
         matched: true,
@@ -609,32 +659,53 @@ export class FaceAttendanceService {
         livenessPassed: true,
         livenessScore: aiResult.liveness_score,
         topK,
-        message: 'Vui lòng chờ 5 phút trước khi quẹt lại',
+        message: 'Vui lòng chờ 10 phút trước khi quẹt lại',
       };
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const todaysAttendances = await prisma.attendance.findMany({
-      where: { employeeId: employee.id, attendanceDate: today },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, checkInTime: true, checkOutTime: true },
-    });
-    const openAttendance = todaysAttendances.find(item => item.checkInTime && !item.checkOutTime) ?? null;
-
+    // Wrap read-decide-write in a transaction with a per-employee advisory lock
+    // to prevent duplicate CHECK_IN/CHECK_OUT from concurrent kiosk scans.
     let action: 'CHECK_IN' | 'CHECK_OUT';
     let attendanceId: string;
 
-    if (openAttendance) {
-      const attendance = await attendanceService.checkOut(employee.id, new Date());
-      action = 'CHECK_OUT';
-      attendanceId = attendance.id;
-    } else if (todaysAttendances.length === 0) {
-      const attendance = await attendanceService.checkIn(employee.id, new Date());
-      action = 'CHECK_IN';
-      attendanceId = attendance.id;
-    } else {
+    const txResult = await prisma.$transaction(async (tx) => {
+      // Acquire per-employee advisory lock — serializes concurrent verifications for same employee
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${employee.id}))`;
+
+      const today = getTodayInAppTz();
+      const todaysAttendances = await tx.attendance.findMany({
+        where: { employeeId: employee.id, attendanceDate: today },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, checkInTime: true, checkOutTime: true },
+      });
+      const openAttendance = todaysAttendances.find(item => item.checkInTime && !item.checkOutTime) ?? null;
+
+      let txAction: 'CHECK_IN' | 'CHECK_OUT' | 'ALREADY_RECORDED';
+      let txAttendanceId: string | null = null;
+
+      if (openAttendance) {
+        const attendance = await attendanceService.checkOut(employee.id, new Date(), tx);
+        txAction = 'CHECK_OUT';
+        txAttendanceId = attendance.id;
+      } else if (todaysAttendances.length === 0) {
+        const attendance = await attendanceService.checkIn(employee.id, new Date(), tx);
+        txAction = 'CHECK_IN';
+        txAttendanceId = attendance.id;
+      } else {
+        txAction = 'ALREADY_RECORDED';
+      }
+
+      // Set cooldown inside the transaction so it is always consistent with the written record
+      if (txAction === 'CHECK_IN' || txAction === 'CHECK_OUT') {
+        await setCooldown(employee.id, tx);
+      }
+
+      return { txAction, txAttendanceId, todaysAttendances };
+    });
+
+    const { txAction, txAttendanceId, todaysAttendances } = txResult;
+
+    if (txAction === 'ALREADY_RECORDED') {
       await prisma.faceAttendanceLog.create({
         data: {
           faceProfileId: matchedCached.id,
@@ -668,12 +739,12 @@ export class FaceAttendanceService {
       };
     }
 
+    action = txAction;
+    attendanceId = txAttendanceId!;
+
     await prisma.faceAttendanceLog.create({
       data: { faceProfileId: matchedCached.id, employeeId: employee.id, action, confidence: bestConfidence, snapshotPath, deviceId, ipAddress, attendanceId },
     });
-
-    // Set cooldown sau khi chấm công thành công
-    setCooldown(employee.id);
 
     // Adaptive enrollment
     if (bestConfidence >= ADAPTIVE_MIN_CONFIDENCE) {
@@ -753,10 +824,20 @@ export class FaceAttendanceService {
 
   private saveSnapshot(imageB64: string, employeeId?: string): string {
     try {
-      const dir = path.join(env.UPLOAD_DIR, 'snapshots', employeeId || 'unknown');
-      const filename = `snapshot_${Date.now()}.jpg`;
-      saveBase64Image(imageB64, dir, filename);
-      return `snapshots/${employeeId || 'unknown'}/${filename}`;
+      let dir: string;
+      if (employeeId) {
+        dir = path.join(env.UPLOAD_DIR, 'snapshots', employeeId);
+        const filename = `snapshot_${Date.now()}.jpg`;
+        saveBase64Image(imageB64, dir, filename);
+        return `snapshots/${employeeId}/${filename}`;
+      } else {
+        // Unrecognized face: store under snapshots/unknown/YYYYMMDD/
+        const dateFolder = format(getTodayInAppTz(), 'yyyyMMdd');
+        dir = path.join(env.UPLOAD_DIR, 'snapshots', 'unknown', dateFolder);
+        const filename = `snapshot_${Date.now()}.jpg`;
+        saveBase64Image(imageB64, dir, filename);
+        return `snapshots/unknown/${dateFolder}/${filename}`;
+      }
     } catch {
       return '';
     }
