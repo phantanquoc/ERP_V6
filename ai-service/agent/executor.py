@@ -179,6 +179,28 @@ def execute_confirmed(tool_name: str, params: dict, jwt_token: str) -> Generator
         yield f"Thất bại: {result.get('error', result.get('message', 'Lỗi không xác định'))}"
 
 
+def _coerce_params(tool: dict, params: dict) -> dict:
+    """Coerce param types theo schema (Groq đôi khi trả string cho integer fields)."""
+    all_params = tool.get("path_params", []) + tool.get("query_params", []) + tool.get("body_params", [])
+    type_map = {p["name"]: p["type"] for p in all_params}
+    coerced = {}
+    for k, v in params.items():
+        expected = type_map.get(k)
+        if expected == "integer" and isinstance(v, str):
+            try:
+                coerced[k] = int(v)
+            except ValueError:
+                coerced[k] = v
+        elif expected == "number" and isinstance(v, str):
+            try:
+                coerced[k] = float(v)
+            except ValueError:
+                coerced[k] = v
+        else:
+            coerced[k] = v
+    return coerced
+
+
 def execute_stream(message: str, history: list, role: str, jwt_token: str, today: str) -> Generator[str, None, None]:
     """
     Main agent executor — stream response.
@@ -223,6 +245,9 @@ def execute_stream(message: str, history: list, role: str, jwt_token: str, today
         if not tool:
             yield f"Lỗi: Tool '{fn_name}' không tồn tại."
             return
+
+        # Coerce params theo schema (Groq đôi khi trả string thay vì int)
+        fn_args = _coerce_params(tool, fn_args)
 
         # Write action → return confirm
         if tool.get("is_write"):
