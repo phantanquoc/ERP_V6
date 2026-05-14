@@ -1,14 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Bot, User, Sparkles, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, User, Sparkles, ThumbsUp, ThumbsDown, Download, CheckCircle, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '../contexts/AuthContext';
 import { getDepartmentDisplayName } from '../utils/permissions';
 import { API_BASE_URL } from '../config/api';
 
+interface AgentAction {
+  type: 'confirm' | 'export' | 'error';
+  tool: string;
+  params: Record<string, unknown>;
+  message: string;
+  url: string;
+  filename: string;
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  agentAction?: AgentAction;
 }
 
 // Markdown components
@@ -121,29 +131,40 @@ const ChatWidget: React.FC = () => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
   }, [open]);
 
-  const sendMessage = async () => {
+  const sendMessage = async (confirmTool?: string, confirmParams?: Record<string, unknown>) => {
     const text = input.trim();
-    if (!text || streaming) return;
+    if (!text && !confirmTool) return;
+    if (streaming) return;
 
-    const userMsg: ChatMessage = { role: 'user', content: text };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setInput('');
+    if (!confirmTool) {
+      const userMsg: ChatMessage = { role: 'user', content: text };
+      const newMessages = [...messages, userMsg];
+      setMessages(newMessages);
+      setInput('');
+    }
+
     setStreaming(true);
     setShowTyping(true);
 
-    const history = newMessages.slice(1, -1);
+    const history = messages.slice(1).filter(m => !m.agentAction).map(m => ({ role: m.role, content: m.content }));
     const token = localStorage.getItem('accessToken');
     abortRef.current = new AbortController();
 
+    const body: Record<string, unknown> = {
+      message: confirmTool ? '' : text,
+      history,
+      confirm_tool: confirmTool || '',
+      confirm_params: confirmParams || {},
+    };
+
     try {
-      const res = await fetch(`${API_BASE_URL}/chat/stream`, {
+      const res = await fetch(`${API_BASE_URL}/agent/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify(body),
         signal: abortRef.current.signal,
       });
 
@@ -152,28 +173,47 @@ const ChatWidget: React.FC = () => {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let firstChunk = true;
+      let accumulated = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
+        accumulated += chunk;
+
+        // Check for sentinel — don't render it
+        const sentinelIdx = accumulated.indexOf('__AGENT_ACTION__');
+        const displayContent = sentinelIdx >= 0 ? accumulated.substring(0, sentinelIdx).trimEnd() : accumulated;
 
         if (firstChunk) {
-          // Tắt typing, thêm bubble assistant mới với token đầu tiên
           setShowTyping(false);
-          setMessages((prev) => [...prev, { role: 'assistant', content: chunk }]);
+          setMessages((prev) => [...prev, { role: 'assistant', content: displayContent }]);
           firstChunk = false;
         } else {
           setMessages((prev) => {
             const updated = [...prev];
-            updated[updated.length - 1] = {
-              role: 'assistant',
-              content: updated[updated.length - 1].content + chunk,
-            };
+            updated[updated.length - 1] = { role: 'assistant', content: displayContent };
             return updated;
           });
         }
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      // Parse agent action from accumulated content
+      const sentinelIdx = accumulated.indexOf('__AGENT_ACTION__');
+      if (sentinelIdx >= 0) {
+        const actionStr = accumulated.substring(sentinelIdx + '__AGENT_ACTION__\n'.length).trim();
+        try {
+          const action: AgentAction = JSON.parse(actionStr);
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            updated[updated.length - 1] = { ...last, agentAction: action };
+            return updated;
+          });
+        } catch {
+          // Failed to parse action — ignore
+        }
       }
     } catch (err: unknown) {
       setShowTyping(false);
@@ -182,12 +222,12 @@ const ChatWidget: React.FC = () => {
         return;
       }
       setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: 'assistant',
-          content: 'Đã xảy ra lỗi kết nối. Vui lòng thử lại.',
-        };
-        return updated;
+        if (prev[prev.length - 1]?.role === 'assistant') {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'assistant', content: 'Đã xảy ra lỗi kết nối. Vui lòng thử lại.' };
+          return updated;
+        }
+        return [...prev, { role: 'assistant', content: 'Đã xảy ra lỗi kết nối. Vui lòng thử lại.' }];
       });
     } finally {
       setShowTyping(false);
@@ -201,6 +241,29 @@ const ChatWidget: React.FC = () => {
       e.preventDefault();
       sendMessage();
     }
+  };
+
+  const handleConfirm = (action: AgentAction) => {
+    sendMessage(action.tool, action.params as Record<string, unknown>);
+  };
+
+  const handleExport = (action: AgentAction) => {
+    const token = localStorage.getItem('accessToken');
+    const url = `${API_BASE_URL}${action.url}`;
+    fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => res.blob())
+      .then((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = action.filename || 'export.xlsx';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(() => {
+        // Silent fail
+      });
   };
 
   const handleStop = () => {
@@ -357,8 +420,41 @@ const ChatWidget: React.FC = () => {
                           style={{ animation: 'typingBounce 1s ease-in-out infinite' }}
                         />
                       )}
+                      {/* Agent action buttons */}
+                      {msg.agentAction && !streaming && (
+                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+                          {msg.agentAction.type === 'confirm' && (
+                            <>
+                              <button
+                                onClick={() => handleConfirm(msg.agentAction!)}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors"
+                              >
+                                <CheckCircle size={12} /> Xác nhận
+                              </button>
+                              <button
+                                onClick={() => setMessages(prev => {
+                                  const updated = [...prev];
+                                  updated[updated.length - 1] = { ...updated[updated.length - 1], agentAction: undefined };
+                                  return [...updated, { role: 'assistant', content: 'Đã hủy thao tác.' }];
+                                })}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                              >
+                                <XCircle size={12} /> Hủy
+                              </button>
+                            </>
+                          )}
+                          {msg.agentAction.type === 'export' && (
+                            <button
+                              onClick={() => handleExport(msg.agentAction!)}
+                              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
+                            >
+                              <Download size={12} /> Tải xuống {msg.agentAction.filename}
+                            </button>
+                          )}
+                        </div>
+                      )}
                       {/* Feedback buttons */}
-                      {msg.content && !streaming && i > 0 && (
+                      {msg.content && !streaming && i > 0 && !msg.agentAction && (
                         <div className="flex items-center gap-1 mt-1.5 pt-1 border-t border-gray-100">
                           {feedbackGiven[i] ? (
                             <span className="text-xs text-gray-400">
