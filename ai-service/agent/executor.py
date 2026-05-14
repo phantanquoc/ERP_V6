@@ -82,7 +82,7 @@ def _call_backend_api(tool: dict, params: dict | None, jwt_token: str) -> dict:
 
 
 def _format_api_result(tool_name: str, data: dict) -> str:
-    """Format API response into readable Vietnamese text."""
+    """Format API response — gửi lại cho LLM để tạo câu trả lời thân thiện."""
     if not data.get("success", True):
         return f"Lỗi: {data.get('error', data.get('message', 'Không xác định'))}"
 
@@ -91,15 +91,77 @@ def _format_api_result(tool_name: str, data: dict) -> str:
     if isinstance(result_data, list):
         if not result_data:
             return "Không có dữ liệu."
+        # Chỉ lấy fields quan trọng, bỏ IDs và metadata
         count = len(result_data)
-        preview = json.dumps(result_data[:5], ensure_ascii=False, indent=2)
-        suffix = f"\n\n... và {count - 5} mục khác." if count > 5 else ""
-        return f"Tìm thấy {count} kết quả:\n\n```json\n{preview}\n```{suffix}"
+        simplified = _simplify_records(result_data[:10], tool_name)
+        return _llm_format(tool_name, simplified, count)
 
     if isinstance(result_data, dict):
-        return f"```json\n{json.dumps(result_data, ensure_ascii=False, indent=2)}\n```"
+        simplified = _simplify_record(result_data, tool_name)
+        return _llm_format(tool_name, simplified, 1)
 
     return str(result_data)
+
+
+def _simplify_record(record: dict, tool_name: str) -> dict:
+    """Loại bỏ IDs, timestamps, metadata không cần thiết cho user."""
+    skip_keys = {"id", "userId", "createdAt", "updatedAt", "positionId", "positionLevelId",
+                 "subDepartmentId", "secondarySubDepartmentId", "departmentId", "responsibilityCode"}
+    result = {}
+    for k, v in record.items():
+        if k in skip_keys or k.endswith("Id"):
+            continue
+        if isinstance(v, dict):
+            # Flatten nested objects (user, position, etc.)
+            for nk, nv in v.items():
+                if nk not in skip_keys and not nk.endswith("Id") and nv is not None:
+                    result[f"{k}_{nk}"] = nv
+        elif v is not None:
+            result[k] = v
+    return result
+
+
+def _simplify_records(records: list, tool_name: str) -> list:
+    """Simplify a list of records."""
+    return [_simplify_record(r, tool_name) for r in records]
+
+
+def _llm_format(tool_name: str, data, count: int) -> str:
+    """Dùng LLM để format data thành câu trả lời thân thiện."""
+    if not _client:
+        return json.dumps(data, ensure_ascii=False, indent=2)
+
+    data_str = json.dumps(data, ensure_ascii=False, indent=2)
+    # Truncate nếu quá dài
+    if len(data_str) > 3000:
+        data_str = data_str[:3000] + "\n..."
+
+    prompt = f"""Dữ liệu từ hệ thống ERP (tool: {tool_name}, tổng: {count} kết quả):
+
+{data_str}
+
+Hãy trình bày dữ liệu trên thành câu trả lời thân thiện cho nhân viên:
+- Dùng bảng markdown nếu là danh sách (chỉ hiện các cột quan trọng nhất: tên, mã, trạng thái, phòng ban, chức vụ...)
+- Dùng bullet points nếu là chi tiết 1 item
+- Format ngày tháng dễ đọc (VD: 01/01/1990)
+- Format tiền tệ có dấu chấm phân cách (VD: 12.000.000đ)
+- Bỏ qua các trường kỹ thuật (size quần áo, locker, weight, height...)
+- Ngắn gọn, dễ đọc
+- Nếu có nhiều hơn số hiển thị, ghi chú "và X kết quả khác"
+- KHÔNG giải thích gì thêm, chỉ trình bày dữ liệu"""
+
+    try:
+        resp = _client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=1024,
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"LLM format error: {e}")
+        # Fallback: format đơn giản
+        return f"Tìm thấy {count} kết quả:\n\n```\n{data_str[:1500]}\n```"
 
 
 def execute_confirmed(tool_name: str, params: dict, jwt_token: str) -> Generator[str, None, None]:
