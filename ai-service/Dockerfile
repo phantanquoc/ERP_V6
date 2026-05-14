@@ -30,8 +30,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN rm -rf /tmp/wheels
 
 # Copy app
+COPY config.py .
+COPY app.py .
 COPY main.py .
+COPY face/ ./face/
+COPY chat/ ./chat/
+COPY agent/ ./agent/
 
 EXPOSE 8001
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001"]

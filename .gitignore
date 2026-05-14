@@ -44,3 +44,5 @@ nginx/ssl/*.crt
 postgres_data/
 
 .gitnexus
+__pycache__/
+*.pyc
