@@ -72,6 +72,11 @@ services:
       - ./docs/chatbot:/app/docs/chatbot:ro
       - ai_chroma_dev:/app/chroma_data
       - ./ai-service/main.py:/app/main.py:ro
+      - ./ai-service/app.py:/app/app.py:ro
+      - ./ai-service/config.py:/app/config.py:ro
+      - ./ai-service/face:/app/face:ro
+      - ./ai-service/chat:/app/chat:ro
+      - ./ai-service/agent:/app/agent:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 30s

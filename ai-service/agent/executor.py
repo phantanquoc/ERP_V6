@@ -10,9 +10,11 @@ from config import logger, GROQ_API_KEY, GROQ_MODEL
 from agent.models import AgentAction
 from agent.registry import get_tools_for_role, get_tool_by_name, to_groq_tools
 
+import os
+
 _client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
-BACKEND_API_URL = "http://backend:3000"
+BACKEND_API_URL = os.environ.get("BACKEND_API_URL", "http://backend:5000")
 
 EXECUTOR_SYSTEM = """Bạn là trợ lý ERP thông minh. Bạn giúp nhân viên thực hiện các thao tác trên hệ thống ERP.
 
