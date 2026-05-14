@@ -534,7 +534,7 @@ const ChatWidget: React.FC = () => {
               </button>
             ) : (
               <button
-                onClick={sendMessage}
+                onClick={() => sendMessage()}
                 disabled={!input.trim()}
                 className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
                 style={{ background: input.trim() ? 'linear-gradient(135deg, #3b82f6, #2563eb)' : '#e5e7eb' }}

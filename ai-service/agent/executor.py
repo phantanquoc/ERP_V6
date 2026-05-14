@@ -37,8 +37,9 @@ def _build_messages(message: str, history: list, today: str) -> list:
     return messages
 
 
-def _call_backend_api(tool: dict, params: dict, jwt_token: str) -> dict:
+def _call_backend_api(tool: dict, params: dict | None, jwt_token: str) -> dict:
     """Execute API call to backend with user's JWT."""
+    params = params or {}
     path = tool["path"]
     for p in tool.get("path_params", []):
         if p["name"] in params:
