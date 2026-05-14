@@ -46,7 +46,7 @@ TOOLS: List[dict] = [
         "query_params": [
             {"name": "page", "type": "integer", "required": False, "description": "Số trang"},
             {"name": "limit", "type": "integer", "required": False, "description": "Số lượng mỗi trang"},
-            {"name": "status", "type": "string", "required": False, "description": "Trạng thái: pending/approved/rejected"},
+            {"name": "status", "type": "string", "required": False, "description": "Trạng thái: pending (chờ duyệt), approved (đã duyệt), rejected (từ chối)", "enum": ["pending", "approved", "rejected"]},
         ],
         "body_params": [],
         "is_write": False,
@@ -304,6 +304,23 @@ TOOLS: List[dict] = [
         "required_roles": [],
         "category": "quotation",
     },
+    # ─── Knowledge Base (RAG) ──────────────────────────────────────────────
+    {
+        "name": "search_knowledge",
+        "description": "Tìm kiếm hướng dẫn sử dụng, quy trình, SOP trong knowledge base ERP. Dùng khi user hỏi cách làm, hướng dẫn, quy trình, hoặc cần thông tin về cách sử dụng hệ thống.",
+        "method": "INTERNAL",
+        "path": "",
+        "path_params": [],
+        "query_params": [
+            {"name": "query", "type": "string", "required": True, "description": "Câu hỏi cần tìm trong knowledge base"},
+        ],
+        "body_params": [],
+        "is_write": False,
+        "is_export": False,
+        "is_internal": True,
+        "required_roles": [],
+        "category": "knowledge",
+    },
 ]
 
 
@@ -334,17 +351,26 @@ def to_groq_tools(tools: List[dict]) -> List[dict]:
         required = []
 
         for p in t.get("path_params", []):
-            properties[p["name"]] = {"type": p["type"], "description": p["description"]}
+            prop = {"type": p["type"], "description": p["description"]}
+            if p.get("enum"):
+                prop["enum"] = p["enum"]
+            properties[p["name"]] = prop
             if p.get("required"):
                 required.append(p["name"])
 
         for p in t.get("query_params", []):
-            properties[p["name"]] = {"type": p["type"], "description": p["description"]}
+            prop = {"type": p["type"], "description": p["description"]}
+            if p.get("enum"):
+                prop["enum"] = p["enum"]
+            properties[p["name"]] = prop
             if p.get("required"):
                 required.append(p["name"])
 
         for p in t.get("body_params", []):
-            properties[p["name"]] = {"type": p["type"], "description": p["description"]}
+            prop = {"type": p["type"], "description": p["description"]}
+            if p.get("enum"):
+                prop["enum"] = p["enum"]
+            properties[p["name"]] = prop
             if p.get("required"):
                 required.append(p["name"])
 

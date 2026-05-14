@@ -45,6 +45,8 @@ CHROMA_DIR = Path("/app/chroma_data")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_GRADER_MODEL = os.environ.get("GROQ_GRADER_MODEL", "llama-3.1-8b-instant")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
 COMMON_FILE = "00-chung.md"
 CONFIDENCE_THRESHOLD = 0.32
 
