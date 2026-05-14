@@ -48,6 +48,17 @@ export class FaceAttendanceController {
     }
   }
 
+  async getProfileImages(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { employeeId } = req.params;
+      const data = await faceAttendanceService.getProfileImages(employeeId);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** Toggle active/inactive face profile */
   async toggleProfile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { profileId } = req.params;

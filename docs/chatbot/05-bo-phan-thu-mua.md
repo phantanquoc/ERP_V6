@@ -175,7 +175,7 @@ Phòng thu mua NVL quản lý toàn bộ chu trình thu mua nguyên vật liệu
 | 4 | Mã nhân viên | Text | |
 | 5 | Phân loại | Text | |
 | 6 | Mức độ ưu tiên | Select | `Thấp` / `Trung bình` / `Cao` |
-| 7 | Danh sách sản phẩm | Table | Tên hàng hóa, số lượng, đơn vị tính, nhà cung cấp |
+| 7 | Danh sách sản phẩm | Table | Tên hàng hóa, số lượng, đơn vị tính, nhà cung cấp, **giá dự kiến (VNĐ)** |
 | 8 | Mục đích yêu cầu | Textarea | |
 | 9 | Trạng thái | Select | `Chờ duyệt` / `Đã duyệt` / `Từ chối` / `Hoàn thành` |
 | 10 | Ghi chú | Textarea | |
@@ -259,7 +259,7 @@ Cấu trúc form giống phòng NVL (13 trường), nhưng:
 > Ba mức: **Thấp**, **Trung bình**, **Cao**. Mức ưu tiên ảnh hưởng đến thứ tự xử lý của người duyệt.
 
 **Q4: Trạng thái yêu cầu mua hàng thay đổi như thế nào?**
-> Luồng xử lý: `Chờ duyệt` → `Đã duyệt` hoặc `Từ chối` → `Hoàn thành`. Người có quyền TEAM_LEAD trở lên mới được thay đổi trạng thái.
+> Luồng xử lý: `Chờ duyệt` → `Đã duyệt` hoặc `Từ chối` → `Hoàn thành`. Người có quyền TEAM_LEAD trở lên mới được thay đổi trạng thái. Ngoài ra, có nút **"Đã mua xong"** — khi nhấn, hệ thống đổi trạng thái thành "Hoàn thành" và **thông báo cho kho chuẩn bị nhập hàng**.
 
 **Q5: Màu sắc hiển thị mã nhà cung cấp có ý nghĩa gì?**
 > Mã NCC của **Phòng thu mua NVL** hiển thị màu **xanh dương**, của **Phòng mua Thiết bị** hiển thị màu **tím**. Đây là cách phân biệt nhanh trên giao diện.

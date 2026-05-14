@@ -38,6 +38,34 @@ Tài liệu này mô tả toàn bộ hành trình của một đơn hàng trong 
 
 ---
 
+## Tóm tắt: Sau khi khách hàng đồng ý báo giá — các bước để hoàn tất đơn hàng
+
+Khi khách hàng đã đồng ý với báo giá, quy trình tiếp theo gồm 5 bước chính:
+
+**Bước 3 — Phòng KD tạo Đơn hàng:**
+- Vào tab **Danh sách BG** → tìm báo giá → nhấn **Sửa** → đổi trạng thái thành **"Đã đặt hàng"** → **"Lưu thay đổi"**
+- Nhấn biểu tượng **"Tạo đơn hàng"** (giỏ hàng) → xác nhận
+- Vào tab **Danh sách đơn hàng** → nhấn **Sửa** → điền giá trị đơn hàng, thanh toán đợt 1/2, ngày thanh toán → **"Lưu thay đổi"**
+
+**Bước 4 — Phòng QLSX cập nhật sản xuất & giao hàng:**
+- Phòng QLSX vào **Bộ phận sản xuất** → tab **Danh sách đơn hàng** → cập nhật trạng thái sản xuất: Chờ lên kế hoạch → Chờ sản xuất → Đang sản xuất → Chờ giao hàng → Đã lên container → Đang vận chuyển → Đã giao cho khách hàng
+- Điền ngày bắt đầu SX, ngày hoàn thành, ngày giao hàng thực tế
+
+**Bước 5 — Phòng KT Thuế xử lý thuế:**
+- Bản ghi thuế tự động sinh khi đơn hàng được tạo
+- Phòng KT Thuế vào **Bộ phận kế toán** → **Phòng KT Thuế** → tab **Báo cáo thuế** → cập nhật số tiền thuế và trạng thái
+
+**Bước 6 — Phòng KT Hành chính lập hóa đơn:**
+- Vào **Phòng KT Hành chính** → tab **Hóa đơn** → nhấn **"Thêm mới"** → điền số hóa đơn, ngày lập, tổng tiền, VAT, phương thức thanh toán
+- Theo dõi công nợ tại tab **Công nợ**
+
+**Bước 7 — Phòng KD ghi nhận phản hồi:**
+- Sau khi giao hàng, vào tab **Danh sách phản hồi từ KH** → nhấn **"Thêm phản hồi"** → điền loại phản hồi, mức độ, nội dung, biện pháp xử lý
+
+**Lưu ý:** Đơn hàng chỉ thực sự hoàn tất khi cả thuế đã quyết toán VÀ phản hồi khách hàng đã được ghi nhận.
+
+---
+
 ## Bước 1 — Phòng Kinh doanh tạo Yêu cầu Báo giá (YCBG)
 
 **Ai thực hiện:** Nhân viên Phòng KD Nội Địa hoặc Phòng KD Quốc Tế

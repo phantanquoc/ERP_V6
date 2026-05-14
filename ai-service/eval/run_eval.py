@@ -82,28 +82,29 @@ def score_answer(answer: str, ground_truth: str, question: str) -> dict[str, flo
 def run_ragas_eval(samples: list[dict]) -> dict[str, float] | None:
     """
     Chạy RAGAS evaluation nếu có đủ thư viện.
-    Dùng Ollama làm LLM judge (không cần OpenAI).
+    Dùng Groq làm LLM judge.
     """
     try:
         import os
         from datasets import Dataset
         from ragas import evaluate
         from ragas.metrics import faithfulness, answer_relevancy, context_precision
-        from langchain_ollama import OllamaLLM, OllamaEmbeddings
+        from langchain_groq import ChatGroq
         from ragas.llms import LangchainLLMWrapper
         from ragas.embeddings import LangchainEmbeddingsWrapper
 
-        ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-        ollama_model = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
+        groq_api_key = os.environ.get("GROQ_API_KEY", "")
+        groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
-        llm = LangchainLLMWrapper(OllamaLLM(base_url=ollama_host, model=ollama_model))
-        emb = LangchainEmbeddingsWrapper(OllamaEmbeddings(base_url=ollama_host, model=ollama_model))
+        if not groq_api_key:
+            print("  [RAGAS] GROQ_API_KEY not set — skipping RAGAS metrics")
+            return None
 
-        # RAGAS 0.2.x: set LLM/embeddings trên từng metric object
+        llm = LangchainLLMWrapper(ChatGroq(api_key=groq_api_key, model_name=groq_model))
+
+        # RAGAS 0.2.x: set LLM trên từng metric object
         for metric in [faithfulness, answer_relevancy, context_precision]:
             metric.llm = llm
-            if hasattr(metric, "embeddings"):
-                metric.embeddings = emb
 
         # contexts phải là document text, không phải label strings
         # Lọc samples có context_texts (từ extended API nếu có)
@@ -129,7 +130,7 @@ def run_ragas_eval(samples: list[dict]) -> dict[str, float] | None:
             "context_precision": round(float(result["context_precision"]), 3),
         }
     except ImportError:
-        print("  [RAGAS] ragas/datasets/langchain_ollama not installed, skipping RAGAS metrics")
+        print("  [RAGAS] ragas/datasets/langchain_groq not installed, skipping RAGAS metrics")
         return None
     except Exception as e:
         print(f"  [RAGAS] Evaluation failed: {e}")

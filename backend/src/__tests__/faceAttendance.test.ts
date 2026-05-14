@@ -149,7 +149,7 @@ describe('Late detection logic', () => {
   });
 
   it('returns 0 when checking in early', () => {
-    const LATE_GRACE_MINUTES = 5;
+    // LATE_GRACE_MINUTES = 5; inShift gate handles early check-ins, not this formula
     const shiftStart = 8 * 60;
     const checkInMinutes = 7 * 60 + 55; // 07:55 — early
 

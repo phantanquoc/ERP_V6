@@ -775,7 +775,7 @@ const FaceKioskPage: React.FC = () => {
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative z-10 flex flex-col items-center gap-4">
-            <div className="relative" style={{ width: 'min(200px, 30vw)', height: 'min(200px, 30vw)' }}>
+            <div className="relative" style={{ width: 'min(460px, 72vw)', height: 'min(280px, 42vw)' }}>
               {activeChallenge === 'look_left' && (
                 <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
                   <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
@@ -801,16 +801,31 @@ const FaceKioskPage: React.FC = () => {
                 </svg>
               )}
               {activeChallenge === 'blink' && (
-                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
-                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
-                  <ellipse cx="100" cy="88" rx="45" ry="30" fill="none" stroke="#facc15" strokeWidth="5">
-                    <animate attributeName="ry" values="30;3;30" dur="1.8s" repeatCount="indefinite" keyTimes="0;0.25;0.5" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline" />
-                  </ellipse>
-                  <circle cx="100" cy="88" r="14" fill="#facc15">
-                    <animate attributeName="opacity" values="1;0;1" dur="1.8s" repeatCount="indefinite" />
-                    <animate attributeName="r" values="14;2;14" dur="1.8s" repeatCount="indefinite" keyTimes="0;0.25;0.5" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline" />
-                  </circle>
-                  <path d="M50 140 Q100 165 150 140" fill="none" stroke="#facc15" strokeWidth="3" strokeLinecap="round" />
+                <svg viewBox="0 0 300 180" className="w-full h-full drop-shadow-[0_0_26px_rgba(250,204,21,0.85)]">
+                  <g>
+                    <ellipse cx="95" cy="90" rx="50" ry="28" fill="none" stroke="#facc15" strokeWidth="8">
+                      <animate attributeName="ry" values="28;28;5;5;28" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </ellipse>
+                    <circle cx="95" cy="90" r="14" fill="#facc15">
+                      <animate attributeName="opacity" values="1;1;0;0;1" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                      <animate attributeName="r" values="14;14;2;2;14" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </circle>
+                    <path d="M45 90 Q95 110 145 90" fill="none" stroke="#facc15" strokeWidth="8" strokeLinecap="round" opacity="0">
+                      <animate attributeName="opacity" values="0;0;1;1;0" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </path>
+                  </g>
+                  <g>
+                    <ellipse cx="205" cy="90" rx="50" ry="28" fill="none" stroke="#facc15" strokeWidth="8">
+                      <animate attributeName="ry" values="28;28;5;5;28" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </ellipse>
+                    <circle cx="205" cy="90" r="14" fill="#facc15">
+                      <animate attributeName="opacity" values="1;1;0;0;1" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                      <animate attributeName="r" values="14;14;2;2;14" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </circle>
+                    <path d="M155 90 Q205 110 255 90" fill="none" stroke="#facc15" strokeWidth="8" strokeLinecap="round" opacity="0">
+                      <animate attributeName="opacity" values="0;0;1;1;0" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </path>
+                  </g>
                 </svg>
               )}
             </div>
@@ -863,7 +878,7 @@ const FaceKioskPage: React.FC = () => {
       {kioskState === 'processing' && (
         <div className="absolute inset-0 bg-black/30 flex flex-col items-center justify-center z-20">
           <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-white text-xl font-semibold drop-shadow">Đang nhận diện...</p>
+          <p className="text-white text-xl font-semibold drop-shadow">Giữ mặt nhìn thẳng, Đang nhận diện...</p>
         </div>
       )}
 

@@ -10,12 +10,8 @@ pydantic>=2.0.0
 uniface==3.5.0
 torch>=2.0.0
 # RAG Chatbot dependencies
-langchain==0.3.25
-langchain-community==0.3.24
-langchain-ollama==0.3.3
 chromadb==0.6.3
 sentence-transformers==3.4.1
-ollama==0.4.8
 rank-bm25==0.2.2
 flashrank==0.2.9
 groq==0.13.1

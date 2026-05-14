@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Bot, User, Sparkles } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, User, Sparkles, ThumbsUp, ThumbsDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '../contexts/AuthContext';
@@ -65,9 +65,32 @@ const ChatWidget: React.FC = () => {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<number, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const sendFeedback = async (msgIndex: number, rating: number) => {
+    // Tìm câu hỏi tương ứng (message user ngay trước assistant message)
+    const question = messages.slice(0, msgIndex).reverse().find(m => m.role === 'user')?.content || '';
+    const answer = messages[msgIndex]?.content || '';
+    setFeedbackGiven(prev => ({ ...prev, [msgIndex]: rating }));
+    try {
+      await fetch(`${API_BASE_URL}/chat/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question,
+          answer,
+          rating,
+          department: user?.department || '',
+          role: user?.role || '',
+        }),
+      });
+    } catch {
+      // Silent fail — feedback is non-critical
+    }
+  };
 
   // Build personalized greeting
   const greeting = React.useMemo(() => {
@@ -333,6 +356,33 @@ const ChatWidget: React.FC = () => {
                           className="inline-block w-0.5 h-4 bg-blue-400 ml-0.5 align-middle rounded-full"
                           style={{ animation: 'typingBounce 1s ease-in-out infinite' }}
                         />
+                      )}
+                      {/* Feedback buttons */}
+                      {msg.content && !streaming && i > 0 && (
+                        <div className="flex items-center gap-1 mt-1.5 pt-1 border-t border-gray-100">
+                          {feedbackGiven[i] ? (
+                            <span className="text-xs text-gray-400">
+                              {feedbackGiven[i] > 0 ? 'Cảm ơn!' : 'Đã ghi nhận'}
+                            </span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => sendFeedback(i, 1)}
+                                className="p-1 rounded hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors"
+                                title="Hữu ích"
+                              >
+                                <ThumbsUp size={12} />
+                              </button>
+                              <button
+                                onClick={() => sendFeedback(i, -1)}
+                                className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                                title="Chưa chính xác"
+                              >
+                                <ThumbsDown size={12} />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       )}
                     </>
                   )}

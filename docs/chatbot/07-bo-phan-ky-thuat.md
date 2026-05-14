@@ -14,8 +14,8 @@ Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo
 
 | Phòng | Mô tả |
 |---|---|
-| **Phòng QLHTM** (Quản lý hệ thống máy) | Danh sách máy, báo cáo hoạt động, thông số vận hành |
-| **Phòng cơ-điện** | Yêu cầu sửa chữa, nghiệm thu bàn giao |
+| **Phòng QLHTM** (Quản lý hệ thống máy) | 5 tab: Danh sách hệ thống máy, Báo cáo hoạt động máy, Danh sách đơn hàng, Yêu cầu sửa chữa, Nghiệm thu bàn giao |
+| **Phòng cơ-điện** | Đang phát triển |
 
 ---
 
@@ -34,9 +34,9 @@ Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo
 
 ## 3. Phòng QLHTM
 
-### 3.1 Hệ thống máy (tab **Hệ thống máy**)
+### 3.1 Danh sách hệ thống máy — Tab "Danh sách hệ thống máy" (`machineSystems`)
 
-**Truy cập:** `/technical/quality` → tab **"Hệ thống máy"**
+**Truy cập:** `/technical/quality` → tab **"Danh sách hệ thống máy"**
 
 #### Nút header
 
@@ -81,27 +81,9 @@ Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo
 
 **Nút:** "Thêm mới" (tạo) / "Cập nhật" (sửa) / "Đóng"
 
-#### Quản lý máy móc (tab **Quản lý máy móc**) — tab "Quản lý máy móc"
+> **Lưu ý:** Tab "Quản lý máy móc" (CRUD máy riêng lẻ) thuộc **Bộ phận sản xuất** (Phòng QLSX), không nằm trong Phòng QLHTM.
 
-**Nút header:** "Thêm máy mới"
-
-**Bộ lọc:** Mã máy (văn bản), Tên máy (văn bản), Trạng thái (dropdown)
-
-**Cột bảng:** Mã máy · Tên máy · Mô tả · Trạng thái (badge) · Ghi chú · Hành động (Sửa / Xóa)
-
-**Form thêm / sửa máy:**
-
-| Trường | Bắt buộc | Loại nhập | Ghi chú |
-|---|:---:|---|---|
-| Mã máy | | Chỉ đọc | Tự động tạo, placeholder: "Tự động tạo..." |
-| Tên máy | ✅ | Văn bản | Placeholder: "VD: Máy sấy 1". Lỗi: "Vui lòng nhập tên máy" |
-| Trạng thái | ✅ | Dropdown | Hoạt động (`HOAT_DONG`) / Bảo trì (`BẢO_TRÌ`) / Ngừng hoạt động (`NGỪNG_HOẠT_ĐỘNG`) |
-| Mô tả | | Văn bản dài (3 dòng) | Placeholder: "Mô tả chi tiết về máy" |
-| Ghi chú | | Văn bản | Placeholder: "Ghi chú thêm" |
-
-**Nút:** "Thêm mới" / "Cập nhật" / "Hủy"
-
-### 3.2 Báo cáo hoạt động của máy (tab **Báo cáo hoạt động máy**)
+### 3.2 Báo cáo hoạt động của máy — Tab "Báo cáo hoạt động của máy" (`machineActivity`)
 
 **8 trường trong form báo cáo:**
 
@@ -118,24 +100,27 @@ Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo
 
 > Trường `ngayTao` được hệ thống tự động ghi nhận khi tạo báo cáo.
 
-### 3.3 Thông số vận hành hệ thống
+### 3.3 Danh sách đơn hàng — Tab "Danh sách đơn hàng" (`orders`)
 
-Được quản lý qua tab **Thông số vận hành** — theo dõi 4 giai đoạn, mỗi giai đoạn có **3 thông số**:
+**Truy cập:** `/technical/quality` → tab **"Danh sách đơn hàng"**
 
-| Giai đoạn | Thông số |
-|---|---|
-| Giai đoạn 1 | Thời gian (phút) · Nhiệt độ (°C) · Áp suất (mmHg) |
-| Giai đoạn 2 | Thời gian (phút) · Nhiệt độ (°C) · Áp suất (mmHg) |
-| Giai đoạn 3 | Thời gian (phút) · Nhiệt độ (°C) · Áp suất (mmHg) |
-| Giai đoạn 4 | Thời gian (phút) · Nhiệt độ (°C) · Áp suất (mmHg) |
+Tab này hiển thị danh sách đơn hàng chung (giống Bộ phận sản xuất và Kinh doanh) để phòng kỹ thuật theo dõi tiến độ sản xuất liên quan đến máy móc.
 
-Các trường bổ sung: Mã chiên · Tên máy · Thời gian chiên · Khối lượng đầu vào (kg) · Trạng thái · Tổng thời gian sấy · Người thực hiện · File đính kèm · Ghi chú.
+**Cột bảng:** STT · Ngày đặt hàng · Mã đơn hàng · Mã báo giá · Khách hàng · Số lượng SP · Trạng thái SX · Trạng thái TT · Hành động
+
+**Hành động:** Xem chi tiết, Xem bảng tính, Chỉnh sửa, Xóa, Xuất Excel
+
+> **Lưu ý:** Tab "Thông số vận hành hệ thống" thuộc **Bộ phận sản xuất** (Phòng QLSX), không thuộc Bộ phận kỹ thuật.
 
 ---
 
 ## 4. Phòng cơ-điện
 
-### 4.1 Yêu cầu sửa chữa (tab **Yêu cầu sửa chữa**)
+> Trang **Phòng cơ-điện** (`/technical/mechanical`) hiện đang trong giai đoạn phát triển. Chưa có chức năng hoạt động.
+
+> **Lưu ý:** Yêu cầu sửa chữa và Nghiệm thu bàn giao hiện nằm trong **Phòng QLHTM** (xem mục 3.4 và 3.5 ở trên).
+
+### 3.4 Yêu cầu sửa chữa — Tab "Danh sách yêu cầu sửa chữa" (`repairRequests`)
 
 **10 trường trong form:**
 
@@ -154,7 +139,7 @@ Các trường bổ sung: Mã chiên · Tên máy · Thời gian chiên · Khố
 
 **Bảng danh sách hiển thị các cột:** Ngày tháng · Mã yêu cầu · Tên hệ thống/thiết bị · Trạng thái · Thao tác.
 
-### 4.2 Nghiệm thu bàn giao
+### 3.5 Nghiệm thu bàn giao — Tab "Danh sách nghiệm thu bàn giao" (`acceptance`)
 
 Sau khi sửa chữa hoàn thành, kỹ thuật viên tạo biên bản nghiệm thu bàn giao với **10 trường**:
 

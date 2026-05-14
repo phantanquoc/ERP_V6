@@ -21,6 +21,9 @@ router.patch('/profiles/:profileId/toggle', authenticate, authorize('ADMIN'), fa
 /** DELETE /api/face-attendance/profiles/:employeeId — xóa face profile */
 router.delete('/profiles/:employeeId', authenticate, authorize('ADMIN'), faceAttendanceController.deleteProfile.bind(faceAttendanceController));
 
+/** GET /api/face-attendance/profiles/:employeeId/images — ảnh đã đăng ký */
+router.get('/profiles/:employeeId/images', authenticate, authorize('ADMIN'), faceAttendanceController.getProfileImages.bind(faceAttendanceController));
+
 /** GET /api/face-attendance/logs — xem lịch sử nhận diện */
 router.get('/logs', authenticate, authorize('ADMIN'), faceAttendanceController.getLogs.bind(faceAttendanceController));
 

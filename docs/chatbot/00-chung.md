@@ -334,7 +334,21 @@ Nhấn **"Xem"** để mở modal chi tiết, hiển thị:
 
 ---
 
-## 13. Khi không có quyền — Escalation
+## 12b. Lịch sử đăng nhập
+
+**Truy cập:** Menu **Chức năng chung** → mục **Lịch sử đăng nhập** (hoặc xem trong trang cá nhân)
+
+Hiển thị danh sách các lần đăng nhập của bạn vào hệ thống, bao gồm thời gian, thiết bị, và IP.
+
+| Thông tin | Mô tả |
+|---|---|
+| Thời gian đăng nhập | Ngày giờ đăng nhập |
+| Thiết bị / Trình duyệt | Thông tin thiết bị sử dụng |
+| Địa chỉ IP | IP khi đăng nhập |
+
+> Chỉ xem được lịch sử của chính mình. ADMIN có thể xem lịch sử đăng nhập của tất cả nhân viên.
+
+---
 
 Nếu nhân viên cần thực hiện chức năng ngoài quyền hạn của mình:
 

@@ -14,9 +14,9 @@ Hệ thống quản lý sản xuất được chia thành **3 khu vực chức n
 
 | Khu vực | Đường dẫn | Mô tả |
 |---|---|---|
-| **QLSX** (Quản lý sản xuất) | `/production` → tab Phòng QLSX | Lệnh SX, quy trình, thông số vận hành, thành phẩm |
-| **Kho** | `/production` → tab Kho | Quản lý kho, lô hàng, phiếu nhập/xuất kho |
-| **Dữ liệu SX** | `/production` → tab Dữ liệu SX | Báo cáo thống kê tổng hợp sản xuất |
+| **Phòng QLSX** | `/production/management` | 10 tab: Quản lý máy, Quy trình, QTSX, Đơn hàng, Định mức NVL, Đánh giá NL, Thông số VH, Thành phẩm, Đánh giá CL, Báo cáo SL |
+| **Kho** | `/production/warehouse` | 5 tab: Quản lý kho, Phiếu nhập, Phiếu xuất, Yêu cầu cung cấp, Sản phẩm |
+| **Dữ liệu SX** | `/production/data` | 3 tab: Đánh giá nguyên liệu, Thông số vận hành, Thành phẩm đầu ra |
 
 ---
 
@@ -35,9 +35,46 @@ Hệ thống quản lý sản xuất được chia thành **3 khu vực chức n
 
 ## 3. Phòng QLSX
 
+### 3.0 Quản lý máy móc — Tab "Quản lý máy móc" (`machines`)
+
+**Truy cập:** `/production/management` → tab **"Quản lý máy móc"**
+
+#### Cột bảng danh sách
+
+| Cột | Nội dung |
+|---|---|
+| Mã máy | Mã tự động sinh (chữ xanh) |
+| Tên máy | Tên thiết bị |
+| Mô tả | Mô tả chức năng |
+| Trạng thái | Badge trạng thái |
+| Ghi chú | Ghi chú bổ sung |
+| Hoạt động | Sửa / Xóa |
+
+#### Trạng thái máy
+
+| Giá trị | Nhãn hiển thị | Màu badge |
+|---|---|---|
+| `HOAT_DONG` | Hoạt động | Xanh lá |
+| `BẢO_TRÌ` | Bảo trì | Vàng |
+| `NGỪNG_HOẠT_ĐỘNG` | Ngừng hoạt động | Đỏ |
+
+#### Form tạo/sửa máy — nhấn "Thêm máy mới"
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Mã máy | — | Văn bản (tự động) | Hệ thống tự sinh, không sửa được |
+| Tên máy | ✅ | Văn bản | VD: "Máy sấy 1" |
+| Trạng thái | ✅ | Dropdown | Hoạt động / Bảo trì / Ngừng hoạt động |
+| Mô tả | | Văn bản dài (3 dòng) | |
+| Ghi chú | | Văn bản | |
+
+**Bộ lọc:** Mã máy, Tên máy, Trạng thái (dropdown)
+
+---
+
 ### 3.1 Lệnh sản xuất — Tab "Danh sách đơn hàng" (`orderList`)
 
-**Truy cập:** `/production` → tab **"Phòng QLSX"** → tab con **"Danh sách đơn hàng"**
+**Truy cập:** `/production/management` → tab **"Danh sách đơn hàng"**
 
 #### Cột bảng danh sách
 
@@ -68,6 +105,75 @@ Hệ thống quản lý sản xuất được chia thành **3 khu vực chức n
 #### Cập nhật trạng thái đơn hàng
 
 Nhấn nút **Sửa** (bút) → form chỉnh sửa gồm: Giá trị đơn hàng (USD/VNĐ), Thanh toán đợt 1 & 2 (USD/VNĐ + ngày), Ngày bắt đầu/hoàn thành SX (kế hoạch + thực tế), Ngày giao hàng, Trạng thái SX, Trạng thái TT, Ghi chú → nhấn **"Lưu thay đổi"**.
+
+### 3.1b Danh sách quy trình — Tab "Danh sách quy trình" (`processList`)
+
+**Truy cập:** `/production/management` → tab **"Danh sách quy trình"**
+
+Hiển thị danh sách quy trình mẫu (template). Trong Phòng QLSX, tab này ở chế độ **chỉ xem + tạo định mức** (không tạo/sửa/xóa quy trình — việc đó thuộc Bộ phận chất lượng).
+
+#### Cột bảng
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Mã quy trình | Mã định danh |
+| MSNV | Mã nhân viên tạo |
+| Tên nhân viên | Người tạo quy trình |
+| Tên quy trình | Tên quy trình mẫu |
+| Loại quy trình | Sản xuất / Kiểm tra chất lượng / Đóng gói / Vận chuyển / Khác |
+| Hoạt động | Xem chi tiết / Tạo định mức |
+
+**Bộ lọc:** Tên quy trình, Loại quy trình (dropdown), Tên nhân viên
+
+**Hành động:** Nhấn biểu tượng **"+"** để tạo định mức lao động cho quy trình đó.
+
+---
+
+### 3.1c Định mức NVL — Tab "Định mức NVL" (`standards`)
+
+**Truy cập:** `/production/management` → tab **"Định mức NVL"**
+
+Quản lý định mức nguyên vật liệu — xác định tỉ lệ nguyên liệu đầu vào và thành phẩm đầu ra.
+
+#### Cột bảng
+
+| Cột | Nội dung |
+|---|---|
+| Mã định mức | Mã tự động sinh |
+| Tên định mức | Tên mô tả |
+| Loại định mức | Badge: Nguyên liệu - Thành phẩm (xanh) / Vật tư - Thiết bị (tím) |
+| Tỉ lệ thu hồi (%) | Phần trăm thu hồi thành phẩm |
+| Ngày tạo | Ngày tạo bản ghi |
+| Hoạt động | Xem / Sửa / Xóa |
+
+#### Form tạo/sửa định mức — nhấn "Thêm định mức"
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Mã định mức | ✅ | Văn bản (tự động) | Tự sinh khi tạo mới, không sửa được |
+| Loại định mức | ✅ | Dropdown | Nguyên liệu - Thành phẩm / Vật tư - Thiết bị |
+| Tên định mức | ✅ | Văn bản | |
+| Tỉ lệ thu hồi thành phẩm (%) K3 | | Số (bước 0.01) | |
+| Ghi chú | | Văn bản dài (3 dòng) | |
+
+**Nguyên liệu đầu vào** (thêm nhiều dòng):
+
+| Trường | Bắt buộc | Ghi chú |
+|---|:---:|---|
+| Tên nguyên liệu | | Chọn từ danh sách sản phẩm (có tìm kiếm) |
+| Tỉ lệ (%) | ✅ | Phần trăm nguyên liệu |
+
+**Thành phẩm đầu ra** (thêm nhiều dòng):
+
+| Trường | Bắt buộc | Ghi chú |
+|---|:---:|---|
+| Tên thành phẩm | | Chọn từ danh sách sản phẩm (có tìm kiếm) |
+| Tỉ lệ (%) | ✅ | Phần trăm thành phẩm |
+
+**Bộ lọc:** Mã định mức, Tên định mức, Loại định mức (dropdown)
+
+---
 
 ### 3.2 Quy trình sản xuất
 
@@ -128,6 +234,137 @@ Trường tổng hợp: **Tổng thời gian sấy** (tự động tính).
 | **Ướt** | uotKhoiLuong (Kg) | uotTiLe (%) |
 
 > Hệ thống tự động tính **Tổng khối lượng thành phẩm** và đánh giá min/max theo từng máy.
+
+### 3.5 Đánh giá nguyên liệu — Tab "Đánh giá nguyên liệu" (`materialEvaluation`)
+
+**Truy cập:** `/production/management` → tab **"Đánh giá nguyên liệu"**
+
+Ghi nhận kết quả đánh giá chất lượng nguyên liệu đầu vào (quá trình ngâm).
+
+#### Cột bảng
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Mã chiên | Mã định danh mẻ chiên |
+| Thời gian chiên | Thời điểm chiên |
+| Tên hàng hóa | Tên nguyên liệu |
+| Khối lượng (Kg) | Khối lượng nguyên liệu |
+| Thời gian ngâm (Phút) | Thời gian ngâm thực tế |
+| Hoạt động | Xem / Sửa / Xóa / Tạo thông số vận hành |
+
+#### Form tạo/sửa — nhấn "Thêm đánh giá"
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Mã chiên | ✅ | Văn bản (tự động) | Hệ thống tự sinh |
+| Thời gian chiên | ✅ | Chọn ngày giờ | |
+| Tên hàng hóa | ✅ | Văn bản | |
+| Số lô, Kiện | ✅ | Văn bản | |
+| Khối lượng (Kg) | ✅ | Số (bước 0.01) | |
+| Số lần ngâm | ✅ | Số | |
+| Nhiệt độ nước trước ngâm (°C) | ✅ | Số (bước 0.1) | |
+| Nhiệt độ nước sau vớt (°C) | ✅ | Số (bước 0.1) | |
+| Thời gian ngâm (Phút) | ✅ | Số | |
+| Brix nước ngâm | ✅ | Số (bước 0.1) | |
+| Đánh giá trước ngâm | ✅ | Văn bản | Nhập mã tiêu chí, cách nhau bằng dấu phẩy (VD: "1,2,3") |
+| Đánh giá sau ngâm | ✅ | Văn bản | Tương tự trên |
+| Người thực hiện | ✅ | Văn bản | |
+| File đính kèm | | Tải file | |
+
+**Nút đặc biệt:** Biểu tượng **bánh răng** (tím) → **Tạo thông số vận hành** — tự động tạo bản ghi thông số vận hành cho tất cả máy và chuyển sang tab Thông số vận hành.
+
+**Cài đặt tiêu chí đánh giá:** Nhấn **"Cài đặt đánh giá"** → quản lý danh sách tiêu chí (mã số + mô tả).
+
+---
+
+### 3.6 Đánh giá chất lượng — Tab "Đánh giá chất lượng" (`qualityEvaluation`)
+
+**Truy cập:** `/production/management` → tab **"Đánh giá chất lượng"**
+
+Đánh giá chất lượng thành phẩm đầu ra theo từng máy.
+
+**Giao diện:** Có thanh tab phụ hiển thị danh sách máy — chọn máy để xem đánh giá của máy đó.
+
+#### Cột bảng
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Mã chiên | Mã mẻ chiên |
+| Thời gian chiên | Thời điểm chiên |
+| Tên hàng hóa | Tên sản phẩm |
+| Màu sắc | Đánh giá màu sắc |
+| Mùi hương | Đánh giá mùi hương |
+| Vị | Đánh giá vị |
+| Độ ngọt | Đánh giá độ ngọt |
+| Độ giòn | Đánh giá độ giòn |
+| Người thực hiện | Nhân viên đánh giá |
+| Hoạt động | Xem / Sửa / Xóa |
+
+#### Form tạo/sửa
+
+**Thông tin cơ bản (tự động lấy từ Đánh giá nguyên liệu, không sửa được):**
+- Mã chiên, Thời gian chiên, Tên hàng hóa
+
+**Tỉ lệ thành phẩm đầu ra (%) — chỉ đọc:**
+- A (%), B (%), B Dầu (%), C (%), Vụn lớn (%), Vụn nhỏ (%), Phế phẩm (%), Ướt (%)
+
+**Đánh giá chất lượng (nhập liệu):**
+
+| Trường | Bắt buộc | Loại nhập |
+|---|:---:|---|
+| Màu sắc | | Văn bản |
+| Mùi hương | | Văn bản |
+| Vị | | Văn bản |
+| Độ ngọt | | Văn bản |
+| Độ giòn | | Văn bản |
+| Đánh giá tổng quan | | Văn bản dài (4 dòng) |
+| Đề xuất điều chỉnh cải tiến | | Văn bản dài (4 dòng) |
+| File đính kèm | | Văn bản (URL) |
+| Người thực hiện | — | Tự động từ tài khoản đăng nhập |
+
+**Nút:** Xuất Excel (header)
+
+---
+
+### 3.7 Báo cáo sản lượng — Tab "Báo cáo sản lượng" (`productionReport`)
+
+**Truy cập:** `/production/management` → tab **"Báo cáo sản lượng"**
+
+Báo cáo sản lượng hàng ngày, so sánh kế hoạch vs thực tế.
+
+#### Cột bảng
+
+| Cột | Nội dung |
+|---|---|
+| Ngày tháng | Ngày báo cáo (dd/mm/yyyy) |
+| Tổng số tua SX | Số tua sản xuất trong ngày |
+| Số mẻ thực tế | Số mẻ thực tế đã chạy |
+| Mã định mức | Mã định mức NVL sử dụng (chữ xanh) |
+| Chênh lệch KL (kg) | Xanh nếu >= 0, đỏ nếu < 0 |
+| Người thực hiện | Nhân viên báo cáo |
+| Hoạt động | Xem / Sửa / Xóa |
+
+#### Form tạo/sửa — nhấn "Tạo báo cáo"
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Ngày tháng | ✅ | Chọn ngày | Tự động lấy KL thành phẩm thực tế từ tab Thành phẩm đầu ra |
+| Chọn Định mức NVL | | Dropdown | Danh sách định mức + tỉ lệ thu hồi |
+| Tổng số tua SX/ngày | | Số | Thay đổi → tự tính Tổng số mẻ kế hoạch |
+| Số mẻ/tua | | Số | |
+| Tổng số mẻ kế hoạch | | Số (tự tính) | = Tổng số tua × Số mẻ/tua |
+| Số mẻ thực tế | | Số | Thay đổi → tự tính Tổng KL nguyên liệu |
+| Tổng KL nguyên liệu (kg) | — | Số (chỉ đọc) | = Số mẻ thực tế × 50 |
+| Tổng KL thành phẩm định mức (kg) | — | Số (chỉ đọc) | = Tổng KL NL × (Tỉ lệ thu hồi / 100) |
+| KL thành phẩm thực tế (kg) | | Số | Tự động lấy từ Thành phẩm đầu ra theo ngày |
+| Đánh giá chênh lệch | — | Chỉ đọc | = KL thực tế − KL định mức (xanh/đỏ) |
+| Nguyên nhân chênh lệch | | Văn bản dài (3 dòng) | |
+| Đề xuất điều chỉnh, cải tiến | | Văn bản dài (3 dòng) | |
+| Người thực hiện | | Văn bản | Tự động từ tài khoản đăng nhập |
+
+**Bộ lọc:** Mã định mức, Người thực hiện
 
 ---
 
@@ -192,6 +429,22 @@ Trường tổng hợp: **Tổng thời gian sấy** (tự động tính).
 | Số lượng xuất kho | ✅ | Nhập số lượng |
 | Ghi chú | — | Nhập ghi chú (nếu có) |
 
+### 4.4 Yêu cầu cung cấp — Tab "Yêu cầu cung cấp" (`supplyRequest`)
+
+**Truy cập:** `/production/warehouse` → tab **"Yêu cầu cung cấp"**
+
+Quản lý yêu cầu cung cấp vật tư từ kho cho sản xuất.
+
+**Trạng thái:** Đã cung cấp / Chưa cung cấp
+
+**Dashboard thống kê:** Tổng yêu cầu, Đã cung cấp, Chưa cung cấp
+
+### 4.5 Sản phẩm — Tab "Sản phẩm" (`products`)
+
+**Truy cập:** `/production/warehouse` → tab **"Sản phẩm"**
+
+Quản lý danh mục sản phẩm quốc tế (dùng chung với Bộ phận kinh doanh).
+
 ---
 
 ## 5. Dữ liệu sản xuất (`ProductionData`)
@@ -245,3 +498,15 @@ Trang tổng quan tự động tải lại khi vào trang. Có thể nhấn nút
 
 **Q8: Làm thế nào để xuất báo cáo thành phẩm?**
 Vào tab **Dữ liệu SX** → chọn mục **Thành phẩm đầu ra** → sử dụng chức năng xuất Excel nếu có, hoặc xem bảng tổng hợp trực tiếp trên màn hình.
+
+**Q9: Làm thế nào để thêm máy mới vào hệ thống?**
+Vào tab **Quản lý máy móc** → nhấn **"Thêm máy mới"** → điền Tên máy (bắt buộc), chọn Trạng thái → Lưu. Mã máy tự động sinh.
+
+**Q10: Định mức NVL dùng để làm gì?**
+Định mức NVL xác định tỉ lệ nguyên liệu đầu vào và thành phẩm đầu ra. Khi tạo Quy trình sản xuất hoặc Báo cáo sản lượng, hệ thống dùng tỉ lệ thu hồi từ định mức để tự động tính khối lượng thành phẩm kỳ vọng.
+
+**Q11: Báo cáo sản lượng tính chênh lệch như thế nào?**
+Chênh lệch = KL thành phẩm thực tế − KL thành phẩm định mức. Nếu dương (xanh) = vượt kế hoạch. Nếu âm (đỏ) = chưa đạt kế hoạch. KL định mức = Tổng KL nguyên liệu × (Tỉ lệ thu hồi / 100).
+
+**Q12: Phòng QLSX có bao nhiêu tab?**
+Có **10 tab**: Quản lý máy móc, Danh sách quy trình, Danh sách quy trình sản xuất, Danh sách đơn hàng, Định mức NVL, Đánh giá nguyên liệu, Thông số vận hành hệ thống, Thành phẩm đầu ra, Đánh giá chất lượng, Báo cáo sản lượng.

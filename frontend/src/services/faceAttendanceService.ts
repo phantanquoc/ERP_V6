@@ -98,6 +98,29 @@ const faceAttendanceService = {
   toggleDevice: (deviceId: string) =>
     apiClient.patch<AttendanceDevice>(`${BASE}/devices/${deviceId}/toggle`, {}),
 
+  getProfileImages: (employeeId: string) =>
+    apiClient.get<{
+      images: {
+        id: string;
+        imagePath: string;
+        url: string;
+        createdAt: string;
+        metrics: {
+          distanceToCentroid: number;
+          minDistanceToOther: number;
+          maxDistanceToOther: number;
+          hasEmbedding: boolean;
+        };
+      }[];
+      summary: {
+        totalImages: number;
+        totalEmbeddings: number;
+        avgInternalDistance: number;
+        maxInternalDistance: number;
+        qualityRating: 'excellent' | 'good' | 'fair' | 'poor';
+      };
+    }>(`${BASE}/profiles/${employeeId}/images`),
+
   getKioskConfig(): KioskConfig {
     return {
       deviceKey: localStorage.getItem('faceAttendance.deviceKey') || import.meta.env.VITE_FACE_DEVICE_KEY || '',

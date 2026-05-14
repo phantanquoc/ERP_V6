@@ -32,6 +32,8 @@ ERP An Binh Foods là hệ thống quản lý doanh nghiệp nội bộ, truy c�
 | ⚙️ **Bộ phận kỹ thuật** (DEPT_TECHNICAL) | Phòng QLHTM, Phòng cơ-điện | [`07-bo-phan-ky-thuat.md`](./07-bo-phan-ky-thuat.md) |
 | 🔐 **Quản trị hệ thống** (ADMIN) | — | [`08-admin-system.md`](./08-admin-system.md) |
 | 🔄 **Tất cả nhân viên** | Flow đơn hàng đầu cuối | [`09-flow-don-hang.md`](./09-flow-don-hang.md) |
+| 📈 **Bộ phận kinh doanh** (DEPT_BUSINESS) | Dashboard báo cáo kinh doanh | [`10-bao-cao-kinh-doanh.md`](./10-bao-cao-kinh-doanh.md) |
+| 📷 **Tất cả nhân viên** | Điểm danh khuôn mặt (Kiosk) | [`11-diem-danh-khuon-mat.md`](./11-diem-danh-khuon-mat.md) |
 
 ---
 
@@ -48,6 +50,8 @@ ERP An Binh Foods là hệ thống quản lý doanh nghiệp nội bộ, truy c�
 | `/purchasing/*` | Các trang bộ phận thu mua |
 | `/production/*` | Các trang bộ phận sản xuất |
 | `/technical/*` | Các trang bộ phận kỹ thuật |
+| `/business` | Dashboard báo cáo kinh doanh (biểu đồ, thống kê) |
+| `/diemdanh/nhanvien` | Kiosk điểm danh khuôn mặt |
 | `/system-settings` | Cài đặt hệ thống (chỉ ADMIN) |
 
 ---

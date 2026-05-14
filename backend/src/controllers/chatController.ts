@@ -117,6 +117,37 @@ export class ChatController {
       next(error);
     }
   }
+  async chatFeedback(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { question, answer, rating, comment } = req.body as {
+        question: string;
+        answer: string;
+        rating: number;
+        comment?: string;
+      };
+
+      if (!question || !answer || ![-1, 1].includes(rating)) {
+        throw new ValidationError('Thiếu thông tin feedback');
+      }
+
+      const role = req.user?.role ?? '';
+      const department = await this._getDepartment(req);
+
+      const fetchRes = await fetch(`${env.AI_SERVICE_URL}/chat/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, answer, rating, comment: comment || '', department, role }),
+      });
+
+      if (!fetchRes.ok) {
+        throw new Error(`AI service feedback error: ${fetchRes.status}`);
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new ChatController();

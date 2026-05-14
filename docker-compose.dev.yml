@@ -62,36 +62,22 @@ services:
     container_name: erp_dev_ai
     restart: unless-stopped
     environment:
-      OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: qwen2.5:3b
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
-      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+      GROQ_GRADER_MODEL: ${GROQ_GRADER_MODEL:-llama-3.1-8b-instant}
     ports:
       - "8001:8001"
     volumes:
       - deepface_weights:/root/.deepface/weights
       - ./docs/chatbot:/app/docs/chatbot:ro
       - ai_chroma_dev:/app/chroma_data
-    depends_on:
-      - ollama
+      - ./ai-service/main.py:/app/main.py:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 120s
-    networks:
-      - erp_dev_network
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: erp_dev_ollama
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_dev:/root/.ollama
     networks:
       - erp_dev_network
 
@@ -122,8 +108,6 @@ volumes:
     driver: local
   deepface_weights:
     driver: local  # persist ArcFace/FaceNet weights across rebuilds
-  ollama_dev:
-    driver: local
   ai_chroma_dev:
     driver: local
 

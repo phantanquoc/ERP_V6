@@ -809,29 +809,27 @@ SEM_CACHE_MAX = 200          # tối đa 200 entries
 
 DOCS_DIR = _Path("/app/docs/chatbot")
 CHROMA_DIR = _Path("/app/chroma_data")
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-# LLM_PROVIDER: "groq" (nhanh, free) hoặc "ollama" (local, không cần internet)
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "groq" if GROQ_API_KEY else "ollama")
+GROQ_GRADER_MODEL = os.environ.get("GROQ_GRADER_MODEL", "llama-3.1-8b-instant")
 COMMON_FILE = "00-chung.md"
-CONFIDENCE_THRESHOLD = 0.20  # hạ xuống để bắt được câu hỏi về mã/enum cụ thể
+CONFIDENCE_THRESHOLD = 0.32  # cân bằng: đủ cao để chặn hallucination, đủ thấp để bắt enum/mã
 
 SYSTEM_PROMPT = """Bạn là trợ lý ERP An Binh Foods. Hướng dẫn nhân viên sử dụng hệ thống theo ngôn ngữ người dùng thông thường.
 
-NGUYÊN TẮC QUAN TRỌNG:
-1. TUYỆT ĐỐI không dùng tên kỹ thuật/component như: Modal, Component, Tab ID, camelCase, PascalCase
+NGUYÊN TẮC BẮT BUỘC:
+1. CHỈ trả lời dựa trên thông tin có trong CONTEXT bên dưới. Nếu CONTEXT không chứa thông tin để trả lời → BẮT BUỘC nói: "Tôi không tìm thấy thông tin về [chủ đề] trong tài liệu. Vui lòng liên hệ quản trị viên hoặc trưởng phòng."
+2. TUYỆT ĐỐI KHÔNG được suy luận, đoán, hay bịa đặt đường dẫn menu/tab/nút nếu không thấy rõ ràng trong CONTEXT.
+3. TUYỆT ĐỐI không dùng tên kỹ thuật/component như: Modal, Component, Tab ID, camelCase, PascalCase
    - SAI: "Mở PrivateFeedbackModal", "vào QuotationRequestManagement", "tab quotationRequests"
    - ĐÚNG: "Nhấn nút **Góp ý riêng**", "vào tab **Danh sách yêu cầu BG**"
-2. Dùng đúng tên hiển thị trên giao diện (in đậm), ví dụ:
-   - Tên menu/tab: **Chức năng chung**, **Danh sách yêu cầu BG**, **Bộ phận kế toán**
+4. Dùng đúng tên hiển thị trên giao diện (in đậm), ví dụ:
+   - Tên menu/tab: **Chức năng chung**, **Danh sách yêu cầu BG**, **Bộ phận chất lượng**
    - Tên nút: **"Thêm mới"**, **"Lưu"**, **"Xin nghỉ phép"**, **"Góp ý riêng"**
    - Tên trường: **Loại nghỉ phép**, **Ngày bắt đầu**, **Lý do**
-3. Hướng dẫn theo đường dẫn thực tế: Menu → Tab → Nút → Form
-4. Trường bắt buộc ghi ✅, không bắt buộc bỏ qua
-5. Sau câu trả lời, gợi ý 1-2 câu hỏi tiếp theo ngắn gọn
-6. Chỉ dùng thông tin trong CONTEXT, không bịa đặt
+5. Hướng dẫn theo đường dẫn thực tế: Menu → Tab → Nút → Form
+6. Trường bắt buộc ghi ✅, không bắt buộc bỏ qua
+7. Sau câu trả lời, gợi ý 1-2 câu hỏi tiếp theo ngắn gọn
 
 VÍ DỤ ĐÚNG:
 Câu hỏi: "Tôi muốn góp ý với sếp"
@@ -1026,7 +1024,7 @@ def _init_rag():
             logger.info("Initializing RAG chatbot...")
 
             _embedder = SentenceTransformer("AITeamVN/Vietnamese_Embedding_v2")
-            _reranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", cache_dir=str(CHROMA_DIR / "flashrank_cache"))
+            _reranker = Ranker(model_name="ms-marco-MultiBERT-L-12", cache_dir=str(CHROMA_DIR / "flashrank_cache"))
             logger.info("FlashRank reranker loaded")
 
             CHROMA_DIR.mkdir(parents=True, exist_ok=True)
@@ -1115,6 +1113,16 @@ class ChatResponse(BaseModel):
     context_texts: _List[str] = []  # raw chunk texts cho RAGAS evaluation
 
 
+class FeedbackRequest(BaseModel):
+    message_id: str = ""  # optional: ID tin nhắn
+    question: str
+    answer: str
+    rating: int  # 1 = 👍, -1 = 👎
+    comment: str = ""
+    department: str = ""
+    role: str = ""
+
+
 def _rrf_fuse(
     dense_ids: list[str],
     dense_docs: list[str],
@@ -1194,8 +1202,31 @@ def _build_retrieval(
     # ADMIN hoặc câu hỏi hỏi về bộ phận khác -> không filter, tìm toàn bộ KB
     CROSS_DEPT_KEYWORDS = ["bộ phận", "phòng ban", "kế toán", "kinh doanh", "thu mua",
                            "sản xuất", "kỹ thuật", "chất lượng", "tổng hợp", "admin"]
+    # Chức năng HR/chung — nằm trong DEPT_QUALITY nhưng áp dụng cho tất cả bộ phận
+    # Dùng phrase patterns (verb + noun) để tránh false positive
+    HR_ACTION_PATTERNS = [
+        "xóa nhân viên", "thêm nhân viên", "sửa nhân viên", "tạo nhân viên",
+        "quản lý nhân viên", "danh sách nhân viên", "hồ sơ nhân viên",
+        "bảng lương", "tính lương", "xem lương", "quản lý lương",
+        "đánh giá nhân viên", "điểm danh", "chấm công",
+        "quản lý vị trí", "cấp độ lương", "quản lý user", "tạo tài khoản",
+        "khóa tài khoản", "đơn nghỉ phép", "duyệt nghỉ phép",
+    ]
+    # Fallback: single keywords chỉ khi kết hợp với action verbs
+    HR_NOUNS = ["nhân viên", "lương", "vị trí", "cấp độ", "tài khoản", "user"]
+    HR_VERBS = ["xóa", "thêm", "sửa", "tạo", "quản lý", "danh sách", "cập nhật", "khóa", "mở khóa"]
+
+    msg_lower = original_message.lower()
     is_admin = role.upper() == "ADMIN"
-    is_cross_dept = any(kw in original_message.lower() for kw in CROSS_DEPT_KEYWORDS)
+    is_cross_dept = any(kw in msg_lower for kw in CROSS_DEPT_KEYWORDS)
+
+    # Detect HR intent: phrase match hoặc (verb + noun) combo
+    is_hr_intent = any(p in msg_lower for p in HR_ACTION_PATTERNS)
+    if not is_hr_intent:
+        has_hr_noun = any(n in msg_lower for n in HR_NOUNS)
+        has_hr_verb = any(v in msg_lower for v in HR_VERBS)
+        is_hr_intent = has_hr_noun and has_hr_verb
+
     use_filter = department and not is_admin and not is_cross_dept
 
     # Dense retrieval
@@ -1203,12 +1234,15 @@ def _build_retrieval(
 
     where_filter = None
     if use_filter:
-        where_filter = {
-            "$or": [
-                {"department": {"$eq": department}},
-                {"filename": {"$eq": COMMON_FILE}},
-            ]
-        }
+        dept_conditions = [
+            {"department": {"$eq": department}},
+            {"department": {"$eq": "ALL"}},
+            {"filename": {"$eq": COMMON_FILE}},
+        ]
+        # HR intent → thêm DEPT_QUALITY vào filter (nơi chứa quản lý nhân viên)
+        if is_hr_intent and department != "DEPT_QUALITY":
+            dept_conditions.append({"department": {"$eq": "DEPT_QUALITY"}})
+        where_filter = {"$or": dept_conditions}
 
     dense_results = _chroma_collection.query(
         query_embeddings=[query_embedding],
@@ -1228,7 +1262,11 @@ def _build_retrieval(
         for i, chunk in enumerate(_bm25_chunks):
             dept = chunk["metadata"].get("department", "ALL")
             fname = chunk["metadata"].get("filename", "")
-            if dept != department and fname != COMMON_FILE:
+            # Cho phép: cùng department, ALL, common file, hoặc DEPT_QUALITY nếu HR intent
+            allowed = (dept == department or dept == "ALL" or fname == COMMON_FILE)
+            if is_hr_intent and dept == "DEPT_QUALITY":
+                allowed = True
+            if not allowed:
                 bm25_scores[i] = 0.0
     bm25_top = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:20]
 
@@ -1253,7 +1291,7 @@ def _build_retrieval(
     # Rerank top-20 → top-N
     how_to_kw = ["làm thế nào", "hướng dẫn", "tạo", "thêm", "điền",
                  "nhập", "các bước", "quy trình", "form", "trường", "ô"]
-    top_n = 8 if any(kw in original_message.lower() for kw in how_to_kw) else 5
+    top_n = 6 if any(kw in original_message.lower() for kw in how_to_kw) else 4
     reranked = _rerank(original_message, candidates, top_n)
 
     # Lost-in-the-middle mitigation
@@ -1311,26 +1349,28 @@ Chỉ trả lời một trong hai: PASS hoặc FAIL
 
 def _faithfulness_check(answer: str, chunks: list[dict]) -> bool:
     """
-    Dùng Ollama (model nhỏ hơn) để kiểm tra answer có faithful với context không.
+    Dùng Groq (model nhỏ, nhanh) để kiểm tra answer có faithful với context không.
     Trả về True nếu PASS, False nếu FAIL.
     Fallback True nếu check lỗi (không block response).
     """
+    if not GROQ_API_KEY:
+        return True  # skip nếu không có API key
+
     try:
-        import ollama as _ollama
-        # Dùng model nhỏ hơn để tránh self-preference bias và tiết kiệm tài nguyên
-        grader_model = os.environ.get("OLLAMA_GRADER_MODEL", "gemma2:2b")
+        from groq import Groq
         context_short = "\n\n".join(c["text"][:300] for c in chunks[:3])
         prompt = _FAITHFULNESS_PROMPT.format(
             context=context_short,
             answer=answer[:500],
         )
-        client = _ollama.Client(host=OLLAMA_HOST)
-        resp = client.generate(
-            model=grader_model,
-            prompt=prompt,
-            options={"temperature": 0.0, "num_predict": 10, "num_ctx": 2048},
+        client = Groq(api_key=GROQ_API_KEY)
+        resp = client.chat.completions.create(
+            model=GROQ_GRADER_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=10,
         )
-        verdict = (resp.response or "").strip().upper()
+        verdict = resp.choices[0].message.content.strip().upper()
         passed = "PASS" in verdict
         if not passed:
             logger.warning(f"Faithfulness FAIL — verdict: {verdict[:50]}")
@@ -1340,59 +1380,55 @@ def _faithfulness_check(answer: str, chunks: list[dict]) -> bool:
         return True  # fail-open: không block nếu grader lỗi
 
 
-# ─── LLM Abstraction (Groq / Ollama) ─────────────────────────────────────────
+# ─── LLM (Groq only) ──────────────────────────────────────────────────────────
 
 def _call_llm(messages: list[dict]) -> str:
-    """Goi LLM (Groq hoac Ollama) va tra ve full response string."""
-    if LLM_PROVIDER == "groq" and GROQ_API_KEY:
-        from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
-        resp = client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=messages,
-            temperature=0.1,
-            max_tokens=600,
-        )
-        return resp.choices[0].message.content.strip()
-    else:
-        import ollama as _ollama
-        client = _ollama.Client(host=OLLAMA_HOST)
-        resp = client.chat(
-            model=OLLAMA_MODEL,
-            messages=messages,
-            options={"temperature": 0.1, "num_predict": 600, "num_ctx": 3072},
-        )
-        return resp.message.content.strip()
+    """Gọi Groq LLM với retry khi rate limit."""
+    import time as _time
+    from groq import Groq
+    client = Groq(api_key=GROQ_API_KEY)
+    for attempt in range(3):
+        try:
+            resp = client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=messages,
+                temperature=0.1,
+                max_tokens=600,
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str:
+                # Daily limit (TPD) → không retry, raise ngay
+                if "tokens per day" in err_str or "TPD" in err_str:
+                    logger.error("Groq daily token limit reached")
+                    raise RuntimeError("DAILY_LIMIT_REACHED")
+                # Rate limit tạm thời → retry
+                if attempt < 2:
+                    wait = (attempt + 1) * 5  # 5s, 10s
+                    logger.warning(f"Groq rate limit, retry in {wait}s (attempt {attempt + 1})")
+                    _time.sleep(wait)
+                else:
+                    raise
+            else:
+                raise
 
 
 def _stream_llm(messages: list[dict]):
-    """Generator: yield tung token tu LLM."""
-    if LLM_PROVIDER == "groq" and GROQ_API_KEY:
-        from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
-        stream = client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=messages,
-            temperature=0.1,
-            max_tokens=600,
-            stream=True,
-        )
-        for chunk in stream:
-            token = chunk.choices[0].delta.content or ""
-            if token:
-                yield token
-    else:
-        import ollama as _ollama
-        client = _ollama.Client(host=OLLAMA_HOST)
-        for chunk in client.chat(
-            model=OLLAMA_MODEL,
-            messages=messages,
-            stream=True,
-            options={"temperature": 0.1, "num_predict": 600, "num_ctx": 3072},
-        ):
-            token = (chunk.message.content or "") if chunk.message else ""
-            if token:
-                yield token
+    """Generator: yield từng token từ Groq LLM."""
+    from groq import Groq
+    client = Groq(api_key=GROQ_API_KEY)
+    stream = client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=messages,
+        temperature=0.1,
+        max_tokens=600,
+        stream=True,
+    )
+    for chunk in stream:
+        token = chunk.choices[0].delta.content or ""
+        if token:
+            yield token
 
 
 SYNONYMS = {
@@ -1416,6 +1452,55 @@ def _expand_query(message: str) -> str:
     return message if expanded == message.lower() else f"{message} {expanded}"
 
 
+_REWRITE_PROMPT = """Bạn là query rewriter cho hệ thống ERP An Binh Foods.
+Nhiệm vụ: viết lại câu hỏi của nhân viên thành dạng rõ ràng, đầy đủ hơn để tìm kiếm tài liệu.
+
+QUY TẮC:
+- Giữ nguyên ý nghĩa gốc, KHÔNG thêm thông tin mới
+- Mở rộng viết tắt, thêm từ đồng nghĩa liên quan
+- Nếu câu hỏi đã rõ ràng → trả về nguyên văn
+- CHỈ trả về câu hỏi đã rewrite, không giải thích
+
+Ví dụ:
+- "tạo ycbg" → "hướng dẫn tạo yêu cầu báo giá, các bước và trường cần điền"
+- "xóa nv" → "cách xóa nhân viên khỏi hệ thống, quy trình xóa nhân viên"
+- "quy trình đặt hàng quốc tế" → "quy trình đặt hàng quốc tế"
+"""
+
+
+def _rewrite_query(message: str) -> str:
+    """Rewrite query mơ hồ/ngắn thành dạng rõ ràng hơn cho retrieval. Fail-safe: trả về original."""
+    # Chỉ rewrite khi query ngắn hoặc mơ hồ (< 30 ký tự hoặc < 5 từ)
+    words = message.split()
+    if len(message) > 60 or len(words) > 8:
+        return message  # query đã đủ rõ, không cần rewrite
+
+    if not GROQ_API_KEY:
+        return message
+
+    try:
+        from groq import Groq
+        client = Groq(api_key=GROQ_API_KEY)
+        resp = client.chat.completions.create(
+            model=GROQ_GRADER_MODEL,  # dùng model nhẹ cho rewrite
+            messages=[
+                {"role": "system", "content": _REWRITE_PROMPT},
+                {"role": "user", "content": message},
+            ],
+            temperature=0.0,
+            max_tokens=100,
+        )
+        rewritten = resp.choices[0].message.content.strip()
+        # Sanity check: không quá dài, không rỗng
+        if rewritten and len(rewritten) < 200:
+            logger.info(f"Query rewrite: '{message}' → '{rewritten}'")
+            return rewritten
+        return message
+    except Exception as e:
+        logger.warning(f"Query rewrite failed (using original): {e}")
+        return message
+
+
 def _build_messages(req: "ChatRequest", chunks: list[dict]) -> list[dict]:
     # Chỉ dùng content chunks cho LLM context, bỏ table_summary (đã dùng để retrieve)
     content_chunks = [c for c in chunks if c.get("metadata", {}).get("type") != "table_summary"]
@@ -1423,8 +1508,8 @@ def _build_messages(req: "ChatRequest", chunks: list[dict]) -> list[dict]:
     if not content_chunks:
         content_chunks = chunks
 
-    # Giới hạn context: tối đa 4 chunks, mỗi chunk tối đa 800 ký tự
-    MAX_CHUNKS = 4
+    # Giới hạn context: tối đa 6 chunks, mỗi chunk tối đa 800 ký tự
+    MAX_CHUNKS = 6
     MAX_CHUNK_CHARS = 800
     trimmed = []
     for c in content_chunks[:MAX_CHUNKS]:
@@ -1439,7 +1524,10 @@ def _build_messages(req: "ChatRequest", chunks: list[dict]) -> list[dict]:
         messages.append({"role": h.role, "content": h.content})
     role_line = f"[Vai trò: {req.role}] " if req.role else ""
     messages.append({"role": "user", "content": (
-        f"CONTEXT:\n{context}\n\n---\n\n{role_line}CÂU HỎI: {req.message}"
+        f"CONTEXT:\n{context}\n\n---\n\n"
+        f"LƯU Ý: Nếu CONTEXT ở trên KHÔNG chứa thông tin liên quan đến câu hỏi, "
+        f"hãy trả lời: 'Tôi không tìm thấy thông tin này trong tài liệu.'\n\n"
+        f"{role_line}CÂU HỎI: {req.message}"
     )})
     return messages
 
@@ -1454,7 +1542,8 @@ def chat(req: ChatRequest):
 
     try:
         query_text = _expand_query(req.message)
-        query_emb = _embedder.encode([query_text], normalize_embeddings=True).tolist()[0]
+        rewritten = _rewrite_query(query_text)
+        query_emb = _embedder.encode([rewritten], normalize_embeddings=True).tolist()[0]
 
         # ── Semantic cache lookup ─────────────────────────────────────────────
         if not req.history:
@@ -1463,7 +1552,7 @@ def chat(req: ChatRequest):
                 return ChatResponse(answer=cached[0], sources=cached[1])
 
         # ── Retrieval ─────────────────────────────────────────────────────────
-        chunks, confident = _build_retrieval(query_text, req.message, req.department, req.role)
+        chunks, confident = _build_retrieval(rewritten, req.message, req.department, req.role)
 
         if not confident or not chunks:
             return ChatResponse(
@@ -1499,6 +1588,11 @@ def chat(req: ChatRequest):
         return ChatResponse(answer=answer, sources=sources, context_texts=context_texts)
 
     except Exception as e:
+        if "DAILY_LIMIT_REACHED" in str(e):
+            return ChatResponse(
+                answer="Hệ thống trợ lý đang tạm quá tải. Vui lòng thử lại sau 30 phút hoặc liên hệ quản trị viên.",
+                sources=[]
+            )
         logger.error(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
@@ -1514,7 +1608,8 @@ async def chat_stream(req: ChatRequest):
             raise HTTPException(status_code=503, detail="RAG not ready, please retry")
 
     query_text = _expand_query(req.message)
-    query_emb = _embedder.encode([query_text], normalize_embeddings=True).tolist()[0]
+    rewritten = _rewrite_query(query_text)
+    query_emb = _embedder.encode([rewritten], normalize_embeddings=True).tolist()[0]
 
     # Semantic cache (chỉ khi không có history)
     if not req.history:
@@ -1524,7 +1619,7 @@ async def chat_stream(req: ChatRequest):
                 yield cached[0]
             return _StreamingResponse(_from_cache(), media_type="text/plain; charset=utf-8")
 
-    chunks, confident = _build_retrieval(query_text, req.message, req.department)
+    chunks, confident = _build_retrieval(rewritten, req.message, req.department)
 
     if not confident or not chunks:
         async def _no_info():
@@ -1571,6 +1666,49 @@ async def chat_stream(req: ChatRequest):
             _sem_cache_put(query_emb, "".join(collected), sources)
 
     return _StreamingResponse(_generate(), media_type="text/plain; charset=utf-8")
+
+
+# ─── Feedback endpoint ────────────────────────────────────────────────────────
+
+_FEEDBACK_FILE = _Path("/app/chroma_data/feedback.jsonl")
+
+
+@app.post("/chat/feedback")
+def chat_feedback(req: FeedbackRequest):
+    """Lưu feedback 👍/👎 từ user vào JSONL file để phân tích sau."""
+    import datetime as _dt
+    entry = {
+        "timestamp": _dt.datetime.now().isoformat(),
+        "message_id": req.message_id,
+        "question": req.question,
+        "answer": req.answer[:500],  # truncate để tiết kiệm disk
+        "rating": req.rating,
+        "comment": req.comment,
+        "department": req.department,
+        "role": req.role,
+    }
+    try:
+        _FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_FEEDBACK_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        logger.info(f"Feedback saved: rating={req.rating} dept={req.department} q='{req.question[:40]}'")
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Feedback save error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save feedback")
+
+
+@app.get("/chat/feedback/stats")
+def chat_feedback_stats():
+    """Thống kê feedback: tổng, positive, negative."""
+    if not _FEEDBACK_FILE.exists():
+        return {"total": 0, "positive": 0, "negative": 0, "recent": []}
+    lines = _FEEDBACK_FILE.read_text(encoding="utf-8").strip().split("\n")
+    entries = [json.loads(l) for l in lines if l.strip()]
+    positive = sum(1 for e in entries if e.get("rating", 0) > 0)
+    negative = sum(1 for e in entries if e.get("rating", 0) < 0)
+    recent = entries[-10:][::-1]  # 10 gần nhất, mới nhất trước
+    return {"total": len(entries), "positive": positive, "negative": negative, "recent": recent}
 
 
 if __name__ == "__main__":

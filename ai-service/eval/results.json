@@ -1,0 +1,128 @@
+{
+  "summary": {
+    "total": 20,
+    "evaluated": 2,
+    "passed": 2,
+    "pass_rate": 1.0,
+    "avg_composite": 0.666,
+    "avg_latency_ms": 17600,
+    "ragas": null
+  },
+  "results": [
+    {
+      "id": "kd-001",
+      "question": "Tôi muốn tạo yêu cầu báo giá mới, cần điền những trường gì?",
+      "department": "DEPT_BUSINESS",
+      "role": "EMPLOYEE",
+      "answer": "Để tạo yêu cầu báo giá mới, bạn cần điền các trường sau:\n\n- **Mã yêu cầu báo giá**: Tự động sinh, không cần điền.\n- **Khách hàng** ✅: Chọn từ danh sách.\n- **Danh sách sản phẩm** (tối thiểu 1 dòng):\n  - **Sản phẩm** ✅: Chọn từ danh sách.\n  - **Yêu cầu sản phẩm**: Văn bản (không bắt buộc).\n  - **Quy cách đóng gói**: Văn bản (không bắt buộc).\n\nBạn có thể hỏi thêm: \"Làm thế nào để thêm sản phẩm vào yêu cầu báo giá?\" hoặc \"Tôi có thể chỉnh sửa yêu cầu báo giá sau khi tạo không?\"",
+      "ground_truth": "Để tạo YCBG mới, vào tab 'Danh sách yêu cầu BG' → nhấn 'Thêm yêu cầu báo giá'. Các trường bắt buộc: Mã yêu cầu báo giá (tự động), Khách hàng (chọn từ danh sách), Sản phẩm (chọn từ danh sách), Số lượng, Đơn vị tính. Trường không bắt buộc: Yêu cầu sản phẩm, Quy cách đóng gói, Giá đối thủ bán, Giá bán gần nhất, Hình thức vận chuyển, Hình thức thanh toán, Quốc gia, Cảng đến, Ghi chú.",
+      "sources": [
+        "README.md - Hướng dẫn sử dụng chatbot hiệu quả",
+        "03-bo-phan-kinh-doanh.md - 7. Câu hỏi thường gặp (FAQ)",
+        "03-bo-phan-kinh-doanh.md - 3. Phòng KD Quốc Tế (trang **Phòng KD Quốc Tế**) > 3.1 Tab: Yêu cầu Báo giá — YCBG (tab **Danh sách yêu cầu BG**, `customerType=\"Quốc tế\"`) > Form tạo YCBG mới — \"Thêm yêu cầu báo giá mới\"",
+        "09-flow-don-hang.md - Bước 1 — Phòng Kinh doanh tạo Yêu cầu Báo giá (YCBG)"
+      ],
+      "scores": {
+        "keyword_recall": 0.52,
+        "not_fallback": 1.0,
+        "length_ok": 1.0,
+        "composite": 0.712
+      },
+      "latency_ms": 4673
+    },
+    {
+      "id": "kd-002",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "kd-003",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "kd-004",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "kd-005",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "kd-006",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "kd-007",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "tm-001",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "tm-002",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "tm-003",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "kt-001",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "kt-002",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "cl-001",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "cl-002",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "sx-001",
+      "question": "Các tab trong Phòng QLSX là gì?",
+      "department": "DEPT_PRODUCTION",
+      "role": "EMPLOYEE",
+      "answer": "Trong Phòng QLSX, có các tab sau:\n- **\"Định mức NVL\"**\n- **\"Quản lý máy móc\"**\n- **\"Danh sách quy trình\"**\n\nĐể truy cập vào các tab này, bạn vào `/production/management` và chọn tab tương ứng.\n\nBạn có thể hỏi thêm: \"Chức năng của từng tab là gì?\" hoặc \"Làm thế nào để thêm định mức NVL mới?\"",
+      "ground_truth": "Phòng QLSX có 10 tab: Quản lý máy móc, Danh sách quy trình, Danh sách quy trình sản xuất, Danh sách đơn hàng, Định mức NVL, Đánh giá nguyên liệu, Thông số vận hành hệ thống, Thành phẩm đầu ra, Đánh giá chất lượng, Báo cáo sản lượng.",
+      "sources": [
+        "06-bo-phan-san-xuat.md - 3. Phòng QLSX > 3.1c Định mức NVL — Tab \"Định mức NVL\" (`standards`)",
+        "06-bo-phan-san-xuat.md - 3. Phòng QLSX > 3.0 Quản lý máy móc — Tab \"Quản lý máy móc\" (`machines`)",
+        "06-bo-phan-san-xuat.md - 3. Phòng QLSX > 3.6 Đánh giá chất lượng — Tab \"Đánh giá chất lượng\" (`qualityEvaluation`) > Cột bảng",
+        "06-bo-phan-san-xuat.md - 3. Phòng QLSX > 3.7 Báo cáo sản lượng — Tab \"Báo cáo sản lượng\" (`productionReport`) > Cột bảng",
+        "06-bo-phan-san-xuat.md - 3. Phòng QLSX > 3.1b Danh sách quy trình — Tab \"Danh sách quy trình\" (`processList`)"
+      ],
+      "scores": {
+        "keyword_recall": 0.368,
+        "not_fallback": 1.0,
+        "length_ok": 1.0,
+        "composite": 0.621
+      },
+      "latency_ms": 30526
+    },
+    {
+      "id": "kt-001-chung",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "chung-001",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "chung-002",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "chung-003",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    },
+    {
+      "id": "admin-001",
+      "error": "500 Server Error: Internal Server Error for url: http://localhost:8001/chat"
+    }
+  ]
+}
