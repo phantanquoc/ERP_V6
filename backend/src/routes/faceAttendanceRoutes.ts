@@ -37,6 +37,12 @@ router.patch('/devices/:deviceId/toggle', authenticate, authorize('ADMIN'), face
 
 // ─── Kiosk Routes (device-key auth) ────────────────────────────────────────
 
+/** POST /api/face-attendance/kiosk/session — admin tạo session key cho kiosk */
+router.post('/kiosk/session', authenticate, authorize('ADMIN'), faceAttendanceController.createKioskSession.bind(faceAttendanceController));
+
+/** GET /api/face-attendance/kiosk/validate-session — kiosk validate key (public) */
+router.get('/kiosk/validate-session', faceAttendanceController.validateKioskSession.bind(faceAttendanceController));
+
 /** POST /api/face-attendance/kiosk/verify — kiosk chấm công (dùng x-device-key) */
 router.post('/kiosk/verify', faceAttendanceController.kioskVerify.bind(faceAttendanceController));
 

@@ -125,8 +125,28 @@ const FaceKioskPage: React.FC = () => {
   const [spoofDetected, setSpoofDetected] = useState(false);
   const [activeChallenge, setActiveChallenge] = useState<ChallengeType | null>(null);
 
+  // ─── Kiosk session key validation ──────────────────────────────────────────
+  const [accessGranted, setAccessGranted] = useState<boolean | null>(null); // null = checking
+
   const kioskConfig = faceAttendanceService.getKioskConfig();
   const isLocalDev  = import.meta.env.DEV || LOCAL_HOSTS.has(window.location.hostname);
+
+  useEffect(() => {
+    // Local dev: skip key validation
+    if (isLocalDev) {
+      setAccessGranted(true);
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get('key');
+    if (!key) {
+      setAccessGranted(false);
+      return;
+    }
+    faceAttendanceService.validateKioskSession(key).then(valid => {
+      setAccessGranted(valid);
+    });
+  }, [isLocalDev]);
 
   const playBeep = useCallback((type: 'success' | 'error' | 'warning' | 'info') => {
     try {
@@ -533,6 +553,7 @@ const FaceKioskPage: React.FC = () => {
 
   // ─── Init: FaceMesh + Camera ─────────────────────────────────────────────────
   useEffect(() => {
+    if (accessGranted !== true) return;
     let active = true;
 
     const init = async () => {
@@ -619,7 +640,7 @@ const FaceKioskPage: React.FC = () => {
       if (videoRef.current?.srcObject)
         (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     };
-  }, [drawLoop, isLocalDev, kioskConfig.deviceKey]);
+  }, [accessGranted, drawLoop, isLocalDev, kioskConfig.deviceKey]);
 
   const overlayBg: Record<string, string> = {
     success: 'bg-green-500', info: 'bg-blue-500', error: 'bg-red-500', warning: 'bg-amber-500',
@@ -633,6 +654,23 @@ const FaceKioskPage: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-black select-none overflow-hidden">
+
+      {/* Access denied / validating */}
+      {accessGranted === null && (
+        <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-50">
+          <div className="w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-white text-lg">Đang xác thực phiên...</p>
+        </div>
+      )}
+      {accessGranted === false && (
+        <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-50 p-8 text-center">
+          <XCircle className="w-20 h-20 text-red-400 mb-6" />
+          <h2 className="text-white text-2xl font-bold mb-3">Truy cập bị từ chối</h2>
+          <p className="text-gray-400 text-lg max-w-md">
+            Phiên chấm công không hợp lệ hoặc đã hết hạn. Vui lòng liên hệ quản trị viên để mở lại trang chấm công.
+          </p>
+        </div>
+      )}
 
       {/* Standby / Sleep overlay */}
       {dimmed && (

@@ -2,6 +2,8 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { CheckCircle, XCircle, RefreshCw, ToggleLeft, ToggleRight, User, Loader2, ScanFace } from 'lucide-react';
 import faceAttendanceService, { EmployeeFaceProfile } from '../../services/faceAttendanceService';
 import { loadFaceMesh } from '../../utils/loadFaceMesh';
+import { useAuth } from '../../contexts/AuthContext';
+import { isAdmin } from '../../utils/permissions';
 
 // MediaPipe FaceMesh — loaded via dynamic script injection
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -13,7 +15,7 @@ const POSES = [
   { label: 'Xoay phải',  emoji: '➡️', hint: 'Xoay mặt sang phải nhẹ (~30°)',       arrow: 'right' },
   { label: 'Ngẩng lên',  emoji: '⬆️', hint: 'Ngẩng đầu lên nhẹ (~20°)',            arrow: 'up' },
   { label: 'Cúi xuống',  emoji: '⬇️', hint: 'Cúi đầu xuống nhẹ (~20°)',            arrow: 'down' },
-  { label: 'Mỉm cười',   emoji: '😊', hint: 'Nhìn thẳng và mỉm cười tự nhiên',     arrow: null },
+  { label: 'Há miệng ra',   emoji: '😊', hint: 'Nhìn thẳng và mở miệng ra',     arrow: null },
 ];
 
 const STABLE_MS   = 900;
@@ -140,6 +142,7 @@ type EnrollState = 'idle' | 'capturing' | 'submitting' | 'done' | 'error';
 type OvalState   = 'waiting' | 'detecting' | 'wrong-pose' | 'stable' | 'flash';
 
 const FaceAdminPage: React.FC = () => {
+  const { user } = useAuth();
   const videoRef    = useRef<HTMLVideoElement>(null);
   const overlayRef  = useRef<HTMLCanvasElement>(null);
   const captureRef  = useRef<HTMLCanvasElement>(null);
@@ -775,16 +778,26 @@ const FaceAdminPage: React.FC = () => {
       </div>
       <canvas ref={captureRef} className="hidden" />
 
-      {/* Floating button — Tiến hành chấm công */}
-      <a
-        href="/diemdanh/nhanvien"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-full shadow-lg shadow-blue-600/30 transition-all hover:scale-105 font-medium"
-      >
-        <ScanFace className="w-5 h-5" />
-        Tiến hành chấm công
-      </a>
+      {/* Floating button — Tiến hành chấm công (admin only) */}
+      {user && isAdmin(user.department) && (
+        <button
+          onClick={async () => {
+            try {
+              const res = await faceAttendanceService.createKioskSession();
+              const key = res.data?.key;
+              if (key) {
+                window.open(`/diemdanh/nhanvien?key=${key}`, '_blank');
+              }
+            } catch (e) {
+              alert('Không thể tạo phiên chấm công: ' + (e as Error).message);
+            }
+          }}
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-full shadow-lg shadow-blue-600/30 transition-all hover:scale-105 font-medium"
+        >
+          <ScanFace className="w-5 h-5" />
+          Tiến hành chấm công
+        </button>
+      )}
     </div>
   );
 };
