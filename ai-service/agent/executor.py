@@ -119,6 +119,8 @@ def _build_react_messages(message: str, history: list, today: str) -> list:
 
 def _coerce_params(tool: dict, params: dict) -> dict:
     """Coerce param types theo schema (Groq đôi khi trả string cho integer fields)."""
+    if not params:
+        return {}
     all_params = tool.get("path_params", []) + tool.get("query_params", []) + tool.get("body_params", [])
     type_map = {p["name"]: p["type"] for p in all_params}
     coerced = {}
