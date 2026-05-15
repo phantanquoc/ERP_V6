@@ -1,57 +1,150 @@
-"""Intent classifier — route user message to RAG or Agent action."""
+"""Intent classifier — keyword-based mapping of user messages to tool categories.
 
-import json
-from groq import Groq
+Reduces token usage by only sending relevant tools to the LLM instead of all 65.
+"""
 
-from config import logger, GROQ_API_KEY, GROQ_GRADER_MODEL
+import re
+from typing import List, Set
 
-_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+# Category keyword mapping: category → set of Vietnamese/English keywords
+_CATEGORY_KEYWORDS: dict[str, list[str]] = {
+    "attendance": [
+        "chấm công", "điểm danh", "check in", "check out", "vào ca", "ra ca",
+        "giờ làm", "đi muộn", "về sớm", "attendance",
+    ],
+    "leave": [
+        "nghỉ phép", "nghỉ", "xin nghỉ", "đơn nghỉ", "leave", "phép năm",
+        "nghỉ ốm", "nghỉ thai sản", "duyệt đơn", "từ chối đơn",
+    ],
+    "customer": [
+        "khách hàng", "khách", "customer", "nội địa", "quốc tế",
+        "đối tác", "client",
+    ],
+    "order": [
+        "đơn hàng", "order", "đặt hàng", "giao hàng", "vận chuyển",
+    ],
+    "task": [
+        "công việc", "nhiệm vụ", "task", "giao việc", "deadline",
+        "tiến độ", "hoàn thành",
+    ],
+    "employee": [
+        "nhân viên", "nhân sự", "employee", "profile", "thông tin cá nhân",
+        "hồ sơ", "danh sách nv",
+    ],
+    "notification": [
+        "thông báo", "notification", "tin nhắn",
+    ],
+    "supplier": [
+        "nhà cung cấp", "supplier", "ncc", "cung cấp",
+    ],
+    "purchase": [
+        "mua hàng", "yêu cầu mua", "purchase", "đề xuất mua",
+    ],
+    "payroll": [
+        "lương", "bảng lương", "payroll", "thu nhập", "salary",
+    ],
+    "quotation": [
+        "báo giá", "quotation", "ycbg", "yêu cầu báo giá", "quote",
+    ],
+    "product": [
+        "sản phẩm", "product", "hàng hóa", "mít sấy", "trái cây sấy",
+    ],
+    "production": [
+        "sản xuất", "production", "chất lượng", "qc", "nguyên liệu",
+        "thành phẩm", "mẻ sấy", "sấy", "định mức", "quy trình sx",
+        "vận hành", "kiểm tra nội bộ", "tiêu chí",
+    ],
+    "warehouse": [
+        "kho", "warehouse", "nhập kho", "xuất kho", "lô hàng", "lot",
+        "tồn kho", "phiếu nhập", "phiếu xuất", "nghiệm thu", "bàn giao",
+    ],
+    "maintenance": [
+        "máy móc", "thiết bị", "sửa chữa", "bảo trì", "repair",
+        "machine", "hư hỏng", "lỗi máy", "hệ thống máy",
+    ],
+    "finance": [
+        "hóa đơn", "invoice", "công nợ", "debt", "chi phí", "tài chính",
+        "thuế", "tax", "xuất khẩu chi phí", "giá thành", "tính giá",
+    ],
+    "planning": [
+        "kế hoạch", "plan", "tăng ca", "overtime", "lịch làm",
+    ],
+    "report": [
+        "báo cáo", "report", "báo cáo ngày", "daily report",
+    ],
+    "hr": [
+        "phòng ban", "department", "ca làm", "shift", "đánh giá nhân viên",
+        "kpi", "evaluation",
+    ],
+    "feedback": [
+        "phản hồi", "feedback", "khiếu nại", "góp ý",
+    ],
+    "knowledge": [
+        "hướng dẫn", "quy trình", "sop", "cách", "làm sao", "how to",
+        "guide", "tài liệu", "help",
+    ],
+    "supply": [
+        "cung ứng", "vật tư", "supply", "yêu cầu cung ứng",
+    ],
+}
 
-CLASSIFIER_PROMPT = """Bạn là bộ phân loại intent cho hệ thống ERP. Phân loại câu hỏi nhân viên:
+# Categories that are always included (utility tools)
+_ALWAYS_INCLUDE: Set[str] = {"employee", "knowledge"}
 
-- "rag": hỏi hướng dẫn sử dụng, quy trình, cách làm, chính sách công ty
-- "action": yêu cầu thực hiện hành động (xem dữ liệu, tạo mới, duyệt, xuất file, tra cứu)
-- "ambiguous": không rõ ràng, cần hỏi lại
-
-Ví dụ:
-- "hướng dẫn tạo đơn nghỉ phép" → rag
-- "xem chấm công tuần này" → action
-- "tạo đơn nghỉ phép ngày mai" → action
-- "xuất excel nhân viên" → action
-- "quy trình duyệt đơn hàng" → rag
-- "xin chào" → ambiguous
-
-Trả về JSON duy nhất: {"intent":"rag|action|ambiguous","category":"attendance|leave|customer|order|task|employee|notification|supplier|purchase|payroll|quotation|general"}
-Không giải thích gì thêm."""
+# Related categories: when one is detected, also include these
+_RELATED: dict[str, list[str]] = {
+    "quotation": ["customer", "product"],
+    "purchase": ["supplier"],
+    "order": ["customer"],
+    "feedback": ["customer"],
+    "supply": ["supplier"],
+    "leave": ["employee"],
+    "task": ["employee"],
+    "report": ["employee"],
+}
 
 
-def classify_intent(message: str) -> dict:
+def classify_intent(message: str) -> Set[str]:
+    """Classify user message into relevant tool categories.
+
+    Returns a set of category names. Always includes 'employee' and 'knowledge'
+    as utility categories. If no specific intent is detected, returns all categories
+    (fallback to full tool set).
     """
-    Classify user message intent.
-    Returns: {"intent": "rag"|"action"|"ambiguous", "category": "..."}
-    """
-    if not _client:
-        logger.warning("Groq client not available, defaulting to rag")
-        return {"intent": "rag", "category": "general"}
+    msg_lower = message.lower()
+    matched: Set[str] = set()
 
-    try:
-        resp = _client.chat.completions.create(
-            model=GROQ_GRADER_MODEL,
-            messages=[
-                {"role": "system", "content": CLASSIFIER_PROMPT},
-                {"role": "user", "content": message},
-            ],
-            temperature=0.0,
-            max_tokens=100,
-        )
-        text = resp.choices[0].message.content.strip()
-        # Parse JSON from response
-        if "{" in text:
-            json_str = text[text.index("{"):text.rindex("}") + 1]
-            result = json.loads(json_str)
-            if result.get("intent") in ("rag", "action", "ambiguous"):
-                return result
-        return {"intent": "ambiguous", "category": "general"}
-    except Exception as e:
-        logger.error(f"Classifier error: {e}")
-        return {"intent": "rag", "category": "general"}
+    for category, keywords in _CATEGORY_KEYWORDS.items():
+        for kw in keywords:
+            if kw in msg_lower:
+                matched.add(category)
+                break
+
+    # If nothing matched, return empty → caller should use all tools
+    if not matched:
+        return set()
+
+    # Add always-included categories
+    matched.update(_ALWAYS_INCLUDE)
+
+    # Add related categories
+    for cat in list(matched):
+        if cat in _RELATED:
+            matched.update(_RELATED[cat])
+
+    return matched
+
+
+def filter_tools_by_intent(tools: List[dict], message: str) -> List[dict]:
+    """Filter tools list based on classified intent from user message.
+
+    If intent classification returns empty (no keywords matched),
+    returns all tools unchanged (safe fallback).
+    """
+    categories = classify_intent(message)
+
+    # Fallback: no intent detected → use all tools
+    if not categories:
+        return tools
+
+    return [t for t in tools if t.get("category") in categories]
