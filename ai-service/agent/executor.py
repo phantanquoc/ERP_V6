@@ -1,4 +1,4 @@
-"""Agent executor — ReAct loop via Groq function calling + Gemini fallback."""
+"""Agent executor — ReAct loop via LLM function calling (Ollama → Groq → Gemini)."""
 
 import json
 import os
@@ -10,11 +10,36 @@ from typing import Generator
 
 from groq import Groq
 
-from config import logger, GROQ_API_KEY, GROQ_MODEL, GEMINI_API_KEY, GEMINI_MODEL
+from config import (logger, GROQ_API_KEY, GROQ_MODEL, GEMINI_API_KEY, GEMINI_MODEL,
+                    OLLAMA_BASE_URL, OLLAMA_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL)
 from agent.models import AgentAction
 from agent.registry import get_tools_for_role, get_tool_by_name, to_groq_tools
+from agent.classifier import filter_tools_by_intent
 
 _client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+
+# Ollama client (OpenAI-compatible API)
+_ollama_client = None
+if OLLAMA_BASE_URL:
+    try:
+        from openai import OpenAI
+        _ollama_client = OpenAI(base_url=f"{OLLAMA_BASE_URL}/v1", api_key="ollama")
+        logger.info(f"Ollama client initialized: {OLLAMA_BASE_URL} model={OLLAMA_MODEL}")
+    except ImportError:
+        logger.warning("openai package not installed, Ollama disabled")
+
+# OpenRouter client (OpenAI-compatible API, pay-per-use)
+_openrouter_client = None
+if OPENROUTER_API_KEY:
+    try:
+        from openai import OpenAI
+        _openrouter_client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=OPENROUTER_API_KEY,
+        )
+        logger.info(f"OpenRouter client initialized, model={OPENROUTER_MODEL}")
+    except ImportError:
+        logger.warning("openai package not installed, OpenRouter disabled")
 
 # Gemini fallback client (lazy import to avoid startup crash if not installed)
 _gemini_client = None
@@ -27,8 +52,8 @@ if GEMINI_API_KEY:
 
 BACKEND_API_URL = os.environ.get("BACKEND_API_URL", "http://backend:5000")
 
-MAX_ITERATIONS = 3
-REQUEST_TIMEOUT = 60  # seconds — overall timeout for entire ReAct loop
+MAX_ITERATIONS = 5
+REQUEST_TIMEOUT = 90  # seconds — overall timeout for entire ReAct loop
 
 REACT_SYSTEM = """Bạn là trợ lý ERP thông minh của An Binh Foods. Bạn giúp nhân viên thực hiện thao tác và trả lời câu hỏi về hệ thống.
 
@@ -44,6 +69,7 @@ Ví dụ:
 
 Quy tắc:
 - Sử dụng tools để thực hiện yêu cầu. Có thể gọi nhiều tools liên tiếp nếu cần.
+- QUAN TRỌNG: Khi yêu cầu cần nhiều bước (VD: tạo khách hàng → tạo sản phẩm → tạo báo giá), sau khi hoàn thành 1 bước, PHẢI tự động tiếp tục bước tiếp theo. KHÔNG hỏi lại user "bạn có muốn tiếp tục không". Chỉ dừng khi thiếu thông tin bắt buộc mà user chưa cung cấp. Các field optional thì bỏ qua, không cần hỏi.
 - Tool "search_knowledge": dùng khi user hỏi hướng dẫn, quy trình, cách sử dụng hệ thống
 - Các tool khác: dùng khi user muốn xem/tạo/xuất dữ liệu thực tế
 - Nếu thiếu thông tin bắt buộc, hỏi lại user
@@ -54,6 +80,7 @@ Quy tắc:
 - Ngày tham số PHẢI dùng format YYYY-MM-DD
 - Status dùng tiếng Anh: pending/approved/rejected
 - Khi tìm nhân viên theo chức vụ/phòng ban, dùng search với từ khóa ngắn gọn
+- Khi cần employeeId cho các tool tạo mới, gọi get_my_profile trước để lấy
 
 QUAN TRỌNG - Quy tắc tính ngày (hôm nay: {today}, thứ {weekday}):
 - "hôm nay" → {today}
@@ -111,7 +138,11 @@ def _build_react_messages(message: str, history: list, today: str) -> list:
 
     # Add conversation history (last 6 turns)
     for h in history[-6:]:
-        messages.append({"role": h.role, "content": h.content})
+        # Support both ChatMessage objects and plain dicts (from confirm_context)
+        if isinstance(h, dict):
+            messages.append({"role": h["role"], "content": h["content"]})
+        else:
+            messages.append({"role": h.role, "content": h.content})
 
     messages.append({"role": "user", "content": message})
     return messages
@@ -136,6 +167,12 @@ def _coerce_params(tool: dict, params: dict) -> dict:
                 coerced[k] = float(v)
             except ValueError:
                 coerced[k] = v
+        elif expected == "array" and isinstance(v, str):
+            try:
+                coerced[k] = json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                # Fallback: split comma-separated string into array
+                coerced[k] = [item.strip() for item in v.split(",") if item.strip()]
         else:
             coerced[k] = v
     return coerced
@@ -145,6 +182,53 @@ def _coerce_params(tool: dict, params: dict) -> dict:
 
 # Reusable HTTP client with connection pooling (avoid creating new client per request)
 _http_client = httpx.Client(timeout=30.0, limits=httpx.Limits(max_connections=20, max_keepalive_connections=10))
+
+
+# Fields to keep when slimming employee/list responses for LLM context
+_EMPLOYEE_KEEP_FIELDS = {"id", "employeeCode", "fullName", "departmentName", "subDepartmentName", "positionName", "status", "email", "phoneNumber", "hireDate", "baseSalary", "kpiLevel"}
+
+
+def _slim_response(result: dict) -> dict:
+    """Remove verbose fields from API response to fit LLM context window."""
+    if not isinstance(result, dict):
+        return result
+    data = result.get("data")
+    if not data:
+        return result
+
+    if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+        slimmed = []
+        for item in data:
+            slim = {}
+            # Build fullName from user.firstName + user.lastName if available
+            user = item.get("user", {})
+            if user and isinstance(user, dict):
+                first = user.get("firstName", "")
+                last = user.get("lastName", "")
+                if first or last:
+                    slim["fullName"] = f"{last} {first}".strip()
+                if user.get("email"):
+                    slim["email"] = user["email"]
+
+            # Keep important fields
+            for key in _EMPLOYEE_KEEP_FIELDS:
+                if key in item and item[key] is not None and key not in slim:
+                    slim[key] = item[key]
+
+            # Keep position name
+            pos = item.get("position")
+            if pos and isinstance(pos, dict) and pos.get("name"):
+                slim["positionName"] = pos["name"]
+
+            # Fallback: if slim is too empty, keep original but remove heavy fields
+            if len(slim) < 3:
+                slim = {k: v for k, v in item.items() if k not in ("userId", "createdAt", "updatedAt", "positionId", "positionLevelId", "subDepartmentId", "secondarySubDepartmentId", "user", "position", "positionLevel", "subDepartment")}
+
+            slimmed.append(slim)
+
+        return {"data": slimmed, "pagination": result.get("pagination", {})}
+
+    return result
 
 
 def _call_backend_api(tool: dict, params: dict | None, jwt_token: str) -> dict:
@@ -184,7 +268,9 @@ def _call_backend_api(tool: dict, params: dict | None, jwt_token: str) -> dict:
 
         if resp.status_code >= 400:
             return {"success": False, "error": f"API error {resp.status_code}: {resp.text[:200]}"}
-        return resp.json()
+        result = resp.json()
+        logger.info(f"Backend response for {tool['name']}: total={result.get('pagination',{}).get('total','?')}, data_count={len(result.get('data',[]))}")
+        return result
     except Exception as e:
         logger.error(f"Backend API call failed: {e}")
         return {"success": False, "error": str(e)}
@@ -220,15 +306,35 @@ def _call_rag_search(query: str, department: str, role: str) -> dict:
         return {"found": False, "message": f"Lỗi tìm kiếm: {str(e)}"}
 
 
-def _build_confirm_message(tool: dict, params: dict) -> str:
+def _build_confirm_message(tool: dict, params: dict, context: dict = None) -> str:
     """Build confirm message + __AGENT_ACTION__ sentinel for write actions."""
-    desc_parts = [f"- **{k}**: {v}" for k, v in params.items()]
-    confirm_msg = f"Tôi sẽ thực hiện: **{tool['description']}**\n\n" + "\n".join(desc_parts)
+    # Use friendly action names instead of technical descriptions
+    friendly_actions = {
+        "create_leave_request": "tạo đơn xin nghỉ phép",
+        "approve_leave_request": "duyệt đơn nghỉ phép",
+        "create_purchase_request": "tạo yêu cầu mua hàng",
+        "create_task": "giao nhiệm vụ",
+        "create_customer": "thêm khách hàng mới",
+        "create_supplier": "thêm nhà cung cấp mới",
+        "create_product": "tạo sản phẩm mới",
+        "create_quotation_request": "tạo yêu cầu báo giá",
+        "create_supply_request": "tạo yêu cầu cung ứng",
+        "create_daily_work_report": "tạo báo cáo công việc",
+        "create_customer_feedback": "ghi nhận phản hồi khách hàng",
+        "create_repair_request": "tạo yêu cầu sửa chữa",
+    }
+    action_name = friendly_actions.get(tool["name"], tool["description"].split(".")[0].lower())
+
+    # Filter out internal params (employeeId, etc.) for display
+    display_exclude = {"employeeId", "maNhanVien", "tenNhanVien", "approvedBy"}
+    desc_parts = [f"- **{k}**: {v}" for k, v in params.items() if k not in display_exclude]
+    confirm_msg = f"Mình sẽ **{action_name}** với thông tin sau:\n\n" + "\n".join(desc_parts) + "\n\nBạn xác nhận thực hiện không?"
     action = AgentAction(
         type="confirm",
         tool=tool["name"],
         params=params,
         message=confirm_msg,
+        context=context,
     )
     return f"{confirm_msg}\n\n__AGENT_ACTION__\n{action.model_dump_json()}\n"
 
@@ -400,7 +506,48 @@ def _friendly_error(e: Exception) -> str:
 
 
 def _call_groq_with_retry(messages: list, groq_tools: list, request_id: str):
-    """Call Groq API with retry. On rate limit exhaustion, fallback to Gemini."""
+    """Call LLM: Ollama (if available) → OpenRouter → Groq (with retry) → Gemini fallback."""
+
+    # ─── Try Ollama first (local, no rate limits) ────────────────────────────
+    if _ollama_client:
+        try:
+            resp = _ollama_client.chat.completions.create(
+                model=OLLAMA_MODEL,
+                messages=messages,
+                tools=groq_tools,
+                tool_choice="auto",
+                temperature=0.1,
+                max_tokens=1024,
+            )
+            logger.info(f"[{request_id}] Ollama ({OLLAMA_MODEL}) responded OK")
+            return resp
+        except Exception as e:
+            logger.warning(f"[{request_id}] Ollama failed ({e}), trying next...")
+
+    # ─── Try OpenRouter (pay-per-use, reliable) ──────────────────────────────
+    if _openrouter_client:
+        try:
+            resp = _openrouter_client.chat.completions.create(
+                model=OPENROUTER_MODEL,
+                messages=messages,
+                tools=groq_tools,
+                tool_choice="auto",
+                temperature=0.1,
+                max_tokens=1024,
+            )
+            logger.info(f"[{request_id}] OpenRouter ({OPENROUTER_MODEL}) responded OK")
+            return resp
+        except Exception as e:
+            logger.warning(f"[{request_id}] OpenRouter failed ({e}), trying Groq...")
+
+    # ─── Try Groq with retry ────────────────────────────────────────────────
+    if not _client:
+        # No Groq client either — try Gemini directly
+        if _gemini_client:
+            logger.info(f"[{request_id}] No Groq client, using Gemini directly")
+            return _call_gemini_fallback(messages, groq_tools, request_id)
+        raise RuntimeError("No LLM configured (OLLAMA_BASE_URL, OPENROUTER_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY required)")
+
     last_error = None
     for attempt in range(MAX_RETRIES + 1):
         try:
@@ -435,19 +582,43 @@ def _call_groq_with_retry(messages: list, groq_tools: list, request_id: str):
 
 def execute_stream(
     message: str, history: list, role: str, jwt_token: str, today: str,
-    department: str = "", request_id: str = ""
+    department: str = "", request_id: str = "",
+    _resume_messages: list = None,
 ) -> Generator[str, None, None]:
     """
     ReAct agent executor — Think → Act → Observe loop.
-    Max 3 iterations. Streams final text response.
+    Max 5 iterations. Streams final text response.
+
+    _resume_messages / _resume_result: internal params for chaining write actions.
+    When resuming after a confirmed write, we inject the previous result into messages.
     """
     if not _client:
         yield "Lỗi: AI service chưa được cấu hình (thiếu GROQ_API_KEY)"
         return
 
     available_tools = get_tools_for_role(role)
-    groq_tools = to_groq_tools(available_tools)
-    messages = _build_react_messages(message, history, today)
+    # For intent classification, combine current message with history for full context
+    intent_text = message
+    if history:
+        # Include user messages from history to capture original intent
+        history_user_msgs = []
+        for h in history[-6:]:
+            h_content = h["content"] if isinstance(h, dict) else h.content
+            h_role = h["role"] if isinstance(h, dict) else h.role
+            if h_role == "user":
+                history_user_msgs.append(h_content)
+        if history_user_msgs:
+            intent_text = " ".join(history_user_msgs) + " " + message
+    filtered_tools = filter_tools_by_intent(available_tools, intent_text)
+    groq_tools = to_groq_tools(filtered_tools)
+    logger.info(f"[{request_id}] Tools: {len(available_tools)} available, {len(filtered_tools)} after intent filter")
+
+    # Resume mode: use pre-built messages (from chaining after confirmed write)
+    if _resume_messages:
+        messages = _resume_messages
+    else:
+        messages = _build_react_messages(message, history, today)
+
     start_time = time.time()
 
     for iteration in range(MAX_ITERATIONS):
@@ -490,7 +661,18 @@ def execute_stream(
 
             # Write action → return confirm (don't execute)
             if tool.get("is_write"):
-                yield _build_confirm_message(tool, fn_args)
+                # Include context for chaining: after confirm, resume loop
+                # Store history so resume has full conversation context (original intent)
+                history_for_context = []
+                if history:
+                    history_for_context = [{"role": h.role, "content": h.content} if hasattr(h, 'role') else h for h in history[-6:]]
+                yield _build_confirm_message(tool, fn_args, context={
+                    "message": message,
+                    "history": history_for_context,
+                    "role": role,
+                    "department": department,
+                    "today": today,
+                })
                 return
 
             # Export action → return download URL
@@ -515,9 +697,9 @@ def execute_stream(
                 }]
             })
 
-            result_str = json.dumps(result, ensure_ascii=False)
-            if len(result_str) > 3000:
-                result_str = result_str[:3000] + "..."
+            result_str = json.dumps(_slim_response(result), ensure_ascii=False)
+            if len(result_str) > 4000:
+                result_str = result_str[:4000] + "..."
 
             messages.append({
                 "role": "tool",
@@ -533,8 +715,15 @@ def execute_stream(
 
 # ─── Confirmed Execution (second turn) ────────────────────────────────────────
 
-def execute_confirmed(tool_name: str, params: dict, jwt_token: str, request_id: str = "") -> Generator[str, None, None]:
-    """Execute a confirmed write action and stream result."""
+def execute_confirmed(
+    tool_name: str, params: dict, jwt_token: str, request_id: str = "",
+    confirm_context: dict = None,
+) -> Generator[str, None, None]:
+    """Execute a confirmed write action and stream result.
+
+    If confirm_context is provided, after successful execution the ReAct loop
+    resumes — enabling multi-step chaining (e.g. create customer → create product → create quotation).
+    """
     tool = get_tool_by_name(tool_name)
     if not tool:
         yield f"Lỗi: Không tìm thấy tool '{tool_name}'"
@@ -543,6 +732,69 @@ def execute_confirmed(tool_name: str, params: dict, jwt_token: str, request_id: 
     logger.info(f"[{request_id}] Executing confirmed: {tool_name}({params})")
     result = _call_backend_api(tool, params, jwt_token)
     if result.get("success", True) and "error" not in result:
-        yield f"✅ Đã thực hiện thành công: {tool['description']}"
+        friendly_names = {
+            "create_leave_request": "Đơn xin nghỉ phép đã được tạo thành công! 🎉",
+            "approve_leave_request": "Đơn nghỉ phép đã được duyệt thành công! ✅",
+            "create_purchase_request": "Yêu cầu mua hàng đã được tạo thành công! 🎉",
+            "create_task": "Nhiệm vụ đã được giao thành công! 🎉",
+            "create_customer": "Khách hàng mới đã được thêm thành công! 🎉",
+            "create_supplier": "Nhà cung cấp mới đã được thêm thành công! 🎉",
+            "create_product": "Sản phẩm mới đã được tạo thành công! 🎉",
+            "create_quotation_request": "Yêu cầu báo giá đã được tạo thành công! 🎉",
+            "create_supply_request": "Yêu cầu cung ứng đã được tạo thành công! 🎉",
+            "create_daily_work_report": "Báo cáo công việc đã được ghi nhận! 🎉",
+            "create_customer_feedback": "Phản hồi khách hàng đã được ghi nhận! 🎉",
+            "create_repair_request": "Yêu cầu sửa chữa đã được tạo thành công! 🎉",
+        }
+        msg = friendly_names.get(tool_name, f"Đã thực hiện thành công! ✅")
+        yield msg
+
+        # Resume ReAct loop if context provided (multi-step chaining)
+        if confirm_context:
+            logger.info(f"[{request_id}] Resuming ReAct loop after {tool_name} (chaining)")
+            # Build resume messages: original conversation (with history) + this tool result
+            stored_history = confirm_context.get("history", [])
+            resume_messages = _build_react_messages(
+                confirm_context["message"],
+                stored_history,
+                confirm_context["today"],
+            )
+            # Add the confirmed tool call + result so agent knows what was done
+            resume_messages.append({
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{
+                    "id": "confirmed_action",
+                    "type": "function",
+                    "function": {"name": tool_name, "arguments": json.dumps(params, ensure_ascii=False)}
+                }]
+            })
+            result_str = json.dumps(result, ensure_ascii=False)
+            if len(result_str) > 4000:
+                result_str = result_str[:4000] + "..."
+            resume_messages.append({
+                "role": "tool",
+                "tool_call_id": "confirmed_action",
+                "content": result_str,
+            })
+            # Add a nudge so model continues to next step instead of asking user
+            resume_messages.append({
+                "role": "user",
+                "content": "Đã xong bước này. Tiếp tục thực hiện bước tiếp theo trong yêu cầu ban đầu. Không cần hỏi lại.",
+            })
+            # Continue the ReAct loop — may yield another confirm or final text
+            yield "\n\n"
+            yield from execute_stream(
+                message=confirm_context["message"],
+                history=stored_history,
+                role=confirm_context["role"],
+                jwt_token=jwt_token,
+                today=confirm_context["today"],
+                department=confirm_context.get("department", ""),
+                request_id=request_id,
+                _resume_messages=resume_messages,
+            )
     else:
-        yield f"❌ Thất bại: {result.get('error', result.get('message', 'Lỗi không xác định'))}"
+        error_msg = result.get('error', result.get('message', 'Lỗi không xác định'))
+        logger.error(f"[{request_id}] Confirmed action failed: {error_msg}")
+        yield f"😔 Rất tiếc, thao tác không thành công. Hệ thống gặp lỗi khi xử lý yêu cầu của bạn. Vui lòng thử lại sau hoặc liên hệ quản trị viên nếu lỗi tiếp tục xảy ra."
