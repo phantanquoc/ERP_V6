@@ -1,98 +1,142 @@
-"""Test agent/classifier.py — mock Groq API."""
+"""Tests for agent/classifier.py — intent-based tool filtering."""
 
-import sys
-import os
-import json
-from unittest.mock import MagicMock, patch
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-# Import module trước để patch hoạt động đúng
-import agent.classifier as classifier_module
-
-
-def _make_groq_response(content: str):
-    choice = MagicMock()
-    choice.message.content = content
-    resp = MagicMock()
-    resp.choices = [choice]
-    return resp
+import pytest
+from agent.classifier import classify_intent, filter_tools_by_intent
 
 
 class TestClassifyIntent:
-    def _call_with_mock(self, mock_content: str, message: str):
-        """Helper: patch _client trực tiếp trên module và gọi classify_intent."""
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = _make_groq_response(mock_content)
-        original = classifier_module._client
-        classifier_module._client = mock_client
-        try:
-            return classifier_module.classify_intent(message)
-        finally:
-            classifier_module._client = original
+    """Test keyword-based intent classification."""
 
-    def test_xem_cham_cong_tra_action_attendance(self):
-        result = self._call_with_mock(
-            '{"intent":"action","category":"attendance"}',
-            "xem chấm công tuần này",
-        )
-        assert result["intent"] == "action"
-        assert result["category"] == "attendance"
+    def test_attendance_keywords(self):
+        cats = classify_intent("xem chấm công hôm nay")
+        assert "attendance" in cats
 
-    def test_huong_dan_nghi_phep_tra_rag_leave(self):
-        result = self._call_with_mock(
-            '{"intent":"rag","category":"leave"}',
-            "hướng dẫn tạo đơn nghỉ phép",
-        )
-        assert result["intent"] == "rag"
-        assert result["category"] == "leave"
+    def test_leave_keywords(self):
+        cats = classify_intent("tôi muốn xin nghỉ phép ngày mai")
+        assert "leave" in cats
+        assert "employee" in cats  # always included
 
-    def test_xin_chao_tra_ambiguous_general(self):
-        result = self._call_with_mock(
-            '{"intent":"ambiguous","category":"general"}',
-            "xin chào",
-        )
-        assert result["intent"] == "ambiguous"
-        assert result["category"] == "general"
+    def test_customer_keywords(self):
+        cats = classify_intent("danh sách khách hàng quốc tế")
+        assert "customer" in cats
 
-    def test_json_trong_text_duoc_parse_dung(self):
-        """Model đôi khi trả về text bao quanh JSON."""
-        result = self._call_with_mock(
-            'Đây là kết quả: {"intent":"action","category":"order"} xong.',
-            "xem đơn hàng",
-        )
-        assert result["intent"] == "action"
-        assert result["category"] == "order"
+    def test_quotation_includes_related(self):
+        """Quotation intent should also include customer + product."""
+        cats = classify_intent("tạo yêu cầu báo giá")
+        assert "quotation" in cats
+        assert "customer" in cats
+        assert "product" in cats
 
-    def test_groq_loi_default_rag(self):
-        """Khi Groq API ném exception → fallback về rag."""
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.side_effect = Exception("API timeout")
-        original = classifier_module._client
-        classifier_module._client = mock_client
-        try:
-            result = classifier_module.classify_intent("bất kỳ câu hỏi nào")
-        finally:
-            classifier_module._client = original
-        assert result["intent"] == "rag"
-        assert result["category"] == "general"
+    def test_purchase_includes_supplier(self):
+        cats = classify_intent("tạo yêu cầu mua hàng")
+        assert "purchase" in cats
+        assert "supplier" in cats
 
-    def test_groq_tra_json_sai_intent_tra_ambiguous(self):
-        """JSON hợp lệ nhưng intent không nằm trong tập cho phép."""
-        result = self._call_with_mock(
-            '{"intent":"unknown_value","category":"general"}',
-            "câu hỏi lạ",
-        )
-        assert result["intent"] == "ambiguous"
-        assert result["category"] == "general"
+    def test_production_keywords(self):
+        cats = classify_intent("báo cáo chất lượng sản phẩm sấy")
+        assert "production" in cats
 
-    def test_client_none_default_rag(self):
-        """Khi _client là None (không có API key) → fallback về rag."""
-        original = classifier_module._client
-        classifier_module._client = None
-        try:
-            result = classifier_module.classify_intent("test message")
-        finally:
-            classifier_module._client = original
-        assert result["intent"] == "rag"
-        assert result["category"] == "general"
+    def test_warehouse_keywords(self):
+        cats = classify_intent("kiểm tra tồn kho")
+        assert "warehouse" in cats
+
+    def test_maintenance_keywords(self):
+        cats = classify_intent("máy sấy bị hỏng cần sửa chữa")
+        assert "maintenance" in cats
+
+    def test_finance_keywords(self):
+        cats = classify_intent("xem hóa đơn tháng này")
+        assert "finance" in cats
+
+    def test_payroll_keywords(self):
+        cats = classify_intent("xem bảng lương tháng 5")
+        assert "payroll" in cats
+
+    def test_knowledge_keywords(self):
+        cats = classify_intent("hướng dẫn tạo đơn hàng")
+        assert "knowledge" in cats
+
+    def test_task_keywords(self):
+        cats = classify_intent("giao việc cho nhân viên")
+        assert "task" in cats
+        assert "employee" in cats  # related
+
+    def test_no_match_returns_empty(self):
+        """Unknown intent returns empty set → fallback to all tools."""
+        cats = classify_intent("xin chào")
+        assert cats == set()
+
+    def test_multiple_intents(self):
+        """Message with multiple keywords matches multiple categories."""
+        cats = classify_intent("xem chấm công và đơn nghỉ phép")
+        assert "attendance" in cats
+        assert "leave" in cats
+
+    def test_always_includes_employee_knowledge(self):
+        """When any intent is matched, employee + knowledge are always included."""
+        cats = classify_intent("xem hóa đơn")
+        assert "employee" in cats
+        assert "knowledge" in cats
+
+    def test_supply_keywords(self):
+        cats = classify_intent("yêu cầu cung ứng vật tư")
+        assert "supply" in cats
+        assert "supplier" in cats  # related
+
+    def test_report_keywords(self):
+        cats = classify_intent("báo cáo công việc hôm nay")
+        assert "report" in cats
+
+    def test_feedback_keywords(self):
+        cats = classify_intent("khách hàng khiếu nại")
+        assert "feedback" in cats
+        assert "customer" in cats  # related
+
+
+class TestFilterToolsByIntent:
+    """Test tool filtering based on classified intent."""
+
+    @pytest.fixture
+    def sample_tools(self):
+        return [
+            {"name": "get_attendance", "category": "attendance"},
+            {"name": "list_customers", "category": "customer"},
+            {"name": "get_my_profile", "category": "employee"},
+            {"name": "search_knowledge", "category": "knowledge"},
+            {"name": "list_invoices", "category": "finance"},
+            {"name": "create_leave_request", "category": "leave"},
+            {"name": "list_products", "category": "product"},
+            {"name": "create_quotation_request", "category": "quotation"},
+        ]
+
+    def test_filters_to_relevant_categories(self, sample_tools):
+        result = filter_tools_by_intent(sample_tools, "xem chấm công")
+        names = [t["name"] for t in result]
+        assert "get_attendance" in names
+        assert "get_my_profile" in names  # always included
+        assert "search_knowledge" in names  # always included
+        assert "list_invoices" not in names
+
+    def test_fallback_returns_all_on_no_match(self, sample_tools):
+        """When no intent detected, return all tools."""
+        result = filter_tools_by_intent(sample_tools, "xin chào bạn")
+        assert len(result) == len(sample_tools)
+
+    def test_quotation_includes_customer_product(self, sample_tools):
+        result = filter_tools_by_intent(sample_tools, "tạo báo giá")
+        names = [t["name"] for t in result]
+        assert "create_quotation_request" in names
+        assert "list_customers" in names
+        assert "list_products" in names
+
+    def test_reduces_tool_count(self, sample_tools):
+        """Filtered result should be smaller than full set."""
+        result = filter_tools_by_intent(sample_tools, "xem lương")
+        assert len(result) < len(sample_tools)
+
+    def test_leave_intent(self, sample_tools):
+        result = filter_tools_by_intent(sample_tools, "xin nghỉ phép")
+        names = [t["name"] for t in result]
+        assert "create_leave_request" in names
+        assert "get_my_profile" in names
+        assert "list_invoices" not in names
