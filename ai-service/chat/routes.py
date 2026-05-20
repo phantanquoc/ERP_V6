@@ -62,6 +62,7 @@ def chat(req: ChatRequest):
 
         # Faithfulness check
         if not faithfulness_check(answer, chunks):
+            logger.warning(f"Faithfulness rejected answer: {answer[:200]}")
             answer = (
                 "Xin lỗi, tôi không thể đưa ra câu trả lời chắc chắn dựa trên tài liệu hiện có. "
                 "Vui lòng liên hệ quản trị viên hoặc trưởng phòng để được hỗ trợ."

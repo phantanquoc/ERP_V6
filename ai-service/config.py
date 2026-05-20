@@ -24,14 +24,14 @@ VOTE_WEIGHT_DIST = 0.60
 TOP_K_MATCHES = 5
 
 # Liveness
-LIVENESS_MIN_VALID_FRAMES = 4
+LIVENESS_MIN_VALID_FRAMES = 2
 LIVENESS_PASS_RATIO = 0.65
-LIVENESS_MIN_SCORE = 0.78
-LIVENESS_FINAL_MIN_SCORE = 0.72
+LIVENESS_MIN_SCORE = 0.72
+LIVENESS_FINAL_MIN_SCORE = 0.68
 LIVENESS_MAX_FRAMES = 12
 LIVENESS_MIN_BRIGHTNESS = 35.0
 LIVENESS_MAX_BRIGHTNESS = 225.0
-LIVENESS_MIN_BLUR = 18.0
+LIVENESS_MIN_BLUR = 12.0
 FLAT_MOTION_MIN_SHIFT = 0.08
 FLAT_MOTION_MAX_ALIGNED_DIFF = 0.018
 LBP_SCREEN_THRESHOLD = 0.35
@@ -39,14 +39,15 @@ MAX_FACE_TILT_DEG = 20.0
 MIN_EYE_SPAN_RATIO = 0.22
 
 
+# ─── CORS ────────────────────────────────────────────────────────────────────
+_cors_env = os.environ.get("CORS_ORIGIN", "http://localhost:5173,http://127.0.0.1:5173")
+ALLOWED_ORIGINS: list[str] = [o.strip() for o in _cors_env.split(",") if o.strip()]
+
 # ─── RAG Chatbot Constants ───────────────────────────────────────────────────
 DOCS_DIR = Path("/app/docs/chatbot")
 CHROMA_DIR = Path("/app/chroma_data")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-GROQ_GRADER_MODEL = os.environ.get("GROQ_GRADER_MODEL", "llama-3.1-8b-instant")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "deepseek/deepseek-chat-v3-0324")
 COMMON_FILE = "00-chung.md"
 CONFIDENCE_THRESHOLD = 0.32
 

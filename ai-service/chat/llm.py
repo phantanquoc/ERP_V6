@@ -1,9 +1,9 @@
-"""LLM calls (Groq), query rewrite, synonym expansion, message building."""
+"""LLM calls (OpenRouter/DeepSeek), query rewrite, synonym expansion, message building."""
 
 import re
 import time
 
-from config import logger, GROQ_API_KEY, GROQ_MODEL, GROQ_GRADER_MODEL
+from config import logger, OPENROUTER_API_KEY, OPENROUTER_MODEL
 
 SYSTEM_PROMPT = """Bạn là trợ lý ERP An Binh Foods. Hướng dẫn nhân viên sử dụng hệ thống theo ngôn ngữ người dùng thông thường.
 
@@ -17,14 +17,14 @@ NGUYÊN TẮC BẮT BUỘC:
    - Tên menu/tab: **Chức năng chung**, **Danh sách yêu cầu BG**, **Bộ phận chất lượng**
    - Tên nút: **"Thêm mới"**, **"Lưu"**, **"Xin nghỉ phép"**, **"Góp ý riêng"**
    - Tên trường: **Loại nghỉ phép**, **Ngày bắt đầu**, **Lý do**
-5. Hướng dẫn theo đường dẫn thực tế: Menu → Tab → Nút → Form
+5. Hướng dẫn theo đường dẫn thực tế: Sidebar → Bộ phận → Phòng → Tab → Nút → Form. LUÔN bắt đầu bằng "Từ thanh điều hướng bên trái" hoặc "Từ sidebar" khi hướng dẫn truy cập chức năng.
 6. Trường bắt buộc ghi ✅, không bắt buộc bỏ qua
 7. Sau câu trả lời, gợi ý 1-2 câu hỏi tiếp theo ngắn gọn
 
 VÍ DỤ ĐÚNG:
 Câu hỏi: "Tôi muốn góp ý với sếp"
 Trả lời:
-Vào menu **Chức năng chung** → nhấn **"Góp ý riêng"**. Điền:
+Từ thanh điều hướng bên trái, nhấn **Chung** → nhấn **"Góp ý riêng"**. Điền:
 - **Nội dung góp ý** ✅
 - **Mục đích góp ý** ✅
 - Ghi chú, File đính kèm (tùy chọn)
@@ -35,7 +35,7 @@ Bạn có thể hỏi thêm: "Ai có thể xem góp ý của tôi?" hoặc "Nêu
 VÍ DỤ ĐÚNG:
 Câu hỏi: "Tạo YCBG như thế nào?"
 Trả lời:
-Vào **Bộ phận kinh doanh** → tab **Danh sách yêu cầu BG** → nhấn **"Thêm yêu cầu báo giá"**. Điền:
+Từ thanh điều hướng bên trái, chọn **Bộ phận kinh doanh** → chọn **Phòng KD Quốc Tế** (hoặc **Phòng KD Nội Địa** tùy khách hàng) → vào tab **Danh sách yêu cầu BG** → nhấn **"Thêm yêu cầu báo giá"**. Điền:
 - **Khách hàng** ✅ — chọn từ danh sách
 - **Sản phẩm** ✅ — nhấn **"Thêm sản phẩm"** để thêm dòng, điền Số lượng ✅ và Đơn vị tính ✅
 - Hình thức vận chuyển, thanh toán, Ghi chú (tùy chọn)
@@ -87,14 +87,14 @@ def rewrite_query(message: str) -> str:
     if len(message) > 60 or len(words) > 8:
         return message
 
-    if not GROQ_API_KEY:
+    if not OPENROUTER_API_KEY:
         return message
 
     try:
-        from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
+        from openai import OpenAI
+        client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
         resp = client.chat.completions.create(
-            model=GROQ_GRADER_MODEL,
+            model=OPENROUTER_MODEL,
             messages=[
                 {"role": "system", "content": _REWRITE_PROMPT},
                 {"role": "user", "content": message},
@@ -113,13 +113,13 @@ def rewrite_query(message: str) -> str:
 
 
 def call_llm(messages: list[dict]) -> str:
-    """Gọi Groq LLM với retry khi rate limit."""
-    from groq import Groq
-    client = Groq(api_key=GROQ_API_KEY)
+    """Gọi OpenRouter LLM với retry khi rate limit."""
+    from openai import OpenAI
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
     for attempt in range(3):
         try:
             resp = client.chat.completions.create(
-                model=GROQ_MODEL,
+                model=OPENROUTER_MODEL,
                 messages=messages,
                 temperature=0.1,
                 max_tokens=600,
@@ -129,11 +129,11 @@ def call_llm(messages: list[dict]) -> str:
             err_str = str(e)
             if "429" in err_str:
                 if "tokens per day" in err_str or "TPD" in err_str:
-                    logger.error("Groq daily token limit reached")
+                    logger.error("OpenRouter daily token limit reached")
                     raise RuntimeError("DAILY_LIMIT_REACHED")
                 if attempt < 2:
                     wait = (attempt + 1) * 5
-                    logger.warning(f"Groq rate limit, retry in {wait}s (attempt {attempt + 1})")
+                    logger.warning(f"OpenRouter rate limit, retry in {wait}s (attempt {attempt + 1})")
                     time.sleep(wait)
                 else:
                     raise
@@ -142,11 +142,11 @@ def call_llm(messages: list[dict]) -> str:
 
 
 def stream_llm(messages: list[dict]):
-    """Generator: yield từng token từ Groq LLM."""
-    from groq import Groq
-    client = Groq(api_key=GROQ_API_KEY)
+    """Generator: yield từng token từ OpenRouter LLM."""
+    from openai import OpenAI
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
     stream = client.chat.completions.create(
-        model=GROQ_MODEL,
+        model=OPENROUTER_MODEL,
         messages=messages,
         temperature=0.1,
         max_tokens=600,
