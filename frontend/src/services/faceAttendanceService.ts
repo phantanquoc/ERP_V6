@@ -98,29 +98,6 @@ const faceAttendanceService = {
   toggleDevice: (deviceId: string) =>
     apiClient.patch<AttendanceDevice>(`${BASE}/devices/${deviceId}/toggle`, {}),
 
-  getProfileImages: (employeeId: string) =>
-    apiClient.get<{
-      images: {
-        id: string;
-        imagePath: string;
-        url: string;
-        createdAt: string;
-        metrics: {
-          distanceToCentroid: number;
-          minDistanceToOther: number;
-          maxDistanceToOther: number;
-          hasEmbedding: boolean;
-        };
-      }[];
-      summary: {
-        totalImages: number;
-        totalEmbeddings: number;
-        avgInternalDistance: number;
-        maxInternalDistance: number;
-        qualityRating: 'excellent' | 'good' | 'fair' | 'poor';
-      };
-    }>(`${BASE}/profiles/${employeeId}/images`),
-
   getKioskConfig(): KioskConfig {
     return {
       deviceKey: localStorage.getItem('faceAttendance.deviceKey') || import.meta.env.VITE_FACE_DEVICE_KEY || '',
@@ -150,6 +127,21 @@ const faceAttendanceService = {
   /** Dev-only kiosk verify (no device key required) */
   kioskVerifyDev: (image: string, frames: string[]) =>
     apiClient.post<VerifyResult>(`${BASE}/kiosk/verify-dev`, { image, frames }),
+
+  /** Admin tạo kiosk session key */
+  createKioskSession: () =>
+    apiClient.post<{ key: string }>(`${BASE}/kiosk/session`, {}),
+
+  /** Validate kiosk session key (public, không cần JWT) */
+  async validateKioskSession(key: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE_URL}${BASE}/kiosk/validate-session?key=${encodeURIComponent(key)}`);
+      const data = await response.json();
+      return data?.data?.valid === true;
+    } catch {
+      return false;
+    }
+  },
 };
 
 export default faceAttendanceService;

@@ -9,6 +9,7 @@ from config import (
     logger, VERIFY_DETECTOR,
     LIVENESS_MIN_VALID_FRAMES, LIVENESS_PASS_RATIO, LIVENESS_MIN_SCORE,
     LIVENESS_FINAL_MIN_SCORE, LIVENESS_MAX_FRAMES,
+    LIVENESS_MIN_BRIGHTNESS, LIVENESS_MAX_BRIGHTNESS, LIVENESS_MIN_BLUR,
     FLAT_MOTION_MIN_SHIFT, FLAT_MOTION_MAX_ALIGNED_DIFF,
     LBP_SCREEN_THRESHOLD,
 )
@@ -87,6 +88,16 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
     lbp_scores: list[float] = []
     temporal_samples: list[dict[str, Any]] = []
 
+    reject_reasons: dict[str, int] = {
+        "detect_fail": 0,
+        "brightness_low": 0,
+        "brightness_high": 0,
+        "blur_low": 0,
+        "face_area_low": 0,
+        "multi_face": 0,
+        "other": 0,
+    }
+
     for idx, frame_b64 in enumerate(frames):
         try:
             frame = base64_to_image(frame_b64)
@@ -99,6 +110,7 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
                     anti_spoofing=True,
                 )
                 if not face_objs:
+                    reject_reasons["detect_fail"] += 1
                     continue
                 face_obj = face_objs[0]
                 is_real = face_obj.get("is_real", False)
@@ -114,6 +126,20 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
             quality, q_msg = _frame_quality(frame, bbox)
             if quality <= 0.0:
                 logger.debug("Frame %d skipped: %s", idx + 1, q_msg)
+                # Classify reject reason from quality message
+                msg_lower = q_msg.lower()
+                if "brightness" in msg_lower and "low" in msg_lower:
+                    reject_reasons["brightness_low"] += 1
+                elif "brightness" in msg_lower and "high" in msg_lower:
+                    reject_reasons["brightness_high"] += 1
+                elif "blur" in msg_lower:
+                    reject_reasons["blur_low"] += 1
+                elif "face area" in msg_lower or "area" in msg_lower:
+                    reject_reasons["face_area_low"] += 1
+                elif "multi" in msg_lower or "multiple" in msg_lower:
+                    reject_reasons["multi_face"] += 1
+                else:
+                    reject_reasons["other"] += 1
                 continue
 
             # MiniFASNet spoofing check
@@ -137,7 +163,19 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
             temporal_samples.append({"bbox": bbox, "crop": crop})
 
         except Exception as exc:
-            logger.warning("Liveness frame %s failed: %s", idx + 1, exc)
+            exc_str = str(exc)
+            if "No face detected" in exc_str:
+                reject_reasons["detect_fail"] += 1
+            elif "Multiple faces detected" in exc_str:
+                reject_reasons["multi_face"] += 1
+            else:
+                reject_reasons["other"] += 1
+            logger.warning("Liveness frame %s failed: reason=%s exc=%s", idx + 1, "detect_fail" if "No face" in exc_str else "other", exc)
+
+    logger.info(
+        "Liveness batch: %d frames input, %d valid, rejects=%s",
+        len(frames), len(valid_scores), dict(reject_reasons),
+    )
 
     if len(valid_scores) < LIVENESS_MIN_VALID_FRAMES:
         return False, 0.0, "Không đủ frame hợp lệ để xác minh người thật"

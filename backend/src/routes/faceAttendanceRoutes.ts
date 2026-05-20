@@ -21,9 +21,6 @@ router.patch('/profiles/:profileId/toggle', authenticate, authorize('ADMIN'), fa
 /** DELETE /api/face-attendance/profiles/:employeeId — xóa face profile */
 router.delete('/profiles/:employeeId', authenticate, authorize('ADMIN'), faceAttendanceController.deleteProfile.bind(faceAttendanceController));
 
-/** GET /api/face-attendance/profiles/:employeeId/images — ảnh đã đăng ký */
-router.get('/profiles/:employeeId/images', authenticate, authorize('ADMIN'), faceAttendanceController.getProfileImages.bind(faceAttendanceController));
-
 /** GET /api/face-attendance/logs — xem lịch sử nhận diện */
 router.get('/logs', authenticate, authorize('ADMIN'), faceAttendanceController.getLogs.bind(faceAttendanceController));
 
@@ -39,6 +36,12 @@ router.post('/devices', authenticate, authorize('ADMIN'), faceAttendanceControll
 router.patch('/devices/:deviceId/toggle', authenticate, authorize('ADMIN'), faceAttendanceController.toggleDevice.bind(faceAttendanceController));
 
 // ─── Kiosk Routes (device-key auth) ────────────────────────────────────────
+
+/** POST /api/face-attendance/kiosk/session — admin tạo session key cho kiosk */
+router.post('/kiosk/session', authenticate, authorize('ADMIN'), faceAttendanceController.createKioskSession.bind(faceAttendanceController));
+
+/** GET /api/face-attendance/kiosk/validate-session — kiosk validate key (public) */
+router.get('/kiosk/validate-session', faceAttendanceController.validateKioskSession.bind(faceAttendanceController));
 
 /** POST /api/face-attendance/kiosk/verify — kiosk chấm công (dùng x-device-key) */
 router.post('/kiosk/verify', faceAttendanceController.kioskVerify.bind(faceAttendanceController));

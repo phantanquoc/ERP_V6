@@ -1,7 +1,11 @@
 import { Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import type { AuthenticatedRequest } from '@types';
 import faceAttendanceService from '@services/faceAttendanceService';
 import { ValidationError } from '@utils/errors';
+
+// ─── In-memory kiosk session store (no expiry) ───────────────────────────────
+const kioskSessions = new Set<string>();
 
 export class FaceAttendanceController {
 
@@ -48,17 +52,6 @@ export class FaceAttendanceController {
     }
   }
 
-  async getProfileImages(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-    try {
-      const { employeeId } = req.params;
-      const data = await faceAttendanceService.getProfileImages(employeeId);
-      res.json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /** Toggle active/inactive face profile */
   async toggleProfile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { profileId } = req.params;
@@ -167,6 +160,32 @@ export class FaceAttendanceController {
       if (!primaryImage) throw new ValidationError('Cần truyền image hoặc frames (base64)');
       const result = await faceAttendanceService.verifyAndRecord(primaryImage, normalizedFrames, 'dev-kiosk', 'localhost');
       res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ─── Kiosk Session Key (admin tạo, kiosk validate) ─────────────────────────
+
+  async createKioskSession(_req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const key = crypto.randomBytes(96).toString('base64url').slice(0, 128);
+      kioskSessions.add(key);
+      res.json({ success: true, data: { key } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async validateKioskSession(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const key = req.query.key as string;
+      if (!key) {
+        res.json({ success: true, data: { valid: false } });
+        return;
+      }
+      const valid = kioskSessions.has(key);
+      res.json({ success: true, data: { valid } });
     } catch (error) {
       next(error);
     }

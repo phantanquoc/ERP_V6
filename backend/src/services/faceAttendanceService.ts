@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { EmployeeStatus } from '@prisma/client';
 import attendanceService from './attendanceService';
+import { getTodayInAppTz, nowInAppTz } from '@utils/dateUtils';
 
 const AI_URL = env.AI_SERVICE_URL;
 
@@ -22,66 +23,52 @@ interface CachedProfile {
 
 let embeddingCache: CachedProfile[] | null = null;
 let cacheTimestamp = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
-const PROFILE_CLUSTER_DISTANCE = 0.62;
+const CACHE_TTL_MS = 30 * 1000; // 30 seconds (reduced from 5 min for faster cross-instance propagation)
+const PROFILE_CLUSTER_DISTANCE = 0.48;
 const MIN_PROFILE_EMBEDDINGS = 2;
 const LOW_PROFILE_EMBEDDINGS_WARNING = 3;
 const MAX_EXHAUSTIVE_CLUSTER_SIZE = 12;
 
 // ─── Cooldown: chống quẹt liên tục ───────────────────────────────────────────
-// Sau khi CHECK_IN / CHECK_OUT thành công, block cùng employeeId trong 5 phút.
-const COOLDOWN_MS = 5 * 60 * 1000; // 5 phút
+// Sau khi CHECK_IN / CHECK_OUT thành công, block cùng employeeId trong 10 phút.
+// Dual-store: in-memory Map (fast path) + DB column lastFaceScanAt (cross-instance).
+const COOLDOWN_MS = 10 * 60 * 1000; // 10 phút
 const recentScans = new Map<string, number>(); // employeeId → timestamp lần quẹt cuối
 
-function isCoolingDown(employeeId: string): boolean {
+async function isCoolingDown(employeeId: string): Promise<boolean> {
+  // Fast path: check in-memory Map first (avoids DB round-trip on same instance)
   const last = recentScans.get(employeeId);
-  if (!last) return false;
-  return Date.now() - last < COOLDOWN_MS;
+  if (last !== undefined) {
+    return Date.now() - last < COOLDOWN_MS;
+  }
+  // Fallback: query DB for cross-instance cooldown check
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { lastFaceScanAt: true },
+  });
+  if (employee?.lastFaceScanAt) {
+    const elapsed = Date.now() - employee.lastFaceScanAt.getTime();
+    if (elapsed < COOLDOWN_MS) {
+      // Populate Map so subsequent checks on this instance are fast
+      recentScans.set(employeeId, employee.lastFaceScanAt.getTime());
+      setTimeout(() => recentScans.delete(employeeId), COOLDOWN_MS - elapsed + 1000);
+      return true;
+    }
+  }
+  return false;
 }
 
-function setCooldown(employeeId: string) {
-  recentScans.set(employeeId, Date.now());
-  // Tự dọn sau khi hết cooldown để không leak memory
+// tx is the Prisma transaction client — must be called inside the transaction
+// so that lastFaceScanAt is written atomically with the attendance record.
+async function setCooldown(employeeId: string, tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) {
+  const now = Date.now();
+  recentScans.set(employeeId, now);
   setTimeout(() => recentScans.delete(employeeId), COOLDOWN_MS + 1000);
-}
-
-function normalizeMessage(input?: string): string {
-  return (input || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-}
-
-function getKioskGuidanceMessage(rawMessage?: string): string {
-  const normalized = normalizeMessage(rawMessage);
-
-  if (
-    normalized.includes('khong du frame') ||
-    normalized.includes('not enough valid frames') ||
-    normalized.includes('too few valid frames')
-  ) {
-    return 'Vui lòng di chuyển ra giữa màn hình và thử lại';
-  }
-
-  if (
-    normalized.includes('screen') ||
-    normalized.includes('spoof') ||
-    normalized.includes('photo') ||
-    normalized.includes('replay')
-  ) {
-    return 'Vui lòng đứng trực tiếp trước camera và thử lại';
-  }
-
-  if (
-    normalized.includes('no face') ||
-    normalized.includes('khong nhan dien duoc khuon mat') ||
-    normalized.includes('khong tim thay khuon mat')
-  ) {
-    return 'Không nhận diện rõ khuôn mặt. Vui lòng nhìn thẳng vào camera và thử lại';
-  }
-
-  return 'Vui lòng di chuyển ra giữa màn hình và thử lại';
+  // Persist to DB inside the transaction for cross-instance visibility
+  await tx.employee.update({
+    where: { id: employeeId },
+    data: { lastFaceScanAt: new Date(now) },
+  });
 }
 
 
@@ -98,11 +85,12 @@ const LATE_GRACE_MINUTES = 5; // cho phép trễ 5 phút trước khi tính mu�
  * Tính số phút đi muộn so với ca làm gần nhất.
  * Trả về số phút dương nếu muộn, 0 nếu đúng giờ hoặc không tìm thấy ca.
  */
-async function getLateMinutes(checkInTime: Date): Promise<{ lateMinutes: number; shiftName: string | null }> {
+async function getLateMinutes(_checkInTime: Date): Promise<{ lateMinutes: number; shiftName: string | null }> {
   const shifts = await prisma.workShift.findMany({ where: { isActive: true } });
   if (shifts.length === 0) return { lateMinutes: 0, shiftName: null };
 
-  const nowMinutes = checkInTime.getHours() * 60 + checkInTime.getMinutes();
+  const { hour, minute } = nowInAppTz();
+  const nowMinutes = hour * 60 + minute;
 
   // Tìm ca phù hợp (giống logic determineShift)
   let bestShift: { name: string; startMinutes: number } | null = null;
@@ -256,7 +244,29 @@ async function getEmbeddingCache(): Promise<CachedProfile[]> {
   return embeddingCache;
 }
 
+// ─── LISTEN/NOTIFY notifier ───────────────────────────────────────────────────
+// Set by index.ts after the pg LISTEN client is created.
+// Allows invalidateEmbeddingCache to broadcast to all backend instances.
+let _pgNotify: (() => Promise<void>) | null = null;
+
+export function setPgNotifier(fn: () => Promise<void>) {
+  _pgNotify = fn;
+}
+
 export function invalidateEmbeddingCache() {
+  embeddingCache = null;
+  cacheTimestamp = 0;
+  // Broadcast to all instances via Postgres NOTIFY (fire-and-forget)
+  if (_pgNotify) {
+    _pgNotify().catch(err => logger.warn('NOTIFY face_profile_changed failed:', err));
+  }
+}
+
+/**
+ * Reset only the local cache without re-broadcasting NOTIFY.
+ * Called by the LISTEN handler in index.ts when a notification arrives from another instance.
+ */
+export function resetLocalEmbeddingCache() {
   embeddingCache = null;
   cacheTimestamp = 0;
 }
@@ -376,37 +386,17 @@ async function adaptiveEnroll(profileId: string, imageB64: string): Promise<void
       return;
     }
 
-    // Giới hạn số embedding — chỉ đếm record có ảnh (bỏ qua adaptive cũ không ảnh)
-    const imageCount = await prisma.faceImage.count({
-      where: { faceProfileId: profileId, NOT: { imagePath: '' } },
-    });
-    if (imageCount >= MAX_ADAPTIVE_EMBEDDINGS) {
-      logger.debug(`Adaptive enroll skipped for ${profileId}: max embeddings reached (${imageCount})`);
+    // Giới hạn số embedding
+    if (gallery.length >= MAX_ADAPTIVE_EMBEDDINGS) {
+      logger.debug(`Adaptive enroll skipped for ${profileId}: max embeddings reached (${gallery.length})`);
       return;
     }
 
-    // Xóa 1 record adaptive cũ không có ảnh (nếu có) để nhường chỗ
-    const oldNoImage = await prisma.faceImage.findFirst({
-      where: { faceProfileId: profileId, imagePath: '' },
-      select: { id: true },
-    });
-    if (oldNoImage) {
-      await prisma.faceImage.delete({ where: { id: oldNoImage.id } });
-    }
-
-    // Lưu ảnh gốc lên disk
-    const profile = await prisma.faceProfile.findUnique({ where: { id: profileId }, select: { employeeId: true } });
-    const employeeId = profile?.employeeId || 'unknown';
-    const uploadDir = path.join(env.UPLOAD_DIR, 'faces', employeeId);
-    const filename = `face_adaptive_${Date.now()}.jpg`;
-    saveBase64Image(imageB64, uploadDir, filename);
-    const imagePath = `faces/${employeeId}/${filename}`;
-
-    // Lưu embedding mới + ảnh
+    // Lưu embedding mới — imagePath để trống vì adaptive không lưu ảnh gốc
     await prisma.faceImage.create({
       data: {
         faceProfileId: profileId,
-        imagePath,
+        imagePath: '',
         embedding: encryptText(JSON.stringify(newEmb)),
       },
     });
@@ -473,11 +463,14 @@ export class FaceAttendanceService {
     logger.info(`Enrolling face for employee ${employeeId}, ${images.length} images`);
     const rawEmbeddings = await callAiEnroll(images);
     const normalizedEmbeddings = rawEmbeddings.map(normalizeVec);
-    // Giữ tất cả ảnh — frontend đã guide đúng 6 góc, không cần lọc outlier
-    const embeddings = normalizedEmbeddings;
-    const keptImages = images;
+    const keepIndices = pairwiseCohesiveSubsetIndices(normalizedEmbeddings);
+    const embeddings = keepIndices.map((index: number) => normalizedEmbeddings[index]);
+    const keptImages = keepIndices.map((index: number) => images[index]);
     if (embeddings.length < MIN_PROFILE_EMBEDDINGS) {
       throw new ValidationError('Ảnh đăng ký khuôn mặt không nhất quán, vui lòng đăng ký lại với nhiều góc rõ mặt hơn');
+    }
+    if (embeddings.length !== rawEmbeddings.length) {
+      logger.warn(`Enrollment filtered outlier images for employee ${employeeId}: ${rawEmbeddings.length} -> ${embeddings.length}`);
     }
 
     // Upsert FaceProfile
@@ -552,104 +545,6 @@ export class FaceAttendanceService {
     return { profileId: profile.id, addedCount: created.length, totalCount: total };
   }
 
-  /** Lấy danh sách ảnh đã đăng ký kèm quality metrics */
-  async getProfileImages(employeeId: string) {
-    const images = await prisma.faceImage.findMany({
-      where: { faceProfile: { employeeId } },
-      select: { id: true, imagePath: true, embedding: true, createdAt: true },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    // Include all images — enroll + adaptive (skip only truly empty ones from old data)
-    const validImages = images.filter(img => img.imagePath && img.imagePath.length > 0);
-    // Also count embeddings without images (old adaptive records)
-    const embeddingsOnlyCount = images.filter(img => !img.imagePath || img.imagePath.length === 0).length;
-
-    // Decrypt embeddings to compute quality metrics
-    const allEmbeddings: (number[] | null)[] = images.map(img =>
-      img.embedding ? JSON.parse(decryptText(img.embedding)) as number[] : null
-    );
-    const validEmbeddingsForMetrics: (number[] | null)[] = validImages.map(img =>
-      img.embedding ? JSON.parse(decryptText(img.embedding)) as number[] : null
-    );
-
-    // Compute pairwise distances using ALL embeddings (including old adaptive without images)
-    const allValidEmbeddings = allEmbeddings.filter((e): e is number[] => e !== null);
-    const centroid = allValidEmbeddings.length > 0
-      ? allValidEmbeddings[0].map((_, i) => allValidEmbeddings.reduce((sum, emb) => sum + emb[i], 0) / allValidEmbeddings.length)
-      : null;
-
-    const imageResults = validImages.map((img, idx) => {
-      const emb = validEmbeddingsForMetrics[idx];
-      let distanceToCentroid = 0;
-      let minDistanceToOther = 0;
-      let maxDistanceToOther = 0;
-      const isAdaptive = img.imagePath.includes('adaptive');
-
-      if (emb && centroid) {
-        distanceToCentroid = cosineDistance(emb, centroid);
-
-        const otherDistances = allValidEmbeddings
-          .filter(other => other !== emb)
-          .map(other => cosineDistance(emb, other));
-
-        if (otherDistances.length > 0) {
-          minDistanceToOther = Math.min(...otherDistances);
-          maxDistanceToOther = Math.max(...otherDistances);
-        }
-      }
-
-      return {
-        id: img.id,
-        imagePath: img.imagePath,
-        url: `/uploads/${img.imagePath}`,
-        createdAt: img.createdAt,
-        source: isAdaptive ? 'adaptive' as const : 'enroll' as const,
-        metrics: {
-          distanceToCentroid: Math.round(distanceToCentroid * 10000) / 10000,
-          minDistanceToOther: Math.round(minDistanceToOther * 10000) / 10000,
-          maxDistanceToOther: Math.round(maxDistanceToOther * 10000) / 10000,
-          hasEmbedding: emb !== null,
-        },
-      };
-    });
-
-    // Overall profile quality
-    const allDistances: number[] = [];
-    for (let i = 0; i < allValidEmbeddings.length; i++) {
-      for (let j = i + 1; j < allValidEmbeddings.length; j++) {
-        allDistances.push(cosineDistance(allValidEmbeddings[i], allValidEmbeddings[j]));
-      }
-    }
-    const avgInternalDistance = allDistances.length > 0
-      ? allDistances.reduce((a, b) => a + b, 0) / allDistances.length : 0;
-    const maxInternalDistance = allDistances.length > 0 ? Math.max(...allDistances) : 0;
-
-    // Quality rating
-    const totalEmbeddings = allValidEmbeddings.length;
-    let qualityRating: 'excellent' | 'good' | 'fair' | 'poor' = 'poor';
-    if (totalEmbeddings >= 5 && avgInternalDistance <= 0.35) qualityRating = 'excellent';
-    else if (totalEmbeddings >= 4 && avgInternalDistance <= 0.45) qualityRating = 'good';
-    else if (totalEmbeddings >= 3 && avgInternalDistance <= 0.55) qualityRating = 'fair';
-
-    const enrollCount = imageResults.filter(i => i.source === 'enroll').length;
-    const adaptiveCount = imageResults.filter(i => i.source === 'adaptive').length;
-
-    return {
-      images: imageResults,
-      summary: {
-        totalImages: validImages.length,
-        totalEmbeddings,
-        embeddingsOnlyCount,
-        enrollCount,
-        adaptiveCount,
-        avgInternalDistance: Math.round(avgInternalDistance * 10000) / 10000,
-        maxInternalDistance: Math.round(maxInternalDistance * 10000) / 10000,
-        qualityRating,
-      },
-    };
-  }
-
   /** Toggle active/inactive face profile */
   async toggleProfile(profileId: string) {
     const profile = await prisma.faceProfile.findUnique({ where: { id: profileId } });
@@ -696,7 +591,7 @@ export class FaceAttendanceService {
       ? cachedProfiles.find(p => p.id === aiResult.profile_id) ?? null
       : null;
     const bestConfidence = aiResult.confidence;
-    const snapshotOwnerId = matchedCached?.employeeId ?? topK[0]?.employeeId ?? undefined;
+    const snapshotOwnerId = matchedCached?.employeeId ?? undefined;
     const snapshotPath = this.saveSnapshot(imageB64, snapshotOwnerId);
 
     if (!aiResult.liveness_passed) {
@@ -719,7 +614,7 @@ export class FaceAttendanceService {
         livenessPassed: false,
         livenessScore: aiResult.liveness_score,
         topK,
-        message: getKioskGuidanceMessage(aiResult.message),
+        message: aiResult.message || 'Không xác minh được người thật',
       };
     }
 
@@ -734,7 +629,7 @@ export class FaceAttendanceService {
         livenessPassed: true,
         livenessScore: aiResult.liveness_score,
         topK,
-        message: 'Không nhận diện rõ khuôn mặt. Vui lòng di chuyển ra giữa màn hình và thử lại',
+        message: 'Không nhận diện được khuôn mặt',
       };
     }
 
@@ -747,8 +642,8 @@ export class FaceAttendanceService {
       },
     });
 
-    // Cooldown: chặn quẹt liên tục trong 5 phút
-    if (isCoolingDown(employee.id)) {
+    // Cooldown: chặn quẹt liên tục trong 10 phút
+    if (await isCoolingDown(employee.id)) {
       logger.info(`Cooldown active for employee ${employee.id}, skipping scan`);
       return {
         matched: true,
@@ -763,32 +658,53 @@ export class FaceAttendanceService {
         livenessPassed: true,
         livenessScore: aiResult.liveness_score,
         topK,
-        message: 'Vui lòng chờ 5 phút trước khi quẹt lại',
+        message: 'Vui lòng chờ 10 phút trước khi quẹt lại',
       };
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const todaysAttendances = await prisma.attendance.findMany({
-      where: { employeeId: employee.id, attendanceDate: today },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, checkInTime: true, checkOutTime: true },
-    });
-    const openAttendance = todaysAttendances.find(item => item.checkInTime && !item.checkOutTime) ?? null;
-
+    // Wrap read-decide-write in a transaction with a per-employee advisory lock
+    // to prevent duplicate CHECK_IN/CHECK_OUT from concurrent kiosk scans.
     let action: 'CHECK_IN' | 'CHECK_OUT';
     let attendanceId: string;
 
-    if (openAttendance) {
-      const attendance = await attendanceService.checkOut(employee.id, new Date());
-      action = 'CHECK_OUT';
-      attendanceId = attendance.id;
-    } else if (todaysAttendances.length === 0) {
-      const attendance = await attendanceService.checkIn(employee.id, new Date());
-      action = 'CHECK_IN';
-      attendanceId = attendance.id;
-    } else {
+    const txResult = await prisma.$transaction(async (tx) => {
+      // Acquire per-employee advisory lock — serializes concurrent verifications for same employee
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${employee.id}))`;
+
+      const today = getTodayInAppTz();
+      const todaysAttendances = await tx.attendance.findMany({
+        where: { employeeId: employee.id, attendanceDate: today },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, checkInTime: true, checkOutTime: true },
+      });
+      const openAttendance = todaysAttendances.find(item => item.checkInTime && !item.checkOutTime) ?? null;
+
+      let txAction: 'CHECK_IN' | 'CHECK_OUT' | 'ALREADY_RECORDED';
+      let txAttendanceId: string | null = null;
+
+      if (openAttendance) {
+        const attendance = await attendanceService.checkOut(employee.id, new Date(), tx);
+        txAction = 'CHECK_OUT';
+        txAttendanceId = attendance.id;
+      } else if (todaysAttendances.length === 0) {
+        const attendance = await attendanceService.checkIn(employee.id, new Date(), tx);
+        txAction = 'CHECK_IN';
+        txAttendanceId = attendance.id;
+      } else {
+        txAction = 'ALREADY_RECORDED';
+      }
+
+      // Set cooldown inside the transaction so it is always consistent with the written record
+      if (txAction === 'CHECK_IN' || txAction === 'CHECK_OUT') {
+        await setCooldown(employee.id, tx);
+      }
+
+      return { txAction, txAttendanceId, todaysAttendances };
+    });
+
+    const { txAction, txAttendanceId, todaysAttendances } = txResult;
+
+    if (txAction === 'ALREADY_RECORDED') {
       await prisma.faceAttendanceLog.create({
         data: {
           faceProfileId: matchedCached.id,
@@ -822,12 +738,12 @@ export class FaceAttendanceService {
       };
     }
 
+    action = txAction;
+    attendanceId = txAttendanceId!;
+
     await prisma.faceAttendanceLog.create({
       data: { faceProfileId: matchedCached.id, employeeId: employee.id, action, confidence: bestConfidence, snapshotPath, deviceId, ipAddress, attendanceId },
     });
-
-    // Set cooldown sau khi chấm công thành công
-    setCooldown(employee.id);
 
     // Adaptive enrollment
     if (bestConfidence >= ADAPTIVE_MIN_CONFIDENCE) {
@@ -907,10 +823,21 @@ export class FaceAttendanceService {
 
   private saveSnapshot(imageB64: string, employeeId?: string): string {
     try {
-      const dir = path.join(env.UPLOAD_DIR, 'snapshots', employeeId || 'unknown');
-      const filename = `snapshot_${Date.now()}.jpg`;
-      saveBase64Image(imageB64, dir, filename);
-      return `snapshots/${employeeId || 'unknown'}/${filename}`;
+      let dir: string;
+      if (employeeId) {
+        dir = path.join(env.UPLOAD_DIR, 'snapshots', employeeId);
+        const filename = `snapshot_${Date.now()}.jpg`;
+        saveBase64Image(imageB64, dir, filename);
+        return `snapshots/${employeeId}/${filename}`;
+      } else {
+        // Unrecognized face: store under snapshots/unknown/YYYYMMDD/
+        const today = getTodayInAppTz();
+        const dateFolder = today.toISOString().slice(0, 10).replace(/-/g, '');
+        dir = path.join(env.UPLOAD_DIR, 'snapshots', 'unknown', dateFolder);
+        const filename = `snapshot_${Date.now()}.jpg`;
+        saveBase64Image(imageB64, dir, filename);
+        return `snapshots/unknown/${dateFolder}/${filename}`;
+      }
     } catch {
       return '';
     }
