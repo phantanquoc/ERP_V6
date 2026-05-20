@@ -91,14 +91,15 @@ TOOLS: List[dict] = [
     # ─── Customers ──────────────────────────────────────────────────────────
     {
         "name": "list_customers",
-        "description": "Xem danh sách khách hàng (cả nội địa và quốc tế)",
+        "description": "Xem danh sách khách hàng. Dùng phanLoaiDiaLy='Quốc tế' cho KH quốc tế, 'Nội địa' cho KH nội địa",
         "method": "GET",
         "path": "/api/international-customers",
         "path_params": [],
         "query_params": [
-            {"name": "page", "type": "integer", "required": False, "description": "Số trang"},
-            {"name": "limit", "type": "integer", "required": False, "description": "Số lượng mỗi trang"},
-            {"name": "search", "type": "string", "required": False, "description": "Tìm kiếm theo tên"},
+            {"name": "page", "type": "integer", "required": False},
+            {"name": "limit", "type": "integer", "required": False},
+            {"name": "search", "type": "string", "required": False, "description": "Tìm theo tên/mã KH"},
+            {"name": "phanLoaiDiaLy", "type": "string", "required": False, "description": "Phân loại: Quốc tế hoặc Nội địa"},
         ],
         "body_params": [],
         "is_write": False,
@@ -257,14 +258,15 @@ TOOLS: List[dict] = [
     # ─── Suppliers ──────────────────────────────────────────────────────────
     {
         "name": "list_suppliers",
-        "description": "Xem danh sách nhà cung cấp",
+        "description": "Xem danh sách nhà cung cấp. Dùng phanLoaiNCC='NVL' cho NCC nguyên vật liệu, 'Thiết bị' cho NCC thiết bị",
         "method": "GET",
         "path": "/api/suppliers",
         "path_params": [],
         "query_params": [
-            {"name": "page", "type": "integer", "required": False, "description": "Số trang"},
-            {"name": "limit", "type": "integer", "required": False, "description": "Số lượng mỗi trang"},
-            {"name": "search", "type": "string", "required": False, "description": "Tìm kiếm theo tên"},
+            {"name": "page", "type": "integer", "required": False},
+            {"name": "limit", "type": "integer", "required": False},
+            {"name": "search", "type": "string", "required": False, "description": "Tìm theo tên/mã NCC"},
+            {"name": "phanLoaiNCC", "type": "string", "required": False, "description": "Phân loại: NVL hoặc Thiết bị"},
         ],
         "body_params": [],
         "is_write": False,
@@ -844,6 +846,24 @@ TOOLS: List[dict] = [
         "category": "supplier",
     },
     {
+        "name": "list_supply_requests",
+        "description": "Xem danh sách yêu cầu cung ứng vật tư/nguyên liệu",
+        "method": "GET",
+        "path": "/api/supply-requests",
+        "path_params": [],
+        "query_params": [
+            {"name": "page", "type": "integer", "required": False, "description": "Trang"},
+            {"name": "limit", "type": "integer", "required": False, "description": "Số lượng/trang"},
+            {"name": "search", "type": "string", "required": False, "description": "Tìm theo mã hoặc tên nhân viên"},
+            {"name": "status", "type": "string", "required": False, "description": "Trạng thái: pending/approved/rejected"},
+        ],
+        "body_params": [],
+        "is_write": False,
+        "is_export": False,
+        "required_roles": [],
+        "category": "supply",
+    },
+    {
         "name": "create_supply_request",
         "description": "Tạo yêu cầu cung ứng vật tư/nguyên liệu",
         "method": "POST",
@@ -1145,16 +1165,16 @@ def get_tool_by_name(name: str) -> dict | None:
     return None
 
 
-def to_groq_tools(tools: List[dict]) -> List[dict]:
-    """Convert registry tools → Groq function calling format.
-    Note: integer/number types are sent as string to avoid Groq validation errors
+def to_openai_tools(tools: List[dict]) -> List[dict]:
+    """Convert registry tools → OpenAI function calling format.
+    Note: all types are sent as string to avoid validation errors
     (LLM often returns "100" instead of 100). _coerce_params handles conversion.
     Skips descriptions for obvious params (page, limit, startDate, endDate) to save tokens.
     """
     # Params whose purpose is obvious from the name — skip description
     _SKIP_DESC = {"page", "limit", "startDate", "endDate"}
 
-    groq_tools = []
+    result = []
     for t in tools:
         properties = {}
         required = []
@@ -1170,7 +1190,7 @@ def to_groq_tools(tools: List[dict]) -> List[dict]:
             if p.get("required"):
                 required.append(p["name"])
 
-        groq_tools.append({
+        result.append({
             "type": "function",
             "function": {
                 "name": t["name"],
@@ -1182,4 +1202,8 @@ def to_groq_tools(tools: List[dict]) -> List[dict]:
                 },
             },
         })
-    return groq_tools
+    return result
+
+
+# Keep backward-compatible alias
+to_groq_tools = to_openai_tools

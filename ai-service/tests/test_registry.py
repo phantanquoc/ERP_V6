@@ -24,7 +24,7 @@ RESTRICTED_TOOLS = {
 class TestGetToolsForRole:
     def test_admin_nhan_tat_ca_tools(self):
         tools = get_tools_for_role("ADMIN")
-        assert len(tools) == len(TOOLS) == 19
+        assert len(tools) == len(TOOLS) == 66
 
     def test_admin_case_insensitive(self):
         tools_upper = get_tools_for_role("ADMIN")
@@ -53,6 +53,8 @@ class TestGetToolsForRole:
             "get_my_payroll",
             "list_quotation_requests",
             "list_customers",
+            "list_products",
+            "create_quotation_request",
         }
         for tool_name in expected_public:
             assert tool_name in names, f"{tool_name} phải có với EMPLOYEE"
@@ -96,6 +98,115 @@ class TestGetToolByName:
         tool = get_tool_by_name("export_attendance_excel")
         assert tool is not None
         assert tool["is_export"] is True
+
+    def test_tim_get_my_profile(self):
+        tool = get_tool_by_name("get_my_profile")
+        assert tool is not None
+        assert tool["method"] == "GET"
+        assert tool["path"] == "/api/users/profile"
+        assert tool["is_write"] is False
+
+    def test_tim_create_purchase_request(self):
+        tool = get_tool_by_name("create_purchase_request")
+        assert tool is not None
+        assert tool["method"] == "POST"
+        assert tool["is_write"] is True
+        # Verify items param is array type
+        body_params = {p["name"]: p for p in tool["body_params"]}
+        assert "items" in body_params
+        assert body_params["items"]["type"] == "array"
+        assert body_params["items"]["required"] is True
+        # Verify required employee fields
+        assert body_params["employeeId"]["required"] is True
+        assert body_params["maNhanVien"]["required"] is True
+
+    def test_tim_list_products(self):
+        tool = get_tool_by_name("list_products")
+        assert tool is not None
+        assert tool["method"] == "GET"
+        assert tool["path"] == "/api/international-products"
+        assert tool["category"] == "product"
+
+    def test_tim_create_quotation_request(self):
+        tool = get_tool_by_name("create_quotation_request")
+        assert tool is not None
+        assert tool["method"] == "POST"
+        assert tool["is_write"] is True
+        body_params = {p["name"]: p for p in tool["body_params"]}
+        assert "customerId" in body_params
+        assert body_params["customerId"]["required"] is True
+        assert "employeeId" in body_params
+        assert "items" in body_params
+        assert body_params["items"]["type"] == "array"
+
+    def test_approve_leave_request_co_approvedBy(self):
+        tool = get_tool_by_name("approve_leave_request")
+        assert tool is not None
+        assert tool["method"] == "PATCH"
+        assert tool["is_write"] is True
+        assert tool["path"] == "/api/leave-requests/{id}/approve"
+        # path param id
+        path_params = {p["name"]: p for p in tool["path_params"]}
+        assert "id" in path_params
+        # body param approvedBy
+        body_params = {p["name"]: p for p in tool["body_params"]}
+        assert "approvedBy" in body_params
+        assert body_params["approvedBy"]["required"] is True
+
+    def test_tim_create_task(self):
+        tool = get_tool_by_name("create_task")
+        assert tool is not None
+        assert tool["method"] == "POST"
+        assert tool["is_write"] is True
+        assert tool["path"] == "/api/tasks"
+        body_params = {p["name"]: p for p in tool["body_params"]}
+        assert "nguoiNhan" in body_params
+        assert body_params["nguoiNhan"]["required"] is True
+        assert body_params["nguoiNhan"]["type"] == "array"
+        assert "noiDung" in body_params
+        assert "thoiHanHoanThanh" in body_params
+
+    def test_tim_create_supplier(self):
+        tool = get_tool_by_name("create_supplier")
+        assert tool is not None
+        assert tool["method"] == "POST"
+        assert tool["is_write"] is True
+        assert tool["path"] == "/api/suppliers"
+        body_params = {p["name"]: p for p in tool["body_params"]}
+        assert "tenNhaCungCap" in body_params
+        assert body_params["tenNhaCungCap"]["required"] is True
+
+    def test_tim_create_daily_work_report(self):
+        tool = get_tool_by_name("create_daily_work_report")
+        assert tool is not None
+        assert tool["method"] == "POST"
+        assert tool["is_write"] is True
+        assert tool["path"] == "/api/daily-work-reports"
+        body_params = {p["name"]: p for p in tool["body_params"]}
+        assert "employeeId" in body_params
+        assert "reportDate" in body_params
+        assert "workDescription" in body_params
+
+    def test_tim_create_repair_request(self):
+        tool = get_tool_by_name("create_repair_request")
+        assert tool is not None
+        assert tool["method"] == "POST"
+        assert tool["is_write"] is True
+        assert tool["path"] == "/api/repair-requests"
+        body_params = {p["name"]: p for p in tool["body_params"]}
+        assert "tenHeThong" in body_params
+        assert body_params["tenHeThong"]["required"] is True
+        assert "noiDungLoi" in body_params
+        assert "loaiLoi" in body_params
+
+    def test_all_write_tools_have_body_params(self):
+        """Tất cả write tools (trừ internal) phải có ít nhất 1 body_param."""
+        tools = get_tools_for_role("ADMIN")
+        for tool in tools:
+            if tool["is_write"] and tool["method"] in ("POST", "PUT"):
+                assert len(tool["body_params"]) > 0, (
+                    f"Write tool '{tool['name']}' has no body_params"
+                )
 
 
 class TestToGroqTools:
@@ -142,3 +253,24 @@ class TestToGroqTools:
     def test_danh_sach_rong_tra_danh_sach_rong(self):
         result = to_groq_tools([])
         assert result == []
+
+    def test_all_params_use_string_type(self):
+        """Tất cả params phải dùng type=string để tránh Groq validation error."""
+        tools = get_tools_for_role("ADMIN")
+        groq_tools = to_groq_tools(tools)
+        for gt in groq_tools:
+            fn = gt["function"]
+            for prop_name, prop_def in fn["parameters"]["properties"].items():
+                assert prop_def["type"] == "string", (
+                    f"Tool '{fn['name']}' param '{prop_name}' has type '{prop_def['type']}' "
+                    f"but should be 'string' to avoid Groq validation errors"
+                )
+
+    def test_integer_params_declared_as_string(self):
+        """Params có type=integer trong registry vẫn phải thành string trong Groq schema."""
+        tool = get_tool_by_name("get_my_payroll")
+        groq_tools = to_groq_tools([tool])
+        fn = groq_tools[0]["function"]
+        # month và year là integer trong registry nhưng string trong Groq schema
+        assert fn["parameters"]["properties"]["month"]["type"] == "string"
+        assert fn["parameters"]["properties"]["year"]["type"] == "string"

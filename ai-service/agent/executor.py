@@ -1,4 +1,4 @@
-"""Agent executor — ReAct loop via LLM function calling (Ollama → Groq → Gemini)."""
+"""Agent executor — ReAct loop via LLM function calling (OpenRouter/DeepSeek)."""
 
 import json
 import os
@@ -8,27 +8,11 @@ import datetime
 import httpx
 from typing import Generator
 
-from groq import Groq
-
-from config import (logger, GROQ_API_KEY, GROQ_MODEL, GEMINI_API_KEY, GEMINI_MODEL,
-                    OLLAMA_BASE_URL, OLLAMA_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL)
+from config import (logger, OPENROUTER_API_KEY, OPENROUTER_MODEL)
 from agent.models import AgentAction
-from agent.registry import get_tools_for_role, get_tool_by_name, to_groq_tools
-from agent.classifier import filter_tools_by_intent
+from agent.registry import get_tools_for_role, get_tool_by_name, to_openai_tools
+from agent.classifier import filter_tools_by_intent, classify_intent
 
-_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-
-# Ollama client (OpenAI-compatible API)
-_ollama_client = None
-if OLLAMA_BASE_URL:
-    try:
-        from openai import OpenAI
-        _ollama_client = OpenAI(base_url=f"{OLLAMA_BASE_URL}/v1", api_key="ollama")
-        logger.info(f"Ollama client initialized: {OLLAMA_BASE_URL} model={OLLAMA_MODEL}")
-    except ImportError:
-        logger.warning("openai package not installed, Ollama disabled")
-
-# OpenRouter client (OpenAI-compatible API, pay-per-use)
 _openrouter_client = None
 if OPENROUTER_API_KEY:
     try:
@@ -41,19 +25,13 @@ if OPENROUTER_API_KEY:
     except ImportError:
         logger.warning("openai package not installed, OpenRouter disabled")
 
-# Gemini fallback client (lazy import to avoid startup crash if not installed)
-_gemini_client = None
-if GEMINI_API_KEY:
-    try:
-        from google import genai
-        _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-    except ImportError:
-        logger.warning("google-genai not installed, Gemini fallback disabled")
-
 BACKEND_API_URL = os.environ.get("BACKEND_API_URL", "http://backend:5000")
 
 MAX_ITERATIONS = 5
 REQUEST_TIMEOUT = 90  # seconds — overall timeout for entire ReAct loop
+MAX_TOOL_RESULT_CHARS = 6000  # truncate tool results to fit LLM context
+MAX_HISTORY_MESSAGES = 10  # keep last 10 messages (5 turns)
+MAX_HISTORY_CHARS = 4000  # trim oldest if total history content exceeds this
 
 REACT_SYSTEM = """Bạn là trợ lý ERP thông minh của An Binh Foods. Bạn giúp nhân viên thực hiện thao tác và trả lời câu hỏi về hệ thống.
 
@@ -69,7 +47,9 @@ Ví dụ:
 
 Quy tắc:
 - Sử dụng tools để thực hiện yêu cầu. Có thể gọi nhiều tools liên tiếp nếu cần.
+- KHÔNG BAO GIỜ trả lời kiểu "đợi một chút", "để tôi kiểm tra", "tôi sẽ tra cứu" mà không gọi tool. Khi cần dữ liệu, GỌI TOOL NGAY trong cùng lượt, không trả text trước.
 - QUAN TRỌNG: Khi yêu cầu cần nhiều bước (VD: tạo khách hàng → tạo sản phẩm → tạo báo giá), sau khi hoàn thành 1 bước, PHẢI tự động tiếp tục bước tiếp theo. KHÔNG hỏi lại user "bạn có muốn tiếp tục không". Chỉ dừng khi thiếu thông tin bắt buộc mà user chưa cung cấp. Các field optional thì bỏ qua, không cần hỏi.
+- Khi trả kết quả danh sách, PHẢI hiển thị ĐẦY ĐỦ tất cả records nhận được từ tool, không tự ý lọc bỏ.
 - Tool "search_knowledge": dùng khi user hỏi hướng dẫn, quy trình, cách sử dụng hệ thống
 - Các tool khác: dùng khi user muốn xem/tạo/xuất dữ liệu thực tế
 - Nếu thiếu thông tin bắt buộc, hỏi lại user
@@ -105,6 +85,115 @@ def _strip_think_tags(text: str) -> str:
     cleaned = _THINK_RE.sub("", text).strip()
     return cleaned
 
+_STALLING_PATTERNS = [
+    "đợi", "chờ", "để tôi", "tôi sẽ", "kiểm tra", "tra cứu",
+    "xem thử", "tìm kiếm", "truy vấn", "một chút", "giây lát",
+]
+
+# Regex to detect DeepSeek outputting tool calls as text instead of structured tool_calls
+# Handles formats:
+#   <function>tool_name\n{json}\n```
+#   <function>tool_name\n```json\n{json}\n```
+_TEXT_TOOL_CALL_RE = re.compile(
+    r"<function>(\w+)\s*\n(?:```json\s*\n)?\s*(\{.*?\})\s*\n?\s*```",
+    re.DOTALL,
+)
+
+# Second format: function<｜tool▁sep｜>tool_name\n\n{json}
+# \uff5c is the fullwidth ｜ (U+FF5C) used in DeepSeek's special token
+_TEXT_TOOL_CALL_RE2 = re.compile(
+    r"function.{0,20}?(\w+)\s*\n\s*(\{.*?\})",
+    re.DOTALL,
+)
+
+
+def _is_text_tool_call(text: str) -> bool:
+    """Detect if text contains a tool call output (either format)."""
+    return "<function>" in text or "\uff5c" in text
+
+
+def _parse_text_tool_call(text: str):
+    """Parse tool call that model output as text instead of structured tool_calls.
+
+    DeepSeek sometimes outputs:
+      <function>tool_name\n{json}\n```
+      <function>tool_name\n```json\n{json}\n```
+      function<｜tool▁sep｜>tool_name\n\n{json}
+    Returns (fn_name, fn_args) tuple or None if not a text tool call.
+    Uses the LAST match if multiple tool calls are present.
+    """
+    if not _is_text_tool_call(text):
+        return None
+    # Try format 1: <function>tool_name\n{json}\n```
+    matches = list(_TEXT_TOOL_CALL_RE.finditer(text))
+    if not matches:
+        # Try format 2: function<｜tool▁sep｜>tool_name\n\n{json}
+        matches = list(_TEXT_TOOL_CALL_RE2.finditer(text))
+    if not matches:
+        return None
+    # Use last match (most relevant to current message)
+    match = matches[-1]
+    fn_name = match.group(1).strip()
+    try:
+        fn_args = json.loads(match.group(2))
+    except (json.JSONDecodeError, ValueError):
+        fn_args = {}
+    return (fn_name, fn_args)
+
+
+def _is_topic_switch(message: str, history: list) -> bool:
+    """Detect if current message is a new topic unrelated to recent history.
+
+    Uses intent category comparison: if current message categories have zero
+    overlap with previous user messages' categories, it's a topic switch.
+    Returns False for ambiguous cases (sticky routing for follow-ups).
+    """
+    current_cats = classify_intent(message)
+    if not current_cats:
+        # No keywords matched → ambiguous, treat as continuation (sticky routing)
+        return False
+
+    # Collect categories from last 2 user messages in history
+    prev_cats: set = set()
+    user_count = 0
+    for h in reversed(history[-6:]):
+        if isinstance(h, dict):
+            role, content = h["role"], h["content"]
+        else:
+            role, content = h.role, h.content
+        if role == "user":
+            prev_cats.update(classify_intent(content))
+            user_count += 1
+            if user_count >= 2:
+                break
+
+    if not prev_cats:
+        return False  # No history to compare against
+
+    # Remove always-included utility categories from comparison
+    _UTILITY_CATS = {"employee", "knowledge"}
+    current_sig = current_cats - _UTILITY_CATS
+    prev_sig = prev_cats - _UTILITY_CATS
+
+    if not current_sig or not prev_sig:
+        return False  # One side is only utility categories → ambiguous
+
+    # Topic switch if zero overlap between significant categories
+    return current_sig.isdisjoint(prev_sig)
+
+
+def _is_stalling_response(text: str) -> bool:
+    """Detect if model response is a stalling/processing message instead of a real answer.
+
+    Returns True if the text is short and contains stalling patterns,
+    indicating the model should have called a tool instead.
+    """
+    if not text or len(text) > 200:
+        return False
+    text_lower = text.lower()
+    return any(p in text_lower for p in _STALLING_PATTERNS)
+
+
 def _get_weekday_name(today_str: str) -> str:
     """Get Vietnamese weekday name."""
     d = datetime.date.fromisoformat(today_str)
@@ -120,7 +209,7 @@ def _get_week_range(today_str: str) -> tuple[str, str]:
     return monday.isoformat(), sunday.isoformat()
 
 
-def _build_react_messages(message: str, history: list, today: str) -> list:
+def _build_react_messages(message: str, history: list, today: str, topic_switched: bool = False) -> list:
     """Build message list for ReAct loop."""
     weekday = _get_weekday_name(today)
     mon, sun = _get_week_range(today)
@@ -136,13 +225,47 @@ def _build_react_messages(message: str, history: list, today: str) -> list:
 
     messages = [{"role": "system", "content": system_content}]
 
-    # Add conversation history (last 6 turns)
-    for h in history[-6:]:
-        # Support both ChatMessage objects and plain dicts (from confirm_context)
+    # On topic switch: clear stale history to avoid confusing the model
+    if topic_switched:
+        effective_history = []
+    else:
+        effective_history = list(history[-MAX_HISTORY_MESSAGES:])
+        # Trim from oldest if total content too long (save tokens)
+        total_chars = sum(
+            len(h.content if hasattr(h, 'content') else h.get('content', ''))
+            for h in effective_history
+        )
+        while total_chars > MAX_HISTORY_CHARS and len(effective_history) > 2:
+            removed = effective_history.pop(0)
+            total_chars -= len(removed.content if hasattr(removed, 'content') else removed.get('content', ''))
+
+    # Add conversation history, sanitize text tool calls and completed actions
+    # Build pairs: skip user+assistant pairs where assistant is a completed action marker
+    # This prevents model from mixing old task params into new requests
+    hist_items = []
+    for h in effective_history:
         if isinstance(h, dict):
-            messages.append({"role": h["role"], "content": h["content"]})
+            role, content = h["role"], h["content"]
         else:
-            messages.append({"role": h.role, "content": h.content})
+            role, content = h.role, h.content
+        hist_items.append((role, content))
+
+    i = 0
+    while i < len(hist_items):
+        role, content = hist_items[i]
+        # Skip assistant messages that are text tool calls (DeepSeek bug artifacts)
+        if role == "assistant" and content and _is_text_tool_call(content):
+            i += 1
+            continue
+        # Skip completed action markers and the preceding user message
+        if role == "assistant" and content and "Đã xử lý" in content:
+            # Remove the last added user message (the request that was already handled)
+            if messages and messages[-1]["role"] == "user":
+                messages.pop()
+            i += 1
+            continue
+        messages.append({"role": role, "content": content})
+        i += 1
 
     messages.append({"role": "user", "content": message})
     return messages
@@ -187,6 +310,11 @@ _http_client = httpx.Client(timeout=30.0, limits=httpx.Limits(max_connections=20
 # Fields to keep when slimming employee/list responses for LLM context
 _EMPLOYEE_KEEP_FIELDS = {"id", "employeeCode", "fullName", "departmentName", "subDepartmentName", "positionName", "status", "email", "phoneNumber", "hireDate", "baseSalary", "kpiLevel"}
 
+# Fields to always remove from any entity (heavy/internal)
+_ALWAYS_REMOVE_FIELDS = {"createdAt", "updatedAt", "userId", "employeeId", "positionId", "positionLevelId",
+                         "subDepartmentId", "secondarySubDepartmentId", "departmentId", "user", "position",
+                         "positionLevel", "subDepartment", "employee", "password", "__v"}
+
 
 def _slim_response(result: dict) -> dict:
     """Remove verbose fields from API response to fit LLM context window."""
@@ -210,7 +338,7 @@ def _slim_response(result: dict) -> dict:
                 if user.get("email"):
                     slim["email"] = user["email"]
 
-            # Keep important fields
+            # Keep important fields for employee-like records
             for key in _EMPLOYEE_KEEP_FIELDS:
                 if key in item and item[key] is not None and key not in slim:
                     slim[key] = item[key]
@@ -222,11 +350,29 @@ def _slim_response(result: dict) -> dict:
 
             # Fallback: if slim is too empty, keep original but remove heavy fields
             if len(slim) < 3:
-                slim = {k: v for k, v in item.items() if k not in ("userId", "createdAt", "updatedAt", "positionId", "positionLevelId", "subDepartmentId", "secondarySubDepartmentId", "user", "position", "positionLevel", "subDepartment")}
+                slim = {k: v for k, v in item.items()
+                        if k not in _ALWAYS_REMOVE_FIELDS
+                        and not isinstance(v, dict)
+                        and not (isinstance(v, list) and len(v) > 3)}
+                # Slim nested lists (e.g. items in quotation requests)
+                for k, v in list(slim.items()):
+                    if isinstance(v, list) and v and isinstance(v[0], dict):
+                        slim[k] = [
+                            {fk: fv for fk, fv in sub.items()
+                             if fk not in _ALWAYS_REMOVE_FIELDS
+                             and not isinstance(fv, dict)
+                             and fk not in ("id", "quotationRequestId")}
+                            for sub in v
+                        ]
 
             slimmed.append(slim)
 
-        return {"data": slimmed, "pagination": result.get("pagination", {})}
+        total = (
+            result.get("pagination", {}).get("total")
+            or result.get("total")
+            or len(slimmed)
+        )
+        return {"data": slimmed, "total": total}
 
     return result
 
@@ -306,7 +452,26 @@ def _call_rag_search(query: str, department: str, role: str) -> dict:
         return {"found": False, "message": f"Lỗi tìm kiếm: {str(e)}"}
 
 
-def _build_confirm_message(tool: dict, params: dict, context: dict = None) -> str:
+def _extract_employee_names(messages: list) -> dict:
+    """Extract employee id→name mapping from tool results in message history."""
+    names = {}
+    for msg in messages:
+        if msg.get("role") != "tool":
+            continue
+        try:
+            data = json.loads(msg.get("content", "{}"))
+            items = data.get("data", [])
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if isinstance(item, dict) and item.get("id") and item.get("fullName"):
+                    names[item["id"]] = item["fullName"]
+        except (json.JSONDecodeError, TypeError):
+            continue
+    return names
+
+
+def _build_confirm_message(tool: dict, params: dict, context: dict = None, display_names: dict = None) -> str:
     """Build confirm message + __AGENT_ACTION__ sentinel for write actions."""
     # Use friendly action names instead of technical descriptions
     friendly_actions = {
@@ -327,7 +492,13 @@ def _build_confirm_message(tool: dict, params: dict, context: dict = None) -> st
 
     # Filter out internal params (employeeId, etc.) for display
     display_exclude = {"employeeId", "maNhanVien", "tenNhanVien", "approvedBy"}
-    desc_parts = [f"- **{k}**: {v}" for k, v in params.items() if k not in display_exclude]
+    display_names = display_names or {}
+    desc_parts = []
+    for k, v in params.items():
+        if k in display_exclude:
+            continue
+        display_v = display_names.get(k, v)
+        desc_parts.append(f"- **{k}**: {display_v}")
     confirm_msg = f"Mình sẽ **{action_name}** với thông tin sau:\n\n" + "\n".join(desc_parts) + "\n\nBạn xác nhận thực hiện không?"
     action = AgentAction(
         type="confirm",
@@ -335,6 +506,7 @@ def _build_confirm_message(tool: dict, params: dict, context: dict = None) -> st
         params=params,
         message=confirm_msg,
         context=context,
+        display=display_names,
     )
     return f"{confirm_msg}\n\n__AGENT_ACTION__\n{action.model_dump_json()}\n"
 
@@ -359,132 +531,6 @@ def _build_export_message(tool: dict, params: dict, today: str) -> str:
     return f"File Excel đã sẵn sàng để tải xuống.\n\n__AGENT_ACTION__\n{action.model_dump_json()}\n"
 
 
-# ─── Gemini Fallback ─────────────────────────────────────────────────────────
-
-class _LLMFunction:
-    def __init__(self, name: str, arguments: str):
-        self.name = name
-        self.arguments = arguments
-
-
-class _LLMToolCall:
-    def __init__(self, id: str, name: str, arguments: str):
-        self.id = id
-        self.function = _LLMFunction(name, arguments)
-
-
-class _LLMMessage:
-    def __init__(self, content, tool_calls):
-        self.content = content
-        self.tool_calls = tool_calls
-
-
-class _LLMChoice:
-    def __init__(self, content, tool_calls):
-        self.message = _LLMMessage(content, tool_calls)
-
-
-class _LLMResponse:
-    def __init__(self, content=None, tool_calls=None):
-        self.choices = [_LLMChoice(content, tool_calls or [])]
-
-
-def _groq_tools_to_gemini(groq_tools: list):
-    """Convert Groq/OpenAI tool format → Gemini Tool object."""
-    from google.genai import types
-    declarations = []
-    for t in groq_tools:
-        fn = t["function"]
-        params = fn.get("parameters", {})
-        schema = None
-        if params.get("properties"):
-            # Convert OpenAPI JSON Schema → Gemini Schema object
-            properties = {}
-            for prop_name, prop_def in params["properties"].items():
-                properties[prop_name] = types.Schema(
-                    type=prop_def.get("type", "string").upper(),
-                    description=prop_def.get("description", ""),
-                )
-            schema = types.Schema(
-                type="OBJECT",
-                properties=properties,
-                required=params.get("required", []),
-            )
-        declarations.append(types.FunctionDeclaration(
-            name=fn["name"],
-            description=fn.get("description", ""),
-            parameters=schema,
-        ))
-    return types.Tool(function_declarations=declarations)
-
-
-def _messages_to_gemini_contents(messages: list):
-    """Convert OpenAI messages → (system_instruction, Gemini contents list)."""
-    from google.genai import types
-    system_instruction = ""
-    contents = []
-    for msg in messages:
-        role = msg.get("role", "")
-        if role == "system":
-            system_instruction = msg["content"]
-        elif role == "user":
-            contents.append(types.Content(role="user", parts=[types.Part(text=msg["content"])]))
-        elif role == "assistant":
-            if msg.get("tool_calls"):
-                parts = []
-                for tc in msg["tool_calls"]:
-                    args = json.loads(tc["function"]["arguments"] or "{}")
-                    parts.append(types.Part.from_function_call(
-                        name=tc["function"]["name"], args=args,
-                    ))
-                contents.append(types.Content(role="model", parts=parts))
-            elif msg.get("content"):
-                contents.append(types.Content(role="model", parts=[types.Part(text=msg["content"])]))
-        elif role == "tool":
-            tool_content = msg.get("content", "{}")
-            try:
-                result_data = json.loads(tool_content)
-            except (json.JSONDecodeError, TypeError):
-                result_data = {"result": tool_content}
-            contents.append(types.Content(role="user", parts=[
-                types.Part.from_function_response(name="tool_result", response=result_data)
-            ]))
-    return system_instruction, contents
-
-
-def _call_gemini_fallback(messages: list, groq_tools: list, request_id: str):
-    """Call Gemini API and return a Groq-compatible _LLMResponse."""
-    from google.genai import types
-
-    gemini_tool = _groq_tools_to_gemini(groq_tools)
-    system_instruction, contents = _messages_to_gemini_contents(messages)
-
-    response = _gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            tools=[gemini_tool],
-            system_instruction=system_instruction,
-            temperature=0.1,
-            max_output_tokens=1024,
-        ),
-    )
-
-    # Normalize to Groq-like response
-    if response.function_calls:
-        tool_calls = []
-        for i, fc in enumerate(response.function_calls):
-            tc_id = getattr(fc, "id", None) or f"gemini_call_{i}"
-            tool_calls.append(_LLMToolCall(
-                id=tc_id,
-                name=fc.name,
-                arguments=json.dumps(dict(fc.args)) if fc.args else "{}",
-            ))
-        return _LLMResponse(content=None, tool_calls=tool_calls)
-    else:
-        return _LLMResponse(content=response.text, tool_calls=None)
-
-
 # ─── ReAct Loop ───────────────────────────────────────────────────────────────
 
 MAX_RETRIES = 2
@@ -505,32 +551,18 @@ def _friendly_error(e: Exception) -> str:
     return "Lỗi khi xử lý yêu cầu. Vui lòng thử lại sau."
 
 
-def _call_groq_with_retry(messages: list, groq_tools: list, request_id: str):
-    """Call LLM: Ollama (if available) → OpenRouter → Groq (with retry) → Gemini fallback."""
+def _call_llm_with_retry(messages: list, tools: list, request_id: str):
+    """Call OpenRouter LLM with retry on transient errors."""
+    if not _openrouter_client:
+        raise RuntimeError("No LLM configured (OPENROUTER_API_KEY required)")
 
-    # ─── Try Ollama first (local, no rate limits) ────────────────────────────
-    if _ollama_client:
-        try:
-            resp = _ollama_client.chat.completions.create(
-                model=OLLAMA_MODEL,
-                messages=messages,
-                tools=groq_tools,
-                tool_choice="auto",
-                temperature=0.1,
-                max_tokens=1024,
-            )
-            logger.info(f"[{request_id}] Ollama ({OLLAMA_MODEL}) responded OK")
-            return resp
-        except Exception as e:
-            logger.warning(f"[{request_id}] Ollama failed ({e}), trying next...")
-
-    # ─── Try OpenRouter (pay-per-use, reliable) ──────────────────────────────
-    if _openrouter_client:
+    last_error = None
+    for attempt in range(MAX_RETRIES + 1):
         try:
             resp = _openrouter_client.chat.completions.create(
                 model=OPENROUTER_MODEL,
                 messages=messages,
-                tools=groq_tools,
+                tools=tools,
                 tool_choice="auto",
                 temperature=0.1,
                 max_tokens=1024,
@@ -538,45 +570,14 @@ def _call_groq_with_retry(messages: list, groq_tools: list, request_id: str):
             logger.info(f"[{request_id}] OpenRouter ({OPENROUTER_MODEL}) responded OK")
             return resp
         except Exception as e:
-            logger.warning(f"[{request_id}] OpenRouter failed ({e}), trying Groq...")
-
-    # ─── Try Groq with retry ────────────────────────────────────────────────
-    if not _client:
-        # No Groq client either — try Gemini directly
-        if _gemini_client:
-            logger.info(f"[{request_id}] No Groq client, using Gemini directly")
-            return _call_gemini_fallback(messages, groq_tools, request_id)
-        raise RuntimeError("No LLM configured (OLLAMA_BASE_URL, OPENROUTER_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY required)")
-
-    last_error = None
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            return _client.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=messages,
-                tools=groq_tools,
-                tool_choice="auto",
-                temperature=0.1,
-                max_tokens=1024,
-            )
-        except Exception as e:
             last_error = e
             error_str = str(e).lower()
             is_transient = any(x in error_str for x in ["429", "503", "rate", "timeout", "overloaded"])
             if not is_transient or attempt == MAX_RETRIES:
                 break
             wait = RETRY_BACKOFF * (2 ** attempt)
-            logger.warning(f"[{request_id}] Groq transient error (attempt {attempt+1}), retrying in {wait}s: {e}")
+            logger.warning(f"[{request_id}] OpenRouter transient error (attempt {attempt+1}), retrying in {wait}s: {e}")
             time.sleep(wait)
-
-    # Groq exhausted — try Gemini fallback
-    if _gemini_client:
-        logger.info(f"[{request_id}] Groq failed ({last_error}), falling back to Gemini ({GEMINI_MODEL})")
-        try:
-            return _call_gemini_fallback(messages, groq_tools, request_id)
-        except Exception as gemini_err:
-            logger.error(f"[{request_id}] Gemini fallback also failed: {gemini_err}")
-            raise last_error  # raise original Groq error
 
     raise last_error
 
@@ -592,8 +593,8 @@ def execute_stream(
     _resume_messages / _resume_result: internal params for chaining write actions.
     When resuming after a confirmed write, we inject the previous result into messages.
     """
-    if not _client:
-        yield "Lỗi: AI service chưa được cấu hình (thiếu GROQ_API_KEY)"
+    if not _openrouter_client:
+        yield "Lỗi: AI service chưa được cấu hình (cần OPENROUTER_API_KEY)"
         return
 
     available_tools = get_tools_for_role(role)
@@ -610,14 +611,19 @@ def execute_stream(
         if history_user_msgs:
             intent_text = " ".join(history_user_msgs) + " " + message
     filtered_tools = filter_tools_by_intent(available_tools, intent_text)
-    groq_tools = to_groq_tools(filtered_tools)
+    llm_tools = to_openai_tools(filtered_tools)
     logger.info(f"[{request_id}] Tools: {len(available_tools)} available, {len(filtered_tools)} after intent filter")
 
     # Resume mode: use pre-built messages (from chaining after confirmed write)
     if _resume_messages:
         messages = _resume_messages
     else:
-        messages = _build_react_messages(message, history, today)
+        # Detect topic switch to avoid stale history confusing the model
+        topic_switched = _is_topic_switch(message, history) if history else False
+        if topic_switched:
+            logger.info(f"[{request_id}] Topic switch detected — clearing history context")
+
+        messages = _build_react_messages(message, history, today, topic_switched=topic_switched)
 
     start_time = time.time()
 
@@ -630,7 +636,7 @@ def execute_stream(
             return
 
         try:
-            resp = _call_groq_with_retry(messages, groq_tools, request_id)
+            resp = _call_llm_with_retry(messages, llm_tools, request_id)
         except Exception as e:
             logger.error(f"[{request_id}] Groq API error (iteration {iteration}): {e}")
             yield _friendly_error(e)
@@ -640,7 +646,76 @@ def execute_stream(
 
         # Model returns text (final answer or asking for more info)
         if choice.message.content and not choice.message.tool_calls:
-            yield _strip_think_tags(choice.message.content)
+            text = _strip_think_tags(choice.message.content)
+
+            # If content was only <think> tags (stripped to empty), retry
+            if not text:
+                logger.info(f"[{request_id}] Model returned only <think> without tool call, retrying")
+                messages.append({"role": "assistant", "content": choice.message.content})
+                messages.append({"role": "user", "content": "Gọi tool ngay để lấy dữ liệu."})
+                continue
+
+            # Check if model output a tool call as text (DeepSeek bug)
+            parsed_tc = _parse_text_tool_call(choice.message.content)
+            if parsed_tc:
+                fn_name, fn_args = parsed_tc
+                logger.info(f"[{request_id}] Parsed text tool call: {fn_name}({fn_args})")
+                tool = get_tool_by_name(fn_name)
+                if tool:
+                    fn_args = _coerce_params(tool, fn_args)
+                    if tool.get("is_write"):
+                        history_for_context = []
+                        if history:
+                            history_for_context = [{"role": h.role, "content": h.content} if hasattr(h, 'role') else h for h in history[-6:]]
+                        # Resolve display names for ID fields
+                        employee_names = _extract_employee_names(messages)
+                        display_names = {}
+                        for pk, pv in fn_args.items():
+                            if isinstance(pv, list) and pv and all(isinstance(x, str) and len(x) > 20 for x in pv):
+                                resolved = [employee_names.get(x, x) for x in pv]
+                                if resolved != pv:
+                                    display_names[pk] = ", ".join(resolved)
+                            elif isinstance(pv, str) and len(pv) > 20 and pv in employee_names:
+                                display_names[pk] = employee_names[pv]
+                        yield _build_confirm_message(tool, fn_args, context={
+                            "message": message,
+                            "history": history_for_context,
+                            "role": role,
+                            "department": department,
+                            "today": today,
+                        }, display_names=display_names)
+                        return
+                    if tool.get("is_export"):
+                        yield _build_export_message(tool, fn_args, today)
+                        return
+                    # Execute tool
+                    if tool.get("is_internal"):
+                        result = _call_rag_search(fn_args.get("query", message), department, role)
+                    else:
+                        result = _call_backend_api(tool, fn_args, jwt_token)
+                    result_str = json.dumps(_slim_response(result), ensure_ascii=False)
+                    if len(result_str) > MAX_TOOL_RESULT_CHARS:
+                        result_str = result_str[:MAX_TOOL_RESULT_CHARS] + "...(truncated)"
+                    # Can't use role=tool without structured tool_calls, use user message
+                    messages.append({"role": "assistant", "content": choice.message.content})
+                    messages.append({"role": "user", "content": f"[Kết quả {fn_name}]: {result_str}\n\nHãy trả lời dựa trên dữ liệu trên."})
+                    continue
+
+            # Retry if model returns a "processing" message instead of calling tools
+            if iteration < MAX_ITERATIONS - 1 and _is_stalling_response(text):
+                logger.info(f"[{request_id}] Model stalling ('{text[:50]}...'), retrying with nudge")
+                messages.append({"role": "assistant", "content": choice.message.content})
+                messages.append({"role": "user", "content": "Gọi tool ngay để lấy dữ liệu. Không trả lời text."})
+                continue
+
+            # Fallback: if text still contains <function> tag (unparsed), retry
+            if "<function>" in text and iteration < 2:
+                logger.info(f"[{request_id}] Text contains unparsed <function> tag, retrying")
+                messages.append({"role": "assistant", "content": choice.message.content})
+                messages.append({"role": "user", "content": "KHÔNG output <function> tag. Hãy sử dụng tool calling API đúng cách."})
+                continue
+
+            yield text
             return
 
         # Model returns tool call (may have <think> in content alongside tool_calls)
@@ -666,13 +741,23 @@ def execute_stream(
                 history_for_context = []
                 if history:
                     history_for_context = [{"role": h.role, "content": h.content} if hasattr(h, 'role') else h for h in history[-6:]]
+                # Resolve display names for ID fields
+                employee_names = _extract_employee_names(messages)
+                display_names = {}
+                for pk, pv in fn_args.items():
+                    if isinstance(pv, list) and pv and all(isinstance(x, str) and len(x) > 20 for x in pv):
+                        resolved = [employee_names.get(x, x) for x in pv]
+                        if resolved != pv:
+                            display_names[pk] = ", ".join(resolved)
+                    elif isinstance(pv, str) and len(pv) > 20 and pv in employee_names:
+                        display_names[pk] = employee_names[pv]
                 yield _build_confirm_message(tool, fn_args, context={
                     "message": message,
                     "history": history_for_context,
                     "role": role,
                     "department": department,
                     "today": today,
-                })
+                }, display_names=display_names)
                 return
 
             # Export action → return download URL
@@ -698,8 +783,8 @@ def execute_stream(
             })
 
             result_str = json.dumps(_slim_response(result), ensure_ascii=False)
-            if len(result_str) > 4000:
-                result_str = result_str[:4000] + "..."
+            if len(result_str) > MAX_TOOL_RESULT_CHARS:
+                result_str = result_str[:MAX_TOOL_RESULT_CHARS] + "...(truncated)"
 
             messages.append({
                 "role": "tool",
@@ -770,8 +855,8 @@ def execute_confirmed(
                 }]
             })
             result_str = json.dumps(result, ensure_ascii=False)
-            if len(result_str) > 4000:
-                result_str = result_str[:4000] + "..."
+            if len(result_str) > MAX_TOOL_RESULT_CHARS:
+                result_str = result_str[:MAX_TOOL_RESULT_CHARS] + "...(truncated)"
             resume_messages.append({
                 "role": "tool",
                 "tool_call_id": "confirmed_action",

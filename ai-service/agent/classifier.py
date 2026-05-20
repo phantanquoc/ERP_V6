@@ -13,7 +13,7 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "giờ làm", "đi muộn", "về sớm", "attendance",
     ],
     "leave": [
-        "nghỉ phép", "nghỉ", "xin nghỉ", "đơn nghỉ", "leave", "phép năm",
+        "nghỉ phép", "xin nghỉ", "đơn nghỉ", "leave", "phép năm",
         "nghỉ ốm", "nghỉ thai sản", "duyệt đơn", "từ chối đơn",
     ],
     "customer": [
@@ -35,7 +35,7 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "thông báo", "notification", "tin nhắn",
     ],
     "supplier": [
-        "nhà cung cấp", "supplier", "ncc", "cung cấp",
+        "nhà cung cấp", "supplier", "ncc", "cung cấp", "nguyên vật liệu",
     ],
     "purchase": [
         "mua hàng", "yêu cầu mua", "purchase", "đề xuất mua",

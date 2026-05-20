@@ -13,6 +13,7 @@ class AgentRequest(BaseModel):
     # Confirmation execution fields
     confirm_tool: str = ""
     confirm_params: dict = {}
+    confirm_context: Optional[dict] = None  # Context to resume ReAct loop after confirm
 
 
 class AgentAction(BaseModel):
@@ -22,3 +23,5 @@ class AgentAction(BaseModel):
     message: str = ""
     url: str = ""
     filename: str = ""
+    context: Optional[dict] = None  # Context for chaining: {message, role, department, today}
+    display: dict = {}  # Maps param keys to display-friendly values (e.g. CUID → employee name)

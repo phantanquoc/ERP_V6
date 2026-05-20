@@ -5,16 +5,14 @@ from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
-def mock_groq_client():
-    """Mock Groq client để tránh gọi API thật."""
-    with patch("groq.Groq") as mock_cls:
-        client = MagicMock()
-        mock_cls.return_value = client
+def mock_openrouter_client():
+    """Mock OpenRouter client để tránh gọi API thật."""
+    with patch("agent.executor._openrouter_client") as client:
         yield client
 
 
-def make_groq_response(content: str = "", tool_calls=None):
-    """Tạo mock response giống Groq API trả về."""
+def make_llm_response(content: str = "", tool_calls=None):
+    """Tạo mock response giống OpenAI API trả về."""
     choice = MagicMock()
     choice.message.content = content
     choice.message.tool_calls = tool_calls or []
