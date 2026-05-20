@@ -5,7 +5,7 @@ import numpy as np
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import logger, MODEL_NAME, VERIFY_DETECTOR, VERIFY_DETECTOR_FB
+from config import logger, MODEL_NAME, VERIFY_DETECTOR, VERIFY_DETECTOR_FB, ALLOWED_ORIGINS
 from face.routes import router as face_router, set_models_loaded
 from chat.routes import router as chat_router
 from agent.routes import router as agent_router
@@ -15,7 +15,7 @@ app = FastAPI(title="AI Service — Face Recognition & RAG Chatbot", version="2.
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

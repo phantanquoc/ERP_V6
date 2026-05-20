@@ -62,14 +62,11 @@ services:
     container_name: erp_dev_ai
     restart: unless-stopped
     environment:
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
-      GROQ_GRADER_MODEL: ${GROQ_GRADER_MODEL:-llama-3.1-8b-instant}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-chat-v3-0324}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://127.0.0.1:5173}
     ports:
       - "8001:8001"
-    volumes:
       - deepface_weights:/root/.deepface/weights
       - ./docs/chatbot:/app/docs/chatbot:ro
       - ai_chroma_dev:/app/chroma_data
