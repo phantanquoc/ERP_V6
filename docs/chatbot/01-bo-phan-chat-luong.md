@@ -8,6 +8,12 @@ language: vi
 
 # Bộ phận Chất lượng
 
+## Cách truy cập
+
+Từ thanh điều hướng bên trái (sidebar):
+- **Phòng chất lượng nhân sự**: Nhấn **Bộ phận chất lượng** → chọn **Phòng chất lượng nhân sự**
+- **Phòng chất lượng quy trình**: Nhấn **Bộ phận chất lượng** → chọn **Phòng chất lượng quy trình**
+
 ## 1. Tổng quan
 
 Bộ phận Chất lượng chịu trách nhiệm quản lý toàn bộ quy trình đảm bảo chất lượng sản phẩm, nhân sự và quy trình sản xuất. Hệ thống chia thành hai phòng chức năng chính:

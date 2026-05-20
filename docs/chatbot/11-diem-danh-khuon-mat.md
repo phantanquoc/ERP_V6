@@ -11,6 +11,10 @@ language: vi
 > URL: `/diemdanh/nhanvien`
 > Quyền truy cập: Tất cả nhân viên (thiết bị kiosk công cộng)
 
+## Cách truy cập
+
+Điểm danh khuôn mặt sử dụng thiết bị kiosk riêng (máy tính bảng/màn hình tại cổng công ty). Nhân viên không cần truy cập từ sidebar — chỉ cần đứng trước camera kiosk.
+
 ## 1. Tổng quan
 
 Trang **Kiosk điểm danh** cho phép nhân viên check-in/check-out bằng khuôn mặt thông qua camera. Hệ thống sử dụng nhận diện khuôn mặt kết hợp kiểm tra liveness (chống giả mạo) để đảm bảo an toàn.

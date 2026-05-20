@@ -8,6 +8,12 @@ language: vi
 
 # Chức năng chung — Tất cả nhân viên
 
+## Cách truy cập
+
+Từ thanh điều hướng bên trái (sidebar):
+- **Dashboard cá nhân**: Nhấn **Dashboard** (mục đầu tiên trên sidebar)
+- **Chức năng chung**: Nhấn **Chung** trên sidebar → hiển thị các tính năng dùng chung cho tất cả nhân viên
+
 ## 1. Tổng quan
 
 Module **Chức năng chung** (`menu **Chức năng chung**`) cung cấp các tính năng áp dụng cho **toàn bộ nhân viên** trong hệ thống ERP, bất kể bộ phận hay vai trò. Nhân viên có thể truy cập từ menu "Chức năng chung" hoặc từ **Dashboard cá nhân** (`trang **Dashboard cá nhân**`).

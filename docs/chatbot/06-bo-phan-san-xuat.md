@@ -8,6 +8,13 @@ language: vi
 
 # Bộ phận Sản xuất
 
+## Cách truy cập
+
+Từ thanh điều hướng bên trái (sidebar):
+- **Phòng QLSX**: Nhấn **Bộ phận sản xuất** → chọn **Phòng QLSX**
+- **Quản lý kho**: Nhấn **Bộ phận sản xuất** → chọn **Quản lý kho**
+- **Dữ liệu sản xuất**: Nhấn **Bộ phận sản xuất** → chọn **Dữ liệu sản xuất**
+
 ## 1. Tổng quan
 
 Hệ thống quản lý sản xuất được chia thành **3 khu vực chức năng** chính:

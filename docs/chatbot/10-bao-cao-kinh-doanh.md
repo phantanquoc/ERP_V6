@@ -11,6 +11,10 @@ language: vi
 > URL: `/business`
 > Quyền truy cập: Tất cả nhân viên bộ phận kinh doanh
 
+## Cách truy cập
+
+Từ thanh điều hướng bên trái (sidebar): Nhấn **Bộ phận kinh doanh** → trang dashboard tổng quan hiển thị ngay khi vào (trước khi chọn phòng cụ thể).
+
 ## 1. Tổng quan
 
 Trang **Báo cáo kinh doanh** là dashboard phân tích tổng hợp, hiển thị số liệu thống kê về đơn hàng, khách hàng và phản hồi khách hàng. Trang này chỉ hiển thị dữ liệu (read-only), không có chức năng nhập liệu hay chỉnh sửa.

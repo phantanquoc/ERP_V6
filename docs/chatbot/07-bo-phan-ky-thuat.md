@@ -8,6 +8,12 @@ language: vi
 
 # Bộ phận Kỹ thuật
 
+## Cách truy cập
+
+Từ thanh điều hướng bên trái (sidebar):
+- **Phòng QLHTM**: Nhấn **Bộ phận kỹ thuật** → chọn **Phòng QLHTM**
+- **Phòng cơ-điện**: Nhấn **Bộ phận kỹ thuật** → chọn **Phòng cơ- điện** (đang phát triển)
+
 ## 1. Tổng quan
 
 Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo hoạt động, yêu cầu sửa chữa và nghiệm thu bàn giao thiết bị. Có hai phòng chức năng chính:

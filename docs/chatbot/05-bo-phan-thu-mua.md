@@ -8,6 +8,12 @@ language: vi
 
 # Bộ phận thu mua
 
+## Cách truy cập
+
+Từ thanh điều hướng bên trái (sidebar):
+- **Phòng thu mua NVL**: Nhấn **Bộ phận Thu mua** → chọn **Phòng thu mua NVL**
+- **Phòng mua Thiết bị**: Nhấn **Bộ phận Thu mua** → chọn **Phòng mua Thiết bị**
+
 ## 1. Tổng quan
 
 Bộ phận thu mua gồm hai phòng chức năng:

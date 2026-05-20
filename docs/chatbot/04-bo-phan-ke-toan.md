@@ -8,6 +8,12 @@ language: vi
 
 # Bộ phận Kế toán
 
+## Cách truy cập
+
+Từ thanh điều hướng bên trái (sidebar):
+- **Phòng KT Hành chính**: Nhấn **Bộ phận kế toán** → chọn **Phòng KT Hành chính**
+- **Phòng KT Thuế**: Nhấn **Bộ phận kế toán** → chọn **Phòng KT thuế**
+
 ## 1. Tổng quan
 
 Bộ phận Kế toán chịu trách nhiệm quản lý tài chính, hóa đơn, công nợ, đơn hàng và báo cáo thuế. Hệ thống chia thành hai phòng chức năng:

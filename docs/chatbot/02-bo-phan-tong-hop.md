@@ -8,6 +8,12 @@ language: vi
 
 # Bộ phận tổng hợp
 
+## Cách truy cập
+
+Từ thanh điều hướng bên trái (sidebar):
+- **Phòng giá thành**: Nhấn **Bộ phận tổng hợp** → chọn **Phòng giá thành**
+- **Phòng chăm sóc đối tác**: Nhấn **Bộ phận tổng hợp** → chọn **Phòng chăm sóc**
+
 ## 1. Tổng quan
 
 Bộ phận tổng hợp gồm hai phòng chức năng chính:

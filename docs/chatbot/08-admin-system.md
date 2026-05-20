@@ -8,6 +8,11 @@ language: vi
 
 # Quản trị hệ thống (Admin)
 
+## Cách truy cập
+
+Từ thanh điều hướng bên trái (sidebar):
+- **Cài đặt hệ thống**: Nhấn biểu tượng **Cài đặt** (⚙️) ở cuối sidebar (chỉ hiển thị cho tài khoản ADMIN)
+
 ## 1. Tổng quan
 
 **ADMIN** là role duy nhất có quyền truy cập trang `/system-settings`. Người dùng ADMIN bypass toàn bộ RBAC thông thường và có quyền thực hiện mọi thao tác trên hệ thống. Guard kiểm tra `isAdmin(user.department)` — nếu không phải ADMIN, hệ thống hiển thị thông báo "Chỉ quản trị viên mới có thể truy cập trang này."

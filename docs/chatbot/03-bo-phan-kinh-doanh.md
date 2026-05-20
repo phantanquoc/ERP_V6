@@ -8,6 +8,14 @@ language: vi
 
 # Bộ phận Kinh doanh
 
+## Cách truy cập
+
+Từ thanh điều hướng bên trái (sidebar):
+- **Phòng KD Quốc Tế**: Nhấn **Bộ phận kinh doanh** → chọn **Phòng KD Quốc Tế** (dành cho khách hàng nước ngoài, đơn hàng xuất khẩu)
+- **Phòng KD Nội Địa**: Nhấn **Bộ phận kinh doanh** → chọn **Phòng KD Nội Địa** (dành cho khách hàng trong nước)
+
+Nếu không biết chọn phòng nào: khách hàng nước ngoài → Quốc Tế, khách hàng trong nước → Nội Địa.
+
 ## 1. Tổng quan & Sơ đồ quy trình
 
 Bộ phận Kinh doanh trong ERP được chia làm **hai phòng riêng biệt**:
