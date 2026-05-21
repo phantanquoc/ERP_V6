@@ -8,13 +8,17 @@ export class EmployeeController {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
+      const search = (req.query.search as string) || undefined;
 
-      // ADMIN thấy tất cả, các role khác chỉ thấy nhân viên trong department của mình
-      const departmentId = req.user?.role === 'ADMIN'
-        ? undefined
-        : (req.userDepartmentId ?? req.user?.departmentId ?? undefined);
+      // ADMIN có thể filter theo departmentId từ query, các role khác chỉ thấy department mình
+      let departmentId: string | undefined;
+      if (req.user?.role === 'ADMIN') {
+        departmentId = (req.query.departmentId as string) || undefined;
+      } else {
+        departmentId = req.userDepartmentId ?? req.user?.departmentId ?? undefined;
+      }
 
-      const result = await employeeService.getAllEmployees(page, limit, departmentId ?? undefined);
+      const result = await employeeService.getAllEmployees(page, limit, departmentId, search);
 
       res.json({
         success: true,

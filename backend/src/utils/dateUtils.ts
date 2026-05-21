@@ -1,39 +1,34 @@
-import { toZonedTime, fromZonedTime } from 'date-fns-tz';
-import { env } from '@config/env';
+/**
+ * Timezone-aware date utilities for attendance.
+ * Uses APP_TIMEZONE env var (default: Asia/Ho_Chi_Minh).
+ */
+
+const APP_TZ = process.env.APP_TIMEZONE || 'Asia/Ho_Chi_Minh';
 
 /**
- * Returns a UTC Date representing midnight (00:00:00.000) of today in APP_TIMEZONE.
- * Use this for Prisma gte/lt queries that need to target "today" in the app timezone.
- *
- * Example: if APP_TIMEZONE=Asia/Ho_Chi_Minh and UTC time is 2024-01-15T17:00:00Z
- * (which is 2024-01-16T00:00:00+07:00), this returns 2024-01-16T17:00:00Z
- * (midnight of Jan 16 in UTC+7, expressed as UTC).
+ * Get today's date at 00:00:00 in the application timezone.
+ * Used for attendance queries (attendanceDate = today).
  */
 export function getTodayInAppTz(): Date {
-  const tz = env.APP_TIMEZONE;
-  const nowUtc = new Date();
-  // Convert current UTC time to the app timezone to get the local date
-  const nowInTz = toZonedTime(nowUtc, tz);
-  // Build a "midnight" date in the app timezone
-  const midnightInTz = new Date(
-    nowInTz.getFullYear(),
-    nowInTz.getMonth(),
-    nowInTz.getDate(),
-    0, 0, 0, 0
-  );
-  // Convert that midnight back to UTC so Prisma can use it in queries
-  return fromZonedTime(midnightInTz, tz);
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: APP_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const dateStr = formatter.format(now); // "2026-05-20"
+  return new Date(dateStr + 'T00:00:00.000Z');
 }
 
 /**
- * Returns the current hour and minute in APP_TIMEZONE.
- * Use this instead of new Date().getHours() / getMinutes() for shift/late detection.
+ * Get current hour and minute in the application timezone.
+ * Used for late detection (compare against shift start time).
  */
 export function nowInAppTz(): { hour: number; minute: number } {
-  const tz = env.APP_TIMEZONE;
-  const nowInTz = toZonedTime(new Date(), tz);
-  return {
-    hour: nowInTz.getHours(),
-    minute: nowInTz.getMinutes(),
-  };
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: APP_TZ,
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).formatToParts(now);
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+  return { hour, minute };
 }

@@ -8,7 +8,6 @@ import path from 'path';
 import { EmployeeStatus } from '@prisma/client';
 import attendanceService from './attendanceService';
 import { getTodayInAppTz, nowInAppTz } from '@utils/dateUtils';
-import { format } from 'date-fns';
 
 const AI_URL = env.AI_SERVICE_URL;
 
@@ -59,7 +58,7 @@ async function isCoolingDown(employeeId: string): Promise<boolean> {
   return false;
 }
 
-// tx is the Prisma transaction client from verifyAndRecord — must be called inside the transaction
+// tx is the Prisma transaction client — must be called inside the transaction
 // so that lastFaceScanAt is written atomically with the attendance record.
 async function setCooldown(employeeId: string, tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) {
   const now = Date.now();
@@ -832,7 +831,8 @@ export class FaceAttendanceService {
         return `snapshots/${employeeId}/${filename}`;
       } else {
         // Unrecognized face: store under snapshots/unknown/YYYYMMDD/
-        const dateFolder = format(getTodayInAppTz(), 'yyyyMMdd');
+        const today = getTodayInAppTz();
+        const dateFolder = today.toISOString().slice(0, 10).replace(/-/g, '');
         dir = path.join(env.UPLOAD_DIR, 'snapshots', 'unknown', dateFolder);
         const filename = `snapshot_${Date.now()}.jpg`;
         saveBase64Image(imageB64, dir, filename);

@@ -8,3 +8,11 @@ numpy>=1.24.0,<2.0
 retina-face==0.0.17
 pydantic>=2.0.0
 uniface==3.5.0
+torch>=2.0.0
+# RAG Chatbot dependencies
+chromadb==0.6.3
+sentence-transformers==3.4.1
+rank-bm25==0.2.2
+flashrank==0.2.9
+openai>=1.0.0
+httpx==0.27.0

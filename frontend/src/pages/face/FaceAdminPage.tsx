@@ -251,14 +251,29 @@ const FaceAdminPage: React.FC = () => {
     const vh = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    // Crop vuông trung tâm — nhất quán với kiosk captureFrame
-    // Enroll và verify cùng format → embedding gần nhau hơn
-    const side = Math.min(vw, vh);
-    const sx   = Math.round((vw - side) / 2);
-    const sy   = Math.round((vh - side) / 2);
-    canvas.width  = 480;
-    canvas.height = 480;
-    ctx.drawImage(video, sx, sy, side, side, 0, 0, 480, 480);
+    const faceBox = currentFaceBox.current;
+    if (faceBox) {
+      // Crop vuông theo face box + 30% padding — nhất quán với kiosk
+      const side   = Math.max(faceBox.width, faceBox.height);
+      const padded = side * 1.60; // 30% padding each side
+      const cx     = faceBox.x + faceBox.width  / 2;
+      const cy     = faceBox.y + faceBox.height / 2;
+      const sx = Math.max(0, Math.round(cx - padded / 2));
+      const sy = Math.max(0, Math.round(cy - padded / 2));
+      const sw = Math.min(vw - sx, Math.round(padded));
+      const sh = Math.min(vh - sy, Math.round(padded));
+      canvas.width  = 480;
+      canvas.height = 480;
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, 480, 480);
+    } else {
+      // Fallback: crop vuông trung tâm
+      const side = Math.min(vw, vh);
+      const sx   = Math.round((vw - side) / 2);
+      const sy   = Math.round((vh - side) / 2);
+      canvas.width  = 480;
+      canvas.height = 480;
+      ctx.drawImage(video, sx, sy, side, side, 0, 0, 480, 480);
+    }
     return canvas.toDataURL('image/jpeg', 0.90).split(',')[1];
   }, []);
 
@@ -389,6 +404,8 @@ const FaceAdminPage: React.FC = () => {
         const ys = lms.map(p => p.y * vh);
         const rawX = Math.min(...xs), rawY = Math.min(...ys);
         const bw = Math.max(...xs) - rawX, bh = Math.max(...ys) - rawY;
+        // Save raw face box for captureFrame crop
+        currentFaceBox.current = { x: rawX, y: rawY, width: bw, height: bh };
         // Mirror X cho overlay (video bị CSS scaleX(-1))
         const mirroredX = vw - rawX - bw;
         boxMirrored = { x: mirroredX, y: rawY, width: bw, height: bh };
@@ -413,7 +430,8 @@ const FaceAdminPage: React.FC = () => {
         const progress = Math.min(100, (elapsed / STABLE_MS) * 100);
         setStableProgress(progress);
 
-        if (elapsed >= STABLE_MS) {
+        const requiredStableMs = STABLE_MS;
+        if (elapsed >= requiredStableMs) {
           drawOverlay(vw, vh, true, true, 100, 'flash', boxMirrored);
           setOvalState('flash');
           setPoseFeedback('✓ Chụp!');
@@ -447,9 +465,12 @@ const FaceAdminPage: React.FC = () => {
     let active = true;
 
     const go = async () => {
-      await initFaceMesh();
+      try {
+        await initFaceMesh();
+      } catch (e) {
+        console.error('FaceMesh init failed:', e);
+      }
       if (!active || !videoRef.current) return;
-      // Camera is now streaming; detection loop handles sending frames
     };
     go();
 

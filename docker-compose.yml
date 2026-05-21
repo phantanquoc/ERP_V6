@@ -79,7 +79,7 @@ services:
       API_URL: ${API_URL:-https://anbinhfoods.net/api}
       LOG_LEVEL: warn
       FACE_DATA_SECRET: ${FACE_DATA_SECRET:-change_me_face_data_secret}
-      AI_SERVICE_URL: http://erp_ai_service:8001
+      AI_SERVICE_URL: http://erp_ai:8001
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@anbinhfoods.net}
@@ -133,35 +133,6 @@ services:
           cpus: '0.25'
           memory: 128M
 
-  # AI Service - Face Recognition
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    container_name: erp_ai_service
-    restart: unless-stopped
-    environment:
-      - TF_CPP_MIN_LOG_LEVEL=2
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - deepface_weights:/home/appuser/.deepface/weights
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-      interval: 30s
-      timeout: 10s
-      start_period: 120s
-      retries: 3
-    networks:
-      - erp_network
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
-        reservations:
-          cpus: '1'
-          memory: 2G
-
   # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
@@ -177,7 +148,6 @@ services:
     depends_on:
       - frontend
       - backend
-      - ai-service
     networks:
       - erp_network
     deploy:
@@ -189,6 +159,37 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  # AI Service — Face Recognition + RAG Chatbot
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: erp_ai
+    restart: unless-stopped
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-chat-v3-0324}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://anbinhfoods.net,https://www.anbinhfoods.net}
+    volumes:
+      - ./docs/chatbot:/app/docs/chatbot:ro
+      - ai_chroma_data:/app/chroma_data
+      - deepface_weights:/root/.deepface/weights
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - erp_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
 volumes:
   postgres_data:
     driver: local
@@ -197,6 +198,8 @@ volumes:
   backend_logs:
     driver: local
   nginx_logs:
+    driver: local
+  ai_chroma_data:
     driver: local
   deepface_weights:
     driver: local
