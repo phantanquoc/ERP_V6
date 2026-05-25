@@ -126,18 +126,9 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
             quality, q_msg = _frame_quality(frame, bbox)
             if quality <= 0.0:
                 logger.debug("Frame %d skipped: %s", idx + 1, q_msg)
-                # Classify reject reason from quality message
-                msg_lower = q_msg.lower()
-                if "brightness" in msg_lower and "low" in msg_lower:
-                    reject_reasons["brightness_low"] += 1
-                elif "brightness" in msg_lower and "high" in msg_lower:
-                    reject_reasons["brightness_high"] += 1
-                elif "blur" in msg_lower:
-                    reject_reasons["blur_low"] += 1
-                elif "face area" in msg_lower or "area" in msg_lower:
-                    reject_reasons["face_area_low"] += 1
-                elif "multi" in msg_lower or "multiple" in msg_lower:
-                    reject_reasons["multi_face"] += 1
+                reason_code = q_msg.split(":")[0]
+                if reason_code in reject_reasons:
+                    reject_reasons[reason_code] += 1
                 else:
                     reject_reasons["other"] += 1
                 continue
@@ -145,7 +136,7 @@ def analyze_liveness_frames(frames: list[str]) -> tuple[bool, float, str]:
             # MiniFASNet spoofing check
             spoofer = _face_helpers._liveness_spoofer
             if spoofer is not None:
-                spoof_result = spoofer.analyze(frame, bbox)
+                spoof_result = spoofer.predict(frame, bbox)
                 mini_real, mini_score = _parse_spoof_result(spoof_result)
             else:
                 mini_real, mini_score = is_real, antispoof_score

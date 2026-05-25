@@ -209,13 +209,13 @@ def _frame_quality(image: np.ndarray, bbox: Any) -> tuple[float, str]:
     face_area_ratio = (face_w * face_h) / max(1, w * h)
 
     if brightness < LIVENESS_MIN_BRIGHTNESS:
-        return 0.0, f"Frame quá tối ({brightness:.1f})"
+        return 0.0, f"brightness_low: value={brightness:.1f} threshold={LIVENESS_MIN_BRIGHTNESS}"
     if brightness > LIVENESS_MAX_BRIGHTNESS:
-        return 0.0, f"Frame quá sáng ({brightness:.1f})"
+        return 0.0, f"brightness_high: value={brightness:.1f} threshold={LIVENESS_MAX_BRIGHTNESS}"
     if blur < LIVENESS_MIN_BLUR:
-        return 0.0, f"Frame bị mờ ({blur:.1f})"
+        return 0.0, f"blur_low: value={blur:.1f} threshold={LIVENESS_MIN_BLUR}"
     if face_area_ratio < 0.035:
-        return 0.0, f"Khuôn mặt quá nhỏ ({face_area_ratio:.3f})"
+        return 0.0, f"face_area_low: value={face_area_ratio:.4f} threshold=0.035"
 
     brightness_score = 1.0 - min(abs(brightness - 125.0) / 125.0, 1.0)
     blur_score = _clamp01((blur - LIVENESS_MIN_BLUR) / 120.0)
