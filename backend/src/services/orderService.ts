@@ -5,25 +5,25 @@ import { NotFoundError, ValidationError } from '../utils/errors';
 import ExcelJS from 'exceljs';
 
 class OrderService {
-  // Generate order code
+  // Internal helper — pure code formatting, no DB access.
+  private generateNextCode(lastCode: string | null): string {
+    if (!lastCode) return 'DH-001';
+    const lastNumber = parseInt(lastCode.split('-')[1], 10);
+    return `DH-${(lastNumber + 1).toString().padStart(3, '0')}`;
+  }
+
+  // Non-atomic preview — only for UI display before order creation.
+  // Do NOT use this as the authoritative code at creation time.
   async generateOrderCode(): Promise<string> {
     const lastOrder = await prisma.order.findFirst({
       orderBy: { maDonHang: 'desc' },
       select: { maDonHang: true },
     });
-
-    if (!lastOrder) {
-      return 'DH-001';
-    }
-
-    const lastNumber = parseInt(lastOrder.maDonHang.split('-')[1]);
-    const newNumber = lastNumber + 1;
-    return `DH-${newNumber.toString().padStart(3, '0')}`;
+    return this.generateNextCode(lastOrder?.maDonHang ?? null);
   }
 
-  // Create order from quotation
   async createOrderFromQuotation(quotationId: string, fileDinhKem?: string) {
-    // Check if quotation exists
+    // Check if quotation exists (outside transaction — read-only, no lock needed)
     const quotation = await prisma.quotation.findUnique({
       where: { id: quotationId },
       include: {
@@ -52,38 +52,51 @@ class OrderService {
       throw new ValidationError('Đơn hàng đã được tạo từ báo giá này');
     }
 
-    // Generate order code
-    const maDonHang = await this.generateOrderCode();
+    // Atomically generate a unique order code and create the order in one transaction.
+    // pg_advisory_xact_lock serializes concurrent calls so no two requests can
+    // read the same "last code" and produce a duplicate maDonHang.
+    const ORDER_CODE_LOCK_KEY = 1_000_000_001; // arbitrary stable integer key
 
-    // Create order with items
-    const order = await prisma.order.create({
-      data: {
-        maDonHang,
-        quotationId: quotation.id,
-        maBaoGia: quotation.maBaoGia,
-        quotationRequestId: quotation.quotationRequestId,
-        maYeuCauBaoGia: quotation.maYeuCauBaoGia,
-        customerId: quotation.customerId,
-        maKhachHang: quotation.maKhachHang,
-        tenKhachHang: quotation.tenKhachHang,
-        employeeId: quotation.employeeId,
-        tenNhanVien: quotation.tenNhanVien,
-        fileDinhKem,
-        items: {
-          create: quotation.quotationRequest.items.map((item) => ({
-            productId: item.productId,
-            maSanPham: item.maSanPham,
-            tenHangHoa: item.tenSanPham,
-            yeuCauHangHoa: item.yeuCauSanPham,
-            dongGoi: item.quyDongGoi,
-            soLuong: item.soLuong,
-            donVi: item.donViTinh,
-          })),
+    const order = await prisma.$transaction(async (tx) => {
+      // Acquire session-level advisory lock (auto-released on transaction end)
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ORDER_CODE_LOCK_KEY})`;
+
+      const lastOrder = await tx.order.findFirst({
+        orderBy: { maDonHang: 'desc' },
+        select: { maDonHang: true },
+      });
+
+      const maDonHang = this.generateNextCode(lastOrder?.maDonHang ?? null);
+
+      return tx.order.create({
+        data: {
+          maDonHang,
+          quotationId: quotation.id,
+          maBaoGia: quotation.maBaoGia,
+          quotationRequestId: quotation.quotationRequestId,
+          maYeuCauBaoGia: quotation.maYeuCauBaoGia,
+          customerId: quotation.customerId,
+          maKhachHang: quotation.maKhachHang,
+          tenKhachHang: quotation.tenKhachHang,
+          employeeId: quotation.employeeId,
+          tenNhanVien: quotation.tenNhanVien,
+          fileDinhKem,
+          items: {
+            create: quotation.quotationRequest.items.map((item) => ({
+              productId: item.productId,
+              maSanPham: item.maSanPham,
+              tenHangHoa: item.tenSanPham,
+              yeuCauHangHoa: item.yeuCauSanPham,
+              dongGoi: item.quyDongGoi,
+              soLuong: item.soLuong,
+              donVi: item.donViTinh,
+            })),
+          },
         },
-      },
-      include: {
-        items: true,
-      },
+        include: {
+          items: true,
+        },
+      });
     });
 
     // Automatically create tax report for the new order
