@@ -45,6 +45,7 @@ export interface Process {
   tenNhanVien: string;
   tenQuyTrinh: string;
   loaiQuyTrinh: string;
+  hienThiTrongChung: boolean;
   createdAt: string;
   updatedAt: string;
   flowchart?: ProcessFlowchart; // Optional flowchart data for view details
@@ -98,14 +99,18 @@ export interface FlowchartResponse {
 }
 
 export const processService = {
-  async getAllProcesses(page: number = 1, limit: number = 10, search?: string): Promise<PaginatedResponse> {
+  async getAllProcesses(page: number = 1, limit: number = 10, search?: string, hienThiTrongChung?: boolean): Promise<PaginatedResponse> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
     });
-    
+
     if (search) {
       params.append('search', search);
+    }
+
+    if (hienThiTrongChung !== undefined) {
+      params.append('hienThiTrongChung', String(hienThiTrongChung));
     }
 
      const response = await apiClient.get(`/processes?${params.toString()}`);
@@ -165,6 +170,11 @@ export const processService = {
 
      const response = await apiClient.post('/processes/upload-file', formData);
      return response as unknown as { success: boolean; data: { fileUrl: string; fileName: string } };
+  },
+
+  async toggleHienThiTrongChung(id: string): Promise<SingleResponse> {
+    const response = await apiClient.patch(`/processes/${id}/toggle-hien-thi`);
+    return response as unknown as SingleResponse;
   },
 
   async exportToExcel(): Promise<void> {

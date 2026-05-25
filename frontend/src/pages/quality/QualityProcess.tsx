@@ -446,7 +446,7 @@ const QualityProcess = () => {
           {/* DANH SÁCH QUY TRÌNH - SỬ DỤNG ProcessManagement COMPONENT */}
           {activeTab === 'processList' && (
             <div className="p-6">
-              <ProcessManagement />
+              <ProcessManagement showToggleHienThi={true} />
             </div>
           )}
 

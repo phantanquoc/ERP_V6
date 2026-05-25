@@ -24,7 +24,7 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
   const fetchProcesses = async () => {
     try {
       setLoading(true);
-      const response = await processService.getAllProcesses(currentPage, 10, searchTerm);
+      const response = await processService.getAllProcesses(currentPage, 10, searchTerm, true);
       setProcesses(response.data);
       setTotalPages(response.pagination.totalPages);
     } catch (error) {

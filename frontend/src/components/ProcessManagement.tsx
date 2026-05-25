@@ -11,9 +11,10 @@ interface ProcessManagementProps {
   // 'full' = đầy đủ CRUD (Quality Process)
   // 'standard-only' = chỉ xem và tạo định mức (Production Management - tab 1)
   // 'production' = xem và nhập dữ liệu sản xuất (Production Management - tab 2)
+  showToggleHienThi?: boolean; // Hiển thị cột toggle "Công khai"
 }
 
-const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) => {
+const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', showToggleHienThi = false }) => {
   const { user } = useAuth(); // Get current logged-in user
   const [processes, setProcesses] = useState<Process[]>([]);
   const [loading, setLoading] = useState(false);
@@ -397,6 +398,16 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
     }
   };
 
+  const handleToggleHienThi = async (process: Process) => {
+    try {
+      const response = await processService.toggleHienThiTrongChung(process.id);
+      setProcesses(prev => prev.map(p => p.id === process.id ? { ...p, hienThiTrongChung: response.data.hienThiTrongChung } : p));
+    } catch (error) {
+      console.error('Error toggling hienThiTrongChung:', error);
+      alert('Lỗi khi cập nhật trạng thái hiển thị');
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -443,6 +454,9 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nhân viên</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên quy trình</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại quy trình</th>
+                {showToggleHienThi && (
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Công khai</th>
+                )}
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
             </thead>
@@ -464,7 +478,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                 if (loading) {
                   return (
                     <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={showToggleHienThi ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
                         Đang tải...
                       </td>
                     </tr>
@@ -473,7 +487,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                 if (filteredProcesses.length === 0) {
                   return (
                     <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={showToggleHienThi ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
                         Không có dữ liệu
                       </td>
                     </tr>
@@ -496,6 +510,17 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full' }) 
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{process.tenNhanVien}</td>
                     <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{process.tenQuyTrinh}</td>
                     <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{process.loaiQuyTrinh}</td>
+                    {showToggleHienThi && (
+                      <td className="px-6 py-4 text-center border-r border-gray-200">
+                        <input
+                          type="checkbox"
+                          checked={!!process.hienThiTrongChung}
+                          onChange={() => handleToggleHienThi(process)}
+                          className="w-4 h-4 accent-blue-600 cursor-pointer"
+                          title={process.hienThiTrongChung ? 'Bỏ hiển thị trong tab Chung' : 'Hiển thị trong tab Chung'}
+                        />
+                      </td>
+                    )}
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-3">
                         <button
