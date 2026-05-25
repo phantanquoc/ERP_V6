@@ -8,7 +8,9 @@ import {
   FileText,
   Award,
   Activity,
-  User
+  User,
+  X,
+  ScanFace
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useSystemSettings } from "../contexts/SystemSettingsContext";
@@ -83,7 +85,8 @@ const getQuickActions = (department: string) => {
       description: "Chấm công vào/ra ca",
       icon: <Clock className="w-6 h-6" />,
       color: "bg-blue-500",
-      action: "attendance"
+      action: "attendance",
+      disabled: true
     },
     {
       title: "Báo cáo công việc",
@@ -153,38 +156,53 @@ const QuickActionCard: React.FC<{
   action: any;
   onProfileClick?: () => void;
   onAttendanceClick?: () => void;
+  onAttendanceDisabledClick?: () => void;
   onLeaveRequestClick?: () => void;
   onDailyReportClick?: () => void;
-}> = ({ action, onProfileClick, onAttendanceClick, onLeaveRequestClick, onDailyReportClick }) => (
-  <div
-    onClick={() => {
-      if (action.action === 'profile' && onProfileClick) {
-        onProfileClick();
-      } else if (action.action === 'attendance' && onAttendanceClick) {
-        onAttendanceClick();
-      } else if (action.action === 'leave' && onLeaveRequestClick) {
-        onLeaveRequestClick();
-      } else if (action.action === 'report' && onDailyReportClick) {
-        onDailyReportClick();
-      }
-    }}
-    className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 hover:shadow-md transition-all cursor-pointer group h-full"
-  >
-    <div className="flex items-center space-x-4">
-      <div className={`p-4 rounded-lg ${action.color} group-hover:scale-110 transition-transform`}>
-        <div className="text-white w-8 h-8 flex items-center justify-center">
-          {action.icon}
+}> = ({ action, onProfileClick, onAttendanceClick, onAttendanceDisabledClick, onLeaveRequestClick, onDailyReportClick }) => {
+  const isDisabled = !!action.disabled;
+
+  const handleClick = () => {
+    if (isDisabled) {
+      if (action.action === 'attendance' && onAttendanceDisabledClick) onAttendanceDisabledClick();
+      return;
+    }
+    if (action.action === 'profile' && onProfileClick) onProfileClick();
+    else if (action.action === 'attendance' && onAttendanceClick) onAttendanceClick();
+    else if (action.action === 'leave' && onLeaveRequestClick) onLeaveRequestClick();
+    else if (action.action === 'report' && onDailyReportClick) onDailyReportClick();
+  };
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`relative bg-white rounded-xl shadow-sm border p-8 transition-all h-full
+        ${isDisabled
+          ? 'border-gray-200 opacity-60 cursor-pointer grayscale'
+          : 'border-gray-100 hover:shadow-md cursor-pointer group'
+        }`}
+    >
+      {isDisabled && (
+        <span className="absolute top-2 right-2 text-[10px] font-semibold bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full uppercase tracking-wide">
+          Đã ngưng
+        </span>
+      )}
+      <div className="flex items-center space-x-4">
+        <div className={`p-4 rounded-lg ${isDisabled ? 'bg-gray-400' : action.color} ${!isDisabled ? 'group-hover:scale-110 transition-transform' : ''}`}>
+          <div className="text-white w-8 h-8 flex items-center justify-center">
+            {action.icon}
+          </div>
+        </div>
+        <div className="flex-1">
+          <h3 className={`font-semibold text-lg transition-colors ${isDisabled ? 'text-gray-400' : 'text-gray-900 group-hover:text-blue-600'}`}>
+            {action.title}
+          </h3>
+          <p className="text-sm text-gray-400 mt-1">{action.description}</p>
         </div>
       </div>
-      <div className="flex-1">
-        <h3 className="font-semibold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
-          {action.title}
-        </h3>
-        <p className="text-sm text-gray-600 mt-1">{action.description}</p>
-      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Theme headers moved to ../components/ThemeHeaders.tsx
 
@@ -192,6 +210,7 @@ const EmployeeDashboard: React.FC = () => {
   const { user } = useAuth();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
+  const [isAttendanceDeprecatedOpen, setIsAttendanceDeprecatedOpen] = useState(false);
   const [isLeaveRequestModalOpen, setIsLeaveRequestModalOpen] = useState(false);
   const [latestEvaluationNotification, setLatestEvaluationNotification] = useState<AppNotification | null>(null);
   const [notificationLoading, setNotificationLoading] = useState(false);
@@ -295,6 +314,7 @@ const EmployeeDashboard: React.FC = () => {
                   action={action}
                   onProfileClick={() => setIsProfileModalOpen(true)}
                   onAttendanceClick={() => setIsAttendanceModalOpen(true)}
+                  onAttendanceDisabledClick={() => setIsAttendanceDeprecatedOpen(true)}
                   onLeaveRequestClick={() => setIsLeaveRequestModalOpen(true)}
                   onDailyReportClick={() => setIsDailyReportModalOpen(true)}
                 />
@@ -402,6 +422,54 @@ const EmployeeDashboard: React.FC = () => {
           isOpen={isWorkPlanModalOpen}
           onClose={() => setIsWorkPlanModalOpen(false)}
         />
+
+        {/* Attendance Deprecated Notice */}
+        {isAttendanceDeprecatedOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+              {/* Header */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 rounded-xl">
+                    <ScanFace className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <h2 className="text-lg font-bold text-gray-900">Thông báo quan trọng</h2>
+                </div>
+                <button
+                  onClick={() => setIsAttendanceDeprecatedOpen(false)}
+                  className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="space-y-3 text-sm text-gray-700 leading-relaxed">
+                <p>
+                  Công ty <strong>An Bình Foods</strong> đã chính thức triển khai hệ thống{' '}
+                  <strong className="text-orange-600">chấm công bằng nhận diện khuôn mặt</strong>.
+                </p>
+                <p>
+                  Kể từ ngày <strong className="text-red-600">01/06/2026</strong>, chức năng chấm
+                  công thủ công này <strong>không còn được sử dụng</strong>.
+                </p>
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mt-2">
+                  <p className="font-semibold text-orange-800 text-center">
+                    Yêu cầu toàn thể nhân viên nghiêm túc thực hiện chấm công bằng khuôn mặt tại máy kiosk.
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <button
+                onClick={() => setIsAttendanceDeprecatedOpen(false)}
+                className="mt-5 w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition-colors"
+              >
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
