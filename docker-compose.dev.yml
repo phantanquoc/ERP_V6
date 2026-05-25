@@ -67,6 +67,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://127.0.0.1:5173}
     ports:
       - "8001:8001"
+    volumes:
       - deepface_weights:/root/.deepface/weights
       - ./docs/chatbot:/app/docs/chatbot:ro
       - ai_chroma_dev:/app/chroma_data
