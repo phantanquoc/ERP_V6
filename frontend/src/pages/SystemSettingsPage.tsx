@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Palette, Type, Save, Check } from 'lucide-react';
+import { Settings, Palette, Type, Save, Check, Server, ExternalLink, Terminal, Copy } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSystemSettings } from '../contexts/SystemSettingsContext';
 import { isAdmin } from '../utils/permissions';
@@ -36,6 +36,15 @@ const SystemSettingsPage: React.FC = () => {
   const [slogan, setSlogan] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [copiedTunnel, setCopiedTunnel] = useState(false);
+
+  const TUNNEL_CMD = 'ssh -f -N -L 9443:localhost:9443 vps-anbinh';
+
+  const handleCopyTunnel = () => {
+    navigator.clipboard.writeText(TUNNEL_CMD);
+    setCopiedTunnel(true);
+    setTimeout(() => setCopiedTunnel(false), 2000);
+  };
 
   useEffect(() => {
     if (settings) {
@@ -143,6 +152,62 @@ const SystemSettingsPage: React.FC = () => {
           maxLength={500}
         />
         <p className="text-xs text-gray-400 mt-1 text-right">{slogan.length}/500</p>
+      </div>
+
+      {/* Docker Management */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
+          <Server className="w-5 h-5 text-blue-600" />
+          Quản lý Docker (Portainer)
+        </h2>
+        <p className="text-sm text-gray-500 mb-5">
+          Giám sát containers, logs và images trên VPS qua giao diện Portainer.
+          Cần mở SSH tunnel trước khi truy cập.
+        </p>
+
+        {/* Tunnel command */}
+        <div className="mb-5">
+          <p className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-1">
+            <Terminal className="w-3.5 h-3.5" />
+            Bước 1 — Mở SSH tunnel (chạy 1 lần trong Terminal)
+          </p>
+          <div className="flex items-center gap-2 bg-gray-900 rounded-lg px-4 py-3">
+            <code className="flex-1 text-sm text-green-400 font-mono select-all">
+              {TUNNEL_CMD}
+            </code>
+            <button
+              onClick={handleCopyTunnel}
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors shrink-0"
+            >
+              {copiedTunnel ? (
+                <><Check className="w-3.5 h-3.5 text-green-400" /><span className="text-green-400">Đã copy</span></>
+              ) : (
+                <><Copy className="w-3.5 h-3.5" />Copy</>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Open Portainer button */}
+        <div>
+          <p className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-1">
+            <ExternalLink className="w-3.5 h-3.5" />
+            Bước 2 — Mở Portainer
+          </p>
+          <a
+            href="https://localhost:9443"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            <Server className="w-4 h-4" />
+            Mở Portainer Dashboard
+            <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+          </a>
+          <p className="text-xs text-gray-400 mt-2">
+            Nếu trình duyệt cảnh báo SSL → bấm <strong>Advanced → Proceed</strong> để tiếp tục.
+          </p>
+        </div>
       </div>
 
       {/* Save Button */}
