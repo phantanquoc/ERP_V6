@@ -169,7 +169,7 @@ const SystemSettingsPage: React.FC = () => {
         <div className="mb-5">
           <p className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-1">
             <Terminal className="w-3.5 h-3.5" />
-            Bước 1 — Mở SSH tunnel (chạy 1 lần trong Terminal)
+            SSH tunnel (nếu muốn truy cập từ máy local qua port 9443)
           </p>
           <div className="flex items-center gap-2 bg-gray-900 rounded-lg px-4 py-3">
             <code className="flex-1 text-sm text-green-400 font-mono select-all">
@@ -192,10 +192,10 @@ const SystemSettingsPage: React.FC = () => {
         <div>
           <p className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-1">
             <ExternalLink className="w-3.5 h-3.5" />
-            Bước 2 — Mở Portainer
+            Mở Portainer Dashboard
           </p>
           <a
-            href="https://localhost:9443"
+            href="/portainer/"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
@@ -205,7 +205,7 @@ const SystemSettingsPage: React.FC = () => {
             <ExternalLink className="w-3.5 h-3.5 opacity-70" />
           </a>
           <p className="text-xs text-gray-400 mt-2">
-            Nếu trình duyệt cảnh báo SSL → bấm <strong>Advanced → Proceed</strong> để tiếp tục.
+            Truy cập trực tiếp qua <strong>anbinhfoods.net/portainer/</strong> — không cần SSH tunnel.
           </p>
         </div>
       </div>
