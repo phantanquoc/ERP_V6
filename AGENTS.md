@@ -1,133 +1,58 @@
 # AGENTS.md
 
-Operational rules for AI agents working in this repository (ERP An Binh Foods).
+ERP An Binh Foods — hệ thống nội bộ cho nhà sản xuất trái cây sấy khô.
+3 services: **Frontend** (React 18 + Vite + TailwindCSS :5173), **Backend** (Express 5 + Prisma + PostgreSQL :5000), **AI Service** (FastAPI + Python :8001).
 
 ---
 
-## Project Overview
+## Verification Commands (chạy trước khi kết thúc bất kỳ task nào)
 
-| Component | Path | Stack |
-|-----------|------|-------|
-| Frontend | `frontend/` | React 18 + Vite + TailwindCSS + React Router 7 |
-| Backend API | `backend/` | Express + TypeScript + Prisma + PostgreSQL |
-| AI Service | `ai-service/` | FastAPI + Python (DeepFace, ChromaDB, OpenRouter) |
-| Infrastructure | `docker-compose.yml` | PostgreSQL, AI Service, Nginx |
+```bash
+# Backend
+cd backend && npx tsc --noEmit          # Type check (PHẢI pass)
+cd backend && npm run lint               # ESLint
+cd backend && npm test                   # Jest — tất cả tests
+cd backend && npx jest src/__tests__/auth.test.ts --runInBand  # Chạy 1 test file
+
+# Frontend
+cd frontend && npx tsc --noEmit         # Type check (PHẢI pass)
+cd frontend && npm run lint              # ESLint
+
+# AI Service (chạy từ thư mục ai-service/)
+cd ai-service && python3 -m pytest tests/ -x -q          # Tất cả tests
+cd ai-service && python3 -m pytest tests/test_registry.py -x -q  # Chỉ registry
+```
+
+**Stop conditions:** Không hoàn thành task nếu `tsc --noEmit` có lỗi ở backend hoặc frontend. Không bỏ qua test thất bại.
 
 ---
 
-## Commands
+## Dev Commands
 
 ### Frontend (`frontend/`)
 ```bash
 npm run dev              # Vite dev server on :5173
 npm run build            # Production build
-npm run lint             # ESLint
-npx tsc --noEmit        # Type check
 ```
 
 ### Backend (`backend/`)
 ```bash
 npm run dev              # Express dev with ts-node on :5000
 npm run build            # tsc + tsc-alias → dist/
-npm run lint             # ESLint
-npm test                 # Jest
-npx prisma generate     # Regenerate Prisma client after schema change
-npx prisma migrate dev  # Create + apply migration
-npx prisma studio       # Visual DB browser
-```
-
-### AI Service (`ai-service/`)
-```bash
-python3 -m pytest tests/ -x -q    # Run all tests
-uvicorn app:app --port 8001        # Run locally (needs models)
+npx prisma generate      # Regenerate Prisma client sau schema change
+npx prisma migrate dev   # Tạo + apply migration
+npx prisma studio        # Visual DB browser
 ```
 
 ### Docker (full stack)
 ```bash
-docker compose -f docker-compose.dev.yml up -d    # Dev environment
-docker compose up -d                               # Production
-docker compose down                                # Stop
-docker compose logs ai-service --tail 50           # View AI logs
+docker compose -f docker-compose.dev.yml up --build -d   # Dev — backend exposed :5003
+docker compose up -d                                      # Production
+docker compose -f docker-compose.dev.yml exec backend npx prisma migrate dev
+docker compose -f docker-compose.dev.yml exec backend npx prisma db seed
 ```
 
----
-
-## Architecture
-
-### Backend — Express + Prisma
-```
-src/
-├── routes/          # Route definitions (59 route files)
-├── controllers/     # HTTP boundary, request parsing
-├── services/        # Business logic, Prisma calls
-├── middlewares/     # auth.ts, errorHandler.ts, rbacAbac.ts, upload.ts
-├── config/          # database.ts, env.ts, logger.ts
-├── utils/           # helpers, crypto, errors, dateUtils
-└── index.ts         # Express app setup
-```
-
-### Frontend — React SPA
-```
-src/
-├── pages/           # Route pages (by department: business, production, etc.)
-├── components/      # Shared components (Sidebar, ChatWidget, Layout)
-├── contexts/        # AuthContext, SystemSettingsContext
-├── services/        # API client modules
-├── utils/           # Helpers, permissions
-└── config/          # API base URL
-```
-
-### AI Service — FastAPI modules
-```
-ai-service/
-├── face/            # Face recognition (helpers, liveness, routes, models)
-├── chat/            # RAG chatbot (retrieval, indexer, llm, faithfulness, routes)
-├── agent/           # ReAct agent (executor, registry, classifier, routes)
-├── config.py        # Shared constants + env vars
-├── app.py           # FastAPI app setup
-└── tests/           # pytest tests (140+)
-```
-
----
-
-## Key Patterns
-
-### Backend API Response Format
-```json
-{
-  "success": true,
-  "data": [...],
-  "pagination": { "page": 1, "limit": 10, "total": 150, "totalPages": 15 }
-}
-```
-
-### Authentication
-- JWT access token in `Authorization: Bearer <token>` header
-- Backend middleware: `authenticate` (verify JWT) + `authorize('ADMIN')` (check role)
-- AI Service forwards user's JWT to backend when calling APIs on behalf of user
-
-### Agent Tool Registry (`ai-service/agent/registry.py`)
-- 66 tools, each maps to a backend endpoint
-- Format: `{name, description, method, path, path_params, query_params, body_params, is_write, is_export, category}`
-- Write actions (`is_write: True`) require user confirmation before execution
-- After adding/removing tools, update test count in `tests/test_registry.py`
-
-### Knowledge Base (`docs/chatbot/`)
-- 12 markdown files with frontmatter (department, roles, access)
-- Indexed into ChromaDB on startup (hash-based change detection)
-- Each file must have `## Cách truy cập` section with sidebar navigation path
-
----
-
-## Conventions
-
-- TypeScript strict mode on frontend and backend
-- Backend: controller → service → Prisma (never skip service layer)
-- Frontend: TailwindCSS for styling, lucide-react for icons
-- AI Service: all LLM calls go through OpenRouter (DeepSeek model)
-- Prisma schema uses `@@map("table_name")` and `@@schema("auth"/"business"/"common")`
-- Vietnamese for user-facing text, English for code identifiers
-- Dates: `YYYY-MM-DD` in API params, `DD/MM/YYYY` in UI display
+> **Lưu ý port:** Trong Docker dev, backend internal port là 5000, nhưng được map ra ngoài thành **:5003**. Frontend `VITE_API_URL=http://localhost:5003/api`.
 
 ---
 
@@ -137,11 +62,117 @@ Luôn implement theo trình tự này, không nhảy cóc:
 
 ```
 1. Prisma schema (schema.prisma) + migration
-2. Backend: service → controller → route → đăng ký vào ROUTE_MAP
+2. Backend: service → controller → route → đăng ký vào ROUTE_MAP (backend/src/routes/index.ts)
 3. Frontend: service types → custom hook → component(s)
 ```
 
 Xem `openspec/changes/` để biết định dạng spec đầy đủ cho feature lớn.
+
+---
+
+## Key Design Decisions
+
+### Database
+- **Multi-schema Prisma**: 3 schemas — `auth` (users, tokens), `business` (employees, orders, v.v.), `common` (lookups dùng chung). Mọi model **phải** có `@@schema(...)`.
+- **IDs dùng CUID**: `@id @default(cuid())` — không dùng UUID hay auto-increment.
+- **Child tables, không dùng JSON columns**: Related items (order items, supply request items) luôn là rows quan hệ với cascade delete — không bao giờ là JSON array.
+- **`db push` vs `migrate dev`**: Dùng `migrate dev` cho mọi thay đổi cần lịch sử migration. `db push` chỉ cho prototyping nhanh.
+
+### Backend Business Logic
+- **Status là forward-only**: Dùng helper `advanceStatus` chỉ tiến theo mảng thứ tự đã định — không lùi, không nhảy cóc.
+- **Status transitions chỉ ở server-side**: Client không bao giờ ghi trực tiếp vào status field sau khi tạo. Mọi transition xảy ra qua service methods. Không bao giờ expose `PATCH /status` endpoint chung.
+- **Parent + children trong 1 transaction**: Dùng `prisma.$transaction` — tạo parent trước, rồi `createMany` cho items.
+- **Update items bằng delete-then-recreate**: Khi update child items, xóa toàn bộ rồi `createMany` mới. Không update từng item.
+- **Notifications không được bubble lỗi**: Wrap toàn bộ notification sends trong `try/catch`. Lỗi notification không được fail operation chính.
+
+### Authentication & RBAC
+- **ADMIN bypass tất cả ABAC**: Kiểm tra `req.user.role === 'ADMIN'` trước, gọi `next()` ngay lập tức.
+- **Role hierarchy**: `ADMIN > DEPARTMENT_HEAD > TEAM_LEAD > EMPLOYEE`.
+- **3 middleware**: `authenticate` (verify JWT) → `authorize(...roles)` (RBAC thuần) → `checkAccess({ allowedRoles, checkDepartment, checkSubDepartment })` (RBAC + ABAC).
+
+### AI Service
+- **Single LLM**: OpenRouter/DeepSeek (`deepseek/deepseek-chat-v3-0324`) cho cả agent và chatbot — xem `config.py`. Không thêm LLM provider khác.
+- **AI modules độc lập**: `face/` không import `chat/`. `agent/` chỉ import `chat/` cho RAG search.
+- **Tool registry**: 66 tools trong `agent/registry.py`. Intent classifier lọc còn ~10-15 tools/request. Write actions (`is_write: True`) yêu cầu user confirm trước khi execute.
+- **Face attendance**: transaction + advisory lock cho concurrent scans, DB-backed cooldown cho multi-instance.
+
+---
+
+## Code Conventions
+
+### Backend
+- **Path aliases** (dùng luôn, không dùng `../../`):
+  ```
+  @config/*   @controllers/*   @routes/*   @middlewares/*
+  @services/*  @utils/*   @types   @schemas
+  ```
+- **API response shape** (mọi endpoint phải trả về):
+  ```typescript
+  { success: boolean; message?: string; data?: T; pagination?: { page, limit, total, totalPages } }
+  ```
+- **Error handling**: Throw typed errors từ `@utils/errors`, không dùng `res.status(500)` trực tiếp:
+  ```typescript
+  throw new NotFoundError('Không tìm thấy nhân viên');
+  throw new ValidationError('Dữ liệu không hợp lệ');
+  throw new ConflictError('Email đã tồn tại');
+  ```
+- **Request flow**: Route → Controller (HTTP only) → Service (business logic) → Prisma. Controller không chứa business logic.
+
+### Frontend
+- **Data fetching**: Mọi resource có hook trong `src/hooks/` wrapping TanStack Query. Component không gọi `apiClient` trực tiếp.
+- **Query key factory**: Dùng structured factory pattern — `{ all, lists, list(page,limit), detail(id) }`. Sau mutations, invalidate qua `queryClient.invalidateQueries({ queryKey: xyzKeys.lists() })`.
+- **Auth state**: Dùng `useAuth()` từ `AuthContext`. Không đọc token trực tiếp từ `localStorage` trong component.
+- **Form validation**: `react-hook-form` + `@hookform/resolvers/zod`.
+
+### Ngôn ngữ
+- **User-facing messages** (API responses, UI): **Tiếng Việt** — `'Không tìm thấy nhân viên'`
+- **Code, biến, comment**: **Tiếng Anh**
+- **Dates**: `YYYY-MM-DD` trong API params, `DD/MM/YYYY` trong UI display
+
+---
+
+## Required Environment Variables
+
+| Var | Dùng cho |
+|-----|---------|
+| `DATABASE_URL` | Prisma → PostgreSQL |
+| `JWT_SECRET` | Sign/verify access token |
+| `JWT_REFRESH_SECRET` | Sign/verify refresh token |
+| `CORS_ORIGIN` | Comma-separated origins, e.g. `https://a.com,https://b.com` |
+| `AI_SERVICE_URL` | Backend gọi AI service (Docker: `http://ai-service:8001`) |
+| `FACE_DATA_SECRET` | Encrypt face embeddings |
+| `OPENROUTER_API_KEY` | AI Service → OpenRouter/DeepSeek LLM |
+
+Copy `.env.production.example` → `.env` ở root. Dev local chỉ cần `DATABASE_URL` (các default ở `backend/src/config/env.ts`).
+
+---
+
+## High-Risk Areas
+
+| File | Rủi ro | Lưu ý khi sửa |
+|------|--------|----------------|
+| `ai-service/agent/executor.py` | Wrong tool selection, infinite loop, token waste | Chạy `test_executor.py` sau mỗi thay đổi |
+| `ai-service/face/liveness.py` | False reject / false accept (spoofing) | Test với nhiều điều kiện ánh sáng |
+| `backend/src/services/faceAttendanceService.ts` | Race condition, duplicate check-in | Kiểm tra advisory lock vẫn còn |
+| `backend/prisma/schema.prisma` | Migration conflicts, data loss | Backup DB trước khi migrate prod |
+| `frontend/src/components/ChatWidget.tsx` | Agent action parsing, streaming state | Test với cả write và read actions |
+| `backend/src/routes/index.ts` (ROUTE_MAP) | Route bị bỏ sót, silently ignored | Verify route mới xuất hiện trong server logs |
+
+---
+
+## Gotchas
+
+| Issue | Fix |
+|-------|-----|
+| Prisma client out of date sau schema change | Run `npx prisma generate` |
+| AI Service tests fail với import error | Chạy tests từ thư mục `ai-service/`: `cd ai-service && python3 -m pytest` |
+| ChromaDB không tìm thấy docs mới | Restart ai-service container (hash change triggers re-index) |
+| Backend 401 on all requests | Check `JWT_SECRET` khớp giữa backend và token issuer |
+| Face recognition models không load | Lần đầu startup download ~500MB models — đợi warmup log |
+| Frontend build fails với TS errors | Chạy `npx tsc --noEmit` để xem lỗi trước `npm run build` |
+| Docker ai-service không reach được backend | Dùng service name `http://backend:5000` không phải `localhost` |
+| Agent trả về wrong total count | Backend dùng `pagination.total`, không phải `result.total` |
+| Backend dev port | Docker maps `5003:5000` — truy cập ngoài qua `:5003`, không phải `:5000` |
 
 ---
 
@@ -162,33 +193,16 @@ Với regression: `git bisect` để tìm commit gây lỗi trước khi đoán.
 
 ---
 
-## Gotchas
-
-| Issue | Fix |
-|-------|-----|
-| Prisma client out of date after schema change | Run `npx prisma generate` |
-| AI Service tests fail with import error | Run tests from `ai-service/` directory: `cd ai-service && python3 -m pytest` |
-| ChromaDB not finding new docs | Restart ai-service container (hash change triggers re-index) |
-| Backend 401 on all requests | Check JWT_SECRET matches between backend and token issuer |
-| Face recognition models not loading | First startup downloads ~500MB models — wait for warmup log |
-| Frontend build fails with TS errors | Run `npx tsc --noEmit` to see exact errors before `npm run build` |
-| Docker ai-service can't reach backend | Use service name `http://backend:5000` not `localhost` |
-| Agent returns wrong total count | Backend uses `pagination.total`, not `result.total` |
-
----
-
-## Self-Check Before Finishing
-
-- [ ] Backend: `npx tsc --noEmit` passes
-- [ ] Frontend: `npx tsc --noEmit` passes
-- [ ] AI Service: `python3 -m pytest tests/ -x -q` — all pass
-- [ ] No hardcoded secrets or API keys in code
-- [ ] Prisma migration created if schema changed
-- [ ] No commits created unless user explicitly asked
-
----
-
 ## Never Do
 
-- **Never** modify `.env` files or commit secrets
-- **Never** use `find`/`grep` bash commands when `Glob`/`Grep` tools are available
+- **Never** gọi Prisma trực tiếp từ controller — phải qua service
+- **Never** thêm LLM provider — giữ OpenRouter là provider duy nhất
+- **Never** skip Prisma migration khi thay đổi schema
+- **Never** sửa `agent/registry.py` mà không cập nhật test count trong `test_registry.py` (hiện tại: 66 tools)
+- **Never** expose `PATCH /status` endpoint chung — status chỉ thay đổi qua business events
+- **Never** store secrets trong code — dùng env vars qua docker-compose
+- **Never** commit mà không chạy `tsc --noEmit` và tests trước
+- **Never** dùng `docker compose down -v` mà không xác nhận — sẽ xóa toàn bộ dữ liệu PostgreSQL
+- **Never** force-push lên `main` khi không được yêu cầu rõ ràng
+- **Never** dùng `find`/`grep` bash commands khi có công cụ `Glob`/`Grep` chuyên dụng
+- **Never** modify `.env` files hoặc commit secrets
