@@ -54,6 +54,57 @@ import { workPlanService } from "../services/workPlanService";
 import employeeEvaluationService from "../services/employeeEvaluationService";
 import dailyWorkReportService from "../services/dailyWorkReportService";
 
+// ── Time-period filter helpers ────────────────────────────────────────────────
+type PeriodFilter = 'week' | 'month' | 'quarter' | 'year' | 'all' | 'custom';
+
+const PRESET_PERIODS = ['week', 'month', 'quarter', 'year', 'all'] as const;
+
+const PERIOD_LABELS: Record<PeriodFilter, string> = {
+  week: 'Tuần này',
+  month: 'Tháng này',
+  quarter: 'Quý này',
+  year: 'Năm này',
+  all: 'Tất cả',
+  custom: 'Tùy chọn',
+};
+
+function getPresetStart(period: Exclude<PeriodFilter, 'custom'>): Date | null {
+  if (period === 'all') return null;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  if (period === 'week') {
+    const day = now.getDay();
+    start.setDate(start.getDate() + (day === 0 ? -6 : 1 - day));
+  } else if (period === 'month') {
+    start.setDate(1);
+  } else if (period === 'quarter') {
+    start.setMonth(Math.floor(now.getMonth() / 3) * 3, 1);
+  } else if (period === 'year') {
+    start.setMonth(0, 1);
+  }
+  return start;
+}
+
+/** Filters items by an explicit [start, end] window. Pass null to skip that bound. */
+function filterByDateRange<T extends Record<string, any>>(
+  items: T[],
+  start: Date | null,
+  end: Date | null,
+  dateField = 'createdAt',
+  fallbackField?: string,
+): T[] {
+  if (!start && !end) return items;
+  return items.filter(item => {
+    const raw = item[dateField] ?? (fallbackField ? item[fallbackField] : undefined);
+    if (!raw) return false;
+    const d = new Date(raw);
+    if (start && d < start) return false;
+    if (end && d > end) return false;
+    return true;
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Quick Stats for Overview
 const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0, overtimeCount: number = 0, overtimePendingCount: number = 0, evaluationPendingCount: number = 0, reportUnreadCount: number = 0) => [
   { label: "Mua hàng", value: purchaseRequestCount.toString(), change: `Chờ duyệt: ${purchaseRequestPendingCount}`, icon: <ShoppingCart className="h-4 w-4" />, color: "text-blue-600", bgColor: "bg-blue-50", clickable: true, type: 'purchaseRequests' },
@@ -160,6 +211,10 @@ const Dashboard1: React.FC = () => {
   const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
   const [approveLoading, setApproveLoading] = useState<string | null>(null);
   const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<any | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>('month');
+  // Custom date range (YYYY-MM-DD strings for <input type="date">)
+  const [customStart, setCustomStart] = useState<string>('');
+  const [customEnd, setCustomEnd] = useState<string>('');
 
   const userIsAdmin = user ? isAdmin(user.department) : false;
   const { settings } = useSystemSettings();
@@ -334,6 +389,32 @@ const Dashboard1: React.FC = () => {
   const overtimeCount = overtimePlansData?.total ?? 0;
   const overtimePendingCount = overtimePlansPendingData?.total ?? 0;
 
+  // ── Resolve active date window ─────────────────────────────────────────────
+  const filterStart: Date | null =
+    selectedPeriod === 'custom'
+      ? (customStart ? new Date(customStart + 'T00:00:00') : null)
+      : getPresetStart(selectedPeriod as Exclude<PeriodFilter, 'custom'>);
+
+  const filterEnd: Date | null =
+    selectedPeriod === 'custom'
+      ? (customEnd ? new Date(customEnd + 'T23:59:59') : null)
+      : null; // preset periods: no upper bound (up to now)
+
+  // ── Apply filter to transactional data ─────────────────────────────────────
+  // Static metrics (employees, machines, processes, suppliers, customers, debt)
+  // are intentionally NOT filtered — they represent current totals.
+  const filteredOrders           = filterByDateRange(orders,           filterStart, filterEnd);
+  const filteredQuotations       = filterByDateRange(quotations,       filterStart, filterEnd);
+  const filteredFeedbacks        = filterByDateRange(feedbacks,        filterStart, filterEnd, 'createdAt', 'ngayPhanHoi');
+  const filteredInspections      = filterByDateRange(inspections,      filterStart, filterEnd, 'inspectionDate');
+  const filteredQualityEvals     = filterByDateRange(qualityEvals,     filterStart, filterEnd);
+  const filteredInvoices         = filterByDateRange(invoices,         filterStart, filterEnd);
+  const filteredCosts            = filterByDateRange(costs,            filterStart, filterEnd);
+  const filteredTaxReports       = filterByDateRange(taxReports,       filterStart, filterEnd);
+  const filteredFinishedProducts = filterByDateRange(finishedProducts, filterStart, filterEnd);
+  const filteredSupplyRequests   = filterByDateRange(supplyRequests,   filterStart, filterEnd, 'createdAt', 'ngayYeuCau');
+  // ──────────────────────────────────────────────────────────────────────────
+
   // Mutation for approving/rejecting purchase requests
   const approveMutation = useMutation({
     mutationFn: ({ id, approve }: { id: string; approve: boolean }) =>
@@ -385,10 +466,10 @@ const Dashboard1: React.FC = () => {
       icon: <Building2 className="h-6 w-6" />,
       color: "bg-slate-400",
       stats: [
-        { label: "Đơn hàng", value: orders.length.toString(), link: "/general/pricing?tab=orders" },
-        { label: "Báo giá", value: quotations.length.toString(), link: "/general/pricing?tab=requests" },
+        { label: "Đơn hàng", value: filteredOrders.length.toString(), link: "/general/pricing?tab=orders" },
+        { label: "Báo giá", value: filteredQuotations.length.toString(), link: "/general/pricing?tab=requests" },
         { label: "Khách hàng", value: customers.length.toString(), link: "/general/partners" },
-        { label: "Phản hồi KH", value: feedbacks.length.toString(), link: "/general/partners" }
+        { label: "Phản hồi KH", value: filteredFeedbacks.length.toString(), link: "/general/partners" }
       ]
     },
     quality: {
@@ -397,8 +478,8 @@ const Dashboard1: React.FC = () => {
       color: "bg-emerald-400",
       stats: [
         { label: "Quy trình", value: processes.length.toString(), link: "/quality/process" },
-        { label: "Kiểm tra NB", value: inspections.length.toString(), link: "/quality/office" },
-        { label: "Đánh giá CL", value: qualityEvals.length.toString(), link: "/quality" },
+        { label: "Kiểm tra NB", value: filteredInspections.length.toString(), link: "/quality/office" },
+        { label: "Đánh giá CL", value: filteredQualityEvals.length.toString(), link: "/quality" },
         { label: "Nhân viên", value: employees.length.toString(), link: "/quality/personnel" }
       ]
     },
@@ -407,10 +488,10 @@ const Dashboard1: React.FC = () => {
       icon: <Briefcase className="h-6 w-6" />,
       color: "bg-blue-400",
       stats: [
-        { label: "Đơn hàng", value: orders.length.toString(), link: "/business/management" },
+        { label: "Đơn hàng", value: filteredOrders.length.toString(), link: "/business/management" },
         { label: "Khách hàng", value: customers.length.toString(), link: "/business/international" },
-        { label: "Báo giá", value: quotations.length.toString(), link: "/business/management" },
-        { label: "Phản hồi", value: feedbacks.length.toString(), link: "/business/domestic" }
+        { label: "Báo giá", value: filteredQuotations.length.toString(), link: "/business/management" },
+        { label: "Phản hồi", value: filteredFeedbacks.length.toString(), link: "/business/domestic" }
       ]
     },
     accounting: {
@@ -418,10 +499,10 @@ const Dashboard1: React.FC = () => {
       icon: <Calculator className="h-6 w-6" />,
       color: "bg-amber-400",
       stats: [
-        { label: "Hóa đơn", value: invoices.length.toString(), link: "/accounting" },
-        { label: "Chi phí", value: costs.length.toString(), link: "/accounting/admin" },
+        { label: "Hóa đơn", value: filteredInvoices.length.toString(), link: "/accounting" },
+        { label: "Chi phí", value: filteredCosts.length.toString(), link: "/accounting/admin" },
         { label: "Công nợ", value: (debtSummary?.soLuongCongNo || 0).toString(), link: "/accounting" },
-        { label: "Báo cáo thuế", value: taxReports.length.toString(), link: "/accounting/tax" }
+        { label: "Báo cáo thuế", value: filteredTaxReports.length.toString(), link: "/accounting/tax" }
       ]
     },
     production: {
@@ -430,9 +511,9 @@ const Dashboard1: React.FC = () => {
       color: "bg-indigo-400",
       stats: [
         { label: "Máy móc", value: machines.length.toString(), link: "/production/management" },
-        { label: "Đang SX", value: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length.toString(), link: "/production/management" },
-        { label: "Thành phẩm", value: finishedProducts.length.toString(), link: "/production/warehouse" },
-        { label: "Đã giao", value: orders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length.toString(), link: "/production/management" }
+        { label: "Đang SX", value: filteredOrders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length.toString(), link: "/production/management" },
+        { label: "Thành phẩm", value: filteredFinishedProducts.length.toString(), link: "/production/warehouse" },
+        { label: "Đã giao", value: filteredOrders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length.toString(), link: "/production/management" }
       ]
     },
     purchasing: {
@@ -442,7 +523,7 @@ const Dashboard1: React.FC = () => {
       stats: [
         { label: "Yêu cầu mua", value: purchaseRequestCount.toString(), link: "/purchasing" },
         { label: "Nhà cung cấp", value: suppliers.length.toString(), link: "/purchasing/materials" },
-        { label: "Yêu cầu cung ứng", value: supplyRequests.length.toString(), link: "/purchasing/equipment" },
+        { label: "Yêu cầu cung ứng", value: filteredSupplyRequests.length.toString(), link: "/purchasing/equipment" },
         { label: "Chờ duyệt", value: purchaseRequestPendingCount.toString(), link: "/purchasing" }
       ]
     },
@@ -469,6 +550,105 @@ const Dashboard1: React.FC = () => {
       <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Section — same theme as employee dashboard */}
         <ThemeHeader activeTheme={activeTheme} user={user} departmentName={departmentName} />
+
+        {/* Period Filter */}
+        <div className="mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Main row: label + segmented control */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+            {/* Left: icon + label + date range */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 bg-blue-50 rounded-lg shrink-0">
+                <Calendar className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-400 leading-none mb-0.5">Kỳ thống kê</p>
+                <p className="text-sm font-semibold text-gray-700 leading-none">
+                  {selectedPeriod === 'all'
+                    ? 'Toàn bộ dữ liệu'
+                    : selectedPeriod === 'custom'
+                    ? (customStart || customEnd)
+                      ? `${customStart ? new Date(customStart).toLocaleDateString('vi-VN') : '?'} – ${customEnd ? new Date(customEnd).toLocaleDateString('vi-VN') : 'nay'}`
+                      : 'Chọn khoảng thời gian'
+                    : (() => {
+                        const start = getPresetStart(selectedPeriod as Exclude<PeriodFilter, 'custom'>);
+                        if (!start) return '';
+                        const fmt = (d: Date) =>
+                          d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        return `${fmt(start)} – ${fmt(new Date())}`;
+                      })()
+                  }
+                </p>
+              </div>
+            </div>
+
+            {/* Right: segmented control */}
+            <div className="flex items-center gap-1">
+              {/* Preset periods */}
+              <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
+                {PRESET_PERIODS.map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setSelectedPeriod(p)}
+                    className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      selectedPeriod === p
+                        ? 'bg-white text-blue-600 shadow-sm font-semibold'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {PERIOD_LABELS[p]}
+                  </button>
+                ))}
+              </div>
+              {/* Divider */}
+              <div className="w-px h-6 bg-gray-200 mx-1" />
+              {/* Custom button */}
+              <button
+                onClick={() => setSelectedPeriod('custom')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm font-medium transition-all duration-200 border ${
+                  selectedPeriod === 'custom'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                }`}
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                Tùy chọn
+              </button>
+            </div>
+          </div>
+
+          {/* Expanded date range row — only when 'custom' selected */}
+          {selectedPeriod === 'custom' && (
+            <div className="px-5 py-3 border-t border-gray-100 bg-blue-50/40 flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium text-gray-600 shrink-0">Từ ngày</span>
+              <input
+                type="date"
+                value={customStart}
+                max={customEnd || new Date().toISOString().slice(0, 10)}
+                onChange={e => setCustomStart(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-gray-700"
+              />
+              <span className="text-gray-400">→</span>
+              <span className="text-sm font-medium text-gray-600 shrink-0">Đến ngày</span>
+              <input
+                type="date"
+                value={customEnd}
+                min={customStart || undefined}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={e => setCustomEnd(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-gray-700"
+              />
+              {(customStart || customEnd) && (
+                <button
+                  onClick={() => { setCustomStart(''); setCustomEnd(''); }}
+                  className="ml-1 text-xs text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Xóa
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Quick Stats Overview */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
