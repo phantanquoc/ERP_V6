@@ -74,14 +74,18 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   const loadCriteria = async () => {
     try {
       setCriteriaLoading(true);
+      // Load criteria list and next code independently so one failure doesn't block the other
       const data = await materialEvaluationCriteriaService.getAllCriteria();
       setCriteria(data);
-      // Set next code number
-      if (data.length > 0) {
-        const maxCode = Math.max(...data.map(c => c.code));
+
+      try {
+        const nextCode = await materialEvaluationCriteriaService.getNextCode();
+        setNewCriteriaCode(nextCode);
+      } catch {
+        // Fallback: compute from loaded active criteria (includes soft-deleted gap risk,
+        // but createCriteria will reactivate soft-deleted records gracefully)
+        const maxCode = data.length > 0 ? Math.max(...data.map(c => c.code)) : 0;
         setNewCriteriaCode(maxCode + 1);
-      } else {
-        setNewCriteriaCode(1);
       }
     } catch (err: any) {
       console.error('Error loading criteria:', err);

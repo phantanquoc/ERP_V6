@@ -77,6 +77,14 @@ class MaterialEvaluationCriteriaService {
     const response = await apiClient.post<MaterialEvaluationCriteria[]>(`${this.basePath}/seed`);
     return response.data || [];
   }
+
+  /**
+   * Get the next available code (considers ALL records including soft-deleted)
+   */
+  async getNextCode(): Promise<number> {
+    const response = await apiClient.get<{ nextCode: number }>(`${this.basePath}/next-code`);
+    return response.data?.nextCode ?? 1;
+  }
 }
 
 export default new MaterialEvaluationCriteriaService();

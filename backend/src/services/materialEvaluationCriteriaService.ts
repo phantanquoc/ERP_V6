@@ -25,6 +25,15 @@ export class MaterialEvaluationCriteriaService {
     return criteria;
   }
 
+  // Returns the next available code considering ALL records (active + soft-deleted)
+  // so the frontend never auto-generates a code that already exists in the DB
+  async getNextCode(): Promise<number> {
+    const maxRecord = await prisma.materialEvaluationCriteria.findFirst({
+      orderBy: { code: 'desc' },
+    });
+    return maxRecord ? maxRecord.code + 1 : 1;
+  }
+
   async getCriteriaById(id: string) {
     const criterion = await prisma.materialEvaluationCriteria.findUnique({
       where: { id },
@@ -38,12 +47,20 @@ export class MaterialEvaluationCriteriaService {
   }
 
   async createCriteria(data: { code: number; description: string }) {
-    // Validate code uniqueness
+    // Check if code already exists (including soft-deleted records)
     const existing = await prisma.materialEvaluationCriteria.findUnique({
       where: { code: data.code },
     });
 
     if (existing) {
+      if (!existing.isActive) {
+        // Reactivate soft-deleted criterion with the new description
+        const reactivated = await prisma.materialEvaluationCriteria.update({
+          where: { id: existing.id },
+          data: { description: data.description, isActive: true },
+        });
+        return reactivated;
+      }
       throw new ValidationError('Mã tiêu chí đã tồn tại');
     }
 

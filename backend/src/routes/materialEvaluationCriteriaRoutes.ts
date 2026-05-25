@@ -38,6 +38,32 @@ router.get(
 
 /**
  * @swagger
+ * /api/material-evaluation-criteria/next-code:
+ *   get:
+ *     tags: [Material Evaluation Criteria]
+ *     summary: "Lấy mã tiêu chí tiếp theo"
+ *     description: "Trả về code tiếp theo dựa trên tất cả records (kể cả đã xóa mềm)"
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "Lấy mã tiêu chí tiếp theo thành công"
+ */
+router.get(
+  '/next-code',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const nextCode = await materialEvaluationCriteriaService.getNextCode();
+      res.json({ success: true, data: { nextCode } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
  * /api/material-evaluation-criteria/{id}:
  *   get:
  *     tags: [Material Evaluation Criteria]
