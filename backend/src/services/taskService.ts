@@ -3,6 +3,7 @@ import logger from '@config/logger';
 import { CreateTaskRequest, UpdateTaskRequest, TaskListQuery, TaskPriority, TaskAcceptanceStatus, AcceptTaskRequest, EvaluateTaskRequest } from '@types';
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import { Task } from '@prisma/client';
+import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 import pushNotificationService from './pushNotificationService';
 
@@ -112,17 +113,16 @@ class TaskService {
       const assignerName = `${nguoiGiao.firstName} ${nguoiGiao.lastName}`;
       const nguoiNhanEmployeeIds = nguoiNhanEmployees.map(emp => emp.id);
 
-      await notificationService.createTaskNotifications(
-        nguoiNhanEmployeeIds,
-        task.id,
-        data.noiDung,
-        assignerName
-      );
+      await notificationService.notify(NotificationEvent.TASK_ASSIGNED, {
+        actorUserId: nguoiGiaoId,
+        targetEmployeeIds: nguoiNhanEmployeeIds,
+        entityId: task.id,
+        metadata: { taskId: task.id, taskTitle: data.noiDung, assignerName },
+      });
 
       logger.info(`✅ Sent notifications to ${nguoiNhanEmployeeIds.length} recipients`);
     } catch (error) {
       logger.error('❌ Error sending task notifications:', error);
-      // Don't fail the task creation if notification fails
     }
 
     // Notify admin about new task (who assigned what to whom)
@@ -133,13 +133,11 @@ class TaskService {
         select: { firstName: true, lastName: true },
       });
       const recipientNames = nguoiNhanUsers.map(u => `${u.firstName} ${u.lastName}`).join(', ');
-      await notificationService.createAdminTaskNotification(
-        data.noiDung,
-        assignerName,
-        task.id,
-        nguoiGiaoId,
-        recipientNames
-      );
+      await notificationService.notify(NotificationEvent.TASK_ADMIN_COPY, {
+        actorUserId: nguoiGiaoId,
+        entityId: task.id,
+        metadata: { taskId: task.id, taskTitle: data.noiDung, assignerName, recipientNames },
+      });
     } catch (error) {
       logger.error('Error sending admin task notification:', error);
     }

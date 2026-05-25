@@ -1,6 +1,7 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
 import { FeedbackType, FeedbackStatus } from '@prisma/client';
+import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 
 interface CreatePrivateFeedbackData {
@@ -186,10 +187,10 @@ export const privateFeedbackService = {
       const employeeName = feedback.user
         ? `${feedback.user.firstName} ${feedback.user.lastName}`
         : 'Nhân viên';
-      await notificationService.createAdminFeedbackNotification(
-        employeeName,
-        data.userId
-      );
+      await notificationService.notify(NotificationEvent.PRIVATE_FEEDBACK_SUBMITTED, {
+        actorUserId: data.userId,
+        metadata: { employeeName },
+      });
     } catch (error) {
       logger.error('Error sending admin feedback notification:', error);
     }

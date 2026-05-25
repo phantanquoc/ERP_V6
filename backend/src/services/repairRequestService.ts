@@ -1,6 +1,8 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError } from '@utils/errors';
+import { NotificationEvent } from '@types';
+import notificationService from './notificationService';
 import ExcelJS from 'exceljs';
 
 interface CreateRepairRequestData {
@@ -103,6 +105,15 @@ class RepairRequestService {
       },
     });
 
+    // Notify quality personnel + admin
+    notificationService.notify(NotificationEvent.REPAIR_REQUEST_CREATED, {
+      entityId: String(request.id),
+      metadata: {
+        maYeuCau: request.maYeuCau,
+        tenHeThong: request.tenHeThong,
+      },
+    }).catch(() => {});
+
     return request;
   }
 
@@ -110,13 +121,24 @@ class RepairRequestService {
    * Update repair request
    */
   async updateRepairRequest(id: number, data: UpdateRepairRequestData) {
-    // Check if exists
-    await this.getRepairRequestById(id);
+    const existing = await this.getRepairRequestById(id);
 
     const updated = await prisma.repairRequest.update({
       where: { id },
       data,
     });
+
+    // Notify if status changed
+    if (data.trangThai && data.trangThai !== existing.trangThai) {
+      notificationService.notify(NotificationEvent.REPAIR_REQUEST_UPDATED, {
+        entityId: String(updated.id),
+        metadata: {
+          maYeuCau: updated.maYeuCau,
+          tenHeThong: updated.tenHeThong,
+          status: data.trangThai,
+        },
+      }).catch(() => {});
+    }
 
     return updated;
   }

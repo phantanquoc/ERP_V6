@@ -2,7 +2,7 @@ import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
-import { NotificationType } from '@types';
+import { NotificationEvent } from '@types';
 import notificationService from '@services/notificationService';
 
 interface SupplyRequestItemInput {
@@ -197,13 +197,10 @@ class SupplyRequestService {
 
       if (warehouseEmployees.length > 0) {
         const itemNames = data.items.map((i) => i.tenGoi).join(', ');
-        await notificationService.createSupplyRequestNotifications(
-          warehouseEmployees.map((emp) => emp.id),
-          NotificationType.SUPPLY_REQUEST,
-          'Yêu cầu cung cấp mới',
-          `${data.tenNhanVien} (${data.boPhan}) yêu cầu cung cấp: ${itemNames}`,
-          supplyRequest?.id
-        );
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_CREATED, {
+          entityId: supplyRequest?.id,
+          metadata: { employeeName: data.tenNhanVien, department: data.boPhan, itemNames, maYeuCau: supplyRequest?.maYeuCau, supplyRequestId: supplyRequest?.id },
+        });
       }
     } catch (error) {
       console.error('Error sending supply request notifications:', error);
@@ -310,13 +307,11 @@ class SupplyRequestService {
       });
 
       if (request) {
-        await notificationService.createSupplyRequestNotification(
-          request.employeeId,
-          NotificationType.SUPPLY_REQUEST_PROCESSING,
-          'Yêu cầu cung cấp đang xử lý',
-          `Yêu cầu cung cấp ${request.maYeuCau} của bạn đang được phòng mua hàng xử lý.`,
-          supplyRequestId
-        );
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PROCESSING, {
+          targetEmployeeIds: [request.employeeId],
+          entityId: supplyRequestId,
+          metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
+        });
       }
     } catch (error) {
       console.error('Error in onPurchaseRequestCreated notification:', error);
@@ -368,13 +363,11 @@ class SupplyRequestService {
       ];
 
       if (allRecipientIds.length > 0) {
-        await notificationService.createSupplyRequestNotifications(
-          allRecipientIds,
-          NotificationType.SUPPLY_REQUEST_APPROVED,
-          'Yêu cầu mua hàng đã được duyệt',
-          `Yêu cầu cung cấp ${request.maYeuCau} đã được duyệt mua hàng.`,
-          supplyRequestId
-        );
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_APPROVED, {
+          targetEmployeeIds: allRecipientIds,
+          entityId: supplyRequestId,
+          metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
+        });
       }
     } catch (error) {
       console.error('Error in onPurchaseRequestApproved notification:', error);
@@ -405,13 +398,11 @@ class SupplyRequestService {
         });
 
         if (warehouseEmployees.length > 0) {
-          await notificationService.createSupplyRequestNotifications(
-            warehouseEmployees.map((emp) => emp.id),
-            NotificationType.SUPPLY_REQUEST_APPROVED,
-            'Hàng hóa đã được mua',
-            `Yêu cầu cung cấp ${request.maYeuCau} đã được mua hàng xong. Vui lòng chuẩn bị nhập kho.`,
-            supplyRequestId
-          );
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_APPROVED, {
+            targetEmployeeIds: warehouseEmployees.map((emp) => emp.id),
+            entityId: supplyRequestId,
+            metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
+          });
         }
       }
     } catch (error) {
@@ -433,13 +424,11 @@ class SupplyRequestService {
       });
 
       if (request) {
-        await notificationService.createSupplyRequestNotification(
-          request.employeeId,
-          NotificationType.SUPPLY_REQUEST_FULFILLED,
-          'Yêu cầu cung cấp đã được thực hiện',
-          `Yêu cầu cung cấp ${request.maYeuCau} của bạn đã được cung cấp/nhập kho.`,
-          supplyRequestId
-        );
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_FULFILLED, {
+          targetEmployeeIds: [request.employeeId],
+          entityId: supplyRequestId,
+          metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
+        });
       }
     } catch (error) {
       console.error('Error in onWarehouseDocumentCreated notification:', error);

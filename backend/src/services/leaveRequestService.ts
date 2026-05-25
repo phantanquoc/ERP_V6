@@ -5,7 +5,7 @@ import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 import notificationService from './notificationService';
-import { LeaveRequestStatusConst } from '@types';
+import { LeaveRequestStatusConst, NotificationEvent } from '@types';
 
 export class LeaveRequestService {
   /**
@@ -252,36 +252,25 @@ export class LeaveRequestService {
    * Create notification for Quality Personnel department
    */
   private async createNotificationForQualityPersonnel(leaveRequest: any) {
-    // Find all employees in Quality Personnel department
-    const qualityPersonnel = await prisma.employee.findMany({
-      where: {
-        subDepartment: {
-          code: 'QUALITY_PERSONNEL',
-        },
-      },
-    });
-
     const employeeName = `${leaveRequest.employee.user.firstName} ${leaveRequest.employee.user.lastName}`;
     const leaveTypeLabel = this.getLeaveTypeLabel(leaveRequest.leaveType);
-    const employeeIds = qualityPersonnel.map((emp) => emp.id);
 
-    await notificationService.createLeaveRequestNotification(
-      employeeIds,
-      employeeName,
-      leaveTypeLabel,
-      leaveRequest.id
-    );
+    await notificationService.notify(NotificationEvent.LEAVE_REQUEST_SUBMITTED, {
+      actorUserId: leaveRequest.employee.userId,
+      entityId: leaveRequest.id,
+      metadata: { employeeName, leaveTypeLabel, leaveRequestId: leaveRequest.id },
+    });
   }
 
   /**
    * Create notification for employee
    */
   private async createNotificationForEmployee(leaveRequest: any, status: 'APPROVED' | 'REJECTED') {
-    await notificationService.createLeaveRequestResponseNotification(
-      leaveRequest.employeeId,
-      leaveRequest.code,
-      status
-    );
+    await notificationService.notify(NotificationEvent.LEAVE_REQUEST_RESPONDED, {
+      targetEmployeeIds: [leaveRequest.employeeId],
+      entityId: leaveRequest.id,
+      metadata: { status, leaveCode: leaveRequest.code, leaveRequestId: leaveRequest.id },
+    });
   }
 
   /**
