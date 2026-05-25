@@ -68,7 +68,7 @@ services:
     ports:
       - "8001:8001"
     volumes:
-      - deepface_weights:/root/.deepface/weights
+      - deepface_weights:/home/appuser/.deepface/weights
       - ./docs/chatbot:/app/docs/chatbot:ro
       - ai_chroma_dev:/app/chroma_data
       - ./ai-service/main.py:/app/main.py:ro
