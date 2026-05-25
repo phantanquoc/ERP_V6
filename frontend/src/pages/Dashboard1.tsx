@@ -53,6 +53,7 @@ import qualityEvaluationService from "../services/qualityEvaluationService";
 import { workPlanService } from "../services/workPlanService";
 import employeeEvaluationService from "../services/employeeEvaluationService";
 import dailyWorkReportService from "../services/dailyWorkReportService";
+import DatePicker from "../components/DatePicker";
 
 // ── Time-period filter helpers ────────────────────────────────────────────────
 type PeriodFilter = 'week' | 'month' | 'quarter' | 'year' | 'all' | 'custom';
@@ -620,22 +621,22 @@ const Dashboard1: React.FC = () => {
           {selectedPeriod === 'custom' && (
             <div className="px-5 py-3 border-t border-gray-100 bg-blue-50/40 flex flex-wrap items-center gap-3">
               <span className="text-sm font-medium text-gray-600 shrink-0">Từ ngày</span>
-              <input
-                type="date"
+              <DatePicker
                 value={customStart}
-                max={customEnd || new Date().toISOString().slice(0, 10)}
-                onChange={e => setCustomStart(e.target.value)}
-                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-gray-700"
+                onChange={setCustomStart}
+                maxDate={customEnd || new Date().toISOString().slice(0, 10)}
+                placeholder="Chọn ngày bắt đầu"
+                allowClear
               />
               <span className="text-gray-400">→</span>
               <span className="text-sm font-medium text-gray-600 shrink-0">Đến ngày</span>
-              <input
-                type="date"
+              <DatePicker
                 value={customEnd}
-                min={customStart || undefined}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={e => setCustomEnd(e.target.value)}
-                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-gray-700"
+                onChange={setCustomEnd}
+                minDate={customStart || undefined}
+                maxDate={new Date().toISOString().slice(0, 10)}
+                placeholder="Chọn ngày kết thúc"
+                allowClear
               />
               {(customStart || customEnd) && (
                 <button
