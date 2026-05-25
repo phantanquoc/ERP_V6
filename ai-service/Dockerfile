@@ -3,8 +3,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps for opencv / image processing
-RUN apt-get update && apt-get install -y \
+# System deps for opencv / image processing + curl for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
@@ -39,4 +40,11 @@ COPY agent/ ./agent/
 
 EXPOSE 8001
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001"]
+# Non-root user for security
+RUN useradd -r -m -s /bin/false appuser && chown -R appuser:appuser /app
+USER appuser
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
