@@ -1,11 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { User, LoginRequest, RegisterRequest } from '../types/auth';
 import AuthService from '../services/authService';
+import { WS_BASE_URL } from '../config/api';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  wsConnected: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
   register: (userData: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
@@ -21,9 +24,97 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [wsConnected, setWsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queryClient = useQueryClient();
+
+  /* ── WebSocket lifecycle ─────────────────────────────────────────────────── */
+
+  const connectWs = useCallback((token: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    // Close stale connection if exists
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      wsRef.current.onclose = null;
+      wsRef.current.close();
+    }
+
+    const ws = new WebSocket(`${WS_BASE_URL}/ws?token=${encodeURIComponent(token)}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setWsConnected(true);
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'NOTIFICATION') {
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
+          // Dispatch custom event for components that need immediate update
+          window.dispatchEvent(new CustomEvent('ws-notification', { detail: msg.payload }));
+        } else if (msg.type === 'FORCE_LOGOUT') {
+          disconnectWs();
+          AuthService.logout().then(() => setUser(null));
+        }
+      } catch { /* ignore malformed */ }
+    };
+
+    ws.onclose = () => {
+      setWsConnected(false);
+      if (wsRef.current === ws) wsRef.current = null;
+      // Auto-reconnect after 5s if still logged in
+      const currentToken = AuthService.getAccessToken();
+      if (currentToken) {
+        reconnectTimerRef.current = setTimeout(() => connectWs(currentToken), 5000);
+      }
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }, [queryClient]);
+
+  const disconnectWs = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.close(1000, 'Logout');
+      wsRef.current = null;
+    }
+    setWsConnected(false);
+  }, []);
+
+  // Connect WS when user is set, disconnect when null
+  useEffect(() => {
+    const token = AuthService.getAccessToken();
+    if (user && token) {
+      connectWs(token);
+    } else {
+      disconnectWs();
+    }
+    return () => disconnectWs();
+  }, [user?.id, connectWs, disconnectWs]);
+
+  // Reconnect on tab focus
+  useEffect(() => {
+    const onFocus = () => {
+      const token = AuthService.getAccessToken();
+      if (token && user && wsRef.current?.readyState !== WebSocket.OPEN) {
+        connectWs(token);
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [user?.id, connectWs]);
+
+  /* ── Auth state ──────────────────────────────────────────────────────────── */
 
   useEffect(() => {
-    // Check if user is already logged in
     const checkAuth = () => {
       try {
         const currentUser = AuthService.getCurrentUser();
@@ -71,6 +162,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async (): Promise<void> => {
     try {
       setIsLoading(true);
+      disconnectWs();
       await AuthService.logout();
       setUser(null);
     } catch (error) {
@@ -92,6 +184,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     isAuthenticated: !!user,
     isLoading,
+    wsConnected,
     login,
     register,
     logout,

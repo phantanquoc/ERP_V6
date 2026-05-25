@@ -332,6 +332,7 @@ model Notification {
   type                  String
   title                 String
   message               String
+  metadata              Json?    @db.JsonB
   period                String?
   evaluationId          String?
   taskId                String?
@@ -2167,11 +2168,12 @@ model PayrollSettings {
 }
 
 model SystemSettings {
-  id          String   @id @default(cuid())
-  activeTheme String   @default("DEFAULT")
-  slogan      String   @default("Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.")
-  updatedAt   DateTime @updatedAt
-  updatedBy   String?
+  id                   String   @id @default(cuid())
+  activeTheme          String   @default("DEFAULT")
+  slogan               String   @default("Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.")
+  notificationSettings Json?    @db.JsonB
+  updatedAt            DateTime @updatedAt
+  updatedBy            String?
 
   @@map("system_settings")
   @@schema("common")

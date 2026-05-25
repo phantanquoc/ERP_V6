@@ -23,9 +23,71 @@ export const NotificationType = {
   PRIVATE_FEEDBACK: 'PRIVATE_FEEDBACK',
   DAILY_WORK_REPORT: 'DAILY_WORK_REPORT',
   WORK_PLAN: 'WORK_PLAN',
+  REPAIR_REQUEST: 'REPAIR_REQUEST',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
+
+/**
+ * Notification events — business events that trigger notifications.
+ * Each event maps to a registry entry with message template + recipient resolver.
+ */
+export const NotificationEvent = {
+  // Evaluation
+  EVALUATION_CREATED: 'EVALUATION_CREATED',
+  EVALUATION_SUPERVISOR1_PENDING: 'EVALUATION_SUPERVISOR1_PENDING',
+  EVALUATION_SUPERVISOR2_PENDING: 'EVALUATION_SUPERVISOR2_PENDING',
+  EVALUATION_COMPLETED: 'EVALUATION_COMPLETED',
+  // Task
+  TASK_ASSIGNED: 'TASK_ASSIGNED',
+  TASK_ADMIN_COPY: 'TASK_ADMIN_COPY',
+  // Leave
+  LEAVE_REQUEST_SUBMITTED: 'LEAVE_REQUEST_SUBMITTED',
+  LEAVE_REQUEST_RESPONDED: 'LEAVE_REQUEST_RESPONDED',
+  // Payroll
+  PAYROLL_PUBLISHED: 'PAYROLL_PUBLISHED',
+  // Acceptance handover
+  ACCEPTANCE_HANDOVER_CREATED: 'ACCEPTANCE_HANDOVER_CREATED',
+  // Overtime
+  OVERTIME_PLAN_SUBMITTED: 'OVERTIME_PLAN_SUBMITTED',
+  OVERTIME_PLAN_RESPONDED: 'OVERTIME_PLAN_RESPONDED',
+  // Supply / purchase
+  SUPPLY_REQUEST_CREATED: 'SUPPLY_REQUEST_CREATED',
+  SUPPLY_REQUEST_PROCESSING: 'SUPPLY_REQUEST_PROCESSING',
+  SUPPLY_REQUEST_APPROVED: 'SUPPLY_REQUEST_APPROVED',
+  SUPPLY_REQUEST_FULFILLED: 'SUPPLY_REQUEST_FULFILLED',
+  // Auth
+  PASSWORD_RESET_REQUESTED: 'PASSWORD_RESET_REQUESTED',
+  // Feedback / reports
+  PRIVATE_FEEDBACK_SUBMITTED: 'PRIVATE_FEEDBACK_SUBMITTED',
+  DAILY_WORK_REPORT_SUBMITTED: 'DAILY_WORK_REPORT_SUBMITTED',
+  WORK_PLAN_ASSIGNED: 'WORK_PLAN_ASSIGNED',
+  // Technical
+  REPAIR_REQUEST_CREATED: 'REPAIR_REQUEST_CREATED',
+  REPAIR_REQUEST_UPDATED: 'REPAIR_REQUEST_UPDATED',
+} as const;
+
+export type NotificationEvent = typeof NotificationEvent[keyof typeof NotificationEvent];
+
+/**
+ * Context passed to event registry for building messages and resolving recipients.
+ */
+export interface NotificationContext {
+  actorUserId?: string;
+  targetEmployeeIds?: string[];
+  entityId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Registry entry — defines how a notification event is handled.
+ */
+export interface NotificationEventDef {
+  event: NotificationEvent;
+  notificationType: NotificationType;
+  buildMessage: (ctx: NotificationContext) => { title: string; message: string };
+  resolveRecipients: (ctx: NotificationContext) => Promise<string[]>;
+}
 
 /**
  * Evaluation status constants

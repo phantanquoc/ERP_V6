@@ -29,10 +29,16 @@ export class NotificationController {
         return;
       }
 
-      const { limit = 10 } = req.query;
+      const rawLimit = Number(req.query.limit) || 10;
+      const limit = Math.min(Math.max(1, rawLimit), 200);
+
+      const sinceParam = req.query.since as string | undefined;
+      const since = sinceParam ? new Date(sinceParam) : undefined;
+
       const notifications = await notificationService.getEmployeeNotifications(
         employee.id,
-        Number(limit)
+        limit,
+        since,
       );
 
       res.json({
@@ -56,7 +62,7 @@ export class NotificationController {
       const employee = await prisma.employee.findUnique({ where: { userId } });
 
       if (!employee) {
-        res.json({ success: true, count: 0 });
+        res.json({ success: true, data: { count: 0 } });
         return;
       }
 
@@ -89,7 +95,6 @@ export class NotificationController {
         res.json({
           success: true,
           data: [],
-          count: 0,
         });
         return;
       }
@@ -99,7 +104,6 @@ export class NotificationController {
       res.json({
         success: true,
         data: notifications,
-        count: notifications.length,
       });
     } catch (error) {
       next(error);
@@ -108,9 +112,22 @@ export class NotificationController {
 
   async markAsRead(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const notificationId = req.params.notificationId as string;
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
 
-      const notification = await notificationService.markAsRead(notificationId);
+      const prisma = require('@config/database').default;
+      const employee = await prisma.employee.findUnique({ where: { userId } });
+
+      if (!employee) {
+        res.status(404).json({ success: false, message: 'Không tìm thấy thông báo' });
+        return;
+      }
+
+      const notificationId = req.params.notificationId as string;
+      const notification = await notificationService.markAsRead(notificationId, employee.id);
 
       res.json({
         success: true,
@@ -160,13 +177,27 @@ export class NotificationController {
 
   async deleteNotification(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const prisma = require('@config/database').default;
+      const employee = await prisma.employee.findUnique({ where: { userId } });
+
+      if (!employee) {
+        res.status(404).json({ success: false, message: 'Không tìm thấy thông báo' });
+        return;
+      }
+
       const notificationId = req.params.notificationId as string;
 
-      await notificationService.deleteNotification(notificationId);
+      await notificationService.deleteNotification(notificationId, employee.id);
 
       res.json({
         success: true,
-        message: 'Notification deleted',
+        message: 'Xóa thông báo thành công',
       });
     } catch (error) {
       next(error);
@@ -242,9 +273,17 @@ export class NotificationController {
    */
   async getVapidPublicKey(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const key = process.env.VAPID_PUBLIC_KEY;
+      if (!key) {
+        res.status(503).json({
+          success: false,
+          message: 'Push notification chưa được cấu hình',
+        });
+        return;
+      }
       res.json({
         success: true,
-        data: { publicKey: process.env.VAPID_PUBLIC_KEY ?? '' },
+        data: { publicKey: key },
       });
     } catch (error) {
       next(error);

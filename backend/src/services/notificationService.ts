@@ -1,8 +1,79 @@
 import prisma from '@config/database';
-import { NotificationType } from '@types';
+import { NotificationType, NotificationEvent, NotificationContext } from '@types';
+import logger from '@config/logger';
 import pushNotificationService from './pushNotificationService';
+import { pushNotification } from './wsManager';
+import { notificationRegistry } from './notificationRegistry';
+import { NotFoundError } from '@utils/errors';
 
 export class NotificationService {
+
+  /* ─── Core Event-Driven Method ───────────────────────────────────────────── */
+
+  /**
+   * Unified notification dispatch. Looks up the event in the registry,
+   * builds the message, resolves recipients, persists to DB, and fans out
+   * via WebSocket + Web Push.
+   */
+  async notify(event: NotificationEvent, ctx: NotificationContext): Promise<void> {
+    const def = notificationRegistry.get(event);
+    if (!def) {
+      logger.warn(`[NotificationService] No registry entry for event: ${event}`);
+      return;
+    }
+
+    const recipientEmployeeIds = await def.resolveRecipients(ctx);
+    if (recipientEmployeeIds.length === 0) return;
+
+    const { title, message } = def.buildMessage(ctx);
+
+    const metadataJson = {
+      event,
+      entityId: ctx.entityId,
+      ...ctx.metadata,
+    };
+
+    // Persist to DB
+    await prisma.notification.createMany({
+      data: recipientEmployeeIds.map(employeeId => ({
+        employeeId,
+        type: def.notificationType,
+        title,
+        message,
+        metadata: metadataJson,
+        // Legacy FK columns for backward compat
+        evaluationId: (ctx.metadata?.evaluationId as string) ?? undefined,
+        taskId: (ctx.metadata?.taskId as string) ?? undefined,
+        acceptanceHandoverId: (ctx.metadata?.acceptanceHandoverId as string) ?? undefined,
+        leaveRequestId: (ctx.metadata?.leaveRequestId as string) ?? undefined,
+        supplyRequestId: (ctx.metadata?.supplyRequestId as string) ?? undefined,
+        period: (ctx.metadata?.period as string) ?? undefined,
+        isRead: false,
+      })),
+    });
+
+    // Fan-out: WS + Web Push (non-blocking)
+    const wsPayload = { type: def.notificationType, title, message, metadata: metadataJson };
+
+    await Promise.allSettled(
+      recipientEmployeeIds.map(async (employeeId) => {
+        // WebSocket push
+        pushNotification(employeeId, wsPayload);
+        // Web Push (VAPID)
+        pushNotificationService
+          .sendPushToEmployee(employeeId, title, message)
+          .catch(() => {});
+      })
+    );
+  }
+
+  /* ─── Legacy Methods (kept for backward compatibility) ───────────────────── */
+
+  /** Push notification via WebSocket to an employee */
+  private wsPush(employeeId: string, type: string, title: string, message: string): void {
+    pushNotification(employeeId, { type, title, message });
+  }
+
   async createNotification(data: {
     userId: string;
     type: string;
@@ -12,7 +83,6 @@ export class NotificationService {
     period?: string;
     taskId?: string;
   }): Promise<any> {
-    // Get employee by userId
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
       include: { employees: true },
@@ -35,6 +105,7 @@ export class NotificationService {
       },
     });
 
+    this.wsPush(user.employees.id, data.type, data.title, data.message);
     pushNotificationService
       .sendPushToEmployee(user.employees.id, data.title, data.message)
       .catch(() => {});
@@ -69,6 +140,7 @@ export class NotificationService {
       },
     });
 
+    this.wsPush(employeeId, NotificationType.EVALUATION, title, message);
     pushNotificationService
       .sendPushToEmployee(employeeId, title, message)
       .catch(() => {});
@@ -76,9 +148,12 @@ export class NotificationService {
     return notification;
   }
 
-  async getEmployeeNotifications(employeeId: string, limit: number = 10): Promise<any[]> {
+  async getEmployeeNotifications(employeeId: string, limit: number = 10, since?: Date): Promise<any[]> {
     const notifications = await prisma.notification.findMany({
-      where: { employeeId },
+      where: {
+        employeeId,
+        ...(since ? { createdAt: { gte: since } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
@@ -104,13 +179,19 @@ export class NotificationService {
     return notifications;
   }
 
-  async markAsRead(notificationId: string): Promise<any> {
-    const notification = await prisma.notification.update({
+  async markAsRead(notificationId: string, employeeId: string): Promise<any> {
+    const notification = await prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+
+    if (!notification || notification.employeeId !== employeeId) {
+      throw new NotFoundError('Không tìm thấy thông báo');
+    }
+
+    return prisma.notification.update({
       where: { id: notificationId },
       data: { isRead: true },
     });
-
-    return notification;
   }
 
   async markAllAsRead(employeeId: string): Promise<any> {
@@ -139,7 +220,15 @@ export class NotificationService {
     return result;
   }
 
-  async deleteNotification(notificationId: string): Promise<void> {
+  async deleteNotification(notificationId: string, employeeId: string): Promise<void> {
+    const notification = await prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+
+    if (!notification || notification.employeeId !== employeeId) {
+      throw new NotFoundError('Không tìm thấy thông báo');
+    }
+
     await prisma.notification.delete({
       where: { id: notificationId },
     });
@@ -177,6 +266,7 @@ export class NotificationService {
       },
     });
 
+    this.wsPush(employeeId, NotificationType.TASK, title, message);
     pushNotificationService
       .sendPushToEmployee(employeeId, title, message)
       .catch(() => {});
@@ -208,6 +298,7 @@ export class NotificationService {
       data: notifications,
     });
 
+    employeeIds.forEach(id => this.wsPush(id, NotificationType.TASK, title, message));
     await Promise.allSettled(
       employeeIds.map((employeeId) =>
         pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
@@ -239,6 +330,7 @@ export class NotificationService {
       data: notifications,
     });
 
+    employeeIds.forEach(id => this.wsPush(id, NotificationType.LEAVE_REQUEST, title, message));
     await Promise.allSettled(
       employeeIds.map((employeeId) =>
         pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
@@ -266,6 +358,7 @@ export class NotificationService {
       },
     });
 
+    this.wsPush(employeeId, NotificationType.LEAVE_REQUEST_RESPONSE, title, message);
     pushNotificationService
       .sendPushToEmployee(employeeId, title, message)
       .catch(() => {});
@@ -295,6 +388,7 @@ export class NotificationService {
       data: notifications,
     });
 
+    employeeIds.forEach(id => this.wsPush(id, NotificationType.PAYROLL, title, message));
     await Promise.allSettled(
       employeeIds.map((employeeId) =>
         pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
@@ -323,6 +417,7 @@ export class NotificationService {
       },
     });
 
+    this.wsPush(employeeId, NotificationType.ACCEPTANCE_HANDOVER, title, message);
     pushNotificationService
       .sendPushToEmployee(employeeId, title, message)
       .catch(() => {});
@@ -346,6 +441,7 @@ export class NotificationService {
       },
     });
 
+    this.wsPush(employeeId, type, title, message);
     pushNotificationService
       .sendPushToEmployee(employeeId, title, message)
       .catch(() => {});
@@ -373,6 +469,7 @@ export class NotificationService {
       data: notifications,
     });
 
+    employeeIds.forEach(id => this.wsPush(id, type, title, message));
     await Promise.allSettled(
       employeeIds.map((employeeId) =>
         pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
@@ -418,6 +515,7 @@ export class NotificationService {
     }));
     await prisma.notification.createMany({ data: notifications });
 
+    adminEmployeeIds.forEach(id => this.wsPush(id, NotificationType.TASK_ADMIN, title, message));
     await Promise.allSettled(
       adminEmployeeIds.map((employeeId) =>
         pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
@@ -444,6 +542,7 @@ export class NotificationService {
     }));
     await prisma.notification.createMany({ data: notifications });
 
+    adminEmployeeIds.forEach(id => this.wsPush(id, NotificationType.PRIVATE_FEEDBACK, title, message));
     await Promise.allSettled(
       adminEmployeeIds.map((employeeId) =>
         pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})
@@ -471,6 +570,7 @@ export class NotificationService {
     }));
     await prisma.notification.createMany({ data: notifications });
 
+    adminEmployeeIds.forEach(id => this.wsPush(id, NotificationType.DAILY_WORK_REPORT, title, message));
     await Promise.allSettled(
       adminEmployeeIds.map((employeeId) =>
         pushNotificationService.sendPushToEmployee(employeeId, title, message).catch(() => {})

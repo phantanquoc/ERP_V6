@@ -92,6 +92,28 @@ router.get(
 
 /**
  * @swagger
+ * /api/notifications/read-all:
+ *   patch:
+ *     tags: [Notifications]
+ *     summary: Đánh dấu tất cả đã đọc
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Đánh dấu tất cả đã đọc thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ */
+// NOTE: must be registered BEFORE /:notificationId/read to avoid Express matching
+// the literal string "read-all" as a :notificationId param.
+router.patch(
+  '/read-all',
+  authenticate,
+  notificationController.markAllAsRead
+);
+
+/**
+ * @swagger
  * /api/notifications/{notificationId}/read:
  *   patch:
  *     tags: [Notifications]
@@ -119,24 +141,36 @@ router.patch(
   notificationController.markAsRead
 );
 
+// ---- Web Push routes ----
+
 /**
- * @swagger
- * /api/notifications/read-all:
- *   patch:
- *     tags: [Notifications]
- *     summary: Đánh dấu tất cả đã đọc
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Đánh dấu tất cả đã đọc thành công
- *       401:
- *         description: Không có quyền truy cập
+ * GET /api/notifications/push/vapid-public-key
+ * No authentication required — returns the VAPID public key for the frontend to subscribe.
  */
-router.patch(
-  '/read-all',
+router.get(
+  '/push/vapid-public-key',
+  notificationController.getVapidPublicKey
+);
+
+/**
+ * POST /api/notifications/push/subscribe
+ * Save a push subscription for the authenticated user.
+ */
+router.post(
+  '/push/subscribe',
   authenticate,
-  notificationController.markAllAsRead
+  notificationController.subscribePush
+);
+
+/**
+ * DELETE /api/notifications/push/unsubscribe
+ * Remove a push subscription for the authenticated user.
+ * NOTE: registered before /:notificationId to prevent "push" being captured as a param.
+ */
+router.delete(
+  '/push/unsubscribe',
+  authenticate,
+  notificationController.unsubscribePush
 );
 
 /**
@@ -166,37 +200,6 @@ router.delete(
   '/:notificationId',
   authenticate,
   notificationController.deleteNotification
-);
-
-// ---- Web Push routes ----
-
-/**
- * GET /api/notifications/push/vapid-public-key
- * No authentication required — returns the VAPID public key for the frontend to subscribe.
- */
-router.get(
-  '/push/vapid-public-key',
-  notificationController.getVapidPublicKey
-);
-
-/**
- * POST /api/notifications/push/subscribe
- * Save a push subscription for the authenticated user.
- */
-router.post(
-  '/push/subscribe',
-  authenticate,
-  notificationController.subscribePush
-);
-
-/**
- * POST /api/notifications/push/unsubscribe
- * Remove a push subscription for the authenticated user.
- */
-router.post(
-  '/push/unsubscribe',
-  authenticate,
-  notificationController.unsubscribePush
 );
 
 export default router;

@@ -11,6 +11,7 @@ import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { registerRoutes } from '@routes/index';
 import { startSnapshotCleanup } from '@utils/snapshotCleanup';
 import { setPgNotifier, resetLocalEmbeddingCache } from '@services/faceAttendanceService';
+import { initWebSocket, shutdownWebSocket } from '@services/wsManager';
 
 const app: Express = express();
 
@@ -83,6 +84,7 @@ const server = app.listen(PORT, () => {
   logger.info(`Server is running on http://localhost:${PORT}`);
   logger.info(`Environment: ${env.NODE_ENV}`);
   startSnapshotCleanup();
+  initWebSocket(server);
 });
 
 server.on('error', (error) => {
@@ -105,19 +107,20 @@ listenClient.connect()
       await listenClient.query("NOTIFY face_profile_changed, 'invalidate'");
     });
 
-    listenClient.on('notification', (msg) => {
+    listenClient.on('notification', (msg: { channel: string; payload?: string }) => {
       if (msg.channel === 'face_profile_changed') {
         logger.debug('Received face_profile_changed notification — resetting local embedding cache');
         resetLocalEmbeddingCache();
       }
     });
   })
-  .catch(err => {
+  .catch((err: Error) => {
     logger.error('Failed to connect pg LISTEN client:', err);
   });
 
 async function gracefulShutdown(signal: string) {
   logger.info(`${signal} received — shutting down gracefully`);
+  shutdownWebSocket();
   try {
     await listenClient.query('UNLISTEN face_profile_changed');
     await listenClient.end();
