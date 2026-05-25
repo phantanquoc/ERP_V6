@@ -21,8 +21,13 @@ export class ProcessController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string | undefined;
+      const hienThiTrongChung = req.query.hienThiTrongChung === 'true'
+        ? true
+        : req.query.hienThiTrongChung === 'false'
+          ? false
+          : undefined;
 
-      const result = await processService.getAllProcesses(page, limit, search);
+      const result = await processService.getAllProcesses(page, limit, search, hienThiTrongChung);
 
       res.json({
         success: true,
@@ -83,6 +88,21 @@ export class ProcessController {
       };
 
       res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async toggleHienThiTrongChung(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const process = await processService.toggleHienThiTrongChung(id);
+
+      res.json({
+        success: true,
+        data: process,
+        message: 'Cập nhật hiển thị thành công',
+      } as ApiResponse<any>);
     } catch (error) {
       next(error);
     }

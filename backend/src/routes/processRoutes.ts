@@ -234,6 +234,12 @@ router.delete(
   processController.deleteProcess
 );
 
+router.patch(
+  '/:id/toggle-hien-thi',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  processController.toggleHienThiTrongChung
+);
+
 // ==================== FLOWCHART ROUTES ====================
 
 /**

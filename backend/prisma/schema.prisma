@@ -394,6 +394,7 @@ model Process {
   tenNhanVien         String
   tenQuyTrinh         String
   loaiQuyTrinh        String
+  hienThiTrongChung   Boolean             @default(false)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   flowchart           ProcessFlowchart?

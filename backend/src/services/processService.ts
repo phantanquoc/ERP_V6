@@ -37,21 +37,26 @@ export class ProcessService {
   async getAllProcesses(
     page: number = 1,
     limit: number = 10,
-    search?: string
+    search?: string,
+    hienThiTrongChung?: boolean
   ): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
-    const where = search
-      ? {
-          OR: [
-            { maQuyTrinh: { contains: search, mode: 'insensitive' as const } },
-            { tenQuyTrinh: { contains: search, mode: 'insensitive' as const } },
-            { tenNhanVien: { contains: search, mode: 'insensitive' as const } },
-            { msnv: { contains: search, mode: 'insensitive' as const } },
-            { loaiQuyTrinh: { contains: search, mode: 'insensitive' as const } },
-          ],
-        }
-      : {};
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { maQuyTrinh: { contains: search, mode: 'insensitive' as const } },
+        { tenQuyTrinh: { contains: search, mode: 'insensitive' as const } },
+        { tenNhanVien: { contains: search, mode: 'insensitive' as const } },
+        { msnv: { contains: search, mode: 'insensitive' as const } },
+        { loaiQuyTrinh: { contains: search, mode: 'insensitive' as const } },
+      ];
+    }
+
+    if (hienThiTrongChung !== undefined) {
+      where.hienThiTrongChung = hienThiTrongChung;
+    }
 
     const [processes, total] = await Promise.all([
       prisma.process.findMany({
@@ -147,6 +152,14 @@ export class ProcessService {
     });
 
     return updatedProcess;
+  }
+
+  async toggleHienThiTrongChung(id: string): Promise<any> {
+    const existing = await this.getProcessById(id);
+    return prisma.process.update({
+      where: { id },
+      data: { hienThiTrongChung: !existing.hienThiTrongChung } as any,
+    });
   }
 
   async deleteProcess(id: string): Promise<void> {
