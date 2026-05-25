@@ -1,8 +1,8 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
 import { WorkPlanStatus, TaskPriority } from '@prisma/client';
+import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
-import { NotificationType } from '@types';
 
 class WorkPlanService {
   // Helper function to populate work plan with user information
@@ -97,18 +97,17 @@ class WorkPlanService {
       });
 
       if (creator) {
-        const creatorName = `${creator.firstName} ${creator.lastName}`;
-        const title = 'Kế hoạch công việc mới';
-        const message = `${creatorName} đã tạo 1 kế hoạch công việc mới: "${data.tieuDe}"`;
-
         const supervisorIds = [creator.supervisor1Id, creator.supervisor2Id].filter(Boolean) as string[];
-
-        for (const supervisorUserId of supervisorIds) {
-          await notificationService.createNotification({
-            userId: supervisorUserId,
-            type: NotificationType.WORK_PLAN,
-            title,
-            message,
+        if (supervisorIds.length > 0) {
+          // Resolve supervisor userIds → employeeIds
+          const supervisorEmployees = await prisma.employee.findMany({
+            where: { userId: { in: supervisorIds } },
+            select: { id: true },
+          });
+          await notificationService.notify(NotificationEvent.WORK_PLAN_ASSIGNED, {
+            actorUserId: nguoiTaoId,
+            targetEmployeeIds: supervisorEmployees.map(e => e.id),
+            metadata: { tieuDe: data.tieuDe },
           });
         }
       }

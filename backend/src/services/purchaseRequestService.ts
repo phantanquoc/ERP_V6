@@ -4,7 +4,7 @@ import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 import supplyRequestService from './supplyRequestService';
 import notificationService from './notificationService';
-import { NotificationType } from '@types';
+import { NotificationEvent } from '@types';
 
 interface PurchaseRequestItemInput {
   phanLoai: string;
@@ -221,7 +221,6 @@ class PurchaseRequestService {
         select: { id: true },
       });
 
-      const itemNames = data.items.map((i) => i.tenHangHoa).join(', ');
       const allRecipients = [
         ...new Set([
           ...purchasingEmployees.map((e) => e.id),
@@ -230,13 +229,10 @@ class PurchaseRequestService {
       ];
 
       if (allRecipients.length > 0) {
-        await notificationService.createSupplyRequestNotifications(
-          allRecipients,
-          NotificationType.SUPPLY_REQUEST,
-          'Yêu cầu mua hàng mới',
-          `${data.tenNhanVien} tạo yêu cầu mua hàng ${maYeuCau}: ${itemNames}`,
-          data.supplyRequestId || undefined
-        );
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_CREATED, {
+          targetEmployeeIds: allRecipients,
+          metadata: { employeeName: data.tenNhanVien, maYeuCau, supplyRequestId: data.supplyRequestId },
+        });
       }
     } catch (notifError) {
       console.error('Error sending purchase request notifications:', notifError);
@@ -363,14 +359,10 @@ class PurchaseRequestService {
         });
 
         if (warehouseEmployees.length > 0 && requestDetail) {
-          const itemNames = requestDetail.items.map((i) => i.tenHangHoa).join(', ');
-          await notificationService.createSupplyRequestNotifications(
-            warehouseEmployees.map((emp) => emp.id),
-            NotificationType.SUPPLY_REQUEST_APPROVED,
-            'Hàng hóa đã mua về - Chuẩn bị nhập kho',
-            `Yêu cầu mua hàng ${requestDetail.maYeuCau} đã hoàn thành. Hàng: ${itemNames}. Vui lòng tiến hành nhập kho.`,
-            existingRequest.supplyRequestId || undefined
-          );
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_APPROVED, {
+            targetEmployeeIds: warehouseEmployees.map((emp) => emp.id),
+            metadata: { maYeuCau: requestDetail.maYeuCau, supplyRequestId: existingRequest.supplyRequestId },
+          });
         }
       } catch (notifError) {
         console.error('Error sending warehouse notification:', notifError);

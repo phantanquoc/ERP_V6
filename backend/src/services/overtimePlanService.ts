@@ -1,7 +1,7 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
 import { AttendanceStatus } from '@prisma/client';
-import { CreateOvertimePlanRequest, UpdateOvertimePlanRequest, OvertimePlanListQuery, AcceptOvertimePlanRequest, ApproveOvertimePlanRequest, NotificationType } from '@types';
+import { CreateOvertimePlanRequest, UpdateOvertimePlanRequest, OvertimePlanListQuery, AcceptOvertimePlanRequest, ApproveOvertimePlanRequest, NotificationEvent } from '@types';
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import notificationService from './notificationService';
 
@@ -49,8 +49,7 @@ class OvertimePlanService {
     const plan = await (prisma.overtimePlan as any).create({ data: { nguoiTaoId, nguoiThamGiaIds: nguoiThamGiaUserIds, noiDung: data.noiDung, ngayTangCa, gioBatDau: data.gioBatDau, gioKetThuc: data.gioKetThuc, ghiChu: data.ghiChu, files: files || [], mucDoUuTien: data.mucDoUuTien as any, trangThaiTiepNhan, gioThucTe: {} } });
     try {
       const creatorName = `${nguoiTao.firstName} ${nguoiTao.lastName}`;
-      const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { id: true } });
-      for (const admin of adminUsers) { await notificationService.createNotification({ userId: admin.id, type: NotificationType.OVERTIME_PLAN_APPROVAL, title: 'Kế hoạch tăng ca cần phê duyệt', message: `${creatorName} đã tạo kế hoạch tăng ca cần phê duyệt: ${data.noiDung}` }); }
+      await notificationService.notify(NotificationEvent.OVERTIME_PLAN_SUBMITTED, { actorUserId: nguoiTaoId, metadata: { creatorName, noiDung: data.noiDung } });
     } catch (error) { logger.error('Error sending overtime plan admin notifications:', error); }
     return plan;
   }
@@ -130,12 +129,17 @@ class OvertimePlanService {
     const newStatus = data.trangThai === 'DA_DUYET' ? 'DA_DUYET' : 'TU_CHOI';
     const updated = await prisma.overtimePlan.update({ where: { id: planId }, data: { trangThai: newStatus as any } });
     try {
-      const adminName = `${adminUser.firstName} ${adminUser.lastName}`;
       const isApproved = newStatus === 'DA_DUYET';
-      await notificationService.createNotification({ userId: plan.nguoiTaoId, type: NotificationType.OVERTIME_PLAN, title: isApproved ? 'Kế hoạch tăng ca đã được duyệt' : 'Kế hoạch tăng ca bị từ chối', message: isApproved ? `${adminName} đã phê duyệt kế hoạch tăng ca: ${plan.noiDung}` : `${adminName} đã từ chối: ${plan.noiDung}${data.lyDoTuChoi ? `. Lý do: ${data.lyDoTuChoi}` : ''}` });
+      // Notify creator
+      const creatorEmp = await prisma.employee.findUnique({ where: { userId: plan.nguoiTaoId }, select: { id: true } });
+      if (creatorEmp) {
+        await notificationService.notify(NotificationEvent.OVERTIME_PLAN_RESPONDED, { targetEmployeeIds: [creatorEmp.id], metadata: { status: isApproved ? 'APPROVED' : 'REJECTED' } });
+      }
+      // Notify participants if approved
       if (isApproved) {
-        for (const uid of plan.nguoiThamGiaIds) {
-          await notificationService.createNotification({ userId: uid, type: NotificationType.OVERTIME_PLAN, title: 'Kế hoạch tăng ca đã được duyệt', message: `Kế hoạch tăng ca "${plan.noiDung}" đã được ${adminName} phê duyệt. Bạn được xếp lịch tăng ca ngày ${plan.ngayTangCa.toLocaleDateString('vi-VN')} từ ${plan.gioBatDau} đến ${plan.gioKetThuc}.` });
+        const participantEmps = await prisma.employee.findMany({ where: { userId: { in: plan.nguoiThamGiaIds } }, select: { id: true } });
+        if (participantEmps.length > 0) {
+          await notificationService.notify(NotificationEvent.OVERTIME_PLAN_RESPONDED, { targetEmployeeIds: participantEmps.map(e => e.id), metadata: { status: 'APPROVED' } });
         }
       }
     } catch (error) { logger.error('Error sending overtime plan approval notification:', error); }

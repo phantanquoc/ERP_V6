@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, X, BellOff, MoreVertical, Trash2 } from 'lucide-react';
+import { Bell, X, BellOff, MoreVertical, Trash2, CheckCheck } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import notificationService, { AppNotification } from '@services/notificationService';
 import pushNotificationService from '@services/pushNotificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { getNotificationIcon } from '../utils/notificationIcons';
+import { formatRelativeTime } from '../utils/formatRelativeTime';
 import TaskListModal from './TaskListModal';
 import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
 import AllNotificationsModal from './AllNotificationsModal';
@@ -15,6 +16,7 @@ import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import OvertimePlanListModal from './OvertimePlanListModal';
 import FeedbackListModal from './FeedbackListModal';
 import DailyWorkReportListModal from './DailyWorkReportListModal';
+import WorkPlanListModal from './WorkPlanListModal';
 
 // Whether the current browser environment supports Web Push
 const pushSupported =
@@ -43,6 +45,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [isOvertimePlanModalOpen, setIsOvertimePlanModalOpen] = useState(false);
   const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
   const [isDailyReportListModalOpen, setIsDailyReportListModalOpen] = useState(false);
+  const [isWorkPlanListModalOpen, setIsWorkPlanListModalOpen] = useState(false);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
@@ -84,12 +87,12 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['notifications', 'unreadCount'],
     queryFn: () => notificationService.getUnreadCount(),
-    refetchInterval: 10000,
+    refetchInterval: 30000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
-  const { data: notifications = [], isFetching: loading } = useQuery({
+  const { data: notifications = [], isFetching: loading, refetch: refetchNotifications } = useQuery({
     queryKey: ['notifications', 'recent', showUnreadOnly],
     queryFn: () => showUnreadOnly
       ? notificationService.getUnreadNotifications()
@@ -97,6 +100,18 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     enabled: isOpen,
     staleTime: 0,
   });
+
+  // Listen for WebSocket notification events — refetch immediately when dropdown is open
+  useEffect(() => {
+    const handler = () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'unreadCount'] });
+      if (isOpen) {
+        refetchNotifications();
+      }
+    };
+    window.addEventListener('ws-notification', handler);
+    return () => window.removeEventListener('ws-notification', handler);
+  }, [isOpen, refetchNotifications, queryClient]);
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -112,6 +127,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const handleDeleteNotification = async (e: React.MouseEvent, notificationId: string) => {
     e.stopPropagation();
     setMenuOpenId(null);
+    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này?')) return;
     try {
       await notificationService.deleteNotification(notificationId);
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
@@ -139,19 +155,21 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setSelectedLeaveRequestMessage(notification.message);
       setIsLeaveRequestModalOpen(true);
     } else if (notification.type === 'LEAVE_REQUEST_RESPONSE') {
-      // NV xem kết quả đơn nghỉ phép — mở modal xem đơn của mình
       setSelectedLeaveRequestId(notification.leaveRequestId || null);
       setSelectedLeaveRequestMessage(notification.message);
       setIsLeaveRequestModalOpen(true);
     } else if (notification.type === 'OVERTIME_PLAN' || notification.type === 'OVERTIME_PLAN_APPROVAL') {
       setIsOvertimePlanModalOpen(true);
     } else if (['SUPPLY_REQUEST', 'SUPPLY_REQUEST_PROCESSING', 'SUPPLY_REQUEST_APPROVED', 'SUPPLY_REQUEST_FULFILLED'].includes(notification.type)) {
-      // Navigate đến trang quản lý yêu cầu cung ứng
       navigate('/production/warehouse');
+    } else if (notification.type === 'REPAIR_REQUEST') {
+      navigate('/technical/quality?tab=repairRequests');
     } else if (notification.type === 'PRIVATE_FEEDBACK') {
       setIsFeedbackListModalOpen(true);
     } else if (notification.type === 'DAILY_WORK_REPORT') {
       setIsDailyReportListModalOpen(true);
+    } else if (notification.type === 'WORK_PLAN') {
+      setIsWorkPlanListModalOpen(true);
     }
     // PASSWORD_RESET: chỉ mark read, không cần mở gì
     if (onNotificationClick) {
@@ -223,7 +241,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
           )}
 
           {/* Filter tabs */}
-          <div className="flex gap-1 px-4 py-2 border-b border-gray-200 bg-white">
+          <div className="flex gap-1 px-4 py-2 border-b border-gray-200 bg-white items-center">
             <button
               onClick={() => setShowUnreadOnly(false)}
               className={`text-xs px-3 py-1 rounded-full transition-colors ${
@@ -244,6 +262,19 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
             >
               Chưa đọc {unreadCount > 0 && `(${unreadCount})`}
             </button>
+            {unreadCount > 0 && (
+              <button
+                onClick={async () => {
+                  await notificationService.markAllAsRead();
+                  queryClient.invalidateQueries({ queryKey: ['notifications'] });
+                }}
+                className="ml-auto text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                title="Đánh dấu tất cả đã đọc"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                Đọc tất cả
+              </button>
+            )}
           </div>
 
           {/* Notifications List */}
@@ -256,7 +287,29 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
                 <p>{showUnreadOnly ? 'Không có thông báo chưa đọc' : 'Không có thông báo'}</p>
               </div>
             ) : (
-              notifications.map(notification => (
+              (() => {
+                const today = new Date(); today.setHours(0,0,0,0);
+                const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+                const groups: { label: string; items: typeof notifications }[] = [];
+                const todayItems: typeof notifications = [];
+                const yesterdayItems: typeof notifications = [];
+                const earlierItems: typeof notifications = [];
+                for (const n of notifications) {
+                  const d = new Date(n.createdAt); d.setHours(0,0,0,0);
+                  if (d.getTime() === today.getTime()) todayItems.push(n);
+                  else if (d.getTime() === yesterday.getTime()) yesterdayItems.push(n);
+                  else earlierItems.push(n);
+                }
+                if (todayItems.length) groups.push({ label: 'Hôm nay', items: todayItems });
+                if (yesterdayItems.length) groups.push({ label: 'Hôm qua', items: yesterdayItems });
+                if (earlierItems.length) groups.push({ label: 'Trước đó', items: earlierItems });
+
+                return groups.map(group => (
+                  <div key={group.label}>
+                    <div className="px-4 py-1.5 bg-gray-100 text-xs font-medium text-gray-500 sticky top-0">
+                      {group.label}
+                    </div>
+                    {group.items.map(notification => (
                 <div
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification)}
@@ -278,7 +331,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
                         {notification.message}
                       </p>
                       <p className="text-xs text-gray-400 mt-2">
-                        {new Date(notification.createdAt).toLocaleString('vi-VN')}
+                        {formatRelativeTime(notification.createdAt)}
                       </p>
                     </div>
                     <div className="flex-shrink-0 flex items-start gap-1">
@@ -310,7 +363,10 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
                     </div>
                   </div>
                 </div>
-              ))
+              ))}
+                  </div>
+                ));
+              })()
             )}
           </div>
 
@@ -412,6 +468,13 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       <DailyWorkReportListModal
         isOpen={isDailyReportListModalOpen}
         onClose={() => setIsDailyReportListModalOpen(false)}
+        isAdmin={userIsAdmin}
+      />
+
+      {/* Work Plan List Modal - opened when clicking WORK_PLAN notification */}
+      <WorkPlanListModal
+        isOpen={isWorkPlanListModalOpen}
+        onClose={() => setIsWorkPlanListModalOpen(false)}
         isAdmin={userIsAdmin}
       />
     </>

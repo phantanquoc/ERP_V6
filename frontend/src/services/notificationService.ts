@@ -6,6 +6,7 @@ export interface AppNotification {
   type: string;
   title: string;
   message: string;
+  metadata?: Record<string, unknown>;
   period?: string;
   evaluationId?: string;
   taskId?: string;
@@ -18,11 +19,11 @@ export interface AppNotification {
 }
 
 class NotificationService {
-  async getEmployeeNotifications(limit: number = 10): Promise<AppNotification[]> {
+  async getEmployeeNotifications(limit: number = 10, since?: string): Promise<AppNotification[]> {
     try {
-      const response = await apiClient.get('/notifications', {
-        params: { limit },
-      });
+      const params: Record<string, string | number> = { limit };
+      if (since) params.since = since;
+      const response = await apiClient.get('/notifications', { params });
       return response.data || [];
     } catch (error) {
       console.error('Error fetching notifications:', error);

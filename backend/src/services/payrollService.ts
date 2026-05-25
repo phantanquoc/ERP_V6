@@ -1,6 +1,7 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
+import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 
 export class PayrollService {
@@ -566,7 +567,10 @@ export class PayrollService {
     const employeeIds = payrolls.map((p) => p.employeeId);
     const period = `${year}-${String(month).padStart(2, '0')}`;
 
-    await notificationService.createPayrollNotifications(employeeIds, month, year, period);
+    await notificationService.notify(NotificationEvent.PAYROLL_PUBLISHED, {
+      targetEmployeeIds: employeeIds,
+      metadata: { month, year, period },
+    });
 
     return { count: employeeIds.length };
   }

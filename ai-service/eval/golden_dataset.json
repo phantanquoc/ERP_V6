@@ -1,0 +1,142 @@
+[
+  {
+    "id": "kd-001",
+    "department": "DEPT_BUSINESS",
+    "role": "EMPLOYEE",
+    "question": "Tôi muốn tạo yêu cầu báo giá mới, cần điền những trường gì?",
+    "ground_truth": "Để tạo YCBG mới, vào tab 'Danh sách yêu cầu BG' → nhấn 'Thêm yêu cầu báo giá'. Các trường bắt buộc: Mã yêu cầu báo giá (tự động), Khách hàng (chọn từ danh sách), Sản phẩm (chọn từ danh sách), Số lượng, Đơn vị tính. Trường không bắt buộc: Yêu cầu sản phẩm, Quy cách đóng gói, Giá đối thủ bán, Giá bán gần nhất, Hình thức vận chuyển, Hình thức thanh toán, Quốc gia, Cảng đến, Ghi chú."
+  },
+  {
+    "id": "kd-002",
+    "department": "DEPT_BUSINESS",
+    "role": "EMPLOYEE",
+    "question": "Hình thức thanh toán trong YCBG nội địa có những lựa chọn nào?",
+    "ground_truth": "Hình thức thanh toán trong YCBG nội địa là dropdown với các lựa chọn: Tiền mặt, Chuyển khoản, Công nợ 15 ngày, Công nợ 30 ngày, Công nợ 45 ngày."
+  },
+  {
+    "id": "kd-003",
+    "department": "DEPT_BUSINESS",
+    "role": "EMPLOYEE",
+    "question": "Trạng thái báo giá 'DANG_CHO_PHAN_HOI' nghĩa là gì?",
+    "ground_truth": "Trạng thái DANG_CHO_PHAN_HOI có nhãn hiển thị là 'Đang chờ phản hồi', màu badge vàng. Nghĩa là báo giá đã được gửi cho khách hàng và đang chờ phản hồi từ phía khách."
+  },
+  {
+    "id": "kd-004",
+    "department": "DEPT_BUSINESS",
+    "role": "EMPLOYEE",
+    "question": "Tôi là nhân viên, tôi có quyền xóa YCBG không?",
+    "ground_truth": "Không. Theo bảng quyền truy cập, EMPLOYEE không có quyền xóa YCBG (❌). Chỉ TEAM_LEAD, DEPARTMENT_HEAD và ADMIN mới có quyền xóa YCBG."
+  },
+  {
+    "id": "kd-005",
+    "department": "DEPT_BUSINESS",
+    "role": "EMPLOYEE",
+    "question": "Sự khác nhau giữa YCBG quốc tế và nội địa là gì?",
+    "ground_truth": "YCBG quốc tế có thêm 2 trường: Quốc gia và Cảng đến. Hình thức vận chuyển và thanh toán nhập tay tự do (VD: FOB, CIF, T/T, L/C). YCBG nội địa thay bằng Địa chỉ giao hàng, hình thức vận chuyển và thanh toán dùng dropdown cố định."
+  },
+  {
+    "id": "kd-006",
+    "department": "DEPT_BUSINESS",
+    "role": "EMPLOYEE",
+    "question": "Các bước tạo đơn hàng từ báo giá như thế nào?",
+    "ground_truth": "Vào tab 'Danh sách BG' → tìm báo giá cần tạo đơn → nhấn biểu tượng giỏ hàng (tím) 'Tạo đơn hàng' → xác nhận 'Bạn có chắc chắn muốn tạo đơn hàng từ báo giá này?' → hệ thống tự tạo đơn hàng liên kết với báo giá đó."
+  },
+  {
+    "id": "kd-007",
+    "department": "DEPT_BUSINESS",
+    "role": "TEAM_LEAD",
+    "question": "Trạng thái sản xuất của đơn hàng có những giá trị nào?",
+    "ground_truth": "Trạng thái sản xuất gồm 7 giá trị: CHO_LEN_KE_HOACH (Chờ lên kế hoạch), CHO_SAN_XUAT (Chờ sản xuất), DANG_SAN_XUAT (Đang sản xuất), CHO_GIAO_HANG (Chờ giao hàng), DA_LEN_CONTAINER (Đã lên container), DANG_VAN_CHUYEN (Đang vận chuyển), DA_GIAO_CHO_KHACH_HANG (Đã giao cho khách hàng)."
+  },
+  {
+    "id": "tm-001",
+    "department": "DEPT_PURCHASING",
+    "role": "EMPLOYEE",
+    "question": "Form tạo nhà cung cấp mới cần điền những gì?",
+    "ground_truth": "Form tạo nhà cung cấp gồm 13 trường. Bắt buộc: Tên nhà cung cấp, Mã số thuế, Loại nhà cung cấp (Sản xuất/Thương mại). Không bắt buộc: Địa chỉ, Số điện thoại, Email, Website, Người liên hệ, Chức vụ người liên hệ, Số tài khoản ngân hàng, Tên ngân hàng, Trạng thái (Đang cung cấp/Ngừng cung cấp), Doanh chi (VNĐ)."
+  },
+  {
+    "id": "tm-002",
+    "department": "DEPT_PURCHASING",
+    "role": "EMPLOYEE",
+    "question": "Tôi muốn tạo yêu cầu mua hàng, các bước thực hiện như thế nào?",
+    "ground_truth": "Vào tab 'Danh sách mua hàng' → nhấn 'Tạo yêu cầu'. Điền các trường bắt buộc: Tên hàng hóa, Số lượng, Đơn vị tính, Nhà cung cấp (chọn từ danh sách), Ngày cần. Trường không bắt buộc: Mô tả, Ghi chú, File đính kèm. Nhấn 'Tạo mới' để lưu."
+  },
+  {
+    "id": "tm-003",
+    "department": "DEPT_PURCHASING",
+    "role": "EMPLOYEE",
+    "question": "Màu xanh dương và màu tím trong giao diện thu mua có ý nghĩa gì?",
+    "ground_truth": "Màu xanh dương (blue) là màu nhận diện của Phòng thu mua NVL (nguyên vật liệu). Màu tím (purple) là màu nhận diện của Phòng mua Thiết bị. Hai màu này giúp phân biệt dữ liệu và giao diện của hai phòng."
+  },
+  {
+    "id": "kt-001",
+    "department": "DEPT_ACCOUNTING",
+    "role": "EMPLOYEE",
+    "question": "Các trạng thái báo cáo thuế là gì?",
+    "ground_truth": "Báo cáo thuế có 5 trạng thái: CHUA_BAO_CAO (Chưa báo cáo - xám), DANG_CAP_NHAT_HO_SO (Đang cập nhật hồ sơ - vàng), DA_DAY_DU_HO_SO (Đã đầy đủ hồ sơ để báo cáo - xanh dương), DA_BAO_CAO (Đã báo cáo - xanh lá), DA_QUYET_TOAN (Đã quyết toán - tím)."
+  },
+  {
+    "id": "kt-002",
+    "department": "DEPT_ACCOUNTING",
+    "role": "TEAM_LEAD",
+    "question": "Làm thế nào để cập nhật đơn giá tài sản trong kho?",
+    "ground_truth": "Vào tab 'Quản lý tài sản' → chọn kho từ các tab kho → tìm sản phẩm trong lô → nhấn biểu tượng bút (Sửa) → form 'Chỉnh sửa giá thành' hiện ra → nhập Đơn giá (VND) mới (bắt buộc, min 0) → Thành tiền tự tính = Số lượng × Đơn giá → nhấn 'Lưu'."
+  },
+  {
+    "id": "cl-001",
+    "department": "DEPT_QUALITY",
+    "role": "TEAM_LEAD",
+    "question": "Làm thế nào để thêm một kiểm tra nội bộ mới?",
+    "ground_truth": "Vào tab 'Kiểm tra nội bộ' → nhấn 'Thêm mới' → điền form: Ngày kiểm tra (mặc định hôm nay), Mã kế hoạch kiểm tra, Mã vi phạm, Mức độ vi phạm (Quy định/Quy phạm quản lý/Khác), Loại vi phạm, Người kiểm tra, Nội dung vi phạm, Mô tả chi tiết, Trạng thái (Chờ xử lý/Đã xác nhận/Đã đóng) → nhấn 'Lưu'."
+  },
+  {
+    "id": "cl-002",
+    "department": "DEPT_QUALITY",
+    "role": "EMPLOYEE",
+    "question": "Tôi là nhân viên, tôi có quyền tạo kiểm tra nội bộ không?",
+    "ground_truth": "Không. Theo bảng quyền, chức năng Kiểm tra nội bộ yêu cầu ít nhất TEAM_LEAD (❌ với EMPLOYEE). Bạn cần liên hệ TEAM_LEAD hoặc DEPARTMENT_HEAD để thực hiện."
+  },
+  {
+    "id": "sx-001",
+    "department": "DEPT_PRODUCTION",
+    "role": "EMPLOYEE",
+    "question": "Các tab trong Phòng QLSX là gì?",
+    "ground_truth": "Phòng QLSX có 10 tab: Quản lý máy móc, Danh sách quy trình, Danh sách quy trình sản xuất, Danh sách đơn hàng, Định mức NVL, Đánh giá nguyên liệu, Thông số vận hành hệ thống, Thành phẩm đầu ra, Đánh giá chất lượng, Báo cáo sản lượng."
+  },
+  {
+    "id": "kt-001-chung",
+    "department": "DEPT_TECHNICAL",
+    "role": "EMPLOYEE",
+    "question": "Làm thế nào để thêm máy mới vào hệ thống?",
+    "ground_truth": "Vào tab 'Quản lý máy móc' → nhấn 'Thêm máy mới' → điền form: Mã máy (tự động), Tên máy (bắt buộc, VD: Máy sấy 1), Trạng thái (bắt buộc: Hoạt động/Bảo trì/Ngừng hoạt động), Mô tả, Ghi chú → nhấn 'Thêm mới'."
+  },
+  {
+    "id": "chung-001",
+    "department": "DEPT_BUSINESS",
+    "role": "EMPLOYEE",
+    "question": "Làm thế nào để xin nghỉ phép?",
+    "ground_truth": "Từ Dashboard → nhấn nút 'Xin nghỉ phép' → mở LeaveRequestModal → điền: Loại nghỉ phép (bắt buộc: Nghỉ phép năm/Nghỉ ốm/Nghỉ việc riêng/Nghỉ thai sản/Nghỉ khẩn cấp/Nghỉ bù), Ngày bắt đầu (bắt buộc), Ngày kết thúc (bắt buộc, ≥ ngày bắt đầu), Lý do nghỉ phép (bắt buộc). Tùy chọn: Nghỉ nửa ngày (checkbox), File đính kèm (PDF/DOC/JPG/PNG, tối đa 100MB) → Lưu."
+  },
+  {
+    "id": "chung-002",
+    "department": "DEPT_PURCHASING",
+    "role": "EMPLOYEE",
+    "question": "Tôi muốn gửi báo cáo công việc hàng ngày, cần điền những gì?",
+    "ground_truth": "Từ Dashboard → nhấn 'Báo cáo công việc' → nhấn 'Tạo báo cáo mới' → điền: Ngày báo cáo (bắt buộc, mặc định hôm nay), Số giờ làm việc (mặc định 8, từ 0-24), Mô tả công việc đã làm (bắt buộc). Không bắt buộc: Thành tựu/Kết quả, Khó khăn/Vấn đề, Kế hoạch ngày hôm sau, File đính kèm (PDF/DOC/XLS/JPG/PNG) → nhấn 'Gửi báo cáo'."
+  },
+  {
+    "id": "chung-003",
+    "department": "DEPT_QUALITY",
+    "role": "EMPLOYEE",
+    "question": "Tôi là nhân viên, tôi có thể tạo nhiệm vụ cho người khác không?",
+    "ground_truth": "Không. Chức năng tạo nhiệm vụ chỉ dành cho TEAM_LEAD, DEPARTMENT_HEAD và ADMIN. Nhân viên (EMPLOYEE) không có quyền tạo nhiệm vụ. Bạn chỉ có thể xem danh sách nhiệm vụ được giao qua thẻ 'Nhiệm vụ' trên Dashboard."
+  },
+  {
+    "id": "admin-001",
+    "department": "DEPT_BUSINESS",
+    "role": "ADMIN",
+    "question": "Làm thế nào để khóa tài khoản một nhân viên?",
+    "ground_truth": "Vào trang Cài đặt hệ thống → phần Quản lý người dùng → tìm nhân viên trong bảng → nhấn toggle ở cột Trạng thái để chuyển từ 'Hoạt động' sang 'Khóa'. Tài khoản bị khóa sẽ không đăng nhập được. Để mở khóa, thực hiện lại thao tác tương tự."
+  }
+]

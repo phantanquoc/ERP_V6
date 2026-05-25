@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bell, X, ChevronLeft, ChevronRight, CheckCheck, Trash2 } from 'lucide-react';
 import notificationService, { AppNotification } from '@services/notificationService';
 import { getNotificationIcon } from '../utils/notificationIcons';
+import { formatRelativeTime } from '../utils/formatRelativeTime';
 
 interface AllNotificationsModalProps {
   isOpen: boolean;
@@ -9,7 +10,28 @@ interface AllNotificationsModalProps {
   onNotificationClick: (notification: AppNotification) => void;
 }
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 15;
+
+function groupByDate(notifications: AppNotification[]): { label: string; items: AppNotification[] }[] {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+  const todayItems: AppNotification[] = [];
+  const yesterdayItems: AppNotification[] = [];
+  const earlierItems: AppNotification[] = [];
+
+  for (const n of notifications) {
+    const d = new Date(n.createdAt); d.setHours(0, 0, 0, 0);
+    if (d.getTime() === today.getTime()) todayItems.push(n);
+    else if (d.getTime() === yesterday.getTime()) yesterdayItems.push(n);
+    else earlierItems.push(n);
+  }
+
+  const groups: { label: string; items: AppNotification[] }[] = [];
+  if (todayItems.length) groups.push({ label: 'Hôm nay', items: todayItems });
+  if (yesterdayItems.length) groups.push({ label: 'Hôm qua', items: yesterdayItems });
+  if (earlierItems.length) groups.push({ label: 'Trước đó', items: earlierItems });
+  return groups;
+}
 
 const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, onClose, onNotificationClick }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -24,15 +46,21 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
     }
   }, [isOpen]);
 
+  // Listen for WS notifications to auto-refresh
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = () => loadAllNotifications();
+    window.addEventListener('ws-notification', handler);
+    return () => window.removeEventListener('ws-notification', handler);
+  }, [isOpen]);
+
   const loadAllNotifications = async () => {
     try {
       setLoading(true);
-      // Lấy nhiều notification, filter 1 tháng ở frontend
-      const data = await notificationService.getEmployeeNotifications(200);
       const oneMonthAgo = new Date();
       oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-      const filtered = data.filter(n => new Date(n.createdAt) >= oneMonthAgo);
-      setNotifications(filtered);
+      const data = await notificationService.getEmployeeNotifications(200, oneMonthAgo.toISOString());
+      setNotifications(data);
     } catch (error) {
       console.error('Error loading all notifications:', error);
     } finally {
@@ -40,7 +68,33 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
     }
   };
 
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      // Signal NotificationBell to re-fetch the unread badge count
+      window.dispatchEvent(new Event('ws-notification'));
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này?')) return;
+    try {
+      await notificationService.deleteNotification(id);
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
+  };
+
   const handleClick = (notification: AppNotification) => {
+    if (!notification.isRead) {
+      notificationService.markAsRead(notification.id);
+      setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, isRead: true } : n));
+    }
     onNotificationClick(notification);
   };
 
@@ -53,6 +107,7 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+  const groups = groupByDate(paginatedNotifications);
 
   if (!isOpen) return null;
 
@@ -73,8 +128,8 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
           </button>
         </div>
 
-        {/* Filter tabs */}
-        <div className="flex gap-1 px-6 py-2 border-b border-gray-200 bg-white">
+        {/* Filter tabs + Mark all read */}
+        <div className="flex gap-1 px-6 py-2 border-b border-gray-200 bg-white items-center">
           <button
             onClick={() => { setShowUnreadOnly(false); setCurrentPage(1); }}
             className={`text-sm px-4 py-1.5 rounded-full transition-colors ${
@@ -95,6 +150,15 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
           >
             Chưa đọc {unreadCount > 0 && `(${unreadCount})`}
           </button>
+          {unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllRead}
+              className="ml-auto text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+            >
+              <CheckCheck className="w-4 h-4" />
+              Đọc tất cả
+            </button>
+          )}
         </div>
 
         {/* Content */}
@@ -111,27 +175,43 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
               <p className="text-sm mt-1">{showUnreadOnly ? 'Tất cả thông báo đã được đọc' : 'Trong 1 tháng gần nhất không có thông báo nào'}</p>
             </div>
           ) : (
-            paginatedNotifications.map(notification => (
-              <div
-                key={notification.id}
-                onClick={() => handleClick(notification)}
-                className={`px-6 py-4 border-b border-gray-100 cursor-pointer transition-colors ${
-                  notification.isRead ? 'bg-white hover:bg-gray-50' : 'bg-blue-50 hover:bg-blue-100'
-                }`}
-              >
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 mt-1">{getNotificationIcon(notification.type)}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
-                    <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      {new Date(notification.createdAt).toLocaleString('vi-VN')}
-                    </p>
-                  </div>
-                  {!notification.isRead && (
-                    <div className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full mt-2" />
-                  )}
+            groups.map(group => (
+              <div key={group.label}>
+                <div className="px-6 py-1.5 bg-gray-100 text-xs font-medium text-gray-500 sticky top-0">
+                  {group.label}
                 </div>
+                {group.items.map(notification => (
+                  <div
+                    key={notification.id}
+                    onClick={() => handleClick(notification)}
+                    className={`px-6 py-4 border-b border-gray-100 cursor-pointer transition-colors group ${
+                      notification.isRead ? 'bg-white hover:bg-gray-50' : 'bg-blue-50 hover:bg-blue-100'
+                    }`}
+                  >
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 mt-1">{getNotificationIcon(notification.type)}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                        <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
+                        <p className="text-xs text-gray-400 mt-2">
+                          {formatRelativeTime(notification.createdAt)}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 flex items-center gap-2">
+                        {!notification.isRead && (
+                          <div className="w-2 h-2 bg-blue-600 rounded-full" />
+                        )}
+                        <button
+                          onClick={(e) => handleDelete(e, notification.id)}
+                          className="p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Xóa thông báo"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))
           )}

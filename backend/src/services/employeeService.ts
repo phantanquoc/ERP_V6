@@ -36,18 +36,80 @@ export class EmployeeService {
     // Format: NV001, NV002, etc.
     return `NV${String(sequence).padStart(3, '0')}`;
   }
-  async getAllEmployees(page: number = 1, limit: number = 10, departmentId?: string): Promise<PaginatedResponse<any>> {
+  async getAllEmployees(page: number = 1, limit: number = 10, departmentId?: string, search?: string): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
-    // Nếu có departmentId thì filter theo department của user
-    const where = departmentId
-      ? {
+    // Build where conditions
+    const conditions: any[] = [];
+
+    // Filter theo department
+    if (departmentId) {
+      conditions.push({
+        OR: [
+          { user: { departmentId } },
+          { subDepartment: { departmentId } },
+        ],
+      });
+    }
+
+    // Filter theo search (tên, mã NV, email, chức vụ, tên bộ phận)
+    if (search) {
+      // Tìm department IDs matching search (vì User không có relation trực tiếp đến Department)
+      const matchingDepts = await prisma.department.findMany({
+        where: { name: { contains: search, mode: 'insensitive' } },
+        select: { id: true },
+      });
+      const matchingSubDepts = await prisma.subDepartment.findMany({
+        where: {
           OR: [
-            { user: { departmentId } },
-            { subDepartment: { departmentId } },
+            { name: { contains: search, mode: 'insensitive' } },
+            { department: { name: { contains: search, mode: 'insensitive' } } },
           ],
-        }
-      : {};
+        },
+        select: { id: true, departmentId: true },
+      });
+      const deptIds = matchingDepts.map(d => d.id);
+      const subDeptIds = matchingSubDepts.map(sd => sd.id);
+      // Merge departmentIds from subDepts
+      matchingSubDepts.forEach(sd => {
+        if (!deptIds.includes(sd.departmentId)) deptIds.push(sd.departmentId);
+      });
+
+      const searchConditions: any[] = [
+        { employeeCode: { contains: search, mode: 'insensitive' } },
+        { user: { email: { contains: search, mode: 'insensitive' } } },
+        { position: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+
+      // Split search into words for Vietnamese name matching
+      // e.g. "Nông Thị L" → firstName="Nông", lastName="Thị L" — each word must match one of them
+      const words = search.trim().split(/\s+/);
+      if (words.length > 1) {
+        searchConditions.push({
+          AND: words.map(word => ({
+            OR: [
+              { user: { firstName: { contains: word, mode: 'insensitive' } } },
+              { user: { lastName: { contains: word, mode: 'insensitive' } } },
+            ],
+          })),
+        });
+      } else {
+        searchConditions.push({ user: { firstName: { contains: search, mode: 'insensitive' } } });
+        searchConditions.push({ user: { lastName: { contains: search, mode: 'insensitive' } } });
+      }
+
+      // Add department-based search if matching departments found
+      if (deptIds.length > 0) {
+        searchConditions.push({ user: { departmentId: { in: deptIds } } });
+      }
+      if (subDeptIds.length > 0) {
+        searchConditions.push({ subDepartmentId: { in: subDeptIds } });
+      }
+
+      conditions.push({ OR: searchConditions });
+    }
+
+    const where = conditions.length > 0 ? { AND: conditions } : {};
 
     const [employees, total] = await Promise.all([
       prisma.employee.findMany({
@@ -290,12 +352,25 @@ export class EmployeeService {
     const where: any = {};
 
     if (filters?.search) {
-      where.OR = [
+      const exportSearchConditions: any[] = [
         { employeeCode: { contains: filters.search, mode: 'insensitive' } },
-        { user: { firstName: { contains: filters.search, mode: 'insensitive' } } },
-        { user: { lastName: { contains: filters.search, mode: 'insensitive' } } },
         { user: { email: { contains: filters.search, mode: 'insensitive' } } },
       ];
+      const exportWords = filters.search.trim().split(/\s+/);
+      if (exportWords.length > 1) {
+        exportSearchConditions.push({
+          AND: exportWords.map((word: string) => ({
+            OR: [
+              { user: { firstName: { contains: word, mode: 'insensitive' } } },
+              { user: { lastName: { contains: word, mode: 'insensitive' } } },
+            ],
+          })),
+        });
+      } else {
+        exportSearchConditions.push({ user: { firstName: { contains: filters.search, mode: 'insensitive' } } });
+        exportSearchConditions.push({ user: { lastName: { contains: filters.search, mode: 'insensitive' } } });
+      }
+      where.OR = exportSearchConditions;
     }
 
     const data = await prisma.employee.findMany({

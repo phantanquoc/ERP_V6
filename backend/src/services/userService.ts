@@ -135,6 +135,8 @@ export class UserService {
         supervisor2Id: true,
         employees: {
           select: {
+            id: true,
+            employeeCode: true,
             phoneNumber: true,
             bankAccount: true,
             lockerNumber: true,
@@ -215,6 +217,8 @@ export class UserService {
     return {
       ...user,
       employees: undefined,
+      employeeId: employeeData?.id || null,
+      employeeCode: employeeData?.employeeCode || null,
       phoneNumber: employeeData?.phoneNumber || null,
       bankAccount: employeeData?.bankAccount || null,
       lockerNumber: employeeData?.lockerNumber || null,

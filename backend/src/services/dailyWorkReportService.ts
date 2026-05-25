@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import logger from '@config/logger';
 import { DailyWorkReportStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 
 export class DailyWorkReportService {
@@ -199,11 +200,10 @@ export class DailyWorkReportService {
         ? `${report.employee.user.firstName} ${report.employee.user.lastName}`
         : 'Nhân viên';
       const reportDateStr = new Date(report.reportDate).toLocaleDateString('vi-VN');
-      await notificationService.createAdminDailyReportNotification(
-        employeeName,
-        reportDateStr,
-        report.employee?.user?.id
-      );
+      await notificationService.notify(NotificationEvent.DAILY_WORK_REPORT_SUBMITTED, {
+        actorUserId: report.employee?.user?.id,
+        metadata: { employeeName, reportDate: reportDateStr },
+      });
     } catch (error) {
       logger.error('Error sending admin daily report notification:', error);
     }

@@ -640,7 +640,7 @@ const FaceKioskPage: React.FC = () => {
       if (videoRef.current?.srcObject)
         (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     };
-  }, [accessGranted, drawLoop, isLocalDev, kioskConfig.deviceKey]);
+  }, [drawLoop, isLocalDev, kioskConfig.deviceKey, accessGranted]);
 
   const overlayBg: Record<string, string> = {
     success: 'bg-green-500', info: 'bg-blue-500', error: 'bg-red-500', warning: 'bg-amber-500',
@@ -652,41 +652,47 @@ const FaceKioskPage: React.FC = () => {
     warning: <AlertCircle className="w-24 h-24 text-white" />,
   };
 
+  // Access denied screen
+  if (accessGranted === false) {
+    return (
+      <div className="fixed inset-0 bg-black flex flex-col items-center justify-center">
+        <p className="text-white text-2xl font-semibold">Truy cập bị từ chối</p>
+        <p className="text-white/60 text-sm mt-2">Thiết bị kiosk cần session key hợp lệ</p>
+      </div>
+    );
+  }
+
+  // Sleep screen — tap to wake
+  if (sleeping) {
+    return (
+      <div
+        className="fixed inset-0 bg-black flex flex-col items-center justify-center cursor-pointer"
+        onClick={wakeUp}
+      >
+        <div className="flex flex-col items-center gap-4 opacity-30">
+          <div
+            className="border-2 border-white/60 border-dashed rounded-full animate-pulse"
+            style={{ width: 'min(180px, 25vw)', height: 'min(220px, 30vh)' }}
+          />
+          <p className="text-white text-lg font-light tracking-widest uppercase">Nhấn để bật lại</p>
+          <p className="text-white/50 text-sm">{currentTime.toLocaleTimeString('vi-VN')}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-black select-none overflow-hidden">
 
-      {/* Access denied / validating */}
-      {accessGranted === null && (
-        <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-50">
-          <div className="w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-white text-lg">Đang xác thực phiên...</p>
-        </div>
-      )}
-      {accessGranted === false && (
-        <div className="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-50 p-8 text-center">
-          <XCircle className="w-20 h-20 text-red-400 mb-6" />
-          <h2 className="text-white text-2xl font-bold mb-3">Truy cập bị từ chối</h2>
-          <p className="text-gray-400 text-lg max-w-md">
-            Phiên chấm công không hợp lệ hoặc đã hết hạn. Vui lòng liên hệ quản trị viên để mở lại trang chấm công.
-          </p>
-        </div>
-      )}
-
-      {/* Standby / Sleep overlay */}
-      {dimmed && (
-        <div
-          className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-[2000ms] cursor-pointer"
-          onClick={sleeping ? wakeUp : undefined}
-          onTouchStart={sleeping ? wakeUp : undefined}
-        >
+      {/* Standby overlay */}
+      {dimmed && !sleeping && (
+        <div className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-[2000ms]">
           <div className="flex flex-col items-center gap-6 opacity-40">
             <div
               className="border-2 border-white/60 border-dashed rounded-full animate-pulse"
               style={{ width: 'min(220px, 30vw)', height: 'min(280px, 38vh)' }}
             />
-            <p className="text-white text-xl font-light tracking-widest uppercase">
-              {sleeping ? 'Chạm để chấm công' : 'Chế độ chờ'}
-            </p>
+            <p className="text-white text-xl font-light tracking-widest uppercase">Chế độ chờ</p>
             <p className="text-white/50 text-sm">{currentTime.toLocaleTimeString('vi-VN')}</p>
           </div>
         </div>
@@ -763,21 +769,62 @@ const FaceKioskPage: React.FC = () => {
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative z-10 flex flex-col items-center gap-4">
-            <div className="relative" style={{ width: 'min(200px, 30vw)', height: 'min(200px, 30vw)' }}>
-              <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
-                <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
-                <ellipse cx="100" cy="88" rx="45" ry="30" fill="none" stroke="#facc15" strokeWidth="5">
-                  <animate attributeName="ry" values="30;3;30" dur="1.8s" repeatCount="indefinite" keyTimes="0;0.25;0.5" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline" />
-                </ellipse>
-                <circle cx="100" cy="88" r="14" fill="#facc15">
-                  <animate attributeName="opacity" values="1;0;1" dur="1.8s" repeatCount="indefinite" />
-                  <animate attributeName="r" values="14;2;14" dur="1.8s" repeatCount="indefinite" keyTimes="0;0.25;0.5" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline" />
-                </circle>
-                <path d="M50 140 Q100 165 150 140" fill="none" stroke="#facc15" strokeWidth="3" strokeLinecap="round" />
-              </svg>
+            <div className="relative" style={{ width: 'min(460px, 72vw)', height: 'min(280px, 42vw)' }}>
+              {activeChallenge === 'look_left' && (
+                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
+                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
+                  <path d="M130 60 L70 100 L130 140" fill="none" stroke="#facc15" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round">
+                    <animate attributeName="d" values="M130 60 L70 100 L130 140;M120 55 L55 100 L120 145;M130 60 L70 100 L130 140" dur="1s" repeatCount="indefinite" />
+                  </path>
+                </svg>
+              )}
+              {activeChallenge === 'look_right' && (
+                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
+                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
+                  <path d="M70 60 L130 100 L70 140" fill="none" stroke="#facc15" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round">
+                    <animate attributeName="d" values="M70 60 L130 100 L70 140;M80 55 L145 100 L80 145;M70 60 L130 100 L70 140" dur="1s" repeatCount="indefinite" />
+                  </path>
+                </svg>
+              )}
+              {activeChallenge === 'look_up' && (
+                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_24px_rgba(250,204,21,0.7)]">
+                  <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.6)" stroke="#facc15" strokeWidth="4" />
+                  <path d="M60 130 L100 70 L140 130" fill="none" stroke="#facc15" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round">
+                    <animate attributeName="d" values="M60 130 L100 70 L140 130;M55 140 L100 55 L145 140;M60 130 L100 70 L140 130" dur="1s" repeatCount="indefinite" />
+                  </path>
+                </svg>
+              )}
+              {activeChallenge === 'blink' && (
+                <svg viewBox="0 0 300 180" className="w-full h-full drop-shadow-[0_0_26px_rgba(250,204,21,0.85)]">
+                  <g>
+                    <ellipse cx="95" cy="90" rx="50" ry="28" fill="none" stroke="#facc15" strokeWidth="8">
+                      <animate attributeName="ry" values="28;28;5;5;28" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </ellipse>
+                    <circle cx="95" cy="90" r="14" fill="#facc15">
+                      <animate attributeName="opacity" values="1;1;0;0;1" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                      <animate attributeName="r" values="14;14;2;2;14" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </circle>
+                    <path d="M45 90 Q95 110 145 90" fill="none" stroke="#facc15" strokeWidth="8" strokeLinecap="round" opacity="0">
+                      <animate attributeName="opacity" values="0;0;1;1;0" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </path>
+                  </g>
+                  <g>
+                    <ellipse cx="205" cy="90" rx="50" ry="28" fill="none" stroke="#facc15" strokeWidth="8">
+                      <animate attributeName="ry" values="28;28;5;5;28" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </ellipse>
+                    <circle cx="205" cy="90" r="14" fill="#facc15">
+                      <animate attributeName="opacity" values="1;1;0;0;1" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                      <animate attributeName="r" values="14;14;2;2;14" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </circle>
+                    <path d="M155 90 Q205 110 255 90" fill="none" stroke="#facc15" strokeWidth="8" strokeLinecap="round" opacity="0">
+                      <animate attributeName="opacity" values="0;0;1;1;0" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.48;0.60;0.72;1" calcMode="linear" />
+                    </path>
+                  </g>
+                </svg>
+              )}
             </div>
             <p className="text-4xl font-black text-yellow-300 text-center drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] tracking-wider" style={{ fontSize: 'min(10vw, 48px)' }}>
-              {CHALLENGE_LABELS.blink}
+              {CHALLENGE_LABELS[activeChallenge]}
             </p>
           </div>
         </div>
@@ -795,7 +842,7 @@ const FaceKioskPage: React.FC = () => {
       {kioskState === 'processing' && (
         <div className="absolute inset-0 bg-black/30 flex flex-col items-center justify-center z-20">
           <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-white text-xl font-semibold drop-shadow">Đang nhận diện...</p>
+          <p className="text-white text-xl font-semibold drop-shadow">Giữ mặt nhìn thẳng, Đang nhận diện...</p>
         </div>
       )}
 
@@ -836,7 +883,7 @@ const FaceKioskPage: React.FC = () => {
               <div className={`flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border ${kioskState === 'challenge' ? 'border-amber-400/60' : qualityCount > 0 ? 'border-cyan-400/60' : 'border-blue-400/40'}`}>
                 <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${kioskState === 'challenge' ? 'bg-amber-400' : qualityCount > 0 ? 'bg-cyan-400' : 'bg-blue-400'}`} />
                 <span className={`text-sm font-medium ${kioskState === 'challenge' ? 'text-amber-200' : qualityCount > 0 ? 'text-cyan-200' : 'text-blue-200'}`}>
-                  {statusHint || (kioskState === 'challenge' ? CHALLENGE_LABELS.blink : 'Nhìn thẳng vào màn hình')}
+                  {statusHint || (kioskState === 'challenge' ? CHALLENGE_LABELS[activeChallenge || 'look_left'] : 'Nhìn thẳng vào màn hình')}
                 </span>
               </div>
               {qualityCount > 0 && kioskState !== 'challenge' && (

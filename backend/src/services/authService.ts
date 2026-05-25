@@ -13,7 +13,7 @@ import {
   ValidationError,
 } from '@utils/errors';
 import type { JwtPayload, AuthResponse } from '@types';
-import { NotificationType } from '@types';
+import { NotificationEvent } from '@types';
 import loginHistoryService from './loginHistoryService';
 import notificationService from './notificationService';
 
@@ -407,22 +407,13 @@ export class AuthService {
       data: { password: hashedPassword },
     });
 
-    // Find all admin users and send notification
-    const adminUsers = await prisma.user.findMany({
-      where: { role: 'ADMIN', isActive: true },
-      include: { employees: true },
-    });
-
-    for (const admin of adminUsers) {
-      if (admin.employees) {
-        await notificationService.createNotification({
-          userId: admin.id,
-          type: NotificationType.PASSWORD_RESET,
-          title: 'Yêu cầu đặt lại mật khẩu',
-          message: `Nhân viên ${user.lastName} ${user.firstName} (${employee.employeeCode}) yêu cầu đặt lại mật khẩu. Mật khẩu mới: ${newPassword}`,
-        });
-      }
-    }
+    // Notify admins about password reset
+    await notificationService.notify(NotificationEvent.PASSWORD_RESET_REQUESTED, {
+      actorUserId: user.id,
+      metadata: {
+        employeeName: `${user.lastName} ${user.firstName} (${employee.employeeCode})`,
+      },
+    }).catch(() => {});
 
     logger.info(`Password reset for user ${user.email} (${employee.employeeCode})`);
   }

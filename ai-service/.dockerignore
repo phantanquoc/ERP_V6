@@ -2,3 +2,10 @@
 !.dockerignore
 !requirements.txt
 !main.py
+!app.py
+!config.py
+!face/
+!chat/
+!agent/
+!wheels/
+

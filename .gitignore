@@ -44,3 +44,9 @@ nginx/ssl/*.crt
 postgres_data/
 
 .gitnexus
+__pycache__/
+*.pyc
+
+# AI service build artifacts
+ai-service/wheels/
+docs/chatbot-test-results.json

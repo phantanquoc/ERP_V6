@@ -2,7 +2,7 @@ import prisma from '@config/database';
 import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import notificationService from './notificationService';
-import { NotificationType, EvaluationStatus } from '@types';
+import { NotificationType, EvaluationStatus, NotificationEvent } from '@types';
 
 export class EmployeeEvaluationService {
   async getEmployeeEvaluations(month: number, year: number): Promise<any[]> {
@@ -192,12 +192,11 @@ export class EmployeeEvaluationService {
 
       // Create notification for employee (skip ADMIN — they only review subordinates)
       if (employee.user?.role !== 'ADMIN') {
-        await notificationService.createEvaluationNotification(
-          employeeId,
-          month,
-          year,
-          evaluation.id
-        );
+        await notificationService.notify(NotificationEvent.EVALUATION_CREATED, {
+          targetEmployeeIds: [employeeId],
+          entityId: evaluation.id,
+          metadata: { evaluationId: evaluation.id, period: `${year}-${String(month).padStart(2, '0')}`, monthName: new Date(year, month - 1).toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' }) },
+        });
       }
     }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getFileUrl } from '../../config/api';
 import {
   Activity,
@@ -25,12 +26,22 @@ import acceptanceHandoverService, { AcceptanceHandover } from '../../services/ac
 type TabType = 'machineSystems' | 'machineActivity' | 'orders' | 'repairRequests' | 'acceptance';
 
 const TechnicalQuality = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('machineSystems');
+  const [searchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as TabType) || 'machineSystems';
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [searchTerm, setSearchTerm] = useState('');
   const [acceptanceData, setAcceptanceData] = useState<AcceptanceHandover[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedAcceptance, setSelectedAcceptance] = useState<AcceptanceHandover | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  // Sync tab when URL query param changes (e.g. from notification click)
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as TabType | null;
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   // Load acceptance handover data
   useEffect(() => {
