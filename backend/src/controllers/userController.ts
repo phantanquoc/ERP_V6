@@ -38,7 +38,9 @@ export class UserController {
   async updateUser(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
-      const { firstName, lastName, role, isActive, departmentId, subDepartmentId, secondaryDepartmentId, secondarySubDepartmentId, secondaryRole } = req.body;
+      const { firstName, lastName, role, isActive, departmentId, subDepartmentId,
+              secondaryDepartmentId, secondarySubDepartmentId, secondaryRole,
+              secondaryDepartments } = req.body;
 
       const user = await userService.updateUser(id as string, {
         firstName,
@@ -50,6 +52,7 @@ export class UserController {
         secondaryDepartmentId,
         secondarySubDepartmentId,
         secondaryRole,
+        secondaryDepartments,
       });
 
       res.status(200).json({
@@ -100,7 +103,9 @@ export class UserController {
 
   async createUser(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { email, password, firstName, lastName, role, departmentId, subDepartmentId, secondaryDepartmentId, secondarySubDepartmentId, secondaryRole } = req.body;
+      const { email, password, firstName, lastName, role, departmentId, subDepartmentId,
+              secondaryDepartmentId, secondarySubDepartmentId, secondaryRole,
+              secondaryDepartments } = req.body;
 
       const user = await userService.createUser({
         email,
@@ -113,6 +118,7 @@ export class UserController {
         secondaryDepartmentId,
         secondarySubDepartmentId,
         secondaryRole,
+        secondaryDepartments,
       });
 
       res.status(201).json({

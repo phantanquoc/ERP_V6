@@ -18,9 +18,9 @@ model User {
   isActive        Boolean              @default(true)
   departmentId                String?
   subDepartmentId             String?
-  secondaryDepartmentId       String?
-  secondarySubDepartmentId    String?
-  secondaryRole               UserRole?
+  secondaryDepartmentId       String?   // @deprecated — use secondaryDepartments relation
+  secondarySubDepartmentId    String?   // @deprecated — use secondaryDepartments relation
+  secondaryRole               UserRole? // @deprecated — use secondaryDepartments relation
   supervisor1Id               String?
   supervisor2Id               String?
   createdAt       DateTime             @default(now())
@@ -31,8 +31,24 @@ model User {
   employees        Employee?
   privateFeedbacks  PrivateFeedback[]
   pushSubscriptions PushSubscription[]
+  secondaryDepartments UserSecondaryDepartment[]
 
   @@map("users")
+  @@schema("auth")
+}
+
+model UserSecondaryDepartment {
+  id              String   @id @default(cuid())
+  userId          String
+  departmentId    String
+  subDepartmentId String?
+  role            UserRole @default(EMPLOYEE)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, departmentId, subDepartmentId])
+  @@map("user_secondary_departments")
   @@schema("auth")
 }
 

@@ -31,6 +31,10 @@ export class UserService {
           secondaryRole: true,
           supervisor1Id: true,
           supervisor2Id: true,
+          secondaryDepartments: {
+            select: { id: true, departmentId: true, subDepartmentId: true, role: true },
+            orderBy: { createdAt: 'asc' },
+          },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -95,12 +99,26 @@ export class UserService {
           supervisor2 = sup2;
         }
 
+        // Resolve names for secondary departments array
+        const secondaryDepartments = await Promise.all(
+          (user.secondaryDepartments ?? []).map(async (s: any) => {
+            const [dept, subDept] = await Promise.all([
+              prisma.department.findUnique({ where: { id: s.departmentId }, select: { name: true } }),
+              s.subDepartmentId
+                ? prisma.subDepartment.findUnique({ where: { id: s.subDepartmentId }, select: { name: true } })
+                : null,
+            ]);
+            return { ...s, departmentName: dept?.name ?? null, subDepartmentName: subDept?.name ?? null };
+          })
+        );
+
         return {
           ...user,
           departmentName,
           subDepartmentName,
           secondaryDepartmentName,
           secondarySubDepartmentName,
+          secondaryDepartments,
           supervisor1,
           supervisor2,
         };
@@ -134,6 +152,10 @@ export class UserService {
         secondarySubDepartmentId: true,
         supervisor1Id: true,
         supervisor2Id: true,
+        secondaryDepartments: {
+          select: { id: true, departmentId: true, subDepartmentId: true, role: true },
+          orderBy: { createdAt: 'asc' },
+        },
         employees: {
           select: {
             id: true,
@@ -156,7 +178,6 @@ export class UserService {
       throw new NotFoundError('User not found');
     }
 
-    // Get department and subdepartment names
     let departmentName = null;
     let subDepartmentName = null;
     let secondaryDepartmentName = null;
@@ -165,54 +186,41 @@ export class UserService {
     let supervisor2 = null;
 
     if (user.departmentId) {
-      const dept = await prisma.department.findUnique({
-        where: { id: user.departmentId },
-        select: { name: true },
-      });
+      const dept = await prisma.department.findUnique({ where: { id: user.departmentId }, select: { name: true } });
       departmentName = dept?.name;
     }
-
     if (user.subDepartmentId) {
-      const subDept = await prisma.subDepartment.findUnique({
-        where: { id: user.subDepartmentId },
-        select: { name: true },
-      });
+      const subDept = await prisma.subDepartment.findUnique({ where: { id: user.subDepartmentId }, select: { name: true } });
       subDepartmentName = subDept?.name;
     }
-
     if (user.secondaryDepartmentId) {
-      const dept2 = await prisma.department.findUnique({
-        where: { id: user.secondaryDepartmentId },
-        select: { name: true },
-      });
+      const dept2 = await prisma.department.findUnique({ where: { id: user.secondaryDepartmentId }, select: { name: true } });
       secondaryDepartmentName = dept2?.name;
     }
-
     if (user.secondarySubDepartmentId) {
-      const subDept2 = await prisma.subDepartment.findUnique({
-        where: { id: user.secondarySubDepartmentId },
-        select: { name: true },
-      });
+      const subDept2 = await prisma.subDepartment.findUnique({ where: { id: user.secondarySubDepartmentId }, select: { name: true } });
       secondarySubDepartmentName = subDept2?.name;
     }
-
     if (user.supervisor1Id) {
-      const sup1 = await prisma.user.findUnique({
-        where: { id: user.supervisor1Id },
-        select: { id: true, firstName: true, lastName: true, email: true },
-      });
-      supervisor1 = sup1;
+      supervisor1 = await prisma.user.findUnique({ where: { id: user.supervisor1Id }, select: { id: true, firstName: true, lastName: true, email: true } });
     }
-
     if (user.supervisor2Id) {
-      const sup2 = await prisma.user.findUnique({
-        where: { id: user.supervisor2Id },
-        select: { id: true, firstName: true, lastName: true, email: true },
-      });
-      supervisor2 = sup2;
+      supervisor2 = await prisma.user.findUnique({ where: { id: user.supervisor2Id }, select: { id: true, firstName: true, lastName: true, email: true } });
     }
 
-    // Flatten employee data into user object
+    // Resolve names for secondary departments array
+    const secondaryDepartments = await Promise.all(
+      (user.secondaryDepartments ?? []).map(async (s: any) => {
+        const [dept, subDept] = await Promise.all([
+          prisma.department.findUnique({ where: { id: s.departmentId }, select: { name: true } }),
+          s.subDepartmentId
+            ? prisma.subDepartment.findUnique({ where: { id: s.subDepartmentId }, select: { name: true } })
+            : null,
+        ]);
+        return { ...s, departmentName: dept?.name ?? null, subDepartmentName: subDept?.name ?? null };
+      })
+    );
+
     const employeeData = user.employees;
 
     return {
@@ -233,6 +241,7 @@ export class UserService {
       subDepartmentName,
       secondaryDepartmentName,
       secondarySubDepartmentName,
+      secondaryDepartments,
       supervisor1,
       supervisor2,
     };
@@ -252,6 +261,12 @@ export class UserService {
       secondaryRole?: string | null;
       supervisor1Id?: string | null;
       supervisor2Id?: string | null;
+      /** New: replace all secondary departments. If provided, takes precedence over legacy fields. */
+      secondaryDepartments?: Array<{
+        departmentId: string;
+        subDepartmentId?: string | null;
+        role?: string;
+      }>;
     }
   ): Promise<any> {
     const user = await prisma.user.findUnique({ where: { id } });
@@ -324,6 +339,35 @@ export class UserService {
       },
     });
 
+    // Replace secondary departments if array provided
+    if (data.secondaryDepartments !== undefined) {
+      await prisma.userSecondaryDepartment.deleteMany({ where: { userId: id } });
+      if (data.secondaryDepartments.length > 0) {
+        await prisma.userSecondaryDepartment.createMany({
+          data: data.secondaryDepartments.map(s => ({
+            userId: id,
+            departmentId: s.departmentId,
+            subDepartmentId: s.subDepartmentId ?? null,
+            role: (s.role ?? 'EMPLOYEE') as any,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    } else if (data.secondaryDepartmentId !== undefined) {
+      // Backward compat: single field update → sync to relation table
+      await prisma.userSecondaryDepartment.deleteMany({ where: { userId: id } });
+      if (data.secondaryDepartmentId) {
+        await prisma.userSecondaryDepartment.create({
+          data: {
+            userId: id,
+            departmentId: data.secondaryDepartmentId,
+            subDepartmentId: data.secondarySubDepartmentId ?? null,
+            role: (data.secondaryRole ?? 'EMPLOYEE') as any,
+          },
+        });
+      }
+    }
+
     // Employee code is NOT changed when department changes
     // Employee code format: NV0001, NV0002, NV0003... (assigned once, never changes)
 
@@ -373,6 +417,12 @@ export class UserService {
     secondaryRole?: string | null;
     supervisor1Id?: string | null;
     supervisor2Id?: string | null;
+    /** New: array of secondary departments */
+    secondaryDepartments?: Array<{
+      departmentId: string;
+      subDepartmentId?: string | null;
+      role?: string;
+    }>;
   }): Promise<any> {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -474,8 +524,23 @@ export class UserService {
         logger.info(`✅ Auto-created employee ${employeeCode} for user ${newUser.email} (role: ${data.role})`);
       } catch (employeeError) {
         logger.warn('⚠️ Failed to auto-create employee:', employeeError);
-        // Don't fail the transaction if employee creation fails
-        // User will be created, employee can be created manually later
+      }
+
+      // Create secondary departments
+      const secondaryList = data.secondaryDepartments
+        ?? (data.secondaryDepartmentId
+            ? [{ departmentId: data.secondaryDepartmentId, subDepartmentId: data.secondarySubDepartmentId, role: data.secondaryRole ?? 'EMPLOYEE' }]
+            : []);
+      if (secondaryList.length > 0) {
+        await tx.userSecondaryDepartment.createMany({
+          data: secondaryList.map(s => ({
+            userId: newUser.id,
+            departmentId: s.departmentId,
+            subDepartmentId: s.subDepartmentId ?? null,
+            role: (s.role ?? 'EMPLOYEE') as any,
+          })),
+          skipDuplicates: true,
+        });
       }
 
       return newUser;

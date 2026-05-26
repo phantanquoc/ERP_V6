@@ -1,4 +1,5 @@
 import { UserRole } from '../types/auth';
+import type { SecondaryDepartmentEntry } from '../types/auth';
 
 // Định nghĩa departments trong hệ thống
 export const DEPARTMENTS = {
@@ -103,23 +104,22 @@ export const hasModuleAccess = (
   module: string,
   userRole: UserRole,
   userDepartment?: string,
-  userSecondaryDepartment?: string
+  secondaryDepartments?: SecondaryDepartmentEntry[] | string  // accept array or legacy string
 ): boolean => {
   const permission = DEPARTMENT_PERMISSIONS.find(p => p.module === module);
-
   if (!permission) return false;
-
-  // Nếu không có department thì không có quyền truy cập
   if (!userDepartment) return false;
-
-  // Admin (department = 'admin') luôn có quyền truy cập tất cả
   if (userDepartment === DEPARTMENTS.ADMIN) return true;
-
-  // Kiểm tra xem department chính của user có trong danh sách được phép không
   if (permission.allowedDepartments.includes(userDepartment)) return true;
 
-  // Kiểm tra secondary department
-  if (userSecondaryDepartment && permission.allowedDepartments.includes(userSecondaryDepartment)) return true;
+  // Support both new array format and legacy string format
+  if (Array.isArray(secondaryDepartments)) {
+    return secondaryDepartments.some(s =>
+      s.departmentCode && permission.allowedDepartments.includes(s.departmentCode)
+    );
+  }
+  // Legacy: single string
+  if (secondaryDepartments && permission.allowedDepartments.includes(secondaryDepartments)) return true;
 
   return false;
 };
@@ -131,36 +131,37 @@ export const hasSubModuleAccess = (
   userDepartment?: string,
   userSubDepartment?: string,
   userRole?: string,
-  userSecondaryDepartment?: string,
+  secondaryDepartments?: SecondaryDepartmentEntry[] | string,  // accept array or legacy string
   userSecondarySubDepartment?: string,
   userSecondaryRole?: string
 ): boolean => {
-  // Admin luôn có quyền truy cập
   if (userDepartment === DEPARTMENTS.ADMIN) return true;
 
-  // Check primary department match
+  // Check primary department
   if (userDepartment === department) {
-    // Trưởng bộ phận hoặc Trưởng phòng có thể truy cập tất cả sub-modules trong bộ phận
     if (userRole === UserRole.DEPARTMENT_HEAD || userRole === UserRole.TEAM_LEAD) return true;
-
-    // EMPLOYEE chỉ có thể truy cập sub-module của mình
-    if (userRole === UserRole.EMPLOYEE) {
-      if (userSubDepartment === subModule) return true;
-    }
+    if (userRole === UserRole.EMPLOYEE && userSubDepartment === subModule) return true;
   }
 
-  // Check secondary department match — dùng secondaryRole thay vì role chính
+  // Check secondary departments — new array format
+  if (Array.isArray(secondaryDepartments)) {
+    for (const s of secondaryDepartments) {
+      if (s.departmentCode !== department) continue;
+      const effectiveRole = s.role ?? UserRole.EMPLOYEE;
+      if (effectiveRole === UserRole.DEPARTMENT_HEAD || effectiveRole === UserRole.TEAM_LEAD) return true;
+      if (effectiveRole === UserRole.EMPLOYEE && s.subDepartmentCode === subModule) return true;
+    }
+    return false;
+  }
+
+  // Legacy: single string params
+  const userSecondaryDepartment = secondaryDepartments as string | undefined;
   if (userSecondaryDepartment === department) {
     const effectiveRole = userSecondaryRole || UserRole.EMPLOYEE;
-
     if (effectiveRole === UserRole.DEPARTMENT_HEAD || effectiveRole === UserRole.TEAM_LEAD) return true;
-
-    if (effectiveRole === UserRole.EMPLOYEE) {
-      if (userSecondarySubDepartment === subModule) return true;
-    }
+    if (effectiveRole === UserRole.EMPLOYEE && userSecondarySubDepartment === subModule) return true;
   }
 
-  // Mặc định không có quyền
   return false;
 };
 
