@@ -40,7 +40,7 @@ const LeaveRequestApprovalModal = ({ isOpen, onClose, leaveRequestId, notificati
         const response = await leaveRequestService.getLeaveRequestById(leaveRequestId);
         setData(response);
       } else if (notificationMessage) {
-        const match = notificationMessage.match(/NP-\d+/);
+        const match = notificationMessage.match(/NP-\d{4}-\d+|NP-\d+/);
         if (match) {
           const code = match[0];
           const response = await leaveRequestService.getAllLeaveRequests({ page: 1, limit: 100 });

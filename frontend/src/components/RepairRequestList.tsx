@@ -162,75 +162,28 @@ const RepairRequestList = () => {
   };
 
   const handleOpenCreateModal = async () => {
+    const emptyForm = {
+      ngayThang: new Date().toISOString().split('T')[0],
+      maYeuCau: '',
+      tenHeThong: '',
+      tinhTrangThietBi: '',
+      loaiLoi: '',
+      mucDoUuTien: 'Thấp',
+      noiDungLoi: '',
+      ghiChu: '',
+      trangThai: 'Chờ xử lý',
+    };
+
     try {
-      // Generate new code from API
       const token = localStorage.getItem('accessToken');
-
-      if (!token) {
-        // No token, use timestamp-based code
-        setFormData({
-          ngayThang: new Date().toISOString().split('T')[0],
-          maYeuCau: `YC-${Date.now()}`,
-          tenHeThong: '',
-          tinhTrangThietBi: '',
-          loaiLoi: '',
-          mucDoUuTien: 'Thấp',
-          noiDungLoi: '',
-          ghiChu: '',
-          trangThai: 'Chờ xử lý',
-        });
-        setIsModalOpen(true);
-        return;
-      }
-
       const response = await fetch(API_BASE_URL + '/repair-requests/generate-code', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-
-      if (response.ok) {
-        const result = await response.json();
-        const code = result.success ? result.data.code : `YC-${Date.now()}`;
-        setFormData({
-          ngayThang: new Date().toISOString().split('T')[0],
-          maYeuCau: code,
-          tenHeThong: '',
-          tinhTrangThietBi: '',
-          loaiLoi: '',
-          mucDoUuTien: 'Thấp',
-          noiDungLoi: '',
-          ghiChu: '',
-          trangThai: 'Chờ xử lý',
-        });
-      } else {
-        // API error, fallback to timestamp
-        setFormData({
-          ngayThang: new Date().toISOString().split('T')[0],
-          maYeuCau: `YC-${Date.now()}`,
-          tenHeThong: '',
-          tinhTrangThietBi: '',
-          loaiLoi: '',
-          mucDoUuTien: 'Thấp',
-          noiDungLoi: '',
-          ghiChu: '',
-          trangThai: 'Chờ xử lý',
-        });
-      }
+      const result = await response.json();
+      setFormData({ ...emptyForm, maYeuCau: result?.data?.code ?? '' });
     } catch (error) {
       console.error('Error generating code:', error);
-      // Fallback to timestamp-based code
-      setFormData({
-        ngayThang: new Date().toISOString().split('T')[0],
-        maYeuCau: `YC-${Date.now()}`,
-        tenHeThong: '',
-        tinhTrangThietBi: '',
-        loaiLoi: '',
-        mucDoUuTien: 'Thấp',
-        noiDungLoi: '',
-        ghiChu: '',
-        trangThai: 'Chờ xử lý',
-      });
+      setFormData(emptyForm);
     }
     setIsModalOpen(true);
   };
@@ -482,14 +435,14 @@ const RepairRequestList = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={isViewMode}
-                    placeholder="VD: Nồi chiên VF-003"
+                    placeholder="VD: Máy sấy MS-01, Băng tải đóng gói, Nồi chiên VF-003"
                   />
                 </div>
 
-                {/* Tình trạng thiết bị */}
+                {/* Khu vực sử dụng */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tình trạng thiết bị <span className="text-red-500">*</span>
+                    Khu vực sử dụng <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -498,7 +451,7 @@ const RepairRequestList = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={isViewMode}
-                    placeholder="VD: Hỏng, Hoạt động không ổn định"
+                    placeholder="VD: Xưởng sản xuất, Kho nguyên liệu, Phòng kỹ thuật"
                   />
                 </div>
 
@@ -514,7 +467,7 @@ const RepairRequestList = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={isViewMode}
-                    placeholder="VD: Lỗi cơ khí, Lỗi điện"
+                    placeholder="VD: Lỗi cơ khí, Lỗi điện, Lỗi phần mềm điều khiển"
                   />
                 </div>
 
@@ -567,7 +520,7 @@ const RepairRequestList = () => {
                     required
                     disabled={isViewMode}
                     rows={3}
-                    placeholder="Mô tả chi tiết lỗi"
+                    placeholder="Mô tả chi tiết triệu chứng lỗi, thời điểm phát sinh, ảnh hưởng đến sản xuất..."
                   />
                 </div>
 

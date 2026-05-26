@@ -104,7 +104,7 @@ const ForgotPassword: React.FC = () => {
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="VD: email@company.com hoặc NV001"
+                placeholder="VD: email@company.com hoặc NV0001"
                 error={error && !identifier ? 'Trường này là bắt buộc' : ''}
                 required
               />

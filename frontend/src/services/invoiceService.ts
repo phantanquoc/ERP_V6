@@ -82,6 +82,15 @@ class InvoiceService {
     return new Error('Unknown error');
   }
 
+  async generateInvoiceNumber(): Promise<string> {
+    try {
+      const response = await apiClient.get('/invoices/generate-code');
+      return (response as any).data?.soHoaDon ?? (response as any).data?.code ?? '';
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   async exportToExcel(filters?: { search?: string }): Promise<void> {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();

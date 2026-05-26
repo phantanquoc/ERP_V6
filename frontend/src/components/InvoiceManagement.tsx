@@ -104,22 +104,21 @@ const InvoiceManagement: React.FC = () => {
   };
 
   // Generate next invoice number
-  const generateInvoiceNumber = (): string => {
-    const prefix = 'HD';
-
-    // Find the highest invoice number
-    const matchingInvoices = invoices.filter(inv => inv.soHoaDon?.startsWith(prefix));
-    let maxNumber = 0;
-
-    matchingInvoices.forEach(inv => {
-      const match = inv.soHoaDon.match(/^HD(\d+)$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNumber) maxNumber = num;
-      }
-    });
-
-    return `${prefix}${String(maxNumber + 1).padStart(3, '0')}`;
+  const generateInvoiceNumber = async (): Promise<string> => {
+    try {
+      return await invoiceService.generateInvoiceNumber();
+    } catch {
+      // Fallback: find max from loaded invoices
+      const matchingInvoices = invoices.filter(inv => inv.soHoaDon?.startsWith('HD-'));
+      let maxNumber = 0;
+      matchingInvoices.forEach(inv => {
+        const parts = inv.soHoaDon.split('-');
+        const num = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(num) && num > maxNumber) maxNumber = num;
+      });
+      const year = new Date().getFullYear();
+      return `HD-${year}-${String(maxNumber + 1).padStart(3, '0')}`;
+    }
   };
 
   useEffect(() => {
@@ -154,9 +153,9 @@ const InvoiceManagement: React.FC = () => {
     });
   };
 
-  const handleAddClick = () => {
+  const handleAddClick = async () => {
     // Auto-fill số hóa đơn và nhân viên lập
-    const autoInvoiceNumber = generateInvoiceNumber();
+    const autoInvoiceNumber = await generateInvoiceNumber();
     const employeeName = user ? `${user.firstName} ${user.lastName}` : '';
 
     setFormData({
