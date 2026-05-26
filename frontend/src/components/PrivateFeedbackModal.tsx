@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileText, Loader2 } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
 import { privateFeedbackService, FeedbackType } from '../services/privateFeedbackService';
 import { API_BASE_URL } from '../config/api';
 import FileUpload from './FileUpload';
+import { ModalForm, ModalFooter } from './ModalForm';
 
 interface PrivateFeedbackModalProps {
   isOpen: boolean;
@@ -131,25 +132,26 @@ const PrivateFeedbackModal: React.FC<PrivateFeedbackModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-600" />
-            {title}
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+    <ModalForm
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      titleIcon={<FileText className="w-4 h-4" />}
+      footer={
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onClose} disabled={isSubmitting}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors">
+            Hủy
+          </button>
+          <button type="button" onClick={() => (document.getElementById('private-feedback-form') as HTMLFormElement)?.requestSubmit()}
             disabled={isSubmitting}
-          >
-            <X className="w-6 h-6" />
+            className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+            {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" />Đang gửi...</> : 'Gửi'}
           </button>
         </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+      }
+    >
+      <form id="private-feedback-form" onSubmit={handleSubmit} className="space-y-6">
           {/* Ngày tháng (auto) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -255,33 +257,8 @@ const PrivateFeedbackModal: React.FC<PrivateFeedbackModalProps> = ({
           />
 
           {/* Buttons */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-              disabled={isSubmitting}
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Đang gửi...
-                </>
-              ) : (
-                'Gửi'
-              )}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </ModalForm>
   );
 };
 

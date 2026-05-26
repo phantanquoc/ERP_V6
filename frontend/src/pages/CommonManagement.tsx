@@ -3,8 +3,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../config/api';
-import FileUpload from '../components/FileUpload';
 import Modal from '../components/Modal';
+import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls, readonlyCls, FileDropZone } from '../components/ModalForm';
 import SupplyRequestModal from '../components/SupplyRequestModal';
 import ProcessListModal from '../components/ProcessListModal';
 import CreateTaskModal from '../components/CreateTaskModal';
@@ -12,66 +12,42 @@ import CreateWorkPlanModal from '../components/CreateWorkPlanModal';
 import OvertimePlanListModal from '../components/OvertimePlanListModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
 import {
-  FileText,
-  Settings,
-  Users,
-  Briefcase,
-  MessageSquare,
-  AlertTriangle,
-  Plus,
-  Search,
-  Filter,
-  Download,
-  X,
-  Upload
+  FileText, Settings, Users, Briefcase, MessageSquare, AlertTriangle, Plus,
 } from 'lucide-react';
 import {
-  repairRequestSchema,
-  generalRequestSchema,
-  RepairRequestFormData,
-  GeneralRequestFormData
+  repairRequestSchema, generalRequestSchema,
+  RepairRequestFormData, GeneralRequestFormData,
 } from '../schemas/requestSchemas';
 import { FeedbackType } from '../services/privateFeedbackService';
 
-// Types for different request types
-type RequestType = 'yeu_cau_sua_chua' | 'yeu_cau_bo_sung' | 'de_nghi_dieu_chinh' | 'ke_hoach_tang_ca' | 'nhiem_vu' | 'ke_hoach' | 'gop_y' | 'neu_kho_khan';
+type RequestType =
+  | 'yeu_cau_sua_chua' | 'yeu_cau_bo_sung' | 'de_nghi_dieu_chinh'
+  | 'ke_hoach_tang_ca' | 'nhiem_vu' | 'ke_hoach' | 'gop_y' | 'neu_kho_khan';
 
 const CommonManagement = () => {
   const { user } = useAuth();
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isModalOpen, setIsModalOpen]           = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<RequestType | ''>('');
-  const [isProcessListOpen, setIsProcessListOpen] = useState<boolean>(false);
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState<boolean>(false);
-  const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState<boolean>(false);
-  const [isOvertimePlanListOpen, setIsOvertimePlanListOpen] = useState<boolean>(false);
+  const [isProcessListOpen, setIsProcessListOpen]       = useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen]           = useState(false);
+  const [isWorkPlanModalOpen, setIsWorkPlanModalOpen]   = useState(false);
+  const [isOvertimePlanListOpen, setIsOvertimePlanListOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen]   = useState(false);
+  const [feedbackType, setFeedbackType]                 = useState<FeedbackType>('GOP_Y');
+  const [isSubmitting, setIsSubmitting]                 = useState(false);
 
-  // Private Feedback Modal states
-  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState<boolean>(false);
-  const [feedbackType, setFeedbackType] = useState<FeedbackType>('GOP_Y');
-
-  // React Hook Form for repair requests
   const repairForm = useForm<RepairRequestFormData>({
     resolver: zodResolver(repairRequestSchema),
     defaultValues: {
       employeeName: `${user?.firstName || ''} ${user?.lastName || ''}`,
-      systemName: '',
-      usageArea: '',
-      errorContent: '',
-      errorType: undefined,
-      priority: undefined,
-      notes: '',
-    }
+      systemName: '', usageArea: '', errorContent: '',
+      errorType: undefined, priority: undefined, notes: '',
+    },
   });
 
-  // React Hook Form for general requests
   const generalForm = useForm<GeneralRequestFormData>({
     resolver: zodResolver(generalRequestSchema),
-    defaultValues: {
-      title: '',
-      description: '',
-      priority: undefined,
-      department: user?.department || '',
-    }
+    defaultValues: { title: '', description: '', priority: undefined, department: user?.department || '' },
   });
 
   if (!user) return <div>Loading...</div>;
@@ -79,150 +55,51 @@ const CommonManagement = () => {
   const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'department_head';
 
   const categories = [
-        {
+    {
       title: 'Đã ban hành',
       items: [
-        {
-          id: 'ds_gop_y',
-          title: 'Danh sách quy trình',
-          icon: <MessageSquare className="h-6 w-6" />,
-          color: 'bg-pink-500',
-          description: 'Gửi góp ý, đề xuất cải tiến'
-        },
-        {
-          id: 'ds_cuoc_hop',
-          title: 'Danh sách các cuộc họp',
-          icon: <AlertTriangle className="h-6 w-6" />,
-          color: 'bg-red-500',
-          description: 'Báo cáo khó khăn trong công việc'
-        }
-      ]
+        { id: 'ds_gop_y',    title: 'Danh sách quy trình',       icon: <MessageSquare className="h-6 w-6" />, color: 'bg-pink-500',   description: 'Xem danh sách quy trình đã ban hành' },
+        { id: 'ds_cuoc_hop', title: 'Danh sách các cuộc họp',    icon: <AlertTriangle  className="h-6 w-6" />, color: 'bg-red-500',    description: 'Xem lịch sử và kết quả các cuộc họp' },
+      ],
     },
     {
       title: 'Tạo yêu cầu',
       items: [
-        {
-          id: 'yeu_cau_sua_chua',
-          title: 'Tạo phiếu yêu cầu sửa chữa kiểm tra',
-          icon: <Settings className="h-6 w-6" />,
-          color: 'bg-blue-500',
-          description: 'Yêu cầu sửa chữa thiết bị, máy móc hoặc cơ sở vật chất'
-        },
-        {
-          id: 'yeu_cau_bo_sung',
-          title: 'Tạo yêu cầu bổ sung/cung cấp',
-          icon: <Plus className="h-6 w-6" />,
-          color: 'bg-green-500',
-          description: 'Yêu cầu bổ sung vật tư, thiết bị hoặc nhân lực'
-        },
-        {
-          id: 'de_nghi_dieu_chinh',
-          title: 'Tạo đề nghị điều chỉnh, bổ sung quy trình',
-          icon: <FileText className="h-6 w-6" />,
-          color: 'bg-purple-500',
-          description: 'Đề xuất thay đổi hoặc cải tiến quy trình làm việc'
-        },
-        {
-          id: 'ke_hoach_tang_ca',
-          title: 'Danh sách kế hoạch tăng ca',
-          icon: <Briefcase className="h-6 w-6" />,
-          color: 'bg-orange-500',
-          description: 'Xem và quản lý kế hoạch tăng ca'
-        }
-      ]
+        { id: 'yeu_cau_sua_chua',   title: 'Tạo phiếu yêu cầu sửa chữa kiểm tra',    icon: <Settings   className="h-6 w-6" />, color: 'bg-blue-500',   description: 'Yêu cầu sửa chữa thiết bị, máy móc hoặc cơ sở vật chất' },
+        { id: 'yeu_cau_bo_sung',    title: 'Tạo yêu cầu bổ sung/cung cấp',            icon: <Plus       className="h-6 w-6" />, color: 'bg-green-500',  description: 'Yêu cầu bổ sung vật tư, thiết bị hoặc nhân lực' },
+        { id: 'de_nghi_dieu_chinh', title: 'Tạo đề nghị điều chỉnh, bổ sung quy trình', icon: <FileText className="h-6 w-6" />, color: 'bg-purple-500', description: 'Đề xuất thay đổi hoặc cải tiến quy trình làm việc' },
+        { id: 'ke_hoach_tang_ca',   title: 'Danh sách kế hoạch tăng ca',               icon: <Briefcase className="h-6 w-6" />, color: 'bg-orange-500', description: 'Xem và quản lý kế hoạch tăng ca' },
+      ],
     },
     {
-      title: 'Tạo Nhiệm vụ và kế hoạch công việc',
+      title: 'Tạo nhiệm vụ và kế hoạch công việc',
       items: [
-        {
-          id: 'nhiem_vu',
-          title: 'Tạo nhiệm vụ',
-          icon: <Users className="h-6 w-6" />,
-          color: 'bg-indigo-500',
-          description: 'Tạo và phân công nhiệm vụ cho nhân viên'
-        },
-        {
-          id: 'ke_hoach',
-          title: 'Tạo kế hoạch công việc',
-          icon: <FileText className="h-6 w-6" />,
-          color: 'bg-teal-500',
-          description: 'Lập kế hoạch công việc theo thời gian'
-        }
-      ]
+        { id: 'nhiem_vu', title: 'Tạo nhiệm vụ',          icon: <Users    className="h-6 w-6" />, color: 'bg-indigo-500', description: 'Tạo và phân công nhiệm vụ cho nhân viên' },
+        { id: 'ke_hoach', title: 'Tạo kế hoạch công việc', icon: <FileText className="h-6 w-6" />, color: 'bg-teal-500',   description: 'Lập kế hoạch công việc theo thời gian' },
+      ],
     },
     {
       title: 'Góp ý riêng',
       items: [
-        {
-          id: 'gop_y',
-          title: 'Góp ý riêng',
-          icon: <MessageSquare className="h-6 w-6" />,
-          color: 'bg-pink-500',
-          description: 'Gửi góp ý, đề xuất cải tiến'
-        },
-        {
-          id: 'neu_kho_khan',
-          title: 'Nêu khó khăn',
-          icon: <AlertTriangle className="h-6 w-6" />,
-          color: 'bg-red-500',
-          description: 'Báo cáo khó khăn trong công việc'
-        }
-      ]
-    }
+        { id: 'gop_y',       title: 'Góp ý riêng', icon: <MessageSquare className="h-6 w-6" />, color: 'bg-pink-500', description: 'Gửi góp ý, đề xuất cải tiến' },
+        { id: 'neu_kho_khan', title: 'Nêu khó khăn', icon: <AlertTriangle className="h-6 w-6" />, color: 'bg-red-500',  description: 'Báo cáo khó khăn trong công việc' },
+      ],
+    },
   ];
 
-  const handleCategorySelect = (categoryId: string) => {
-    // Xử lý "Danh sách quy trình"
-    if (categoryId === 'ds_gop_y') {
-      setIsProcessListOpen(true);
-      return;
-    }
+  const getCategoryTitle = (type: string) =>
+    categories.flatMap(c => c.items).find(i => i.id === type)?.title || '';
 
-    // "Danh sách các cuộc họp" - đang bảo trì
-    if (categoryId === 'ds_cuoc_hop') {
-      alert('Chức năng đang bảo trì, vui lòng quay lại sau!');
-      return;
-    }
-
-    // "Tạo đề nghị điều chỉnh, bổ sung quy trình" - đang bảo trì
-    if (categoryId === 'de_nghi_dieu_chinh') {
-      alert('Chức năng đang bảo trì, vui lòng quay lại sau!');
-      return;
-    }
-
-    // Xử lý "Tạo nhiệm vụ"
-    if (categoryId === 'nhiem_vu') {
-      setIsTaskModalOpen(true);
-      return;
-    }
-
-    // Xử lý "Tạo kế hoạch tăng ca"
-    if (categoryId === 'ke_hoach_tang_ca') {
-      setIsOvertimePlanListOpen(true);
-      return;
-    }
-
-    // Xử lý "Tạo kế hoạch công việc"
-    if (categoryId === 'ke_hoach') {
-      setIsWorkPlanModalOpen(true);
-      return;
-    }
-
-    // Xử lý "Góp ý riêng"
-    if (categoryId === 'gop_y') {
-      setFeedbackType('GOP_Y');
-      setIsFeedbackModalOpen(true);
-      return;
-    }
-
-    // Xử lý "Nêu khó khăn"
-    if (categoryId === 'neu_kho_khan') {
-      setFeedbackType('NEU_KHO_KHAN');
-      setIsFeedbackModalOpen(true);
-      return;
-    }
-
-    setSelectedCategory(categoryId as RequestType);
+  const handleCategorySelect = (id: string) => {
+    if (id === 'ds_gop_y')          { setIsProcessListOpen(true); return; }
+    if (id === 'ds_cuoc_hop')        { alert('Chức năng đang bảo trì, vui lòng quay lại sau!'); return; }
+    if (id === 'de_nghi_dieu_chinh') { alert('Chức năng đang bảo trì, vui lòng quay lại sau!'); return; }
+    if (id === 'nhiem_vu')           { setIsTaskModalOpen(true); return; }
+    if (id === 'ke_hoach_tang_ca')   { setIsOvertimePlanListOpen(true); return; }
+    if (id === 'ke_hoach')           { setIsWorkPlanModalOpen(true); return; }
+    if (id === 'gop_y')              { setFeedbackType('GOP_Y'); setIsFeedbackModalOpen(true); return; }
+    if (id === 'neu_kho_khan')       { setFeedbackType('NEU_KHO_KHAN'); setIsFeedbackModalOpen(true); return; }
+    setSelectedCategory(id as RequestType);
     setIsModalOpen(true);
   };
 
@@ -230,44 +107,42 @@ const CommonManagement = () => {
     setIsModalOpen(false);
     setSelectedCategory('');
     repairForm.reset();
-    generalForm.reset({
-      title: '',
-      description: '',
-      priority: undefined,
-      department: user?.department || '',
-    });
+    generalForm.reset({ title: '', description: '', priority: undefined, department: user?.department || '' });
   };
 
-  const onSubmitRepair = async (data: RepairRequestFormData) => {
+  const onSubmitRepair = repairForm.handleSubmit(async (data) => {
+    setIsSubmitting(true);
     try {
       const formDataToSend = new FormData();
+      let maYeuCau = '';
+      try {
+        const token = localStorage.getItem('accessToken');
+        const res = await fetch(API_BASE_URL + '/repair-requests/generate-code', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const result = await res.json();
+        maYeuCau = result?.data?.code ?? '';
+      } catch { /* backend sẽ reject nếu thiếu mã */ }
 
-      // Map form data to API format
       formDataToSend.append('ngayThang', new Date().toISOString().split('T')[0]);
-      formDataToSend.append('maYeuCau', `YC-${Date.now()}`); // Auto generate code
+      formDataToSend.append('maYeuCau', maYeuCau);
       formDataToSend.append('tenHeThong', data.systemName);
       formDataToSend.append('tinhTrangThietBi', data.usageArea);
       formDataToSend.append('loaiLoi', data.errorType === 'loi_moi' ? 'Lỗi mới' : 'Lỗi lặp lại');
       formDataToSend.append('mucDoUuTien',
         data.priority === 'khan_cap' ? 'Khẩn cấp' :
-        data.priority === 'cao' ? 'Cao' :
+        data.priority === 'cao'      ? 'Cao' :
         data.priority === 'trung_binh' ? 'Trung bình' : 'Thấp'
       );
       formDataToSend.append('noiDungLoi', data.errorContent);
       formDataToSend.append('ghiChu', data.notes || '');
       formDataToSend.append('trangThai', 'Chờ xử lý');
-
-      // Add file if exists
-      if (data.files && data.files.length > 0) {
-        formDataToSend.append('file', data.files[0]);
-      }
+      if (data.files?.[0]) formDataToSend.append('file', data.files[0]);
 
       const token = localStorage.getItem('accessToken');
       const response = await fetch(API_BASE_URL + '/repair-requests', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         body: formDataToSend,
       });
 
@@ -275,25 +150,24 @@ const CommonManagement = () => {
         alert('Đã tạo yêu cầu sửa chữa thành công!');
         handleCloseModal();
       } else {
-        const errorData = await response.json();
-        alert(`Lỗi: ${errorData.message || 'Không thể tạo yêu cầu'}`);
+        const err = await response.json();
+        alert(`Lỗi: ${err.message || 'Không thể tạo yêu cầu'}`);
       }
-    } catch (error) {
-      console.error('Error creating repair request:', error);
+    } catch {
       alert('Có lỗi xảy ra khi tạo yêu cầu sửa chữa');
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  });
 
-  const onSubmitGeneral = (data: GeneralRequestFormData) => {
+  const onSubmitGeneral = generalForm.handleSubmit((data) => {
     console.log('General request data:', data);
     alert(`Đã tạo ${getCategoryTitle(selectedCategory)} thành công!`);
     handleCloseModal();
-  };
+  });
 
-  const getCategoryTitle = (type: string) => {
-    const allItems = categories.flatMap(cat => cat.items);
-    return allItems.find(item => item.id === type)?.title || '';
-  };
+  const re = repairForm;
+  const ge = generalForm;
 
   return (
     <div className="space-y-6">
@@ -301,366 +175,141 @@ const CommonManagement = () => {
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg">
         <h1 className="text-2xl font-bold">Chung</h1>
         <p className="text-blue-100 mt-2">
-          Tạo yêu cầu, nhiệm vụ và quản lý công việc chung - {user.firstName} {user.lastName}
+          Tạo yêu cầu, nhiệm vụ và quản lý công việc chung — {user.firstName} {user.lastName}
         </p>
       </div>
 
-      {/* Content */}
+      {/* Category grid */}
       <div className="space-y-8">
-        <div className="space-y-8">
-          {/* Categories */}
-          {categories.map((category, categoryIndex) => (
-            <div key={categoryIndex} className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900">{category.title}</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {category.items.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleCategorySelect(item.id)}
-                    className="p-4 rounded-lg border-2 border-gray-200 bg-white text-left transition-all hover:shadow-md hover:border-gray-300"
-                  >
-                    <div className="flex items-start space-x-3">
-                      <div className={`p-2 rounded-lg text-white ${item.color}`}>
-                        {item.icon}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{item.title}</h3>
-                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
-                      </div>
+        {categories.map((cat, i) => (
+          <div key={i} className="space-y-4">
+            <h2 className="text-xl font-semibold text-gray-900">{cat.title}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {cat.items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleCategorySelect(item.id)}
+                  className="p-4 rounded-lg border-2 border-gray-200 bg-white text-left transition-all hover:shadow-md hover:border-gray-300"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg text-white shrink-0 ${item.color}`}>{item.icon}</div>
+                    <div>
+                      <h3 className="font-medium text-gray-900">{item.title}</h3>
+                      <p className="text-sm text-gray-500 mt-0.5">{item.description}</p>
                     </div>
-                  </button>
-                ))}
-              </div>
+                  </div>
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+        ))}
+      </div>
 
+      {/* ── Phiếu yêu cầu sửa chữa ── */}
+      <ModalForm
+        isOpen={isModalOpen && selectedCategory === 'yeu_cau_sua_chua'}
+        onClose={handleCloseModal}
+        title="Tạo phiếu yêu cầu sửa chữa kiểm tra"
+        isLoading={isSubmitting}
+        footer={<ModalFooter onClose={handleCloseModal} onSubmit={() => onSubmitRepair()} submitLabel="Tạo yêu cầu sửa chữa" isLoading={isSubmitting} />}
+      >
+        <div className="space-y-4">
+          <FormField label="Tên nhân viên">
+            <input type="text" readOnly value={`${user?.firstName || ''} ${user?.lastName || ''}`} className={readonlyCls} />
+          </FormField>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField label="Tên hệ thống / thiết bị" required error={re.formState.errors.systemName?.message}>
+              <input {...re.register('systemName')} className={inputCls(!!re.formState.errors.systemName)}
+                placeholder="VD: Máy sấy MS-01, Băng tải đóng gói, Nồi chiên VF-003" />
+            </FormField>
+            <FormField label="Khu vực sử dụng" required error={re.formState.errors.usageArea?.message}>
+              <input {...re.register('usageArea')} className={inputCls(!!re.formState.errors.usageArea)}
+                placeholder="VD: Xưởng sản xuất, Kho nguyên liệu, Phòng kỹ thuật" />
+            </FormField>
+          </div>
+
+          <FormField label="Nội dung lỗi" required error={re.formState.errors.errorContent?.message}>
+            <textarea rows={3} {...re.register('errorContent')} className={textareaCls(!!re.formState.errors.errorContent)}
+              placeholder="Mô tả chi tiết triệu chứng lỗi, thời điểm phát sinh, ảnh hưởng đến sản xuất..." />
+          </FormField>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField label="Loại lỗi" required error={re.formState.errors.errorType?.message}>
+              <select {...re.register('errorType')} className={selectCls(!!re.formState.errors.errorType)}>
+                <option value="">Chọn loại lỗi</option>
+                <option value="loi_moi">Lỗi mới</option>
+                <option value="loi_lap_lai">Lỗi lặp lại</option>
+              </select>
+            </FormField>
+            <FormField label="Mức độ ưu tiên" required error={re.formState.errors.priority?.message}>
+              <select {...re.register('priority')} className={selectCls(!!re.formState.errors.priority)}>
+                <option value="">Chọn mức độ ưu tiên</option>
+                <option value="khan_cap">Khẩn cấp</option>
+                <option value="cao">Cao</option>
+                <option value="trung_binh">Trung bình</option>
+                <option value="thap">Thấp</option>
+              </select>
+            </FormField>
+          </div>
+
+          <FormField label="Ghi chú">
+            <textarea rows={2} {...re.register('notes')} className={textareaCls()}
+              placeholder="Ghi chú thêm nếu có..." />
+          </FormField>
+
+          <FormField label="Tệp đính kèm">
+            <FileDropZone id="repair-file-upload" inputProps={{ ...re.register('files') }} />
+          </FormField>
         </div>
+      </ModalForm>
 
-      {/* Modal - Hide when supply request is selected */}
-      <Modal isOpen={isModalOpen && selectedCategory !== 'yeu_cau_bo_sung'} onClose={handleCloseModal} showBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {getCategoryTitle(selectedCategory)}
-              </h3>
-              <button
-                onClick={handleCloseModal}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
+      {/* ── Yêu cầu chung (de_nghi_dieu_chinh, v.v.) ── */}
+      <ModalForm
+        isOpen={isModalOpen && selectedCategory !== 'yeu_cau_sua_chua' && selectedCategory !== 'yeu_cau_bo_sung'}
+        onClose={handleCloseModal}
+        title={getCategoryTitle(selectedCategory)}
+        footer={<ModalFooter onClose={handleCloseModal} onSubmit={() => onSubmitGeneral()} submitLabel="Tạo yêu cầu" />}
+      >
+        <div className="space-y-4">
+          <FormField label="Tiêu đề" required error={ge.formState.errors.title?.message}>
+            <input {...ge.register('title')} className={inputCls(!!ge.formState.errors.title)}
+              placeholder="Nhập tiêu đề yêu cầu..." />
+          </FormField>
 
-            {/* Modal Body */}
-            <div className="p-6">
-              {/* Form fields for repair request */}
-              {selectedCategory === 'yeu_cau_sua_chua' ? (
-                <form onSubmit={repairForm.handleSubmit(onSubmitRepair)} className="space-y-4">
-                  {/* Employee Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên</label>
-                    <input type="text" value={`${user?.firstName || ''} ${user?.lastName || ''}`} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50" readOnly />
-                  </div>
+          <FormField label="Mô tả chi tiết" required error={ge.formState.errors.description?.message}>
+            <textarea rows={4} {...ge.register('description')} className={textareaCls(!!ge.formState.errors.description)}
+              placeholder="Mô tả chi tiết nội dung yêu cầu..." />
+          </FormField>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* System/Equipment Name */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Tên hệ thống/ thiết bị <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        {...repairForm.register('systemName')}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          repairForm.formState.errors.systemName ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="Nhập tên hệ thống/thiết bị..."
-                      />
-                      {repairForm.formState.errors.systemName && (
-                        <p className="text-red-500 text-xs mt-1">{repairForm.formState.errors.systemName.message}</p>
-                      )}
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField label="Mức độ ưu tiên" required error={ge.formState.errors.priority?.message}>
+              <select {...ge.register('priority')} className={selectCls(!!ge.formState.errors.priority)}>
+                <option value="">Chọn mức độ ưu tiên</option>
+                <option value="low">Thấp</option>
+                <option value="medium">Trung bình</option>
+                <option value="high">Cao</option>
+              </select>
+            </FormField>
+            <FormField label="Phòng ban">
+              <input {...ge.register('department')} readOnly className={readonlyCls} />
+            </FormField>
+          </div>
 
-                    {/* Usage Area */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Khu vực sử dụng <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        {...repairForm.register('usageArea')}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          repairForm.formState.errors.usageArea ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="Nhập khu vực sử dụng..."
-                      />
-                      {repairForm.formState.errors.usageArea && (
-                        <p className="text-red-500 text-xs mt-1">{repairForm.formState.errors.usageArea.message}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Error Content */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nội dung lỗi <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      rows={3}
-                      {...repairForm.register('errorContent')}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
-                        repairForm.formState.errors.errorContent ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Mô tả chi tiết lỗi..."
-                    />
-                    {repairForm.formState.errors.errorContent && (
-                      <p className="text-red-500 text-xs mt-1">{repairForm.formState.errors.errorContent.message}</p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Error Type */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Loại lỗi <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        {...repairForm.register('errorType')}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          repairForm.formState.errors.errorType ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      >
-                        <option value="">Chọn loại lỗi</option>
-                        <option value="loi_moi">Lỗi mới</option>
-                        <option value="loi_lap_lai">Lỗi lặp lại</option>
-                      </select>
-                      {repairForm.formState.errors.errorType && (
-                        <p className="text-red-500 text-xs mt-1">{repairForm.formState.errors.errorType.message}</p>
-                      )}
-                    </div>
-
-                    {/* Priority Level */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Mức độ ưu tiên <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        {...repairForm.register('priority')}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          repairForm.formState.errors.priority ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      >
-                        <option value="">Chọn mức độ ưu tiên</option>
-                        <option value="khan_cap">Khẩn cấp</option>
-                        <option value="cao">Cao</option>
-                        <option value="trung_binh">Trung bình</option>
-                        <option value="thap">Thấp</option>
-                      </select>
-                      {repairForm.formState.errors.priority && (
-                        <p className="text-red-500 text-xs mt-1">{repairForm.formState.errors.priority.message}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                    <textarea
-                      rows={2}
-                      {...repairForm.register('notes')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                      placeholder="Ghi chú thêm..."
-                    />
-                  </div>
-
-                  {/* File Upload */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tệp đính kèm</label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 hover:bg-blue-50/30 transition-colors">
-                      <input
-                        type="file"
-                        multiple
-                        {...repairForm.register('files')}
-                        className="hidden"
-                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                        id="repair-file-upload"
-                      />
-                      <label htmlFor="repair-file-upload" className="cursor-pointer flex flex-col items-center">
-                        <Upload className="w-7 h-7 text-gray-400 mb-1.5" />
-                        <p className="text-sm text-gray-600">Click để chọn file</p>
-                        <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, JPG, PNG (Tối đa 100MB)</p>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Submit Button */}
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="button"
-                      onClick={handleCloseModal}
-                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors mr-3"
-                    >
-                      Hủy
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
-                    >
-                      Tạo yêu cầu sửa chữa
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                /* Form for other request types */
-                <form onSubmit={generalForm.handleSubmit(onSubmitGeneral)} className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tiêu đề <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      {...generalForm.register('title')}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        generalForm.formState.errors.title ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Nhập tiêu đề..."
-                    />
-                    {generalForm.formState.errors.title && (
-                      <p className="mt-1 text-sm text-red-600">{generalForm.formState.errors.title.message}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Mô tả chi tiết <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      rows={4}
-                      {...generalForm.register('description')}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        generalForm.formState.errors.description ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Mô tả chi tiết yêu cầu..."
-                    />
-                    {generalForm.formState.errors.description && (
-                      <p className="mt-1 text-sm text-red-600">{generalForm.formState.errors.description.message}</p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Mức độ ưu tiên <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        {...generalForm.register('priority')}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                          generalForm.formState.errors.priority ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      >
-                        <option value="">Chọn mức độ ưu tiên</option>
-                        <option value="low">Thấp</option>
-                        <option value="medium">Trung bình</option>
-                        <option value="high">Cao</option>
-                      </select>
-                      {generalForm.formState.errors.priority && (
-                        <p className="mt-1 text-sm text-red-600">{generalForm.formState.errors.priority.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Phòng ban
-                      </label>
-                      <input
-                        type="text"
-                        {...generalForm.register('department')}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
-                        placeholder="Phòng ban..."
-                        readOnly
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tệp đính kèm
-                    </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-colors">
-                      <Upload className="h-7 w-7 text-gray-400 mx-auto mb-1.5" />
-                      <input
-                        type="file"
-                        multiple
-                        {...generalForm.register('attachments')}
-                        className="hidden"
-                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                        id="general-file-upload"
-                      />
-                      <label htmlFor="general-file-upload" className="cursor-pointer">
-                        <p className="text-sm text-gray-600">
-                          Click để chọn file
-                        </p>
-                      </label>
-                      <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, JPG, PNG (Tối đa 100MB)</p>
-                    </div>
-                  </div>
-
-                  {/* Submit Button for general forms */}
-                  <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                    <button
-                      type="button"
-                      onClick={handleCloseModal}
-                      className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      Hủy
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
-                    >
-                      Tạo yêu cầu
-                    </button>
-                  </div>
-                </form>
-              )}
-
-            </div>
+          <FormField label="Tệp đính kèm">
+            <FileDropZone id="general-file-upload" inputProps={{ ...ge.register('attachments') }} />
+          </FormField>
         </div>
-      </Modal>
+      </ModalForm>
 
-      {/* Supply Request Modal */}
+      {/* ── Các modal riêng ── */}
       <SupplyRequestModal
         isOpen={isModalOpen && selectedCategory === 'yeu_cau_bo_sung'}
         onClose={handleCloseModal}
       />
-
-      {/* Process List Modal */}
-      <ProcessListModal
-        isOpen={isProcessListOpen}
-        onClose={() => setIsProcessListOpen(false)}
-      />
-
-      {/* Create Task Modal */}
-      <CreateTaskModal
-        isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
-        onSuccess={() => {
-          console.log('Task created successfully');
-        }}
-      />
-
-      {/* Create Work Plan Modal */}
-      <CreateWorkPlanModal
-        isOpen={isWorkPlanModalOpen}
-        onClose={() => setIsWorkPlanModalOpen(false)}
-        onSuccess={() => {
-          console.log('Work plan created successfully');
-        }}
-      />
-
-      {/* Overtime Plan List Modal */}
+      <ProcessListModal isOpen={isProcessListOpen} onClose={() => setIsProcessListOpen(false)} />
+      <CreateTaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} onSuccess={() => {}} />
+      <CreateWorkPlanModal isOpen={isWorkPlanModalOpen} onClose={() => setIsWorkPlanModalOpen(false)} onSuccess={() => {}} />
       <OvertimePlanListModal
         isOpen={isOvertimePlanListOpen}
         onClose={() => setIsOvertimePlanListOpen(false)}
@@ -668,19 +317,12 @@ const CommonManagement = () => {
         canViewAll={user?.role === 'admin'}
         canCreate={isManagerOrAdmin}
       />
-
-      {/* Private Feedback Modal (Góp ý riêng / Nêu khó khăn) */}
       <PrivateFeedbackModal
         isOpen={isFeedbackModalOpen}
         onClose={() => setIsFeedbackModalOpen(false)}
         type={feedbackType}
-        onSuccess={() => {
-          console.log('Feedback submitted successfully');
-          // Có thể refresh danh sách feedback ở đây nếu cần
-        }}
+        onSuccess={() => {}}
       />
-      </div>
-
     </div>
   );
 };

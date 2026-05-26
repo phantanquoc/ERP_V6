@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import supplyRequestService from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
 import { internationalProductService, InternationalProduct } from '../services/internationalProductService';
+import { ModalForm, ModalFooter, FormField, selectCls, textareaCls, readonlyCls } from './ModalForm';
 
 interface SupplyRequestModalProps {
   isOpen: boolean;
@@ -147,35 +148,23 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Tạo yêu cầu bổ sung/cung cấp
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="h-6 w-6" />
-          </button>
+    <ModalForm
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Tạo yêu cầu bổ sung/cung cấp"
+      maxWidth="4xl"
+      footer={<ModalFooter onClose={onClose} onSubmit={handleSubmit} submitLabel="Tạo yêu cầu" isLoading={loading} />}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Tên nhân viên + Bộ phận */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="Tên nhân viên">
+            <input type="text" readOnly value={`${user?.firstName || ''} ${user?.lastName || ''}`} className={readonlyCls} />
+          </FormField>
+          <FormField label="Bộ phận">
+            <input type="text" readOnly value={user?.department || 'Chưa xác định'} className={readonlyCls} />
+          </FormField>
         </div>
-
-        {/* Body */}
-        <div className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Tên nhân viên */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên</label>
-                <input type="text" value={`${user?.firstName || ''} ${user?.lastName || ''}`} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50" readOnly />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label>
-                <input type="text" value={user?.department || 'Chưa xác định'} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50" readOnly />
-              </div>
-            </div>
 
             {/* Items table */}
             <div>
@@ -324,56 +313,40 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
             </div>
 
             {/* Mục đích yêu cầu */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mục đích yêu cầu <span className="text-red-500">*</span></label>
+            <FormField label="Mục đích yêu cầu" required>
               <textarea
                 value={mucDichYeuCau}
                 onChange={(e) => setMucDichYeuCau(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className={textareaCls()}
                 rows={2}
-                placeholder="Mô tả mục đích yêu cầu"
+                placeholder="Mô tả mục đích yêu cầu cung cấp..."
               />
-            </div>
+            </FormField>
 
-            {/* Mức độ ưu tiên */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mức độ ưu tiên <span className="text-red-500">*</span></label>
-              <select
-                value={mucDoUuTien}
-                onChange={(e) => setMucDoUuTien(e.target.value)}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Cao">Cao</option>
-                <option value="Trung bình">Trung bình</option>
-                <option value="Thấp">Thấp</option>
-              </select>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Mức độ ưu tiên */}
+              <FormField label="Mức độ ưu tiên" required>
+                <select value={mucDoUuTien} onChange={(e) => setMucDoUuTien(e.target.value)} required className={selectCls()}>
+                  <option value="Cao">Cao</option>
+                  <option value="Trung bình">Trung bình</option>
+                  <option value="Thấp">Thấp</option>
+                </select>
+              </FormField>
 
-            {/* Ghi chú */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-              <textarea
-                value={ghiChu}
-                onChange={(e) => setGhiChu(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                rows={3}
-                placeholder="Ghi chú thêm (nếu có)"
-              />
-            </div>
-
-            {/* Submit Button */}
-            <div className="flex justify-end pt-2">
-              <button type="button" onClick={onClose} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors mr-3">Hủy</button>
-              <button type="submit" disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium disabled:opacity-50">
-                {loading ? 'Đang xử lý...' : 'Tạo yêu cầu'}
-              </button>
+              {/* Ghi chú */}
+              <FormField label="Ghi chú">
+                <textarea
+                  value={ghiChu}
+                  onChange={(e) => setGhiChu(e.target.value)}
+                  className={textareaCls()}
+                  rows={2}
+                  placeholder="Ghi chú thêm nếu có..."
+                />
+              </FormField>
             </div>
           </form>
-        </div>
-      </div>
-    </div>
+    </ModalForm>
   );
 };
 

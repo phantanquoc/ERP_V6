@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import Modal from './Modal';
 import DatePicker from './DatePicker';
 import FileUpload from './FileUpload';
 import { workPlanService, WorkPlanPriority, CreateWorkPlanData } from '../services/workPlanService';
-import { X, Calendar, Users, FileText, AlertCircle, ClipboardList } from 'lucide-react';
+import { Calendar, Users, FileText, AlertCircle, ClipboardList } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { ModalForm, ModalFooter } from './ModalForm';
 
 interface CreateWorkPlanModalProps {
   isOpen: boolean;
@@ -106,32 +106,20 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
 
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-teal-600 to-teal-700">
-          <h2 className="text-xl font-bold text-white flex items-center">
-            <ClipboardList className="w-5 h-5 mr-2" />
-            Tạo kế hoạch công việc mới
-          </h2>
-          <button
-            onClick={handleClose}
-            className="text-white hover:text-gray-200 transition-colors"
-            type="button"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto max-h-[calc(90vh-140px)] px-6 py-5">
-          <form onSubmit={handleSubmit} className="space-y-5" id="create-work-plan-form">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center">
-              <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-              <span className="text-sm">{error}</span>
-            </div>
-          )}
+    <ModalForm
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="Tạo kế hoạch công việc mới"
+      titleIcon={<ClipboardList className="w-4 h-4" />}
+      footer={<ModalFooter onClose={handleClose} onSubmit={() => (document.getElementById('create-work-plan-form') as HTMLFormElement)?.requestSubmit()} submitLabel="Tạo kế hoạch" isLoading={loading} />}
+    >
+      <form onSubmit={handleSubmit} className="space-y-5" id="create-work-plan-form">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center">
+            <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+            <span className="text-sm">{error}</span>
+          </div>
+        )}
 
         {/* Row 1: Ngày tạo */}
         <div>
@@ -261,38 +249,8 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
           accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
         />
 
-          </form>
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors text-sm font-medium"
-            disabled={loading}
-          >
-            Hủy
-          </button>
-          <button
-            type="submit"
-            form="create-work-plan-form"
-            disabled={loading}
-            className="px-5 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium flex items-center"
-          >
-            {loading ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Đang tạo...
-              </>
-            ) : 'Tạo kế hoạch'}
-          </button>
-        </div>
-      </div>
-    </Modal>
+      </form>
+    </ModalForm>
   );
 };
 

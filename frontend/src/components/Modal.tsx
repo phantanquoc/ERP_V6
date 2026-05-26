@@ -7,31 +7,29 @@ interface ModalProps {
   children: React.ReactNode;
   className?: string;
   showBackdrop?: boolean;
+  /** Cho phép click backdrop để đóng (default: false — chỉ nút X mới đóng) */
+  closeOnBackdrop?: boolean;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, className = '', showBackdrop = true }) => {
-  // Handle ESC key and body scroll
+const Modal: React.FC<ModalProps> = ({
+  isOpen,
+  onClose,
+  children,
+  className = '',
+  showBackdrop = true,
+  closeOnBackdrop = false,
+}) => {
   useEffect(() => {
-    const handleEsc = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     if (isOpen) {
       document.addEventListener('keydown', handleEsc);
-      // Prevent body scroll
-      const originalStyle = window.getComputedStyle(document.body);
       const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth;
-      
       document.body.style.overflow = 'hidden';
       document.body.style.paddingRight = `${scrollBarWidth}px`;
       document.documentElement.style.overflow = 'hidden';
     }
-
     return () => {
       document.removeEventListener('keydown', handleEsc);
-      // Restore body scroll
       document.body.style.overflow = '';
       document.body.style.paddingRight = '';
       document.documentElement.style.overflow = '';
@@ -42,60 +40,22 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, className = ''
 
   return (
     <Portal>
-      <div 
-        className="fixed inset-0 z-[9999] overflow-y-auto"
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          width: '100vw',
-          height: '100vh',
-          zIndex: 9999
-        }}
+      {/*
+        Container phủ toàn màn hình — click vào đây (backdrop) để đóng.
+        stopPropagation đặt trực tiếp trên children (modal box) để ngăn click bên trong bubble lên.
+      */}
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+        style={{ width: '100vw', height: '100vh' }}
+        onClick={closeOnBackdrop ? onClose : undefined}
       >
-        {/* Backdrop - chỉ hiển thị khi showBackdrop = true */}
-        {showBackdrop ? (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-            onClick={onClose}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              width: '100vw',
-              height: '100vh',
-              zIndex: 9998
-            }}
-          />
-        ) : (
-          /* Invisible overlay để có thể click outside để đóng modal */
-          <div
-            className="fixed inset-0"
-            onClick={onClose}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              width: '100vw',
-              height: '100vh',
-              zIndex: 9998,
-              backgroundColor: 'transparent'
-            }}
-          />
+        {/* Backdrop overlay — visual only */}
+        {showBackdrop && (
+          <div className="absolute inset-0 bg-black/50" />
         )}
-        
-        {/* Modal Content */}
-        <div
-          className={`relative flex min-h-full items-center justify-center p-4 ${className}`}
-          style={{ zIndex: 10000 }}
-          onClick={(e) => e.stopPropagation()}
-        >
+
+        {/* Wrapper z-index + w-full để modal box dùng được max-w-* */}
+        <div className={`relative z-10 w-full flex justify-center ${className}`}>
           {children}
         </div>
       </div>
@@ -104,3 +64,4 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, className = ''
 };
 
 export default Modal;
+
