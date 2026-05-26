@@ -1,39 +1,19 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
 export class InvoiceService {
-  /**
-   * Generate invoice number
-   * Format: HD{SEQUENCE}
-   * Example: HD001, HD002
-   */
   async generateInvoiceNumber(): Promise<string> {
-    const prefix = 'HD';
-
-    const lastInvoice = await prisma.invoice.findFirst({
-      where: {
-        soHoaDon: {
-          startsWith: prefix,
-        },
-      },
-      orderBy: {
-        soHoaDon: 'desc',
-      },
+    const year = new Date().getFullYear();
+    const last = await prisma.invoice.findFirst({
+      where: { soHoaDon: yearlyCodeWhere('HD', year) },
+      orderBy: { soHoaDon: 'desc' },
+      select: { soHoaDon: true },
     });
-
-    let sequence = 1;
-    if (lastInvoice) {
-      const lastCode = lastInvoice.soHoaDon;
-      const sequenceStr = lastCode.replace(prefix, '');
-      if (sequenceStr) {
-        sequence = parseInt(sequenceStr, 10) + 1;
-      }
-    }
-
-    return `${prefix}${String(sequence).padStart(3, '0')}`;
+    return nextYearlyCode(last?.soHoaDon ?? null, 'HD', year);
   }
 
   async getAllInvoices(

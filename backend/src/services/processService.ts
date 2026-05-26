@@ -1,37 +1,18 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
+import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
 export class ProcessService {
-  /**
-   * Generate process code
-   * Format: QT-{SEQUENCE}
-   * Example: QT-001, QT-002
-   */
   async generateProcessCode(): Promise<string> {
-    const lastProcess = await prisma.process.findFirst({
-      where: {
-        maQuyTrinh: {
-          startsWith: 'QT-',
-        },
-      },
-      orderBy: {
-        maQuyTrinh: 'desc',
-      },
+    const last = await prisma.process.findFirst({
+      where: { maQuyTrinh: staticCodeWhere('QT') },
+      orderBy: { maQuyTrinh: 'desc' },
+      select: { maQuyTrinh: true },
     });
-
-    let sequence = 1;
-    if (lastProcess) {
-      const lastCode = lastProcess.maQuyTrinh;
-      const sequenceStr = lastCode.replace('QT-', '');
-      if (sequenceStr) {
-        sequence = parseInt(sequenceStr, 10) + 1;
-      }
-    }
-
-    return `QT-${String(sequence).padStart(3, '0')}`;
+    return nextStaticCode(last?.maQuyTrinh ?? null, 'QT');
   }
 
   async getAllProcesses(

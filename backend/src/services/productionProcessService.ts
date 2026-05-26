@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError } from '../utils/errors';
+import { nextStaticCode, staticCodeWhere } from '../utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
 interface CreateProductionProcessData {
@@ -107,19 +108,12 @@ class ProductionProcessService {
 
   // Generate unique production process code
   private async generateProductionProcessCode(): Promise<string> {
-    const lastProcess = await prisma.productionProcess.findFirst({
-      orderBy: {
-        maQuyTrinhSanXuat: 'desc',
-      },
+    const last = await prisma.productionProcess.findFirst({
+      where: { maQuyTrinhSanXuat: staticCodeWhere('QTSX') },
+      orderBy: { maQuyTrinhSanXuat: 'desc' },
+      select: { maQuyTrinhSanXuat: true },
     });
-
-    if (!lastProcess) {
-      return 'QTSX-001';
-    }
-
-    const lastNumber = parseInt(lastProcess.maQuyTrinhSanXuat.split('-')[1]);
-    const newNumber = lastNumber + 1;
-    return `QTSX-${newNumber.toString().padStart(3, '0')}`;
+    return nextStaticCode(last?.maQuyTrinhSanXuat ?? null, 'QTSX');
   }
 
   // Create production process from template

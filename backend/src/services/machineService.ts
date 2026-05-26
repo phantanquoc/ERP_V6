@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
 export class MachineService {
@@ -45,18 +46,12 @@ export class MachineService {
   }
 
   async generateMachineCode(): Promise<string> {
-    const lastMachine = await prisma.machine.findFirst({
-      orderBy: { createdAt: 'desc' },
+    const last = await prisma.machine.findFirst({
+      where: { maMay: staticCodeWhere('MAY') },
+      orderBy: { maMay: 'desc' },
+      select: { maMay: true },
     });
-
-    if (!lastMachine) {
-      return 'MAY001';
-    }
-
-    const lastCode = lastMachine.maMay;
-    const numberPart = parseInt(lastCode.replace('MAY', ''));
-    const newNumber = numberPart + 1;
-    return `MAY${newNumber.toString().padStart(3, '0')}`;
+    return nextStaticCode(last?.maMay ?? null, 'MAY');
   }
 
   async createMachine(data: {

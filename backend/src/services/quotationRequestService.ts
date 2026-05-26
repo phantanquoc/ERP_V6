@@ -1,37 +1,19 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
 export class QuotationRequestService {
-  /**
-   * Generate quotation request code
-   * Format: YCBG-{SEQUENCE}
-   * Example: YCBG-001, YCBG-002
-   */
   async generateQuotationRequestCode(): Promise<string> {
-    const lastRequest = await prisma.quotationRequest.findFirst({
-      where: {
-        maYeuCauBaoGia: {
-          startsWith: 'YCBG-',
-        },
-      },
-      orderBy: {
-        maYeuCauBaoGia: 'desc',
-      },
+    const year = new Date().getFullYear();
+    const last = await prisma.quotationRequest.findFirst({
+      where: { maYeuCauBaoGia: yearlyCodeWhere('YCBG', year) },
+      orderBy: { maYeuCauBaoGia: 'desc' },
+      select: { maYeuCauBaoGia: true },
     });
-
-    let sequence = 1;
-    if (lastRequest) {
-      const lastCode = lastRequest.maYeuCauBaoGia;
-      const sequenceStr = lastCode.replace('YCBG-', '');
-      if (sequenceStr) {
-        sequence = parseInt(sequenceStr, 10) + 1;
-      }
-    }
-
-    return `YCBG-${String(sequence).padStart(3, '0')}`;
+    return nextYearlyCode(last?.maYeuCauBaoGia ?? null, 'YCBG', year);
   }
 
   async getAllQuotationRequests(

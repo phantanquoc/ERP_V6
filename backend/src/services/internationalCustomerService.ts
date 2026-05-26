@@ -1,39 +1,19 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
+import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
 export class InternationalCustomerService {
-  /**
-   * Generate customer code
-   * Quốc tế: KHQT-{SEQUENCE} (e.g. KHQT-001)
-   * Nội địa: KHND-{SEQUENCE} (e.g. KHND-001)
-   */
   async generateCustomerCode(type: 'international' | 'domestic' = 'international'): Promise<string> {
-    const prefix = type === 'domestic' ? 'KHND-' : 'KHQT-';
-
-    const lastCustomer = await prisma.internationalCustomer.findFirst({
-      where: {
-        maKhachHang: {
-          startsWith: prefix,
-        },
-      },
-      orderBy: {
-        maKhachHang: 'desc',
-      },
+    const prefix = type === 'domestic' ? 'KHND' : 'KHQT';
+    const last = await prisma.internationalCustomer.findFirst({
+      where: { maKhachHang: staticCodeWhere(prefix) },
+      orderBy: { maKhachHang: 'desc' },
+      select: { maKhachHang: true },
     });
-
-    let sequence = 1;
-    if (lastCustomer) {
-      const lastCode = lastCustomer.maKhachHang;
-      const sequenceStr = lastCode.replace(prefix, '');
-      if (sequenceStr) {
-        sequence = parseInt(sequenceStr, 10) + 1;
-      }
-    }
-
-    return `${prefix}${String(sequence).padStart(3, '0')}`;
+    return nextStaticCode(last?.maKhachHang ?? null, prefix);
   }
 
   async getAllCustomers(

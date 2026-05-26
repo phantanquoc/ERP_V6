@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import logger from '@config/logger';
 import { NotFoundError, AuthenticationError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages, hashPassword, comparePassword } from '@utils/helpers';
+import { nextEmployeeCode } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
 import { UserRole } from '@types';
 import { Gender } from '@prisma/client';
@@ -324,7 +325,7 @@ export class UserService {
     });
 
     // Employee code is NOT changed when department changes
-    // Employee code format: NV001, NV002, NV003... (assigned once, never changes)
+    // Employee code format: NV0001, NV0002, NV0003... (assigned once, never changes)
 
     return updated;
   }
@@ -444,26 +445,12 @@ export class UserService {
 
       // Auto-create employee for all users (including ADMIN)
       try {
-        // Generate employee code: NV001, NV002, NV003, ...
-        // Get the last employee code to avoid duplicates
         const lastEmployee = await tx.employee.findFirst({
-          where: {
-            employeeCode: {
-              startsWith: 'NV',
-            },
-          },
-          orderBy: {
-            employeeCode: 'desc',
-          },
+          where: { employeeCode: { startsWith: 'NV' } },
+          orderBy: { employeeCode: 'desc' },
+          select: { employeeCode: true },
         });
-
-        let employeeCode: string;
-        if (lastEmployee && lastEmployee.employeeCode) {
-          const lastNumber = parseInt(lastEmployee.employeeCode.replace('NV', ''));
-          employeeCode = `NV${String(lastNumber + 1).padStart(3, '0')}`;
-        } else {
-          employeeCode = 'NV001';
-        }
+        const employeeCode = nextEmployeeCode(lastEmployee?.employeeCode ?? null);
 
         // Create employee without requiring a default position
         await tx.employee.create({

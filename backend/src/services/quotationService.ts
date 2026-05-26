@@ -1,16 +1,18 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
 class QuotationService {
-  /**
-   * Generate quotation code
-   * Format: BG-{maYeuCauBaoGia}
-   * Example: BG-YC-BG001, BG-YC-BG002
-   */
-  async generateQuotationCode(maYeuCauBaoGia: string): Promise<string> {
-    return `BG-${maYeuCauBaoGia}`;
+  async generateQuotationCode(): Promise<string> {
+    const year = new Date().getFullYear();
+    const last = await prisma.quotation.findFirst({
+      where: { maBaoGia: yearlyCodeWhere('BG', year) },
+      orderBy: { maBaoGia: 'desc' },
+      select: { maBaoGia: true },
+    });
+    return nextYearlyCode(last?.maBaoGia ?? null, 'BG', year);
   }
 
   /**
@@ -122,7 +124,7 @@ class QuotationService {
 
     // Generate quotation code if not provided
     if (!data.maBaoGia) {
-      data.maBaoGia = await this.generateQuotationCode(quotationRequest.maYeuCauBaoGia);
+      data.maBaoGia = await this.generateQuotationCode();
     }
 
     // Check if quotation code already exists

@@ -2,39 +2,21 @@ import prisma from '@config/database';
 import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 import notificationService from './notificationService';
 import { LeaveRequestStatusConst, NotificationEvent } from '@types';
 
 export class LeaveRequestService {
-  /**
-   * Generate leave request code
-   * Format: NP-{SEQUENCE}
-   * Example: NP-001, NP-002
-   */
   async generateLeaveRequestCode(): Promise<string> {
-    const lastRequest = await prisma.leaveRequest.findFirst({
-      where: {
-        code: {
-          startsWith: 'NP-',
-        },
-      },
-      orderBy: {
-        code: 'desc',
-      },
+    const year = new Date().getFullYear();
+    const last = await prisma.leaveRequest.findFirst({
+      where: { code: yearlyCodeWhere('NP', year) },
+      orderBy: { code: 'desc' },
+      select: { code: true },
     });
-
-    let sequence = 1;
-    if (lastRequest) {
-      const lastCode = lastRequest.code;
-      const sequenceStr = lastCode.replace('NP-', '');
-      if (sequenceStr) {
-        sequence = parseInt(sequenceStr, 10) + 1;
-      }
-    }
-
-    return `NP-${String(sequence).padStart(3, '0')}`;
+    return nextYearlyCode(last?.code ?? null, 'NP', year);
   }
 
   /**

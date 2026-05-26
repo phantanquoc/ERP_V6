@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError } from '@utils/errors';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
 export class InternalInspectionService {
@@ -67,8 +68,13 @@ export class InternalInspectionService {
   async createInspection(data: any): Promise<any> {
     try {
       // Generate inspection code
-      const count = await prisma.internalInspection.count();
-      const inspectionCode = `KTN-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+      const year = new Date().getFullYear();
+      const last = await prisma.internalInspection.findFirst({
+        where: { inspectionCode: yearlyCodeWhere('KTN', year) },
+        orderBy: { inspectionCode: 'desc' },
+        select: { inspectionCode: true },
+      });
+      const inspectionCode = nextYearlyCode(last?.inspectionCode ?? null, 'KTN', year, 5);
 
       const inspection = await prisma.internalInspection.create({
         data: {

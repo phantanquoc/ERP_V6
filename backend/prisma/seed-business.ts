@@ -18,10 +18,10 @@ async function main(): Promise<void> {
   console.log('🌱 Seeding business data — Quy trình mít sấy chi tiết...\n');
 
   // ─── Lấy employee đã có ─────────────────────────────────────────────────
-  const adminEmployee = await prisma.employee.findFirst({ where: { employeeCode: 'NV000' } });
-  const businessEmployee = await prisma.employee.findFirst({ where: { employeeCode: 'NV003' } });
-  const purchasingEmployee = await prisma.employee.findFirst({ where: { employeeCode: 'NV005' } });
-  const productionEmployee = await prisma.employee.findFirst({ where: { employeeCode: 'NV002' } });
+  const adminEmployee = await prisma.employee.findFirst({ where: { employeeCode: 'NV0000' } });
+  const businessEmployee = await prisma.employee.findFirst({ where: { employeeCode: 'NV0003' } });
+  const purchasingEmployee = await prisma.employee.findFirst({ where: { employeeCode: 'NV0005' } });
+  const productionEmployee = await prisma.employee.findFirst({ where: { employeeCode: 'NV0002' } });
 
   if (!adminEmployee || !businessEmployee || !purchasingEmployee) {
     console.error('❌ Cần chạy seed chính trước (npx prisma db seed)');
@@ -38,24 +38,24 @@ async function main(): Promise<void> {
   await prisma.productCategory.upsert({ where: { name: 'Hạt dinh dưỡng' }, update: {}, create: { name: 'Hạt dinh dưỡng' } });
 
   const mitSayDeo = await prisma.internationalProduct.upsert({
-    where: { maSanPham: 'SP001' }, update: {},
-    create: { maSanPham: 'SP001', tenSanPham: 'Mít sấy dẻo', moTaSanPham: 'Mít sấy dẻo tự nhiên, không đường, không phụ gia. Độ ẩm 16-18%.', loaiSanPham: 'Trái cây sấy', donViTinh: 'kg' },
+    where: { maSanPham: 'SP-001' }, update: {},
+    create: { maSanPham: 'SP-001', tenSanPham: 'Mít sấy dẻo', moTaSanPham: 'Mít sấy dẻo tự nhiên, không đường, không phụ gia. Độ ẩm 16-18%.', loaiSanPham: 'Trái cây sấy', donViTinh: 'kg' },
   });
   const mitSayGion = await prisma.internationalProduct.upsert({
-    where: { maSanPham: 'SP002' }, update: {},
-    create: { maSanPham: 'SP002', tenSanPham: 'Mít sấy giòn', moTaSanPham: 'Mít sấy giòn vacuum, giữ nguyên hương vị. Độ ẩm < 5%.', loaiSanPham: 'Trái cây sấy', donViTinh: 'kg' },
+    where: { maSanPham: 'SP-002' }, update: {},
+    create: { maSanPham: 'SP-002', tenSanPham: 'Mít sấy giòn', moTaSanPham: 'Mít sấy giòn vacuum, giữ nguyên hương vị. Độ ẩm < 5%.', loaiSanPham: 'Trái cây sấy', donViTinh: 'kg' },
   });
   await prisma.internationalProduct.upsert({
-    where: { maSanPham: 'SP003' }, update: {},
-    create: { maSanPham: 'SP003', tenSanPham: 'Chuối sấy dẻo', moTaSanPham: 'Chuối sấy dẻo tự nhiên', loaiSanPham: 'Trái cây sấy', donViTinh: 'kg' },
+    where: { maSanPham: 'SP-003' }, update: {},
+    create: { maSanPham: 'SP-003', tenSanPham: 'Chuối sấy dẻo', moTaSanPham: 'Chuối sấy dẻo tự nhiên', loaiSanPham: 'Trái cây sấy', donViTinh: 'kg' },
   });
   await prisma.internationalProduct.upsert({
-    where: { maSanPham: 'SP004' }, update: {},
-    create: { maSanPham: 'SP004', tenSanPham: 'Khoai lang sấy giòn', moTaSanPham: 'Khoai lang sấy giòn tự nhiên', loaiSanPham: 'Rau củ sấy', donViTinh: 'kg' },
+    where: { maSanPham: 'SP-004' }, update: {},
+    create: { maSanPham: 'SP-004', tenSanPham: 'Khoai lang sấy giòn', moTaSanPham: 'Khoai lang sấy giòn tự nhiên', loaiSanPham: 'Rau củ sấy', donViTinh: 'kg' },
   });
   await prisma.internationalProduct.upsert({
-    where: { maSanPham: 'SP005' }, update: {},
-    create: { maSanPham: 'SP005', tenSanPham: 'Đậu phộng rang muối', moTaSanPham: 'Đậu phộng rang muối Bình Phước', loaiSanPham: 'Hạt dinh dưỡng', donViTinh: 'kg' },
+    where: { maSanPham: 'SP-005' }, update: {},
+    create: { maSanPham: 'SP-005', tenSanPham: 'Đậu phộng rang muối', moTaSanPham: 'Đậu phộng rang muối Bình Phước', loaiSanPham: 'Hạt dinh dưỡng', donViTinh: 'kg' },
   });
   console.log('  ✅ 5 sản phẩm');
 
@@ -64,20 +64,20 @@ async function main(): Promise<void> {
   // ═══════════════════════════════════════════════════════════════════════════
   console.log('👥 2. Tạo khách hàng...');
   const customerJP = await prisma.internationalCustomer.upsert({
-    where: { maKhachHang: 'KH001' }, update: {},
-    create: { maKhachHang: 'KH001', tenCongTy: 'Tokyo Dried Fruits Co., Ltd', nguoiLienHe: 'Tanaka Yuki', loaiKhachHang: 'Nhà nhập khẩu', quocGia: 'Nhật Bản', thanhPho: 'Tokyo', diaChi: '1-2-3 Shibuya, Tokyo 150-0002', soDienThoai: '+81-3-1234-5678', email: 'tanaka@tokyodriedfruits.jp', website: 'https://tokyodriedfruits.jp', trangThai: 'Hoạt động', ngayHopTac: new Date('2024-03-15'), doanhThuNam: 250000, soLuongDonHang: 8, sanPhamChinh: 'Mít sấy, Chuối sấy' },
+    where: { maKhachHang: 'KHQT-001' }, update: {},
+    create: { maKhachHang: 'KHQT-001', tenCongTy: 'Tokyo Dried Fruits Co., Ltd', nguoiLienHe: 'Tanaka Yuki', loaiKhachHang: 'Nhà nhập khẩu', quocGia: 'Nhật Bản', thanhPho: 'Tokyo', diaChi: '1-2-3 Shibuya, Tokyo 150-0002', soDienThoai: '+81-3-1234-5678', email: 'tanaka@tokyodriedfruits.jp', website: 'https://tokyodriedfruits.jp', trangThai: 'Hoạt động', ngayHopTac: new Date('2024-03-15'), doanhThuNam: 250000, soLuongDonHang: 8, sanPhamChinh: 'Mít sấy, Chuối sấy' },
   });
   const customerKR = await prisma.internationalCustomer.upsert({
-    where: { maKhachHang: 'KH002' }, update: {},
-    create: { maKhachHang: 'KH002', tenCongTy: 'Seoul Snack Distribution', nguoiLienHe: 'Park Min-jun', loaiKhachHang: 'Nhà phân phối', quocGia: 'Hàn Quốc', thanhPho: 'Seoul', diaChi: '123 Gangnam-daero, Gangnam-gu, Seoul', soDienThoai: '+82-2-555-1234', email: 'park@seoulsnack.kr', trangThai: 'Hoạt động', ngayHopTac: new Date('2024-06-01'), doanhThuNam: 180000, soLuongDonHang: 5, sanPhamChinh: 'Mít sấy giòn, Khoai lang sấy' },
+    where: { maKhachHang: 'KHQT-002' }, update: {},
+    create: { maKhachHang: 'KHQT-002', tenCongTy: 'Seoul Snack Distribution', nguoiLienHe: 'Park Min-jun', loaiKhachHang: 'Nhà phân phối', quocGia: 'Hàn Quốc', thanhPho: 'Seoul', diaChi: '123 Gangnam-daero, Gangnam-gu, Seoul', soDienThoai: '+82-2-555-1234', email: 'park@seoulsnack.kr', trangThai: 'Hoạt động', ngayHopTac: new Date('2024-06-01'), doanhThuNam: 180000, soLuongDonHang: 5, sanPhamChinh: 'Mít sấy giòn, Khoai lang sấy' },
   });
   const customerUS = await prisma.internationalCustomer.upsert({
-    where: { maKhachHang: 'KH003' }, update: {},
-    create: { maKhachHang: 'KH003', tenCongTy: 'California Organic Imports LLC', nguoiLienHe: 'Michael Johnson', loaiKhachHang: 'Nhà nhập khẩu', quocGia: 'Mỹ', thanhPho: 'Los Angeles', diaChi: '456 Sunset Blvd, Los Angeles, CA 90028', soDienThoai: '+1-310-555-0199', email: 'michael@caorganic.com', website: 'https://caorganic.com', trangThai: 'Hoạt động', ngayHopTac: new Date('2025-01-10'), doanhThuNam: 320000, soLuongDonHang: 3, sanPhamChinh: 'Mít sấy dẻo, Đậu phộng' },
+    where: { maKhachHang: 'KHQT-003' }, update: {},
+    create: { maKhachHang: 'KHQT-003', tenCongTy: 'California Organic Imports LLC', nguoiLienHe: 'Michael Johnson', loaiKhachHang: 'Nhà nhập khẩu', quocGia: 'Mỹ', thanhPho: 'Los Angeles', diaChi: '456 Sunset Blvd, Los Angeles, CA 90028', soDienThoai: '+1-310-555-0199', email: 'michael@caorganic.com', website: 'https://caorganic.com', trangThai: 'Hoạt động', ngayHopTac: new Date('2025-01-10'), doanhThuNam: 320000, soLuongDonHang: 3, sanPhamChinh: 'Mít sấy dẻo, Đậu phộng' },
   });
   await prisma.internationalCustomer.upsert({
-    where: { maKhachHang: 'KH004' }, update: {},
-    create: { maKhachHang: 'KH004', tenCongTy: 'Công ty TNHH Thực phẩm Sài Gòn', nguoiLienHe: 'Nguyễn Minh Tuấn', loaiKhachHang: 'Đại lý', tinhThanh: 'TP. Hồ Chí Minh', quanHuyen: 'Quận 7', diaChi: '123 Nguyễn Thị Thập, Quận 7, TP.HCM', soDienThoai: '028-3775-1234', email: 'tuan@tpsg.vn', maSoThue: '0312345678', trangThai: 'Hoạt động', ngayHopTac: new Date('2023-08-20'), doanhThuNam: 500000000, soLuongDonHang: 12, sanPhamChinh: 'Mít sấy, Chuối sấy, Khoai lang sấy' },
+    where: { maKhachHang: 'KHND-001' }, update: {},
+    create: { maKhachHang: 'KHND-001', tenCongTy: 'Công ty TNHH Thực phẩm Sài Gòn', nguoiLienHe: 'Nguyễn Minh Tuấn', loaiKhachHang: 'Đại lý', tinhThanh: 'TP. Hồ Chí Minh', quanHuyen: 'Quận 7', diaChi: '123 Nguyễn Thị Thập, Quận 7, TP.HCM', soDienThoai: '028-3775-1234', email: 'tuan@tpsg.vn', maSoThue: '0312345678', trangThai: 'Hoạt động', ngayHopTac: new Date('2023-08-20'), doanhThuNam: 500000000, soLuongDonHang: 12, sanPhamChinh: 'Mít sấy, Chuối sấy, Khoai lang sấy' },
   });
   console.log('  ✅ 4 khách hàng (JP, KR, US, VN)');
 
@@ -86,16 +86,16 @@ async function main(): Promise<void> {
   // ═══════════════════════════════════════════════════════════════════════════
   console.log('🏭 3. Tạo nhà cung cấp...');
   const nccMit = await prisma.supplier.upsert({
-    where: { maNhaCungCap: 'NCC001' }, update: {},
-    create: { maNhaCungCap: 'NCC001', tenNhaCungCap: 'HTX Mít Tiền Giang', loaiCungCap: 'Trái cây tươi', quocGia: 'Việt Nam', nguoiLienHe: 'Trần Văn Hùng', soDienThoai: '0918-123-456', emailLienHe: 'hung@htxmit.vn', diaChi: 'Xã Long Khánh, Cai Lậy, Tiền Giang', khaNang: '50 tấn/tháng', loaiHinh: 'Sản xuất', trangThai: 'Đang cung cấp', phanLoaiNCC: 'NVL', employeeId: purchasingEmployee.id },
+    where: { maNhaCungCap: 'NCC-001' }, update: {},
+    create: { maNhaCungCap: 'NCC-001', tenNhaCungCap: 'HTX Mít Tiền Giang', loaiCungCap: 'Trái cây tươi', quocGia: 'Việt Nam', nguoiLienHe: 'Trần Văn Hùng', soDienThoai: '0918-123-456', emailLienHe: 'hung@htxmit.vn', diaChi: 'Xã Long Khánh, Cai Lậy, Tiền Giang', khaNang: '50 tấn/tháng', loaiHinh: 'Sản xuất', trangThai: 'Đang cung cấp', phanLoaiNCC: 'NVL', employeeId: purchasingEmployee.id },
   });
   const nccBaoBi = await prisma.supplier.upsert({
-    where: { maNhaCungCap: 'NCC002' }, update: {},
-    create: { maNhaCungCap: 'NCC002', tenNhaCungCap: 'Công ty Bao bì Đại Phát', loaiCungCap: 'Bao bì đóng gói', quocGia: 'Việt Nam', nguoiLienHe: 'Lê Thị Mai', soDienThoai: '0909-456-789', emailLienHe: 'mai@daiphat.vn', diaChi: 'KCN Tân Bình, TP.HCM', khaNang: '100.000 túi/tháng', loaiHinh: 'Sản xuất', trangThai: 'Đang cung cấp', phanLoaiNCC: 'NVL', employeeId: purchasingEmployee.id },
+    where: { maNhaCungCap: 'NCC-002' }, update: {},
+    create: { maNhaCungCap: 'NCC-002', tenNhaCungCap: 'Công ty Bao bì Đại Phát', loaiCungCap: 'Bao bì đóng gói', quocGia: 'Việt Nam', nguoiLienHe: 'Lê Thị Mai', soDienThoai: '0909-456-789', emailLienHe: 'mai@daiphat.vn', diaChi: 'KCN Tân Bình, TP.HCM', khaNang: '100.000 túi/tháng', loaiHinh: 'Sản xuất', trangThai: 'Đang cung cấp', phanLoaiNCC: 'NVL', employeeId: purchasingEmployee.id },
   });
   await prisma.supplier.upsert({
-    where: { maNhaCungCap: 'NCC003' }, update: {},
-    create: { maNhaCungCap: 'NCC003', tenNhaCungCap: 'Trang trại Chuối Đồng Nai', loaiCungCap: 'Trái cây tươi', quocGia: 'Việt Nam', nguoiLienHe: 'Phạm Quốc Bảo', soDienThoai: '0912-789-012', emailLienHe: 'bao@chuoidongnai.vn', diaChi: 'Xã Xuân Lộc, Đồng Nai', khaNang: '30 tấn/tháng', loaiHinh: 'Sản xuất', trangThai: 'Đang cung cấp', phanLoaiNCC: 'NVL', employeeId: purchasingEmployee.id },
+    where: { maNhaCungCap: 'NCC-003' }, update: {},
+    create: { maNhaCungCap: 'NCC-003', tenNhaCungCap: 'Trang trại Chuối Đồng Nai', loaiCungCap: 'Trái cây tươi', quocGia: 'Việt Nam', nguoiLienHe: 'Phạm Quốc Bảo', soDienThoai: '0912-789-012', emailLienHe: 'bao@chuoidongnai.vn', diaChi: 'Xã Xuân Lộc, Đồng Nai', khaNang: '30 tấn/tháng', loaiHinh: 'Sản xuất', trangThai: 'Đang cung cấp', phanLoaiNCC: 'NVL', employeeId: purchasingEmployee.id },
   });
   console.log('  ✅ 3 nhà cung cấp');
 
@@ -245,15 +245,15 @@ async function main(): Promise<void> {
   // --- Đơn 1: Nhật Bản - Mít sấy dẻo 5000kg (ĐANG SẢN XUẤT) ---
   const ycbg1 = await prisma.quotationRequest.upsert({
     where: { maYeuCauBaoGia: 'YCBG-2026-001' }, update: {},
-    create: { maYeuCauBaoGia: 'YCBG-2026-001', ngayYeuCau: new Date('2026-04-01'), employeeId: businessEmployee.id, maNhanVien: 'NV003', tenNhanVien: 'Lê Văn C', customerId: customerJP.id, maKhachHang: 'KH001', tenKhachHang: 'Tokyo Dried Fruits Co., Ltd', hinhThucVanChuyen: 'Đường biển (FCL)', hinhThucThanhToan: 'T/T 30% trước, 70% sau khi giao hàng', quocGia: 'Nhật Bản', cangDen: 'Cảng Yokohama', ghiChu: 'Khách yêu cầu chứng nhận HACCP, JAS Organic' },
+    create: { maYeuCauBaoGia: 'YCBG-2026-001', ngayYeuCau: new Date('2026-04-01'), employeeId: businessEmployee.id, maNhanVien: 'NV0003', tenNhanVien: 'Lê Văn C', customerId: customerJP.id, maKhachHang: 'KHQT-001', tenKhachHang: 'Tokyo Dried Fruits Co., Ltd', hinhThucVanChuyen: 'Đường biển (FCL)', hinhThucThanhToan: 'T/T 30% trước, 70% sau khi giao hàng', quocGia: 'Nhật Bản', cangDen: 'Cảng Yokohama', ghiChu: 'Khách yêu cầu chứng nhận HACCP, JAS Organic' },
   });
   await prisma.quotationRequestItem.deleteMany({ where: { quotationRequestId: ycbg1.id } });
-  await prisma.quotationRequestItem.create({ data: { quotationRequestId: ycbg1.id, productId: mitSayDeo.id, maSanPham: 'SP001', tenSanPham: 'Mít sấy dẻo', moTaSanPham: 'Mít sấy dẻo tự nhiên, không đường', yeuCauSanPham: 'Độ ẩm < 18%, không phụ gia, chứng nhận HACCP', quyDongGoi: 'Túi 500g, thùng 20kg', soLuong: 5000, donViTinh: 'kg', giaDoiThuBan: 8.5, giaBanGanNhat: 7.8 } });
-  await prisma.quotationRequestItem.create({ data: { quotationRequestId: ycbg1.id, productId: mitSayGion.id, maSanPham: 'SP002', tenSanPham: 'Mít sấy giòn', moTaSanPham: 'Mít sấy giòn vacuum', yeuCauSanPham: 'Độ ẩm < 5%, giòn tan, không dầu', quyDongGoi: 'Túi 200g, thùng 10kg', soLuong: 3000, donViTinh: 'kg', giaDoiThuBan: 12.0, giaBanGanNhat: 11.2 } });
+  await prisma.quotationRequestItem.create({ data: { quotationRequestId: ycbg1.id, productId: mitSayDeo.id, maSanPham: 'SP-001', tenSanPham: 'Mít sấy dẻo', moTaSanPham: 'Mít sấy dẻo tự nhiên, không đường', yeuCauSanPham: 'Độ ẩm < 18%, không phụ gia, chứng nhận HACCP', quyDongGoi: 'Túi 500g, thùng 20kg', soLuong: 5000, donViTinh: 'kg', giaDoiThuBan: 8.5, giaBanGanNhat: 7.8 } });
+  await prisma.quotationRequestItem.create({ data: { quotationRequestId: ycbg1.id, productId: mitSayGion.id, maSanPham: 'SP-002', tenSanPham: 'Mít sấy giòn', moTaSanPham: 'Mít sấy giòn vacuum', yeuCauSanPham: 'Độ ẩm < 5%, giòn tan, không dầu', quyDongGoi: 'Túi 200g, thùng 10kg', soLuong: 3000, donViTinh: 'kg', giaDoiThuBan: 12.0, giaBanGanNhat: 11.2 } });
 
   const quotation1 = await prisma.quotation.upsert({
     where: { maBaoGia: 'BG-2026-001' }, update: {},
-    create: { maBaoGia: 'BG-2026-001', ngayBaoGia: new Date('2026-04-05'), quotationRequestId: ycbg1.id, maYeuCauBaoGia: 'YCBG-2026-001', customerId: customerJP.id, maKhachHang: 'KH001', tenKhachHang: 'Tokyo Dried Fruits Co., Ltd', productId: mitSayDeo.id, tenSanPham: 'Mít sấy dẻo', khoiLuong: 5000, donViTinh: 'kg', giaBaoKhach: 8.2, thoiGianGiaoHang: 45, hieuLucBaoGia: 30, employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', tinhTrang: 'DA_DAT_HANG', materialStandardId: dmMitDeo.id, maDinhMuc: 'DM-MIT-DEO', tenDinhMuc: 'Định mức mít sấy dẻo', tiLeThuHoi: 35, sanPhamDauRa: 'Mít sấy dẻo loại A + B', tongNguyenLieuCanSanXuat: 14300, ghiChu: 'Giá FOB Cát Lái, bao gồm chứng nhận HACCP' },
+    create: { maBaoGia: 'BG-2026-001', ngayBaoGia: new Date('2026-04-05'), quotationRequestId: ycbg1.id, maYeuCauBaoGia: 'YCBG-2026-001', customerId: customerJP.id, maKhachHang: 'KHQT-001', tenKhachHang: 'Tokyo Dried Fruits Co., Ltd', productId: mitSayDeo.id, tenSanPham: 'Mít sấy dẻo', khoiLuong: 5000, donViTinh: 'kg', giaBaoKhach: 8.2, thoiGianGiaoHang: 45, hieuLucBaoGia: 30, employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', tinhTrang: 'DA_DAT_HANG', materialStandardId: dmMitDeo.id, maDinhMuc: 'DM-MIT-DEO', tenDinhMuc: 'Định mức mít sấy dẻo', tiLeThuHoi: 35, sanPhamDauRa: 'Mít sấy dẻo loại A + B', tongNguyenLieuCanSanXuat: 14300, ghiChu: 'Giá FOB Cát Lái, bao gồm chứng nhận HACCP' },
   });
   await prisma.quotationItem.deleteMany({ where: { quotationId: quotation1.id } });
   await prisma.quotationItem.create({ data: { quotationId: quotation1.id, tenThanhPham: 'Mít sấy dẻo loại A', tiLe: 65, khoiLuongTuongUng: 3250 } });
@@ -262,50 +262,50 @@ async function main(): Promise<void> {
 
   const order1 = await prisma.order.upsert({
     where: { maDonHang: 'DH-2026-001' }, update: {},
-    create: { maDonHang: 'DH-2026-001', ngayDatHang: new Date('2026-04-10'), quotationId: quotation1.id, maBaoGia: 'BG-2026-001', quotationRequestId: ycbg1.id, maYeuCauBaoGia: 'YCBG-2026-001', customerId: customerJP.id, maKhachHang: 'KH001', tenKhachHang: 'Tokyo Dried Fruits Co., Ltd', employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', giaTriDonHangUSD: 41000, giaTriDonHangVND: 1025000000, xuatKhauDot1USD: 12300, ngayThanhToanDot1: new Date('2026-04-12'), trangThaiSanXuat: 'DANG_SAN_XUAT', trangThaiThanhToan: 'DA_THANH_TOAN_DOT_1', ngayBatDauSanXuatKeHoach: new Date('2026-04-15'), ngayHoanThanhSanXuatKeHoach: new Date('2026-05-20'), ngayGiaoHang: new Date('2026-05-25'), ghiChu: 'Container 20ft, giao tại cảng Cát Lái' },
+    create: { maDonHang: 'DH-2026-001', ngayDatHang: new Date('2026-04-10'), quotationId: quotation1.id, maBaoGia: 'BG-2026-001', quotationRequestId: ycbg1.id, maYeuCauBaoGia: 'YCBG-2026-001', customerId: customerJP.id, maKhachHang: 'KHQT-001', tenKhachHang: 'Tokyo Dried Fruits Co., Ltd', employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', giaTriDonHangUSD: 41000, giaTriDonHangVND: 1025000000, xuatKhauDot1USD: 12300, ngayThanhToanDot1: new Date('2026-04-12'), trangThaiSanXuat: 'DANG_SAN_XUAT', trangThaiThanhToan: 'DA_THANH_TOAN_DOT_1', ngayBatDauSanXuatKeHoach: new Date('2026-04-15'), ngayHoanThanhSanXuatKeHoach: new Date('2026-05-20'), ngayGiaoHang: new Date('2026-05-25'), ghiChu: 'Container 20ft, giao tại cảng Cát Lái' },
   });
   await prisma.orderItem.deleteMany({ where: { orderId: order1.id } });
-  await prisma.orderItem.create({ data: { orderId: order1.id, productId: mitSayDeo.id, maSanPham: 'SP001', tenHangHoa: 'Mít sấy dẻo', yeuCauHangHoa: 'Độ ẩm < 18%, HACCP, JAS Organic', loaiHangHoa: 'Trái cây sấy', dongGoi: 'Túi 500g, thùng 20kg', soLuong: 5000, donVi: 'kg' } });
+  await prisma.orderItem.create({ data: { orderId: order1.id, productId: mitSayDeo.id, maSanPham: 'SP-001', tenHangHoa: 'Mít sấy dẻo', yeuCauHangHoa: 'Độ ẩm < 18%, HACCP, JAS Organic', loaiHangHoa: 'Trái cây sấy', dongGoi: 'Túi 500g, thùng 20kg', soLuong: 5000, donVi: 'kg' } });
   await prisma.taxReport.upsert({ where: { orderId: order1.id }, update: {}, create: { orderId: order1.id, ngayDatHang: new Date('2026-04-10'), maDonHang: 'DH-2026-001', tenHangHoa: 'Mít sấy dẻo', soLuong: 5000, donVi: 'kg', giaTriDonHang: 41000, trangThai: 'DANG_CAP_NHAT_HO_SO', ghiChi: 'Đang chuẩn bị hồ sơ xuất khẩu' } });
 
   // --- Đơn 2: Hàn Quốc - Mít sấy giòn 2000kg (ĐÃ GIAO) ---
   const ycbg2 = await prisma.quotationRequest.upsert({
     where: { maYeuCauBaoGia: 'YCBG-2026-002' }, update: {},
-    create: { maYeuCauBaoGia: 'YCBG-2026-002', ngayYeuCau: new Date('2026-02-15'), employeeId: businessEmployee.id, maNhanVien: 'NV003', tenNhanVien: 'Lê Văn C', customerId: customerKR.id, maKhachHang: 'KH002', tenKhachHang: 'Seoul Snack Distribution', hinhThucVanChuyen: 'Đường biển (LCL)', hinhThucThanhToan: 'L/C at sight', quocGia: 'Hàn Quốc', cangDen: 'Cảng Busan' },
+    create: { maYeuCauBaoGia: 'YCBG-2026-002', ngayYeuCau: new Date('2026-02-15'), employeeId: businessEmployee.id, maNhanVien: 'NV0003', tenNhanVien: 'Lê Văn C', customerId: customerKR.id, maKhachHang: 'KHQT-002', tenKhachHang: 'Seoul Snack Distribution', hinhThucVanChuyen: 'Đường biển (LCL)', hinhThucThanhToan: 'L/C at sight', quocGia: 'Hàn Quốc', cangDen: 'Cảng Busan' },
   });
   await prisma.quotationRequestItem.deleteMany({ where: { quotationRequestId: ycbg2.id } });
-  await prisma.quotationRequestItem.create({ data: { quotationRequestId: ycbg2.id, productId: mitSayGion.id, maSanPham: 'SP002', tenSanPham: 'Mít sấy giòn', yeuCauSanPham: 'Vacuum fried, no oil residue', quyDongGoi: 'Túi 100g retail, thùng 5kg', soLuong: 2000, donViTinh: 'kg' } });
+  await prisma.quotationRequestItem.create({ data: { quotationRequestId: ycbg2.id, productId: mitSayGion.id, maSanPham: 'SP-002', tenSanPham: 'Mít sấy giòn', yeuCauSanPham: 'Vacuum fried, no oil residue', quyDongGoi: 'Túi 100g retail, thùng 5kg', soLuong: 2000, donViTinh: 'kg' } });
 
   const quotation2 = await prisma.quotation.upsert({
     where: { maBaoGia: 'BG-2026-002' }, update: {},
-    create: { maBaoGia: 'BG-2026-002', ngayBaoGia: new Date('2026-02-18'), quotationRequestId: ycbg2.id, maYeuCauBaoGia: 'YCBG-2026-002', customerId: customerKR.id, maKhachHang: 'KH002', tenKhachHang: 'Seoul Snack Distribution', productId: mitSayGion.id, tenSanPham: 'Mít sấy giòn', khoiLuong: 2000, donViTinh: 'kg', giaBaoKhach: 11.5, thoiGianGiaoHang: 30, hieuLucBaoGia: 15, employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', tinhTrang: 'DA_DAT_HANG' },
+    create: { maBaoGia: 'BG-2026-002', ngayBaoGia: new Date('2026-02-18'), quotationRequestId: ycbg2.id, maYeuCauBaoGia: 'YCBG-2026-002', customerId: customerKR.id, maKhachHang: 'KHQT-002', tenKhachHang: 'Seoul Snack Distribution', productId: mitSayGion.id, tenSanPham: 'Mít sấy giòn', khoiLuong: 2000, donViTinh: 'kg', giaBaoKhach: 11.5, thoiGianGiaoHang: 30, hieuLucBaoGia: 15, employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', tinhTrang: 'DA_DAT_HANG' },
   });
   const order2 = await prisma.order.upsert({
     where: { maDonHang: 'DH-2026-002' }, update: {},
-    create: { maDonHang: 'DH-2026-002', ngayDatHang: new Date('2026-02-20'), quotationId: quotation2.id, maBaoGia: 'BG-2026-002', quotationRequestId: ycbg2.id, maYeuCauBaoGia: 'YCBG-2026-002', customerId: customerKR.id, maKhachHang: 'KH002', tenKhachHang: 'Seoul Snack Distribution', employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', giaTriDonHangUSD: 23000, giaTriDonHangVND: 575000000, xuatKhauDot1USD: 23000, ngayThanhToanDot1: new Date('2026-02-22'), trangThaiSanXuat: 'DA_GIAO_CHO_KHACH_HANG', trangThaiThanhToan: 'DA_THANH_TOAN_DU', ngayBatDauSanXuatKeHoach: new Date('2026-02-25'), ngayHoanThanhSanXuatKeHoach: new Date('2026-03-15'), ngayHoanThanhThucTe: new Date('2026-03-14'), ngayGiaoHang: new Date('2026-03-20'), ghiChu: 'Đã giao thành công, khách hài lòng' },
+    create: { maDonHang: 'DH-2026-002', ngayDatHang: new Date('2026-02-20'), quotationId: quotation2.id, maBaoGia: 'BG-2026-002', quotationRequestId: ycbg2.id, maYeuCauBaoGia: 'YCBG-2026-002', customerId: customerKR.id, maKhachHang: 'KHQT-002', tenKhachHang: 'Seoul Snack Distribution', employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', giaTriDonHangUSD: 23000, giaTriDonHangVND: 575000000, xuatKhauDot1USD: 23000, ngayThanhToanDot1: new Date('2026-02-22'), trangThaiSanXuat: 'DA_GIAO_CHO_KHACH_HANG', trangThaiThanhToan: 'DA_THANH_TOAN_DU', ngayBatDauSanXuatKeHoach: new Date('2026-02-25'), ngayHoanThanhSanXuatKeHoach: new Date('2026-03-15'), ngayHoanThanhThucTe: new Date('2026-03-14'), ngayGiaoHang: new Date('2026-03-20'), ghiChu: 'Đã giao thành công, khách hài lòng' },
   });
   await prisma.orderItem.deleteMany({ where: { orderId: order2.id } });
-  await prisma.orderItem.create({ data: { orderId: order2.id, productId: mitSayGion.id, maSanPham: 'SP002', tenHangHoa: 'Mít sấy giòn', yeuCauHangHoa: 'Vacuum fried, no oil residue', loaiHangHoa: 'Trái cây sấy', dongGoi: 'Túi 100g retail, thùng 5kg', soLuong: 2000, donVi: 'kg' } });
+  await prisma.orderItem.create({ data: { orderId: order2.id, productId: mitSayGion.id, maSanPham: 'SP-002', tenHangHoa: 'Mít sấy giòn', yeuCauHangHoa: 'Vacuum fried, no oil residue', loaiHangHoa: 'Trái cây sấy', dongGoi: 'Túi 100g retail, thùng 5kg', soLuong: 2000, donVi: 'kg' } });
   await prisma.taxReport.upsert({ where: { orderId: order2.id }, update: {}, create: { orderId: order2.id, ngayDatHang: new Date('2026-02-20'), maDonHang: 'DH-2026-002', tenHangHoa: 'Mít sấy giòn', soLuong: 2000, donVi: 'kg', giaTriDonHang: 23000, trangThai: 'DA_QUYET_TOAN' } });
 
   // --- Đơn 3: Mỹ - Mít sấy dẻo 10000kg (CHỜ SẢN XUẤT) ---
   const ycbg3 = await prisma.quotationRequest.upsert({
     where: { maYeuCauBaoGia: 'YCBG-2026-003' }, update: {},
-    create: { maYeuCauBaoGia: 'YCBG-2026-003', ngayYeuCau: new Date('2026-05-01'), employeeId: businessEmployee.id, maNhanVien: 'NV003', tenNhanVien: 'Lê Văn C', customerId: customerUS.id, maKhachHang: 'KH003', tenKhachHang: 'California Organic Imports LLC', hinhThucVanChuyen: 'Đường biển (FCL)', hinhThucThanhToan: 'T/T 50% trước, 50% khi giao', quocGia: 'Mỹ', cangDen: 'Cảng Long Beach', ghiChu: 'Yêu cầu USDA Organic, FDA compliant' },
+    create: { maYeuCauBaoGia: 'YCBG-2026-003', ngayYeuCau: new Date('2026-05-01'), employeeId: businessEmployee.id, maNhanVien: 'NV0003', tenNhanVien: 'Lê Văn C', customerId: customerUS.id, maKhachHang: 'KHQT-003', tenKhachHang: 'California Organic Imports LLC', hinhThucVanChuyen: 'Đường biển (FCL)', hinhThucThanhToan: 'T/T 50% trước, 50% khi giao', quocGia: 'Mỹ', cangDen: 'Cảng Long Beach', ghiChu: 'Yêu cầu USDA Organic, FDA compliant' },
   });
   await prisma.quotationRequestItem.deleteMany({ where: { quotationRequestId: ycbg3.id } });
-  await prisma.quotationRequestItem.create({ data: { quotationRequestId: ycbg3.id, productId: mitSayDeo.id, maSanPham: 'SP001', tenSanPham: 'Mít sấy dẻo', yeuCauSanPham: 'USDA Organic certified, no additives', quyDongGoi: 'Túi 1kg, thùng 25kg', soLuong: 10000, donViTinh: 'kg', giaDoiThuBan: 9.0 } });
+  await prisma.quotationRequestItem.create({ data: { quotationRequestId: ycbg3.id, productId: mitSayDeo.id, maSanPham: 'SP-001', tenSanPham: 'Mít sấy dẻo', yeuCauSanPham: 'USDA Organic certified, no additives', quyDongGoi: 'Túi 1kg, thùng 25kg', soLuong: 10000, donViTinh: 'kg', giaDoiThuBan: 9.0 } });
 
   const quotation3 = await prisma.quotation.upsert({
     where: { maBaoGia: 'BG-2026-003' }, update: {},
-    create: { maBaoGia: 'BG-2026-003', ngayBaoGia: new Date('2026-05-05'), quotationRequestId: ycbg3.id, maYeuCauBaoGia: 'YCBG-2026-003', customerId: customerUS.id, maKhachHang: 'KH003', tenKhachHang: 'California Organic Imports LLC', productId: mitSayDeo.id, tenSanPham: 'Mít sấy dẻo', khoiLuong: 10000, donViTinh: 'kg', giaBaoKhach: 8.8, thoiGianGiaoHang: 60, hieuLucBaoGia: 30, employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', tinhTrang: 'DA_DAT_HANG' },
+    create: { maBaoGia: 'BG-2026-003', ngayBaoGia: new Date('2026-05-05'), quotationRequestId: ycbg3.id, maYeuCauBaoGia: 'YCBG-2026-003', customerId: customerUS.id, maKhachHang: 'KHQT-003', tenKhachHang: 'California Organic Imports LLC', productId: mitSayDeo.id, tenSanPham: 'Mít sấy dẻo', khoiLuong: 10000, donViTinh: 'kg', giaBaoKhach: 8.8, thoiGianGiaoHang: 60, hieuLucBaoGia: 30, employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', tinhTrang: 'DA_DAT_HANG' },
   });
   const order3 = await prisma.order.upsert({
     where: { maDonHang: 'DH-2026-003' }, update: {},
-    create: { maDonHang: 'DH-2026-003', ngayDatHang: new Date('2026-05-10'), quotationId: quotation3.id, maBaoGia: 'BG-2026-003', quotationRequestId: ycbg3.id, maYeuCauBaoGia: 'YCBG-2026-003', customerId: customerUS.id, maKhachHang: 'KH003', tenKhachHang: 'California Organic Imports LLC', employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', giaTriDonHangUSD: 88000, giaTriDonHangVND: 2200000000, xuatKhauDot1USD: 44000, ngayThanhToanDot1: new Date('2026-05-12'), trangThaiSanXuat: 'CHO_SAN_XUAT', trangThaiThanhToan: 'DA_THANH_TOAN_DOT_1', ngayBatDauSanXuatKeHoach: new Date('2026-05-20'), ngayHoanThanhSanXuatKeHoach: new Date('2026-06-30'), ngayGiaoHang: new Date('2026-07-10'), ghiChu: 'Container 40ft, USDA Organic required' },
+    create: { maDonHang: 'DH-2026-003', ngayDatHang: new Date('2026-05-10'), quotationId: quotation3.id, maBaoGia: 'BG-2026-003', quotationRequestId: ycbg3.id, maYeuCauBaoGia: 'YCBG-2026-003', customerId: customerUS.id, maKhachHang: 'KHQT-003', tenKhachHang: 'California Organic Imports LLC', employeeId: businessEmployee.id, tenNhanVien: 'Lê Văn C', giaTriDonHangUSD: 88000, giaTriDonHangVND: 2200000000, xuatKhauDot1USD: 44000, ngayThanhToanDot1: new Date('2026-05-12'), trangThaiSanXuat: 'CHO_SAN_XUAT', trangThaiThanhToan: 'DA_THANH_TOAN_DOT_1', ngayBatDauSanXuatKeHoach: new Date('2026-05-20'), ngayHoanThanhSanXuatKeHoach: new Date('2026-06-30'), ngayGiaoHang: new Date('2026-07-10'), ghiChu: 'Container 40ft, USDA Organic required' },
   });
   await prisma.orderItem.deleteMany({ where: { orderId: order3.id } });
-  await prisma.orderItem.create({ data: { orderId: order3.id, productId: mitSayDeo.id, maSanPham: 'SP001', tenHangHoa: 'Mít sấy dẻo', yeuCauHangHoa: 'USDA Organic, FDA compliant, no additives', loaiHangHoa: 'Trái cây sấy', dongGoi: 'Túi 1kg, thùng 25kg', soLuong: 10000, donVi: 'kg' } });
+  await prisma.orderItem.create({ data: { orderId: order3.id, productId: mitSayDeo.id, maSanPham: 'SP-001', tenHangHoa: 'Mít sấy dẻo', yeuCauHangHoa: 'USDA Organic, FDA compliant, no additives', loaiHangHoa: 'Trái cây sấy', dongGoi: 'Túi 1kg, thùng 25kg', soLuong: 10000, donVi: 'kg' } });
   await prisma.taxReport.upsert({ where: { orderId: order3.id }, update: {}, create: { orderId: order3.id, ngayDatHang: new Date('2026-05-10'), maDonHang: 'DH-2026-003', tenHangHoa: 'Mít sấy dẻo', soLuong: 10000, donVi: 'kg', giaTriDonHang: 88000, trangThai: 'CHUA_BAO_CAO' } });
   console.log('  ✅ 3 đơn hàng (JP đang SX, KR đã giao, US chờ SX)');
 
@@ -315,8 +315,8 @@ async function main(): Promise<void> {
   console.log('📝 9. Tạo yêu cầu cung ứng & mua hàng...');
   // Yêu cầu cung ứng NVL cho đơn DH-2026-001
   const supplyReq = await prisma.supplyRequest.upsert({
-    where: { maYeuCau: 'YCCU-2026-001' }, update: {},
-    create: { maYeuCau: 'YCCU-2026-001', ngayYeuCau: new Date('2026-04-11'), employeeId: prodEmp.id, maNhanVien: prodEmp.employeeCode, tenNhanVien: prodEmp.fullName || 'NV Sản xuất', boPhan: 'Sản xuất', mucDichYeuCau: 'Cung ứng NVL cho đơn DH-2026-001 (Tokyo Dried Fruits, 5000kg mít sấy dẻo)', mucDoUuTien: 'Cao', trangThai: 'Đã cung cấp', ghiChu: 'Cần nhập trước 15/04 để kịp tiến độ SX' },
+    where: { maYeuCau: 'YC-CC-2026-001' }, update: {},
+    create: { maYeuCau: 'YC-CC-2026-001', ngayYeuCau: new Date('2026-04-11'), employeeId: prodEmp.id, maNhanVien: prodEmp.employeeCode, tenNhanVien: prodEmp.fullName || 'NV Sản xuất', boPhan: 'Sản xuất', mucDichYeuCau: 'Cung ứng NVL cho đơn DH-2026-001 (Tokyo Dried Fruits, 5000kg mít sấy dẻo)', mucDoUuTien: 'Cao', trangThai: 'Đã cung cấp', ghiChu: 'Cần nhập trước 15/04 để kịp tiến độ SX' },
   });
   await prisma.supplyRequestItem.deleteMany({ where: { supplyRequestId: supplyReq.id } });
   await prisma.supplyRequestItem.create({ data: { supplyRequestId: supplyReq.id, phanLoai: 'Nguyên liệu', tenGoi: 'Mít tươi Thái (múi đã tách)', soLuong: 14300, donViTinh: 'kg' } });
@@ -326,8 +326,8 @@ async function main(): Promise<void> {
 
   // Yêu cầu mua hàng (từ yêu cầu cung ứng)
   const purchaseReq = await prisma.purchaseRequest.upsert({
-    where: { maYeuCau: 'YCMH-2026-001' }, update: {},
-    create: { maYeuCau: 'YCMH-2026-001', ngayYeuCau: new Date('2026-04-11'), employeeId: purchasingEmployee.id, maNhanVien: purchasingEmployee.employeeCode, tenNhanVien: purchasingEmployee.fullName || 'NV Thu mua', mucDichYeuCau: 'Mua NVL cho đơn DH-2026-001', mucDoUuTien: 'Cao', trangThai: 'Đã duyệt', nguoiDuyet: adminEmployee.fullName || 'Admin', ngayDuyet: new Date('2026-04-12'), supplyRequestId: supplyReq.id, nhaCungCapId: nccMit.id, giaDuKien: 357500000, ghiChuMuaHang: '14.3 tấn mít tươi từ HTX Tiền Giang, giao trong 3 ngày' },
+    where: { maYeuCau: 'YC-MH-2026-001' }, update: {},
+    create: { maYeuCau: 'YC-MH-2026-001', ngayYeuCau: new Date('2026-04-11'), employeeId: purchasingEmployee.id, maNhanVien: purchasingEmployee.employeeCode, tenNhanVien: purchasingEmployee.fullName || 'NV Thu mua', mucDichYeuCau: 'Mua NVL cho đơn DH-2026-001', mucDoUuTien: 'Cao', trangThai: 'Đã duyệt', nguoiDuyet: adminEmployee.fullName || 'Admin', ngayDuyet: new Date('2026-04-12'), supplyRequestId: supplyReq.id, nhaCungCapId: nccMit.id, giaDuKien: 357500000, ghiChuMuaHang: '14.3 tấn mít tươi từ HTX Tiền Giang, giao trong 3 ngày' },
   });
   await prisma.purchaseRequestItem.deleteMany({ where: { purchaseRequestId: purchaseReq.id } });
   await prisma.purchaseRequestItem.create({ data: { purchaseRequestId: purchaseReq.id, phanLoai: 'Nguyên liệu', tenHangHoa: 'Mít tươi Thái (múi)', soLuong: 14300, donViTinh: 'kg', nhaCungCapId: nccMit.id, giaDuKien: 25000 } });
@@ -341,14 +341,14 @@ async function main(): Promise<void> {
   console.log('🔬 10. Tạo dữ liệu sản xuất (đánh giá NL, vận hành, thành phẩm, CL)...');
   // --- Mẻ sấy 1: MS-01, 500kg mít tươi → ~175kg mít sấy dẻo ---
   const matEval1 = await prisma.materialEvaluation.upsert({
-    where: { maChien: 'MC-2026-001' }, update: {},
-    create: { maChien: 'MC-2026-001', thoiGianChien: new Date('2026-04-16T06:00:00'), tenHangHoa: 'Mít tươi Thái (múi)', soLoKien: 'LO-NVL-001', khoiLuong: 500, soLanNgam: 2, nhietDoNuocTruocNgam: 25, nhietDoNuocSauVot: 28, thoiGianNgam: 360, brixNuocNgam: 30, danhGiaTruocNgam: 'Múi mít chín vàng đều, không sâu, kích thước đồng đều 5-7cm', danhGiaSauNgam: 'Múi mít thấm đường đều, mềm vừa, sẵn sàng sấy', nguoiThucHien: prodEmp.fullName || 'NV Sản xuất' },
+    where: { maChien: 'MC-001' }, update: {},
+    create: { maChien: 'MC-001', thoiGianChien: new Date('2026-04-16T06:00:00'), tenHangHoa: 'Mít tươi Thái (múi)', soLoKien: 'LO-NVL-001', khoiLuong: 500, soLanNgam: 2, nhietDoNuocTruocNgam: 25, nhietDoNuocSauVot: 28, thoiGianNgam: 360, brixNuocNgam: 30, danhGiaTruocNgam: 'Múi mít chín vàng đều, không sâu, kích thước đồng đều 5-7cm', danhGiaSauNgam: 'Múi mít thấm đường đều, mềm vừa, sẵn sàng sấy', nguoiThucHien: prodEmp.fullName || 'NV Sản xuất' },
   });
 
   // Vận hành máy sấy MS-01 cho mẻ 1
-  await prisma.systemOperation.deleteMany({ where: { maChien: 'MC-2026-001', machineId: machine1.id } });
+  await prisma.systemOperation.deleteMany({ where: { maChien: 'MC-001', machineId: machine1.id } });
   await prisma.systemOperation.create({ data: {
-    maChien: 'MC-2026-001', machineId: machine1.id, tenMay: 'Máy sấy nhiệt MS-01',
+    maChien: 'MC-001', machineId: machine1.id, tenMay: 'Máy sấy nhiệt MS-01',
     thoiGianChien: new Date('2026-04-16T08:00:00'), khoiLuongDauVao: 500,
     giaiDoan1ThoiGian: 120, giaiDoan1NhietDo: 55, giaiDoan1ApSuat: 0,
     giaiDoan2ThoiGian: 360, giaiDoan2NhietDo: 65, giaiDoan2ApSuat: 0,
@@ -360,9 +360,9 @@ async function main(): Promise<void> {
   } });
 
   // Thành phẩm mẻ 1
-  await prisma.finishedProduct.deleteMany({ where: { maChien: 'MC-2026-001', machineId: machine1.id } });
+  await prisma.finishedProduct.deleteMany({ where: { maChien: 'MC-001', machineId: machine1.id } });
   await prisma.finishedProduct.create({ data: {
-    maChien: 'MC-2026-001', thoiGianChien: '2026-04-17 02:00', tenHangHoa: 'Mít sấy dẻo',
+    maChien: 'MC-001', thoiGianChien: '2026-04-17 02:00', tenHangHoa: 'Mít sấy dẻo',
     khoiLuong: 500, machineId: machine1.id, tenMay: 'Máy sấy nhiệt MS-01',
     materialEvaluationId: matEval1.id,
     aKhoiLuong: 114, aTiLe: 65,   // Loại A: 65%
@@ -378,9 +378,9 @@ async function main(): Promise<void> {
   } });
 
   // Đánh giá chất lượng mẻ 1
-  await prisma.qualityEvaluation.deleteMany({ where: { maChien: 'MC-2026-001', machineId: machine1.id } });
+  await prisma.qualityEvaluation.deleteMany({ where: { maChien: 'MC-001', machineId: machine1.id } });
   await prisma.qualityEvaluation.create({ data: {
-    maChien: 'MC-2026-001', thoiGianChien: '2026-04-17 02:00', tenHangHoa: 'Mít sấy dẻo',
+    maChien: 'MC-001', thoiGianChien: '2026-04-17 02:00', tenHangHoa: 'Mít sấy dẻo',
     machineId: machine1.id, tenMay: 'Máy sấy nhiệt MS-01',
     materialEvaluationId: matEval1.id,
     mauSac: 'Vàng đậm đều, không cháy',
@@ -396,13 +396,13 @@ async function main(): Promise<void> {
 
   // --- Mẻ sấy 2: MS-02, 500kg mít tươi ---
   const matEval2 = await prisma.materialEvaluation.upsert({
-    where: { maChien: 'MC-2026-002' }, update: {},
-    create: { maChien: 'MC-2026-002', thoiGianChien: new Date('2026-04-17T06:00:00'), tenHangHoa: 'Mít tươi Thái (múi)', soLoKien: 'LO-NVL-001', khoiLuong: 500, soLanNgam: 2, nhietDoNuocTruocNgam: 26, nhietDoNuocSauVot: 29, thoiGianNgam: 360, brixNuocNgam: 30, danhGiaTruocNgam: 'Múi mít chín đều, 1 số múi hơi nhỏ (4cm)', danhGiaSauNgam: 'Đạt yêu cầu, sẵn sàng sấy', nguoiThucHien: prodEmp.fullName || 'NV Sản xuất' },
+    where: { maChien: 'MC-002' }, update: {},
+    create: { maChien: 'MC-002', thoiGianChien: new Date('2026-04-17T06:00:00'), tenHangHoa: 'Mít tươi Thái (múi)', soLoKien: 'LO-NVL-001', khoiLuong: 500, soLanNgam: 2, nhietDoNuocTruocNgam: 26, nhietDoNuocSauVot: 29, thoiGianNgam: 360, brixNuocNgam: 30, danhGiaTruocNgam: 'Múi mít chín đều, 1 số múi hơi nhỏ (4cm)', danhGiaSauNgam: 'Đạt yêu cầu, sẵn sàng sấy', nguoiThucHien: prodEmp.fullName || 'NV Sản xuất' },
   });
 
-  await prisma.systemOperation.deleteMany({ where: { maChien: 'MC-2026-002', machineId: machine2.id } });
+  await prisma.systemOperation.deleteMany({ where: { maChien: 'MC-002', machineId: machine2.id } });
   await prisma.systemOperation.create({ data: {
-    maChien: 'MC-2026-002', machineId: machine2.id, tenMay: 'Máy sấy nhiệt MS-02',
+    maChien: 'MC-002', machineId: machine2.id, tenMay: 'Máy sấy nhiệt MS-02',
     thoiGianChien: new Date('2026-04-17T08:00:00'), khoiLuongDauVao: 500,
     giaiDoan1ThoiGian: 120, giaiDoan1NhietDo: 55, giaiDoan1ApSuat: 0,
     giaiDoan2ThoiGian: 390, giaiDoan2NhietDo: 65, giaiDoan2ApSuat: 0,
@@ -413,9 +413,9 @@ async function main(): Promise<void> {
     materialEvaluationId: matEval2.id,
   } });
 
-  await prisma.finishedProduct.deleteMany({ where: { maChien: 'MC-2026-002', machineId: machine2.id } });
+  await prisma.finishedProduct.deleteMany({ where: { maChien: 'MC-002', machineId: machine2.id } });
   await prisma.finishedProduct.create({ data: {
-    maChien: 'MC-2026-002', thoiGianChien: '2026-04-18 02:30', tenHangHoa: 'Mít sấy dẻo',
+    maChien: 'MC-002', thoiGianChien: '2026-04-18 02:30', tenHangHoa: 'Mít sấy dẻo',
     khoiLuong: 500, machineId: machine2.id, tenMay: 'Máy sấy nhiệt MS-02',
     materialEvaluationId: matEval2.id,
     aKhoiLuong: 110, aTiLe: 63, bKhoiLuong: 47, bTiLe: 27,
@@ -426,9 +426,9 @@ async function main(): Promise<void> {
     nguoiThucHien: prodEmp.fullName || 'NV Sản xuất',
   } });
 
-  await prisma.qualityEvaluation.deleteMany({ where: { maChien: 'MC-2026-002', machineId: machine2.id } });
+  await prisma.qualityEvaluation.deleteMany({ where: { maChien: 'MC-002', machineId: machine2.id } });
   await prisma.qualityEvaluation.create({ data: {
-    maChien: 'MC-2026-002', thoiGianChien: '2026-04-18 02:30', tenHangHoa: 'Mít sấy dẻo',
+    maChien: 'MC-002', thoiGianChien: '2026-04-18 02:30', tenHangHoa: 'Mít sấy dẻo',
     machineId: machine2.id, tenMay: 'Máy sấy nhiệt MS-02',
     materialEvaluationId: matEval2.id,
     mauSac: 'Vàng nhạt hơn mẻ 1, đều màu',
@@ -476,14 +476,14 @@ async function main(): Promise<void> {
 
   // Phiếu nhập kho NVL
   await prisma.warehouseReceipt.upsert({
-    where: { maPhieuNhap: 'PN-NVL-2026-001' }, update: {},
-    create: { maPhieuNhap: 'PN-NVL-2026-001', ngayNhap: new Date('2026-04-13'), employeeId: purchasingEmployee.id, maNhanVien: purchasingEmployee.employeeCode, tenNhanVien: purchasingEmployee.fullName || 'NV Thu mua', warehouseId: 'wh-nvl-001', tenKho: 'Kho nguyên vật liệu', lotId: lotNVL.id, tenLo: 'Lô mít tươi 04/2026', lotProductId: lotProductNVL.id, tenSanPham: 'Mít tươi Thái (múi)', soLuongTruoc: 0, soLuongNhap: 14300, soLuongSau: 14300, donViTinh: 'kg', ghiChu: 'Nhập từ HTX Mít Tiền Giang, đơn YCMH-2026-001', supplyRequestId: supplyReq.id },
+    where: { maPhieuNhap: 'PN-2026-001' }, update: {},
+    create: { maPhieuNhap: 'PN-2026-001', ngayNhap: new Date('2026-04-13'), employeeId: purchasingEmployee.id, maNhanVien: purchasingEmployee.employeeCode, tenNhanVien: purchasingEmployee.fullName || 'NV Thu mua', warehouseId: 'wh-nvl-001', tenKho: 'Kho nguyên vật liệu', lotId: lotNVL.id, tenLo: 'Lô mít tươi 04/2026', lotProductId: lotProductNVL.id, tenSanPham: 'Mít tươi Thái (múi)', soLuongTruoc: 0, soLuongNhap: 14300, soLuongSau: 14300, donViTinh: 'kg', ghiChu: 'Nhập từ HTX Mít Tiền Giang, đơn YC-MH-2026-001', supplyRequestId: supplyReq.id },
   });
 
   // Phiếu nhập kho thành phẩm (sau 2 mẻ sấy)
   await prisma.warehouseReceipt.upsert({
-    where: { maPhieuNhap: 'PN-TP-2026-001' }, update: {},
-    create: { maPhieuNhap: 'PN-TP-2026-001', ngayNhap: new Date('2026-04-18'), employeeId: prodEmp.id, maNhanVien: prodEmp.employeeCode, tenNhanVien: prodEmp.fullName || 'NV Sản xuất', warehouseId: 'wh-tp-001', tenKho: 'Kho thành phẩm', lotId: lotTP.id, tenLo: 'Lô mít sấy dẻo 04/2026', lotProductId: lotProductTP.id, tenSanPham: 'Mít sấy dẻo', soLuongTruoc: 0, soLuongNhap: 350, soLuongSau: 350, donViTinh: 'kg', ghiChu: 'Thành phẩm từ mẻ MC-2026-001 + MC-2026-002 (loại A+B)' },
+    where: { maPhieuNhap: 'PN-2026-002' }, update: {},
+    create: { maPhieuNhap: 'PN-2026-002', ngayNhap: new Date('2026-04-18'), employeeId: prodEmp.id, maNhanVien: prodEmp.employeeCode, tenNhanVien: prodEmp.fullName || 'NV Sản xuất', warehouseId: 'wh-tp-001', tenKho: 'Kho thành phẩm', lotId: lotTP.id, tenLo: 'Lô mít sấy dẻo 04/2026', lotProductId: lotProductTP.id, tenSanPham: 'Mít sấy dẻo', soLuongTruoc: 0, soLuongNhap: 350, soLuongSau: 350, donViTinh: 'kg', ghiChu: 'Thành phẩm từ mẻ MC-001 + MC-002 (loại A+B)' },
   });
 
   // Phiếu xuất kho (cho đơn KR đã giao)
@@ -496,8 +496,8 @@ async function main(): Promise<void> {
     create: { id: 'lp-tp-gion-001', lotId: lotTPKR.id, internationalProductId: mitSayGion.id, soLuong: 0, donViTinh: 'kg', giaThanh: 250000 },
   });
   await prisma.warehouseIssue.upsert({
-    where: { maPhieuXuat: 'PX-XK-2026-001' }, update: {},
-    create: { maPhieuXuat: 'PX-XK-2026-001', ngayXuat: new Date('2026-03-18'), employeeId: businessEmployee.id, maNhanVien: businessEmployee.employeeCode, tenNhanVien: businessEmployee.fullName || 'NV Kinh doanh', warehouseId: 'wh-tp-001', tenKho: 'Kho thành phẩm', lotId: lotTPKR.id, tenLo: 'Lô mít sấy giòn 03/2026', lotProductId: lotProductTPKR.id, tenSanPham: 'Mít sấy giòn', soLuongTruoc: 2000, soLuongXuat: 2000, soLuongSau: 0, donViTinh: 'kg', ghiChu: 'Xuất cho đơn DH-2026-002 (Seoul Snack), giao cảng Cát Lái' },
+    where: { maPhieuXuat: 'PX-2026-001' }, update: {},
+    create: { maPhieuXuat: 'PX-2026-001', ngayXuat: new Date('2026-03-18'), employeeId: businessEmployee.id, maNhanVien: businessEmployee.employeeCode, tenNhanVien: businessEmployee.fullName || 'NV Kinh doanh', warehouseId: 'wh-tp-001', tenKho: 'Kho thành phẩm', lotId: lotTPKR.id, tenLo: 'Lô mít sấy giòn 03/2026', lotProductId: lotProductTPKR.id, tenSanPham: 'Mít sấy giòn', soLuongTruoc: 2000, soLuongXuat: 2000, soLuongSau: 0, donViTinh: 'kg', ghiChu: 'Xuất cho đơn DH-2026-002 (Seoul Snack), giao cảng Cát Lái' },
   });
   console.log('  ✅ Nhập NVL + Nhập TP + Xuất kho giao hàng');
 
@@ -533,11 +533,11 @@ async function main(): Promise<void> {
   // Công nợ nhà cung cấp
   await prisma.debt.upsert({
     where: { id: 'debt-ncc001-apr' }, update: {},
-    create: { id: 'debt-ncc001-apr', ngayPhatSinh: new Date('2026-04-13'), loaiChiPhi: 'Nguyên liệu', maNhaCungCap: 'NCC001', tenNhaCungCap: 'HTX Mít Tiền Giang', loaiCungCap: 'Trái cây tươi', cungCap: 'Mít tươi Thái 14.3 tấn', noiDungChiCho: 'Thanh toán tiền mít tươi đợt 1', loaiHinh: 'Mua NVL', soTienPhaiTra: 357500000, soTienDaThanhToan: 200000000, ngayDenHan: new Date('2026-05-13'), soTaiKhoan: '0918123456 - Vietcombank', ghiChu: 'Còn nợ 157.5tr, hẹn thanh toán khi giao đơn JP' },
+    create: { id: 'debt-ncc001-apr', ngayPhatSinh: new Date('2026-04-13'), loaiChiPhi: 'Nguyên liệu', maNhaCungCap: 'NCC-001', tenNhaCungCap: 'HTX Mít Tiền Giang', loaiCungCap: 'Trái cây tươi', cungCap: 'Mít tươi Thái 14.3 tấn', noiDungChiCho: 'Thanh toán tiền mít tươi đợt 1', loaiHinh: 'Mua NVL', soTienPhaiTra: 357500000, soTienDaThanhToan: 200000000, ngayDenHan: new Date('2026-05-13'), soTaiKhoan: '0918123456 - Vietcombank', ghiChu: 'Còn nợ 157.5tr, hẹn thanh toán khi giao đơn JP' },
   });
   await prisma.debt.upsert({
     where: { id: 'debt-ncc002-apr' }, update: {},
-    create: { id: 'debt-ncc002-apr', ngayPhatSinh: new Date('2026-04-14'), loaiChiPhi: 'Bao bì', maNhaCungCap: 'NCC002', tenNhaCungCap: 'Công ty Bao bì Đại Phát', loaiCungCap: 'Bao bì đóng gói', cungCap: 'Túi hút chân không + thùng carton', noiDungChiCho: 'Thanh toán bao bì đợt 04/2026', loaiHinh: 'Mua NVL', soTienPhaiTra: 33750000, soTienDaThanhToan: 33750000, ngayHoachToan: new Date('2026-04-20'), ghiChu: 'Đã thanh toán đủ' },
+    create: { id: 'debt-ncc002-apr', ngayPhatSinh: new Date('2026-04-14'), loaiChiPhi: 'Bao bì', maNhaCungCap: 'NCC-002', tenNhaCungCap: 'Công ty Bao bì Đại Phát', loaiCungCap: 'Bao bì đóng gói', cungCap: 'Túi hút chân không + thùng carton', noiDungChiCho: 'Thanh toán bao bì đợt 04/2026', loaiHinh: 'Mua NVL', soTienPhaiTra: 33750000, soTienDaThanhToan: 33750000, ngayHoachToan: new Date('2026-04-20'), ghiChu: 'Đã thanh toán đủ' },
   });
 
   // Phản hồi khách hàng (đơn KR đã giao)
@@ -547,7 +547,7 @@ async function main(): Promise<void> {
   });
   await prisma.customerFeedback.upsert({
     where: { id: 'fb-jp-001' }, update: {},
-    create: { id: 'fb-jp-001', customerId: customerJP.id, ngayPhanHoi: new Date('2026-04-20'), loaiPhanHoi: 'Yêu cầu', mucDoNghiemTrong: 'Trung bình', noiDungPhanHoi: 'Yêu cầu gửi mẫu thử (sample) 5kg trước khi giao lô lớn. Cần kèm COA (Certificate of Analysis).', sanPhamLienQuan: 'Mít sấy dẻo (SP001)', donHangLienQuan: 'DH-2026-001', nguoiTiepNhan: 'Lê Văn C', trangThaiXuLy: 'Đang xử lý', bienPhapXuLy: 'Chuẩn bị mẫu 5kg từ mẻ MC-2026-001, gửi DHL Express', ghiChu: 'Gửi mẫu kèm COA trước 25/04' },
+    create: { id: 'fb-jp-001', customerId: customerJP.id, ngayPhanHoi: new Date('2026-04-20'), loaiPhanHoi: 'Yêu cầu', mucDoNghiemTrong: 'Trung bình', noiDungPhanHoi: 'Yêu cầu gửi mẫu thử (sample) 5kg trước khi giao lô lớn. Cần kèm COA (Certificate of Analysis).', sanPhamLienQuan: 'Mít sấy dẻo (SP001)', donHangLienQuan: 'DH-2026-001', nguoiTiepNhan: 'Lê Văn C', trangThaiXuLy: 'Đang xử lý', bienPhapXuLy: 'Chuẩn bị mẫu 5kg từ mẻ MC-001, gửi DHL Express', ghiChu: 'Gửi mẫu kèm COA trước 25/04' },
   });
   console.log('  ✅ Chi phí + hóa đơn + công nợ + phản hồi KH');
 

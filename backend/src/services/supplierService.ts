@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError } from '../utils/errors';
+import { nextStaticCode, staticCodeWhere } from '../utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
 interface CreateSupplierData {
@@ -172,24 +173,13 @@ export const supplierService = {
 
   // Generate next supplier code
   async generateSupplierCode(phanLoaiNCC?: string) {
-    const prefix = phanLoaiNCC === 'Thiết bị' ? 'NCCTB' : 'NCC';
-    const where: any = {
-      maNhaCungCap: { startsWith: prefix },
-    };
-
-    const lastSupplier = await prisma.supplier.findFirst({
-      where,
+    const prefix = phanLoaiNCC === 'Thiết bị' ? 'NCC-TB' : 'NCC';
+    const last = await prisma.supplier.findFirst({
+      where: { maNhaCungCap: staticCodeWhere(prefix) },
       orderBy: { maNhaCungCap: 'desc' },
+      select: { maNhaCungCap: true },
     });
-
-    if (!lastSupplier) {
-      return `${prefix}001`;
-    }
-
-    const lastCode = lastSupplier.maNhaCungCap;
-    const numPart = parseInt(lastCode.replace(prefix, '')) || 0;
-    const nextNum = numPart + 1;
-    return `${prefix}${nextNum.toString().padStart(3, '0')}`;
+    return nextStaticCode(last?.maNhaCungCap ?? null, prefix);
   },
 
   // Export suppliers to Excel

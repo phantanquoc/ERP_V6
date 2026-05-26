@@ -406,11 +406,11 @@ async function main(): Promise<void> {
     },
   });
   await prisma.employee.upsert({
-    where: { employeeCode: 'NV000' },
+    where: { employeeCode: 'NV0000' },
     update: { userId: admin.id },
     create: {
       userId: admin.id,
-      employeeCode: 'NV000',
+      employeeCode: 'NV0000',
       gender: 'MALE',
       dateOfBirth: new Date('1985-01-01'),
       phoneNumber: '0900000000',
@@ -721,7 +721,7 @@ async function main(): Promise<void> {
 
   for (let i = 0; i < employeeData.length; i++) {
     const emp = employeeData[i];
-    const empCode = `NV${String(i + 1).padStart(3, '0')}`;
+    const empCode = `NV${String(i + 1).padStart(4, '0')}`;
     const empEmail = `${emp.firstName.toLowerCase()}${emp.lastName.toLowerCase()}@example.com`;
     const empPassword = await bcrypt.hash('employee123', 10);
 

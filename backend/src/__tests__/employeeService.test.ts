@@ -30,46 +30,47 @@ beforeEach(() => {
 // ─── generateEmployeeCode ──────────────────────────────────────────
 
 describe('generateEmployeeCode', () => {
-  it('should return NV001 when no employees exist', async () => {
+  it('should return NV0001 when no employees exist', async () => {
     (mockedPrisma.employee.findFirst as jest.Mock).mockResolvedValue(null);
 
     const code = await service.generateEmployeeCode();
 
-    expect(code).toBe('NV001');
+    expect(code).toBe('NV0001');
     expect(mockedPrisma.employee.findFirst).toHaveBeenCalledWith({
       where: { employeeCode: { startsWith: 'NV' } },
       orderBy: { employeeCode: 'desc' },
+      select: { employeeCode: true },
     });
   });
 
-  it('should return NV006 when last employee is NV005', async () => {
+  it('should return NV0006 when last employee is NV0005', async () => {
     (mockedPrisma.employee.findFirst as jest.Mock).mockResolvedValue({
-      employeeCode: 'NV005',
+      employeeCode: 'NV0005',
     });
 
     const code = await service.generateEmployeeCode();
 
-    expect(code).toBe('NV006');
+    expect(code).toBe('NV0006');
   });
 
-  it('should return NV100 when last employee is NV099', async () => {
+  it('should return NV0100 when last employee is NV0099', async () => {
     (mockedPrisma.employee.findFirst as jest.Mock).mockResolvedValue({
-      employeeCode: 'NV099',
+      employeeCode: 'NV0099',
     });
 
     const code = await service.generateEmployeeCode();
 
-    expect(code).toBe('NV100');
+    expect(code).toBe('NV0100');
   });
 
-  it('should return NV002 when last employee is NV001', async () => {
+  it('should return NV0002 when last employee is NV0001', async () => {
     (mockedPrisma.employee.findFirst as jest.Mock).mockResolvedValue({
-      employeeCode: 'NV001',
+      employeeCode: 'NV0001',
     });
 
     const code = await service.generateEmployeeCode();
 
-    expect(code).toBe('NV002');
+    expect(code).toBe('NV0002');
   });
 });
 
@@ -79,7 +80,7 @@ describe('getEmployeeById', () => {
   it('should return employee with all includes when found', async () => {
     const mockEmployee = {
       id: 'emp-1',
-      employeeCode: 'NV001',
+      employeeCode: 'NV0001',
       user: { email: 'test@example.com', firstName: 'John', lastName: 'Doe', isActive: true, departmentId: 'd1' },
       position: { id: 'p1', name: 'Developer' },
       positionLevel: null,
@@ -121,7 +122,7 @@ describe('getEmployeeById', () => {
 
 describe('deleteEmployee', () => {
   it('should delete employee when it exists', async () => {
-    const existing = { id: 'emp-1', employeeCode: 'NV001' };
+    const existing = { id: 'emp-1', employeeCode: 'NV0001' };
     (mockedPrisma.employee.findUnique as jest.Mock).mockResolvedValue(existing);
     (mockedPrisma.employee.delete as jest.Mock).mockResolvedValue(existing);
 
@@ -143,7 +144,7 @@ describe('deleteEmployee', () => {
 describe('createEmployee', () => {
   it('should create an employee record with provided data', async () => {
     const input = {
-      employeeCode: 'NV001',
+      employeeCode: 'NV0001',
       userId: 'user-1',
       gender: 'MALE',
       dateOfBirth: '1990-01-15',
@@ -175,7 +176,7 @@ describe('createEmployee', () => {
     expect(mockedPrisma.employee.create).toHaveBeenCalledTimes(1);
 
     const createCall = (mockedPrisma.employee.create as jest.Mock).mock.calls[0][0];
-    expect(createCall.data.employeeCode).toBe('NV001');
+    expect(createCall.data.employeeCode).toBe('NV0001');
     expect(createCall.data.userId).toBe('user-1');
     expect(createCall.data.gender).toBe('MALE');
     expect(createCall.data.positionId).toBe('pos-1');
@@ -187,7 +188,7 @@ describe('createEmployee', () => {
 
   it('should use default status ACTIVE when not provided', async () => {
     const input = {
-      employeeCode: 'NV002',
+      employeeCode: 'NV0002',
       userId: 'user-2',
       hireDate: '2024-06-01',
     };

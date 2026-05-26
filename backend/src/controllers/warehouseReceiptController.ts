@@ -1,40 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
+import { nextYearlyCode, yearlyCodeWhere, nextStaticCode, staticCodeWhere } from '../utils/codeGenerator';
 import supplyRequestService from '../services/supplyRequestService';
 
-// Generate unique receipt code
 export const generateReceiptCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    
-    const prefix = `PN${year}${month}${day}`;
-    
-    const lastReceipt = await prisma.warehouseReceipt.findFirst({
-      where: {
-        maPhieuNhap: {
-          startsWith: prefix,
-        },
-      },
-      orderBy: {
-        maPhieuNhap: 'desc',
-      },
+    const year = new Date().getFullYear();
+    const last = await prisma.warehouseReceipt.findFirst({
+      where: { maPhieuNhap: yearlyCodeWhere('PN', year) },
+      orderBy: { maPhieuNhap: 'desc' },
+      select: { maPhieuNhap: true },
     });
-
-    let nextNumber = 1;
-    if (lastReceipt) {
-      const lastNumber = parseInt(lastReceipt.maPhieuNhap.slice(-4));
-      nextNumber = lastNumber + 1;
-    }
-
-    const code = `${prefix}${String(nextNumber).padStart(4, '0')}`;
-
-    res.status(200).json({
-      success: true,
-      data: { code },
-    });
+    const code = nextYearlyCode(last?.maPhieuNhap ?? null, 'PN', year);
+    res.status(200).json({ success: true, data: { code } });
   } catch (error) {
     next(error);
   }
@@ -87,17 +65,12 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
       });
 
       if (!product) {
-        // Tạo mã sản phẩm mới
         const lastProduct = await prisma.internationalProduct.findFirst({
-          where: { maSanPham: { startsWith: 'SP-' } },
+          where: { maSanPham: staticCodeWhere('SP') },
           orderBy: { maSanPham: 'desc' },
+          select: { maSanPham: true },
         });
-        let sequence = 1;
-        if (lastProduct) {
-          const seqStr = lastProduct.maSanPham.replace('SP-', '');
-          if (seqStr) sequence = parseInt(seqStr, 10) + 1;
-        }
-        const maSanPham = `SP-${String(sequence).padStart(3, '0')}`;
+        const maSanPham = nextStaticCode(lastProduct?.maSanPham ?? null, 'SP');
 
         product = await prisma.internationalProduct.create({
           data: { maSanPham, tenSanPham, donViTinh, loaiSanPham: loaiSanPham || undefined },
@@ -222,15 +195,11 @@ export const batchCreateWarehouseReceipts = async (req: Request, res: Response, 
 
       if (!product) {
         const lastProduct = await prisma.internationalProduct.findFirst({
-          where: { maSanPham: { startsWith: 'SP-' } },
+          where: { maSanPham: staticCodeWhere('SP') },
           orderBy: { maSanPham: 'desc' },
+          select: { maSanPham: true },
         });
-        let sequence = 1;
-        if (lastProduct) {
-          const seqStr = lastProduct.maSanPham.replace('SP-', '');
-          if (seqStr) sequence = parseInt(seqStr, 10) + 1;
-        }
-        const maSanPham = `SP-${String(sequence).padStart(3, '0')}`;
+        const maSanPham = nextStaticCode(lastProduct?.maSanPham ?? null, 'SP');
         product = await prisma.internationalProduct.create({
           data: { maSanPham, tenSanPham, donViTinh, loaiSanPham: itemLoaiSanPham || undefined },
         });

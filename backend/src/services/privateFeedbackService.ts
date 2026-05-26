@@ -1,6 +1,7 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
 import { FeedbackType, FeedbackStatus } from '@prisma/client';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 
@@ -39,23 +40,14 @@ interface GetAllParams {
 export const privateFeedbackService = {
   // Tạo mã tự động
   async generateCode(type: FeedbackType): Promise<string> {
+    const year = new Date().getFullYear();
     const prefix = type === 'GOP_Y' ? 'GY' : 'KK';
-    
-    const lastFeedback = await prisma.privateFeedback.findFirst({
-      where: { type },
-      orderBy: { createdAt: 'desc' },
-      select: { code: true }
+    const last = await prisma.privateFeedback.findFirst({
+      where: { code: yearlyCodeWhere(prefix, year) },
+      orderBy: { code: 'desc' },
+      select: { code: true },
     });
-
-    let nextNumber = 1;
-    if (lastFeedback?.code) {
-      const match = lastFeedback.code.match(/\d+$/);
-      if (match) {
-        nextNumber = parseInt(match[0]) + 1;
-      }
-    }
-
-    return `${prefix}-${nextNumber.toString().padStart(3, '0')}`;
+    return nextYearlyCode(last?.code ?? null, prefix, year);
   },
 
   // Lấy tất cả feedback với phân trang và filter

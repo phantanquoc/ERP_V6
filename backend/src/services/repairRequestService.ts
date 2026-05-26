@@ -1,6 +1,7 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError } from '@utils/errors';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 import ExcelJS from 'exceljs';
@@ -31,13 +32,14 @@ interface UpdateRepairRequestData {
 }
 
 class RepairRequestService {
-  /**
-   * Generate repair request code
-   * Format: YC-{TIMESTAMP}
-   * Example: YC-1769142322648
-   */
-  generateRepairRequestCode(): string {
-    return `YC-${Date.now()}`;
+  async generateRepairRequestCode(): Promise<string> {
+    const year = new Date().getFullYear();
+    const last = await prisma.repairRequest.findFirst({
+      where: { maYeuCau: yearlyCodeWhere('YC-SC', year) },
+      orderBy: { maYeuCau: 'desc' },
+      select: { maYeuCau: true },
+    });
+    return nextYearlyCode(last?.maYeuCau ?? null, 'YC-SC', year);
   }
 
   /**

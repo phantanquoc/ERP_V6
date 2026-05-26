@@ -124,7 +124,7 @@ class RepairRequestController {
 
   async generateCode(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const code = repairRequestService.generateRepairRequestCode();
+      const code = await repairRequestService.generateRepairRequestCode();
       res.json({
         success: true,
         data: { code },

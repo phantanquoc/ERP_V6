@@ -1,36 +1,17 @@
 import prisma from '@config/database';
 import { NotFoundError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
+import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
 
 export class MaterialStandardService {
-  /**
-   * Generate material standard code
-   * Format: DM-{SEQUENCE}
-   * Example: DM-001, DM-002
-   */
   async generateMaterialStandardCode(): Promise<string> {
-    const lastStandard = await prisma.materialStandard.findFirst({
-      where: {
-        maDinhMuc: {
-          startsWith: 'DM-',
-        },
-      },
-      orderBy: {
-        maDinhMuc: 'desc',
-      },
+    const last = await prisma.materialStandard.findFirst({
+      where: { maDinhMuc: staticCodeWhere('DM') },
+      orderBy: { maDinhMuc: 'desc' },
+      select: { maDinhMuc: true },
     });
-
-    let sequence = 1;
-    if (lastStandard) {
-      const lastCode = lastStandard.maDinhMuc;
-      const sequenceStr = lastCode.split('-')[1];
-      if (sequenceStr) {
-        sequence = parseInt(sequenceStr, 10) + 1;
-      }
-    }
-
-    return `DM-${String(sequence).padStart(3, '0')}`;
+    return nextStaticCode(last?.maDinhMuc ?? null, 'DM');
   }
 
   async getAllMaterialStandards(page: number = 1, limit: number = 10): Promise<PaginatedResponse<any>> {

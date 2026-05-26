@@ -1,39 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
+import { nextYearlyCode, yearlyCodeWhere } from '../utils/codeGenerator';
 import supplyRequestService from '@services/supplyRequestService';
 
-// Generate mã phiếu xuất tự động
 export const generateIssueCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-
-    // Tìm phiếu xuất cuối cùng trong ngày
-    const lastIssue = await prisma.warehouseIssue.findFirst({
-      where: {
-        maPhieuXuat: {
-          startsWith: `PX-${year}${month}${day}`,
-        },
-      },
-      orderBy: {
-        maPhieuXuat: 'desc',
-      },
+    const year = new Date().getFullYear();
+    const last = await prisma.warehouseIssue.findFirst({
+      where: { maPhieuXuat: yearlyCodeWhere('PX', year) },
+      orderBy: { maPhieuXuat: 'desc' },
+      select: { maPhieuXuat: true },
     });
-
-    let nextNumber = 1;
-    if (lastIssue) {
-      const lastNumber = parseInt(lastIssue.maPhieuXuat.split('-').pop() || '0');
-      nextNumber = lastNumber + 1;
-    }
-
-    const maPhieuXuat = `PX-${year}${month}${day}-${String(nextNumber).padStart(4, '0')}`;
-
-    res.status(200).json({
-      success: true,
-      data: { maPhieuXuat },
-    });
+    const maPhieuXuat = nextYearlyCode(last?.maPhieuXuat ?? null, 'PX', year);
+    res.status(200).json({ success: true, data: { maPhieuXuat } });
   } catch (error) {
     next(error);
   }

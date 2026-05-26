@@ -1,6 +1,7 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 import { NotificationEvent } from '@types';
 import notificationService from '@services/notificationService';
@@ -131,18 +132,13 @@ class SupplyRequestService {
 
     // Use transaction to prevent race condition on code generation
     const supplyRequest = await prisma.$transaction(async (tx) => {
+      const year = new Date().getFullYear();
       const lastRequest = await tx.supplyRequest.findFirst({
+        where: { maYeuCau: yearlyCodeWhere('YC-CC', year) },
         orderBy: { maYeuCau: 'desc' },
+        select: { maYeuCau: true },
       });
-
-      let sequence = 1;
-      if (lastRequest && lastRequest.maYeuCau) {
-        const match = lastRequest.maYeuCau.match(/YC-CC(\d+)/);
-        if (match) {
-          sequence = parseInt(match[1], 10) + 1;
-        }
-      }
-      const maYeuCau = `YC-CC${sequence.toString().padStart(3, '0')}`;
+      const maYeuCau = nextYearlyCode(lastRequest?.maYeuCau ?? null, 'YC-CC', year);
 
       const created = await tx.supplyRequest.create({
         data: {

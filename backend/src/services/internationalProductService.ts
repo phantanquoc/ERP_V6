@@ -2,37 +2,18 @@ import prisma from '@config/database';
 import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
+import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
 export class InternationalProductService {
-  /**
-   * Generate product code
-   * Format: SP-{SEQUENCE}
-   * Example: SP-001, SP-002
-   */
   async generateProductCode(): Promise<string> {
-    const lastProduct = await prisma.internationalProduct.findFirst({
-      where: {
-        maSanPham: {
-          startsWith: 'SP-',
-        },
-      },
-      orderBy: {
-        maSanPham: 'desc',
-      },
+    const last = await prisma.internationalProduct.findFirst({
+      where: { maSanPham: staticCodeWhere('SP') },
+      orderBy: { maSanPham: 'desc' },
+      select: { maSanPham: true },
     });
-
-    let sequence = 1;
-    if (lastProduct) {
-      const lastCode = lastProduct.maSanPham;
-      const sequenceStr = lastCode.replace('SP-', '');
-      if (sequenceStr) {
-        sequence = parseInt(sequenceStr, 10) + 1;
-      }
-    }
-
-    return `SP-${String(sequence).padStart(3, '0')}`;
+    return nextStaticCode(last?.maSanPham ?? null, 'SP');
   }
 
   async getAllProducts(

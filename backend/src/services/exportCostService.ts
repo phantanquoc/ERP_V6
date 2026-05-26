@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { ExportCost } from '@prisma/client';
+import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
 export interface CreateExportCostInput {
@@ -25,18 +26,12 @@ export interface UpdateExportCostInput {
 class ExportCostService {
   // Generate unique code
   private async generateCode(): Promise<string> {
-    const lastCost = await prisma.exportCost.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { maChiPhi: true }
+    const last = await prisma.exportCost.findFirst({
+      where: { maChiPhi: staticCodeWhere('CPXK') },
+      orderBy: { maChiPhi: 'desc' },
+      select: { maChiPhi: true },
     });
-
-    if (!lastCost) {
-      return 'CPXK-001';
-    }
-
-    const lastNumber = parseInt(lastCost.maChiPhi.split('-')[1]);
-    const newNumber = lastNumber + 1;
-    return `CPXK-${newNumber.toString().padStart(3, '0')}`;
+    return nextStaticCode(last?.maChiPhi ?? null, 'CPXK');
   }
 
   // Get all export costs with pagination

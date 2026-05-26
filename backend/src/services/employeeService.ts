@@ -1,40 +1,18 @@
 import prisma from '@config/database';
 import { NotFoundError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
+import { nextEmployeeCode } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
 export class EmployeeService {
-  /**
-   * Generate employee code
-   * Format: NV{SEQUENCE}
-   * Example: NV001, NV002, NV003
-   */
   async generateEmployeeCode(): Promise<string> {
-    // Get the highest sequence number across all employees
-    const lastEmployee = await prisma.employee.findFirst({
-      where: {
-        employeeCode: {
-          startsWith: 'NV',
-        },
-      },
-      orderBy: {
-        employeeCode: 'desc',
-      },
+    const last = await prisma.employee.findFirst({
+      where: { employeeCode: { startsWith: 'NV' } },
+      orderBy: { employeeCode: 'desc' },
+      select: { employeeCode: true },
     });
-
-    let sequence = 1;
-    if (lastEmployee) {
-      // Extract sequence number from last employee code
-      const lastCode = lastEmployee.employeeCode;
-      const sequenceStr = lastCode.replace('NV', '');
-      if (sequenceStr) {
-        sequence = parseInt(sequenceStr, 10) + 1;
-      }
-    }
-
-    // Format: NV001, NV002, etc.
-    return `NV${String(sequence).padStart(3, '0')}`;
+    return nextEmployeeCode(last?.employeeCode ?? null);
   }
   async getAllEmployees(page: number = 1, limit: number = 10, departmentId?: string, search?: string): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);

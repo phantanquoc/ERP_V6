@@ -1,6 +1,7 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 import supplyRequestService from './supplyRequestService';
 import notificationService from './notificationService';
@@ -32,27 +33,13 @@ interface CreatePurchaseRequestRequest {
 
 class PurchaseRequestService {
   private async generatePurchaseRequestCode(): Promise<string> {
-    const lastRequest = await prisma.purchaseRequest.findFirst({
-      where: {
-        maYeuCau: {
-          startsWith: 'YC-MH',
-        },
-      },
-      orderBy: {
-        maYeuCau: 'desc',
-      },
+    const year = new Date().getFullYear();
+    const last = await prisma.purchaseRequest.findFirst({
+      where: { maYeuCau: yearlyCodeWhere('YC-MH', year) },
+      orderBy: { maYeuCau: 'desc' },
+      select: { maYeuCau: true },
     });
-
-    let sequence = 1;
-    if (lastRequest) {
-      const lastCode = lastRequest.maYeuCau;
-      const sequenceStr = lastCode.replace('YC-MH', '');
-      if (sequenceStr) {
-        sequence = parseInt(sequenceStr, 10) + 1;
-      }
-    }
-
-    return `YC-MH${String(sequence).padStart(4, '0')}`;
+    return nextYearlyCode(last?.maYeuCau ?? null, 'YC-MH', year);
   }
 
   async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string) {

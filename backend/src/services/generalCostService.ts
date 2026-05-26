@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { GeneralCost } from '@prisma/client';
+import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
 export interface CreateGeneralCostInput {
@@ -25,18 +26,12 @@ export interface UpdateGeneralCostInput {
 class GeneralCostService {
   // Generate unique code
   private async generateCode(): Promise<string> {
-    const lastCost = await prisma.generalCost.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { maChiPhi: true }
+    const last = await prisma.generalCost.findFirst({
+      where: { maChiPhi: staticCodeWhere('CP') },
+      orderBy: { maChiPhi: 'desc' },
+      select: { maChiPhi: true },
     });
-
-    if (!lastCost) {
-      return 'CP-001';
-    }
-
-    const lastNumber = parseInt(lastCost.maChiPhi.split('-')[1]);
-    const newNumber = lastNumber + 1;
-    return `CP-${newNumber.toString().padStart(3, '0')}`;
+    return nextStaticCode(last?.maChiPhi ?? null, 'CP');
   }
 
   // Get all general costs with pagination

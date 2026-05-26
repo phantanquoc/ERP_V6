@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 
 export class MaterialEvaluationService {
   async getAllMaterialEvaluations(page: number = 1, limit: number = 10) {
@@ -56,17 +57,12 @@ export class MaterialEvaluationService {
   }
 
   async generateMaChien(): Promise<string> {
-    const lastEvaluation = await prisma.materialEvaluation.findFirst({
-      orderBy: { createdAt: 'desc' },
+    const last = await prisma.materialEvaluation.findFirst({
+      where: { maChien: staticCodeWhere('MC') },
+      orderBy: { maChien: 'desc' },
+      select: { maChien: true },
     });
-
-    if (!lastEvaluation) {
-      return 'C001';
-    }
-
-    const lastNumber = parseInt(lastEvaluation.maChien.substring(1));
-    const newNumber = lastNumber + 1;
-    return `C${newNumber.toString().padStart(3, '0')}`;
+    return nextStaticCode(last?.maChien ?? null, 'MC');
   }
 
   async createMaterialEvaluation(data: any) {
