@@ -170,6 +170,7 @@ const FaceAdminPage: React.FC = () => {
 
   const capturedImagesRef = useRef<string[]>([]);
   const currentPoseRef  = useRef(0);
+  const currentFaceBox  = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // ─── Employee list ─────────────────────────────────────────────────────────
   const loadEmployees = useCallback(async () => {
