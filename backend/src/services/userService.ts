@@ -368,6 +368,14 @@ export class UserService {
       }
     }
 
+    // Sync Employee.subDepartmentId when User.subDepartmentId changes
+    if (subDeptChanged && data.subDepartmentId !== undefined) {
+      await prisma.employee.updateMany({
+        where: { userId: id },
+        data: { subDepartmentId: data.subDepartmentId },
+      });
+    }
+
     // Employee code is NOT changed when department changes
     // Employee code format: NV0001, NV0002, NV0003... (assigned once, never changes)
 

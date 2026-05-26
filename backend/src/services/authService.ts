@@ -261,9 +261,11 @@ export class AuthService {
       throw new AuthenticationError('User not found');
     }
 
-    // Get department and subdepartment names
+    // Get department and subdepartment names + codes
     let departmentName = null;
+    let departmentCode: string | null = null;
     let subDepartmentName = null;
+    let subDepartmentCode: string | null = null;
     let secondaryDepartmentName = null;
     let secondarySubDepartmentName = null;
 
@@ -272,7 +274,8 @@ export class AuthService {
         where: { id: user.departmentId },
         select: { name: true, code: true },
       });
-      departmentName = dept?.name;
+      departmentName = dept?.name ?? null;
+      departmentCode = dept?.code ?? null;
     }
 
     if (user.subDepartmentId) {
@@ -280,7 +283,8 @@ export class AuthService {
         where: { id: user.subDepartmentId },
         select: { name: true, code: true },
       });
-      subDepartmentName = subDept?.name;
+      subDepartmentName = subDept?.name ?? null;
+      subDepartmentCode = subDept?.code ?? null;
     }
 
     if (user.secondaryDepartmentId) {
@@ -372,8 +376,10 @@ export class AuthService {
         role: user.role,
         departmentId: user.departmentId,
         departmentName,
+        departmentCode,
         subDepartmentId: user.subDepartmentId,
         subDepartmentName,
+        subDepartmentCode,
         secondaryDepartments,
         // @deprecated backward compat — populated from secondaryDepartments[0]
         secondaryDepartmentId: secondaryDepartments[0]?.departmentId ?? user.secondaryDepartmentId,
@@ -393,7 +399,7 @@ export class AuthService {
         position: employee.position,
         positionLevelId: employee.positionLevelId,
         positionLevel: employee.positionLevel,
-        subDepartmentId: employee.subDepartmentId,
+        subDepartmentId: user.subDepartmentId,
         status: employee.status,
         hireDate: employee.hireDate,
         contractType: employee.contractType,

@@ -5,9 +5,28 @@ import notificationService from './notificationService';
 import { NotificationType, EvaluationStatus, NotificationEvent } from '@types';
 
 export class EmployeeEvaluationService {
-  async getEmployeeEvaluations(month: number, year: number): Promise<any[]> {
-    // Get all employees with their position and evaluation data
+  async getEmployeeEvaluations(month: number, year: number, userDepartmentId?: string, userSubDepartmentId?: string): Promise<any[]> {
+    // Build where conditions
+    const conditions: any[] = [];
+
+    // Filter by department/subdepartment
+    if (userSubDepartmentId) {
+      // TEAM_LEAD/EMPLOYEE: only show subdepartment
+      conditions.push({ user: { subDepartmentId: userSubDepartmentId } });
+    } else if (userDepartmentId) {
+      // DEPARTMENT_HEAD: show department (including subdepartments)
+      conditions.push({
+        OR: [
+          { user: { departmentId: userDepartmentId } },
+          { subDepartment: { departmentId: userDepartmentId } },
+        ],
+      });
+    }
+    // ADMIN: no filter, show all
+
+    // Get employees with their position and evaluation data
     const employees = await prisma.employee.findMany({
+      where: conditions.length > 0 ? { OR: conditions } : {},
       include: {
         user: true,
         position: true,

@@ -15,7 +15,12 @@ export class PayrollController {
         return;
       }
 
-      const payrolls = await payrollService.getPayrollByMonthYear(Number(month), Number(year));
+      const payrolls = await payrollService.getPayrollByMonthYear(
+        Number(month),
+        Number(year),
+        req.userDepartmentId || undefined,
+        req.userSubDepartmentId || undefined
+      );
 
       res.json({
         success: true,

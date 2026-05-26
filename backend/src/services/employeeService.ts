@@ -14,14 +14,17 @@ export class EmployeeService {
     });
     return nextEmployeeCode(last?.employeeCode ?? null);
   }
-  async getAllEmployees(page: number = 1, limit: number = 10, departmentId?: string, search?: string): Promise<PaginatedResponse<any>> {
+  async getAllEmployees(page: number = 1, limit: number = 10, departmentId?: string, search?: string, subDepartmentId?: string): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
     // Build where conditions
     const conditions: any[] = [];
 
-    // Filter theo department
-    if (departmentId) {
+    // Filter theo sub-department via User relation (Employee.subDepartmentId is rarely set; User.subDepartmentId is the canonical field)
+    if (subDepartmentId) {
+      conditions.push({ user: { subDepartmentId } });
+    } else if (departmentId) {
+      // Filter theo department
       conditions.push({
         OR: [
           { user: { departmentId } },
@@ -81,7 +84,7 @@ export class EmployeeService {
         searchConditions.push({ user: { departmentId: { in: deptIds } } });
       }
       if (subDeptIds.length > 0) {
-        searchConditions.push({ subDepartmentId: { in: subDeptIds } });
+        searchConditions.push({ user: { subDepartmentId: { in: subDeptIds } } });
       }
 
       conditions.push({ OR: searchConditions });

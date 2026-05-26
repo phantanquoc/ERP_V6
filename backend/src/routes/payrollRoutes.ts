@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import payrollController from '@controllers/payrollController';
 import { authenticate, authorize } from '@middlewares/auth';
+import { checkAccess } from '@middlewares/rbacAbac';
+import { UserRole } from '@types';
 
 const router = Router();
 
@@ -47,7 +49,11 @@ const router = Router();
 router.get(
   '/',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  checkAccess({
+    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE],
+    checkDepartment: true,
+    checkSubDepartment: true,
+  }),
   payrollController.getPayrollByMonthYear
 );
 

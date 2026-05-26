@@ -29,8 +29,10 @@ export interface AuthResponse {
     role: string;
     departmentId?: string | null;
     departmentName?: string | null;
+    departmentCode?: string | null;
     subDepartmentId?: string | null;
     subDepartmentName?: string | null;
+    subDepartmentCode?: string | null;
     // New: array of secondary departments
     secondaryDepartments: Array<{
       departmentId: string;
