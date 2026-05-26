@@ -17,6 +17,40 @@ import { NotificationEvent } from '@types';
 import loginHistoryService from './loginHistoryService';
 import notificationService from './notificationService';
 
+// ─── Helper: build secondaryDepartments array from DB ────────────────────────
+async function buildSecondaryDepartments(userId: string): Promise<Array<{
+  departmentId: string;
+  subDepartmentId: string | null;
+  role: string;
+  departmentName: string | null;
+  departmentCode: string | null;
+  subDepartmentName: string | null;
+  subDepartmentCode: string | null;
+}>> {
+  const rows = await prisma.userSecondaryDepartment.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return Promise.all(rows.map(async (row) => {
+    const [dept, subDept] = await Promise.all([
+      prisma.department.findUnique({ where: { id: row.departmentId }, select: { name: true, code: true } }),
+      row.subDepartmentId
+        ? prisma.subDepartment.findUnique({ where: { id: row.subDepartmentId }, select: { name: true, code: true } })
+        : null,
+    ]);
+    return {
+      departmentId: row.departmentId,
+      subDepartmentId: row.subDepartmentId ?? null,
+      role: row.role as string,
+      departmentName: dept?.name ?? null,
+      departmentCode: dept?.code ?? null,
+      subDepartmentName: subDept?.name ?? null,
+      subDepartmentCode: subDept?.code ?? null,
+    };
+  }));
+}
+
 // IP rate limiter: track failed login attempts per IP
 interface IpRateLimitEntry {
   count: number;
@@ -84,6 +118,7 @@ export class AuthService {
       role: user.role,
       departmentId: user.departmentId,
       subDepartmentId: user.subDepartmentId,
+      secondaryDepartments: [],
     };
 
     const accessToken = generateAccessToken(payload);
@@ -111,11 +146,12 @@ export class AuthService {
         departmentName: null,
         subDepartmentId: user.subDepartmentId,
         subDepartmentName: null,
-        secondaryDepartmentId: user.secondaryDepartmentId,
+        secondaryDepartments: [],
+        secondaryDepartmentId: null,
         secondaryDepartmentName: null,
-        secondarySubDepartmentId: user.secondarySubDepartmentId,
+        secondarySubDepartmentId: null,
         secondarySubDepartmentName: null,
-        secondaryRole: user.secondaryRole,
+        secondaryRole: null,
       },
       employee: undefined,
     };
@@ -263,6 +299,9 @@ export class AuthService {
       secondarySubDepartmentName = subDept2?.name;
     }
 
+    // Build secondary departments array from relation table
+    const secondaryDepartments = await buildSecondaryDepartments(user.id);
+
     // Get employee data if exists
     const employee = await prisma.employee.findUnique({
       where: { userId: user.id },
@@ -283,6 +322,11 @@ export class AuthService {
       role: user.role,
       departmentId: user.departmentId,
       subDepartmentId: user.subDepartmentId,
+      secondaryDepartments: secondaryDepartments.map(s => ({
+        departmentId: s.departmentId,
+        subDepartmentId: s.subDepartmentId,
+        role: s.role,
+      })),
     };
 
     const accessToken = generateAccessToken(payload);
@@ -330,11 +374,13 @@ export class AuthService {
         departmentName,
         subDepartmentId: user.subDepartmentId,
         subDepartmentName,
-        secondaryDepartmentId: user.secondaryDepartmentId,
-        secondaryDepartmentName,
-        secondarySubDepartmentId: user.secondarySubDepartmentId,
-        secondarySubDepartmentName,
-        secondaryRole: user.secondaryRole,
+        secondaryDepartments,
+        // @deprecated backward compat — populated from secondaryDepartments[0]
+        secondaryDepartmentId: secondaryDepartments[0]?.departmentId ?? user.secondaryDepartmentId,
+        secondaryDepartmentName: secondaryDepartments[0]?.departmentName ?? secondaryDepartmentName,
+        secondarySubDepartmentId: secondaryDepartments[0]?.subDepartmentId ?? user.secondarySubDepartmentId,
+        secondarySubDepartmentName: secondaryDepartments[0]?.subDepartmentName ?? secondarySubDepartmentName,
+        secondaryRole: secondaryDepartments[0]?.role ?? user.secondaryRole,
       },
       employee: employee ? {
         id: employee.id,
@@ -445,13 +491,19 @@ export class AuthService {
       throw new AuthenticationError('Không tìm thấy người dùng hoặc tài khoản đã bị vô hiệu hóa');
     }
 
-    // Generate new access token
+    // Generate new access token with fresh secondary departments
+    const secondaryDepts = await buildSecondaryDepartments(user.id);
     const payload: JwtPayload = {
       id: user.id,
       email: user.email,
       role: user.role,
       departmentId: user.departmentId,
       subDepartmentId: user.subDepartmentId,
+      secondaryDepartments: secondaryDepts.map(s => ({
+        departmentId: s.departmentId,
+        subDepartmentId: s.subDepartmentId,
+        role: s.role,
+      })),
     };
 
     const accessToken = generateAccessToken(payload);

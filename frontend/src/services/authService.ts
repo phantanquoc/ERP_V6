@@ -69,9 +69,10 @@ class AuthService {
         }
       };
 
-      // Map department name to department code for permission system
-      const mapDepartmentNameToCode = (departmentName?: string): string => {
-        if (!departmentName) return 'general';
+      // Map department name to department code for permission system.
+      // Returns undefined if name is unknown — caller must supply a default if needed.
+      const mapDepartmentNameToCode = (departmentName?: string): string | undefined => {
+        if (!departmentName) return undefined;
 
         const nameMap: Record<string, string> = {
           'Bộ phận tổng hợp': 'general',
@@ -83,7 +84,7 @@ class AuthService {
           'Bộ phận kỹ thuật': 'technical',
         };
 
-        return nameMap[departmentName] || 'general';
+        return nameMap[departmentName];
       };
 
       // Map subdepartment name to subdepartment code
@@ -119,8 +120,19 @@ class AuthService {
           firstName: data.data.user.firstName,
           lastName: data.data.user.lastName,
           role: mapBackendRoleToUserRole(data.data.user.role),
-          department: data.data.user.role === 'ADMIN' ? 'admin' : mapDepartmentNameToCode(data.data.user.departmentName),
+          department: data.data.user.role === 'ADMIN' ? 'admin' : (mapDepartmentNameToCode(data.data.user.departmentName) ?? 'general'),
           subDepartment: mapSubDepartmentNameToCode(data.data.user.subDepartmentName),
+          // New: map secondaryDepartments array
+          secondaryDepartments: (data.data.user.secondaryDepartments ?? []).map((s: any) => ({
+            departmentId: s.departmentId,
+            subDepartmentId: s.subDepartmentId ?? null,
+            role: mapBackendRoleToUserRole(s.role),
+            departmentName: s.departmentName ?? null,
+            subDepartmentName: s.subDepartmentName ?? null,
+            departmentCode: s.departmentCode ?? mapDepartmentNameToCode(s.departmentName),
+            subDepartmentCode: s.subDepartmentCode ?? mapSubDepartmentNameToCode(s.subDepartmentName),
+          })),
+          // @deprecated backward compat — populated from secondaryDepartments[0]
           secondaryDepartment: data.data.user.secondaryDepartmentName ? mapDepartmentNameToCode(data.data.user.secondaryDepartmentName) : undefined,
           secondarySubDepartment: data.data.user.secondarySubDepartmentName ? mapSubDepartmentNameToCode(data.data.user.secondarySubDepartmentName) : undefined,
           secondaryRole: data.data.user.secondaryRole ? mapBackendRoleToUserRole(data.data.user.secondaryRole) : undefined,

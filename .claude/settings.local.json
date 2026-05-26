@@ -85,7 +85,20 @@
       "WebFetch(domain:rikhoffbauer.github.io)",
       "Bash(python -m pytest tests/ -v --tb=short)",
       "Bash(python -m pytest tests/ -v3)",
-      "Bash(python -m pytest tests/ -v)"
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(nc -zv -w5 14.224.233.11 2223)",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(nc -zv -w5 14.224.233.11 5555)",
+      "Bash(sshpass *)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(sed -i '' \"s/'NCC001'/'NCC-001'/g; s/'NCC002'/'NCC-002'/g; s/'NCC003'/'NCC-003'/g\" seed-business.ts)",
+      "Bash(sed -i '' \"s/maNhanVien: 'NV003'/maNhanVien: 'NV0003'/g; s/maNhanVien: 'NV002'/maNhanVien: 'NV0002'/g; s/maNhanVien: 'NV005'/maNhanVien: 'NV0005'/g; s/maNhanVien: 'NV000'/maNhanVien: 'NV0000'/g\" seed-business.ts)",
+      "Bash(sed -i '' \"s/maKhachHang: 'KH001'/maKhachHang: 'KHQT-001'/g; s/maKhachHang: 'KH002'/maKhachHang: 'KHQT-002'/g; s/maKhachHang: 'KH003'/maKhachHang: 'KHQT-003'/g; s/maKhachHang: 'KH004'/maKhachHang: 'KHND-001'/g\" seed-business.ts)",
+      "Bash(sed -i '' \"s/maSanPham: 'SP001'/maSanPham: 'SP-001'/g; s/maSanPham: 'SP002'/maSanPham: 'SP-002'/g; s/maSanPham: 'SP003'/maSanPham: 'SP-003'/g; s/maSanPham: 'SP004'/maSanPham: 'SP-004'/g; s/maSanPham: 'SP005'/maSanPham: 'SP-005'/g\" seed-business.ts)",
+      "Bash(sed -i '' \"s/'YCCU-2026-001'/'YC-CC-2026-001'/g; s/'YCMH-2026-001'/'YC-MH-2026-001'/g\" seed-business.ts)",
+      "Bash(sed -i '' \"s/employeeCode: 'NV001'/employeeCode: 'NV0001'/g; s/employeeCode: 'NV002'/employeeCode: 'NV0002'/g\" /Users/vunam/Downloads/koola/ERP/ERP_V6/backend/src/__tests__/employeeService.test.ts)",
+      "Bash(sed -i '' \"s/expect\\(createCall.data.employeeCode\\).toBe\\('NV001'\\)/expect\\(createCall.data.employeeCode\\).toBe\\('NV0001'\\)/\" /Users/vunam/Downloads/koola/ERP/ERP_V6/backend/src/__tests__/employeeService.test.ts)"
     ]
   }
 }

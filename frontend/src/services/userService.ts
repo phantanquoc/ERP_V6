@@ -9,6 +9,12 @@ interface PaginatedResponse<T> {
   totalPages: number;
 }
 
+interface SecondaryDeptInput {
+  departmentId: string;
+  subDepartmentId?: string | null;
+  role?: string;
+}
+
 interface CreateUserRequest {
   email: string;
   password: string;
@@ -17,6 +23,8 @@ interface CreateUserRequest {
   role: string;
   departmentId?: string | null;
   subDepartmentId?: string | null;
+  secondaryDepartments?: SecondaryDeptInput[];
+  // @deprecated
   secondaryDepartmentId?: string | null;
   secondarySubDepartmentId?: string | null;
   secondaryRole?: string | null;
@@ -29,6 +37,8 @@ interface UpdateUserRequest {
   isActive?: boolean;
   departmentId?: string | null;
   subDepartmentId?: string | null;
+  secondaryDepartments?: SecondaryDeptInput[];
+  // @deprecated
   secondaryDepartmentId?: string | null;
   secondarySubDepartmentId?: string | null;
   secondaryRole?: string | null;

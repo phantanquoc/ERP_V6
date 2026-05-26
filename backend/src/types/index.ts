@@ -1,9 +1,16 @@
+export interface SecondaryDepartmentEntry {
+  departmentId: string;
+  subDepartmentId?: string | null;
+  role: string;
+}
+
 export interface JwtPayload {
   id: string;
   email: string;
   role: string;
   departmentId?: string | null;
   subDepartmentId?: string | null;
+  secondaryDepartments?: SecondaryDepartmentEntry[];
 }
 
 export interface AuthRequest {
@@ -24,6 +31,17 @@ export interface AuthResponse {
     departmentName?: string | null;
     subDepartmentId?: string | null;
     subDepartmentName?: string | null;
+    // New: array of secondary departments
+    secondaryDepartments: Array<{
+      departmentId: string;
+      subDepartmentId?: string | null;
+      role: string;
+      departmentName?: string | null;
+      departmentCode?: string | null;
+      subDepartmentName?: string | null;
+      subDepartmentCode?: string | null;
+    }>;
+    // @deprecated — kept for backward compat, populated from secondaryDepartments[0]
     secondaryDepartmentId?: string | null;
     secondaryDepartmentName?: string | null;
     secondarySubDepartmentId?: string | null;

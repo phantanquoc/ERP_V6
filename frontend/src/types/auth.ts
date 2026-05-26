@@ -15,6 +15,16 @@ export interface RegisterRequest {
 
 
 
+export interface SecondaryDepartmentEntry {
+  departmentId: string;
+  subDepartmentId?: string | null;
+  role: UserRole;
+  departmentName?: string | null;
+  subDepartmentName?: string | null;
+  departmentCode?: string;
+  subDepartmentCode?: string;
+}
+
 export interface User {
   _id: string;
   username: string;
@@ -24,8 +34,12 @@ export interface User {
   role: UserRole;
   department?: string;
   position?: string;
+  secondaryDepartments?: SecondaryDepartmentEntry[];
+  /** @deprecated use secondaryDepartments[0]?.departmentCode */
   secondaryDepartment?: string;
+  /** @deprecated use secondaryDepartments[0]?.subDepartmentCode */
   secondarySubDepartment?: string;
+  /** @deprecated use secondaryDepartments[0]?.role */
   secondaryRole?: UserRole;
   // Employee specific information
   employeeId?: string;
