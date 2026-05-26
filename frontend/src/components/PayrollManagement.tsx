@@ -6,8 +6,12 @@ import { usePayrollByMonthYear, usePayrollSettings, useUpdatePayrollSettings, pa
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 
 const PayrollManagement: React.FC = () => {
+  const { user } = useAuth();
+  const canManage = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD;
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', position: '' });
@@ -31,16 +35,16 @@ const PayrollManagement: React.FC = () => {
   const [sendingNotifications, setSendingNotifications] = useState(false);
 
   const queryClient = useQueryClient();
-  const { data: payrolls = [], isLoading: loading } = usePayrollByMonthYear(selectedMonth, selectedYear);
-  const { data: payrollSettings } = usePayrollSettings();
+  const { data: payrolls = [], isLoading: loading } = usePayrollByMonthYear(selectedMonth, selectedYear, canManage);
+  const { data: payrollSettings } = usePayrollSettings(canManage);
   const updateSettingsMutation = useUpdatePayrollSettings();
 
   const standardWorkDays = payrollSettings?.standardWorkDays ?? 26;
   const overtimeRate = payrollSettings?.overtimeRate ?? 0;
 
   useEffect(() => {
-    fetchEvaluations();
-  }, [selectedMonth, selectedYear]);
+    if (canManage) fetchEvaluations();
+  }, [selectedMonth, selectedYear, canManage]);
 
   const fetchEvaluations = async () => {
     try {

@@ -12,10 +12,11 @@ export const payrollKeys = {
 };
 
 // Hook to get payroll by month and year
-export const usePayrollByMonthYear = (month: number, year: number) => {
+export const usePayrollByMonthYear = (month: number, year: number, enabled: boolean = true) => {
   return useQuery({
     queryKey: payrollKeys.list(month, year),
     queryFn: () => payrollService.getPayrollByMonthYear(month, year),
+    enabled,
   });
 };
 
@@ -56,10 +57,11 @@ export const useUpdatePayroll = () => {
 };
 
 // Hook to get payroll settings
-export const usePayrollSettings = () => {
+export const usePayrollSettings = (enabled: boolean = true) => {
   return useQuery({
     queryKey: payrollKeys.settings(),
     queryFn: () => payrollService.getPayrollSettings(),
+    enabled,
   });
 };
 

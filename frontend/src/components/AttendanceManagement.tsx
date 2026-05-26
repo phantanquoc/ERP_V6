@@ -6,6 +6,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import DatePicker from './DatePicker';
 import WorkShiftSettingsModal from './WorkShiftSettingsModal';
 import TableFilter, { FilterField } from './TableFilter';
+import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 
 interface AttendanceRecord {
   stt: number;
@@ -32,6 +34,12 @@ interface EditEntry {
 }
 
 const AttendanceManagement: React.FC = () => {
+  const { user } = useAuth();
+  // /api/employees requires ADMIN | DEPARTMENT_HEAD | TEAM_LEAD
+  const canViewEmployees = user?.role === UserRole.ADMIN
+    || user?.role === UserRole.DEPARTMENT_HEAD
+    || user?.role === UserRole.TEAM_LEAD;
+
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', status: '' });
   const filterFields: FilterField[] = [
     {
@@ -65,8 +73,8 @@ const AttendanceManagement: React.FC = () => {
     notes: '',
   });
 
-  // Use React Query for employees
-  const { data: employeesData } = useEmployees(1, 1000);
+  // Use React Query for employees — only fetch if the user's role permits it
+  const { data: employeesData } = useEmployees(1, 1000, canViewEmployees);
   const employees = employeesData?.data || [];
 
   // Use React Query for attendance data

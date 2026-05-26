@@ -21,6 +21,8 @@ import DatePicker from '@components/DatePicker';
 import employeeService from '@services/employeeService';
 import employeeEvaluationService, { EmployeeEvaluation } from '@services/employeeEvaluationService';
 import attendanceService, { AttendanceRecord } from '@services/attendanceService';
+import { useAuth } from '../../contexts/AuthContext';
+import { UserRole } from '../../types/auth';
 
 interface Employee {
   id: string;
@@ -34,7 +36,24 @@ interface Employee {
 }
 
 const QualityPersonnel = () => {
-  const [activeTab, setActiveTab] = useState<'employees' | 'positions' | 'responsibilities' | 'levels' | 'evaluations' | 'payroll' | 'attendance' | 'leave-requests' | 'users'>('employees');
+  const { user } = useAuth();
+  // /api/employees now allows EMPLOYEE (read-only) + ADMIN | DEPARTMENT_HEAD | TEAM_LEAD
+  const canViewEmployees = user?.role === UserRole.ADMIN
+    || user?.role === UserRole.DEPARTMENT_HEAD
+    || user?.role === UserRole.TEAM_LEAD
+    || user?.role === UserRole.EMPLOYEE;
+  // /api/employee-evaluations/evaluations now allows TEAM_LEAD + EMPLOYEE (read-only) + ADMIN | DEPARTMENT_HEAD
+  const canViewEvaluations = user?.role === UserRole.ADMIN
+    || user?.role === UserRole.DEPARTMENT_HEAD
+    || user?.role === UserRole.TEAM_LEAD
+    || user?.role === UserRole.EMPLOYEE;
+
+  const [activeTab, setActiveTab] = useState<'employees' | 'positions' | 'responsibilities' | 'levels' | 'evaluations' | 'payroll' | 'attendance' | 'leave-requests' | 'users'>(() => {
+  // EMPLOYEE can now view employee list (default to 'employees' if tab allowed)
+  if (!user?.role) return 'attendance';
+  if (user.role === UserRole.EMPLOYEE && canViewEmployees) return 'employees';
+  return 'employees';
+  });
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
@@ -54,13 +73,17 @@ const QualityPersonnel = () => {
 
   useEffect(() => {
     loadEvaluations();
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, canViewEvaluations]);
 
   useEffect(() => {
     loadAttendances();
   }, [selectedDate]);
 
   const loadEmployees = async () => {
+    if (!canViewEmployees) {
+      setEmployees([]);
+      return;
+    }
     try {
       setLoading(true);
       const response = await employeeService.getAllEmployees(1, 1000); // Get all employees
@@ -73,6 +96,10 @@ const QualityPersonnel = () => {
   };
 
   const loadEvaluations = async () => {
+    if (!canViewEvaluations) {
+      setEvaluations([]);
+      return;
+    }
     try {
       const data = await employeeEvaluationService.getEmployeeEvaluations(selectedMonth, selectedYear);
       setEvaluations(data);
@@ -102,16 +129,16 @@ const QualityPersonnel = () => {
   };
 
   const tabs = [
-    { id: 'employees', name: 'Danh sách nhân viên', icon: <Users className="w-4 h-4" /> },
-    { id: 'positions', name: 'Quản lý vị trí', icon: <Briefcase className="w-4 h-4" /> },
-    { id: 'levels', name: 'Quản lý cấp độ & lương', icon: <DollarSign className="w-4 h-4" /> },
-    { id: 'responsibilities', name: 'Danh sách trách nhiệm', icon: <FileText className="w-4 h-4" /> },
-    { id: 'evaluations', name: 'Đánh giá nhân viên', icon: <Star className="w-4 h-4" /> },
-    { id: 'payroll', name: 'Bảng tính lương', icon: <DollarSign className="w-4 h-4" /> },
-    { id: 'attendance', name: 'Bảng điểm danh nhân viên', icon: <FileText className="w-4 h-4" /> },
-    { id: 'leave-requests', name: 'Danh sách đơn nghỉ phép', icon: <Calendar className="w-4 h-4" /> },
-    { id: 'users', name: 'Quản lý user', icon: <Lock className="w-4 h-4" /> },
-  ];
+    { id: 'employees', name: 'Danh sách nhân viên', icon: <Users className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
+    { id: 'positions', name: 'Quản lý vị trí', icon: <Briefcase className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD] },
+    { id: 'levels', name: 'Quản lý cấp độ & lương', icon: <DollarSign className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD] },
+    { id: 'responsibilities', name: 'Danh sách trách nhiệm', icon: <FileText className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD] },
+    { id: 'evaluations', name: 'Đánh giá nhân viên', icon: <Star className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
+    { id: 'payroll', name: 'Bảng tính lương', icon: <DollarSign className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
+    { id: 'attendance', name: 'Bảng điểm danh nhân viên', icon: <FileText className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
+    { id: 'leave-requests', name: 'Danh sách đơn nghỉ phép', icon: <Calendar className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
+    { id: 'users', name: 'Quản lý user', icon: <Lock className="w-4 h-4" />, roles: [UserRole.ADMIN] },
+  ].filter(tab => !user?.role || tab.roles.includes(user.role as UserRole));
 
   return (
     <div className="min-h-screen bg-gray-50">

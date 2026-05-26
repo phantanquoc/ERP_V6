@@ -12,6 +12,8 @@ import { usePositions, positionKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import positionService, { Position } from '@services/positionService';
 import TableFilter, { FilterField } from './TableFilter';
+import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 
 interface FormData {
   code: string;
@@ -21,7 +23,9 @@ interface FormData {
 
 const PositionManagement = () => {
   const queryClient = useQueryClient();
-  const { data: positions = [], isLoading: loading } = usePositions();
+  const { user } = useAuth();
+  const canManage = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD;
+  const { data: positions = [], isLoading: loading } = usePositions(canManage);
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');

@@ -4,6 +4,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import { SystemSettingsProvider } from './contexts/SystemSettingsContext';
 import ProtectedLayout from './components/ProtectedLayout';
 import ProtectedSubRoute from './components/ProtectedSubRoute';
+import ProtectedModuleRoute from './components/ProtectedModuleRoute';
+import AdminRoute from './components/AdminRoute';
 import Dashboard1 from './pages/Dashboard1';
 
 const Login = React.lazy(() => import('./pages/Login'));
@@ -77,17 +79,33 @@ function App() {
             <Route path="/dashboard" element={<Dashboard1 />} />
 
             {/* Common Management Routes */}
-            <Route path="/common" element={<CommonManagement />} />
+            <Route path="/common" element={
+              <ProtectedModuleRoute module="common">
+                <CommonManagement />
+              </ProtectedModuleRoute>
+            } />
 
             {/* Quality Management Routes */}
-            <Route path="/quality" element={<QualityManagement />} />
+            <Route path="/quality" element={
+              <ProtectedModuleRoute module="quality">
+                <QualityManagement />
+              </ProtectedModuleRoute>
+            } />
             <Route path="/quality/personnel" element={
               <ProtectedSubRoute department="quality" subModule="personnel">
                 <QualityPersonnel />
               </ProtectedSubRoute>
             } />
-            <Route path="/quality/office" element={<QualityOffice />} />
-            <Route path="/quality/production" element={<QualityProduction />} />
+            <Route path="/quality/office" element={
+              <ProtectedSubRoute department="quality" subModule="office">
+                <QualityOffice />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/quality/production" element={
+              <ProtectedSubRoute department="quality" subModule="production">
+                <QualityProduction />
+              </ProtectedSubRoute>
+            } />
             <Route path="/quality/process" element={
               <ProtectedSubRoute department="quality" subModule="process">
                 <QualityProcess />
@@ -100,42 +118,130 @@ function App() {
             } />
 
             {/* General Management Routes */}
-            <Route path="/general" element={<GeneralManagement />} />
-            <Route path="/general/pricing" element={<GeneralPricing />} />
-            <Route path="/general/partners" element={<GeneralPartners />} />
+            <Route path="/general" element={
+              <ProtectedModuleRoute module="general">
+                <GeneralManagement />
+              </ProtectedModuleRoute>
+            } />
+            <Route path="/general/pricing" element={
+              <ProtectedSubRoute department="general" subModule="pricing">
+                <GeneralPricing />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/general/partners" element={
+              <ProtectedSubRoute department="general" subModule="partners">
+                <GeneralPartners />
+              </ProtectedSubRoute>
+            } />
 
             {/* Business Management Routes */}
-            <Route path="/business" element={<BusinessReport />} />
-            <Route path="/business/management" element={<BusinessManagement />} />
-            <Route path="/business/international" element={<BusinessInternational />} />
-            <Route path="/business/domestic" element={<BusinessDomestic />} />
+            <Route path="/business" element={
+              <ProtectedModuleRoute module="business">
+                <BusinessReport />
+              </ProtectedModuleRoute>
+            } />
+            <Route path="/business/management" element={
+              <ProtectedSubRoute department="business" subModule="management">
+                <BusinessManagement />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/business/international" element={
+              <ProtectedSubRoute department="business" subModule="international">
+                <BusinessInternational />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/business/domestic" element={
+              <ProtectedSubRoute department="business" subModule="domestic">
+                <BusinessDomestic />
+              </ProtectedSubRoute>
+            } />
 
             {/* Accounting Management Routes */}
-            <Route path="/accounting" element={<AccountingManagement />} />
-            <Route path="/accounting/admin" element={<AccountingAdmin />} />
-            <Route path="/accounting/tax" element={<AccountingTax />} />
+            <Route path="/accounting" element={
+              <ProtectedModuleRoute module="accounting">
+                <AccountingManagement />
+              </ProtectedModuleRoute>
+            } />
+            <Route path="/accounting/admin" element={
+              <ProtectedSubRoute department="accounting" subModule="admin">
+                <AccountingAdmin />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/accounting/tax" element={
+              <ProtectedSubRoute department="accounting" subModule="tax">
+                <AccountingTax />
+              </ProtectedSubRoute>
+            } />
 
             {/* Purchasing Management Routes */}
-            <Route path="/purchasing" element={<PurchasingManagement />} />
-            <Route path="/purchasing/materials" element={<PurchasingMaterials />} />
-            <Route path="/purchasing/equipment" element={<PurchasingEquipment />} />
+            <Route path="/purchasing" element={
+              <ProtectedModuleRoute module="purchasing">
+                <PurchasingManagement />
+              </ProtectedModuleRoute>
+            } />
+            <Route path="/purchasing/materials" element={
+              <ProtectedSubRoute department="purchasing" subModule="materials">
+                <PurchasingMaterials />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/purchasing/equipment" element={
+              <ProtectedSubRoute department="purchasing" subModule="equipment">
+                <PurchasingEquipment />
+              </ProtectedSubRoute>
+            } />
 
             {/* Production Management Routes */}
-            <Route path="/production" element={<ProductionManagement />} />
-            <Route path="/production/management" element={<ProductionDepartment />} />
-            <Route path="/production/warehouse" element={<ProductionWarehouse />} />
-            <Route path="/production/data" element={<ProductionData />} />
+            <Route path="/production" element={
+              <ProtectedModuleRoute module="production">
+                <ProductionManagement />
+              </ProtectedModuleRoute>
+            } />
+            <Route path="/production/management" element={
+              <ProtectedSubRoute department="production" subModule="management">
+                <ProductionDepartment />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/production/warehouse" element={
+              <ProtectedSubRoute department="production" subModule="warehouse">
+                <ProductionWarehouse />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/production/data" element={
+              <ProtectedSubRoute department="production" subModule="data">
+                <ProductionData />
+              </ProtectedSubRoute>
+            } />
 
             {/* Technical Management Routes */}
-            <Route path="/technical" element={<TechnicalManagement />} />
-            <Route path="/technical/quality" element={<TechnicalQuality />} />
-            <Route path="/technical/mechanical" element={<TechnicalMechanical />} />
+            <Route path="/technical" element={
+              <ProtectedModuleRoute module="technical">
+                <TechnicalManagement />
+              </ProtectedModuleRoute>
+            } />
+            <Route path="/technical/quality" element={
+              <ProtectedSubRoute department="technical" subModule="quality">
+                <TechnicalQuality />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/technical/mechanical" element={
+              <ProtectedSubRoute department="technical" subModule="mechanical">
+                <TechnicalMechanical />
+              </ProtectedSubRoute>
+            } />
 
             {/* System Settings (Admin Only) */}
-            <Route path="/system-settings" element={<SystemSettingsPage />} />
+            <Route path="/system-settings" element={
+              <AdminRoute>
+                <SystemSettingsPage />
+              </AdminRoute>
+            } />
 
             {/* Face Attendance Admin */}
-            <Route path="/diemdanh/admin" element={<FaceAdminPage />} />
+            <Route path="/diemdanh/admin" element={
+              <AdminRoute>
+                <FaceAdminPage />
+              </AdminRoute>
+            } />
           </Route>
         </Routes>
         </Suspense>

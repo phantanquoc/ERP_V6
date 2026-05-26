@@ -15,15 +15,17 @@ interface UserFilters {
   limit?: number;
   search?: string;
   role?: string;
+  enabled?: boolean;
 }
 
 // Hook to get all users with filters
 export const useUsers = (filters: UserFilters = {}) => {
-  const { page = 1, limit = 100, search, role } = filters;
+  const { page = 1, limit = 100, search, role, enabled = true } = filters;
   
   return useQuery({
     queryKey: userKeys.list({ page, limit, search, role }),
     queryFn: () => userService.getAllUsers(page, limit),
+    enabled,
   });
 };
 

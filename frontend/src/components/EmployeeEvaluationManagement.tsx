@@ -7,8 +7,12 @@ import {
 } from 'lucide-react';
 import employeeEvaluationService, { EmployeeEvaluation, EvaluationDetailsResponse } from '@services/employeeEvaluationService';
 import TableFilter, { FilterField } from './TableFilter';
+import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 
 const EmployeeEvaluationManagement = () => {
+  const { user } = useAuth();
+  const canView = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD;
   const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,9 +40,13 @@ const EmployeeEvaluationManagement = () => {
 
   useEffect(() => {
     loadEvaluations();
-  }, [month, year]);
+  }, [month, year, canView]);
 
   const loadEvaluations = async () => {
+    if (!canView) {
+      setEvaluations([]);
+      return;
+    }
     try {
       setLoading(true);
       const data = await employeeEvaluationService.getEmployeeEvaluations(month, year);

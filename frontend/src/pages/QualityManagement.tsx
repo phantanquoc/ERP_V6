@@ -8,11 +8,22 @@ import qualityEvaluationService from '../services/qualityEvaluationService';
 import { processService } from '../services/processService';
 import internalInspectionService from '../services/internalInspectionService';
 import employeeService from '../services/employeeService';
+import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 
 const PRODUCT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6B7280', '#14B8A6'];
 const INSPECTION_COLORS = ['#EF4444', '#F59E0B', '#3B82F6', '#10B981'];
 
 const QualityManagement = () => {
+  const { user } = useAuth();
+  // /api/employees requires ADMIN | DEPARTMENT_HEAD | TEAM_LEAD
+  const canViewEmployees = user?.role === UserRole.ADMIN
+    || user?.role === UserRole.DEPARTMENT_HEAD
+    || user?.role === UserRole.TEAM_LEAD;
+  // /api/internal-inspections requires ADMIN | DEPARTMENT_HEAD
+  const canViewInspections = user?.role === UserRole.ADMIN
+    || user?.role === UserRole.DEPARTMENT_HEAD;
+
   const [loading, setLoading] = useState(true);
   const [employeeTotal, setEmployeeTotal] = useState(0);
   const [employeeActive, setEmployeeActive] = useState(0);
@@ -29,10 +40,14 @@ const QualityManagement = () => {
       try {
         setLoading(true);
         const [empRes, procRes, evalRes, inspections] = await Promise.all([
-          employeeService.getAllEmployees(1, 10000),
+          canViewEmployees
+            ? employeeService.getAllEmployees(1, 10000)
+            : Promise.resolve({ data: [] }),
           processService.getAllProcesses(1, 10000),
           qualityEvaluationService.getAllQualityEvaluations(1, 10000),
-          internalInspectionService.getAllInspections(),
+          canViewInspections
+            ? internalInspectionService.getAllInspections()
+            : Promise.resolve([]),
         ]);
 
         // Employees
@@ -100,7 +115,7 @@ const QualityManagement = () => {
       }
     };
     fetchAll();
-  }, []);
+  }, [canViewEmployees, canViewInspections]);
 
   if (loading) {
     return (

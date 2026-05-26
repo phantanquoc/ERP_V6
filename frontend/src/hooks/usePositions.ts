@@ -12,10 +12,11 @@ export const positionKeys = {
 };
 
 // Hook to get all positions
-export const usePositions = () => {
+export const usePositions = (enabled: boolean = true) => {
   return useQuery({
     queryKey: positionKeys.lists(),
     queryFn: () => positionService.getAllPositions(),
+    enabled,
     // Positions rarely change, cache for longer
     staleTime: 30 * 60 * 1000, // 30 minutes
   });
