@@ -490,6 +490,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         <AdminResetPasswordModal
           userId={(selectedPasswordResetNotification.metadata?.targetUserId as string) || ''}
           employeeName={selectedPasswordResetNotification.message}
+          metadata={selectedPasswordResetNotification.metadata}
           onClose={() => setSelectedPasswordResetNotification(null)}
         />
       )}
