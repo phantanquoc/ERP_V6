@@ -3,8 +3,9 @@ import { KeyRound, Eye, EyeOff, RefreshCw, Copy, Check, X, Loader2 } from 'lucid
 import apiClient from '@services/apiClient';
 
 interface Props {
-  userId: string;       // may be '' for old notifications — resolved via employeeName
-  employeeName: string; // notification.message, e.g. "Nguyễn Văn An (NV001) đã yêu cầu đặt lại mật khẩu."
+  userId: string;       // may be '' for old notifications — resolved via employeeName/metadata
+  employeeName: string; // notification.message, used as header subtitle and code extraction fallback
+  metadata?: Record<string, unknown>;
   onClose: () => void;
 }
 
@@ -18,16 +19,22 @@ function generateTempPassword(): string {
   return result;
 }
 
-/** Extract employee code like NV001 from a notification message string. */
+/** Extract employee code like NV001 or NV0001 from any string containing "(CODE)". */
 function extractEmployeeCode(text: string): string | null {
   const match = text.match(/\(([A-Z0-9]+)\)/);
   return match ? match[1] : null;
 }
 
-const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, onClose }) => {
+const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, metadata, onClose }) => {
   const [resolvedUserId, setResolvedUserId] = useState(userId);
   const [resolving, setResolving] = useState(false);
+  // '' = no error; 'manual' = show manual input fallback
   const [resolveError, setResolveError] = useState('');
+
+  // Manual lookup fallback state
+  const [manualCode, setManualCode] = useState('');
+  const [manualLooking, setManualLooking] = useState(false);
+  const [manualError, setManualError] = useState('');
 
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -36,14 +43,22 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, onClos
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
 
-  // If userId is empty, try to resolve it from the employee code in the message
+  // If userId is empty, try to resolve it from the employee code in metadata or message
   useEffect(() => {
     if (userId) return; // already have it
-    const code = extractEmployeeCode(employeeName);
+
+    // Source 1: metadata.employeeName — medium-format: "LastName FirstName (NV0001)"
+    const metaName = typeof metadata?.employeeName === 'string' ? metadata.employeeName : null;
+    let code = metaName ? extractEmployeeCode(metaName) : null;
+
+    // Source 2: message — old-format: "Nhân viên Hiếu Phạm (NV015) yêu cầu đặt lại mật khẩu..."
+    if (!code) code = extractEmployeeCode(employeeName);
+
     if (!code) {
-      setResolveError('Không xác định được mã nhân viên. Vui lòng đặt lại mật khẩu trong trang Quản lý nhân sự.');
+      setResolveError('manual');
       return;
     }
+
     setResolving(true);
     apiClient.get<{ userId: string }>(`/employees/code/${code}`)
       .then(res => {
@@ -51,12 +66,37 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, onClos
         if (uid) {
           setResolvedUserId(uid);
         } else {
-          setResolveError(`Không tìm thấy tài khoản cho mã ${code}.`);
+          setManualCode(code!);
+          setResolveError('manual');
         }
       })
-      .catch(() => setResolveError(`Không thể tra cứu tài khoản (mã ${code}).`))
+      .catch(() => {
+        setManualCode(code!);
+        setResolveError('manual');
+      })
       .finally(() => setResolving(false));
-  }, [userId, employeeName]);
+  }, [userId, employeeName, metadata]);
+
+  const handleManualLookup = async () => {
+    const code = manualCode.trim().toUpperCase();
+    if (!code) { setManualError('Vui lòng nhập mã nhân viên'); return; }
+    setManualLooking(true);
+    setManualError('');
+    try {
+      const res = await apiClient.get<{ userId: string }>(`/employees/code/${code}`);
+      const uid = res.data?.userId;
+      if (uid) {
+        setResolveError('');
+        setResolvedUserId(uid);
+      } else {
+        setManualError(`Không tìm thấy tài khoản cho mã ${code}`);
+      }
+    } catch {
+      setManualError(`Không thể tra cứu tài khoản (mã ${code})`);
+    } finally {
+      setManualLooking(false);
+    }
+  };
 
   const handleGenerate = () => {
     setNewPassword(generateTempPassword());
@@ -121,17 +161,38 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, onClos
             </div>
           )}
 
-          {/* Could not resolve userId */}
-          {!resolving && resolveError && (
+          {/* Manual lookup fallback — shown when auto-extract fails or API lookup fails */}
+          {!resolving && resolveError === 'manual' && (
             <div className="space-y-4">
-              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                <p className="text-sm text-red-700">{resolveError}</p>
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <p className="text-sm text-amber-700 mb-3">
+                  Không xác định được tài khoản tự động. Vui lòng nhập mã nhân viên:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={manualCode}
+                    onChange={e => { setManualCode(e.target.value.toUpperCase()); setManualError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && handleManualLookup()}
+                    placeholder="VD: NV001"
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleManualLookup}
+                    disabled={manualLooking}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    {manualLooking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Tra cứu'}
+                  </button>
+                </div>
+                {manualError && <p className="text-xs text-red-600 mt-1.5">{manualError}</p>}
               </div>
               <button
                 onClick={onClose}
                 className="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium text-sm transition-colors"
               >
-                Đóng
+                Hủy
               </button>
             </div>
           )}
