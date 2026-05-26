@@ -69,47 +69,94 @@ class AuthService {
         }
       };
 
+      // Map DB dept code (e.g. 'DEPT_ACCOUNTING') → permission short code (e.g. 'accounting')
+      const mapDeptCodeToPermCode = (deptCode?: string | null): string | undefined => {
+        if (!deptCode) return undefined;
+        const map: Record<string, string> = {
+          'DEPT_GENERAL':    'general',
+          'DEPT_QUALITY':    'quality',
+          'DEPT_BUSINESS':   'business',
+          'DEPT_ACCOUNTING': 'accounting',
+          'DEPT_PURCHASING': 'purchasing',
+          'DEPT_PRODUCTION': 'production',
+          'DEPT_TECHNICAL':  'technical',
+        };
+        return map[deptCode];
+      };
+
+      // Map DB sub-dept code (e.g. 'SUBDEPT_ACCOUNTING_TAX') → permission short code (e.g. 'tax')
+      const mapSubDeptCodeToPermCode = (subDeptCode?: string | null): string | undefined => {
+        if (!subDeptCode) return undefined;
+        const map: Record<string, string> = {
+          'SUBDEPT_GENERAL_PRICING':        'pricing',
+          'SUBDEPT_GENERAL_PARTNERS':       'partners',
+          'SUBDEPT_QUALITY_PERSONNEL':      'personnel',
+          'SUBDEPT_QUALITY_PROCESS':        'process',
+          'SUBDEPT_BUSINESS_INTERNATIONAL': 'international',
+          'SUBDEPT_BUSINESS_DOMESTIC':      'domestic',
+          'SUBDEPT_ACCOUNTING_ADMIN':       'admin',
+          'SUBDEPT_ACCOUNTING_TAX':         'tax',
+          'SUBDEPT_PURCHASING_MATERIALS':   'materials',
+          'SUBDEPT_PURCHASING_EQUIPMENT':   'equipment',
+          'SUBDEPT_PRODUCTION_MANAGEMENT':  'management',
+          'SUBDEPT_PRODUCTION_WAREHOUSE':   'warehouse',
+          'SUBDEPT_PRODUCTION_DATA':        'data',
+          'SUBDEPT_TECHNICAL_QUALITY':      'quality',
+          'SUBDEPT_TECHNICAL_MECHANICAL':   'mechanical',
+        };
+        return map[subDeptCode];
+      };
+
       // Map department name to department code for permission system.
-      // Returns undefined if name is unknown — caller must supply a default if needed.
+      // Prefer the code sent directly by the backend; fall back to name→code map for legacy data.
       const mapDepartmentNameToCode = (departmentName?: string): string | undefined => {
         if (!departmentName) return undefined;
-
         const nameMap: Record<string, string> = {
-          'Bộ phận tổng hợp': 'general',
+          'Bộ phận tổng hợp':  'general',
           'Bộ phận chất lượng': 'quality',
           'Bộ phận kinh doanh': 'business',
-          'Bộ phận kế toán': 'accounting',
-          'Bộ phận thu mua': 'purchasing',
-          'Bộ phận sản xuất': 'production',
-          'Bộ phận kỹ thuật': 'technical',
+          'Bộ phận kế toán':   'accounting',
+          'Bộ phận thu mua':   'purchasing',
+          'Bộ phận sản xuất':  'production',
+          'Bộ phận kỹ thuật':  'technical',
         };
-
         return nameMap[departmentName];
       };
 
       // Map subdepartment name to subdepartment code
       const mapSubDepartmentNameToCode = (subDepartmentName?: string): string | undefined => {
         if (!subDepartmentName) return undefined;
-
         const nameMap: Record<string, string> = {
-          'Phòng giá thành': 'pricing',
-          'Phòng chăm sóc': 'partners',
+          'Phòng giá thành':          'pricing',
+          'Phòng chăm sóc':           'partners',
           'Phòng chất lượng nhân sự': 'personnel',
-          'Phòng chất lượng quy trình': 'process',
-          'Phòng KD Quốc Tế': 'international',
-          'Phòng KD Nội Địa': 'domestic',
-          'Phòng KT Hành chính': 'admin',
-          'Phòng KT thuế': 'tax',
-          'Phòng thu mua NVL': 'materials',
-          'Phòng mua Thiết bị': 'equipment',
-          'Phòng QLSX': 'management',
-          'Quản lý kho': 'warehouse',
-          'Dữ liệu sản xuất': 'data',
-          'Phòng QLHTM': 'quality',
-          'Phòng cơ- điện': 'mechanical',
+          'Phòng chất lượng quy trình':'process',
+          'Phòng KD Quốc Tế':         'international',
+          'Phòng KD Nội Địa':         'domestic',
+          'Phòng KT Hành chính':      'admin',
+          'Phòng KT thuế':            'tax',
+          'Phòng thu mua NVL':        'materials',
+          'Phòng mua Thiết bị':       'equipment',
+          'Phòng QLSX':               'management',
+          'Quản lý kho':              'warehouse',
+          'Dữ liệu sản xuất':         'data',
+          'Phòng QLHTM':              'quality',
+          'Phòng cơ- điện':           'mechanical',
         };
-
         return nameMap[subDepartmentName];
+      };
+
+      // Map Prisma EmployeeStatus enum to Vietnamese display string
+      const mapEmployeeStatus = (status?: string): 'Đang làm việc' | 'Nghỉ phép' | 'Tạm nghỉ' | 'Đã nghỉ việc' | 'Thử việc' | undefined => {
+        if (!status) return undefined;
+        switch (status.toUpperCase()) {
+          case 'ACTIVE':     return 'Đang làm việc';
+          case 'ON_LEAVE':   return 'Nghỉ phép';
+          case 'INACTIVE':   return 'Tạm nghỉ';
+          case 'TERMINATED': return 'Đã nghỉ việc';
+          case 'PROBATION':  return 'Thử việc';
+          default:           return undefined;
+        }
       };
 
       const authResponse: AuthResponse = {
@@ -120,8 +167,12 @@ class AuthService {
           firstName: data.data.user.firstName,
           lastName: data.data.user.lastName,
           role: mapBackendRoleToUserRole(data.data.user.role),
-          department: data.data.user.role === 'ADMIN' ? 'admin' : (mapDepartmentNameToCode(data.data.user.departmentName) ?? 'general'),
-          subDepartment: mapSubDepartmentNameToCode(data.data.user.subDepartmentName),
+          department: data.data.user.role === 'ADMIN'
+            ? 'admin'
+            : (mapDeptCodeToPermCode(data.data.user.departmentCode) ?? mapDepartmentNameToCode(data.data.user.departmentName) ?? 'general'),
+          departmentName: data.data.user.departmentName ?? undefined,
+          subDepartment: mapSubDeptCodeToPermCode(data.data.user.subDepartmentCode) ?? mapSubDepartmentNameToCode(data.data.user.subDepartmentName),
+          subDepartmentName: data.data.user.subDepartmentName,
           // New: map secondaryDepartments array
           secondaryDepartments: (data.data.user.secondaryDepartments ?? []).map((s: any) => ({
             departmentId: s.departmentId,
@@ -129,8 +180,8 @@ class AuthService {
             role: mapBackendRoleToUserRole(s.role),
             departmentName: s.departmentName ?? null,
             subDepartmentName: s.subDepartmentName ?? null,
-            departmentCode: s.departmentCode ?? mapDepartmentNameToCode(s.departmentName),
-            subDepartmentCode: s.subDepartmentCode ?? mapSubDepartmentNameToCode(s.subDepartmentName),
+            departmentCode: mapDeptCodeToPermCode(s.departmentCode) ?? mapDepartmentNameToCode(s.departmentName),
+            subDepartmentCode: mapSubDeptCodeToPermCode(s.subDepartmentCode) ?? mapSubDepartmentNameToCode(s.subDepartmentName),
           })),
           // @deprecated backward compat — populated from secondaryDepartments[0]
           secondaryDepartment: data.data.user.secondaryDepartmentName ? mapDepartmentNameToCode(data.data.user.secondaryDepartmentName) : undefined,
@@ -140,7 +191,14 @@ class AuthService {
           employeeId: data.data.employee?.id,
           employeeCode: data.data.employee?.employeeCode,
           position: data.data.employee?.position?.name || data.data.user.position,
+          positionLevelName: data.data.employee?.positionLevel?.level ?? undefined,
           gender: data.data.employee?.gender,
+          dateOfBirth: data.data.employee?.dateOfBirth,
+          address: data.data.employee?.address ?? undefined,
+          contractType: data.data.employee?.contractType ?? undefined,
+          educationLevel: data.data.employee?.educationLevel ?? undefined,
+          specialization: data.data.employee?.specialization ?? undefined,
+          specialSkills: data.data.employee?.specialSkills ?? undefined,
           weight: data.data.employee?.weight,
           height: data.data.employee?.height,
           shirtSize: data.data.employee?.shirtSize,
@@ -149,12 +207,13 @@ class AuthService {
           phoneNumber: data.data.employee?.phoneNumber,
           bankAccount: data.data.employee?.bankAccount,
           lockerNumber: data.data.employee?.lockerNumber,
-          employeeStatus: data.data.employee?.status,
+          employeeStatus: mapEmployeeStatus(data.data.employee?.status),
           baseSalary: data.data.employee?.baseSalary,
           kpiLevel: data.data.employee?.kpiLevel,
           responsibilityCode: data.data.employee?.responsibilityCode,
           evaluationScore: data.data.employee?.evaluationScore,
           notes: data.data.employee?.notes,
+          hireDate: data.data.employee?.hireDate,
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),

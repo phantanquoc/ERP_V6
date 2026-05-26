@@ -12,10 +12,12 @@ export const employeeKeys = {
 };
 
 // Hook to get all employees with pagination
-export const useEmployees = (page: number = 1, limit: number = 100) => {
+// Pass enabled=false to skip the fetch (e.g. when user role is insufficient)
+export const useEmployees = (page: number = 1, limit: number = 100, enabled: boolean = true) => {
   return useQuery({
     queryKey: employeeKeys.list(page, limit),
     queryFn: () => employeeService.getAllEmployees(page, limit),
+    enabled,
   });
 };
 

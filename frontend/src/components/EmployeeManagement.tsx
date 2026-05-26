@@ -6,7 +6,8 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle,
-  X
+  X,
+  Plus
 } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
 import { useQueryClient } from '@tanstack/react-query';
@@ -14,6 +15,8 @@ import { API_BASE_URL } from '../config/api';
 import { useEmployees, useDepartments, usePositions, usePositionLevelsByPosition, employeeKeys } from '../hooks';
 import employeeService from '@services/employeeService';
 import { parseNumberInput } from '../utils/numberInput';
+import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 
 interface Employee {
   id: string;
@@ -116,12 +119,23 @@ interface User {
 
 const EmployeeManagement: React.FC = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  // /api/employees now allows EMPLOYEE (read-only) + ADMIN | DEPARTMENT_HEAD | TEAM_LEAD
+  const canManageEmployees = user?.role === UserRole.ADMIN
+    || user?.role === UserRole.DEPARTMENT_HEAD
+    || user?.role === UserRole.TEAM_LEAD
+    || user?.role === UserRole.EMPLOYEE;
+  // /api/users requires ADMIN only
+  const canManageUsers = user?.role === UserRole.ADMIN;
+  // EMPLOYEE is read-only
+  const isReadOnly = user?.role === UserRole.EMPLOYEE;
 
   // React Query hooks
-  const { data: employeesData, isLoading: loading } = useEmployees(1, 100);
+  const { data: employeesData, isLoading: loading } = useEmployees(1, 100, canManageEmployees);
   const employees = employeesData?.data || [];
 
-  const { data: positions = [] } = usePositions();
+  const { data: positions = [] } = usePositions(canManageEmployees);
   const { data: departments = [] } = useDepartments();
 
   const [users, setUsers] = useState<User[]>([]);
@@ -194,8 +208,10 @@ const EmployeeManagement: React.FC = () => {
   const { data: positionLevels = [] } = usePositionLevelsByPosition(formData.positionId);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (canManageUsers) {
+      loadUsers();
+    }
+  }, [canManageUsers]);
 
   const loadUsers = async () => {
     try {
@@ -258,6 +274,12 @@ const EmployeeManagement: React.FC = () => {
     setError('');
     setSuccess('');
 
+    // EMPLOYEE cannot submit forms
+    if (isReadOnly) {
+      setError('Bạn không có quyền chỉnh sửa nhân viên');
+      return;
+    }
+
     try {
       if (selectedEmployee) {
         await employeeService.updateEmployee(selectedEmployee.id, formData);
@@ -272,6 +294,12 @@ const EmployeeManagement: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // EMPLOYEE cannot delete
+    if (isReadOnly) {
+      setError('Bạn không có quyền xóa nhân viên');
+      return;
+    }
+
     if (!window.confirm('Bạn có chắc chắn muốn xóa nhân viên này?')) return;
 
     try {
@@ -285,6 +313,12 @@ const EmployeeManagement: React.FC = () => {
   };
 
   const openEditModal = (employee: Employee) => {
+    // EMPLOYEE cannot open edit modal
+    if (isReadOnly) {
+      setError('Bạn không có quyền chỉnh sửa nhân viên');
+      return;
+    }
+
     setSelectedEmployee(employee);
     setFormData({
       employeeCode: employee.employeeCode,
@@ -317,6 +351,41 @@ const EmployeeManagement: React.FC = () => {
   const openDetailModal = (employee: Employee) => {
     setSelectedEmployee(employee);
     setIsDetailModalOpen(true);
+  };
+
+  // EMPLOYEE cannot create new employees
+  const handleAddEmployee = () => {
+    if (isReadOnly) {
+      setError('Bạn không có quyền thêm nhân viên');
+      return;
+    }
+    setSelectedEmployee(null);
+    setFormData({
+      employeeCode: '',
+      positionId: '',
+      positionLevelId: '',
+      status: 'ACTIVE',
+      hireDate: new Date().toISOString().split('T')[0],
+      contractType: 'PERMANENT',
+      baseSalary: 0,
+      gender: '',
+      dateOfBirth: '',
+      phoneNumber: '',
+      address: '',
+      educationLevel: '',
+      specialization: '',
+      specialSkills: '',
+      kpiLevel: 0,
+      height: 0,
+      weight: 0,
+      shirtSize: '',
+      pantSize: '',
+      shoeSize: '',
+      bankAccount: '',
+      lockerNumber: '',
+      notes: '',
+    });
+    setIsFormModalOpen(true);
   };
 
   const closeDetailModal = () => {
@@ -369,23 +438,36 @@ const EmployeeManagement: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Danh sách nhân viên</h2>
-        <button
-          onClick={async () => {
-            try {
-              setError('');
-              await employeeService.exportToExcel({ search: filterValues._search || undefined });
-              setSuccess('Đã xuất file Excel thành công');
-              setTimeout(() => setSuccess(''), 3000);
-            } catch (err) {
-              console.error('Error exporting to Excel:', err);
-              setError('Không thể xuất file Excel');
-            }
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <Download size={18} />
-          Xuất Excel
-        </button>
+        <div className="flex items-center gap-2">
+          {!isReadOnly && (
+            <button
+              onClick={handleAddEmployee}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm nhân viên
+            </button>
+          )}
+          {!isReadOnly && (
+            <button
+              onClick={async () => {
+                try {
+                  setError('');
+                  await employeeService.exportToExcel({ search: filterValues._search || undefined });
+                  setSuccess('Đã xuất file Excel thành công');
+                  setTimeout(() => setSuccess(''), 3000);
+                } catch (err) {
+                  console.error('Error exporting to Excel:', err);
+                  setError('Không thể xuất file Excel');
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Download size={18} />
+              Xuất Excel
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search & Filter */}
@@ -457,20 +539,24 @@ const EmployeeManagement: React.FC = () => {
                         >
                           <Eye className="w-5 h-5" />
                         </button>
-                        <button
-                          onClick={() => openEditModal(emp)}
-                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(emp.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                          title="Xóa"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                        {!isReadOnly && (
+                          <>
+                            <button
+                              onClick={() => openEditModal(emp)}
+                              className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                              title="Chỉnh sửa"
+                            >
+                              <Edit className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(emp.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -524,15 +610,17 @@ const EmployeeManagement: React.FC = () => {
       {isFormModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-xl font-bold">Chỉnh sửa nhân viên</h2>
-              <button
-                onClick={() => setIsFormModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+              <div className="flex justify-between items-center p-6 border-b">
+                <h2 className="text-xl font-bold">
+                  {selectedEmployee ? 'Chỉnh sửa nhân viên' : 'Thêm nhân viên mới'}
+                </h2>
+                <button
+                  onClick={() => setIsFormModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
               {/* Thông tin cơ bản */}
@@ -852,9 +940,14 @@ const EmployeeManagement: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  disabled={isReadOnly}
+                  className={`px-4 py-2 rounded-md ${
+                    isReadOnly 
+                      ? 'bg-gray-400 text-gray-700 cursor-not-allowed' 
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
-                  Cập nhật
+                  {selectedEmployee ? 'Cập nhật' : 'Thêm'}
                 </button>
               </div>
             </form>
@@ -1027,15 +1120,17 @@ const EmployeeManagement: React.FC = () => {
                 >
                   Đóng
                 </button>
-                <button
-                  onClick={() => {
-                    openEditModal(selectedEmployee);
-                    closeDetailModal();
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Chỉnh sửa
-                </button>
+                {!isReadOnly && (
+                  <button
+                    onClick={() => {
+                      openEditModal(selectedEmployee);
+                      closeDetailModal();
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Chỉnh sửa
+                  </button>
+                )}
               </div>
             </div>
           </div>

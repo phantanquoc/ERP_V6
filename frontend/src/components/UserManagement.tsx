@@ -18,6 +18,8 @@ import { useUsers, userKeys, useDepartments } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import TableFilter, { FilterField } from './TableFilter';
 import AdminResetPasswordModal from './AdminResetPasswordModal';
+import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 
 interface SecondaryDeptEntry {
   departmentId: string;
@@ -85,7 +87,9 @@ interface SubDepartment {
 
 const UserManagement: React.FC = () => {
   const queryClient = useQueryClient();
-  const { data: usersData, isLoading: loading } = useUsers({ page: 1, limit: 100 });
+  const { user } = useAuth();
+  const isAdmin = user?.role === UserRole.ADMIN;
+  const { data: usersData, isLoading: loading } = useUsers({ page: 1, limit: 100, enabled: isAdmin });
   const users = usersData?.data || [];
   const { data: departments = [] } = useDepartments();
 

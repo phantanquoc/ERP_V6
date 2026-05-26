@@ -32,7 +32,8 @@ export interface User {
   firstName: string;
   lastName: string;
   role: UserRole;
-  department?: string;
+  department?: string;         // department CODE for RBAC
+  departmentName?: string;     // department display name (Vietnamese)
   position?: string;
   secondaryDepartments?: SecondaryDepartmentEntry[];
   /** @deprecated use secondaryDepartments[0]?.departmentCode */
@@ -45,7 +46,16 @@ export interface User {
   employeeId?: string;
   employeeCode?: string;
   gender?: 'Nam' | 'Nữ' | 'Khác';
-  subDepartment?: string;
+  dateOfBirth?: string;          // ISO date string
+  address?: string;
+  subDepartment?: string;        // sub-department CODE (for RBAC checks)
+  subDepartmentName?: string;    // sub-department display name (for UI display)
+  hireDate?: string;             // employee hire date (ISO string)
+  contractType?: string;         // loại hợp đồng
+  educationLevel?: string;       // trình độ học vấn
+  specialization?: string;       // chuyên ngành
+  specialSkills?: string;        // kỹ năng đặc biệt
+  positionLevelName?: string;    // cấp chức vụ (display name)
   weight?: number;
   height?: number;
   shirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | 'XXXL';
