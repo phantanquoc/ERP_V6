@@ -176,13 +176,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     } else if (notification.type === 'WORK_PLAN') {
       setIsWorkPlanListModalOpen(true);
     } else if (notification.type === 'PASSWORD_RESET') {
-      const targetUserId = notification.metadata?.targetUserId as string | undefined;
-      if (targetUserId) {
-        setSelectedPasswordResetNotification(notification);
-      } else {
-        // Old notification without targetUserId — navigate to user management page
-        navigate('/quality/personnel');
-      }
+      setSelectedPasswordResetNotification(notification);
     }
     if (onNotificationClick) {
       onNotificationClick(notification);
@@ -492,9 +486,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       />
 
       {/* Admin Reset Password Modal - opened when clicking PASSWORD_RESET notification */}
-      {selectedPasswordResetNotification && (selectedPasswordResetNotification.metadata?.targetUserId as string | undefined) && (
+      {selectedPasswordResetNotification && (
         <AdminResetPasswordModal
-          userId={selectedPasswordResetNotification.metadata!.targetUserId as string}
+          userId={(selectedPasswordResetNotification.metadata?.targetUserId as string) || ''}
           employeeName={selectedPasswordResetNotification.message}
           onClose={() => setSelectedPasswordResetNotification(null)}
         />
