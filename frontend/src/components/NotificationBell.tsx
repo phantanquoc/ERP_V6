@@ -180,8 +180,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       if (targetUserId) {
         setSelectedPasswordResetNotification(notification);
       } else {
-        // Old notification without targetUserId — fall back to user list
-        navigate('/admin/users');
+        // Old notification without targetUserId — navigate to user management page
+        navigate('/quality/personnel');
       }
     }
     if (onNotificationClick) {
