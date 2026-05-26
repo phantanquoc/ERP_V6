@@ -167,7 +167,7 @@ const entries: NotificationEventDef[] = [
     notificationType: NotificationType.OVERTIME_PLAN_APPROVAL,
     buildMessage: (ctx) => ({
       title: 'Kế hoạch tăng ca cần duyệt',
-      message: `${ctx.metadata?.creatorName ?? ''} đã tạo kế hoạch tăng ca. Vui lòng xem xét và phê duyệt.`,
+      message: `${ctx.metadata?.creatorName ?? ''} đã tạo kế hoạch tăng ca ngày ${ctx.metadata?.ngayTangCa ?? ''}. Nội dung: ${ctx.metadata?.noiDung ?? ''}. Vui lòng xem xét và phê duyệt.`,
     }),
     resolveRecipients: async (ctx) => getAdminEmployeeIds(ctx.actorUserId),
   },
@@ -179,10 +179,29 @@ const entries: NotificationEventDef[] = [
       return {
         title: approved ? 'Kế hoạch tăng ca được duyệt' : 'Kế hoạch tăng ca bị từ chối',
         message: approved
-          ? 'Kế hoạch tăng ca của bạn đã được phê duyệt.'
-          : 'Kế hoạch tăng ca của bạn đã bị từ chối.',
+          ? `Kế hoạch tăng ca ngày ${ctx.metadata?.ngayTangCa ?? ''} của bạn đã được phê duyệt.`
+          : `Kế hoạch tăng ca ngày ${ctx.metadata?.ngayTangCa ?? ''} của bạn đã bị từ chối${ctx.metadata?.lyDo ? ': ' + ctx.metadata.lyDo : ''}.`,
       };
     },
+    resolveRecipients: resolveDirectRecipients,
+  },
+
+  {
+    event: NotificationEvent.OVERTIME_PLAN_APPROVED_PARTICIPANT,
+    notificationType: NotificationType.OVERTIME_PLAN,
+    buildMessage: (ctx) => ({
+      title: 'Bạn có lịch tăng ca được duyệt',
+      message: `Kế hoạch tăng ca ngày ${ctx.metadata?.ngayTangCa ?? ''} đã được phê duyệt. Nội dung: ${ctx.metadata?.noiDung ?? ''}.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.OVERTIME_PLAN_REJECTED_PARTICIPANT,
+    notificationType: NotificationType.OVERTIME_PLAN,
+    buildMessage: (ctx) => ({
+      title: 'Kế hoạch tăng ca bị từ chối',
+      message: `Kế hoạch tăng ca ngày ${ctx.metadata?.ngayTangCa ?? ''} đã bị từ chối${ctx.metadata?.lyDo ? ': ' + ctx.metadata.lyDo : ''}.`,
+    }),
     resolveRecipients: resolveDirectRecipients,
   },
 

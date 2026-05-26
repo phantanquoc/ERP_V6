@@ -2140,6 +2140,7 @@ model OvertimePlan {
   mucDoUuTien        TaskPriority        // Reuse TaskPriority enum
   trangThai          OvertimePlanStatus  @default(CHO_DUYET)
   trangThaiTiepNhan  Json                @default("{}") // Map of userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
+  gioThucTe          Json                @default("{}") // Map of userId -> { gioVao, gioRa }
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 

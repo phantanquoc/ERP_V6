@@ -46,10 +46,15 @@ class OvertimePlanService {
     if (data.gioBatDau >= data.gioKetThuc) throw new ValidationError('Giờ kết thúc phải sau giờ bắt đầu');
     const trangThaiTiepNhan: Record<string, string> = {};
     nguoiThamGiaUserIds.forEach(uid => { trangThaiTiepNhan[uid] = 'CHUA_TIEP_NHAN'; });
-    const plan = await (prisma.overtimePlan as any).create({ data: { nguoiTaoId, nguoiThamGiaIds: nguoiThamGiaUserIds, noiDung: data.noiDung, ngayTangCa, gioBatDau: data.gioBatDau, gioKetThuc: data.gioKetThuc, ghiChu: data.ghiChu, files: files || [], mucDoUuTien: data.mucDoUuTien as any, trangThaiTiepNhan, gioThucTe: {} } });
+    const plan = await (prisma.overtimePlan as any).create({ data: { nguoiTaoId, nguoiThamGiaIds: nguoiThamGiaUserIds, noiDung: data.noiDung, ngayTangCa, gioBatDau: data.gioBatDau, gioKetThuc: data.gioKetThuc, ghiChu: data.ghiChu, files: files || [], mucDoUuTien: data.mucDoUuTien as any, trangThaiTiepNhan } });
     try {
       const creatorName = `${nguoiTao.firstName} ${nguoiTao.lastName}`;
-      await notificationService.notify(NotificationEvent.OVERTIME_PLAN_SUBMITTED, { actorUserId: nguoiTaoId, metadata: { creatorName, noiDung: data.noiDung } });
+      const ngayTangCaStr = new Date(data.ngayTangCa).toLocaleDateString('vi-VN');
+      await notificationService.notify(NotificationEvent.OVERTIME_PLAN_SUBMITTED, {
+        actorUserId: nguoiTaoId,
+        entityId: plan.id,
+        metadata: { creatorName, noiDung: data.noiDung, ngayTangCa: ngayTangCaStr, planId: plan.id },
+      });
     } catch (error) { logger.error('Error sending overtime plan admin notifications:', error); }
     return plan;
   }
@@ -130,17 +135,30 @@ class OvertimePlanService {
     const updated = await prisma.overtimePlan.update({ where: { id: planId }, data: { trangThai: newStatus as any } });
     try {
       const isApproved = newStatus === 'DA_DUYET';
-      // Notify creator
+      const ngayTangCaStr = new Date(plan.ngayTangCa).toLocaleDateString('vi-VN');
+      const lyDo = data.lyDoTuChoi || '';
+
+      // Notify creator (người tạo)
       const creatorEmp = await prisma.employee.findUnique({ where: { userId: plan.nguoiTaoId }, select: { id: true } });
       if (creatorEmp) {
-        await notificationService.notify(NotificationEvent.OVERTIME_PLAN_RESPONDED, { targetEmployeeIds: [creatorEmp.id], metadata: { status: isApproved ? 'APPROVED' : 'REJECTED' } });
+        await notificationService.notify(NotificationEvent.OVERTIME_PLAN_RESPONDED, {
+          targetEmployeeIds: [creatorEmp.id],
+          entityId: plan.id,
+          metadata: { status: isApproved ? 'APPROVED' : 'REJECTED', ngayTangCa: ngayTangCaStr, noiDung: plan.noiDung, lyDo, planId: plan.id },
+        });
       }
-      // Notify participants if approved
-      if (isApproved) {
-        const participantEmps = await prisma.employee.findMany({ where: { userId: { in: plan.nguoiThamGiaIds } }, select: { id: true } });
-        if (participantEmps.length > 0) {
-          await notificationService.notify(NotificationEvent.OVERTIME_PLAN_RESPONDED, { targetEmployeeIds: participantEmps.map(e => e.id), metadata: { status: 'APPROVED' } });
-        }
+
+      // Notify participants (người tham gia) — cả duyệt lẫn từ chối
+      const participantEmps = await prisma.employee.findMany({ where: { userId: { in: plan.nguoiThamGiaIds } }, select: { id: true } });
+      if (participantEmps.length > 0) {
+        const participantEvent = isApproved
+          ? NotificationEvent.OVERTIME_PLAN_APPROVED_PARTICIPANT
+          : NotificationEvent.OVERTIME_PLAN_REJECTED_PARTICIPANT;
+        await notificationService.notify(participantEvent, {
+          targetEmployeeIds: participantEmps.map(e => e.id),
+          entityId: plan.id,
+          metadata: { ngayTangCa: ngayTangCaStr, noiDung: plan.noiDung, lyDo, planId: plan.id },
+        });
       }
     } catch (error) { logger.error('Error sending overtime plan approval notification:', error); }
     if (newStatus === 'DA_DUYET') {

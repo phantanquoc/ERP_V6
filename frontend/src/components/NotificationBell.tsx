@@ -43,6 +43,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [selectedLeaveRequestId, setSelectedLeaveRequestId] = useState<string | null>(null);
   const [selectedLeaveRequestMessage, setSelectedLeaveRequestMessage] = useState<string | undefined>(undefined);
   const [isOvertimePlanModalOpen, setIsOvertimePlanModalOpen] = useState(false);
+  const [selectedOvertimePlanId, setSelectedOvertimePlanId] = useState<string | null>(null);
   const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
   const [isDailyReportListModalOpen, setIsDailyReportListModalOpen] = useState(false);
   const [isWorkPlanListModalOpen, setIsWorkPlanListModalOpen] = useState(false);
@@ -159,6 +160,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setSelectedLeaveRequestMessage(notification.message);
       setIsLeaveRequestModalOpen(true);
     } else if (notification.type === 'OVERTIME_PLAN' || notification.type === 'OVERTIME_PLAN_APPROVAL') {
+      const planId = (notification.metadata as any)?.planId || null;
+      setSelectedOvertimePlanId(planId);
       setIsOvertimePlanModalOpen(true);
     } else if (['SUPPLY_REQUEST', 'SUPPLY_REQUEST_PROCESSING', 'SUPPLY_REQUEST_APPROVED', 'SUPPLY_REQUEST_FULFILLED'].includes(notification.type)) {
       navigate('/production/warehouse');
@@ -452,10 +455,11 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       {/* #3 Fix: Pass isAdmin prop so admin sees all plans with approve buttons */}
       <OvertimePlanListModal
         isOpen={isOvertimePlanModalOpen}
-        onClose={() => setIsOvertimePlanModalOpen(false)}
+        onClose={() => { setIsOvertimePlanModalOpen(false); setSelectedOvertimePlanId(null); }}
         isAdmin={userIsAdmin}
         canViewAll={userIsAdmin}
         canCreate={userIsAdmin || user?.role === 'department_head'}
+        highlightPlanId={selectedOvertimePlanId || undefined}
       />
 
       {/* Feedback List Modal - opened when clicking PRIVATE_FEEDBACK notification */}
