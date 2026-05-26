@@ -808,6 +808,35 @@ export class UserService {
       shoeSize: updatedEmployee?.shoeSize || null,
     };
   }
+
+  /**
+   * Admin resets another user's password.
+   * If newPassword is omitted a secure 8-char temp password is generated.
+   * Returns the plain-text new password so admin can communicate it.
+   */
+  async adminResetPassword(userId: string, newPassword?: string): Promise<{ newPassword: string }> {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
+    if (!user) throw new NotFoundError('Không tìm thấy tài khoản');
+
+    const password = newPassword?.trim() || this.generateTempPassword();
+    if (password.length < 6) throw new ValidationError('Mật khẩu phải có ít nhất 6 ký tự');
+
+    const hashedPassword = await hashPassword(password);
+    await prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } });
+
+    logger.info(`Admin reset password for user ${user.email}`);
+    return { newPassword: password };
+  }
+
+  private generateTempPassword(): string {
+    // Exclude ambiguous chars (0/O, 1/l/I) for easy readability
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
 }
 
 /**

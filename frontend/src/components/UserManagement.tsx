@@ -9,13 +9,15 @@ import {
   Lock,
   Unlock,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  KeyRound
 } from 'lucide-react';
 import userService from '@services/userService';
 import { API_BASE_URL } from '../config/api';
 import { useUsers, userKeys, useDepartments } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import TableFilter, { FilterField } from './TableFilter';
+import AdminResetPasswordModal from './AdminResetPasswordModal';
 
 interface SecondaryDeptEntry {
   departmentId: string;
@@ -139,6 +141,7 @@ const UserManagement: React.FC = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
 
   // Form state
   const [formData, setFormData] = useState<FormData>({
@@ -579,6 +582,13 @@ const UserManagement: React.FC = () => {
                           )}
                         </button>
                         <button
+                          onClick={() => setResetPasswordUser(user)}
+                          className="p-1.5 text-yellow-600 hover:bg-yellow-100 rounded-md transition-colors"
+                          title="Đặt lại mật khẩu"
+                        >
+                          <KeyRound className="w-5 h-5" />
+                        </button>
+                        <button
                           onClick={() => {
                             setSelectedUser(user);
                             setIsDeleteConfirmOpen(true);
@@ -991,6 +1001,15 @@ const UserManagement: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Admin Reset Password Modal */}
+      {resetPasswordUser && (
+        <AdminResetPasswordModal
+          userId={resetPasswordUser.id}
+          employeeName={`${resetPasswordUser.lastName} ${resetPasswordUser.firstName}`}
+          onClose={() => setResetPasswordUser(null)}
+        />
       )}
     </div>
   );
