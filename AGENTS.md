@@ -203,6 +203,7 @@ Với regression: `git bisect` để tìm commit gây lỗi trước khi đoán.
 - **Never** store secrets trong code — dùng env vars qua docker-compose
 - **Never** commit mà không chạy `tsc --noEmit` và tests trước
 - **Never** dùng `docker compose down -v` mà không xác nhận — sẽ xóa toàn bộ dữ liệu PostgreSQL
+- **Never** down container database (`postgres` / `db`) dù trong bất kỳ hoàn cảnh nào — chỉ restart service backend/frontend/ai-service; nếu cần restart toàn stack thì dùng `docker compose restart` thay vì `down`
 - **Never** force-push lên `main` khi không được yêu cầu rõ ràng
 - **Never** dùng `find`/`grep` bash commands khi có công cụ `Glob`/`Grep` chuyên dụng
 - **Never** modify `.env` files hoặc commit secrets
