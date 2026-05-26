@@ -33,6 +33,10 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, onClos
   };
 
   const handleSubmit = async () => {
+    if (!userId) {
+      setError('Không xác định được tài khoản. Vui lòng đặt lại mật khẩu trong trang Quản lý nhân sự.');
+      return;
+    }
     const trimmed = newPassword.trim();
     if (!trimmed) { setError('Vui lòng nhập mật khẩu mới'); return; }
     if (trimmed.length < 6) { setError('Mật khẩu phải có ít nhất 6 ký tự'); return; }
