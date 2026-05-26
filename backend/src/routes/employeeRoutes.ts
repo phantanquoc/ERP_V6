@@ -63,8 +63,7 @@ router.get('/for-assignment',
  */
 router.get('/',
   checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD],
-    checkDepartment: true,
+    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE],
   }),
   employeeController.getAllEmployees
 );

@@ -176,6 +176,27 @@ router.get(
 
 /**
  * @swagger
+ * /api/users/recalculate-supervisors:
+ *   post:
+ *     tags: [Users]
+ *     summary: Tính lại cấp trên
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Tính lại cấp trên thành công
+ *       403:
+ *         description: Không có quyền truy cập
+ */
+router.post(
+  '/recalculate-supervisors',
+  authenticate,
+  authorize(UserRole.ADMIN),
+  (req, res, next) => userController.recalculateSupervisors(req, res, next)
+);
+
+/**
+ * @swagger
  * /api/users/{id}/reset-password:
  *   post:
  *     tags: [Users]
@@ -289,27 +310,6 @@ router.delete(
   authenticate,
   authorize(UserRole.ADMIN),
   (req, res, next) => userController.deleteUser(req, res, next)
-);
-
-/**
- * @swagger
- * /api/users/recalculate-supervisors:
- *   post:
- *     tags: [Users]
- *     summary: Tính lại cấp trên
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Tính lại cấp trên thành công
- *       403:
- *         description: Không có quyền truy cập
- */
-router.post(
-  '/recalculate-supervisors',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  (req, res, next) => userController.recalculateSupervisors(req, res, next)
 );
 
 export default router;

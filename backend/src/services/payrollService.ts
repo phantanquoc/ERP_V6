@@ -5,15 +5,35 @@ import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 
 export class PayrollService {
-  async getPayrollByMonthYear(month: number, year: number): Promise<any[]> {
+  async getPayrollByMonthYear(month: number, year: number, userDepartmentId?: string, userSubDepartmentId?: string): Promise<any[]> {
     // Date range for the month
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    // Get all ACTIVE employees with their payroll data for the specified month/year (if exists)
+    // Build where conditions
+    const conditions: any[] = [
+      { status: 'ACTIVE' },
+    ];
+
+    // Filter by department/subdepartment
+    if (userSubDepartmentId) {
+      // TEAM_LEAD/EMPLOYEE: only show subdepartment
+      conditions.push({ user: { subDepartmentId: userSubDepartmentId } });
+    } else if (userDepartmentId) {
+      // DEPARTMENT_HEAD: show department (including subdepartments)
+      conditions.push({
+        OR: [
+          { user: { departmentId: userDepartmentId } },
+          { subDepartment: { departmentId: userDepartmentId } },
+        ],
+      });
+    }
+    // ADMIN: no filter, show all
+
+    // Get ACTIVE employees with their payroll data for the specified month/year (if exists)
     const employees = await prisma.employee.findMany({
       where: {
-        status: 'ACTIVE',
+        AND: conditions,
       },
       include: {
         user: true,

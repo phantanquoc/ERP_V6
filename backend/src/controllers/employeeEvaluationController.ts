@@ -17,7 +17,9 @@ export class EmployeeEvaluationController {
 
       const evaluations = await employeeEvaluationService.getEmployeeEvaluations(
         Number(month),
-        Number(year)
+        Number(year),
+        req.userDepartmentId || undefined,
+        req.userSubDepartmentId || undefined
       );
 
       res.json({

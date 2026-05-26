@@ -10,12 +10,12 @@ export class EmployeeController {
       const limit = parseInt(req.query.limit as string) || 10;
       const search = (req.query.search as string) || undefined;
 
-      // ADMIN có thể filter theo departmentId từ query, các role khác chỉ thấy department mình
+      // Route guard (ProtectedModuleRoute + ProtectedSubRoute) đã kiểm soát quyền truy cập.
+      // Employee list là chức năng của phòng nhân sự — cần thấy TOÀN BỘ nhân viên.
+      // ADMIN có thể filter theo departmentId qua query param nếu muốn.
       let departmentId: string | undefined;
       if (req.user?.role === 'ADMIN') {
         departmentId = (req.query.departmentId as string) || undefined;
-      } else {
-        departmentId = req.userDepartmentId ?? req.user?.departmentId ?? undefined;
       }
 
       const result = await employeeService.getAllEmployees(page, limit, departmentId, search);
