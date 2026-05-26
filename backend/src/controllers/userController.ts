@@ -227,6 +227,23 @@ export class UserController {
       next(error);
     }
   }
+
+  async adminResetPassword(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const { newPassword } = req.body as { newPassword?: string };
+
+      const result = await userService.adminResetPassword(id, newPassword);
+
+      res.status(200).json({
+        success: true,
+        message: 'Đặt lại mật khẩu thành công',
+        data: result,
+      } as ApiResponse<any>);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new UserController();

@@ -176,6 +176,42 @@ router.get(
 
 /**
  * @swagger
+ * /api/users/{id}/reset-password:
+ *   post:
+ *     tags: [Users]
+ *     summary: Admin đặt lại mật khẩu cho tài khoản
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 description: Mật khẩu mới (tối thiểu 6 ký tự). Nếu bỏ trống, hệ thống tự tạo.
+ *     responses:
+ *       200:
+ *         description: Đặt lại mật khẩu thành công
+ *       404:
+ *         description: Không tìm thấy tài khoản
+ */
+router.post(
+  '/:id/reset-password',
+  authenticate,
+  authorize(UserRole.ADMIN),
+  (req, res, next) => userController.adminResetPassword(req, res, next)
+);
+
+/**
+ * @swagger
  * /api/users/{id}:
  *   patch:
  *     tags: [Users]

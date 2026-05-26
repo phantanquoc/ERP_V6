@@ -458,6 +458,7 @@ export class AuthService {
       actorUserId: user.id,
       metadata: {
         employeeName: `${user.lastName} ${user.firstName} (${employee.employeeCode})`,
+        targetUserId: user.id,
       },
     }).catch(() => {});
 

@@ -17,6 +17,7 @@ import OvertimePlanListModal from './OvertimePlanListModal';
 import FeedbackListModal from './FeedbackListModal';
 import DailyWorkReportListModal from './DailyWorkReportListModal';
 import WorkPlanListModal from './WorkPlanListModal';
+import AdminResetPasswordModal from './AdminResetPasswordModal';
 
 // Whether the current browser environment supports Web Push
 const pushSupported =
@@ -47,6 +48,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
   const [isDailyReportListModalOpen, setIsDailyReportListModalOpen] = useState(false);
   const [isWorkPlanListModalOpen, setIsWorkPlanListModalOpen] = useState(false);
+  const [selectedPasswordResetNotification, setSelectedPasswordResetNotification] = useState<AppNotification | null>(null);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
@@ -173,8 +175,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setIsDailyReportListModalOpen(true);
     } else if (notification.type === 'WORK_PLAN') {
       setIsWorkPlanListModalOpen(true);
+    } else if (notification.type === 'PASSWORD_RESET') {
+      setSelectedPasswordResetNotification(notification);
     }
-    // PASSWORD_RESET: chỉ mark read, không cần mở gì
     if (onNotificationClick) {
       onNotificationClick(notification);
     }
@@ -481,6 +484,15 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         onClose={() => setIsWorkPlanListModalOpen(false)}
         isAdmin={userIsAdmin}
       />
+
+      {/* Admin Reset Password Modal - opened when clicking PASSWORD_RESET notification */}
+      {selectedPasswordResetNotification && (
+        <AdminResetPasswordModal
+          userId={(selectedPasswordResetNotification.metadata?.targetUserId as string) ?? ''}
+          employeeName={selectedPasswordResetNotification.message}
+          onClose={() => setSelectedPasswordResetNotification(null)}
+        />
+      )}
     </>
   );
 };
