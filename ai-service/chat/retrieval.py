@@ -176,23 +176,25 @@ def _cosine_sim_vec(a: list[float], b: list[float]) -> float:
     return min(1.0, max(-1.0, dot))
 
 
-def sem_cache_lookup(query_emb: list[float]) -> tuple | None:
-    """Tìm cache hit."""
+def sem_cache_lookup(query_emb: list[float], scope: str = "") -> tuple | None:
+    """Tìm cache hit trong scope (department:role)."""
     best_sim = 0.0
     best_entry = None
-    for cached_emb, answer, sources in _sem_cache:
+    for cached_scope, cached_emb, answer, sources in _sem_cache:
+        if cached_scope != scope:
+            continue
         sim = _cosine_sim_vec(query_emb, cached_emb)
         if sim > best_sim:
             best_sim = sim
             best_entry = (answer, sources)
     if best_sim >= SEM_CACHE_THRESHOLD and best_entry:
-        logger.info(f"Semantic cache hit (sim={best_sim:.3f})")
+        logger.info(f"Semantic cache hit (sim={best_sim:.3f}, scope={scope!r})")
         return best_entry
     return None
 
 
-def sem_cache_put(query_emb: list[float], answer: str, sources: list[str]):
+def sem_cache_put(query_emb: list[float], answer: str, sources: list[str], scope: str = ""):
     """Lưu vào cache, giữ tối đa SEM_CACHE_MAX entries (FIFO)."""
-    _sem_cache.append((query_emb, answer, sources))
+    _sem_cache.append((scope, query_emb, answer, sources))
     if len(_sem_cache) > SEM_CACHE_MAX:
         _sem_cache.pop(0)

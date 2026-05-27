@@ -184,7 +184,7 @@ def init_rag():
             hash_file = CHROMA_DIR / "docs_hash.txt"
             stored_hash = hash_file.read_text().strip() if hash_file.exists() else ""
 
-            collection_exists = "erp_docs" in chroma_client.list_collections()
+            collection_exists = "erp_docs" in [str(c) for c in chroma_client.list_collections()]
 
             doc_files = sorted(DOCS_DIR.glob("*.md"))
             if not doc_files:

@@ -9,6 +9,7 @@ class AgentRequest(BaseModel):
     message: str = ""
     history: List[ChatMessage] = []
     department: str = ""
+    secondary_departments: List[str] = []
     role: str = ""
     # Confirmation execution fields
     confirm_tool: str = ""

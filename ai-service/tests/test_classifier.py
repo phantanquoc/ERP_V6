@@ -92,6 +92,31 @@ class TestClassifyIntent:
         assert "feedback" in cats
         assert "customer" in cats  # related
 
+    # Word-boundary tests (M1)
+    def test_warehouse_standalone_kho(self):
+        """'kho' đứng một mình → warehouse."""
+        cats = classify_intent("xem danh sách kho")
+        assert "warehouse" in cats
+
+    def test_warehouse_kho_hang(self):
+        """'kho hàng' → warehouse."""
+        assert "warehouse" in classify_intent("kiểm tra kho hàng")
+
+    def test_no_false_positive_khoa_hoc(self):
+        """'khoa học' không phải warehouse."""
+        cats = classify_intent("tài liệu khoa học")
+        assert "warehouse" not in cats
+
+    def test_no_false_positive_khong(self):
+        """'không' không phải warehouse."""
+        cats = classify_intent("tôi không biết")
+        assert "warehouse" not in cats
+
+    def test_no_false_positive_ncc_in_word(self):
+        """'ncc' chỉ match khi là từ riêng, không match trong từ khác."""
+        cats = classify_intent("xem nhà cung cấp")
+        assert "supplier" in cats  # match via "nhà cung cấp"
+
 
 class TestFilterToolsByIntent:
     """Test tool filtering based on classified intent."""

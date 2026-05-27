@@ -3,7 +3,11 @@
 import re
 import time
 
+from openai import OpenAI
 from config import logger, OPENROUTER_API_KEY, OPENROUTER_MODEL
+
+# Shared client — reused across all calls to avoid per-call connection overhead
+_client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
 
 SYSTEM_PROMPT = """Bạn là trợ lý ERP An Binh Foods. Hướng dẫn nhân viên sử dụng hệ thống theo ngôn ngữ người dùng thông thường.
 
@@ -91,9 +95,7 @@ def rewrite_query(message: str) -> str:
         return message
 
     try:
-        from openai import OpenAI
-        client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
-        resp = client.chat.completions.create(
+        resp = _client.chat.completions.create(
             model=OPENROUTER_MODEL,
             messages=[
                 {"role": "system", "content": _REWRITE_PROMPT},
@@ -114,11 +116,9 @@ def rewrite_query(message: str) -> str:
 
 def call_llm(messages: list[dict]) -> str:
     """Gọi OpenRouter LLM với retry khi rate limit."""
-    from openai import OpenAI
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
     for attempt in range(3):
         try:
-            resp = client.chat.completions.create(
+            resp = _client.chat.completions.create(
                 model=OPENROUTER_MODEL,
                 messages=messages,
                 temperature=0.1,
@@ -143,9 +143,7 @@ def call_llm(messages: list[dict]) -> str:
 
 def stream_llm(messages: list[dict]):
     """Generator: yield từng token từ OpenRouter LLM."""
-    from openai import OpenAI
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
-    stream = client.chat.completions.create(
+    stream = _client.chat.completions.create(
         model=OPENROUTER_MODEL,
         messages=messages,
         temperature=0.1,

@@ -5,7 +5,6 @@ import uuid
 import asyncio
 import datetime
 import time
-import queue as _queue
 
 import httpx
 from fastapi import APIRouter, Request
@@ -36,6 +35,32 @@ async def _validate_jwt(token: str) -> bool:
         return False
 
 
+async def _stream_sync_generator(gen_fn, *args, **kwargs):
+    """Run a synchronous generator in a thread and yield chunks via asyncio.Queue."""
+    q: asyncio.Queue = asyncio.Queue()
+    loop = asyncio.get_event_loop()
+
+    def _run():
+        try:
+            for chunk in gen_fn(*args, **kwargs):
+                loop.call_soon_threadsafe(q.put_nowait, chunk)
+        except Exception as e:
+            loop.call_soon_threadsafe(q.put_nowait, e)
+        finally:
+            loop.call_soon_threadsafe(q.put_nowait, None)
+
+    loop.run_in_executor(None, _run)
+
+    while True:
+        item = await asyncio.wait_for(q.get(), timeout=120)
+        if item is None:
+            break
+        if isinstance(item, Exception):
+            yield f"Lỗi: {item}"
+            break
+        yield item
+
+
 @router.post("/stream")
 async def agent_stream(req: AgentRequest, request: Request):
     """
@@ -60,33 +85,13 @@ async def agent_stream(req: AgentRequest, request: Request):
         logger.info(f"[{request_id}] Agent: executing confirmed tool '{req.confirm_tool}'")
 
         async def _confirmed():
-            token_queue: _queue.Queue = _queue.Queue()
-            loop = asyncio.get_event_loop()
             start = time.time()
-
-            def _sync():
-                try:
-                    for chunk in execute_confirmed(
-                        req.confirm_tool, req.confirm_params, jwt_token, request_id,
-                        confirm_context=req.confirm_context,
-                    ):
-                        token_queue.put(chunk)
-                except Exception as e:
-                    token_queue.put(e)
-                finally:
-                    token_queue.put(None)
-
-            loop.run_in_executor(None, _sync)
-
-            while True:
-                item = await loop.run_in_executor(None, lambda: token_queue.get(timeout=120))
-                if item is None:
-                    break
-                if isinstance(item, Exception):
-                    yield f"Lỗi: {item}"
-                    break
-                yield item
-
+            async for chunk in _stream_sync_generator(
+                execute_confirmed,
+                req.confirm_tool, req.confirm_params, jwt_token, request_id,
+                confirm_context=req.confirm_context,
+            ):
+                yield chunk
             duration_ms = int((time.time() - start) * 1000)
             logger.info(f"[{request_id}] METRICS: type=confirm tool={req.confirm_tool} duration={duration_ms}ms")
 
@@ -103,38 +108,19 @@ async def agent_stream(req: AgentRequest, request: Request):
         return StreamingResponse(_error(), media_type="text/plain; charset=utf-8")
 
     async def _react():
-        token_queue: _queue.Queue = _queue.Queue()
-        loop = asyncio.get_event_loop()
         start = time.time()
-
-        def _sync_stream():
-            try:
-                for chunk in execute_stream(
-                    message=req.message,
-                    history=req.history,
-                    role=req.role,
-                    jwt_token=jwt_token,
-                    today=today,
-                    department=req.department,
-                    request_id=request_id,
-                ):
-                    token_queue.put(chunk)
-            except Exception as e:
-                token_queue.put(e)
-            finally:
-                token_queue.put(None)
-
-        loop.run_in_executor(None, _sync_stream)
-
-        while True:
-            item = await loop.run_in_executor(None, lambda: token_queue.get(timeout=120))
-            if item is None:
-                break
-            if isinstance(item, Exception):
-                yield f"Lỗi: {item}"
-                break
-            yield item
-
+        async for chunk in _stream_sync_generator(
+            execute_stream,
+            message=req.message,
+            history=req.history,
+            role=req.role,
+            jwt_token=jwt_token,
+            today=today,
+            department=req.department,
+            secondary_departments=req.secondary_departments,
+            request_id=request_id,
+        ):
+            yield chunk
         duration_ms = int((time.time() - start) * 1000)
         logger.info(
             f"[{request_id}] METRICS: type=react duration={duration_ms}ms "
