@@ -21,8 +21,8 @@ Hệ thống quản lý sản xuất được chia thành **3 khu vực chức n
 
 | Khu vực | Đường dẫn | Mô tả |
 |---|---|---|
-| **Phòng QLSX** | `/production/management` | 10 tab: Quản lý máy, Quy trình, QTSX, Đơn hàng, Định mức NVL, Đánh giá NL, Thông số VH, Thành phẩm, Đánh giá CL, Báo cáo SL |
-| **Kho** | `/production/warehouse` | 5 tab: Quản lý kho, Phiếu nhập, Phiếu xuất, Yêu cầu cung cấp, Sản phẩm |
+| **Phòng QLSX** | `/production/management` | 10 tab: Quản lý máy móc, Danh sách quy trình, Danh sách quy trình sản xuất, Danh sách đơn hàng, Định mức NVL, Đánh giá nguyên liệu, Thông số vận hành hệ thống, Thành phẩm đầu ra, Đánh giá chất lượng, Báo cáo sản lượng |
+| **Kho** | `/production/warehouse` | 5 tab: Quản lý kho, Danh sách hàng hóa, Nhập kho, Xuất kho, Yêu cầu cung cấp |
 | **Dữ liệu SX** | `/production/data` | 3 tab: Đánh giá nguyên liệu, Thông số vận hành, Thành phẩm đầu ra |
 
 ---
@@ -69,13 +69,15 @@ Hệ thống quản lý sản xuất được chia thành **3 khu vực chức n
 
 | Trường | Bắt buộc | Loại nhập | Ghi chú |
 |---|:---:|---|---|
-| Mã máy | — | Văn bản (tự động) | Hệ thống tự sinh, không sửa được |
+| Mã máy | — | Văn bản (tự động) | Hệ thống tự sinh dạng MAY001, MAY002..., không sửa được |
 | Tên máy | ✅ | Văn bản | VD: "Máy sấy 1" |
 | Trạng thái | ✅ | Dropdown | Hoạt động / Bảo trì / Ngừng hoạt động |
 | Mô tả | | Văn bản dài (3 dòng) | |
 | Ghi chú | | Văn bản | |
 
 **Bộ lọc:** Mã máy, Tên máy, Trạng thái (dropdown)
+
+> **Quyền:** Tạo/Sửa máy: ADMIN, DEPARTMENT_HEAD. Xóa máy: chỉ ADMIN.
 
 ---
 
@@ -182,37 +184,90 @@ Quản lý định mức nguyên vật liệu — xác định tỉ lệ nguyên
 
 ---
 
-### 3.2 Quy trình sản xuất
+### 3.2 Danh sách quy trình sản xuất — Tab "Danh sách quy trình sản xuất" (`productionOrders`)
 
-**Form tạo quy trình** (tab **Quy trình sản xuất**):
+**Truy cập:** `/production/management` → tab **"Danh sách quy trình sản xuất"**
 
-| Trường | Ghi chú |
+Đây là tab tạo và quản lý **quy trình sản xuất cụ thể** (khác với "Danh sách quy trình" là template mẫu). Mỗi quy trình sản xuất được tạo từ một quy trình mẫu, gắn với nhân viên, khối lượng và thời gian thực tế.
+
+#### Cột bảng
+
+| Cột | Nội dung |
 |---|---|
-| Chọn quy trình mẫu | Dropdown quy trình có sẵn |
-| Tên quy trình sản xuất | Nhập tên quy trình |
+| STT | Số thứ tự |
+| Mã QTSX | Mã quy trình sản xuất |
+| Tên quy trình sản xuất | Tên quy trình |
 | Mã NV | Mã nhân viên phụ trách |
 | Tên nhân viên | Tên nhân viên phụ trách |
+| Định mức NVL | Định mức nguyên vật liệu áp dụng |
+| Sản phẩm đầu ra | Sản phẩm thành phẩm mục tiêu |
 | Khối lượng (Kg) | Khối lượng nguyên liệu đầu vào |
 | Thời gian (Ngày) | Thời gian thực hiện |
-| Chọn Định mức NVL | Định mức nguyên vật liệu |
-| Chọn sản phẩm đầu ra | Sản phẩm thành phẩm mục tiêu |
-| Tổng nguyên liệu cần sản xuất (Kg) | Tự động tính |
-| Số giờ làm trong 1 ngày | Số giờ làm việc/ngày |
+| Hoạt động | Xem / Sửa / Đồng bộ từ mẫu / Xóa |
 
-### 3.3 Thông số vận hành hệ thống
+**Bộ lọc:** Mã QTSX, Tên QTSX, Mã NV, Tên NV
 
-**Form thông số** (tab **Thông số vận hành**) — theo dõi 4 giai đoạn chiên/sấy:
+#### Form tạo quy trình sản xuất — nhấn "Tạo quy trình sản xuất"
 
-| Trường chung | Ghi chú |
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Chọn quy trình mẫu | ✅ | Dropdown | Không thể thay đổi khi sửa |
+| Tên quy trình sản xuất | | Văn bản | |
+| Mã NV | — | Chỉ đọc | Tự động từ tài khoản đăng nhập |
+| Tên nhân viên | — | Chỉ đọc | Tự động từ tài khoản đăng nhập |
+| Khối lượng (Kg) | | Số (bước 0.01) | |
+| Thời gian (Ngày) | | Số (bước 0.01) | |
+| Chọn Định mức NVL | | Dropdown | Hiển thị mã + tên + tỉ lệ thu hồi |
+| Chọn sản phẩm đầu ra | | Dropdown | Chỉ bật sau khi chọn Định mức NVL |
+| Tổng nguyên liệu cần sản xuất (Kg) | — | Chỉ đọc | Tự động tính |
+| Số giờ làm trong 1 ngày | | Số (bước 0.01) | |
+
+Sau khi chọn quy trình mẫu, bảng **flowchart** hiện ra với các cột có thể nhập:
+- **Số lượng nguyên liệu (Kg)**, **Số phút thực hiện**, **Số lượng kế hoạch** (tự tính), **Số lượng thực tế**
+
+**Nút hành động trên từng dòng:**
+- **Xem chi tiết** — xem + xuất Excel
+- **Chỉnh sửa** — sửa thông tin
+- **Đồng bộ từ quy trình mẫu** — cập nhật flowchart theo template mới nhất
+- **Xóa** — xóa quy trình sản xuất
+
+### 3.3 Thông số vận hành hệ thống — Tab "Thông số vận hành hệ thống" (`systemOperation`)
+
+**Truy cập:** `/production/management` → tab **"Thông số vận hành hệ thống"**
+
+Giao diện có **thanh tab phụ theo từng máy** — chọn máy để xem thông số của máy đó. Máy đang bảo trì hiển thị "(Bảo trì)", máy ngừng hiển thị "(Ngừng)".
+
+**Bộ lọc:** Mã chiên, Trạng thái (dropdown: Đang hoạt động / Bảo trì / Ngừng hoạt động)
+
+#### Cột bảng
+
+| Cột | Nội dung |
 |---|---|
-| Mã chiên | Mã định danh mẻ chiên (bắt buộc) |
-| Tên máy | Tên thiết bị sử dụng (bắt buộc) |
-| Thời gian chiên | Thời điểm/thời lượng chiên (bắt buộc) |
-| Khối lượng đầu vào (kg) | Khối lượng nguyên liệu đưa vào |
-| Trạng thái | Trạng thái hiện tại của mẻ |
-| Người thực hiện | Nhân viên vận hành (bắt buộc) |
-| File đính kèm | Ảnh/tài liệu đính kèm |
+| STT | Số thứ tự |
+| Mã chiên | Mã định danh mẻ chiên |
+| Tên máy | Tên thiết bị |
+| Thời gian chiên | Thời điểm chiên |
+| Khối lượng đầu vào (kg) | Khối lượng nguyên liệu |
+| Tổng thời gian sấy | Tổng thời gian 4 giai đoạn (phút) |
+| Trạng thái | Badge trạng thái máy |
 | Ghi chú | Ghi chú bổ sung |
+| Người thực hiện | Nhân viên vận hành |
+| Hoạt động | Xem / Sửa / Xóa |
+
+#### Form tạo/sửa thông số — nhấn "Thêm thông số"
+
+**Thông tin cơ bản:**
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Mã chiên | — | Chỉ đọc | Tự động sinh, không sửa được |
+| Tên máy | — | Chỉ đọc | Tự động từ tab máy đang chọn |
+| Thời gian chiên | ✅ | Chọn ngày giờ | |
+| Khối lượng đầu vào (kg) | | Số (bước 0.01) | |
+| Trạng thái | — | Chỉ đọc | Tự động từ trạng thái máy, không sửa được |
+| Người thực hiện | ✅ | Văn bản | |
+| File đính kèm | | Tải file | |
+| Ghi chú | | Văn bản dài (3 dòng) | |
 
 **4 giai đoạn — mỗi giai đoạn ghi nhận 3 thông số:**
 
@@ -225,9 +280,42 @@ Quản lý định mức nguyên vật liệu — xác định tỉ lệ nguyên
 
 Trường tổng hợp: **Tổng thời gian sấy** (tự động tính).
 
-### 3.4 Thành phẩm đầu ra
+### 3.4 Thành phẩm đầu ra — Tab "Thành phẩm đầu ra" (`finishedProduct`)
 
-**Form thành phẩm** (tab **Thành phẩm đầu ra**) — nhập liệu theo mã chiên:
+**Truy cập:** `/production/management` → tab **"Thành phẩm đầu ra"**
+
+Giao diện có **thanh tab phụ theo từng máy** + tab đặc biệt **"Tổng các máy"** (tổng hợp tất cả máy, chỉ xem).
+
+**Bộ lọc:** Mã chiên, Tên hàng hóa
+
+#### Cột bảng (tab từng máy)
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Mã chiên | Mã định danh mẻ chiên |
+| Thời gian chiên | Thời điểm chiên |
+| Tên hàng hóa | Tên nguyên liệu/sản phẩm |
+| KL đầu vào (kg) | Khối lượng nguyên liệu đầu vào |
+| Người thực hiện | Nhân viên nhập liệu |
+| Trạng thái | Badge trạng thái máy |
+| Hoạt động | Xem / Sửa / Xóa |
+
+#### Tab "Tổng các máy" — chỉ xem, không sửa/xóa
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Mã chiên | Mã định danh mẻ chiên |
+| Thời gian chiên | Thời điểm chiên |
+| Tên hàng hóa | Tên nguyên liệu/sản phẩm |
+| Tổng KL (kg) | Tổng khối lượng tất cả máy |
+| Người thực hiện | Nhân viên nhập liệu |
+| Số máy | Badge "X máy" |
+| Đánh giá | Máy min/max theo tỉ lệ loại A |
+| Hoạt động | Xem (không có Sửa/Xóa) |
+
+#### Form tạo/sửa thành phẩm — nhập liệu theo mã chiên
 
 | Loại thành phẩm | Trường khối lượng | Trường tỉ lệ |
 |---|---|---|
@@ -240,7 +328,7 @@ Trường tổng hợp: **Tổng thời gian sấy** (tự động tính).
 | **Phế phẩm** | phePhamKhoiLuong (Kg) | phePhamTiLe (%) |
 | **Ướt** | uotKhoiLuong (Kg) | uotTiLe (%) |
 
-> Hệ thống tự động tính **Tổng khối lượng thành phẩm** và đánh giá min/max theo từng máy.
+> Hệ thống tự động tính **Tổng khối lượng thành phẩm** và đánh giá min/max theo từng máy. Người thực hiện tự động từ tài khoản đăng nhập.
 
 ### 3.5 Đánh giá nguyên liệu — Tab "Đánh giá nguyên liệu" (`materialEvaluation`)
 
@@ -283,6 +371,8 @@ Ghi nhận kết quả đánh giá chất lượng nguyên liệu đầu vào (q
 
 **Cài đặt tiêu chí đánh giá:** Nhấn **"Cài đặt đánh giá"** → quản lý danh sách tiêu chí (mã số + mô tả).
 
+**Bộ lọc:** Mã chiên, Tên hàng hóa
+
 ---
 
 ### 3.6 Đánh giá chất lượng — Tab "Đánh giá chất lượng" (`qualityEvaluation`)
@@ -292,6 +382,8 @@ Ghi nhận kết quả đánh giá chất lượng nguyên liệu đầu vào (q
 Đánh giá chất lượng thành phẩm đầu ra theo từng máy.
 
 **Giao diện:** Có thanh tab phụ hiển thị danh sách máy — chọn máy để xem đánh giá của máy đó.
+
+**Bộ lọc:** Mã chiên, Tên hàng hóa
 
 #### Cột bảng
 
@@ -323,12 +415,12 @@ Ghi nhận kết quả đánh giá chất lượng nguyên liệu đầu vào (q
 |---|:---:|---|
 | Màu sắc | | Văn bản |
 | Mùi hương | | Văn bản |
-| Vị | | Văn bản |
+| Hương vị (Vị) | | Văn bản |
 | Độ ngọt | | Văn bản |
 | Độ giòn | | Văn bản |
 | Đánh giá tổng quan | | Văn bản dài (4 dòng) |
 | Đề xuất điều chỉnh cải tiến | | Văn bản dài (4 dòng) |
-| File đính kèm | | Văn bản (URL) |
+| File đính kèm | | Tải file |
 | Người thực hiện | — | Tự động từ tài khoản đăng nhập |
 
 **Nút:** Xuất Excel (header)
@@ -379,12 +471,43 @@ Báo cáo sản lượng hàng ngày, so sánh kế hoạch vs thực tế.
 
 ### 4.1 Quản lý kho và lô hàng (tab **Quản lý kho**)
 
-- Tạo/xóa **kho** (nhập tên kho)
-- Tạo/xóa **lô hàng** trong kho (nhập tên lô)
-- Thêm/xóa sản phẩm trong lô
-- **Di chuyển sản phẩm** sang lô khác
+**Truy cập:** Từ thanh điều hướng bên trái → nhấn **Bộ phận sản xuất** → chọn **Quản lý kho** → vào tab **Quản lý kho**.
 
-### 4.2 Phiếu nhập kho (tab **Phiếu nhập kho**)
+#### Tạo kho mới
+
+1. Từ thanh điều hướng bên trái, nhấn **Bộ phận sản xuất** → chọn **Quản lý kho**.
+2. Vào tab **Quản lý kho**.
+3. Nhấn nút **"+ Thêm kho"** (nằm ở cuối thanh tab ngang danh sách kho).
+4. Nhập **Tên kho** ✅ (bắt buộc) — ví dụ: "Kho nguyên liệu", "Kho thành phẩm".
+5. Nhấn **"Tạo mới"** để lưu. Hệ thống tự động sinh mã kho (KHO001, KHO002...).
+
+> Lưu ý: Không có trường "Địa chỉ kho", "Người quản lý" hay "Sức chứa" trong form tạo kho — chỉ cần nhập Tên kho.
+
+#### Tạo lô hàng trong kho
+
+1. Chọn kho vừa tạo (tab kho xuất hiện trong thanh tab ngang).
+2. Nhấn **"Thêm lô"** trong kho đó.
+3. Nhập **Tên lô** ✅ → nhấn **"Tạo mới"**.
+
+#### Thêm sản phẩm vào lô
+
+1. Trong lô, nhấn **"Thêm sản phẩm"**.
+2. Chọn **Loại sản phẩm** (dropdown), tìm theo mã/tên sản phẩm.
+3. Chọn **Sản phẩm** ✅, nhập **Số lượng** ✅ và **Đơn vị tính** ✅.
+4. Nhấn **"Thêm"** để lưu.
+
+#### Di chuyển sản phẩm giữa các lô
+
+1. Trong bảng sản phẩm của lô, nhấn icon **Di chuyển** (mũi tên sang phải).
+2. Chọn **Kho đích** ✅ và **Lô đích** ✅.
+3. Nhấn **"Di chuyển"**. Nếu sản phẩm đã có ở lô đích, hệ thống tự động gộp số lượng.
+
+#### Xóa kho / lô
+
+- Xóa kho: nhấn **"Xóa kho"** trong tab kho đó (xóa toàn bộ lô và sản phẩm bên trong).
+- Xóa lô: nhấn **"Xóa lô"** trong lô đó.
+
+### 4.2 Nhập kho (tab **Nhập kho**)
 
 **Bộ lọc danh sách:**
 
@@ -410,7 +533,7 @@ Báo cáo sản lượng hàng ngày, so sánh kế hoạch vs thực tế.
 | Số lượng nhập kho | ✅ | Nhập số lượng |
 | Ghi chú | — | Nhập ghi chú (nếu có) |
 
-### 4.3 Phiếu xuất kho (tab **Phiếu xuất kho**)
+### 4.3 Xuất kho (tab **Xuất kho**)
 
 **Bộ lọc danh sách:**
 
@@ -432,7 +555,7 @@ Báo cáo sản lượng hàng ngày, so sánh kế hoạch vs thực tế.
 | Mã nhân viên | — | Tự động từ tài khoản đăng nhập |
 | Chọn kho | ✅ | Dropdown danh sách kho |
 | Chọn số lô | ✅ | Dropdown lô trong kho đã chọn |
-| Chọn hàng hóa nhập kho | ✅ | Hàng hóa cần xuất |
+| Chọn hàng hóa xuất kho | ✅ | Hàng hóa cần xuất |
 | Số lượng xuất kho | ✅ | Nhập số lượng |
 | Ghi chú | — | Nhập ghi chú (nếu có) |
 
@@ -446,9 +569,9 @@ Quản lý yêu cầu cung cấp vật tư từ kho cho sản xuất.
 
 **Dashboard thống kê:** Tổng yêu cầu, Đã cung cấp, Chưa cung cấp
 
-### 4.5 Sản phẩm — Tab "Sản phẩm" (`products`)
+### 4.5 Danh sách hàng hóa — Tab "Danh sách hàng hóa" (`products`)
 
-**Truy cập:** `/production/warehouse` → tab **"Sản phẩm"**
+**Truy cập:** `/production/warehouse` → tab **"Danh sách hàng hóa"**
 
 Quản lý danh mục sản phẩm quốc tế (dùng chung với Bộ phận kinh doanh).
 
@@ -456,15 +579,15 @@ Quản lý danh mục sản phẩm quốc tế (dùng chung với Bộ phận ki
 
 ## 5. Dữ liệu sản xuất (`ProductionData`)
 
-Trang tổng hợp báo cáo thống kê gồm 3 mục:
+Trang tổng hợp báo cáo thống kê gồm 3 tab:
 
-| Mục | Nội dung |
+| Tab | Nội dung |
 |---|---|
-| Đánh giá nguyên liệu | Thống kê chất lượng nguyên vật liệu đầu vào |
-| Thông số vận hành hệ thống | Tổng hợp các thông số chiên/sấy theo mã chiên |
-| Thành phẩm đầu ra | Báo cáo sản lượng và tỉ lệ các loại thành phẩm |
+| Đánh giá nguyên liệu | Thống kê chất lượng nguyên vật liệu đầu vào — cùng component với tab trong Phòng QLSX |
+| Thông số vận hành hệ thống | Tổng hợp các thông số chiên/sấy theo mã chiên — cùng component với tab trong Phòng QLSX |
+| Thành phẩm đầu ra | Báo cáo sản lượng và tỉ lệ các loại thành phẩm — cùng component với tab trong Phòng QLSX, bao gồm tab "Tổng các máy" |
 
-Dashboard tổng quan hiển thị biểu đồ tròn (PieChart) theo trạng thái máy và đơn hàng, thống kê kho (tổng kho, kho trống, lô trống), phiếu nhập/xuất.
+> Dữ liệu sản xuất là **trang xem tổng hợp** — dùng cùng component với Phòng QLSX nhưng truy cập từ menu riêng (`/production/data`). Không có chức năng riêng biệt nào khác.
 
 ---
 
@@ -483,7 +606,7 @@ Dashboard tổng quan hiển thị biểu đồ tròn (PieChart) theo trạng th
 ## 7. FAQ
 
 **Q1: Làm thế nào để tạo phiếu nhập kho?**
-Vào tab **Kho** → chọn **Phiếu nhập kho** → nhấn **Thêm mới** → chọn kho, lô hàng, hàng hóa, nhập số lượng → Lưu.
+Vào **Quản lý kho** → chọn tab **Nhập kho** → nhấn **Thêm mới** → chọn kho, lô hàng, hàng hóa, nhập số lượng → Lưu.
 
 **Q2: Tôi có thể di chuyển sản phẩm giữa các lô không?**
 Có. Vào **Quản lý kho** → chọn sản phẩm trong lô → nhấn icon **Di chuyển sang lô khác** → chọn lô đích.
@@ -517,3 +640,15 @@ Chênh lệch = KL thành phẩm thực tế − KL thành phẩm định mức.
 
 **Q12: Phòng QLSX có bao nhiêu tab?**
 Có **10 tab**: Quản lý máy móc, Danh sách quy trình, Danh sách quy trình sản xuất, Danh sách đơn hàng, Định mức NVL, Đánh giá nguyên liệu, Thông số vận hành hệ thống, Thành phẩm đầu ra, Đánh giá chất lượng, Báo cáo sản lượng.
+
+**Q13: Làm thế nào để tạo kho mới?**
+Từ thanh điều hướng bên trái → nhấn **Bộ phận sản xuất** → chọn **Quản lý kho** → vào tab **Quản lý kho** → nhấn **"+ Thêm kho"** → nhập **Tên kho** → nhấn **"Tạo mới"**. Mã kho tự động sinh (KHO001, KHO002...). Không có trường địa chỉ hay người quản lý trong form này.
+
+**Q14: Sau khi tạo kho, làm thế nào để thêm lô hàng?**
+Chọn kho vừa tạo trong thanh tab → nhấn **"Thêm lô"** → nhập **Tên lô** → nhấn **"Tạo mới"**. Sau đó có thể thêm sản phẩm vào lô bằng nút **"Thêm sản phẩm"**.
+
+**Q15: Tạo kho mới nằm ở đâu trong hệ thống? Có phải trong Bộ phận kế toán không?**
+Không. Tạo kho nằm trong **Bộ phận sản xuất** → **Quản lý kho** → tab **Quản lý kho**. Không có chức năng tạo kho trong Bộ phận kế toán hay bất kỳ bộ phận nào khác.
+
+**Q16: Tôi muốn tạo phiếu nhập kho nhưng chưa có kho nào, phải làm gì?**
+Cần tạo kho và lô trước: vào tab **Quản lý kho** → nhấn **"+ Thêm kho"** → tạo kho → nhấn **"Thêm lô"** → tạo lô. Sau đó mới vào tab **Nhập kho** để tạo phiếu nhập.
