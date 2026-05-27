@@ -3,8 +3,19 @@ import { Plus, Edit, Trash2, Eye, X, Download } from 'lucide-react';
 import FileUpload from './FileUpload';
 import { API_BASE_URL, getFileUrl } from '../config/api';
 
+const authFetch = (url: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem('accessToken');
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers as Record<string, string> | undefined),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+};
+
 interface MachineSystem {
-  id: number;
+  id: string;
   khuVuc: string;
   viTri: string;
   maHeThong: string;
@@ -16,7 +27,7 @@ interface MachineSystem {
   maNguoiThucHien: string;
   nguoiThucHien: string;
   fileDinhKem?: string;
-  ngayTao: string;
+  createdAt: string;
 }
 
 const MachineSystemList = () => {
@@ -47,10 +58,11 @@ const MachineSystemList = () => {
 
   const fetchSystems = async () => {
     try {
-      const response = await fetch(API_BASE_URL + '/machine-systems');
+      const response = await authFetch(API_BASE_URL + '/machine-systems');
       if (response.ok) {
-        const data = await response.json();
-        setSystems(data);
+        const result = await response.json();
+        const data = result.success ? result.data : result;
+        setSystems(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error('Error fetching systems:', error);
@@ -73,7 +85,7 @@ const MachineSystemList = () => {
         : API_BASE_URL + '/machine-systems';
       const method = editingSystem ? 'PUT' : 'POST';
       
-      const response = await fetch(url, { method, body: formDataToSend });
+      const response = await authFetch(url, { method, body: formDataToSend });
       if (response.ok) {
         fetchSystems();
         handleCloseModal();
@@ -83,10 +95,10 @@ const MachineSystemList = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Bạn có chắc muốn xóa?')) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/machine-systems/${id}`, { method: 'DELETE' });
+      const response = await authFetch(`${API_BASE_URL}/machine-systems/${id}`, { method: 'DELETE' });
       if (response.ok) {
         fetchSystems();
       }
@@ -150,7 +162,7 @@ const MachineSystemList = () => {
   const handleExportExcel = async () => {
     try {
       const url = `${API_BASE_URL}/machine-systems/export/excel`;
-      const response = await fetch(url);
+      const response = await authFetch(url);
       if (!response.ok) throw new Error('Failed to export');
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -202,6 +214,7 @@ const MachineSystemList = () => {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã NTH</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Người thực hiện</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">File</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày tạo</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hoạt động</th>
             </tr>
           </thead>
@@ -226,6 +239,9 @@ const MachineSystemList = () => {
                     </a>
                   )}
                 </td>
+                <td className="px-4 py-4 text-sm text-gray-900">
+                  {system.createdAt && new Date(system.createdAt).toLocaleDateString('vi-VN')}
+                </td>
                 <td className="px-4 py-4 text-sm">
                   <div className="flex items-center gap-2">
                     <button onClick={() => handleView(system)} className="text-blue-600 hover:text-blue-800" title="Xem"><Eye className="w-4 h-4" /></button>
@@ -236,7 +252,7 @@ const MachineSystemList = () => {
               </tr>
             ))}
             {systems.length === 0 && (
-              <tr><td colSpan={13} className="px-4 py-8 text-center text-gray-500">Chưa có dữ liệu</td></tr>
+              <tr><td colSpan={14} className="px-4 py-8 text-center text-gray-500">Chưa có dữ liệu</td></tr>
             )}
           </tbody>
         </table>

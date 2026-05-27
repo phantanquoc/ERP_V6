@@ -2141,6 +2141,47 @@ model AcceptanceHandover {
 }
 
 
+// ==================== MACHINE SYSTEM (Hệ thống máy) ====================
+model MachineSystem {
+  id                String   @id @default(cuid())
+  khuVuc            String
+  viTri             String
+  maHeThong         String   @unique
+  tenHeThong        String
+  chucNang          String   @db.Text
+  maThietBi         String?
+  tenThietBi        String?
+  nhiemVu           String?  @db.Text
+  maNguoiThucHien   String?
+  nguoiThucHien     String?
+  fileDinhKem       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([maHeThong])
+  @@map("machine_systems")
+  @@schema("business")
+}
+
+// ==================== MACHINE ACTIVITY REPORT (Báo cáo hoạt động máy) ====================
+model MachineActivityReport {
+  id                String   @id @default(cuid())
+  viTri             String
+  tenHeThong        String
+  tongSoLuong       Int
+  soLuongHoatDong   Int
+  soLuongNgung      Int
+  nguyenNhan        String   @db.Text
+  nguoiBaoCao       String
+  fileDinhKem       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([createdAt])
+  @@map("machine_activity_reports")
+  @@schema("business")
+}
+
 // ==================== OVERTIME PLAN (Kế hoạch tăng ca) ====================
 model OvertimePlan {
   id                 String              @id @default(cuid())

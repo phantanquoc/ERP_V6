@@ -5,8 +5,19 @@ import FileUpload from './FileUpload';
 import { parseNumberInput } from '../utils/numberInput';
 import { API_BASE_URL } from '../config/api';
 
+const authFetch = (url: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem('accessToken');
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers as Record<string, string> | undefined),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+};
+
 interface MachineActivityReport {
-  id: number;
+  id: string;
   viTri: string;
   tenHeThong: string;
   tongSoLuong: number;
@@ -15,7 +26,7 @@ interface MachineActivityReport {
   nguyenNhan: string;
   nguoiBaoCao: string;
   fileDinhKem?: string;
-  ngayTao: string;
+  createdAt: string;
 }
 
 const MachineActivityReport = () => {
@@ -61,9 +72,10 @@ const MachineActivityReport = () => {
 
   const fetchReports = async () => {
     try {
-      const response = await fetch(API_BASE_URL + '/machine-activity-reports');
-      const data = await response.json();
-      setReports(data);
+      const response = await authFetch(API_BASE_URL + '/machine-activity-reports');
+      const result = await response.json();
+      const data = result.success ? result.data : result;
+      setReports(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching reports:', error);
     }
@@ -88,7 +100,7 @@ const MachineActivityReport = () => {
 
       const method = editingReport ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
         body: formDataToSend,
       });
@@ -102,11 +114,11 @@ const MachineActivityReport = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Bạn có chắc chắn muốn xóa báo cáo này?')) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/machine-activity-reports/${id}`, {
+      const response = await authFetch(`${API_BASE_URL}/machine-activity-reports/${id}`, {
         method: 'DELETE',
       });
 
@@ -186,7 +198,7 @@ const MachineActivityReport = () => {
   const handleExportExcel = async () => {
     try {
       const url = `${API_BASE_URL}/machine-activity-reports/export/excel`;
-      const response = await fetch(url);
+      const response = await authFetch(url);
       if (!response.ok) throw new Error('Failed to export');
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -255,7 +267,7 @@ const MachineActivityReport = () => {
                 <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">{report.nguyenNhan}</td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{report.nguoiBaoCao}</td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {new Date(report.ngayTao).toLocaleDateString('vi-VN')}
+                  {new Date(report.createdAt).toLocaleDateString('vi-VN')}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                   <div className="flex items-center gap-2">
