@@ -34,7 +34,8 @@ def chat(req: ChatRequest):
 
         # Semantic cache lookup
         if not req.history:
-            cached = sem_cache_lookup(query_emb)
+            _scope = f"{req.department}:{req.role}"
+            cached = sem_cache_lookup(query_emb, scope=_scope)
             if cached:
                 return ChatResponse(answer=cached[0], sources=cached[1])
 
@@ -71,7 +72,7 @@ def chat(req: ChatRequest):
 
         # Cache kết quả
         if not req.history:
-            sem_cache_put(query_emb, answer, sources)
+            sem_cache_put(query_emb, answer, sources, scope=_scope)
 
         return ChatResponse(answer=answer, sources=sources, context_texts=context_texts)
 
@@ -96,10 +97,11 @@ async def chat_stream(req: ChatRequest):
     query_text = expand_query(req.message)
     rewritten = rewrite_query(query_text)
     query_emb = indexer.embedder.encode([rewritten], normalize_embeddings=True).tolist()[0]
+    _scope = f"{req.department}:{req.role}"
 
     # Semantic cache
     if not req.history:
-        cached = sem_cache_lookup(query_emb)
+        cached = sem_cache_lookup(query_emb, scope=_scope)
         if cached:
             async def _from_cache():
                 yield cached[0]
@@ -149,7 +151,7 @@ async def chat_stream(req: ChatRequest):
             yield token
 
         if not req.history and collected:
-            sem_cache_put(query_emb, "".join(collected), sources)
+            sem_cache_put(query_emb, "".join(collected), sources, scope=_scope)
 
     return StreamingResponse(_generate(), media_type="text/plain; charset=utf-8")
 

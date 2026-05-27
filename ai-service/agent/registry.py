@@ -1146,6 +1146,25 @@ TOOLS: List[dict] = [
 ]
 
 
+# ─── Department → Category Access Mapping ──────────────────────────────────
+# Categories accessible per department. Empty list = accessible to ALL departments.
+DEPARTMENT_CATEGORY_ACCESS: dict[str, list[str]] = {
+    "DEPT_BUSINESS": ["customer", "quotation", "order", "product", "feedback"],
+    "DEPT_PURCHASING": ["supplier", "purchase"],
+    "DEPT_QUALITY": ["production"],
+    "DEPT_PRODUCTION": ["production", "warehouse"],
+    "DEPT_TECHNICAL": ["maintenance"],
+    "DEPT_ACCOUNTING": ["finance"],
+    "DEPT_GENERAL": [],
+}
+
+# Categories accessible to ALL departments (common/shared functionality)
+_COMMON_CATEGORIES: set[str] = {
+    "attendance", "leave", "task", "employee", "notification",
+    "knowledge", "report", "planning", "hr", "supply", "payroll",
+}
+
+
 # ─── Helper Functions ───────────────────────────────────────────────────────
 
 def get_tools_for_role(role: str) -> List[dict]:
@@ -1155,6 +1174,24 @@ def get_tools_for_role(role: str) -> List[dict]:
         t for t in TOOLS
         if not t["required_roles"] or role_upper in t["required_roles"]
     ]
+
+
+def get_tools_for_department(tools: List[dict], department: str, role: str, secondary_departments: List[str] = None) -> List[dict]:
+    """Filter tools theo department của user.
+
+    - ADMIN: bypass, trả về tất cả tools
+    - Other roles: chỉ trả về tools thuộc common categories + categories của primary + secondary departments
+    """
+    if not department or role.upper() == "ADMIN":
+        return tools
+
+    dept_categories = set(DEPARTMENT_CATEGORY_ACCESS.get(department, []))
+    for sec_dept in (secondary_departments or []):
+        dept_categories.update(DEPARTMENT_CATEGORY_ACCESS.get(sec_dept, []))
+
+    allowed = _COMMON_CATEGORIES | dept_categories
+
+    return [t for t in tools if t.get("category") in allowed]
 
 
 def get_tool_by_name(name: str) -> dict | None:

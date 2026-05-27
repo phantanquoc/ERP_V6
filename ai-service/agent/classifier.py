@@ -55,8 +55,9 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "vận hành", "kiểm tra nội bộ", "tiêu chí",
     ],
     "warehouse": [
-        "kho", "warehouse", "nhập kho", "xuất kho", "lô hàng", "lot",
+        "kho hàng", "warehouse", "nhập kho", "xuất kho", "lô hàng", "lot",
         "tồn kho", "phiếu nhập", "phiếu xuất", "nghiệm thu", "bàn giao",
+        r"\bkho\b",
     ],
     "maintenance": [
         "máy móc", "thiết bị", "sửa chữa", "bảo trì", "repair",
@@ -88,6 +89,9 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
     ],
 }
 
+# Short keywords (≤4 chars) that need word-boundary matching to avoid false positives
+_SHORT_KEYWORDS: set[str] = {"kho", "ncc", "qc", "lot", "kpi", "sop", "tax"}
+
 # Categories that are always included (utility tools)
 _ALWAYS_INCLUDE: Set[str] = {"employee", "knowledge"}
 
@@ -116,9 +120,20 @@ def classify_intent(message: str) -> Set[str]:
 
     for category, keywords in _CATEGORY_KEYWORDS.items():
         for kw in keywords:
-            if kw in msg_lower:
-                matched.add(category)
-                break
+            if kw.startswith(r"\b"):
+                # Pre-built regex pattern
+                if re.search(kw, msg_lower):
+                    matched.add(category)
+                    break
+            elif kw in _SHORT_KEYWORDS:
+                # Word-boundary match for short keywords
+                if re.search(rf"\b{re.escape(kw)}\b", msg_lower):
+                    matched.add(category)
+                    break
+            else:
+                if kw in msg_lower:
+                    matched.add(category)
+                    break
 
     # If nothing matched, return empty → caller should use all tools
     if not matched:

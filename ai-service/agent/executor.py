@@ -10,7 +10,7 @@ from typing import Generator
 
 from config import (logger, OPENROUTER_API_KEY, OPENROUTER_MODEL)
 from agent.models import AgentAction
-from agent.registry import get_tools_for_role, get_tool_by_name, to_openai_tools
+from agent.registry import get_tools_for_role, get_tools_for_department, get_tool_by_name, to_openai_tools
 from agent.classifier import filter_tools_by_intent, classify_intent
 
 _openrouter_client = None
@@ -35,10 +35,25 @@ MAX_HISTORY_CHARS = 4000  # trim oldest if total history content exceeds this
 
 REACT_SYSTEM = """Bạn là trợ lý ERP thông minh của An Binh Foods. Bạn giúp nhân viên thực hiện thao tác và trả lời câu hỏi về hệ thống.
 
+THÔNG TIN NGƯỜI DÙNG:
+- Bộ phận: {department_name}
+- Vai trò: {role}
+- Các module được truy cập: {accessible_modules}
+
+QUAN TRỌNG - Phạm vi bộ phận:
+- Bạn CHỈ hỗ trợ thao tác trong phạm vi module mà bộ phận người dùng được truy cập.
+- Nếu yêu cầu liên quan đến module NGOÀI phạm vi (VD: nhân viên kỹ thuật hỏi về báo giá/khách hàng), trả lời: "Chức năng này thuộc bộ phận [tên bộ phận phụ trách], bạn không có quyền truy cập module này."
+- Khi hướng dẫn navigation, LUÔN chỉ đường dẫn phù hợp với bộ phận người dùng:
+  + Chức năng chung (nghỉ phép, quy trình nội bộ, báo cáo, nhiệm vụ, tăng ca, góp ý, yêu cầu sửa chữa, yêu cầu cung ứng): menu "Chung" trên sidebar
+  + Chức năng bộ phận: menu tên bộ phận trên sidebar (VD: "Bộ phận kỹ thuật", "Bộ phận kinh doanh")
+- "Xem quy trình nội bộ" (read-only, tất cả nhân viên): Chung → nhóm "Đã ban hành" → "Danh sách quy trình"
+- "Quản lý quy trình" (tạo/sửa/xóa, chỉ bộ phận chất lượng): Bộ phận chất lượng → Phòng CL quy trình
+
 QUAN TRỌNG - Quy trình suy nghĩ:
 Trước MỖI hành động (gọi tool hoặc trả lời), bạn PHẢI suy nghĩ trong thẻ <think>...</think>:
 - Phân tích ý định thực sự của user
 - Xác định thông tin nào cần thiết
+- Kiểm tra yêu cầu có nằm trong phạm vi bộ phận không
 - Chọn tool phù hợp nhất (hoặc quyết định trả lời trực tiếp)
 - Nếu đã có kết quả tool: phân tích dữ liệu, rút ra insight
 
@@ -67,7 +82,7 @@ QUAN TRỌNG - Quy tắc tính ngày (hôm nay: {today}, thứ {weekday}):
 - "tuần này" → {mon} (thứ Hai) đến {sun} (Chủ nhật)
 - "tháng này" → {year}-{month}-01 đến cuối tháng {month}
 - "ngày mai" → {tomorrow}
-- "tháng N" → {year}-0N-01 đến {year}-0N-cuối tháng"""
+- "tháng N" → {year}-MM-01 đến {year}-MM-cuối tháng (MM là số tháng 2 chữ số, ví dụ tháng 3 → {year}-03-01)"""
 
 
 # ─── Helper Functions ──────────────────────────────────────────────────────────
@@ -208,8 +223,43 @@ def _get_week_range(today_str: str) -> tuple[str, str]:
     sunday = monday + datetime.timedelta(days=6)
     return monday.isoformat(), sunday.isoformat()
 
+_DEPARTMENT_NAMES: dict[str, str] = {
+    "DEPT_GENERAL": "Bộ phận tổng hợp",
+    "DEPT_QUALITY": "Bộ phận chất lượng",
+    "DEPT_BUSINESS": "Bộ phận kinh doanh",
+    "DEPT_ACCOUNTING": "Bộ phận kế toán",
+    "DEPT_PURCHASING": "Bộ phận thu mua",
+    "DEPT_PRODUCTION": "Bộ phận sản xuất",
+    "DEPT_TECHNICAL": "Bộ phận kỹ thuật",
+}
 
-def _build_react_messages(message: str, history: list, today: str, topic_switched: bool = False) -> list:
+_DEPARTMENT_MODULES: dict[str, str] = {
+    "DEPT_GENERAL": "Chung, Bộ phận tổng hợp",
+    "DEPT_QUALITY": "Chung, Bộ phận chất lượng",
+    "DEPT_BUSINESS": "Chung, Bộ phận kinh doanh",
+    "DEPT_ACCOUNTING": "Chung, Bộ phận kế toán",
+    "DEPT_PURCHASING": "Chung, Bộ phận thu mua",
+    "DEPT_PRODUCTION": "Chung, Bộ phận sản xuất",
+    "DEPT_TECHNICAL": "Chung, Bộ phận kỹ thuật",
+}
+
+
+def _get_department_display_info(department: str, role: str, secondary_departments: list = None) -> tuple[str, str]:
+    """Get display name and accessible modules for department context in system prompt."""
+    if role.upper() == "ADMIN":
+        return "Quản trị viên (toàn quyền)", "Tất cả module"
+    dept_name = _DEPARTMENT_NAMES.get(department, department or "Không xác định")
+    modules = _DEPARTMENT_MODULES.get(department, "Chung")
+    if secondary_departments:
+        sec_names = [_DEPARTMENT_NAMES.get(d, d) for d in secondary_departments if d != department]
+        if sec_names:
+            dept_name += f" (phụ: {', '.join(sec_names)})"
+            sec_modules = [_DEPARTMENT_MODULES.get(d, "").replace("Chung, ", "") for d in secondary_departments if d != department]
+            modules += ", " + ", ".join(m for m in sec_modules if m)
+    return dept_name, modules
+
+
+def _build_react_messages(message: str, history: list, today: str, department: str = "", role: str = "", secondary_departments: list = None, topic_switched: bool = False) -> list:
     """Build message list for ReAct loop."""
     weekday = _get_weekday_name(today)
     mon, sun = _get_week_range(today)
@@ -218,9 +268,13 @@ def _build_react_messages(message: str, history: list, today: str, topic_switche
     d = datetime.date.fromisoformat(today)
     tomorrow = (d + datetime.timedelta(days=1)).isoformat()
 
+    department_name, accessible_modules = _get_department_display_info(department, role, secondary_departments)
+
     system_content = REACT_SYSTEM.format(
         today=today, weekday=weekday, mon=mon, sun=sun,
-        year=year, month=month, tomorrow=tomorrow
+        year=year, month=month, tomorrow=tomorrow,
+        department_name=department_name, role=role,
+        accessible_modules=accessible_modules,
     )
 
     messages = [{"role": "system", "content": system_content}]
@@ -257,13 +311,6 @@ def _build_react_messages(message: str, history: list, today: str, topic_switche
         if role == "assistant" and content and _is_text_tool_call(content):
             i += 1
             continue
-        # Skip completed action markers and the preceding user message
-        if role == "assistant" and content and "Đã xử lý" in content:
-            # Remove the last added user message (the request that was already handled)
-            if messages and messages[-1]["role"] == "user":
-                messages.pop()
-            i += 1
-            continue
         messages.append({"role": role, "content": content})
         i += 1
 
@@ -272,7 +319,7 @@ def _build_react_messages(message: str, history: list, today: str, topic_switche
 
 
 def _coerce_params(tool: dict, params: dict) -> dict:
-    """Coerce param types theo schema (Groq đôi khi trả string cho integer fields)."""
+    """Coerce param types theo schema (LLM đôi khi trả string cho integer fields)."""
     if not params:
         return {}
     all_params = tool.get("path_params", []) + tool.get("query_params", []) + tool.get("body_params", [])
@@ -353,7 +400,7 @@ def _slim_response(result: dict) -> dict:
                 slim = {k: v for k, v in item.items()
                         if k not in _ALWAYS_REMOVE_FIELDS
                         and not isinstance(v, dict)
-                        and not (isinstance(v, list) and len(v) > 3)}
+                        and not (isinstance(v, list) and len(v) > 10)}
                 # Slim nested lists (e.g. items in quotation requests)
                 for k, v in list(slim.items()):
                     if isinstance(v, list) and v and isinstance(v[0], dict):
@@ -456,7 +503,7 @@ def _extract_employee_names(messages: list) -> dict:
     """Extract employee id→name mapping from tool results in message history."""
     names = {}
     for msg in messages:
-        if msg.get("role") != "tool":
+        if msg.get("role") not in ("tool", "user"):
             continue
         try:
             data = json.loads(msg.get("content", "{}"))
@@ -583,7 +630,7 @@ def _call_llm_with_retry(messages: list, tools: list, request_id: str):
 
 def execute_stream(
     message: str, history: list, role: str, jwt_token: str, today: str,
-    department: str = "", request_id: str = "",
+    department: str = "", secondary_departments: list = None, request_id: str = "",
     _resume_messages: list = None,
 ) -> Generator[str, None, None]:
     """
@@ -598,6 +645,7 @@ def execute_stream(
         return
 
     available_tools = get_tools_for_role(role)
+    available_tools = get_tools_for_department(available_tools, department, role, secondary_departments)
     # For intent classification, combine current message with history for full context
     intent_text = message
     if history:
@@ -623,7 +671,7 @@ def execute_stream(
         if topic_switched:
             logger.info(f"[{request_id}] Topic switch detected — clearing history context")
 
-        messages = _build_react_messages(message, history, today, topic_switched=topic_switched)
+        messages = _build_react_messages(message, history, today, department=department, role=role, secondary_departments=secondary_departments, topic_switched=topic_switched)
 
     start_time = time.time()
 
@@ -638,7 +686,7 @@ def execute_stream(
         try:
             resp = _call_llm_with_retry(messages, llm_tools, request_id)
         except Exception as e:
-            logger.error(f"[{request_id}] Groq API error (iteration {iteration}): {e}")
+            logger.error(f"[{request_id}] OpenRouter API error (iteration {iteration}): {e}")
             yield _friendly_error(e)
             return
 
@@ -651,7 +699,7 @@ def execute_stream(
             # If content was only <think> tags (stripped to empty), retry
             if not text:
                 logger.info(f"[{request_id}] Model returned only <think> without tool call, retrying")
-                messages.append({"role": "assistant", "content": choice.message.content})
+                messages.append({"role": "assistant", "content": text or " "})
                 messages.append({"role": "user", "content": "Gọi tool ngay để lấy dữ liệu."})
                 continue
 
@@ -682,6 +730,7 @@ def execute_stream(
                             "history": history_for_context,
                             "role": role,
                             "department": department,
+                            "secondary_departments": secondary_departments,
                             "today": today,
                         }, display_names=display_names)
                         return
@@ -697,21 +746,21 @@ def execute_stream(
                     if len(result_str) > MAX_TOOL_RESULT_CHARS:
                         result_str = result_str[:MAX_TOOL_RESULT_CHARS] + "...(truncated)"
                     # Can't use role=tool without structured tool_calls, use user message
-                    messages.append({"role": "assistant", "content": choice.message.content})
+                    messages.append({"role": "assistant", "content": text})
                     messages.append({"role": "user", "content": f"[Kết quả {fn_name}]: {result_str}\n\nHãy trả lời dựa trên dữ liệu trên."})
                     continue
 
             # Retry if model returns a "processing" message instead of calling tools
             if iteration < MAX_ITERATIONS - 1 and _is_stalling_response(text):
                 logger.info(f"[{request_id}] Model stalling ('{text[:50]}...'), retrying with nudge")
-                messages.append({"role": "assistant", "content": choice.message.content})
+                messages.append({"role": "assistant", "content": text})
                 messages.append({"role": "user", "content": "Gọi tool ngay để lấy dữ liệu. Không trả lời text."})
                 continue
 
             # Fallback: if text still contains <function> tag (unparsed), retry
             if "<function>" in text and iteration < 2:
                 logger.info(f"[{request_id}] Text contains unparsed <function> tag, retrying")
-                messages.append({"role": "assistant", "content": choice.message.content})
+                messages.append({"role": "assistant", "content": text})
                 messages.append({"role": "user", "content": "KHÔNG output <function> tag. Hãy sử dụng tool calling API đúng cách."})
                 continue
 
@@ -724,7 +773,11 @@ def execute_stream(
                 _strip_think_tags(choice.message.content)  # log reasoning only
             tc = choice.message.tool_calls[0]
             fn_name = tc.function.name
-            fn_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+            try:
+                fn_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+            except json.JSONDecodeError:
+                logger.warning(f"[{request_id}] Malformed tool arguments for {fn_name}: {tc.function.arguments!r}")
+                fn_args = {}
 
             tool = get_tool_by_name(fn_name)
             if not tool:
@@ -756,6 +809,7 @@ def execute_stream(
                     "history": history_for_context,
                     "role": role,
                     "department": department,
+                    "secondary_departments": secondary_departments,
                     "today": today,
                 }, display_names=display_names)
                 return
@@ -816,7 +870,7 @@ def execute_confirmed(
 
     logger.info(f"[{request_id}] Executing confirmed: {tool_name}({params})")
     result = _call_backend_api(tool, params, jwt_token)
-    if result.get("success", True) and "error" not in result:
+    if result.get("success") is not False and "error" not in result:
         friendly_names = {
             "create_leave_request": "Đơn xin nghỉ phép đã được tạo thành công! 🎉",
             "approve_leave_request": "Đơn nghỉ phép đã được duyệt thành công! ✅",
@@ -843,6 +897,9 @@ def execute_confirmed(
                 confirm_context["message"],
                 stored_history,
                 confirm_context["today"],
+                department=confirm_context.get("department", ""),
+                role=confirm_context.get("role", ""),
+                secondary_departments=confirm_context.get("secondary_departments"),
             )
             # Add the confirmed tool call + result so agent knows what was done
             resume_messages.append({

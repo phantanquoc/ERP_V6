@@ -983,6 +983,42 @@ class TestExecuteConfirmedMultipleTools:
         assert "Lỗi" in output
         assert "nonexistent_tool" in output
 
+    def test_confirmed_no_success_key_treated_as_failure(self):
+        """API returns dict without 'success' key → treated as failure (C1 fix)."""
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 200
+        # No 'success' key — old code defaulted to True (bug), new code treats as failure
+        mock_http_resp.json.return_value = {"error": "Something went wrong"}
+
+        with patch("agent.executor._http_client") as mock_client:
+            mock_client.post.return_value = mock_http_resp
+            from agent.executor import execute_confirmed
+            output = _collect(execute_confirmed("create_task", {
+                "nguoiNhan": ["user-1"],
+                "noiDung": "Test",
+            }, "jwt"))
+
+        # Should NOT say "thành công" (success) — error message may say "không thành công"
+        assert "😔" in output or "thử lại" in output.lower()
+
+    def test_confirmed_success_false_yields_error(self):
+        """API returns success=False → error message, not success."""
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 400
+        mock_http_resp.json.return_value = {"success": False, "message": "Validation failed"}
+
+        with patch("agent.executor._http_client") as mock_client:
+            mock_client.post.return_value = mock_http_resp
+            from agent.executor import execute_confirmed
+            output = _collect(execute_confirmed("create_leave_request", {
+                "leaveType": "ANNUAL",
+                "startDate": "2026-05-19",
+                "endDate": "2026-05-19",
+                "reason": "Test",
+            }, "jwt"))
+
+        assert "😔" in output or "thử lại" in output.lower()
+
 
 # ─── Test Build Export Message ────────────────────────────────────────────────
 
@@ -1140,4 +1176,174 @@ class TestMultiStepChaining:
         # Success message + final text from agent
         assert "thành công" in output.lower()
         assert "Bạn cần gì thêm không?" in output
+
+
+# ─── Test H1: Malformed JSON tool arguments ───────────────────────────────────
+
+class TestMalformedToolArguments:
+    """H1: json.loads wrapped in try/except for malformed LLM output."""
+
+    def test_malformed_json_args_does_not_crash(self):
+        """LLM returns malformed JSON in tool arguments → agent recovers gracefully."""
+        tc = MagicMock()
+        tc.id = "call_bad"
+        tc.function.name = "list_notifications"
+        tc.function.arguments = "{invalid json here"  # malformed
+
+        first_resp = _make_groq_response(tool_calls=[tc])
+        second_resp = _make_groq_response(content="Xin lỗi, không thể xử lý yêu cầu.")
+
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 200
+        mock_http_resp.json.return_value = {"success": True, "data": []}
+
+        with patch("agent.executor._openrouter_client") as mock_client, \
+             patch("agent.executor._http_client") as mock_http:
+            mock_client.chat.completions.create.side_effect = [first_resp, second_resp]
+            mock_http.get.return_value = mock_http_resp
+
+            from agent.executor import execute_stream
+            output = _collect(execute_stream("xem thông báo", [], "EMPLOYEE", "jwt", "2026-05-14"))
+
+        # Should not raise, should produce some output
+        assert output != ""
+
+    def test_empty_tool_arguments_uses_empty_dict(self):
+        """Empty tool arguments string → treated as empty dict, not crash."""
+        tc = MagicMock()
+        tc.id = "call_empty"
+        tc.function.name = "list_notifications"
+        tc.function.arguments = ""  # empty
+
+        first_resp = _make_groq_response(tool_calls=[tc])
+        second_resp = _make_groq_response(content="Không có thông báo.")
+
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 200
+        mock_http_resp.json.return_value = {"success": True, "data": []}
+
+        with patch("agent.executor._openrouter_client") as mock_client, \
+             patch("agent.executor._http_client") as mock_http:
+            mock_client.chat.completions.create.side_effect = [first_resp, second_resp]
+            mock_http.get.return_value = mock_http_resp
+
+            from agent.executor import execute_stream
+            output = _collect(execute_stream("xem thông báo", [], "EMPLOYEE", "jwt", "2026-05-14"))
+
+        assert "thông báo" in output.lower()
+
+
+# ─── Test H2: _extract_employee_names scans user messages ────────────────────
+
+class TestExtractEmployeeNames:
+    """H2: _extract_employee_names should scan both tool and user messages."""
+
+    def test_extracts_from_tool_messages(self):
+        from agent.executor import _extract_employee_names
+        messages = [
+            {
+                "role": "tool",
+                "content": json.dumps({
+                    "data": [
+                        {"id": "emp-001", "fullName": "Nguyễn Văn A"},
+                        {"id": "emp-002", "fullName": "Trần Thị B"},
+                    ]
+                })
+            }
+        ]
+        names = _extract_employee_names(messages)
+        assert names["emp-001"] == "Nguyễn Văn A"
+        assert names["emp-002"] == "Trần Thị B"
+
+    def test_extracts_from_user_messages(self):
+        """H2 fix: user messages with JSON data also scanned."""
+        from agent.executor import _extract_employee_names
+        messages = [
+            {
+                "role": "user",
+                "content": json.dumps({
+                    "data": [
+                        {"id": "emp-003", "fullName": "Lê Văn C"},
+                    ]
+                })
+            }
+        ]
+        names = _extract_employee_names(messages)
+        assert names["emp-003"] == "Lê Văn C"
+
+    def test_skips_assistant_messages(self):
+        """assistant messages are not scanned."""
+        from agent.executor import _extract_employee_names
+        messages = [
+            {
+                "role": "assistant",
+                "content": json.dumps({
+                    "data": [{"id": "emp-999", "fullName": "Should Not Appear"}]
+                })
+            }
+        ]
+        names = _extract_employee_names(messages)
+        assert "emp-999" not in names
+
+    def test_handles_non_json_content_gracefully(self):
+        from agent.executor import _extract_employee_names
+        messages = [
+            {"role": "tool", "content": "not json at all"},
+            {"role": "user", "content": "xem danh sách nhân viên"},
+        ]
+        names = _extract_employee_names(messages)
+        assert names == {}
+
+    def test_empty_messages(self):
+        from agent.executor import _extract_employee_names
+        assert _extract_employee_names([]) == {}
+
+
+# ─── Test L2: think tags stripped before history append ──────────────────────
+
+class TestThinkTagsNotInHistory:
+    """L2: <think> tags should not appear in messages appended to history."""
+
+    def test_text_response_no_think_in_output(self):
+        """Final text response should never contain <think> tags."""
+        resp = _make_groq_response(
+            content="<think>Phân tích câu hỏi...</think>Chấm công hôm nay của bạn: 08:00 - 17:00."
+        )
+        with patch("agent.executor._openrouter_client") as mock_client:
+            mock_client.chat.completions.create.return_value = resp
+            from agent.executor import execute_stream
+            output = _collect(execute_stream("xem chấm công", [], "EMPLOYEE", "jwt", "2026-05-14"))
+
+        assert "<think>" not in output
+        assert "Chấm công hôm nay" in output
+
+    def test_think_only_response_retries(self):
+        """Model returns only <think> (stripped to empty) → retries, not yields empty."""
+        think_only = _make_groq_response(content="<think>Đang suy nghĩ...</think>")
+        final_resp = _make_groq_response(content="Đây là câu trả lời.")
+
+        with patch("agent.executor._openrouter_client") as mock_client:
+            mock_client.chat.completions.create.side_effect = [think_only, final_resp]
+            from agent.executor import execute_stream
+            output = _collect(execute_stream("xem chấm công", [], "EMPLOYEE", "jwt", "2026-05-14"))
+
+        assert "Đây là câu trả lời." in output
+        assert "<think>" not in output
+        assert mock_client.chat.completions.create.call_count == 2
+
+    def test_stalling_response_retries_without_think(self):
+        """Stalling response with <think> → retry, output has no <think>."""
+        stalling = _make_groq_response(
+            content="<think>Cần gọi tool</think>Để tôi kiểm tra cho bạn."
+        )
+        final_resp = _make_groq_response(content="Đây là kết quả.")
+
+        with patch("agent.executor._openrouter_client") as mock_client:
+            mock_client.chat.completions.create.side_effect = [stalling, final_resp]
+            from agent.executor import execute_stream
+            output = _collect(execute_stream("xem chấm công", [], "EMPLOYEE", "jwt", "2026-05-14"))
+
+        assert "<think>" not in output
+        assert "Đây là kết quả." in output
+
 

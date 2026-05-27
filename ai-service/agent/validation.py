@@ -16,6 +16,15 @@ _INJECTION_PATTERNS = [
     re.compile(r"new\s+instructions?\s*:", re.IGNORECASE),
     re.compile(r"override\s+(previous|system|all)", re.IGNORECASE),
     re.compile(r"disregard\s+(all|previous|your)", re.IGNORECASE),
+    # Vietnamese injection patterns
+    re.compile(r"bỏ\s+qua\s+(tất\s+cả\s+)?(hướng\s+dẫn|quy\s+tắc|lệnh)", re.IGNORECASE),
+    re.compile(r"quên\s+(tất\s+cả|hướng\s+dẫn|quy\s+tắc)", re.IGNORECASE),
+    re.compile(r"hướng\s+dẫn\s+mới\s*:", re.IGNORECASE),
+    re.compile(r"bây\s+giờ\s+bạn\s+là\s+", re.IGNORECASE),
+    re.compile(r"giả\s+vờ\s+(bạn\s+là|như\s+là)\s+", re.IGNORECASE),
+    re.compile(r"đóng\s+vai\s+(là\s+)?", re.IGNORECASE),
+    re.compile(r"hãy\s+bỏ\s+qua\s+", re.IGNORECASE),
+    re.compile(r"không\s+cần\s+tuân\s+theo", re.IGNORECASE),
 ]
 
 
