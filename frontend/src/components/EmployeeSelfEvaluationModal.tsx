@@ -568,11 +568,21 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                                 </p>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-2xl font-bold text-blue-600">
-                                {item.selfScore.toFixed(1)}%
+                            <div className="text-right space-y-1">
+                              <div>
+                                <div className="text-2xl font-bold text-blue-600">
+                                  {item.selfScore.toFixed(1)}%
+                                </div>
+                                <p className="text-xs text-gray-600">Tự đánh giá</p>
                               </div>
-                              <p className="text-xs text-gray-600">Điểm tự đánh giá</p>
+                              {item.score > 0 && (
+                                <div>
+                                  <div className="text-lg font-semibold text-green-600">
+                                    {item.score.toFixed(1)}%
+                                  </div>
+                                  <p className="text-xs text-gray-600">Điểm tổng hợp</p>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>

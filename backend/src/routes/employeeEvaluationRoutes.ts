@@ -336,6 +336,36 @@ router.post(
 
 /**
  * @swagger
+ * /api/employee-evaluations/sync-details:
+ *   post:
+ *     tags: [Employee Evaluations]
+ *     summary: Đồng bộ tiêu chí đánh giá cho tháng/năm
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               month:
+ *                 type: integer
+ *               year:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Đồng bộ thành công
+ */
+router.post(
+  '/sync-details',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  employeeEvaluationController.syncEvaluationDetails
+);
+
+/**
+ * @swagger
  * /api/employee-evaluations/subordinates/{month}/{year}:
  *   get:
  *     tags: [Employee Evaluations]
