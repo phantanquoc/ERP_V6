@@ -30,6 +30,17 @@ interface MachineSystem {
   createdAt: string;
 }
 
+const KHU_VUC_OPTIONS = [
+  'Khu A',
+  'Khu B',
+  'Khu C',
+  'Khu sản xuất',
+  'Khu kho',
+  'Khu văn phòng',
+  'Khu xử lý',
+  'Khác',
+];
+
 const MachineSystemList = () => {
   const [systems, setSystems] = useState<MachineSystem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -38,6 +49,8 @@ const MachineSystemList = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingSystem, setEditingSystem] = useState<MachineSystem | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [machines, setMachines] = useState<{ id: string; maMay: string; tenMay: string }[]>([]);
+  const [employees, setEmployees] = useState<{ id: string; employeeCode: string; firstName: string; lastName: string }[]>([]);
   
   const [formData, setFormData] = useState({
     khuVuc: '',
@@ -54,6 +67,8 @@ const MachineSystemList = () => {
 
   useEffect(() => {
     fetchSystems();
+    fetchMachines();
+    fetchEmployees();
   }, []);
 
   const fetchSystems = async () => {
@@ -66,6 +81,32 @@ const MachineSystemList = () => {
       }
     } catch (error) {
       console.error('Error fetching systems:', error);
+    }
+  };
+
+  const fetchMachines = async () => {
+    try {
+      const response = await authFetch(API_BASE_URL + '/machines?limit=200');
+      if (response.ok) {
+        const result = await response.json();
+        const data = result.success ? result.data : result;
+        setMachines(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Error fetching machines:', error);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await authFetch(API_BASE_URL + '/employees?limit=200');
+      if (response.ok) {
+        const result = await response.json();
+        const data = result.success ? result.data : result;
+        setEmployees(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Error fetching employees:', error);
     }
   };
 
@@ -314,8 +355,13 @@ const MachineSystemList = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Khu vực</label>
-                  <input type="text" value={formData.khuVuc} onChange={e => setFormData({...formData, khuVuc: e.target.value})}
-                    disabled={isViewMode} className="w-full border rounded-lg px-3 py-2 disabled:bg-gray-100" required />
+                  <select value={formData.khuVuc} onChange={e => setFormData({...formData, khuVuc: e.target.value})}
+                    disabled={isViewMode} className="w-full border rounded-lg px-3 py-2 disabled:bg-gray-100" required>
+                    <option value="">-- Chọn khu vực --</option>
+                    {KHU_VUC_OPTIONS.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí</label>
@@ -337,15 +383,26 @@ const MachineSystemList = () => {
                   <textarea value={formData.chucNang} onChange={e => setFormData({...formData, chucNang: e.target.value})}
                     disabled={isViewMode} className="w-full border rounded-lg px-3 py-2 disabled:bg-gray-100" rows={2} />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mã thiết bị</label>
-                  <input type="text" value={formData.maThietBi} onChange={e => setFormData({...formData, maThietBi: e.target.value})}
-                    disabled={isViewMode} className="w-full border rounded-lg px-3 py-2 disabled:bg-gray-100" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tên thiết bị</label>
-                  <input type="text" value={formData.tenThietBi} onChange={e => setFormData({...formData, tenThietBi: e.target.value})}
-                    disabled={isViewMode} className="w-full border rounded-lg px-3 py-2 disabled:bg-gray-100" />
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Thiết bị</label>
+                  <select
+                    value={formData.maThietBi}
+                    onChange={e => {
+                      const selected = machines.find(m => m.maMay === e.target.value);
+                      setFormData({
+                        ...formData,
+                        maThietBi: selected ? selected.maMay : '',
+                        tenThietBi: selected ? selected.tenMay : '',
+                      });
+                    }}
+                    disabled={isViewMode}
+                    className="w-full border rounded-lg px-3 py-2 disabled:bg-gray-100"
+                  >
+                    <option value="">-- Chọn thiết bị --</option>
+                    {machines.map(m => (
+                      <option key={m.id} value={m.maMay}>{m.maMay} - {m.tenMay}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nhiệm vụ</label>
@@ -354,13 +411,30 @@ const MachineSystemList = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mã người thực hiện</label>
-                  <input type="text" value={formData.maNguoiThucHien} onChange={e => setFormData({...formData, maNguoiThucHien: e.target.value})}
-                    disabled={isViewMode} className="w-full border rounded-lg px-3 py-2 disabled:bg-gray-100" />
+                  <input type="text" value={formData.maNguoiThucHien}
+                    readOnly className="w-full border rounded-lg px-3 py-2 bg-gray-100" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Người thực hiện</label>
-                  <input type="text" value={formData.nguoiThucHien} onChange={e => setFormData({...formData, nguoiThucHien: e.target.value})}
-                    disabled={isViewMode} className="w-full border rounded-lg px-3 py-2 disabled:bg-gray-100" />
+                  <select
+                    value={formData.nguoiThucHien}
+                    onChange={e => {
+                      const selected = employees.find(emp => `${emp.lastName} ${emp.firstName}`.trim() === e.target.value);
+                      setFormData({
+                        ...formData,
+                        nguoiThucHien: e.target.value,
+                        maNguoiThucHien: selected ? selected.employeeCode : '',
+                      });
+                    }}
+                    disabled={isViewMode}
+                    className="w-full border rounded-lg px-3 py-2 disabled:bg-gray-100"
+                  >
+                    <option value="">-- Chọn người thực hiện --</option>
+                    {employees.map(emp => {
+                      const fullName = `${emp.lastName} ${emp.firstName}`.trim();
+                      return <option key={emp.id} value={fullName}>{fullName}</option>;
+                    })}
+                  </select>
                 </div>
                 {!isViewMode && (
                   <div className="col-span-2">

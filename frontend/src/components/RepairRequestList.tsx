@@ -21,6 +21,15 @@ interface RepairRequest {
   ngayTao: string;
 }
 
+const LOAI_LOI_OPTIONS = [
+  'Lỗi cơ khí',
+  'Lỗi điện',
+  'Lỗi phần mềm điều khiển',
+  'Lỗi thủy lực',
+  'Lỗi khí nén',
+  'Khác',
+];
+
 const RepairRequestList = () => {
   const { user } = useAuth();
   const [requests, setRequests] = useState<RepairRequest[]>([]);
@@ -32,6 +41,8 @@ const RepairRequestList = () => {
   const itemsPerPage = 10;
   const [isAcceptanceFormOpen, setIsAcceptanceFormOpen] = useState(false);
   const [selectedRequestForAcceptance, setSelectedRequestForAcceptance] = useState<RepairRequest | null>(null);
+  const [machineSystems, setMachineSystems] = useState<{ id: string; tenHeThong: string }[]>([]);
+  const [loadingMachineSystems, setLoadingMachineSystems] = useState(false);
   
   const [formData, setFormData] = useState({
     ngayThang: new Date().toISOString().split('T')[0],
@@ -57,6 +68,19 @@ const RepairRequestList = () => {
     } catch (error) {
       console.error('Error fetching requests:', error);
       setRequests([]);
+    }
+  };
+
+  const fetchMachineSystems = async () => {
+    setLoadingMachineSystems(true);
+    try {
+      const result = await apiClient.get<{ id: string; tenHeThong: string }[]>('/machine-systems?limit=200');
+      const data = Array.isArray(result.data) ? result.data : [];
+      setMachineSystems(data);
+    } catch (error) {
+      console.error('Error fetching machine systems:', error);
+    } finally {
+      setLoadingMachineSystems(false);
     }
   };
 
@@ -110,6 +134,7 @@ const RepairRequestList = () => {
       trangThai: request.trangThai,
     });
     setIsViewMode(false);
+    fetchMachineSystems();
     setIsModalOpen(true);
   };
 
@@ -127,6 +152,7 @@ const RepairRequestList = () => {
       trangThai: request.trangThai,
     });
     setIsViewMode(true);
+    fetchMachineSystems();
     setIsModalOpen(true);
   };
 
@@ -150,6 +176,7 @@ const RepairRequestList = () => {
       console.error('Error generating code:', error);
       setFormData(emptyForm);
     }
+    fetchMachineSystems();
     setIsModalOpen(true);
   };
 
@@ -391,15 +418,18 @@ const RepairRequestList = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Tên hệ thống/thiết bị <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.tenHeThong}
                     onChange={(e) => setFormData({ ...formData, tenHeThong: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
-                    disabled={isViewMode}
-                    placeholder="VD: Máy sấy MS-01, Băng tải đóng gói, Nồi chiên VF-003"
-                  />
+                    disabled={isViewMode || loadingMachineSystems}
+                  >
+                    <option value="">-- Chọn hệ thống/thiết bị --</option>
+                    {machineSystems.map((ms) => (
+                      <option key={ms.id} value={ms.tenHeThong}>{ms.tenHeThong}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Khu vực sử dụng */}
@@ -423,15 +453,18 @@ const RepairRequestList = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Loại lỗi <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.loaiLoi}
                     onChange={(e) => setFormData({ ...formData, loaiLoi: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={isViewMode}
-                    placeholder="VD: Lỗi cơ khí, Lỗi điện, Lỗi phần mềm điều khiển"
-                  />
+                  >
+                    <option value="">-- Chọn loại lỗi --</option>
+                    {LOAI_LOI_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Mức độ ưu tiên */}

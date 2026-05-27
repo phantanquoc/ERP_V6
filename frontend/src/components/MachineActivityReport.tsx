@@ -38,6 +38,7 @@ const MachineActivityReport = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingReport, setEditingReport] = useState<MachineActivityReport | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [machineSystems, setMachineSystems] = useState<{ id: string; tenHeThong: string; viTri: string }[]>([]);
 
   // Get current user's full name
   const getCurrentUserName = () => {
@@ -58,6 +59,7 @@ const MachineActivityReport = () => {
   // Load data from API
   useEffect(() => {
     fetchReports();
+    fetchMachineSystems();
   }, []);
 
   // Update nguoiBaoCao when user is loaded
@@ -78,6 +80,17 @@ const MachineActivityReport = () => {
       setReports(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching reports:', error);
+    }
+  };
+
+  const fetchMachineSystems = async () => {
+    try {
+      const response = await authFetch(API_BASE_URL + '/machine-systems?limit=200');
+      const result = await response.json();
+      const data = result.success ? result.data : result;
+      setMachineSystems(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching machine systems:', error);
     }
   };
 
@@ -378,15 +391,25 @@ const MachineActivityReport = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Tên hệ thống/thiết bị <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.tenHeThong}
-                    onChange={(e) => setFormData({ ...formData, tenHeThong: e.target.value })}
+                    onChange={(e) => {
+                      const selected = machineSystems.find(ms => ms.tenHeThong === e.target.value);
+                      setFormData({
+                        ...formData,
+                        tenHeThong: e.target.value,
+                        viTri: selected ? selected.viTri : formData.viTri,
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={isViewMode}
-                    placeholder="Nhập tên hệ thống/thiết bị"
-                  />
+                  >
+                    <option value="">-- Chọn hệ thống/thiết bị --</option>
+                    {machineSystems.map((ms) => (
+                      <option key={ms.id} value={ms.tenHeThong}>{ms.tenHeThong}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Tổng số lượng */}

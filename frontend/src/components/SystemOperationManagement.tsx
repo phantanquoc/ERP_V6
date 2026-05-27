@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Settings } from 'lucide-react';
 import systemOperationService, { SystemOperation, GiaiDoan } from '../services/systemOperationService';
 import machineService, { Machine } from '../services/machineService';
+import materialEvaluationService, { MaterialEvaluation } from '../services/materialEvaluationService';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import { useAuth } from '../contexts/AuthContext';
 
 interface FormData {
   maChien: string;
@@ -25,8 +27,10 @@ interface SystemOperationManagementProps {
 }
 
 const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ initialMaChien, initialThoiGianChien }) => {
+  const { user } = useAuth();
   const [operations, setOperations] = useState<SystemOperation[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
+  const [materialEvaluations, setMaterialEvaluations] = useState<MaterialEvaluation[]>([]);
   const [selectedMachine, setSelectedMachine] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -132,6 +136,15 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
     }
   };
 
+  const loadMaterialEvaluations = async () => {
+    try {
+      const result = await materialEvaluationService.getAllMaterialEvaluations(1, 200);
+      setMaterialEvaluations(result.data);
+    } catch (err: any) {
+      console.error('Lỗi tải danh sách mã chiên:', err);
+    }
+  };
+
   const formatDateTime = (datetime: string) => {
     if (!datetime) return '-';
     try {
@@ -196,6 +209,8 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
   }, [initialMaChien, initialThoiGianChien]);
 
   const handleOpenModal = (operation?: SystemOperation) => {
+    loadMaterialEvaluations();
+    const currentUserName = user ? `${user.lastName} ${user.firstName}` : '';
     if (operation) {
       setIsEditing(true);
       setSelectedOperation(operation);
@@ -210,7 +225,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
         giaiDoan4: operation.giaiDoan4,
         trangThai: operation.trangThai,
         ghiChu: operation.ghiChu,
-        nguoiThucHien: operation.nguoiThucHien,
+        nguoiThucHien: operation.nguoiThucHien || currentUserName,
       });
     } else {
       setIsEditing(false);
@@ -233,7 +248,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
         giaiDoan4: { thoiGian: 0, nhietDo: 0, apSuat: 0 },
         trangThai: operationStatus,
         ghiChu: '',
-        nguoiThucHien: '',
+        nguoiThucHien: currentUserName,
       });
     }
     setIsModalOpen(true);
@@ -578,13 +593,28 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Mã chiên <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     name="maChien"
                     value={formData.maChien}
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
-                  />
+                    onChange={(e) => {
+                      const selected = materialEvaluations.find(m => m.maChien === e.target.value);
+                      setFormData(prev => ({
+                        ...prev,
+                        maChien: e.target.value,
+                      }));
+                      // tenHangHoa is not in FormData, no auto-fill needed here
+                      void selected;
+                    }}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    <option value="">-- Chọn mã chiên --</option>
+                    {materialEvaluations.map(m => (
+                      <option key={m.id} value={m.maChien}>
+                        {m.maChien}{m.tenHangHoa ? ` — ${m.tenHangHoa}` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -596,7 +626,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                     name="tenMay"
                     value={formData.tenMay}
                     readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
                   />
                 </div>
 
@@ -800,9 +830,9 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                     type="text"
                     name="nguoiThucHien"
                     value={formData.nguoiThucHien}
-                    onChange={handleInputChange}
+                    readOnly
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
                   />
                 </div>
 

@@ -769,14 +769,21 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Đơn vị tính <span className="text-red-500">*</span>
                             </label>
-                            <input
-                              type="text"
+                            <select
                               value={item.donViTinh}
                               onChange={(e) => updateItem(index, 'donViTinh', e.target.value)}
                               required
-                              placeholder="VD: kg, tấn, thùng..."
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            />
+                            >
+                              <option value="">-- Chọn đơn vị --</option>
+                              <option value="Kg">Kg</option>
+                              <option value="MT">MT</option>
+                              <option value="Tấn">Tấn</option>
+                              <option value="Thùng">Thùng</option>
+                              <option value="Hộp">Hộp</option>
+                              <option value="Cái">Cái</option>
+                              <option value="Lít">Lít</option>
+                            </select>
                           </div>
                         </div>
 
@@ -830,14 +837,19 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                         <option value="Vận chuyển đường thủy">Vận chuyển đường thủy</option>
                       </select>
                     ) : (
-                      <input
-                        type="text"
+                      <select
                         name="hinhThucVanChuyen"
                         value={formData.hinhThucVanChuyen}
                         onChange={handleInputChange}
-                        placeholder="VD: FOB, CIF, CFR..."
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
+                      >
+                        <option value="">-- Chọn hình thức --</option>
+                        <option value="Đường biển">Đường biển</option>
+                        <option value="Đường hàng không">Đường hàng không</option>
+                        <option value="Đường bộ">Đường bộ</option>
+                        <option value="Đường sắt">Đường sắt</option>
+                        <option value="Đa phương thức">Đa phương thức</option>
+                      </select>
                     )}
                   </div>
                   <div>
@@ -859,14 +871,20 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                         <option value="Công nợ 45 ngày">Công nợ 45 ngày</option>
                       </select>
                     ) : (
-                      <input
-                        type="text"
+                      <select
                         name="hinhThucThanhToan"
                         value={formData.hinhThucThanhToan}
                         onChange={handleInputChange}
-                        placeholder="VD: T/T, L/C..."
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
+                      >
+                        <option value="">-- Chọn hình thức --</option>
+                        <option value="T/T">T/T</option>
+                        <option value="L/C">L/C</option>
+                        <option value="D/P">D/P</option>
+                        <option value="D/A">D/A</option>
+                        <option value="CAD">CAD</option>
+                        <option value="Open Account">Open Account</option>
+                      </select>
                     )}
                   </div>
                 </div>

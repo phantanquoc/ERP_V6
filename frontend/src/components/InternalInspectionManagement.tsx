@@ -3,10 +3,12 @@ import { Plus, Edit2, Trash2, Eye, X, Download } from 'lucide-react';
 import internalInspectionService from '@services/internalInspectionService';
 import type { InternalInspection } from '@services/internalInspectionService';
 import TableFilter, { FilterField } from './TableFilter';
+import apiClient from '../services/apiClient';
 
 const InternalInspectionManagement = () => {
   const [inspections, setInspections] = useState<InternalInspection[]>([]);
   const [loading, setLoading] = useState(false);
+  const [employees, setEmployees] = useState<{id: string, firstName: string, lastName: string, employeeCode: string}[]>([]);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
     _search: '',
     violationLevel: '',
@@ -53,7 +55,17 @@ const InternalInspectionManagement = () => {
 
   useEffect(() => {
     loadInspections();
+    loadEmployees();
   }, [selectedMonth, selectedYear]);
+
+  const loadEmployees = async () => {
+    try {
+      const res = await apiClient.get('/employees', { params: { limit: 200 } });
+      setEmployees(res.data?.data || []);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+    }
+  };
 
   const loadInspections = async () => {
     try {
@@ -399,21 +411,42 @@ const InternalInspectionManagement = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Loại vi phạm</label>
-                <input
-                  type="text"
+                <select
                   value={formData.violationCategory}
                   onChange={(e) => setFormData({ ...formData, violationCategory: e.target.value })}
                   className="w-full border rounded px-3 py-2"
-                />
+                >
+                  <option value="">-- Chọn --</option>
+                  <option value="An toàn lao động">An toàn lao động</option>
+                  <option value="Vệ sinh thực phẩm">Vệ sinh thực phẩm</option>
+                  <option value="Quy trình sản xuất">Quy trình sản xuất</option>
+                  <option value="Chất lượng sản phẩm">Chất lượng sản phẩm</option>
+                  <option value="Môi trường">Môi trường</option>
+                  <option value="Hành chính">Hành chính</option>
+                  <option value="Khác">Khác</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Người kiểm tra</label>
-                <input
-                  type="text"
+                <select
                   value={formData.inspectedBy}
-                  onChange={(e) => setFormData({ ...formData, inspectedBy: e.target.value })}
+                  onChange={(e) => {
+                    const emp = employees.find(em => `${em.lastName} ${em.firstName}` === e.target.value);
+                    setFormData({
+                      ...formData,
+                      inspectedBy: e.target.value,
+                      inspectedByCode: emp?.employeeCode || '',
+                    });
+                  }}
                   className="w-full border rounded px-3 py-2"
-                />
+                >
+                  <option value="">-- Chọn --</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={`${emp.lastName} ${emp.firstName}`}>
+                      {emp.lastName} {emp.firstName}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium mb-1">Nội dung vi phạm</label>
@@ -443,6 +476,50 @@ const InternalInspectionManagement = () => {
                   <option value="PENDING">Chờ xử lý</option>
                   <option value="VERIFIED">Đã xác nhận</option>
                   <option value="CLOSED">Đã đóng</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Người xác nhận 1</label>
+                <select
+                  value={formData.verifiedBy1}
+                  onChange={(e) => {
+                    const emp = employees.find(em => `${em.lastName} ${em.firstName}` === e.target.value);
+                    setFormData({
+                      ...formData,
+                      verifiedBy1: e.target.value,
+                      verifiedBy1Code: emp?.employeeCode || '',
+                    });
+                  }}
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="">-- Chọn --</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={`${emp.lastName} ${emp.firstName}`}>
+                      {emp.lastName} {emp.firstName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Người xác nhận 2</label>
+                <select
+                  value={formData.verifiedBy2}
+                  onChange={(e) => {
+                    const emp = employees.find(em => `${em.lastName} ${em.firstName}` === e.target.value);
+                    setFormData({
+                      ...formData,
+                      verifiedBy2: e.target.value,
+                      verifiedBy2Code: emp?.employeeCode || '',
+                    });
+                  }}
+                  className="w-full border rounded px-3 py-2"
+                >
+                  <option value="">-- Chọn --</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={`${emp.lastName} ${emp.firstName}`}>
+                      {emp.lastName} {emp.firstName}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

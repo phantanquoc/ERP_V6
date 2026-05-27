@@ -416,8 +416,8 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                 value={singleForm.tenSanPham}
                 onChange={(e) => setSingleForm({ ...singleForm, tenSanPham: e.target.value })}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 placeholder="Nhập tên sản phẩm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -433,13 +433,21 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị tính</label>
-                <input
-                  type="text"
+                <select
                   value={singleForm.donViTinh}
                   onChange={(e) => setSingleForm({ ...singleForm, donViTinh: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Kg, Cái, Hộp..."
-                />
+                >
+                  <option value="">-- Chọn --</option>
+                  <option value="Kg">Kg</option>
+                  <option value="Cái">Cái</option>
+                  <option value="Hộp">Hộp</option>
+                  <option value="Thùng">Thùng</option>
+                  <option value="Lít">Lít</option>
+                  <option value="Gói">Gói</option>
+                  <option value="Bao">Bao</option>
+                  <option value="Tấn">Tấn</option>
+                </select>
               </div>
             </div>
             <div>

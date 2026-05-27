@@ -779,6 +779,7 @@ const EmployeeManagement: React.FC = () => {
                     >
                       <option value="">Chọn trình độ</option>
                       <option value="HIGH_SCHOOL">Trung học</option>
+                      <option value="VOCATIONAL">Trung cấp</option>
                       <option value="ASSOCIATE">Cao đẳng</option>
                       <option value="BACHELOR">Đại học</option>
                       <option value="MASTER">Thạc sĩ</option>
