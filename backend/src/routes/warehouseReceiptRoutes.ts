@@ -5,58 +5,19 @@ import {
   batchCreateWarehouseReceipts,
   getAllWarehouseReceipts,
 } from '../controllers/warehouseReceiptController';
-import { authenticate } from '@middlewares/auth';
+import { authenticate, authorize } from '@middlewares/auth';
+import { UserRole } from '@types';
 
 const router = express.Router();
 
-/**
- * @swagger
- * /api/warehouse-receipts/generate-code:
- *   get:
- *     summary: Tạo mã phiếu nhập kho tự động
- *     tags: [Warehouse Receipts]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Mã phiếu nhập kho được tạo tự động
- */
-router.get('/generate-code', authenticate, generateReceiptCode);
+router.use(authenticate);
 
-/**
- * @swagger
- * /api/warehouse-receipts:
- *   post:
- *     summary: Tạo phiếu nhập kho mới
- *     tags: [Warehouse Receipts]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *     responses:
- *       201:
- *         description: Tạo phiếu nhập kho thành công
- */
-router.post('/batch', authenticate, batchCreateWarehouseReceipts);
-router.post('/', authenticate, createWarehouseReceipt);
+router.get('/generate-code', generateReceiptCode);
 
-/**
- * @swagger
- * /api/warehouse-receipts:
- *   get:
- *     summary: Lấy danh sách phiếu nhập kho
- *     tags: [Warehouse Receipts]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Danh sách phiếu nhập kho
- */
-router.get('/', authenticate, getAllWarehouseReceipts);
+router.post('/batch', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), batchCreateWarehouseReceipts);
+router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), createWarehouseReceipt);
+
+router.get('/', getAllWarehouseReceipts);
 
 export default router;
 

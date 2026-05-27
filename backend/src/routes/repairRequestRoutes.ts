@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import repairRequestController from '@controllers/repairRequestController';
-import { authenticate } from '@middlewares/auth';
+import { authenticate, authorize } from '@middlewares/auth';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
+import { UserRole } from '@types';
 
 const router = Router();
 
@@ -127,7 +128,7 @@ router.get('/:id', authenticate, repairRequestController.getRepairRequestById);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', authenticate, uploadRepairRequest, repairRequestController.createRepairRequest);
+router.post('/', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE), uploadRepairRequest, repairRequestController.createRepairRequest);
 
 /**
  * @swagger
@@ -163,7 +164,7 @@ router.post('/', authenticate, uploadRepairRequest, repairRequestController.crea
  *       404:
  *         description: Không tìm thấy yêu cầu sửa chữa
  */
-router.put('/:id', authenticate, uploadRepairRequest, repairRequestController.updateRepairRequest);
+router.put('/:id', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), uploadRepairRequest, repairRequestController.updateRepairRequest);
 
 /**
  * @swagger
@@ -188,7 +189,7 @@ router.put('/:id', authenticate, uploadRepairRequest, repairRequestController.up
  *       404:
  *         description: Không tìm thấy yêu cầu sửa chữa
  */
-router.delete('/:id', authenticate, repairRequestController.deleteRepairRequest);
+router.delete('/:id', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), repairRequestController.deleteRepairRequest);
 
 export default router;
 

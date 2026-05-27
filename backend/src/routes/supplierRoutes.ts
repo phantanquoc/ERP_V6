@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { supplierController } from '../controllers/supplierController';
+import { authenticate, authorize } from '../middlewares/auth';
+import { UserRole } from '../types';
 
 const router = Router();
+
+router.use(authenticate);
 
 /**
  * @swagger
@@ -99,7 +103,7 @@ router.get('/:id', supplierController.getSupplierById);
  *       400:
  *         description: Dữ liệu không hợp lệ
  */
-router.post('/', supplierController.createSupplier);
+router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), supplierController.createSupplier);
 
 /**
  * @swagger
@@ -127,7 +131,7 @@ router.post('/', supplierController.createSupplier);
  *       404:
  *         description: Không tìm thấy nhà cung cấp
  */
-router.put('/:id', supplierController.updateSupplier);
+router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), supplierController.updateSupplier);
 
 /**
  * @swagger
@@ -149,7 +153,7 @@ router.put('/:id', supplierController.updateSupplier);
  *       404:
  *         description: Không tìm thấy nhà cung cấp
  */
-router.delete('/:id', supplierController.deleteSupplier);
+router.delete('/:id', authorize(UserRole.ADMIN), supplierController.deleteSupplier);
 
 export default router;
 

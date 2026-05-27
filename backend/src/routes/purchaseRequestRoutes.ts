@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import purchaseRequestController from '@controllers/purchaseRequestController';
-import { authenticate } from '@middlewares/auth';
+import { authenticate, authorize } from '@middlewares/auth';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
+import { UserRole } from '@types';
 
 const router = Router();
 
@@ -132,7 +133,7 @@ router.get('/:id', purchaseRequestController.getPurchaseRequestById);
  *       400:
  *         description: Dữ liệu không hợp lệ
  */
-router.post('/', uploadPurchaseRequest, purchaseRequestController.createPurchaseRequest);
+router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), uploadPurchaseRequest, purchaseRequestController.createPurchaseRequest);
 
 /**
  * @swagger
@@ -168,7 +169,7 @@ router.post('/', uploadPurchaseRequest, purchaseRequestController.createPurchase
  *       404:
  *         description: Không tìm thấy yêu cầu mua hàng
  */
-router.put('/:id', uploadPurchaseRequest, purchaseRequestController.updatePurchaseRequest);
+router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), uploadPurchaseRequest, purchaseRequestController.updatePurchaseRequest);
 
 /**
  * @swagger
@@ -194,7 +195,7 @@ router.put('/:id', uploadPurchaseRequest, purchaseRequestController.updatePurcha
  *       404:
  *         description: Không tìm thấy yêu cầu mua hàng
  */
-router.delete('/:id', purchaseRequestController.deletePurchaseRequest);
+router.delete('/:id', authorize(UserRole.ADMIN), purchaseRequestController.deletePurchaseRequest);
 
 export default router;
 

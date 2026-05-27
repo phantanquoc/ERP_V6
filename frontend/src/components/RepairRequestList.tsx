@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Edit, Eye, Trash2, X, CheckCircle, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL, getFileUrl } from '../config/api';
+import apiClient from '../services/apiClient';
 import FileUpload from './FileUpload';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
 
@@ -51,22 +52,11 @@ const RepairRequestList = () => {
 
   const fetchRequests = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(API_BASE_URL + '/repair-requests', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const result = await response.json();
-      // Handle new API response format with success and data
-      const data = result.success ? result.data : result;
-      setRequests(Array.isArray(data) ? data : []);
+      const result = await apiClient.get<RepairRequest[]>('/repair-requests');
+      setRequests(Array.isArray(result.data) ? result.data : []);
     } catch (error) {
       console.error('Error fetching requests:', error);
-      setRequests([]); // Set empty array on error
+      setRequests([]);
     }
   };
 
@@ -83,25 +73,13 @@ const RepairRequestList = () => {
     }
 
     try {
-      const token = localStorage.getItem('accessToken');
       const url = editingRequest
-        ? `${API_BASE_URL}/repair-requests/${editingRequest.id}`
-        : API_BASE_URL + '/repair-requests';
-
-      const method = editingRequest ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formDataToSend,
-      });
-
-      if (response.ok) {
-        fetchRequests();
-        handleCloseModal();
-      }
+        ? `/repair-requests/${editingRequest.id}`
+        : '/repair-requests';
+      const method = editingRequest ? 'put' : 'post';
+      await apiClient[method](url, formDataToSend);
+      fetchRequests();
+      handleCloseModal();
     } catch (error) {
       console.error('Error saving request:', error);
     }
@@ -111,17 +89,8 @@ const RepairRequestList = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa yêu cầu này?')) return;
 
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/repair-requests/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        fetchRequests();
-      }
+      await apiClient.delete(`/repair-requests/${id}`);
+      fetchRequests();
     } catch (error) {
       console.error('Error deleting request:', error);
     }
@@ -175,11 +144,7 @@ const RepairRequestList = () => {
     };
 
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(API_BASE_URL + '/repair-requests/generate-code', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const result = await response.json();
+      const result = await apiClient.get<{ code: string }>('/repair-requests/generate-code');
       setFormData({ ...emptyForm, maYeuCau: result?.data?.code ?? '' });
     } catch (error) {
       console.error('Error generating code:', error);
@@ -219,9 +184,7 @@ const RepairRequestList = () => {
   const handleExportExcel = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const API_URL = API_BASE_URL;
-      const url = `${API_URL}/repair-requests/export/excel`;
-      const response = await fetch(url, {
+      const response = await fetch(`${API_BASE_URL}/repair-requests/export/excel`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) throw new Error('Failed to export');
