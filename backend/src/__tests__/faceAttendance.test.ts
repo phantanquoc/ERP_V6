@@ -8,6 +8,7 @@
 
 // Mock tất cả external dependencies trước khi import service
 jest.mock('@config/database', () => ({
+  __esModule: true,
   default: {
     workShift: { findMany: jest.fn() },
     faceImage:  { findMany: jest.fn(), create: jest.fn(), count: jest.fn(), deleteMany: jest.fn() },
@@ -48,9 +49,6 @@ jest.mock('fs', () => ({
   mkdirSync:    jest.fn(),
   writeFileSync: jest.fn(),
 }));
-
-// Import sau khi mock
-import prisma from '@config/database';
 
 // ─── Helper: Normalize vector ────────────────────────────────────────────────
 // Test bằng cách import trực tiếp qua dynamic extraction từ service module
@@ -103,14 +101,10 @@ describe('Face Attendance — Math utilities', () => {
 
 // ─── getLateMinutes logic ─────────────────────────────────────────────────────
 describe('Late detection logic', () => {
-  const mockPrisma = prisma as jest.Mocked<typeof prisma>;
-
   beforeEach(() => jest.clearAllMocks());
 
   it('returns 0 when no active shifts', async () => {
-    (mockPrisma.workShift.findMany as jest.Mock).mockResolvedValue([]);
-
-    // Simulate getLateMinutes logic directly
+    // Simulate getLateMinutes logic directly — no real DB call in this test
     const shifts: any[] = [];
     const result = shifts.length === 0
       ? { lateMinutes: 0, shiftName: null }
