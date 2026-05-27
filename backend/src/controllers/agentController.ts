@@ -14,6 +14,17 @@ export class AgentController {
     return dept?.code ?? '';
   }
 
+  private async _getSecondaryDepartments(req: AuthenticatedRequest): Promise<string[]> {
+    const entries = req.user?.secondaryDepartments;
+    if (!entries || entries.length === 0) return [];
+    const deptIds = entries.map(e => e.departmentId);
+    const depts = await prisma.department.findMany({
+      where: { id: { in: deptIds } },
+      select: { code: true },
+    });
+    return depts.map(d => d.code);
+  }
+
   async stream(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { message, history, confirm_tool, confirm_params } = req.body as {
@@ -29,6 +40,7 @@ export class AgentController {
 
       const role = req.user?.role ?? '';
       const department = await this._getDepartment(req);
+      const secondaryDepartments = await this._getSecondaryDepartments(req);
       const jwtToken = req.headers.authorization?.replace('Bearer ', '') ?? '';
 
       const controller = new AbortController();
@@ -45,6 +57,7 @@ export class AgentController {
           body: JSON.stringify({
             message: message?.trim() ?? '',
             department,
+            secondary_departments: secondaryDepartments,
             role,
             history: Array.isArray(history) ? history : [],
             confirm_tool: confirm_tool ?? '',

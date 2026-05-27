@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import acceptanceHandoverController from '@controllers/acceptanceHandoverController';
-import { authenticate } from '@middlewares/auth';
+import { authenticate, authorize } from '@middlewares/auth';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
+import { UserRole } from '@types';
 
 const router = Router();
 
@@ -130,7 +131,7 @@ router.get('/:id', acceptanceHandoverController.getAcceptanceHandoverById);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', uploadAcceptanceHandover, acceptanceHandoverController.createAcceptanceHandover);
+router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), uploadAcceptanceHandover, acceptanceHandoverController.createAcceptanceHandover);
 
 /**
  * @swagger
@@ -166,7 +167,7 @@ router.post('/', uploadAcceptanceHandover, acceptanceHandoverController.createAc
  *       404:
  *         description: Không tìm thấy biên bản nghiệm thu
  */
-router.put('/:id', uploadAcceptanceHandover, acceptanceHandoverController.updateAcceptanceHandover);
+router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), uploadAcceptanceHandover, acceptanceHandoverController.updateAcceptanceHandover);
 
 /**
  * @swagger
@@ -191,7 +192,7 @@ router.put('/:id', uploadAcceptanceHandover, acceptanceHandoverController.update
  *       404:
  *         description: Không tìm thấy biên bản nghiệm thu
  */
-router.delete('/:id', acceptanceHandoverController.deleteAcceptanceHandover);
+router.delete('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), acceptanceHandoverController.deleteAcceptanceHandover);
 
 export default router;
 

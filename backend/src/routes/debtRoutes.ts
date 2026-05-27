@@ -8,9 +8,13 @@ import {
   getDebtSummary,
   exportDebtsToExcel,
 } from '../controllers/debtController';
+import { authenticate, authorize } from '../middlewares/auth';
 import { createSingleUploadMiddleware } from '../middlewares/upload';
+import { UserRole } from '../types';
 
 const router = express.Router();
+
+router.use(authenticate);
 
 // Upload middleware for debts
 const uploadDebt = createSingleUploadMiddleware('debts');
@@ -110,7 +114,7 @@ router.get('/:id', getDebtById);
  *       400:
  *         description: Dữ liệu không hợp lệ
  */
-router.post('/', uploadDebt, createDebt);
+router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), uploadDebt, createDebt);
 
 /**
  * @swagger
@@ -137,7 +141,7 @@ router.post('/', uploadDebt, createDebt);
  *       404:
  *         description: Không tìm thấy công nợ
  */
-router.put('/:id', uploadDebt, updateDebt);
+router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), uploadDebt, updateDebt);
 
 /**
  * @swagger
@@ -159,7 +163,7 @@ router.put('/:id', uploadDebt, updateDebt);
  *       404:
  *         description: Không tìm thấy công nợ
  */
-router.delete('/:id', deleteDebt);
+router.delete('/:id', authorize(UserRole.ADMIN), deleteDebt);
 
 export default router;
 
