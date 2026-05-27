@@ -6,7 +6,7 @@ import materialStandardService, { MaterialStandard } from '../services/materialS
 import { QuotationRequest } from '../services/quotationRequestService';
 // warehouseInventoryService đã được xóa - tồn kho sẽ được nhập thủ công
 import warehouseService from '../services/warehouseService';
-import productionProcessService, { ProductionProcess } from '../services/productionProcessService';
+import { processService, Process } from '../services/processService';
 import generalCostService, { GeneralCost } from '../services/generalCostService';
 import exportCostService, { ExportCost } from '../services/exportCostService';
 import quotationCalculatorService from '../services/quotationCalculatorService';
@@ -66,7 +66,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [materialStandards, setMaterialStandards] = useState<MaterialStandard[]>([]);
-  const [productionProcesses, setProductionProcesses] = useState<ProductionProcess[]>([]);
+  const [productionProcesses, setProductionProcesses] = useState<Process[]>([]);
 
   // State for create quotation modal
   const [showCreateQuotationModal, setShowCreateQuotationModal] = useState(false);
@@ -128,7 +128,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
   // State for each product tab
   const [tabsData, setTabsData] = useState<{
     selectedStandard: MaterialStandard | null;
-    selectedProcess: ProductionProcess | null;
+    selectedProcess: Process | null;
     formData: {
       maBaoGia: string;
       maDinhMuc: string;
@@ -177,7 +177,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     selectedProduct: InternationalProduct | null; // Sản phẩm được chọn từ danh sách
     selectedProductType: string; // Loại sản phẩm đã chọn (để lọc)
     selectedStandard: MaterialStandard | null;
-    selectedProcess: ProductionProcess | null;
+    selectedProcess: Process | null;
     formData: {
       maBaoGia: string;
       maDinhMuc: string;
@@ -421,26 +421,24 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               }
             }
 
-            // Load full ProductionProcess if exists
+            // Load full Process if exists (productionProcessId field stores process.id)
             if (product.productionProcessId) {
               try {
-                const response = await productionProcessService.getProductionProcessById(product.productionProcessId);
+                const response = await processService.getProcessById(product.productionProcessId);
 
-                // Extract process data from response
+                // flowchart nằm trong response.data
                 selectedProcess = {
                   ...response.data,
-                  flowchart: product.flowchartData || response.flowchart, // Prioritize saved flowchart
+                  flowchart: product.flowchartData || response.data?.flowchart || null, // Ưu tiên flowchart đã lưu
                 };
-
-                console.log('Loaded production process:', selectedProcess);
               } catch (error) {
-                console.error('Error loading production process:', error);
+                console.error('Error loading process:', error);
                 // Fallback to partial data
                 selectedProcess = {
                   id: product.productionProcessId,
-                  maQuyTrinhSanXuat: product.maQuyTrinhSanXuat || '',
-                  tenQuyTrinhSanXuat: product.tenQuyTrinhSanXuat || '',
-                  flowchart: product.flowchartData || undefined,
+                  maQuyTrinh: product.maQuyTrinhSanXuat || '',
+                  tenQuyTrinh: product.tenQuyTrinhSanXuat || '',
+                  flowchart: product.flowchartData || null,
                 } as any;
               }
             }
@@ -616,16 +614,16 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               }
             }
 
-            // Load full ProductionProcess if exists
+            // Load full Process if exists (productionProcessId field stores process.id)
             if (product.productionProcessId) {
               try {
-                const response = await productionProcessService.getProductionProcessById(product.productionProcessId);
+                const response = await processService.getProcessById(product.productionProcessId);
                 selectedProcess = {
                   ...response.data,
-                  flowchart: product.flowchartData || response.flowchart,
+                  flowchart: product.flowchartData || response.data?.flowchart || null,
                 };
               } catch (error) {
-                console.error('Error loading production process for additional cost:', error);
+                console.error('Error loading process for additional cost:', error);
               }
             }
 
@@ -804,8 +802,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
   const loadProductionProcesses = async () => {
     try {
-      const response = await productionProcessService.getAllProductionProcesses(1, 100);
-      console.log('QuotationCalculatorModal - Production Processes loaded:', response.data);
+      const response = await processService.getAllProcesses(1, 100);
       setProductionProcesses(response.data);
     } catch (error) {
       console.error('Error loading production processes:', error);
@@ -936,10 +933,10 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     }
 
     try {
-      const response = await productionProcessService.getProductionProcessById(processId);
+      const response = await processService.getProcessById(processId);
       const processData = {
         ...response.data,
-        flowchart: response.flowchart || response.data?.flowchart,
+        flowchart: response.data?.flowchart ?? null,
       };
 
       setAdditionalCostTabs(prev => prev.map(tab => {
@@ -1038,22 +1035,13 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     }
 
     try {
-      const response = await productionProcessService.getProductionProcessById(processId);
-      console.log('Loaded production process - Full response:', response);
-      console.log('🔍 response.success:', response.success);
-      console.log('🔍 response.data:', response.data);
-      console.log('🔍 response.flowchart:', response.flowchart);
-      console.log('🔍 response.data.flowchart:', response.data?.flowchart);
+      const response = await processService.getProcessById(processId);
 
-      // Extract the actual process data
-      // API returns {success: true, data: {...}, flowchart: {...}}
+      // flowchart nằm trong response.data — API trả về { success, data: { ..., flowchart } }
       const processData = {
         ...response.data,
-        flowchart: response.flowchart || response.data?.flowchart, // Try both locations
+        flowchart: response.data?.flowchart ?? null,
       };
-
-      console.log('🔍 Extracted processData:', processData);
-      console.log('🔍 processData.flowchart:', processData.flowchart);
 
       setTabsData(prev => {
         const newTabs = [...prev];
@@ -1206,111 +1194,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     }
   };
 
-  // Auto-fill tồn kho khi chọn sản phẩm đầu ra
-  const handleOutputProductChange = async (productName: string) => {
+  // Xử lý khi chọn sản phẩm đầu ra — tồn kho nhập thủ công (warehouseInventoryService đã bị xóa)
+  const handleOutputProductChange = (productName: string) => {
     updateFormData('sanPhamDauRa', productName);
 
-    if (productName) {
-      try {
-        const response = await warehouseInventoryService.getInventoryByProductName(productName);
-
-        if (response.success && response.data) {
-          // Auto-fill số lượng tồn kho
-          const inventory = response.data.soLuongTon;
-          const orderQuantity = quotationRequest.items?.[activeTab]?.soLuong || 0;
-          const totalNeeded = calculateTotalNeeded(orderQuantity, inventory);
-
-          // Tính tổng nguyên liệu cần sản xuất
-          const currentTab = tabsData[activeTab];
-          const tiLeThuHoiThanhPham = parseFloat(currentTab.formData.tiLeThuHoi) || 0;
-          const tiLeThuHoiSanPham = currentTab.selectedStandard?.items?.find(
-            item => item.tenThanhPham === productName
-          )?.tiLe || 0;
-          const totalMaterialNeeded = calculateTotalMaterialNeeded(totalNeeded, tiLeThuHoiSanPham, tiLeThuHoiThanhPham);
-
-          // Tính nguyên liệu cần nhập thêm
-          const materialInventory = parseFloat(currentTab.formData.nguyenLieuTonKho) || 0;
-          const materialToImport = calculateMaterialToImport(totalMaterialNeeded, materialInventory);
-
-          setTabsData(prev => {
-            const newTabs = [...prev];
-            newTabs[activeTab] = {
-              ...newTabs[activeTab],
-              formData: {
-                ...newTabs[activeTab].formData,
-                thanhPhamTonKho: inventory.toString(),
-                tongThanhPhamCanSxThem: totalNeeded.toString(),
-                tongNguyenLieuCanSanXuat: totalMaterialNeeded > 0 ? totalMaterialNeeded.toFixed(2) : '',
-                nguyenLieuCanNhapThem: materialToImport > 0 ? materialToImport.toFixed(2) : '',
-              },
-            };
-            return newTabs;
-          });
-        } else {
-          // Không tìm thấy tồn kho, reset về 0
-          const orderQuantity = quotationRequest.items?.[activeTab]?.soLuong || 0;
-          const totalNeeded = calculateTotalNeeded(orderQuantity, 0);
-
-          // Tính tổng nguyên liệu cần sản xuất
-          const currentTab = tabsData[activeTab];
-          const tiLeThuHoiThanhPham = parseFloat(currentTab.formData.tiLeThuHoi) || 0;
-          const tiLeThuHoiSanPham = currentTab.selectedStandard?.items?.find(
-            item => item.tenThanhPham === productName
-          )?.tiLe || 0;
-          const totalMaterialNeeded = calculateTotalMaterialNeeded(totalNeeded, tiLeThuHoiSanPham, tiLeThuHoiThanhPham);
-
-          // Tính nguyên liệu cần nhập thêm
-          const materialInventory = parseFloat(currentTab.formData.nguyenLieuTonKho) || 0;
-          const materialToImport = calculateMaterialToImport(totalMaterialNeeded, materialInventory);
-
-          setTabsData(prev => {
-            const newTabs = [...prev];
-            newTabs[activeTab] = {
-              ...newTabs[activeTab],
-              formData: {
-                ...newTabs[activeTab].formData,
-                thanhPhamTonKho: '0',
-                tongThanhPhamCanSxThem: totalNeeded.toString(),
-                tongNguyenLieuCanSanXuat: totalMaterialNeeded > 0 ? totalMaterialNeeded.toFixed(2) : '',
-                nguyenLieuCanNhapThem: materialToImport > 0 ? materialToImport.toFixed(2) : '',
-              },
-            };
-            return newTabs;
-          });
-        }
-      } catch (error) {
-        // Nếu lỗi, reset về 0
-        const orderQuantity = quotationRequest.items?.[activeTab]?.soLuong || 0;
-        const totalNeeded = calculateTotalNeeded(orderQuantity, 0);
-
-        // Tính tổng nguyên liệu cần sản xuất
-        const currentTab = tabsData[activeTab];
-        const tiLeThuHoiThanhPham = parseFloat(currentTab.formData.tiLeThuHoi) || 0;
-        const tiLeThuHoiSanPham = currentTab.selectedStandard?.items?.find(
-          item => item.tenThanhPham === productName
-        )?.tiLe || 0;
-        const totalMaterialNeeded = calculateTotalMaterialNeeded(totalNeeded, tiLeThuHoiSanPham, tiLeThuHoiThanhPham);
-
-        // Tính nguyên liệu cần nhập thêm
-        const materialInventory = parseFloat(currentTab.formData.nguyenLieuTonKho) || 0;
-        const materialToImport = calculateMaterialToImport(totalMaterialNeeded, materialInventory);
-
-        setTabsData(prev => {
-          const newTabs = [...prev];
-          newTabs[activeTab] = {
-            ...newTabs[activeTab],
-            formData: {
-              ...newTabs[activeTab].formData,
-              thanhPhamTonKho: '0',
-              tongThanhPhamCanSxThem: totalNeeded.toString(),
-              tongNguyenLieuCanSanXuat: totalMaterialNeeded > 0 ? totalMaterialNeeded.toFixed(2) : '',
-              nguyenLieuCanNhapThem: materialToImport > 0 ? materialToImport.toFixed(2) : '',
-            },
-          };
-          return newTabs;
-        });
-      }
-    } else {
+    if (!productName) {
       // Nếu không chọn sản phẩm, reset về rỗng
       setTabsData(prev => {
         const newTabs = [...prev];
@@ -1437,120 +1325,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
   // ==================== ADDITIONAL TAB CALCULATION HANDLERS ====================
 
-  // Auto-fill tồn kho khi chọn sản phẩm đầu ra cho tab Chi phí bổ sung
-  const handleAdditionalTabOutputProductChange = async (tabId: string, productName: string) => {
+  // Xử lý khi chọn sản phẩm đầu ra cho tab Chi phí bổ sung — tồn kho nhập thủ công
+  const handleAdditionalTabOutputProductChange = (tabId: string, productName: string) => {
     updateAdditionalTabFormData(tabId, 'sanPhamDauRa', productName);
 
-    if (productName) {
-      try {
-        const response = await warehouseInventoryService.getInventoryByProductName(productName);
-
-        if (response.success && response.data) {
-          // Auto-fill số lượng tồn kho
-          const inventory = response.data.soLuongTon;
-          const currentTab = additionalCostTabs.find(tab => tab.id === tabId);
-          const orderQuantity = parseFloat(currentTab?.formData.soLuong || '0') || 0;
-          const totalNeeded = calculateTotalNeeded(orderQuantity, inventory);
-
-          // Tính tổng nguyên liệu cần sản xuất
-          const tiLeThuHoiThanhPham = parseFloat(currentTab?.formData.tiLeThuHoi || '0') || 0;
-          const tiLeThuHoiSanPham = currentTab?.selectedStandard?.items?.find(
-            item => item.tenThanhPham === productName
-          )?.tiLe || 0;
-          const totalMaterialNeeded = calculateTotalMaterialNeeded(totalNeeded, tiLeThuHoiSanPham, tiLeThuHoiThanhPham);
-
-          // Tính nguyên liệu cần nhập thêm
-          const materialInventory = parseFloat(currentTab?.formData.nguyenLieuTonKho || '0') || 0;
-          const materialToImport = calculateMaterialToImport(totalMaterialNeeded, materialInventory);
-
-          setAdditionalCostTabs(prev => {
-            return prev.map(tab => {
-              if (tab.id === tabId) {
-                return {
-                  ...tab,
-                  formData: {
-                    ...tab.formData,
-                    thanhPhamTonKho: inventory.toString(),
-                    tongThanhPhamCanSxThem: totalNeeded.toString(),
-                    tongNguyenLieuCanSanXuat: totalMaterialNeeded > 0 ? totalMaterialNeeded.toFixed(2) : '',
-                    nguyenLieuCanNhapThem: materialToImport > 0 ? materialToImport.toFixed(2) : '',
-                  },
-                };
-              }
-              return tab;
-            });
-          });
-        } else {
-          // Không tìm thấy tồn kho, reset về 0
-          const currentTab = additionalCostTabs.find(tab => tab.id === tabId);
-          const orderQuantity = parseFloat(currentTab?.formData.soLuong || '0') || 0;
-          const totalNeeded = calculateTotalNeeded(orderQuantity, 0);
-
-          // Tính tổng nguyên liệu cần sản xuất
-          const tiLeThuHoiThanhPham = parseFloat(currentTab?.formData.tiLeThuHoi || '0') || 0;
-          const tiLeThuHoiSanPham = currentTab?.selectedStandard?.items?.find(
-            item => item.tenThanhPham === productName
-          )?.tiLe || 0;
-          const totalMaterialNeeded = calculateTotalMaterialNeeded(totalNeeded, tiLeThuHoiSanPham, tiLeThuHoiThanhPham);
-
-          // Tính nguyên liệu cần nhập thêm
-          const materialInventory = parseFloat(currentTab?.formData.nguyenLieuTonKho || '0') || 0;
-          const materialToImport = calculateMaterialToImport(totalMaterialNeeded, materialInventory);
-
-          setAdditionalCostTabs(prev => {
-            return prev.map(tab => {
-              if (tab.id === tabId) {
-                return {
-                  ...tab,
-                  formData: {
-                    ...tab.formData,
-                    thanhPhamTonKho: '0',
-                    tongThanhPhamCanSxThem: totalNeeded.toString(),
-                    tongNguyenLieuCanSanXuat: totalMaterialNeeded > 0 ? totalMaterialNeeded.toFixed(2) : '',
-                    nguyenLieuCanNhapThem: materialToImport > 0 ? materialToImport.toFixed(2) : '',
-                  },
-                };
-              }
-              return tab;
-            });
-          });
-        }
-      } catch (error) {
-        // Nếu lỗi, reset về 0
-        const currentTab = additionalCostTabs.find(tab => tab.id === tabId);
-        const orderQuantity = parseFloat(currentTab?.formData.soLuong || '0') || 0;
-        const totalNeeded = calculateTotalNeeded(orderQuantity, 0);
-
-        // Tính tổng nguyên liệu cần sản xuất
-        const tiLeThuHoiThanhPham = parseFloat(currentTab?.formData.tiLeThuHoi || '0') || 0;
-        const tiLeThuHoiSanPham = currentTab?.selectedStandard?.items?.find(
-          item => item.tenThanhPham === productName
-        )?.tiLe || 0;
-        const totalMaterialNeeded = calculateTotalMaterialNeeded(totalNeeded, tiLeThuHoiSanPham, tiLeThuHoiThanhPham);
-
-        // Tính nguyên liệu cần nhập thêm
-        const materialInventory = parseFloat(currentTab?.formData.nguyenLieuTonKho || '0') || 0;
-        const materialToImport = calculateMaterialToImport(totalMaterialNeeded, materialInventory);
-
-        setAdditionalCostTabs(prev => {
-          return prev.map(tab => {
-            if (tab.id === tabId) {
-              return {
-                ...tab,
-                formData: {
-                  ...tab.formData,
-                  thanhPhamTonKho: '0',
-                  tongThanhPhamCanSxThem: totalNeeded.toString(),
-                  tongNguyenLieuCanSanXuat: totalMaterialNeeded > 0 ? totalMaterialNeeded.toFixed(2) : '',
-                  nguyenLieuCanNhapThem: materialToImport > 0 ? materialToImport.toFixed(2) : '',
-                },
-              };
-            }
-            return tab;
-          });
-        });
-      }
-    } else {
+    if (!productName) {
       // Nếu không chọn sản phẩm, reset về rỗng
       setAdditionalCostTabs(prev => {
         return prev.map(tab => {
@@ -1761,8 +1540,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 tongNguyenLieuCanSanXuatThucTe: tab.formData.tongNguyenLieuCanSanXuatThucTe ? parseFloat(tab.formData.tongNguyenLieuCanSanXuatThucTe) : undefined,
                 loiNhuanCongThemThucTe: tab.formData.loiNhuanCongThemThucTe ? parseFloat(tab.formData.loiNhuanCongThemThucTe) : undefined,
                 productionProcessId: tab.selectedProcess?.id,
-                maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinhSanXuat,
-                tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinhSanXuat,
+                maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinh,
+                tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinh,
                 flowchartData: tab.selectedProcess?.flowchart || undefined,
                 thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
                 ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
@@ -1828,8 +1607,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 nguyenLieuTonKho: tab.formData.nguyenLieuTonKho ? parseFloat(tab.formData.nguyenLieuTonKho) : undefined,
                 nguyenLieuCanNhapThem: tab.formData.nguyenLieuCanNhapThem ? parseFloat(tab.formData.nguyenLieuCanNhapThem) : undefined,
                 productionProcessId: tab.selectedProcess?.id,
-                maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinhSanXuat,
-                tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinhSanXuat,
+                maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinh,
+                tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinh,
                 flowchartData: tab.selectedProcess?.flowchart || undefined,
                 thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
                 ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
@@ -1988,8 +1767,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               tongNguyenLieuCanSanXuatThucTe: tab.formData.tongNguyenLieuCanSanXuatThucTe ? parseFloat(tab.formData.tongNguyenLieuCanSanXuatThucTe) : undefined,
               loiNhuanCongThemThucTe: tab.formData.loiNhuanCongThemThucTe ? parseFloat(tab.formData.loiNhuanCongThemThucTe) : undefined,
               productionProcessId: tab.selectedProcess?.id,
-              maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinhSanXuat,
-              tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinhSanXuat,
+              maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinh,
+              tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinh,
               flowchartData: tab.selectedProcess?.flowchart || undefined,
               thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
               ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
@@ -2044,8 +1823,8 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               nguyenLieuTonKho: tab.formData.nguyenLieuTonKho ? parseFloat(tab.formData.nguyenLieuTonKho) : undefined,
               nguyenLieuCanNhapThem: tab.formData.nguyenLieuCanNhapThem ? parseFloat(tab.formData.nguyenLieuCanNhapThem) : undefined,
               productionProcessId: tab.selectedProcess?.id,
-              maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinhSanXuat,
-              tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinhSanXuat,
+              maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinh,
+              tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinh,
               flowchartData: tab.selectedProcess?.flowchart || undefined,
               thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
               ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat || undefined,
@@ -4317,13 +4096,23 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   <option value="">-- Chọn quy trình --</option>
                   {productionProcesses.map((process) => (
                     <option key={process.id} value={process.id}>
-                      {process.maQuyTrinhSanXuat} - {process.tenQuyTrinhSanXuat || process.tenQuyTrinh}
+                      {process.maQuyTrinh} - {process.tenQuyTrinh}
                     </option>
                   ))}
                 </select>
               </div>
 
               {/* Bảng lưu đồ quy trình cho chi phí bổ sung */}
+              {/* Fallback: process đã chọn nhưng chưa có lưu đồ */}
+              {currentAdditionalTab && currentAdditionalTab.selectedProcess && !currentAdditionalTab.selectedProcess.flowchart && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-300 rounded-md flex items-start gap-2">
+                  <span className="text-yellow-500 mt-0.5">⚠️</span>
+                  <p className="text-sm text-yellow-700">
+                    Quy trình <strong>{currentAdditionalTab.selectedProcess.tenQuyTrinh || currentAdditionalTab.selectedProcess.maQuyTrinh}</strong> chưa có lưu đồ.
+                    Vui lòng tạo lưu đồ trong module <strong>Quy trình sản xuất</strong> trước khi sử dụng.
+                  </p>
+                </div>
+              )}
               {currentAdditionalTab && currentAdditionalTab.selectedProcess && currentAdditionalTab.selectedProcess.flowchart && (
                 <div className="mt-6">
                   <h4 className="text-md font-semibold text-gray-800 mb-3 border-b pb-2">
@@ -5412,19 +5201,23 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               <option value="">-- Chọn quy trình --</option>
               {productionProcesses.map((process) => (
                 <option key={process.id} value={process.id}>
-                  {process.maQuyTrinhSanXuat} - {process.tenQuyTrinhSanXuat || process.tenQuyTrinh}
+                  {process.maQuyTrinh} - {process.tenQuyTrinh}
                 </option>
               ))}
             </select>
           </div>
 
           {/* Bảng lưu đồ quy trình */}
-          {(() => {
-            console.log('🔍 Render check - currentTab:', currentTab);
-            console.log('🔍 Render check - selectedProcess:', currentTab?.selectedProcess);
-            console.log('🔍 Render check - flowchart:', currentTab?.selectedProcess?.flowchart);
-            return null;
-          })()}
+          {/* Fallback: process đã chọn nhưng chưa có lưu đồ */}
+          {currentTab && currentTab.selectedProcess && !currentTab.selectedProcess.flowchart && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-300 rounded-md flex items-start gap-2">
+              <span className="text-yellow-500 mt-0.5">⚠️</span>
+              <p className="text-sm text-yellow-700">
+                Quy trình <strong>{currentTab.selectedProcess.tenQuyTrinh || currentTab.selectedProcess.maQuyTrinh}</strong> chưa có lưu đồ.
+                Vui lòng tạo lưu đồ trong module <strong>Quy trình sản xuất</strong> trước khi sử dụng.
+              </p>
+            </div>
+          )}
           {currentTab && currentTab.selectedProcess && currentTab.selectedProcess.flowchart && (
             <div className="mt-6">
               <h4 className="text-md font-semibold text-gray-800 mb-3 border-b pb-2">
