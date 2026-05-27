@@ -173,6 +173,34 @@ export class EmployeeEvaluationController {
     }
   }
 
+  async syncEvaluationDetails(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { month, year } = req.body;
+
+      if (!month || !year) {
+        res.status(400).json({
+          success: false,
+          message: 'Month and year are required',
+        });
+        return;
+      }
+
+      const result = await employeeEvaluationService.syncEvaluationDetails(
+        Number(month),
+        Number(year)
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        message: `Đồng bộ tiêu chí thành công: ${result.synced} đánh giá được cập nhật, ${result.skipped} đã đầy đủ`,
+      });
+      return;
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getSubordinatesForEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { month, year } = req.params;

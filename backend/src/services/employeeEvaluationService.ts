@@ -261,32 +261,36 @@ export class EmployeeEvaluationService {
 
     for (const employee of employeesToCreate) {
       try {
-        const evaluation = await prisma.evaluation.create({
-          data: {
-            employeeId: employee.id,
-            period,
-            score: 0,
-          },
+        let evaluationId: string | null = null;
+
+        await prisma.$transaction(async (tx) => {
+          const evaluation = await tx.evaluation.create({
+            data: {
+              employeeId: employee.id,
+              period,
+              score: 0,
+            },
+          });
+          evaluationId = evaluation.id;
+
+          const responsibilities = employee.position?.responsibilities || [];
+          if (responsibilities.length > 0) {
+            await tx.evaluationDetail.createMany({
+              data: responsibilities.map(resp => ({
+                evaluationId: evaluation.id,
+                positionResponsibilityId: resp.id,
+              })),
+            });
+          }
         });
 
-        // Create evaluation details for all position responsibilities
-        const responsibilities = employee.position?.responsibilities || [];
-        if (responsibilities.length > 0) {
-          await prisma.evaluationDetail.createMany({
-            data: responsibilities.map(resp => ({
-              evaluationId: evaluation.id,
-              positionResponsibilityId: resp.id,
-            })),
-          });
-        }
-
-        // Create notification for employee (skip ADMIN — they only review subordinates)
-        if (employee.user?.role !== 'ADMIN') {
+        // Notification sent outside transaction so it only fires on successful commit
+        if (evaluationId && employee.user?.role !== 'ADMIN') {
           await notificationService.createEvaluationNotification(
             employee.id,
             month,
             year,
-            evaluation.id
+            evaluationId
           );
         }
 
@@ -358,7 +362,7 @@ export class EmployeeEvaluationService {
         }
         // Regular user can only update selfScore
         if (data.supervisorScore1 !== undefined || data.supervisorScore2 !== undefined) {
-          throw new Error('You can only update your own score');
+          throw new ValidationError('Không thể cập nhật điểm cấp trên: bạn không có quyền');
         }
       }
     }
@@ -389,168 +393,186 @@ export class EmployeeEvaluationService {
       },
     });
 
-    // Handle notification workflow
+    // Handle notification workflow — each branch uses a transaction to prevent
+    // race conditions when two requests concurrently save the last detail.
+    // Status update happens inside the transaction; notifications are sent after commit.
     try {
       if (data.selfScore !== undefined) {
-        // Employee just completed self-evaluation
-        // Check if all details have selfScore
-        const allDetailsWithSelfScore = await prisma.evaluationDetail.findMany({
-          where: {
-            evaluationId: detail.evaluation.id,
-            selfScore: { not: null },
-          },
-        });
+        const notifRef: { target: { type: 'supervisor1' | 'supervisor2' | 'completed'; userId: string } | null } = { target: null };
 
-        const totalDetails = await prisma.evaluationDetail.count({
-          where: { evaluationId: detail.evaluation.id },
-        });
+        await prisma.$transaction(async (tx) => {
+          const currentEval = await tx.evaluation.findUnique({
+            where: { id: detail.evaluation.id },
+            select: { status: true },
+          });
+          if (currentEval?.status !== EvaluationStatus.SELF_PENDING) return;
 
-        if (allDetailsWithSelfScore.length === totalDetails) {
-          // All self-evaluations are done
-          const employee = await prisma.employee.findUnique({
+          const filled = await tx.evaluationDetail.count({
+            where: { evaluationId: detail.evaluation.id, selfScore: { not: null } },
+          });
+          const total = await tx.evaluationDetail.count({
+            where: { evaluationId: detail.evaluation.id },
+          });
+          if (filled < total) return;
+
+          const employee = await tx.employee.findUnique({
             where: { id: detail.evaluation.employeeId },
             include: { user: true },
           });
 
           if (employee?.user?.supervisor1Id) {
-            // Update status first, then send notification outside transaction
-            await prisma.evaluation.update({
+            await tx.evaluation.update({
               where: { id: detail.evaluation.id },
               data: { status: EvaluationStatus.SUPERVISOR1_PENDING },
             });
-
-            await notificationService.createNotification({
-              userId: employee.user!.supervisor1Id!,
-              type: NotificationType.EVALUATION_SUPERVISOR1,
-              title: 'Đánh giá cấp trên 1',
-              message: `Bạn có 1 đánh giá mới`,
-              evaluationId: detail.evaluation.id,
-              period: detail.evaluation.period,
-            });
+            notifRef.target = { type: 'supervisor1', userId: employee.user.supervisor1Id };
           } else if (employee?.user?.supervisor2Id) {
-            // No supervisor1, send to supervisor2
-            await prisma.evaluation.update({
+            await tx.evaluation.update({
               where: { id: detail.evaluation.id },
               data: { status: EvaluationStatus.SUPERVISOR2_PENDING },
             });
-
-            await notificationService.createNotification({
-              userId: employee.user!.supervisor2Id!,
-              type: NotificationType.EVALUATION_SUPERVISOR2,
-              title: 'Đánh giá cấp trên 2',
-              message: `Bạn có 1 đánh giá mới`,
-              evaluationId: detail.evaluation.id,
-              period: detail.evaluation.period,
-            });
+            notifRef.target = { type: 'supervisor2', userId: employee.user.supervisor2Id };
           } else {
-            // No supervisor1 AND no supervisor2 — complete evaluation directly
-            await prisma.evaluation.update({
+            await tx.evaluation.update({
               where: { id: detail.evaluation.id },
               data: { status: EvaluationStatus.COMPLETED },
             });
-
             if (employee?.user?.id) {
-              await notificationService.createNotification({
-                userId: employee.user.id,
-                type: NotificationType.EVALUATION_COMPLETED,
-                title: 'Đánh giá hoàn thành',
-                message: 'Đánh giá của bạn đã hoàn thành',
-                evaluationId: detail.evaluation.id,
-                period: detail.evaluation.period,
-              });
+              notifRef.target = { type: 'completed', userId: employee.user.id };
             }
           }
+        });
+
+        const notifTarget = notifRef.target;
+        if (notifTarget?.type === 'supervisor1') {
+          await notificationService.createNotification({
+            userId: notifTarget.userId,
+            type: NotificationType.EVALUATION_SUPERVISOR1,
+            title: 'Đánh giá cấp trên 1',
+            message: 'Bạn có 1 đánh giá mới',
+            evaluationId: detail.evaluation.id,
+            period: detail.evaluation.period,
+          });
+        } else if (notifTarget?.type === 'supervisor2') {
+          await notificationService.createNotification({
+            userId: notifTarget.userId,
+            type: NotificationType.EVALUATION_SUPERVISOR2,
+            title: 'Đánh giá cấp trên 2',
+            message: 'Bạn có 1 đánh giá mới',
+            evaluationId: detail.evaluation.id,
+            period: detail.evaluation.period,
+          });
+        } else if (notifTarget?.type === 'completed') {
+          await notificationService.createNotification({
+            userId: notifTarget.userId,
+            type: NotificationType.EVALUATION_COMPLETED,
+            title: 'Đánh giá hoàn thành',
+            message: 'Đánh giá của bạn đã hoàn thành',
+            evaluationId: detail.evaluation.id,
+            period: detail.evaluation.period,
+          });
         }
       } else if (data.supervisorScore1 !== undefined) {
-        // Supervisor1 just completed evaluation
-        const allDetailsWithScore1 = await prisma.evaluationDetail.findMany({
-          where: {
-            evaluationId: detail.evaluation.id,
-            supervisorScore1: { not: null },
-          },
-        });
+        const notifRef: { target: { type: 'supervisor2' | 'completed'; userId: string } | null } = { target: null };
 
-        const totalDetails = await prisma.evaluationDetail.count({
-          where: { evaluationId: detail.evaluation.id },
-        });
+        await prisma.$transaction(async (tx) => {
+          const currentEval = await tx.evaluation.findUnique({
+            where: { id: detail.evaluation.id },
+            select: { status: true },
+          });
+          if (currentEval?.status !== EvaluationStatus.SUPERVISOR1_PENDING) return;
 
-        if (allDetailsWithScore1.length === totalDetails) {
-          // All supervisor1 evaluations are done, send notification to supervisor2
-          const employee = await prisma.employee.findUnique({
+          const filled = await tx.evaluationDetail.count({
+            where: { evaluationId: detail.evaluation.id, supervisorScore1: { not: null } },
+          });
+          const total = await tx.evaluationDetail.count({
+            where: { evaluationId: detail.evaluation.id },
+          });
+          if (filled < total) return;
+
+          const employee = await tx.employee.findUnique({
             where: { id: detail.evaluation.employeeId },
             include: { user: true },
           });
 
           if (employee?.user?.supervisor2Id) {
-            // Update status first, then send notification
-            await prisma.evaluation.update({
+            await tx.evaluation.update({
               where: { id: detail.evaluation.id },
               data: { status: EvaluationStatus.SUPERVISOR2_PENDING },
             });
-
-            await notificationService.createNotification({
-              userId: employee.user!.supervisor2Id!,
-              type: NotificationType.EVALUATION_SUPERVISOR2,
-              title: 'Đánh giá cấp trên 2',
-              message: `Bạn có 1 đánh giá mới`,
-              evaluationId: detail.evaluation.id,
-              period: detail.evaluation.period,
-            });
+            notifRef.target = { type: 'supervisor2', userId: employee.user.supervisor2Id };
           } else {
-            // No supervisor2 — complete evaluation directly
-            await prisma.evaluation.update({
+            await tx.evaluation.update({
               where: { id: detail.evaluation.id },
               data: { status: EvaluationStatus.COMPLETED },
             });
-
             if (employee?.user?.id) {
-              await notificationService.createNotification({
-                userId: employee.user.id,
-                type: NotificationType.EVALUATION_COMPLETED,
-                title: 'Đánh giá hoàn thành',
-                message: 'Đánh giá của bạn đã hoàn thành',
-                evaluationId: detail.evaluation.id,
-                period: detail.evaluation.period,
-              });
+              notifRef.target = { type: 'completed', userId: employee.user.id };
             }
           }
+        });
+
+        const notifTarget2 = notifRef.target;
+        if (notifTarget2?.type === 'supervisor2') {
+          await notificationService.createNotification({
+            userId: notifTarget2.userId,
+            type: NotificationType.EVALUATION_SUPERVISOR2,
+            title: 'Đánh giá cấp trên 2',
+            message: 'Bạn có 1 đánh giá mới',
+            evaluationId: detail.evaluation.id,
+            period: detail.evaluation.period,
+          });
+        } else if (notifTarget2?.type === 'completed') {
+          await notificationService.createNotification({
+            userId: notifTarget2.userId,
+            type: NotificationType.EVALUATION_COMPLETED,
+            title: 'Đánh giá hoàn thành',
+            message: 'Đánh giá của bạn đã hoàn thành',
+            evaluationId: detail.evaluation.id,
+            period: detail.evaluation.period,
+          });
         }
       } else if (data.supervisorScore2 !== undefined) {
-        // Supervisor2 just completed evaluation
-        const allDetailsWithScore2 = await prisma.evaluationDetail.findMany({
-          where: {
-            evaluationId: detail.evaluation.id,
-            supervisorScore2: { not: null },
-          },
-        });
+        let shouldNotifyEmployee: string | null = null;
 
-        const totalDetails = await prisma.evaluationDetail.count({
-          where: { evaluationId: detail.evaluation.id },
-        });
+        await prisma.$transaction(async (tx) => {
+          const currentEval = await tx.evaluation.findUnique({
+            where: { id: detail.evaluation.id },
+            select: { status: true },
+          });
+          if (currentEval?.status !== EvaluationStatus.SUPERVISOR2_PENDING) return;
 
-        if (allDetailsWithScore2.length === totalDetails) {
-          // All evaluations are done — set to COMPLETED
-          await prisma.evaluation.update({
+          const filled = await tx.evaluationDetail.count({
+            where: { evaluationId: detail.evaluation.id, supervisorScore2: { not: null } },
+          });
+          const total = await tx.evaluationDetail.count({
+            where: { evaluationId: detail.evaluation.id },
+          });
+          if (filled < total) return;
+
+          await tx.evaluation.update({
             where: { id: detail.evaluation.id },
             data: { status: EvaluationStatus.COMPLETED },
           });
 
-          // BUG 7: Notify the employee that evaluation is completed
-          const employee = await prisma.employee.findUnique({
+          const employee = await tx.employee.findUnique({
             where: { id: detail.evaluation.employeeId },
             include: { user: true },
           });
-
           if (employee?.user?.id) {
-            await notificationService.createNotification({
-              userId: employee.user.id,
-              type: NotificationType.EVALUATION_COMPLETED,
-              title: 'Đánh giá hoàn thành',
-              message: 'Đánh giá của bạn đã hoàn thành',
-              evaluationId: detail.evaluation.id,
-              period: detail.evaluation.period,
-            });
+            shouldNotifyEmployee = employee.user.id;
           }
+        });
+
+        if (shouldNotifyEmployee) {
+          await notificationService.createNotification({
+            userId: shouldNotifyEmployee,
+            type: NotificationType.EVALUATION_COMPLETED,
+            title: 'Đánh giá hoàn thành',
+            message: 'Đánh giá của bạn đã hoàn thành',
+            evaluationId: detail.evaluation.id,
+            period: detail.evaluation.period,
+          });
         }
       }
     } catch (error) {
@@ -647,7 +669,16 @@ export class EmployeeEvaluationService {
       throw new NotFoundError('Evaluation not found');
     }
 
-    // BUG 3: Check that at least some scores have been entered before finalizing
+    // Only allow finalize when all supervisor steps are done
+    const allowedStatuses: string[] = [
+      EvaluationStatus.SUPERVISOR2_PENDING,
+      EvaluationStatus.COMPLETED,
+    ];
+    if (!allowedStatuses.includes(evaluation.status)) {
+      throw new ValidationError('Không thể hoàn thành đánh giá: chưa hoàn tất tất cả bước đánh giá');
+    }
+
+    // Check that at least some scores have been entered before finalizing
     const hasAnyScore = evaluation.details.some(
       d => d.selfScore !== null || d.supervisorScore1 !== null || d.supervisorScore2 !== null
     );
@@ -817,6 +848,48 @@ export class EmployeeEvaluationService {
         isSupervisor2: user.supervisor2Id === userId,
       }];
     });
+  }
+
+  async syncEvaluationDetails(month: number, year: number): Promise<{ synced: number; skipped: number }> {
+    const period = `${year}-${String(month).padStart(2, '0')}`;
+
+    const evaluations = await prisma.evaluation.findMany({
+      where: { period },
+      include: {
+        details: { select: { positionResponsibilityId: true } },
+        employee: {
+          include: {
+            position: {
+              include: { responsibilities: true },
+            },
+          },
+        },
+      },
+    });
+
+    let synced = 0;
+    let skipped = 0;
+
+    for (const evaluation of evaluations) {
+      const responsibilities = evaluation.employee.position?.responsibilities ?? [];
+      const existingIds = new Set(evaluation.details.map(d => d.positionResponsibilityId));
+      const missing = responsibilities.filter(r => !existingIds.has(r.id));
+
+      if (missing.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      await prisma.evaluationDetail.createMany({
+        data: missing.map(r => ({
+          evaluationId: evaluation.id,
+          positionResponsibilityId: r.id,
+        })),
+      });
+      synced++;
+    }
+
+    return { synced, skipped };
   }
 }
 
