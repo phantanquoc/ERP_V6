@@ -115,16 +115,52 @@ Yêu cầu sửa chữa → Tiếp nhận → Phân công → Thực hiện → 
 
 ## 5. Phân quyền
 
-| Vai trò | Quyền hạn |
-|---------|-----------|
-| Kỹ thuật viên | Xem, xử lý yêu cầu được giao |
-| Trưởng nhóm | Phân công, giám sát |
-| Trưởng phòng | Duyệt, báo cáo |
-| Admin | Toàn quyền |
+### Danh sách hệ thống máy (`/api/machine-systems`)
+
+| Vai trò | Xem | Tạo | Sửa | Xóa |
+|---------|-----|-----|-----|-----|
+| Admin | ✅ | ✅ | ✅ | ✅ |
+| Trưởng phòng | ✅ | ✅ | ✅ | ✅ |
+| Trưởng nhóm | ✅ | ❌ | ❌ | ❌ |
+| Kỹ thuật viên | ✅ | ❌ | ❌ | ❌ |
+
+### Báo cáo hoạt động máy (`/api/machine-activity-reports`)
+
+| Vai trò | Xem | Tạo | Sửa | Xóa |
+|---------|-----|-----|-----|-----|
+| Admin | ✅ | ✅ | ✅ | ✅ |
+| Trưởng phòng | ✅ | ✅ | ✅ | ✅ |
+| Trưởng nhóm | ✅ | ✅ | ✅ | ❌ |
+| Kỹ thuật viên | ✅ | ❌ | ❌ | ❌ |
+
+### Yêu cầu sửa chữa (`/api/repair-requests`)
+
+| Vai trò | Xem | Tạo | Sửa | Xóa |
+|---------|-----|-----|-----|-----|
+| Admin | ✅ | ✅ | ✅ | ✅ |
+| Trưởng phòng | ✅ | ✅ | ✅ | ✅ |
+| Trưởng nhóm | ✅ | ✅ | ✅ | ❌ |
+| Kỹ thuật viên | ✅ | ✅ | ❌ | ❌ |
+
+### Nghiệm thu bàn giao (`/api/acceptance-handovers`)
+
+| Vai trò | Xem | Tạo | Sửa | Xóa |
+|---------|-----|-----|-----|-----|
+| Admin | ✅ | ✅ | ✅ | ✅ |
+| Trưởng phòng | ✅ | ✅ | ✅ | ✅ |
+| Trưởng nhóm | ✅ | ✅ | ✅ | ❌ |
+| Kỹ thuật viên | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
-## 6. Lưu ý
+## 6. Lưu ý kỹ thuật
+
+- Dữ liệu hệ thống máy lưu trong bảng `machine_systems` (schema `business`, PostgreSQL)
+- Dữ liệu báo cáo hoạt động lưu trong bảng `machine_activity_reports` (schema `business`, PostgreSQL)
+- ID dùng CUID (string), không phải số nguyên
+- Yêu cầu sửa chữa cũ dùng ID số nguyên (auto-increment) — đây là ngoại lệ do model được tạo trước
+
+## 7. Lưu ý vận hành
 
 - Yêu cầu khẩn cấp cần xử lý trong 4 giờ
 - Bảo trì định kỳ theo lịch đã lập

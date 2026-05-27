@@ -27,14 +27,43 @@ Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo
 
 ## 2. Quyền truy cập
 
-| Role | Xem | Tạo mới | Sửa | Xóa |
+### Danh sách hệ thống máy (`/api/machine-systems`)
+
+| Role | Xem (GET) | Tạo (POST) | Sửa (PUT) | Xóa (DELETE) |
+|---|---|---|---|---|
+| ADMIN | ✅ | ✅ | ✅ | ✅ |
+| DEPARTMENT_HEAD | ✅ | ✅ | ✅ | ✅ |
+| TEAM_LEAD | ✅ | ❌ | ❌ | ❌ |
+| EMPLOYEE | ✅ | ❌ | ❌ | ❌ |
+
+### Báo cáo hoạt động máy (`/api/machine-activity-reports`)
+
+| Role | Xem (GET) | Tạo (POST) | Sửa (PUT) | Xóa (DELETE) |
+|---|---|---|---|---|
+| ADMIN | ✅ | ✅ | ✅ | ✅ |
+| DEPARTMENT_HEAD | ✅ | ✅ | ✅ | ✅ |
+| TEAM_LEAD | ✅ | ✅ | ✅ | ❌ |
+| EMPLOYEE | ✅ | ❌ | ❌ | ❌ |
+
+### Yêu cầu sửa chữa (`/api/repair-requests`)
+
+| Role | Xem (GET) | Tạo (POST) | Sửa (PUT) | Xóa (DELETE) |
 |---|---|---|---|---|
 | ADMIN | ✅ | ✅ | ✅ | ✅ |
 | DEPARTMENT_HEAD | ✅ | ✅ | ✅ | ✅ |
 | TEAM_LEAD | ✅ | ✅ | ✅ | ❌ |
 | EMPLOYEE | ✅ | ✅ | ❌ | ❌ |
 
-> Truy cập bị giới hạn theo `DEPT_TECHNICAL`. Người dùng ngoài bộ phận không thấy menu kỹ thuật.
+### Nghiệm thu bàn giao (`/api/acceptance-handovers`)
+
+| Role | Xem (GET) | Tạo (POST) | Sửa (PUT) | Xóa (DELETE) |
+|---|---|---|---|---|
+| ADMIN | ✅ | ✅ | ✅ | ✅ |
+| DEPARTMENT_HEAD | ✅ | ✅ | ✅ | ✅ |
+| TEAM_LEAD | ✅ | ✅ | ✅ | ❌ |
+| EMPLOYEE | ✅ | ❌ | ❌ | ❌ |
+
+> Tất cả endpoint đều yêu cầu đăng nhập (`authenticate`). Truy cập menu bị giới hạn theo `DEPT_TECHNICAL`.
 
 ---
 
@@ -51,7 +80,7 @@ Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo
 | **Xuất Excel** | Xuất danh sách ra file `.xlsx` |
 | **Thêm mới** | Mở form tạo hệ thống mới |
 
-#### Cột bảng danh sách (13 cột)
+#### Cột bảng danh sách (14 cột)
 
 | Cột | Nội dung |
 |---|---|
@@ -67,6 +96,7 @@ Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo
 | Mã NTH | `maNguoiThucHien` (mã người thực hiện) |
 | Người thực hiện | `nguoiThucHien` |
 | File | Link "Xem file" nếu có |
+| Ngày tạo | `createdAt` (DD/MM/YYYY) |
 | Hoạt động | Nút **Xem** / **Sửa** / **Xóa** |
 
 #### Form thêm / chỉnh sửa hệ thống
@@ -104,7 +134,7 @@ Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo
 | Người báo cáo (`nguoiBaoCao`) | Nhân viên lập báo cáo |
 | File đính kèm (`fileDinhKem`) | Ảnh/tài liệu hỗ trợ |
 
-> Trường `ngayTao` được hệ thống tự động ghi nhận khi tạo báo cáo.
+> Trường `createdAt` được hệ thống tự động ghi nhận khi tạo báo cáo. Dữ liệu được lưu vào PostgreSQL (bảng `machine_activity_reports`, schema `business`).
 
 ### 3.3 Danh sách đơn hàng — Tab "Danh sách đơn hàng" (`orders`)
 
@@ -179,7 +209,7 @@ Sau khi sửa chữa hoàn thành, kỹ thuật viên tạo biên bản nghiệm
 ## 6. FAQ
 
 **Q1: Làm thế nào để tạo yêu cầu sửa chữa?**
-Vào tab **Phòng cơ-điện** → **Danh sách yêu cầu sửa chữa** → nhấn **Thêm mới** → điền đủ 8 trường bắt buộc → Lưu.
+Vào tab **Phòng QLHTM** → **Danh sách yêu cầu sửa chữa** → nhấn **Thêm mới** → điền đủ 8 trường bắt buộc → Lưu.
 
 **Q2: Mức độ ưu tiên nào được xử lý trước?**
 Thứ tự ưu tiên từ cao đến thấp: **Khẩn cấp → Cao → Trung bình → Thấp**.
