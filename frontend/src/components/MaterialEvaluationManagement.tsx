@@ -6,12 +6,25 @@ import systemOperationService from '../services/systemOperationService';
 import DateTimePicker from './DateTimePicker';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import { useAuth } from '../contexts/AuthContext';
+
+const DANH_GIA_OPTIONS = [
+  'Màu sắc đạt',
+  'Mùi đạt',
+  'Độ ẩm đạt',
+  'Không có tạp chất',
+  'Kích thước đạt',
+  'Độ chín đạt',
+  'Không bị dập nát',
+  'Đạt tiêu chuẩn',
+];
 
 interface MaterialEvaluationManagementProps {
   onCreateSystemOperation?: (maChien: string, thoiGianChien: string) => void;
 }
 
 const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> = ({ onCreateSystemOperation }) => {
+  const { user } = useAuth();
   const [evaluations, setEvaluations] = useState<MaterialEvaluation[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -23,6 +36,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
+
 
   const evaluationFilterFields: FilterField[] = [
     { key: 'maChien', label: 'Mã chiên', type: 'text' },
@@ -56,6 +70,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     loadEvaluations();
     loadCriteria();
   }, []);
+
 
   const loadEvaluations = async () => {
     try {
@@ -230,6 +245,10 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       setIsEditing(false);
       setSelectedEvaluation(null);
 
+      const nguoiThucHien = user
+        ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
+        : '';
+
       // Generate ma chien from API
       try {
         const maChien = await materialEvaluationService.generateMaChien();
@@ -246,7 +265,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
           brixNuocNgam: 0,
           danhGiaTruocNgam: '',
           danhGiaSauNgam: '',
-          nguoiThucHien: '',
+          nguoiThucHien,
         });
       } catch (err: any) {
         setError(err.message || 'Lỗi tạo mã chiên');
@@ -274,6 +293,17 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         ? parseNumberInput(value)
         : value
     }));
+  };
+
+  const handleDanhGiaToggle = (field: 'danhGiaTruocNgam' | 'danhGiaSauNgam', option: string) => {
+    setFormData(prev => {
+      const current = (prev[field] || '').split(',').map(s => s.trim()).filter(Boolean);
+      const idx = current.indexOf(option);
+      const updated = idx >= 0
+        ? current.filter(s => s !== option)
+        : [...current, option];
+      return { ...prev, [field]: updated.join(', ') };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -587,8 +617,9 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     type="text"
                     name="tenHangHoa"
                     value={formData.tenHangHoa}
-                    onChange={handleInputChange}
+                    onChange={(e) => setFormData(prev => ({ ...prev, tenHangHoa: e.target.value }))}
                     required
+                    placeholder="VD: Xoài tươi, Mít tươi..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -601,8 +632,9 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     type="text"
                     name="soLoKien"
                     value={formData.soLoKien}
-                    onChange={handleInputChange}
+                    onChange={(e) => setFormData(prev => ({ ...prev, soLoKien: e.target.value }))}
                     required
+                    placeholder="VD: L001-K05"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -699,46 +731,44 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Đánh giá trước ngâm <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="danhGiaTruocNgam"
-                    value={formData.danhGiaTruocNgam}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="Nhập mã số (VD: 1,2,3)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  {formData.danhGiaTruocNgam && (
-                    <p className="mt-1 text-sm text-green-600">
-                      {getCriteriaText(formData.danhGiaTruocNgam)}
-                    </p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    Nhập các mã số cách nhau bởi dấu phẩy. Xem danh sách mã trong "Cài đặt đánh giá"
-                  </p>
+                  <div className="grid grid-cols-2 gap-1 p-3 border border-gray-300 rounded-md bg-white">
+                    {DANH_GIA_OPTIONS.map(option => {
+                      const selected = (formData.danhGiaTruocNgam || '').split(',').map(s => s.trim()).includes(option);
+                      return (
+                        <label key={option} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => handleDanhGiaToggle('danhGiaTruocNgam', option)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>{option}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Đánh giá sau ngâm <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="danhGiaSauNgam"
-                    value={formData.danhGiaSauNgam}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="Nhập mã số (VD: 1,2,3)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  {formData.danhGiaSauNgam && (
-                    <p className="mt-1 text-sm text-green-600">
-                      {getCriteriaText(formData.danhGiaSauNgam)}
-                    </p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    Nhập các mã số cách nhau bởi dấu phẩy. Xem danh sách mã trong "Cài đặt đánh giá"
-                  </p>
+                  <div className="grid grid-cols-2 gap-1 p-3 border border-gray-300 rounded-md bg-white">
+                    {DANH_GIA_OPTIONS.map(option => {
+                      const selected = (formData.danhGiaSauNgam || '').split(',').map(s => s.trim()).includes(option);
+                      return (
+                        <label key={option} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => handleDanhGiaToggle('danhGiaSauNgam', option)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>{option}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>
@@ -749,9 +779,9 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     type="text"
                     name="nguoiThucHien"
                     value={formData.nguoiThucHien}
-                    onChange={handleInputChange}
+                    readOnly
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
@@ -844,16 +874,26 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Đánh giá trước ngâm</label>
-                  <p className="text-sm text-gray-900">{selectedEvaluation.danhGiaTruocNgam}</p>
-                  {selectedEvaluation.danhGiaTruocNgam && (
-                    <p className="text-sm text-green-600 mt-1">{getCriteriaText(selectedEvaluation.danhGiaTruocNgam)}</p>
+                  {selectedEvaluation.danhGiaTruocNgam ? (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedEvaluation.danhGiaTruocNgam.split(',').map(s => s.trim()).filter(Boolean).map(tag => (
+                        <span key={tag} className="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">{tag}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-900">-</p>
                   )}
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Đánh giá sau ngâm</label>
-                  <p className="text-sm text-gray-900">{selectedEvaluation.danhGiaSauNgam}</p>
-                  {selectedEvaluation.danhGiaSauNgam && (
-                    <p className="text-sm text-green-600 mt-1">{getCriteriaText(selectedEvaluation.danhGiaSauNgam)}</p>
+                  {selectedEvaluation.danhGiaSauNgam ? (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedEvaluation.danhGiaSauNgam.split(',').map(s => s.trim()).filter(Boolean).map(tag => (
+                        <span key={tag} className="inline-block px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">{tag}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-900">-</p>
                   )}
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">

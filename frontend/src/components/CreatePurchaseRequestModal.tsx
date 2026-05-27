@@ -234,17 +234,26 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
                       <tr key={index}>
                         <td className="px-2 py-2 text-gray-500 text-center">{index + 1}</td>
                         <td className="px-2 py-2">
-                          <input type="text" value={row.phanLoai}
+                          <select value={row.phanLoai}
                             onChange={(e) => updateItem(index, { phanLoai: e.target.value })}
-                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            placeholder="Phân loại" />
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="">-- Chọn --</option>
+                            <option value="Nguyên liệu">Nguyên liệu</option>
+                            <option value="Vật tư">Vật tư</option>
+                            <option value="Thiết bị">Thiết bị</option>
+                            <option value="Dịch vụ">Dịch vụ</option>
+                            <option value="Khác">Khác</option>
+                          </select>
                         </td>
                         <td className="px-2 py-2">
-                          <input type="text" value={row.tenHangHoa}
+                          <input
+                            type="text"
+                            value={row.tenHangHoa}
                             onChange={(e) => updateItem(index, { tenHangHoa: e.target.value })}
                             required
+                            placeholder="Tên hàng hóa"
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            placeholder="Tên hàng hóa" />
+                          />
                         </td>
                         <td className="px-2 py-2">
                           <input type="number" value={row.soLuong}

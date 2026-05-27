@@ -6,6 +6,7 @@ import finishedProductService from '../../services/finishedProductService';
 import Modal from '../Modal';
 import DatePicker from '../DatePicker';
 import { parseNumberInput } from '../../utils/numberInput';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ProductionReportModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [materialStandards, setMaterialStandards] = useState<MaterialStandard[]>([]);
@@ -87,7 +89,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
         danhGiaChenhLech: '',
         nguyenNhanChenhLech: '',
         deXuatDieuChinh: '',
-        nguoiThucHien: '',
+        nguoiThucHien: user ? `${user.lastName} ${user.firstName}` : '',
       });
       setSelectedMaterialStandard(null);
       setChenhLechValue(0);
@@ -450,10 +452,8 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
           <input
             type="text"
             value={formData.nguoiThucHien}
-            onChange={(e) => setFormData({ ...formData, nguoiThucHien: e.target.value })}
-            disabled={viewMode}
-            placeholder="Tự động điền từ tài khoản đăng nhập"
-            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+            readOnly
+            className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg cursor-not-allowed text-gray-600"
           />
         </div>
 

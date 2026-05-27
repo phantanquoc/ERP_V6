@@ -112,53 +112,68 @@ const QualityEvaluationModal: React.FC<QualityEvaluationModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Màu sắc</label>
-                <input
-                  type="text"
+                <select
                   value={formData.mauSac || ''}
                   onChange={(e) => onChange('mauSac', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập màu sắc..."
-                />
+                >
+                  <option value="">-- Chọn --</option>
+                  <option value="Đạt">Đạt</option>
+                  <option value="Không đạt">Không đạt</option>
+                  <option value="Cần kiểm tra thêm">Cần kiểm tra thêm</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mùi hương</label>
-                <input
-                  type="text"
+                <select
                   value={formData.muiHuong || ''}
                   onChange={(e) => onChange('muiHuong', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập đánh giá mùi hương..."
-                />
+                >
+                  <option value="">-- Chọn --</option>
+                  <option value="Đạt">Đạt</option>
+                  <option value="Không đạt">Không đạt</option>
+                  <option value="Cần kiểm tra thêm">Cần kiểm tra thêm</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Vị</label>
-                <input
-                  type="text"
+                <select
                   value={formData.huongVi || ''}
                   onChange={(e) => onChange('huongVi', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập đánh giá vị..."
-                />
+                >
+                  <option value="">-- Chọn --</option>
+                  <option value="Đạt">Đạt</option>
+                  <option value="Không đạt">Không đạt</option>
+                  <option value="Cần kiểm tra thêm">Cần kiểm tra thêm</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Độ ngọt</label>
-                <input
-                  type="text"
+                <select
                   value={formData.doNgot || ''}
                   onChange={(e) => onChange('doNgot', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập đánh giá độ ngọt..."
-                />
+                >
+                  <option value="">-- Chọn --</option>
+                  <option value="Đạt">Đạt</option>
+                  <option value="Không đạt">Không đạt</option>
+                  <option value="Cần kiểm tra thêm">Cần kiểm tra thêm</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Độ giòn</label>
-                <input
-                  type="text"
+                <select
                   value={formData.doGion || ''}
                   onChange={(e) => onChange('doGion', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập đánh giá độ giòn..."
-                />
+                >
+                  <option value="">-- Chọn --</option>
+                  <option value="Đạt">Đạt</option>
+                  <option value="Không đạt">Không đạt</option>
+                  <option value="Cần kiểm tra thêm">Cần kiểm tra thêm</option>
+                </select>
               </div>
             </div>
           </div>

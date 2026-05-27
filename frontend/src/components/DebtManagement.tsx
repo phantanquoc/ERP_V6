@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Download, Edit, Eye, Trash2, FileText, Upload } from 'lucide-react';
 import debtService, { Debt, DebtSummary } from '../services/debtService';
+import apiClient from '../services/apiClient';
 import DatePicker from './DatePicker';
 import { parseNumberInputStr } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+
+interface SupplierOption {
+  id: string;
+  maNhaCungCap: string;
+  tenNhaCungCap: string;
+}
 
 const DebtManagement: React.FC = () => {
   const [debtData, setDebtData] = useState<Debt[]>([]);
@@ -40,6 +47,7 @@ const DebtManagement: React.FC = () => {
     ghiChu: '',
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -50,7 +58,17 @@ const DebtManagement: React.FC = () => {
   useEffect(() => {
     fetchDebts();
     fetchSummary();
+    fetchSuppliers();
   }, []);
+
+  const fetchSuppliers = async () => {
+    try {
+      const res = await apiClient.get('/suppliers', { params: { limit: 200 } });
+      setSuppliers(res.data?.data || res.data || []);
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+    }
+  };
 
   const fetchDebts = async () => {
     try {
@@ -428,6 +446,31 @@ const DebtManagement: React.FC = () => {
                   </select>
                 </div>
 
+                {/* Tên nhà cung cấp */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tên nhà cung cấp <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={formData.tenNhaCungCap}
+                    onChange={(e) => {
+                      const selected = suppliers.find(s => s.tenNhaCungCap === e.target.value);
+                      setFormData({
+                        ...formData,
+                        tenNhaCungCap: e.target.value,
+                        maNhaCungCap: selected ? selected.maNhaCungCap : '',
+                      });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">-- Chọn nhà cung cấp --</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.tenNhaCungCap}>{s.tenNhaCungCap}</option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Mã nhà cung cấp */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -435,26 +478,10 @@ const DebtManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    required
+                    readOnly
                     value={formData.maNhaCungCap}
-                    onChange={(e) => setFormData({ ...formData, maNhaCungCap: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="VD: NCC-001"
-                  />
-                </div>
-
-                {/* Tên nhà cung cấp */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tên nhà cung cấp <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.tenNhaCungCap}
-                    onChange={(e) => setFormData({ ...formData, tenNhaCungCap: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="VD: CTY TNHH ABC"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
+                    placeholder="Tự động điền"
                   />
                 </div>
 
@@ -686,27 +713,38 @@ const DebtManagement: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mã nhà cung cấp <span className="text-red-500">*</span>
+                    Tên nhà cung cấp <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
-                    value={formData.maNhaCungCap}
-                    onChange={(e) => setFormData({ ...formData, maNhaCungCap: e.target.value })}
+                    value={formData.tenNhaCungCap}
+                    onChange={(e) => {
+                      const selected = suppliers.find(s => s.tenNhaCungCap === e.target.value);
+                      setFormData({
+                        ...formData,
+                        tenNhaCungCap: e.target.value,
+                        maNhaCungCap: selected ? selected.maNhaCungCap : '',
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
+                  >
+                    <option value="">-- Chọn nhà cung cấp --</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.tenNhaCungCap}>{s.tenNhaCungCap}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tên nhà cung cấp <span className="text-red-500">*</span>
+                    Mã nhà cung cấp <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    required
-                    value={formData.tenNhaCungCap}
-                    onChange={(e) => setFormData({ ...formData, tenNhaCungCap: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    readOnly
+                    value={formData.maNhaCungCap}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
+                    placeholder="Tự động điền"
                   />
                 </div>
 
