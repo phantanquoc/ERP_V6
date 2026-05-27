@@ -8,4 +8,5 @@
 !chat/
 !agent/
 !wheels/
+!docker-entrypoint.sh
 
