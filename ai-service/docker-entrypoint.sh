@@ -1,6 +1,6 @@
 #!/bin/sh
 # Fix volume permissions if owned by root (happens when upgrading from old container)
-for dir in /app/chroma_data /home/appuser/.cache; do
+for dir in /app/chroma_data /home/appuser/.cache /home/appuser/.deepface; do
     if [ -d "$dir" ] && [ "$(stat -c '%u' "$dir")" != "$(id -u appuser)" ]; then
         chown -R appuser:appuser "$dir"
     fi

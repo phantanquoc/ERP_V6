@@ -185,7 +185,10 @@ def init_rag():
             hash_file = CHROMA_DIR / "docs_hash.txt"
             stored_hash = hash_file.read_text().strip() if hash_file.exists() else ""
 
-            chroma_collection = chroma_client.get_or_create_collection(
+            if "erp_docs" in chroma_client.list_collections():
+                chroma_client.delete_collection("erp_docs")
+                logger.info("  Dropped old collection")
+            chroma_collection = chroma_client.create_collection(
                 name="erp_docs",
                 metadata={"hnsw:space": "cosine"}
             )
@@ -218,10 +221,15 @@ def init_rag():
 
             logger.info("Docs changed or first run — rebuilding ChromaDB index...")
 
-            existing_count = chroma_collection.count()
-            if existing_count > 0:
-                chroma_collection.delete(where={})
-                logger.info(f"  Cleared {existing_count} existing records")
+            try:
+                chroma_client.delete_collection("erp_docs")
+                logger.info("  Dropped old collection")
+            except Exception:
+                pass
+            chroma_collection = chroma_client.create_collection(
+                name="erp_docs",
+                metadata={"hnsw:space": "cosine"}
+            )
 
             batch_size = 50
             for i in range(0, len(all_chunks), batch_size):
