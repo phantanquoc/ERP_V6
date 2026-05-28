@@ -79,12 +79,19 @@ const ProductionWarehouse = () => {
     setSelectedItem(null);
   };
 
+  const pendingWarehouseCount = supplyRequests.filter(r => r.trangThai === 'Đã mua hàng').length;
+
   const tabs = [
     { id: 'warehouseManagement', name: 'Quản lý kho', icon: <Package className="w-4 h-4" /> },
     { id: 'products', name: 'Danh sách hàng hóa', icon: <Package className="w-4 h-4" /> },
     { id: 'inbound', name: 'Nhập kho', icon: <ArrowDown className="w-4 h-4" /> },
     { id: 'outbound', name: 'Xuất kho', icon: <ArrowUp className="w-4 h-4" /> },
-    { id: 'supplyRequest', name: 'Yêu cầu cung cấp', icon: <FileText className="w-4 h-4" /> }
+    {
+      id: 'supplyRequest',
+      name: 'Yêu cầu cung cấp',
+      icon: <FileText className="w-4 h-4" />,
+      badge: pendingWarehouseCount > 0 ? pendingWarehouseCount : null,
+    }
   ];
 
   return (
@@ -202,6 +209,11 @@ const ProductionWarehouse = () => {
                 >
                   {tab.icon}
                   {tab.name}
+                  {tab.badge && (
+                    <span className="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white min-w-[18px]">
+                      {tab.badge}
+                    </span>
+                  )}
                 </button>
               ))}
             </nav>
