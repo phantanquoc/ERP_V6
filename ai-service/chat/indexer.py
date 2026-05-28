@@ -3,6 +3,7 @@
 import re
 import hashlib
 import threading
+from pathlib import Path
 from typing import List
 
 from config import logger, DOCS_DIR, CHROMA_DIR
@@ -173,7 +174,7 @@ def init_rag():
 
             logger.info("Initializing RAG chatbot...")
 
-            embedder = SentenceTransformer("AITeamVN/Vietnamese_Embedding_v2")
+            embedder = SentenceTransformer("AITeamVN/Vietnamese_Embedding_v2", cache_folder=str(Path.home() / ".cache" / "huggingface"))
             reranker = Ranker(model_name="ms-marco-MultiBERT-L-12", cache_dir=str(CHROMA_DIR / "flashrank_cache"))
             logger.info("FlashRank reranker loaded")
 
@@ -184,7 +185,10 @@ def init_rag():
             hash_file = CHROMA_DIR / "docs_hash.txt"
             stored_hash = hash_file.read_text().strip() if hash_file.exists() else ""
 
-            collection_exists = "erp_docs" in [str(c) for c in chroma_client.list_collections()]
+            chroma_collection = chroma_client.get_or_create_collection(
+                name="erp_docs",
+                metadata={"hnsw:space": "cosine"}
+            )
 
             doc_files = sorted(DOCS_DIR.glob("*.md"))
             if not doc_files:
@@ -207,22 +211,17 @@ def init_rag():
             bm25_chunks = all_chunks
             logger.info(f"BM25 index built: {len(all_chunks)} chunks (incl. table summaries)")
 
-            if collection_exists and stored_hash == current_hash:
+            if stored_hash == current_hash:
                 logger.info("Docs unchanged — reusing existing ChromaDB index")
-                chroma_collection = chroma_client.get_collection("erp_docs")
                 rag_ready = True
                 return
 
             logger.info("Docs changed or first run — rebuilding ChromaDB index...")
-            try:
-                chroma_client.delete_collection("erp_docs")
-            except Exception:
-                pass
 
-            chroma_collection = chroma_client.create_collection(
-                name="erp_docs",
-                metadata={"hnsw:space": "cosine"}
-            )
+            existing_count = chroma_collection.count()
+            if existing_count > 0:
+                chroma_collection.delete(where={})
+                logger.info(f"  Cleared {existing_count} existing records")
 
             batch_size = 50
             for i in range(0, len(all_chunks), batch_size):
