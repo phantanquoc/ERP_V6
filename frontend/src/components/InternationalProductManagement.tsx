@@ -19,8 +19,7 @@ const InternationalProductManagement: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<InternationalProduct | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<InternationalProduct | null>(null);
-  const [maSanPhamError, setMaSanPhamError] = useState<string>('');
-  const [checkingCode, setCheckingCode] = useState(false);
+  const [generatingCode, setGeneratingCode] = useState(false);
   const [formData, setFormData] = useState({
     maSanPham: '',
     tenSanPham: '',
@@ -64,31 +63,25 @@ const InternationalProductManagement: React.FC = () => {
 
 
   const handleCreate = async () => {
-    // Validate maSanPham is not empty
-    if (!formData.maSanPham.trim()) {
-      setMaSanPhamError('Vui lòng nhập mã hàng hóa');
-      return;
-    }
-
-    // Check if there's an existing error
-    if (maSanPhamError) {
+    if (!formData.tenSanPham.trim()) {
+      alert('Vui lòng nhập tên hàng hóa');
       return;
     }
 
     try {
-      await internationalProductService.createProduct(formData);
+      // Không truyền maSanPham — backend tự sinh để đảm bảo atomic
+      await internationalProductService.createProduct({
+        tenSanPham: formData.tenSanPham,
+        moTaSanPham: formData.moTaSanPham,
+        loaiSanPham: formData.loaiSanPham,
+      });
       alert('Tạo hàng hóa thành công!');
       setShowModal(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: productKeys.lists() });
     } catch (error: any) {
       console.error('Error creating product:', error);
-      const errorMessage = error.response?.data?.message || 'Lỗi khi tạo hàng hóa';
-      if (errorMessage.toLowerCase().includes('already exists') || errorMessage.toLowerCase().includes('đã tồn tại')) {
-        setMaSanPhamError('Mã hàng hóa đã tồn tại. Vui lòng nhập mã khác');
-      } else {
-        alert(errorMessage);
-      }
+      alert(error.response?.data?.message || 'Lỗi khi tạo hàng hóa');
     }
   };
 
@@ -133,16 +126,20 @@ const InternationalProductManagement: React.FC = () => {
     }
   };
 
-  const openCreateModal = () => {
-    setFormData({
-      maSanPham: '',
-      tenSanPham: '',
-      moTaSanPham: '',
-      loaiSanPham: '',
-    });
+  const openCreateModal = async () => {
     setEditingProduct(null);
-    setMaSanPhamError('');
+    setFormData({ maSanPham: '', tenSanPham: '', moTaSanPham: '', loaiSanPham: '' });
     setShowModal(true);
+    // Fetch preview code
+    setGeneratingCode(true);
+    try {
+      const res = await internationalProductService.generateProductCode();
+      setFormData(prev => ({ ...prev, maSanPham: res.data?.code ?? '' }));
+    } catch {
+      // Leave blank — backend will still auto-generate on submit
+    } finally {
+      setGeneratingCode(false);
+    }
   };
 
   const openEditModal = (product: InternationalProduct) => {
@@ -153,7 +150,6 @@ const InternationalProductManagement: React.FC = () => {
       moTaSanPham: product.moTaSanPham || '',
       loaiSanPham: product.loaiSanPham || '',
     });
-    setMaSanPhamError('');
     setShowModal(true);
   };
 
@@ -170,7 +166,6 @@ const InternationalProductManagement: React.FC = () => {
       loaiSanPham: '',
     });
     setEditingProduct(null);
-    setMaSanPhamError('');
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -179,37 +174,11 @@ const InternationalProductManagement: React.FC = () => {
       ...prev,
       [name]: value,
     }));
-
-    // Clear error when user types in maSanPham field
-    if (name === 'maSanPham') {
-      setMaSanPhamError('');
-    }
   };
 
   // Check if product code already exists
-  const checkProductCodeExists = async (code: string) => {
-    if (!code.trim()) {
-      setMaSanPhamError('');
-      return;
-    }
 
-    setCheckingCode(true);
-    try {
-      const response = await internationalProductService.getProductByCode(code);
-      if (response.data) {
-        setMaSanPhamError('Mã hàng hóa đã tồn tại. Vui lòng nhập mã khác');
-      } else {
-        setMaSanPhamError('');
-      }
-    } catch (error: any) {
-      // If 404, the code doesn't exist (which is good)
-      if (error.response?.status === 404) {
-        setMaSanPhamError('');
-      }
-    } finally {
-      setCheckingCode(false);
-    }
-  };
+
 
 
 
@@ -411,30 +380,19 @@ const InternationalProductManagement: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mã hàng hóa {!editingProduct && <span className="text-red-500">*</span>}
+                    Mã hàng hóa
+                    {!editingProduct && (
+                      <span className="ml-2 text-xs text-gray-400 font-normal">(tự động sinh)</span>
+                    )}
                   </label>
                   <input
                     type="text"
                     name="maSanPham"
-                    value={formData.maSanPham}
-                    onChange={handleInputChange}
-                    onBlur={(e) => !editingProduct && checkProductCodeExists(e.target.value)}
-                    disabled={!!editingProduct}
-                    placeholder={!editingProduct ? "Nhập mã hàng hóa" : ""}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      editingProduct
-                        ? 'border-gray-300 bg-gray-100'
-                        : maSanPhamError
-                          ? 'border-red-500 focus:ring-2 focus:ring-red-500'
-                          : 'border-gray-300 focus:ring-2 focus:ring-blue-500'
-                    }`}
+                    value={generatingCode ? 'Đang sinh mã...' : formData.maSanPham}
+                    readOnly
+                    placeholder="SP-0001"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
                   />
-                  {maSanPhamError && !editingProduct && (
-                    <p className="mt-1 text-sm text-red-600">{maSanPhamError}</p>
-                  )}
-                  {checkingCode && (
-                    <p className="mt-1 text-sm text-gray-500">Đang kiểm tra mã hàng hóa...</p>
-                  )}
                 </div>
 
                 <div>
