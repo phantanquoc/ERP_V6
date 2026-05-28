@@ -129,17 +129,16 @@ const DocumentationGuide = () => {
         </div>
       </aside>
 
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white border border-gray-200 rounded-r-lg p-1.5 shadow-sm hover:bg-gray-50 transition-colors"
-        style={{ left: sidebarOpen ? '288px' : '0' }}
-      >
-        <svg className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${sidebarOpen ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-
-      <main className="flex-1 overflow-y-auto min-w-0">
+      <main className="flex-1 overflow-y-auto min-w-0 relative">
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="absolute top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r-lg p-1.5 shadow-md hover:bg-gray-50 transition-all duration-200 group"
+          style={{ left: sidebarOpen ? '-12px' : '0' }}
+        >
+          <svg className={`w-4 h-4 text-gray-400 transition-transform duration-300 group-hover:text-gray-600 ${sidebarOpen ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
         {error && (
           <div className="m-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
             <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -240,7 +239,7 @@ const DocumentationGuide = () => {
                   </div>
                 </div>
               ) : (
-                <div className="px-6 lg:px-10 py-6 lg:py-8">
+                <div className="px-6 lg:px-10 py-6 lg:py-8 overflow-x-auto">
                   <div className="prose prose-sm lg:prose-base prose-gray max-w-none
                     prose-headings:font-semibold prose-headings:text-gray-900
                     prose-h1:text-2xl prose-h1:border-b prose-h1:border-gray-200 prose-h1:pb-3 prose-h1:mb-6
@@ -251,7 +250,7 @@ const DocumentationGuide = () => {
                     prose-strong:text-gray-900
                     prose-ul:pl-5 prose-ol:pl-5
                     prose-li:my-0.5
-                    prose-table:border-collapse prose-table:w-full prose-table:my-6
+                    prose-table:block prose-table:overflow-x-auto prose-table:border-collapse prose-table:w-full prose-table:my-6
                     prose-th:bg-gray-50 prose-th:px-4 prose-th:py-2.5 prose-th:text-left prose-th:text-sm prose-th:font-semibold prose-th:text-gray-700 prose-th:border prose-th:border-gray-200
                     prose-td:px-4 prose-td:py-2.5 prose-td:text-sm prose-td:text-gray-600 prose-td:border prose-td:border-gray-200
                     prose-tr:even:bg-gray-50
