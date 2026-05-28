@@ -1,0 +1,16 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package*.json ./
+RUN npm install
+RUN npx playwright install --with-deps chromium
+
+COPY e2e/ ./e2e/
+COPY tsconfig.json ./
+
+CMD ["npx", "playwright", "test", "--config=e2e/playwright.config.ts", "--reporter=list"]

@@ -118,6 +118,39 @@ Copy `.env.production.example` → `.env` ở root. Dev local chỉ cần `DATAB
 
 ---
 
+## Subagents
+
+Spawn subagents để cô lập context, song song hóa công việc độc lập, hoặc offload các task cơ học số lượng lớn. Không spawn khi parent cần reasoning, khi synthesis cần giữ mọi thứ lại với nhau, hoặc khi overhead spawn lớn hơn lợi ích.
+
+Chọn model rẻ nhất có thể làm tốt subtask:
+- **Haiku**: công việc cơ học số lượng lớn, không cần judgment
+- **Sonnet**: research có phạm vi, khám phá code, synthesis trong phạm vi
+- **Opus**: subtask cần planning thực sự hoặc đánh đổi
+
+Nếu subagent nhận ra cần tier cao hơn, trả về parent. Parent sở hữu output cuối và cross-spawn synthesis. User instructions override.
+
+---
+
+## Preferred Tools
+
+### Data Fetching
+
+1. **WebFetch**: miễn phí, text-only, hoạt động trên public pages không block bot.
+2. **agent-browser CLI**: miễn phí, Rust CLI local + Chrome qua CDP. Dùng cho dynamic pages hoặc auth walls mà WebFetch không xử lý được. Trả về accessibility tree với element refs (`@e1`, `@e2`). ~82% ít token hơn screenshot-based tools. Cài: `npm i -g agent-browser && agent-browser install`. Dùng `snapshot` cho DOM state AI-friendly, element refs cho interaction.
+3. Khi thấy recurring fetch pattern, đề xuất wrap thành dedicated tool (skill file hoặc `.py` script). Thêm vào `## Dedicated Tools` bên dưới.
+
+### PDF Files
+
+Dùng `pdftotext`, không dùng `Read` tool. Chỉ dùng `Read` khi user yêu cầu phân tích images/charts bên trong document.
+
+---
+
+## Dedicated Tools
+
+<!-- Liệt kê project-specific tools ở đây. Mỗi tool link tới skill hoặc script file. -->
+
+---
+
 ## Never Do
 
 - **Never** gọi Prisma trực tiếp từ controller — phải qua service

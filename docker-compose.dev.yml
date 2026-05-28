@@ -106,6 +106,25 @@ services:
     networks:
       - erp_dev_network
 
+  e2e:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.e2e
+    container_name: erp_dev_e2e
+    profiles:
+      - e2e
+    environment:
+      FRONTEND_URL: http://frontend:5173
+      BACKEND_URL: http://backend:5000
+    volumes:
+      - ./frontend/e2e:/app/e2e:ro
+      - ./frontend/package.json:/app/package.json:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - erp_dev_network
+
 volumes:
   postgres_dev_data:
     driver: local
