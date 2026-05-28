@@ -563,17 +563,111 @@ Báo cáo sản lượng hàng ngày, so sánh kế hoạch vs thực tế.
 
 **Truy cập:** `/production/warehouse` → tab **"Yêu cầu cung cấp"**
 
-Quản lý yêu cầu cung cấp vật tư từ kho cho sản xuất.
+Quản lý yêu cầu cung cấp vật tư từ kho cho sản xuất. Đây là điểm khởi đầu của luồng mua hàng nội bộ: kho tạo yêu cầu → thu mua xử lý mua → kho nhận hàng và nhập kho.
 
-**Trạng thái:** Đã cung cấp / Chưa cung cấp
+#### Dashboard thống kê
 
-**Dashboard thống kê:** Tổng yêu cầu, Đã cung cấp, Chưa cung cấp
+| Thẻ | Nội dung |
+|---|---|
+| Tổng yêu cầu | Tổng số YC-CC trong hệ thống |
+| Đã cung cấp | Số YC-CC ở trạng thái `Đã cung cấp` |
+| Chưa cung cấp | Số YC-CC chưa hoàn thành (tất cả trạng thái khác) |
+
+> Tab **"Yêu cầu cung cấp"** có **badge đỏ** hiển thị số lượng YC-CC đang ở trạng thái `Đã mua hàng` — tức là hàng đã được mua và đang chờ kho nhập. Khi badge > 0, kho cần ưu tiên xử lý nhập kho.
+
+#### Luồng trạng thái YC-CC
+
+```
+Chưa cung cấp → Đang xử lý → Đã duyệt mua → Đã mua hàng → Đã cung cấp
+```
+
+| Trạng thái | Ý nghĩa | Ai thay đổi |
+|---|---|---|
+| `Chưa cung cấp` | Mới tạo, chờ thu mua xử lý | Tự động khi tạo YC-CC |
+| `Đang xử lý` | Thu mua đã tạo YC-MH từ YC-CC này | Tự động khi thu mua tạo YC-MH |
+| `Đã duyệt mua` | YC-MH đã được duyệt | Tự động khi thu mua duyệt YC-MH |
+| `Đã mua hàng` | YC-MH hoàn thành — hàng đã mua, chờ nhập kho | Tự động khi thu mua đánh dấu "Hoàn thành" |
+| `Đã cung cấp` | Kho đã nhập hàng xong | Kho thao tác thủ công |
+
+> Dòng `Đã mua hàng` được **highlight màu vàng cam** trong bảng để kho dễ nhận biết hàng nào đang chờ nhập.
+
+#### Bảng danh sách YC-CC
+
+| Cột | Nội dung |
+|---|---|
+| Mã YC | Mã tự động sinh (dạng YC-CC-YYYY-XXX) |
+| Người yêu cầu | Tên nhân viên tạo yêu cầu |
+| Hàng hóa | Tên / danh sách hàng hóa cần cung cấp |
+| Số lượng | Số lượng yêu cầu |
+| Mức độ ưu tiên | `Thấp` / `Trung bình` / `Cao` (màu xanh / vàng / đỏ) |
+| Trạng thái | Badge trạng thái theo luồng trên |
+| Ngày tạo | Ngày tạo yêu cầu |
+| Hành động | Xem chi tiết / Tạo YC-MH / Đánh dấu hoàn thành |
+
+**Bộ lọc:** Tìm theo mã yêu cầu, trạng thái (dropdown đầy đủ 5 trạng thái).
+
+#### Form tạo YC-CC — nhấn "Tạo yêu cầu cung cấp"
+
+| Trường | Bắt buộc | Ghi chú |
+|---|---|---|
+| Nhân viên yêu cầu | — | Tự động từ tài khoản đăng nhập |
+| Mức độ ưu tiên | ✅ | `Thấp` / `Trung bình` / `Cao` |
+| Mục đích yêu cầu | ❌ | Mô tả lý do cần vật tư |
+| Ghi chú | ❌ | |
+| Danh sách hàng hóa | ✅ | Nhiều dòng: Phân loại · Tên hàng hóa · Số lượng · Đơn vị tính |
+
+#### Tạo Yêu cầu mua hàng (YC-MH) từ YC-CC
+
+Khi kho cần mua hàng từ nhà cung cấp bên ngoài, nhấn nút **"Tạo YC mua hàng"** trên dòng YC-CC tương ứng. Hệ thống tự động:
+- Tạo một YC-MH mới trong bộ phận thu mua (phòng thu mua NVL hoặc Thiết bị tùy loại hàng)
+- Sao chép danh sách hàng hóa, số lượng, đơn vị tính từ YC-CC sang
+- Liên kết YC-MH với YC-CC (qua trường `supplyRequestId`)
+- Chuyển trạng thái YC-CC sang `Đang xử lý`
+
+> Sau khi tạo, kho không cần làm gì thêm — thu mua sẽ xử lý YC-MH và cập nhật trạng thái. Kho nhận thông báo khi hàng đã được mua xong.
+
+#### Thông báo nhận từ bộ phận thu mua
+
+Khi thu mua đánh dấu YC-MH là **"Hoàn thành"**, hệ thống tự động gửi thông báo real-time tới tất cả nhân viên kho (`SUBDEPT_PRODUCTION_WAREHOUSE`):
+
+| Tiêu đề | Nội dung |
+|---|---|
+| "Yêu cầu cung cấp đã duyệt" | "Yêu cầu cung cấp [mã YC-CC] đã được phê duyệt." |
+
+Đồng thời, trạng thái YC-CC tương ứng tự động chuyển sang `Đã mua hàng` và dòng đó được highlight vàng cam trong bảng — kho tiến hành tạo phiếu nhập kho (tab **Nhập kho**) cho lô hàng này.
+
+#### Hoàn thành YC-CC — Đánh dấu "Đã cung cấp"
+
+Sau khi kho đã nhập hàng vào kho, nhấn nút **"Đánh dấu hoàn thành"** (hoặc cập nhật trạng thái thủ công) trên dòng YC-CC để chuyển sang `Đã cung cấp`. Thao tác này đóng vòng đời của yêu cầu.
 
 ### 4.5 Danh sách hàng hóa — Tab "Danh sách hàng hóa" (`products`)
 
 **Truy cập:** `/production/warehouse` → tab **"Danh sách hàng hóa"**
 
-Quản lý danh mục sản phẩm quốc tế (dùng chung với Bộ phận kinh doanh).
+Quản lý danh mục sản phẩm quốc tế — dùng chung với Bộ phận kinh doanh và là **nguồn dữ liệu cho dropdown nguyên liệu/thành phẩm** trong Phòng QLSX (tab Định mức NVL, Đánh giá nguyên liệu, v.v.).
+
+> Nếu một sản phẩm chưa có trong danh sách này, nó sẽ **không xuất hiện trong dropdown** ở các tab trong Phòng QLSX. Cần thêm sản phẩm vào đây trước khi tạo Định mức NVL hoặc Đánh giá nguyên liệu.
+
+#### Quyền truy cập Danh sách hàng hóa
+
+| Chức năng | ADMIN | DEPARTMENT_HEAD | TEAM_LEAD | EMPLOYEE |
+|---|---|---|---|---|
+| Xem danh sách | ✅ | ✅ | ✅ | ✅ |
+| Thêm hàng hóa mới | ✅ | ✅ | ✅ | ❌ |
+| Sửa hàng hóa | ✅ | ✅ | ✅ | ❌ |
+| Xóa hàng hóa | ✅ | ❌ | ❌ | ❌ |
+| Quản lý loại hàng hóa (Cài đặt) | ✅ | ✅ | ❌ | ❌ |
+| Xuất Excel | ✅ | ✅ | ✅ | ✅ |
+
+#### Form thêm / sửa hàng hóa
+
+| Trường | Bắt buộc | Ghi chú |
+|---|---|---|
+| Mã hàng hóa | ✅ | Tự động sinh (SP001, SP002...), có thể chỉnh |
+| Tên hàng hóa | ✅ | |
+| Loại hàng hóa | ❌ | Chọn từ danh sách loại đã cài đặt |
+| Đơn vị tính | ❌ | Ví dụ: Kg, Cái, Lít |
+| Mô tả | ❌ | |
 
 ---
 
@@ -652,3 +746,15 @@ Không. Tạo kho nằm trong **Bộ phận sản xuất** → **Quản lý kho*
 
 **Q16: Tôi muốn tạo phiếu nhập kho nhưng chưa có kho nào, phải làm gì?**
 Cần tạo kho và lô trước: vào tab **Quản lý kho** → nhấn **"+ Thêm kho"** → tạo kho → nhấn **"Thêm lô"** → tạo lô. Sau đó mới vào tab **Nhập kho** để tạo phiếu nhập.
+
+**Q17: Yêu cầu cung cấp (YC-CC) có bao nhiêu trạng thái?**
+Có 5 trạng thái theo thứ tự: `Chưa cung cấp` → `Đang xử lý` → `Đã duyệt mua` → `Đã mua hàng` → `Đã cung cấp`. Các trạng thái từ "Đang xử lý" trở đi được cập nhật tự động theo tiến trình xử lý từ bộ phận thu mua.
+
+**Q18: Badge đỏ trên tab "Yêu cầu cung cấp" có nghĩa là gì?**
+Badge đỏ hiển thị số lượng YC-CC đang ở trạng thái `Đã mua hàng` — tức là thu mua đã mua xong hàng và đang chờ kho nhập. Khi badge > 0, kho cần vào tab Nhập kho để tạo phiếu nhập cho các lô hàng đó.
+
+**Q19: Kho có nhận thông báo khi thu mua mua xong hàng không?**
+Có. Khi bộ phận thu mua đánh dấu YC-MH là "Hoàn thành", hệ thống tự động gửi thông báo real-time tới tất cả nhân viên kho với nội dung "Yêu cầu cung cấp [mã] đã được phê duyệt". Đồng thời dòng YC-CC tương ứng sẽ highlight vàng cam trong bảng.
+
+**Q20: Kho tạo YC-CC xong thì có cần làm gì thêm không?**
+Không. Sau khi tạo YC-CC và nhấn "Tạo YC mua hàng" để chuyển sang thu mua, kho chỉ cần chờ thông báo. Khi nhận được thông báo "hàng đã mua xong", kho vào tab **Nhập kho** tạo phiếu nhập, sau đó quay lại tab **Yêu cầu cung cấp** đánh dấu `Đã cung cấp`.
