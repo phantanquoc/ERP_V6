@@ -34,6 +34,7 @@ ERP An Binh Foods là hệ thống quản lý doanh nghiệp nội bộ, truy c�
 | 🔄 **Tất cả nhân viên** | Flow đơn hàng đầu cuối | [`09-flow-don-hang.md`](./09-flow-don-hang.md) |
 | 📈 **Bộ phận kinh doanh** (DEPT_BUSINESS) | Dashboard báo cáo kinh doanh | [`10-bao-cao-kinh-doanh.md`](./10-bao-cao-kinh-doanh.md) |
 | 📷 **Tất cả nhân viên** | Điểm danh khuôn mặt (Kiosk) | [`11-diem-danh-khuon-mat.md`](./11-diem-danh-khuon-mat.md) |
+| 🔔 **Tất cả nhân viên** | Hệ thống thông báo | [`13-he-thong-thong-bao.md`](./13-he-thong-thong-bao.md) |
 
 ---
 

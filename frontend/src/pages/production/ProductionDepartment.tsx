@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Factory,
   Calendar,
@@ -26,6 +27,7 @@ import machineService from '../../services/machineService';
 import { orderService } from '../../services/orderService';
 
 const ProductionDepartment = () => {
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'machines' | 'processList' | 'productionOrders' | 'orderList' | 'standards' | 'materialEvaluation' | 'systemOperation' | 'finishedProduct' | 'qualityEvaluation' | 'productionReport'>('machines');
   const [selectedMaChien, setSelectedMaChien] = useState<string>('');
   const [selectedThoiGianChien, setSelectedThoiGianChien] = useState<string>('');
@@ -52,6 +54,17 @@ const ProductionDepartment = () => {
   useEffect(() => {
     loadAllStats();
   }, []);
+
+  // Read ?tab= from URL (e.g. from notification navigation)
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam) {
+      const validTabs = ['machines', 'processList', 'productionOrders', 'orderList', 'standards', 'materialEvaluation', 'systemOperation', 'finishedProduct', 'qualityEvaluation', 'productionReport'];
+      if (validTabs.includes(tabParam)) {
+        setActiveTab(tabParam as any);
+      }
+    }
+  }, [searchParams]);
 
   const loadAllStats = async () => {
     setLoading(true);

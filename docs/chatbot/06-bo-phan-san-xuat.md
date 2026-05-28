@@ -29,12 +29,17 @@ Hệ thống quản lý sản xuất được chia thành **3 khu vực chức n
 
 ## 2. Quyền truy cập
 
-| Role | Xem | Tạo mới | Sửa | Xóa |
-|---|---|---|---|---|
-| ADMIN | ✅ | ✅ | ✅ | ✅ |
-| DEPARTMENT_HEAD | ✅ | ✅ | ✅ | ✅ |
-| TEAM_LEAD | ✅ | ✅ | ✅ | ❌ |
-| EMPLOYEE | ✅ | ✅ | ❌ | ❌ |
+| Chức năng | ADMIN | DEPARTMENT_HEAD | TEAM_LEAD | EMPLOYEE |
+|-----------|:-----:|:---------------:|:---------:|:--------:|
+| Xem tất cả dữ liệu | ✅ | ✅ | ✅ | ✅ |
+| Tạo máy / quy trình / thông số / thành phẩm | ✅ | ✅ | ✅ | ✅ |
+| Sửa máy / quy trình / thông số / thành phẩm | ✅ | ✅ | ✅ | ❌ |
+| Xóa máy / quy trình / thông số / thành phẩm | ✅ | ✅ | ❌ | ❌ |
+| Tạo / sửa kho, lô, phiếu nhập/xuất | ✅ | ✅ | ✅ | ❌ |
+| Xóa kho / lô | ✅ | ✅ | ❌ | ❌ |
+| Tạo / sửa YC-CC | ✅ | ✅ | ✅ | ❌ |
+| Xóa YC-CC | ✅ | ❌ | ❌ | ❌ |
+| Xuất Excel | ✅ | ✅ | ✅ | ✅ |
 
 > Tất cả các chức năng trong bộ phận sản xuất chỉ hiển thị với người dùng thuộc `DEPT_PRODUCTION`.
 
@@ -758,3 +763,50 @@ Có. Khi bộ phận thu mua đánh dấu YC-MH là "Hoàn thành", hệ thống
 
 **Q20: Kho tạo YC-CC xong thì có cần làm gì thêm không?**
 Không. Sau khi tạo YC-CC và nhấn "Tạo YC mua hàng" để chuyển sang thu mua, kho chỉ cần chờ thông báo. Khi nhận được thông báo "hàng đã mua xong", kho vào tab **Nhập kho** tạo phiếu nhập, sau đó quay lại tab **Yêu cầu cung cấp** đánh dấu `Đã cung cấp`.
+
+---
+
+## 8. Phụ thuộc liên phòng ban
+
+| Dữ liệu cần | Nguồn | Đường dẫn tạo |
+|---|---|---|
+| Danh sách đơn hàng (cho tab Đơn hàng) | Bộ phận kinh doanh | Phòng KD quốc tế/nội địa → Tab Đơn hàng |
+| Danh sách hàng hóa (cho Định mức NVL, Đánh giá NL) | Bộ phận sản xuất (tự quản lý) | Quản lý kho → Tab Danh sách hàng hóa |
+| Quy trình mẫu (cho Quy trình sản xuất) | Bộ phận chất lượng | Phòng chất lượng → Tab Quy trình |
+| Yêu cầu mua hàng (từ YC-CC) | Bộ phận thu mua | Phòng thu mua NVL/Thiết bị → Tab Yêu cầu mua hàng |
+| Nhà cung cấp (cho YC-MH) | Bộ phận thu mua | Phòng thu mua → Tab Nhà cung cấp |
+
+> **Thứ tự setup:** Trước khi bộ phận sản xuất hoạt động đầy đủ, cần đảm bảo: (1) Hàng hóa đã được tạo trong tab Danh sách hàng hóa, (2) Quy trình mẫu đã được tạo bởi bộ phận chất lượng, (3) Đơn hàng đã được tạo bởi bộ phận kinh doanh, (4) Kho và lô đã được tạo trước khi nhập/xuất kho.
+
+---
+
+## 9. Luồng dữ liệu sản xuất
+
+```
+Đánh giá nguyên liệu (nhập mã chiên, thông tin ngâm)
+    ↓ Nhấn "Tạo thông số vận hành" (icon bánh răng)
+Thông số vận hành hệ thống (4 giai đoạn chiên/sấy cho từng máy)
+    ↓ Sau khi sấy xong
+Thành phẩm đầu ra (ghi nhận KL 8 loại thành phẩm theo mã chiên)
+    ↓ Dữ liệu tổng hợp
+Đánh giá chất lượng (đánh giá cảm quan: màu, mùi, vị, giòn)
+    ↓ Cuối ngày
+Báo cáo sản lượng (so sánh KL thực tế vs định mức, phân tích chênh lệch)
+```
+
+> **Mã chiên** là khóa liên kết xuyên suốt: từ Đánh giá nguyên liệu → Thông số vận hành → Thành phẩm đầu ra → Đánh giá chất lượng. Tất cả đều dùng cùng mã chiên để truy vết nguồn gốc.
+
+---
+
+## 10. Lưu ý quan trọng
+
+1. **Mã chiên tự động sinh** — không cần nhập thủ công, hệ thống tự tạo khi thêm Đánh giá nguyên liệu mới.
+2. **Trạng thái máy ảnh hưởng Thông số vận hành** — khi tạo thông số vận hành, trạng thái tự động lấy từ trạng thái máy hiện tại (không sửa được).
+3. **Tổng thời gian sấy tự tính** — bằng tổng thời gian 4 giai đoạn.
+4. **Tỉ lệ thành phẩm tự tính** — khi nhập khối lượng từng loại, hệ thống tự tính tỉ lệ % dựa trên tổng khối lượng.
+5. **Người thực hiện tự động** — nhiều form tự động điền tên người đăng nhập hiện tại.
+6. **Tab "Tổng các máy"** trong Thành phẩm đầu ra — chỉ xem, không sửa/xóa, tổng hợp dữ liệu từ tất cả máy.
+7. **Quy trình sản xuất có thể đồng bộ** — nhấn nút "Đồng bộ từ quy trình mẫu" để cập nhật flowchart theo template mới nhất từ bộ phận chất lượng.
+8. **Kho phải tạo trước lô, lô phải tạo trước khi nhập hàng** — không thể tạo phiếu nhập/xuất nếu chưa có kho và lô.
+9. **YC-CC liên kết với YC-MH** — khi tạo YC mua hàng từ YC-CC, hai bản ghi được liên kết qua `supplyRequestId`. Trạng thái YC-CC tự động cập nhật theo tiến trình xử lý của thu mua.
+10. **File đính kèm** — hỗ trợ upload file cho: Đánh giá nguyên liệu, Thông số vận hành, Thành phẩm đầu ra, Đánh giá chất lượng, Báo cáo sản lượng.

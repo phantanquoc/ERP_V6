@@ -19,15 +19,20 @@ Từ thanh điều hướng bên trái (sidebar):
 Bộ phận Chất lượng chịu trách nhiệm quản lý toàn bộ quy trình đảm bảo chất lượng sản phẩm, nhân sự và quy trình sản xuất. Hệ thống chia thành hai phòng chức năng chính:
 
 - **Phòng CL Nhân sự** (`/quality/personnel`): Quản lý nhân viên, vị trí, cấp độ, đánh giá, bảng lương, điểm danh, đơn nghỉ phép và tài khoản user.
-- **Phòng CL Quy trình** (`/quality/process`): Quản lý quy trình sản xuất, đánh giá nguyên vật liệu (đánh giá chiên/ngâm), định mức NVL và kiểm tra nội bộ.
+- **Phòng CL Quy trình** (`/quality/process`): Quản lý quy trình sản xuất, danh sách đơn hàng và kiểm tra nội bộ.
 
-Dashboard tổng quan (`/quality`) hiển thị 4 chỉ số chính:
-| Chỉ số | Mô tả |
-|--------|-------|
-| Nhân viên | Tổng số nhân viên và số đang làm việc |
-| Quy trình | Tổng số quy trình đã tạo |
-| Đánh giá chất lượng | Tổng số lượt đánh giá NVL |
-| Kiểm tra nội bộ | Tổng số lượt kiểm tra nội bộ |
+Dashboard tổng quan Phòng CL Nhân sự hiển thị 3 khối thông tin:
+| Khối | Chỉ số |
+|------|--------|
+| Tổng quan nhân viên | Tổng nhân viên · Chính thức · Thử việc · Bán thời gian |
+| Tổng quan đánh giá | Đã đánh giá · Vượt KPI · Đạt KPI · Chưa đạt (lọc theo tháng/năm) |
+| Tổng quan điểm danh | Tổng điểm danh · Đã vào · Đã ra · Chưa điểm danh (lọc theo ngày) |
+
+Dashboard tổng quan Phòng CL Quy trình hiển thị 2 khối:
+| Khối | Chỉ số |
+|------|--------|
+| Tổng quan quy trình | Tổng số quy trình · Sản xuất · Kiểm tra · Đóng gói · Vận chuyển · Khác |
+| Tổng quan sản phẩm | Tổng sản phẩm · NL tươi · NL đông · SP khô · SP đông · Phụ liệu |
 
 ---
 
@@ -38,18 +43,19 @@ Dashboard tổng quan (`/quality`) hiển thị 4 chỉ số chính:
 | Xem danh sách nhân viên | ✅ | ✅ | ✅ | ✅ |
 | Thêm / sửa nhân viên | ✅ | ✅ | ❌ | ❌ |
 | Xóa nhân viên | ✅ | ✅ | ❌ | ❌ |
-| Quản lý vị trí & cấp độ | ✅ | ✅ | ❌ | ❌ |
+| Quản lý vị trí | ✅ | ✅ | ❌ | ❌ |
+| Quản lý cấp độ & lương | ✅ | ✅ | ❌ | ❌ |
+| Quản lý trách nhiệm | ✅ | ✅ | ❌ | ❌ |
 | Xem đánh giá nhân viên | ✅ | ✅ | ✅ | ✅ |
 | Tạo / sửa đánh giá nhân viên | ✅ | ✅ | ✅ | ❌ |
 | Xem bảng lương | ✅ | ✅ | ✅ | ✅ (bản thân) |
 | Chỉnh sửa bảng lương | ✅ | ✅ | ❌ | ❌ |
 | Quản lý điểm danh | ✅ | ✅ | ✅ | ❌ |
 | Xem / tạo đơn nghỉ phép | ✅ | ✅ | ✅ | ✅ |
+| Duyệt / từ chối đơn nghỉ phép | ✅ | ✅ | ✅ | ❌ |
 | Quản lý user hệ thống | ✅ | ❌ | ❌ | ❌ |
 | Tạo / sửa quy trình | ✅ | ✅ | ✅ | ❌ |
 | Xem quy trình | ✅ | ✅ | ✅ | ✅ |
-| Tạo đánh giá NVL (chiên/ngâm) | ✅ | ✅ | ✅ | ✅ |
-| Tạo / sửa định mức NVL | ✅ | ✅ | ✅ | ❌ |
 | Kiểm tra nội bộ | ✅ | ✅ | ✅ | ❌ |
 
 ---
@@ -58,19 +64,19 @@ Dashboard tổng quan (`/quality`) hiển thị 4 chỉ số chính:
 
 Đường dẫn: `/quality/personnel`
 
-Trang gồm 9 tab:
+Trang gồm 9 tab (hiển thị theo role):
 
-| Tab | Tên hiển thị | Mô tả |
-|-----|-------------|-------|
-| `employees` | Danh sách nhân viên | CRUD hồ sơ nhân viên |
-| `positions` | Quản lý vị trí | Tạo và quản lý chức danh |
-| `levels` | Quản lý cấp độ & lương | Gán cấp độ, mức lương theo bậc |
-| `responsibilities` | Danh sách trách nhiệm | Quản lý mô tả trách nhiệm từng vị trí |
-| `evaluations` | Đánh giá nhân viên | Nhập điểm KPI theo tháng/năm |
-| `payroll` | Bảng tính lương | Tính lương, OT, khấu trừ |
-| `attendance` | Bảng điểm danh nhân viên | Xem điểm danh theo ngày |
-| `leave-requests` | Danh sách đơn nghỉ phép | Xem và duyệt đơn nghỉ phép |
-| `users` | Quản lý user | Tạo/khóa tài khoản hệ thống |
+| Tab | Tên hiển thị | Roles được xem |
+|-----|-------------|----------------|
+| `employees` | Danh sách nhân viên | Tất cả |
+| `positions` | Quản lý vị trí | ADMIN, DEPARTMENT_HEAD |
+| `levels` | Quản lý cấp độ & lương | ADMIN, DEPARTMENT_HEAD |
+| `responsibilities` | Danh sách trách nhiệm | ADMIN, DEPARTMENT_HEAD |
+| `evaluations` | Đánh giá nhân viên | Tất cả |
+| `payroll` | Bảng tính lương | Tất cả |
+| `attendance` | Bảng điểm danh nhân viên | Tất cả |
+| `leave-requests` | Danh sách đơn nghỉ phép | Tất cả |
+| `users` | Quản lý user | Chỉ ADMIN |
 
 ### 3.1 Danh sách nhân viên (EmployeeManagement)
 
@@ -81,9 +87,9 @@ Trang gồm 9 tab:
 | 1 | Mã nhân viên | ✅ | Text |
 | 2 | Họ tên | ✅ | Text (từ tài khoản user) |
 | 3 | Email | ✅ | Email (từ tài khoản user) |
-| 4 | Vị trí | | Select (từ danh sách vị trí) |
+| 4 | Vị trí | | Select (từ danh sách vị trí — phải tạo vị trí trước) |
 | 5 | Bộ phận | | Text |
-| 6 | Cấp độ nhân viên | | Select (từ danh sách cấp độ) |
+| 6 | Cấp độ nhân viên | | Select (từ danh sách cấp độ — phải tạo cấp độ trước) |
 | 7 | Ngày vào làm | ✅ | Date |
 | 8 | Loại hợp đồng | | `PERMANENT` (Chính thức) / `TEMPORARY` (Tạm thời) / `PROBATION` (Thử việc) / `PART_TIME` (Bán thời gian) |
 | 9 | Trạng thái | | `ACTIVE` (Đang làm) / `INACTIVE` (Ngừng làm) / `ON_LEAVE` (Nghỉ phép) / `TERMINATED` (Đã nghỉ việc) |
@@ -106,12 +112,73 @@ Trang gồm 9 tab:
 | 26 | Ghi chú | | Text area |
 | 27 | Lương KPI | | Số (tính tự động từ Lương cơ bản × Mức KPI) |
 
+> **Lưu ý:** Trước khi thêm nhân viên, cần đảm bảo đã tạo **Vị trí** (tab Quản lý vị trí) và **Cấp độ** (tab Quản lý cấp độ & lương) để có thể gán cho nhân viên. Nhân viên cũng cần có tài khoản user (do ADMIN tạo trong tab Quản lý user) để lấy Họ tên và Email.
+
 #### Hành động trong bảng nhân viên
 - **Xem chi tiết**: Mở modal xem đầy đủ 27 trường.
 - **Chỉnh sửa**: Mở form sửa thông tin.
 - **Xóa**: Xác nhận trước khi xóa.
 
-### 3.2 Đánh giá nhân viên (mục **Đánh giá nhân viên**)
+### 3.2 Quản lý vị trí (PositionManagement)
+
+**Truy cập:** `/quality/personnel` → tab **"Quản lý vị trí"** (chỉ ADMIN, DEPARTMENT_HEAD)
+
+#### Form tạo / sửa vị trí — 3 trường
+
+| # | Trường | Bắt buộc | Ghi chú |
+|---|--------|:--------:|---------|
+| 1 | Mã vị trí | ✅ | Text (mã duy nhất, VD: VT-001) |
+| 2 | Tên vị trí | ✅ | Text (VD: Trưởng phòng, Nhân viên QC) |
+| 3 | Mô tả | | Text area |
+
+#### Cột bảng danh sách
+Mã vị trí · Tên vị trí · Mô tả · Hành động (Xem / Sửa / Xóa)
+
+#### Bộ lọc
+- Tìm kiếm theo mã hoặc tên vị trí
+- Lọc theo tên vị trí
+
+> **Quan trọng:** Vị trí phải được tạo trước khi gán cho nhân viên và trước khi tạo trách nhiệm.
+
+### 3.3 Quản lý cấp độ & lương (PositionLevelManagement)
+
+**Truy cập:** `/quality/personnel` → tab **"Quản lý cấp độ & lương"** (chỉ ADMIN, DEPARTMENT_HEAD)
+
+Mỗi vị trí có nhiều cấp độ (bậc lương). Chọn vị trí trước, rồi quản lý các cấp độ của vị trí đó.
+
+#### Form tạo / sửa cấp độ — 3 trường
+
+| # | Trường | Bắt buộc | Ghi chú |
+|---|--------|:--------:|---------|
+| 1 | Cấp độ | ✅ | Text (VD: Junior, Senior, Lead) |
+| 2 | Lương cơ bản | ✅ | Số tiền (VNĐ) |
+| 3 | Lương KPI | ✅ | Số tiền (VNĐ) |
+
+#### Cột bảng danh sách
+Cấp độ · Lương cơ bản · Lương KPI · Hành động (Xem / Sửa / Xóa)
+
+> **Quan trọng:** Phải tạo vị trí trước (tab Quản lý vị trí), sau đó mới tạo cấp độ cho vị trí đó.
+
+### 3.4 Danh sách trách nhiệm (ResponsibilityManagement)
+
+**Truy cập:** `/quality/personnel` → tab **"Danh sách trách nhiệm"** (chỉ ADMIN, DEPARTMENT_HEAD)
+
+Mỗi vị trí có nhiều trách nhiệm. Chọn vị trí trước, rồi quản lý trách nhiệm của vị trí đó. Trách nhiệm được dùng làm tiêu chí đánh giá KPI nhân viên.
+
+#### Form tạo / sửa trách nhiệm — 3 trường
+
+| # | Trường | Bắt buộc | Ghi chú |
+|---|--------|:--------:|---------|
+| 1 | Tên trách nhiệm | ✅ | Text (VD: Kiểm tra chất lượng đầu vào) |
+| 2 | Mô tả | | Text area |
+| 3 | Tỷ trọng (%) | ✅ | Số (trọng số trong đánh giá KPI, tổng các trách nhiệm = 100%) |
+
+#### Cột bảng danh sách
+Tên trách nhiệm · Mô tả · Tỷ trọng (%) · Hành động (Xem / Sửa / Xóa)
+
+> **Quan trọng:** Trách nhiệm phải được tạo cho vị trí trước khi đánh giá KPI nhân viên ở vị trí đó. Nếu chưa có trách nhiệm, đánh giá sẽ không có tiêu chí để chấm điểm.
+
+### 3.5 Đánh giá nhân viên (EmployeeEvaluationManagement)
 
 **Truy cập:** `/quality/personnel` → tab **"Đánh giá nhân viên"**
 
@@ -128,7 +195,7 @@ Trang gồm 9 tab:
 
 | Nút | Hành động |
 |---|---|
-| **Tạo đánh giá** | Tạo chu kỳ đánh giá cho tất cả nhân viên trong tháng đã chọn. Hiển thị "Đang tạo..." trong khi xử lý |
+| **Tạo đánh giá** | Tạo chu kỳ đánh giá cho tất cả nhân viên ACTIVE trong tháng đã chọn |
 
 #### Cột bảng danh sách
 
@@ -137,10 +204,10 @@ Trang gồm 9 tab:
 | MNV | Mã nhân viên |
 | Tên NV | Họ tên nhân viên |
 | Vị trí | Chức danh |
-| % Tự đánh giá | Điểm tự đánh giá (ví dụ: 85.0%) |
+| % Tự đánh giá | Điểm tự đánh giá (VD: 85.0%) |
 | % Cấp trên 1 | Điểm từ cấp trên trực tiếp |
 | % Cấp trên 2 | Điểm từ cấp trên thứ 2 |
-| Hành động | Nút **mắt (Xem)** — chỉ hiển thị nếu nhân viên đã có đánh giá |
+| Hành động | Nút **Xem** (mắt) — chỉ hiển thị nếu đã có đánh giá |
 
 #### Chi tiết đánh giá (modal xem)
 
@@ -155,12 +222,19 @@ Mỗi dòng trong bảng chi tiết gồm:
 | Cấp trên 1 | Điểm cấp trên 1 chấm |
 | Cấp trên 2 | Điểm cấp trên 2 chấm |
 
-> **Lưu ý:** Điểm nhập ở dạng phần trăm (0–100%). Nhân viên tự đánh giá qua form **Tự đánh giá** từ Dashboard. Quản lý chấm điểm từ trang này.
+> **Quy trình đánh giá:**
+> 1. TEAM_LEAD hoặc DEPARTMENT_HEAD nhấn "Tạo đánh giá" → hệ thống tạo bản ghi cho tất cả nhân viên ACTIVE
+> 2. Nhân viên tự đánh giá qua form **Tự đánh giá** từ Dashboard cá nhân
+> 3. Cấp trên 1 (TEAM_LEAD) chấm điểm
+> 4. Cấp trên 2 (DEPARTMENT_HEAD) chấm điểm cuối cùng
+>
+> **Điều kiện:** Nhân viên phải có vị trí đã gán trách nhiệm. Nếu vị trí chưa có trách nhiệm → không có tiêu chí đánh giá.
 
-**Nút:** "Đóng"
-- Dashboard tổng quan hiển thị: tổng đánh giá tháng, phân bố đánh giá.
+### 3.6 Bảng tính lương (PayrollManagement)
 
-### 3.3 Bảng tính lương (PayrollManagement)
+**Truy cập:** `/quality/personnel` → tab **"Bảng tính lương"**
+
+#### Các trường trong bảng lương
 
 | Trường | Mô tả |
 |--------|-------|
@@ -180,9 +254,138 @@ Mỗi dòng trong bảng chi tiết gồm:
 | Số ngày làm | Thực tế ngày làm việc |
 | Số ngày nghỉ | Số ngày vắng |
 | Giờ OT | Số giờ làm thêm |
-| Tiền OT | Lương làm thêm |
+| Tiền OT | Lương làm thêm = Giờ OT × Giá tiền OT/giờ |
 | Số ngày công chuẩn / tháng | Chuẩn ngày công |
-| Giá tiền OT (₫/giờ) | Đơn giá OT |
+| Giá tiền OT (₫/giờ) | Đơn giá OT (cấu hình thủ công) |
+
+> **Lưu ý:** Bảng lương lấy dữ liệu từ: lương cơ bản (hồ sơ nhân viên), điểm danh (tab Điểm danh), đánh giá KPI (tab Đánh giá). DEPARTMENT_HEAD hoặc ADMIN xác nhận trước khi chốt lương.
+
+### 3.7 Bảng điểm danh nhân viên (AttendanceManagement)
+
+**Truy cập:** `/quality/personnel` → tab **"Bảng điểm danh nhân viên"**
+
+#### Bộ lọc
+
+| Bộ lọc | Loại | Ghi chú |
+|---|---|---|
+| Ngày bắt đầu | Date picker | Mặc định: 30 ngày trước |
+| Ngày kết thúc | Date picker | Mặc định: hôm nay |
+| Trạng thái | Dropdown | Đúng giờ / Muộn / Vắng mặt / Nghỉ phép / Tăng ca |
+| Tìm kiếm | Văn bản | Tìm theo mã NV hoặc tên NV |
+
+#### Nút header
+
+| Nút | Hành động |
+|---|---|
+| **Cài đặt ca** | Mở modal cài đặt ca làm việc (giờ vào/ra chuẩn) |
+| **Xuất Excel** | Xuất danh sách điểm danh ra file Excel |
+| **Thêm mới** | Mở form tạo bản ghi điểm danh thủ công |
+
+#### Trạng thái điểm danh (5 trạng thái)
+
+| Giá trị | Nhãn hiển thị | Màu |
+|---------|--------------|-----|
+| `PRESENT` | Đúng giờ | Xanh lá |
+| `LATE` | Muộn | Vàng |
+| `ABSENT` | Vắng mặt | Đỏ |
+| `ON_LEAVE` | Nghỉ phép | Tím |
+| `OVERTIME` | Tăng ca | Xanh dương |
+
+#### Form thêm / sửa điểm danh
+
+| # | Trường | Bắt buộc | Ghi chú |
+|---|--------|:--------:|---------|
+| 1 | Mã nhân viên | ✅ | Nhập mã NV → hệ thống tự hiển thị tên |
+| 2 | Ngày điểm danh | ✅ | Date picker (mặc định hôm nay) |
+| 3 | Giờ vào | | Time picker (HH:mm) |
+| 4 | Giờ ra | | Time picker (HH:mm) |
+| 5 | Trạng thái | ✅ | Dropdown: PRESENT / LATE / ABSENT / ON_LEAVE / OVERTIME |
+| 6 | Ghi chú | | Text |
+
+#### Cột bảng danh sách
+
+| Cột | Nội dung |
+|---|---|
+| STT | Số thứ tự |
+| Mã NV | Mã nhân viên |
+| Tên nhân viên | Họ tên |
+| Vị trí | Chức danh |
+| Ngày | Ngày điểm danh |
+| Giờ vào | Danh sách giờ check-in (có thể nhiều lần) |
+| Giờ ra | Danh sách giờ check-out |
+| Số giờ làm | Tổng giờ làm việc |
+| Trạng thái | Badge màu |
+| Ghi chú | Ghi chú |
+| Hành động | Sửa / Xóa |
+
+> **Lưu ý:** Điểm danh có thể được ghi nhận tự động qua hệ thống nhận diện khuôn mặt (Face Attendance) hoặc thêm thủ công bởi TEAM_LEAD trở lên. Một nhân viên có thể có nhiều lần check-in/check-out trong ngày.
+
+### 3.8 Danh sách đơn nghỉ phép (LeaveRequestManagement)
+
+**Truy cập:** `/quality/personnel` → tab **"Danh sách đơn nghỉ phép"**
+
+#### Loại nghỉ phép (6 loại)
+
+| Giá trị | Nhãn hiển thị |
+|---------|--------------|
+| `ANNUAL` | Nghỉ phép năm |
+| `SICK` | Nghỉ ốm |
+| `PERSONAL` | Nghỉ việc riêng |
+| `MATERNITY` | Nghỉ thai sản |
+| `EMERGENCY` | Nghỉ khẩn cấp |
+| `COMPENSATORY` | Nghỉ bù |
+
+#### Trạng thái đơn nghỉ phép (3 trạng thái)
+
+| Giá trị | Nhãn hiển thị | Màu badge |
+|---------|--------------|-----------|
+| `PENDING` | Chờ duyệt | Vàng |
+| `APPROVED` | Đã duyệt | Xanh lá |
+| `REJECTED` | Từ chối | Đỏ |
+
+#### Bộ lọc
+
+| Bộ lọc | Loại | Tùy chọn |
+|---|---|---|
+| Trạng thái | Dropdown | Chờ duyệt / Đã duyệt / Từ chối |
+| Loại nghỉ | Dropdown | 6 loại nghỉ phép |
+| Tìm kiếm | Văn bản | Tìm theo mã đơn, tên nhân viên |
+
+#### Nút header
+
+| Nút | Hành động |
+|---|---|
+| **Xuất Excel** | Xuất danh sách đơn nghỉ phép ra file Excel |
+
+#### Cột bảng danh sách
+
+| Cột | Nội dung |
+|---|---|
+| Mã đơn | Mã đơn nghỉ phép (chữ xanh đậm) |
+| Nhân viên | Họ tên + mã NV |
+| Loại nghỉ | Loại nghỉ phép |
+| Thời gian | Từ ngày – đến ngày |
+| Trạng thái | Badge màu |
+| Ngày tạo | Ngày nộp đơn |
+| Thao tác | Xem / Duyệt / Từ chối |
+
+#### Quy trình duyệt đơn nghỉ phép
+
+1. Nhân viên tạo đơn nghỉ phép (từ Dashboard cá nhân hoặc tab này) → trạng thái `PENDING`
+2. TEAM_LEAD / DEPARTMENT_HEAD / ADMIN xem đơn và chọn:
+   - **Duyệt**: Đơn chuyển sang `APPROVED`
+   - **Từ chối**: Phải nhập lý do từ chối → đơn chuyển sang `REJECTED`
+3. Nhân viên xem kết quả duyệt trong danh sách đơn của mình
+
+> **Lưu ý:** Khi từ chối đơn nghỉ phép, bắt buộc phải nhập lý do. Không thể từ chối mà không có lý do.
+
+### 3.9 Quản lý user (UserManagement)
+
+**Truy cập:** `/quality/personnel` → tab **"Quản lý user"** (chỉ ADMIN)
+
+Tạo và quản lý tài khoản đăng nhập hệ thống. Mỗi nhân viên cần có 1 tài khoản user để đăng nhập.
+
+> **Quan trọng:** Tài khoản user phải được tạo TRƯỚC khi tạo hồ sơ nhân viên, vì form nhân viên lấy Họ tên và Email từ user.
 
 ---
 
@@ -194,67 +397,13 @@ Trang gồm 3 tab:
 
 | Tab | Tên hiển thị | Mô tả |
 |-----|-------------|-------|
-| `processList` | Danh sách quy trình | CRUD quy trình sản xuất |
-| `orderList` | Danh sách đơn hàng | Xem đơn hàng liên quan |
-| `inspection` | Kiểm tra nội bộ | Ghi nhận vi phạm / kiểm tra |
+| `processList` | Danh sách quy trình | Quản lý quy trình sản xuất |
+| `orderList` | Danh sách đơn hàng | Xem đơn hàng liên quan đến quy trình |
+| `inspection` | Kiểm tra nội bộ | Ghi nhận vi phạm / kiểm tra chất lượng |
 
-### 4.1 Đánh giá NVL — MaterialEvaluationManagement
+### 4.1 Quản lý Quy trình (ProcessManagement)
 
-Quản lý đánh giá nguyên vật liệu trong quy trình chiên/ngâm.
-
-#### Form tạo đánh giá — 13 trường
-
-| # | Trường | Bắt buộc | Ghi chú |
-|---|--------|:--------:|---------|
-| 1 | Mã chiên | ✅ | Mã định danh lô chiên |
-| 2 | Thời gian chiên | | Chọn ngày và giờ (datetime picker) |
-| 3 | Tên hàng hóa | ✅ | Tên NVL |
-| 4 | Số lô, Kiện | ✅ | Mã lô hàng |
-| 5 | Khối lượng (Kg) | ✅ | Trọng lượng NVL |
-| 6 | Số lần ngâm | ✅ | Số lần thực hiện ngâm |
-| 7 | Nhiệt độ nước trước ngâm (°C) | ✅ | Đo trước khi ngâm |
-| 8 | Nhiệt độ nước sau vớt (°C) | ✅ | Đo sau khi vớt |
-| 9 | Thời gian ngâm (Phút) | ✅ | Thời lượng ngâm |
-| 10 | Brix nước ngâm | ✅ | Độ ngọt nước ngâm |
-| 11 | Đánh giá trước ngâm | ✅ | Chất lượng trước xử lý |
-| 12 | Đánh giá sau ngâm | ✅ | Chất lượng sau xử lý |
-| 13 | Người thực hiện | ✅ | Nhân viên phụ trách |
-| +  | File đính kèm | | Ảnh / tài liệu minh chứng |
-
-#### Tiêu chí đánh giá (MaterialEvaluation Criteria)
-- Mã số tiêu chí (VD: 1, 2, 3)
-- Mô tả tiêu chí (text area tự do)
-
-### 4.2 Định mức NVL — MaterialStandardManagement
-
-Quản lý công thức / tỉ lệ sử dụng nguyên liệu và thành phẩm.
-
-#### Form tạo định mức
-
-| # | Trường | Bắt buộc | Ghi chú |
-|---|--------|:--------:|---------|
-| 1 | Mã định mức | ✅ | Mã duy nhất |
-| 2 | Loại định mức | ✅ | `RAW_MATERIAL` (Nguyên vật liệu) / `EQUIPMENT` (Thiết bị) |
-| 3 | Tên định mức | ✅ | Tên mô tả |
-| 4 | Tỉ lệ thu hồi thành phẩm (%) K3 | | Tỉ lệ phần trăm thu hồi |
-| 5 | Ghi chú | | Ghi chú bổ sung |
-
-#### Chi tiết định mức — bảng nguyên liệu
-| Cột | Mô tả |
-|-----|-------|
-| Tên nguyên liệu | Tìm kiếm nguyên liệu (search box) |
-| Tỉ lệ (%) | Phần trăm nguyên liệu trong công thức |
-
-#### Chi tiết định mức — bảng thành phẩm
-| Cột | Mô tả |
-|-----|-------|
-| Tên thành phẩm | Tìm kiếm sản phẩm (search box) |
-| Tỉ lệ (%) | Phần trăm thành phẩm thu được |
-
-#### Cột bảng danh sách
-Mã định mức · Loại định mức · Tên định mức · Tỉ lệ thu hồi K3 · Ngày tạo · Ngày cập nhật · Ghi chú · Hành động
-
-### 4.3 Quản lý Quy trình — ProcessManagement
+**Truy cập:** `/quality/process` → tab **"Danh sách quy trình"**
 
 Tạo và quản lý quy trình sản xuất có cấu trúc phân đoạn.
 
@@ -265,30 +414,43 @@ Tạo và quản lý quy trình sản xuất có cấu trúc phân đoạn.
 | 1 | MSNV | ✅ | Mã số nhân viên phụ trách |
 | 2 | Tên nhân viên | ✅ | Tên người tạo quy trình |
 | 3 | Tên quy trình | ✅ | Tên định danh |
-| 4 | Loại quy trình | ✅ | `Sản xuất` / `Kiểm tra chất lượng` / `Đóng gói` / `Vận chuyển` / `Khác` |
+| 4 | Loại quy trình | ✅ | `Sản xuất` / `Kiểm tra` / `Đóng gói` / `Vận chuyển` / `Khác` |
 
 #### Phân đoạn (Sections)
-Mỗi quy trình có một hoặc nhiều phân đoạn:
+Mỗi quy trình có một hoặc nhiều phân đoạn. Nhấn **"+ THÊM PHÂN ĐOẠN"** để thêm bước mới.
 
 | Trường | Ghi chú |
 |--------|---------|
-| Tên phân đoạn | Placeholder: "Tên phân đoạn" |
-| Nội dung công việc | Mô tả chi tiết bước thực hiện |
+| Tên phân đoạn | Tên bước trong quy trình |
+| Nội dung công việc | Mô tả chi tiết thao tác cần thực hiện |
 
 #### Chi phí trong phân đoạn (Cost Items)
+Mỗi phân đoạn có thể thêm nhiều khoản chi phí. Nhấn **"+ Thêm chi phí"** để thêm.
+
 | Trường | Ghi chú |
 |--------|---------|
-| Loại chi phí | `Nhân công` / `Vật tư` / `Phụ liệu` |
-| Tên chi phí | Tên khoản chi |
-| Định mức (dvt) | Số lượng định mức |
-| Đơn vị tính | `Người` / `Kg` / `Cái` (hoặc nhập tự do) |
+| Loại chi phí | `Nhân công` / `Vật tư` |
+| Tên chi phí | Tên khoản chi (VD: NV Vận hành máy rửa) |
+| DVT | Định mức (số lượng) |
+| Đơn vị tính | `Người` / `Kg` / `Cái` / nhập tự do |
 
 #### Cột bảng danh sách quy trình
-MSNV · Tên nhân viên · Tên quy trình · Loại quy trình · Ngày tạo · Ngày cập nhật · Hành động (Xem / Sửa / Xóa)
+MSNV · Tên nhân viên · Tên quy trình · Loại quy trình · Hiển thị (Ẩn/Hiện) · Ngày tạo · Ngày cập nhật · Hành động (Xem / Sửa / Xóa)
+
+#### Nút hành động form
+- **Duyệt quy trình**: Phê duyệt quy trình
+- **Chỉnh sửa**: Quay lại chỉnh sửa
+- **Tạo quy trình**: Lưu quy trình mới
+
+### 4.2 Danh sách đơn hàng (OrderManagement)
+
+**Truy cập:** `/quality/process` → tab **"Danh sách đơn hàng"**
+
+Hiển thị danh sách đơn hàng liên quan đến quy trình sản xuất. Dùng component OrderManagement chung (giống bộ phận tổng hợp) nhưng ở chế độ chỉ xem, giúp phòng chất lượng theo dõi tiến độ đơn hàng.
 
 ---
 
-## 5. Kiểm tra nội bộ (tab **Kiểm tra nội bộ**)
+## 5. Kiểm tra nội bộ (InternalInspectionManagement)
 
 **Truy cập:** `/quality/process` → tab **"Kiểm tra nội bộ"**
 
@@ -315,9 +477,9 @@ MSNV · Tên nhân viên · Tên quy trình · Loại quy trình · Ngày tạo 
 | Cột | Nội dung |
 |---|---|
 | STT | Số thứ tự |
-| Mã kiểm tra | `inspectionCode` |
+| Mã kiểm tra | Mã định danh |
 | Ngày kiểm tra | Ngày thực hiện |
-| Mã vi phạm | `violationCode` |
+| Mã vi phạm | Mã vi phạm |
 | Nội dung vi phạm | Tóm tắt nội dung (rút gọn) |
 | Mức độ | Mức độ vi phạm |
 | Người kiểm tra | Tên người thực hiện |
@@ -336,7 +498,7 @@ MSNV · Tên nhân viên · Tên quy trình · Loại quy trình · Ngày tạo 
 | Người kiểm tra | | Văn bản | |
 | Nội dung vi phạm | | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng |
 | Mô tả chi tiết | | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng |
-| Trạng thái | | Dropdown | "Chờ xử lý" (`PENDING`) / "Đã xác nhận" (`VERIFIED`) / "Đã đóng" (`CLOSED`) |
+| Trạng thái | | Dropdown | "Chờ xử lý" / "Đã xác nhận" / "Đã đóng" |
 
 **Nút:** "Lưu" / "Hủy"
 
@@ -350,61 +512,78 @@ MSNV · Tên nhân viên · Tên quy trình · Loại quy trình · Ngày tạo 
 
 ---
 
-## 6. Danh sách quy trình nội bộ (ProcessList)
+## 6. Phụ thuộc liên phòng ban (Cross-department Dependencies)
 
-Bảng theo dõi các bước quy trình sản xuất mẫu:
+| Dữ liệu cần | Nguồn | Cách lấy |
+|---|---|---|
+| Tài khoản user (để tạo nhân viên) | ADMIN tạo trong tab Quản lý user | Phải tạo user trước → mới tạo được nhân viên |
+| Vị trí (để gán cho nhân viên) | Tab Quản lý vị trí (ADMIN/DEPT_HEAD) | Tạo vị trí trước → gán cho nhân viên |
+| Cấp độ (để gán cho nhân viên) | Tab Quản lý cấp độ & lương | Tạo cấp độ cho vị trí trước → gán cho nhân viên |
+| Trách nhiệm (để đánh giá KPI) | Tab Danh sách trách nhiệm | Tạo trách nhiệm cho vị trí → mới đánh giá được |
+| Sản phẩm quốc tế (hiển thị trong dashboard quy trình) | Bộ phận thu mua tạo sản phẩm | Dữ liệu tự động lấy từ DB |
+| Đơn hàng (tab Danh sách đơn hàng) | Bộ phận tổng hợp tạo đơn hàng | Dữ liệu tự động lấy từ DB |
 
-| Cột | Mô tả |
-|-----|-------|
-| STT | Số thứ tự |
-| Lưu đồ | Tên bước / lưu đồ công việc |
-| Nội dung công việc | Mô tả chi tiết thao tác |
-| Loại chi phí | Nhân công hoặc Vật tư |
-| Tên chi phí | Tên nguồn lực |
-| ĐVT | Đơn vị tính |
-| Hành động | Xem · Sửa · Xóa |
-
-Ví dụ quy trình mẫu:
-1. **Tập nhân nguyên liệu** — Nhân viên vào kho lấy nguyên liệu, thực hiện chặn nguyên liệu / Nhân công / NV Vận hành máy rửa / Người
-2. **Chuẩn bị kho ngăn** — NV chuẩn bị kho ngăn, phân công + mách nhân / Nhân công / Mách nhân / Kỹ
-3. **Tập kỹ năng lâu kho vật dụng** — NV tập kỹ năng, chuẩn bị vật dụng / Nhân công / NV Vận hành máy rửa / Người
+**Thứ tự thiết lập ban đầu (bắt buộc):**
+1. ADMIN tạo tài khoản user
+2. Tạo vị trí (tab Quản lý vị trí)
+3. Tạo cấp độ cho vị trí (tab Quản lý cấp độ & lương)
+4. Tạo trách nhiệm cho vị trí (tab Danh sách trách nhiệm)
+5. Tạo hồ sơ nhân viên (tab Danh sách nhân viên) — gán user, vị trí, cấp độ
+6. Giờ mới có thể: đánh giá KPI, tính lương, điểm danh
 
 ---
 
-## 6. Bảng leo thang (Escalation)
+## 7. Bảng leo thang (Escalation)
 
 | Tình huống | Cấp xử lý | Thời hạn |
 |-----------|-----------|----------|
 | Nhân viên không đạt KPI 2 tháng liên tiếp | TEAM_LEAD → DEPARTMENT_HEAD | 3 ngày làm việc |
-| Lỗi đánh giá NVL vượt ngưỡng cho phép | TEAM_LEAD → DEPARTMENT_HEAD | Ngay lập tức |
+| Kiểm tra nội bộ phát hiện vi phạm nghiêm trọng | DEPARTMENT_HEAD → ADMIN | Ngay lập tức |
 | Quy trình không có người phụ trách | DEPARTMENT_HEAD | 1 ngày làm việc |
 | Hồ sơ nhân viên thiếu thông tin bắt buộc | TEAM_LEAD | 2 ngày làm việc |
 | Xung đột lịch nghỉ phép ảnh hưởng sản xuất | DEPARTMENT_HEAD → ADMIN | 1 ngày làm việc |
-| Định mức NVL sai lệch > 10% thực tế | DEPARTMENT_HEAD | 2 ngày làm việc |
-| Kiểm tra nội bộ phát hiện vi phạm nghiêm trọng | DEPARTMENT_HEAD → ADMIN | Ngay lập tức |
+| Điểm danh bất thường (vắng không phép) | TEAM_LEAD → DEPARTMENT_HEAD | 1 ngày làm việc |
+| Đơn nghỉ phép chờ duyệt quá 3 ngày | DEPARTMENT_HEAD | Ngay khi phát hiện |
 
 ---
 
-## 7. FAQ
+## 8. FAQ
 
 **Q1: Làm thế nào để thêm nhân viên mới?**
-Vào tab **Danh sách nhân viên** → nhấn nút **Thêm mới** → điền đủ 27 trường (Mã nhân viên, Họ tên, Email, Vị trí, Ngày vào làm, Lương cơ bản là bắt buộc) → nhấn **Lưu**.
+Trước tiên cần có tài khoản user (ADMIN tạo trong tab Quản lý user). Sau đó vào tab **Danh sách nhân viên** → nhấn **Thêm mới** → điền các trường bắt buộc (Mã NV, Họ tên, Email, Ngày vào làm, Lương cơ bản) → gán Vị trí và Cấp độ (nếu đã tạo) → nhấn **Lưu**.
 
 **Q2: Tôi không tìm thấy nhân viên trong dropdown khi tạo đánh giá?**
-Nhân viên phải có trạng thái `ACTIVE` và đã được tạo hồ sơ đầy đủ trong tab **Danh sách nhân viên** trước khi có thể được chọn trong form đánh giá.
+Nhân viên phải có trạng thái `ACTIVE` và đã được tạo hồ sơ đầy đủ. Ngoài ra, vị trí của nhân viên phải có trách nhiệm đã gán (tab Danh sách trách nhiệm) để có tiêu chí đánh giá.
 
-**Q3: Sự khác biệt giữa Định mức NVL loại RAW_MATERIAL và EQUIPMENT?**
-- `RAW_MATERIAL`: Áp dụng cho nguyên vật liệu đầu vào (bao bì, nguyên liệu thô).
-- `EQUIPMENT`: Áp dụng cho thiết bị / máy móc sử dụng trong quy trình.
+**Q3: Tại sao không thể tạo đánh giá KPI?**
+Kiểm tra: (1) Nhân viên có trạng thái ACTIVE không? (2) Nhân viên đã được gán vị trí chưa? (3) Vị trí đó đã có trách nhiệm chưa? Nếu thiếu bất kỳ điều kiện nào, cần bổ sung trước.
 
 **Q4: Làm sao tạo quy trình có nhiều bước?**
-Trong form tạo quy trình, nhấn **Thêm phân đoạn** để thêm bước mới. Mỗi phân đoạn có thể thêm nhiều khoản chi phí (Nhân công / Vật tư / Phụ liệu).
+Trong form tạo quy trình, nhấn **"+ THÊM PHÂN ĐOẠN"** để thêm bước mới. Mỗi phân đoạn có thể thêm nhiều khoản chi phí (Nhân công / Vật tư) bằng nút **"+ Thêm chi phí"**.
 
-**Q5: Brix nước ngâm trong đánh giá NVL là gì?**
-Brix là đơn vị đo độ ngọt / nồng độ chất hòa tan trong nước ngâm, ảnh hưởng trực tiếp đến chất lượng sản phẩm sau chế biến.
+**Q5: Tôi không thấy tab Quản lý user / Quản lý vị trí, tại sao?**
+- Tab **Quản lý user** chỉ hiển thị với role `ADMIN`.
+- Tab **Quản lý vị trí**, **Quản lý cấp độ & lương**, **Danh sách trách nhiệm** chỉ hiển thị với `ADMIN` hoặc `DEPARTMENT_HEAD`.
+- Nếu bạn là `TEAM_LEAD` hoặc `EMPLOYEE`, các tab này bị ẩn.
 
-**Q6: Tôi không thấy tab Quản lý user, tại sao?**
-Tab **Quản lý user** chỉ hiển thị với role `ADMIN`. Nếu bạn là `DEPARTMENT_HEAD`, `TEAM_LEAD` hoặc `EMPLOYEE`, tab này bị ẩn.
+**Q6: Giá tiền OT được tính như thế nào?**
+Giá tiền OT (₫/giờ) được cấu hình thủ công trong bảng lương. Tổng tiền OT = Giờ OT × Giá tiền OT/giờ. DEPARTMENT_HEAD hoặc ADMIN xác nhận trước khi chốt lương.
 
-**Q7: Giá tiền OT được tính như thế nào?**
-Giá tiền OT (₫/giờ) được cấu hình thủ công trong bảng lương. Tổng tiền OT = Giờ OT × Giá tiền OT/giờ. Phần này do DEPARTMENT_HEAD hoặc HR xác nhận trước khi chốt lương.
+**Q7: Làm sao duyệt đơn nghỉ phép?**
+Vào tab **Danh sách đơn nghỉ phép** → tìm đơn có trạng thái "Chờ duyệt" → nhấn nút **Duyệt** (tick xanh) để phê duyệt, hoặc nhấn **Từ chối** (X đỏ) → nhập lý do từ chối → xác nhận. Chỉ TEAM_LEAD trở lên mới có quyền duyệt.
+
+**Q8: Điểm danh tự động hoạt động như thế nào?**
+Hệ thống nhận diện khuôn mặt (Face Attendance) tự động ghi nhận giờ vào/ra khi nhân viên quét mặt. Ngoài ra, TEAM_LEAD trở lên có thể thêm/sửa điểm danh thủ công trong tab Bảng điểm danh.
+
+**Q9: Thứ tự thiết lập hệ thống nhân sự ban đầu là gì?**
+1. ADMIN tạo tài khoản user → 2. Tạo vị trí → 3. Tạo cấp độ cho vị trí → 4. Tạo trách nhiệm cho vị trí → 5. Tạo hồ sơ nhân viên (gán user + vị trí + cấp độ) → 6. Sau đó mới đánh giá KPI, tính lương, điểm danh được.
+
+**Q10: Loại quy trình có những giá trị nào?**
+5 loại: Sản xuất, Kiểm tra, Đóng gói, Vận chuyển, Khác. Dashboard Phòng CL Quy trình hiển thị số lượng quy trình theo từng loại.
+
+**Q11: Khi nào cần dùng "Cài đặt ca" trong điểm danh?**
+Nút "Cài đặt ca" dùng để thiết lập giờ vào/ra chuẩn cho ca làm việc. Hệ thống dựa vào cài đặt này để xác định nhân viên đi muộn (LATE) hay đúng giờ (PRESENT).
+
+**Q12: Tôi là EMPLOYEE, tôi có thể làm gì trong bộ phận chất lượng?**
+Bạn có thể: xem danh sách nhân viên, xem đánh giá (và tự đánh giá từ Dashboard), xem bảng lương của mình, xem điểm danh, tạo và xem đơn nghỉ phép, xem quy trình. Bạn không thể: thêm/sửa/xóa nhân viên, quản lý vị trí/cấp độ/trách nhiệm, chấm điểm đánh giá cho người khác, thêm điểm danh, duyệt đơn nghỉ phép, kiểm tra nội bộ.
+

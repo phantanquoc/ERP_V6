@@ -1,6 +1,8 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError } from '@utils/errors';
+import { NotificationEvent } from '@types';
+import notificationService from '@services/notificationService';
 import ExcelJS from 'exceljs';
 
 interface CreateMachineActivityReportData {
@@ -62,7 +64,16 @@ class MachineActivityReportService {
   }
 
   async createReport(data: CreateMachineActivityReportData) {
-    return prisma.machineActivityReport.create({ data });
+    const report = await prisma.machineActivityReport.create({ data });
+
+    try {
+      await notificationService.notify(NotificationEvent.MACHINE_ACTIVITY_REPORTED, {
+        entityId: report.id,
+        metadata: { soLuongNgung: data.soLuongNgung, viTri: data.viTri, tenHeThong: data.tenHeThong },
+      });
+    } catch {}
+
+    return report;
   }
 
   async updateReport(id: string, data: UpdateMachineActivityReportData) {

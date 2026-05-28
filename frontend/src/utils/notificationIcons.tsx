@@ -14,6 +14,12 @@ import {
   KeyRound,
   MessageSquare,
   FileText,
+  ShoppingBag,
+  Warehouse,
+  Receipt,
+  CreditCard,
+  BarChart3,
+  Wrench,
 } from 'lucide-react';
 
 export const getNotificationIcon = (type: string): React.ReactNode => {
@@ -56,6 +62,20 @@ export const getNotificationIcon = (type: string): React.ReactNode => {
       return <FileText className="w-4 h-4 text-teal-600" />;
     case 'WORK_PLAN':
       return <CalendarDays className="w-4 h-4 text-purple-600" />;
+    case 'REPAIR_REQUEST':
+      return <Wrench className="w-4 h-4 text-red-600" />;
+    case 'PURCHASE_REQUEST':
+      return <ShoppingCart className="w-4 h-4 text-cyan-600" />;
+    case 'ORDER':
+      return <ShoppingBag className="w-4 h-4 text-blue-600" />;
+    case 'WAREHOUSE':
+      return <Warehouse className="w-4 h-4 text-amber-600" />;
+    case 'INVOICE':
+      return <Receipt className="w-4 h-4 text-emerald-600" />;
+    case 'DEBT':
+      return <CreditCard className="w-4 h-4 text-rose-600" />;
+    case 'PRODUCTION_REPORT':
+      return <BarChart3 className="w-4 h-4 text-cyan-600" />;
     default:
       return <AlertCircle className="w-4 h-4 text-gray-600" />;
   }

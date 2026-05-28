@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
 import { getFileUrl } from '../middlewares/upload';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
 import ExcelJS from 'exceljs';
 
 interface RequestWithFile extends Request {
@@ -108,6 +110,14 @@ export const createDebt = async (req: RequestWithFile, res: Response, next: Next
       data: debt,
       message: 'Tạo công nợ thành công',
     });
+
+    try {
+      await notificationService.notify(NotificationEvent.DEBT_CREATED, {
+        actorUserId: (req as any).user?.id,
+        entityId: debt.id,
+        metadata: { tenNhaCungCap, soTienPhaiTra: parseFloat(soTienPhaiTra) || 0 },
+      });
+    } catch {}
   } catch (error) {
     next(error);
   }

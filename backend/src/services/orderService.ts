@@ -3,6 +3,8 @@ import logger from '@config/logger';
 import { TaxReportStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '../utils/codeGenerator';
+import { NotificationEvent } from '@types';
+import notificationService from '@services/notificationService';
 import ExcelJS from 'exceljs';
 
 class OrderService {
@@ -123,6 +125,13 @@ class OrderService {
       logger.error('⚠️ Failed to create tax report automatically:', error);
       // Don't throw error, just log it - order creation should still succeed
     }
+
+    try {
+      await notificationService.notify(NotificationEvent.ORDER_CREATED, {
+        entityId: order.id,
+        metadata: { maDonHang: order.maDonHang, tenKhachHang: order.tenKhachHang },
+      });
+    } catch {}
 
     return order;
   }
@@ -258,6 +267,15 @@ class OrderService {
         items: true,
       },
     });
+
+    if (data.trangThaiSanXuat && data.trangThaiSanXuat !== order.trangThaiSanXuat) {
+      try {
+        await notificationService.notify(NotificationEvent.ORDER_STATUS_UPDATED, {
+          entityId: updatedOrder.id,
+          metadata: { maDonHang: updatedOrder.maDonHang, trangThai: data.trangThaiSanXuat },
+        });
+      } catch {}
+    }
 
     return updatedOrder;
   }

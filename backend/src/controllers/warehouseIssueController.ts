@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
 import { nextYearlyCode, yearlyCodeWhere } from '../utils/codeGenerator';
 import supplyRequestService from '@services/supplyRequestService';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
 
 export const generateIssueCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -99,6 +101,14 @@ export const createWarehouseIssue = async (req: Request, res: Response, next: Ne
       message: 'Tạo phiếu xuất kho thành công',
       data: warehouseIssue,
     });
+
+    try {
+      await notificationService.notify(NotificationEvent.WAREHOUSE_ISSUE_CREATED, {
+        actorUserId: (req as any).user?.id,
+        entityId: warehouseIssue.id,
+        metadata: { maPhieuXuat, soLuongXuat, donViTinh, tenSanPham },
+      });
+    } catch {}
 
     // Fire-and-forget: advance supply request workflow if linked
     if (supplyRequestId) {

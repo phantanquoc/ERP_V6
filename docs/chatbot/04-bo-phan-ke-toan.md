@@ -68,31 +68,35 @@ Trang gồm 4 tab:
 
 Quản lý toàn bộ hóa đơn bán hàng, mua hàng và dịch vụ.
 
+**Nút header:** "Thêm mới" + "Xuất Excel"
+
 #### Form tạo / sửa hóa đơn — 13 trường
 
-| # | Trường | Bắt buộc | Kiểu dữ liệu / Giá trị |
-|---|--------|:--------:|----------------------|
-| 1 | Số hóa đơn | ✅ | Text (mã duy nhất) |
-| 2 | Ngày lập | | Date picker |
-| 3 | Khách hàng | ✅ | Text / Select |
-| 4 | Mã số thuế | | Text |
-| 5 | Loại hóa đơn | | `Bán hàng` / `Mua hàng` / `Dịch vụ` |
-| 6 | Tổng tiền | | Số tiền (VNĐ) |
-| 7 | Thuế VAT (%) | | Số phần trăm |
-| 8 | Thành tiền | | Tính tự động: Tổng tiền × (1 + VAT%) |
-| 9 | Trạng thái | | `Đã thanh toán` / `Chưa thanh toán` / `Đang xử lý` |
-| 10 | Phương thức thanh toán | | `Tiền mặt` / `Chuyển khoản` / `Thẻ` |
-| 11 | Ngày thanh toán | | Date picker |
-| 12 | Nhân viên lập | | Text (tên nhân viên) |
-| 13 | Ghi chú | | Text area |
+| # | Trường | Bắt buộc | Kiểu dữ liệu / Giá trị | Ghi chú |
+|---|--------|:--------:|----------------------|---------|
+| 1 | Số hóa đơn | ✅ | Text | **Tự động sinh** khi tạo mới (readOnly), không cần nhập |
+| 2 | Ngày lập | | Date picker | |
+| 3 | Khách hàng | ✅ | Dropdown (danh sách khách hàng QT + NĐ) | Chọn từ danh sách khách hàng đã có trong hệ thống |
+| 4 | Mã số thuế | | Text | **Tự động điền** từ khách hàng đã chọn (readOnly) |
+| 5 | Loại hóa đơn | | `Bán hàng` / `Mua hàng` / `Dịch vụ` | |
+| 6 | Tổng tiền | | Số tiền (VNĐ) | |
+| 7 | Thuế VAT (%) | | Số phần trăm | |
+| 8 | Thành tiền | | Tính tự động: Tổng tiền × (1 + VAT%) | ReadOnly |
+| 9 | Trạng thái | | `Đã thanh toán` / `Chưa thanh toán` / `Đang xử lý` | |
+| 10 | Phương thức thanh toán | | `Tiền mặt` / `Chuyển khoản` / `Thẻ` | |
+| 11 | Ngày thanh toán | | Date picker | |
+| 12 | Nhân viên lập | | Text | **Tự động điền** tên người đăng nhập (readOnly khi tạo mới) |
+| 13 | Ghi chú | | Text area | |
 
-#### Cột bảng danh sách hóa đơn
-Số hóa đơn · Ngày lập · Khách hàng · Mã số thuế · Loại hóa đơn · Tổng tiền · Thuế VAT (%) · Thành tiền · Trạng thái · Phương thức thanh toán · Ngày thanh toán · Nhân viên lập · Ghi chú · Hành động
+> **Lưu ý quan trọng:** Khi tạo hóa đơn mới, chỉ cần chọn **Khách hàng** từ dropdown — hệ thống tự động điền Số hóa đơn, Mã số thuế và Nhân viên lập. Nếu khách hàng chưa có trong danh sách, cần tạo khách hàng trước tại **Bộ phận kinh doanh → Phòng kinh doanh quốc tế/nội địa → Tab Khách hàng**.
+
+#### Cột bảng danh sách hóa đơn (8 cột)
+STT · Số hóa đơn · Ngày lập · Khách hàng · Loại hóa đơn · Thành tiền · Trạng thái · Hoạt động (Sửa / Xóa)
 
 #### Lọc / Tìm kiếm
-- Lọc theo loại hóa đơn (Bán hàng / Mua hàng / Dịch vụ)
-- Lọc theo trạng thái thanh toán
-- Tìm theo số hóa đơn hoặc tên khách hàng
+- Lọc theo loại hóa đơn: dropdown (`Bán hàng` / `Mua hàng` / `Dịch vụ`)
+- Lọc theo trạng thái: dropdown (`Đã thanh toán` / `Chưa thanh toán` / `Đang xử lý`)
+- Tìm kiếm text: theo số hóa đơn hoặc tên khách hàng
 
 ### 3.2 Tab Tài sản / Lô hàng (tab **Quản lý tài sản**)
 
@@ -178,30 +182,39 @@ Xem và cập nhật trạng thái thanh toán / sản xuất của đơn hàng.
 
 Quản lý công nợ nhà cung cấp và các khoản phải trả.
 
+**Nút header:** "Thêm mới" + "Xuất Excel"
+
 #### Form tạo / sửa công nợ — 14 trường
 
-| # | Trường | Bắt buộc | Kiểu dữ liệu / Giá trị |
-|---|--------|:--------:|----------------------|
-| 1 | Ngày phát sinh | | Date picker |
-| 2 | Loại chi phí | | `Đơn hàng` / `Sửa chữa` / `Đầu tư` / `Văn phòng phẩm` / `Khác` |
-| 3 | Mã nhà cung cấp | ✅ | Text (VD: NCC-001) |
-| 4 | Tên nhà cung cấp | ✅ | Text (VD: CTY TNHH ABC) |
-| 5 | Loại cung cấp | | `Bao bì` / `Nguyên vật liệu` / `Dịch vụ` / `Khác` |
-| 6 | Cung cấp | | Text (mô tả hàng hóa / dịch vụ, VD: Thùng carton) |
-| 7 | Nội dung chi cho | | Text |
-| 8 | Loại hình | | `Tổ chức` / `Hộ gia đình` / `Cá nhân` |
-| 9 | Số tiền phải trả | | Số tiền (VNĐ) |
-| 10 | Số tiền đã thanh toán | | Số tiền (VNĐ) |
-| 11 | Ngày hoạch toán | | Date picker |
-| 12 | Ngày đến hạn | | Date picker |
-| 13 | Số tài khoản | | Text (tài khoản ngân hàng nhà cung cấp) |
-| 14 | Ghi chú | | Text area |
-| +  | File đính kèm | | Tài liệu hóa đơn / hợp đồng |
+> **Lưu ý:** "Loại chi phí" ở đây là phân loại công nợ nhà cung cấp (Đơn hàng, Sửa chữa, Đầu tư...), KHÔNG phải "Chi phí xuất khẩu" hay "Chi phí chung" dùng trong bảng tính báo giá. Để tạo chi phí xuất khẩu/chi phí chung, vào **Bộ phận tổng hợp → Phòng giá thành → Tab Chi phí**.
 
-#### Cột bảng danh sách công nợ
-Ngày phát sinh · Loại chi phí · Mã NCC · Tên NCC · Loại cung cấp · Cung cấp · Nội dung chi cho · Loại hình · Số tiền phải trả · Đã thanh toán · **Còn nợ** (tính tự động) · Ngày hoạch toán · Ngày đến hạn · Số tài khoản · Ghi chú · Hành động
+| # | Trường | Bắt buộc | Kiểu dữ liệu / Giá trị | Ghi chú |
+|---|--------|:--------:|----------------------|---------|
+| 1 | Ngày phát sinh | ✅ | Date picker | Bắt buộc chọn ngày |
+| 2 | Loại chi phí | | Dropdown: `Đơn hàng` / `Sửa chữa` / `Đầu tư` / `Văn phòng phẩm` / `Khác` | |
+| 3 | Tên nhà cung cấp | ✅ | Dropdown (danh sách nhà cung cấp trong hệ thống) | Chọn từ danh sách, tự động điền Mã NCC |
+| 4 | Mã nhà cung cấp | ✅ | Text | **Tự động điền** khi chọn nhà cung cấp (readOnly) |
+| 5 | Loại cung cấp | | Dropdown: `Bao bì` / `Nguyên vật liệu` / `Dịch vụ` / `Khác` | |
+| 6 | Cung cấp | | Text | Mô tả hàng hóa/dịch vụ (VD: Thùng carton) |
+| 7 | Nội dung chi cho | | Text | |
+| 8 | Loại hình | | Dropdown: `Tổ chức` / `Hộ gia đình` / `Cá nhân` | |
+| 9 | Số tiền phải trả | | Số tiền (VNĐ) | |
+| 10 | Số tiền đã thanh toán | | Số tiền (VNĐ) | |
+| 11 | Ngày hoạch toán | | Date picker | |
+| 12 | Ngày đến hạn | | Date picker | |
+| 13 | Số tài khoản | | Text | Tài khoản ngân hàng nhà cung cấp |
+| 14 | Ghi chú | | Text area | |
+| +  | File đính kèm | | File upload | Tài liệu hóa đơn / hợp đồng |
 
-> **Còn nợ** = Số tiền phải trả − Số tiền đã thanh toán (tính tự động, chỉ hiển thị).
+> **Lưu ý quan trọng:** Khi tạo công nợ, chọn **Tên nhà cung cấp** từ dropdown — hệ thống tự động điền Mã nhà cung cấp. Nếu nhà cung cấp chưa có, cần tạo trước tại **Bộ phận tổng hợp → Phòng thu mua → Tab Nhà cung cấp**.
+
+#### Cột bảng danh sách công nợ (6 cột)
+STT · Ngày phát sinh · Loại chi phí · Số tiền phải trả · Số tiền đã thanh toán · Hoạt động (Sửa / Xóa)
+
+#### Lọc / Tìm kiếm
+- Tìm kiếm text: theo tên nhà cung cấp, mã nhà cung cấp
+- Lọc theo loại chi phí: dropdown (`Đơn hàng` / `Sửa chữa` / `Đầu tư` / `Văn phòng phẩm` / `Khác`)
+- Lọc theo trạng thái thanh toán: dropdown (`Chưa thanh toán` / `Đã thanh toán`)
 
 ---
 
@@ -213,13 +226,13 @@ Ngày phát sinh · Loại chi phí · Mã NCC · Tên NCC · Loại cung cấp 
 
 #### Trạng thái báo cáo thuế (5 trạng thái)
 
-| Giá trị | Nhãn hiển thị | Mô tả |
-|---------|--------------|-------|
-| `CHUA_BAO_CAO` | Chưa báo cáo | Chưa nộp báo cáo kỳ này |
-| `DANG_CAP_NHAT_HO_SO` | Đang cập nhật hồ sơ | Đang thu thập chứng từ |
-| `DA_DAY_DU_HO_SO` | Đã đầy đủ hồ sơ để báo cáo | Đủ điều kiện nộp |
-| `DA_BAO_CAO` | Đã báo cáo | Đã nộp lên cơ quan thuế |
-| `DA_QUYET_TOAN` | Đã quyết toán | Hoàn tất quyết toán thuế |
+| Giá trị | Nhãn hiển thị | Màu badge | Mô tả |
+|---------|--------------|-----------|-------|
+| `CHUA_BAO_CAO` | Chưa báo cáo | Xám | Chưa nộp báo cáo kỳ này |
+| `DANG_CAP_NHAT_HO_SO` | Đang cập nhật hồ sơ | Vàng | Đang thu thập chứng từ |
+| `DA_DAY_DU_HO_SO` | Đã đầy đủ hồ sơ để báo cáo | Xanh dương | Đủ điều kiện nộp |
+| `DA_BAO_CAO` | Đã báo cáo | Xanh lá | Đã nộp lên cơ quan thuế |
+| `DA_QUYET_TOAN` | Đã quyết toán | Tím | Hoàn tất quyết toán thuế |
 
 #### Chức năng TaxReportTab
 
@@ -289,7 +302,7 @@ Nhấn nút **Sửa** để mở modal "Chỉnh sửa báo cáo thuế":
 ## 6. FAQ
 
 **Q1: Làm thế nào để tạo hóa đơn mới?**
-Vào tab **Hóa đơn** → nhấn **Thêm mới** → điền 13 trường (Số hóa đơn và Khách hàng là bắt buộc) → chọn Loại hóa đơn và Phương thức thanh toán → nhấn **Lưu**.
+Vào tab **Hóa đơn** → nhấn **Thêm mới** → chọn **Khách hàng** từ dropdown (hệ thống tự động sinh Số hóa đơn, điền Mã số thuế và Nhân viên lập) → chọn Loại hóa đơn, nhập Tổng tiền và VAT → nhấn **Lưu**.
 
 **Q2: Sự khác nhau giữa Tổng tiền và Thành tiền trong hóa đơn?**
 - **Tổng tiền**: Giá trị hàng hóa / dịch vụ trước thuế.
@@ -307,5 +320,27 @@ Còn nợ = **Số tiền phải trả** − **Số tiền đã thanh toán**. �
 **Q6: Quy trình cập nhật trạng thái báo cáo thuế như thế nào?**
 Trạng thái nên được chuyển theo thứ tự: `CHUA_BAO_CAO` → `DANG_CAP_NHAT_HO_SO` → `DA_DAY_DU_HO_SO` → `DA_BAO_CAO` → `DA_QUYET_TOAN`. Chỉ DEPARTMENT_HEAD hoặc ADMIN mới có quyền tạo và cập nhật báo cáo thuế.
 
-**Q7: Làm sao tìm kiếm hóa đơn theo khoảng thời gian?**
-Dùng bộ lọc **Ngày lập** trên tab Hóa đơn: chọn ngày bắt đầu và ngày kết thúc bằng date picker để lọc danh sách hóa đơn trong khoảng thời gian mong muốn.
+**Q7: Làm sao tìm kiếm hóa đơn?**
+Dùng ô **Tìm kiếm** trên tab Hóa đơn để tìm theo số hóa đơn hoặc tên khách hàng. Kết hợp với bộ lọc **Loại hóa đơn** và **Trạng thái** để thu hẹp kết quả.
+
+**Q8: Làm thế nào để tạo công nợ mới?**
+Vào tab **Danh sách công nợ** → nhấn **Thêm mới** → chọn **Ngày phát sinh** (bắt buộc) → chọn **Tên nhà cung cấp** từ dropdown (hệ thống tự động điền Mã NCC) → nhập số tiền và các thông tin khác → nhấn **Lưu**.
+
+**Q9: Tại sao không tìm thấy nhà cung cấp trong dropdown khi tạo công nợ?**
+Nhà cung cấp phải được tạo trước tại **Bộ phận tổng hợp → Phòng thu mua → Tab Nhà cung cấp**. Liên hệ bộ phận tổng hợp để thêm nhà cung cấp mới.
+
+**Q10: Tại sao không tìm thấy khách hàng trong dropdown khi tạo hóa đơn?**
+Khách hàng phải được tạo trước tại **Bộ phận kinh doanh → Phòng kinh doanh quốc tế** (khách QT) hoặc **Phòng kinh doanh nội địa** (khách NĐ) → Tab **Khách hàng**. Liên hệ bộ phận kinh doanh để thêm khách hàng mới.
+
+---
+
+## 7. Phụ thuộc liên phòng ban
+
+| Dữ liệu cần | Nguồn | Đường dẫn tạo |
+|---|---|---|
+| Danh sách khách hàng (cho hóa đơn) | Bộ phận kinh doanh | Phòng KD quốc tế/nội địa → Tab Khách hàng |
+| Danh sách nhà cung cấp (cho công nợ) | Bộ phận tổng hợp | Phòng thu mua → Tab Nhà cung cấp |
+| Đơn hàng (cho tab Đơn hàng + Báo cáo thuế) | Bộ phận kinh doanh | Phòng KD quốc tế/nội địa → Tab Đơn hàng |
+| Lô hàng + sản phẩm (cho tab Tài sản) | Bộ phận sản xuất / tổng hợp | Phòng sản xuất → Quản lý lô |
+
+> **Thứ tự setup:** Trước khi bộ phận kế toán hoạt động đầy đủ, cần đảm bảo: (1) Khách hàng đã được tạo bởi bộ phận kinh doanh, (2) Nhà cung cấp đã được tạo bởi bộ phận tổng hợp, (3) Đơn hàng đã được tạo bởi bộ phận kinh doanh.

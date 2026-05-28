@@ -31,19 +31,51 @@ async function getAdminEmployeeIds(excludeUserId?: string): Promise<string[]> {
 }
 
 async function getEmployeeIdsBySubDeptCode(code: string): Promise<string[]> {
-  const employees = await prisma.employee.findMany({
+  const primaryEmployees = await prisma.employee.findMany({
     where: { subDepartment: { code }, status: 'ACTIVE' },
     select: { id: true },
   });
-  return employees.map(e => e.id);
+
+  // Also include users with secondary department assignment to this sub-department
+  const subDept = await prisma.subDepartment.findUnique({ where: { code }, select: { id: true } });
+  let secondaryIds: string[] = [];
+  if (subDept) {
+    const secondaryUsers = await prisma.user.findMany({
+      where: {
+        secondaryDepartments: { some: { subDepartmentId: subDept.id } },
+        isActive: true,
+      },
+      include: { employees: { select: { id: true } } },
+    });
+    secondaryIds = secondaryUsers.filter(u => u.employees).map(u => u.employees!.id);
+  }
+
+  const primaryIds = primaryEmployees.map(e => e.id);
+  return [...new Set([...primaryIds, ...secondaryIds])];
 }
 
 async function getEmployeeIdsByDeptCode(code: string): Promise<string[]> {
-  const employees = await prisma.employee.findMany({
+  const primaryEmployees = await prisma.employee.findMany({
     where: { subDepartment: { department: { code } }, status: 'ACTIVE' },
     select: { id: true },
   });
-  return employees.map(e => e.id);
+
+  // Also include users with secondary department assignment to this department
+  const dept = await prisma.department.findUnique({ where: { code }, select: { id: true } });
+  let secondaryIds: string[] = [];
+  if (dept) {
+    const secondaryUsers = await prisma.user.findMany({
+      where: {
+        secondaryDepartments: { some: { departmentId: dept.id } },
+        isActive: true,
+      },
+      include: { employees: { select: { id: true } } },
+    });
+    secondaryIds = secondaryUsers.filter(u => u.employees).map(u => u.employees!.id);
+  }
+
+  const primaryIds = primaryEmployees.map(e => e.id);
+  return [...new Set([...primaryIds, ...secondaryIds])];
 }
 
 async function resolveDirectRecipients(ctx: NotificationContext): Promise<string[]> {
@@ -344,6 +376,98 @@ const entries: NotificationEventDef[] = [
     resolveRecipients: async (ctx) => {
       const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
       const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+
+  // ── Order ──
+  {
+    event: NotificationEvent.ORDER_CREATED,
+    notificationType: NotificationType.ORDER,
+    buildMessage: (ctx) => ({
+      title: 'Đơn hàng mới',
+      message: `Đơn hàng ${ctx.metadata?.maDonHang ?? ''} cho khách hàng ${ctx.metadata?.tenKhachHang ?? ''} đã được tạo.`,
+    }),
+    resolveRecipients: async () => {
+      const production = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds();
+      return [...new Set([...production, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.ORDER_STATUS_UPDATED,
+    notificationType: NotificationType.ORDER,
+    buildMessage: (ctx) => ({
+      title: 'Cập nhật trạng thái đơn hàng',
+      message: `Đơn hàng ${ctx.metadata?.maDonHang ?? ''} chuyển trạng thái: ${ctx.metadata?.trangThai ?? ''}.`,
+    }),
+    resolveRecipients: async () => getAdminEmployeeIds(),
+  },
+
+  // ── Warehouse ──
+  {
+    event: NotificationEvent.WAREHOUSE_RECEIPT_CREATED,
+    notificationType: NotificationType.WAREHOUSE,
+    buildMessage: (ctx) => ({
+      title: 'Phiếu nhập kho mới',
+      message: `Phiếu nhập kho ${ctx.metadata?.maPhieuNhap ?? ''}: ${ctx.metadata?.soLuongNhap ?? ''} ${ctx.metadata?.donViTinh ?? ''} ${ctx.metadata?.tenSanPham ?? ''}.`,
+    }),
+    resolveRecipients: async () => getAdminEmployeeIds(),
+  },
+  {
+    event: NotificationEvent.WAREHOUSE_ISSUE_CREATED,
+    notificationType: NotificationType.WAREHOUSE,
+    buildMessage: (ctx) => ({
+      title: 'Phiếu xuất kho mới',
+      message: `Phiếu xuất kho ${ctx.metadata?.maPhieuXuat ?? ''}: ${ctx.metadata?.soLuongXuat ?? ''} ${ctx.metadata?.donViTinh ?? ''} ${ctx.metadata?.tenSanPham ?? ''}.`,
+    }),
+    resolveRecipients: async () => getAdminEmployeeIds(),
+  },
+
+  // ── Invoice ──
+  {
+    event: NotificationEvent.INVOICE_CREATED,
+    notificationType: NotificationType.INVOICE,
+    buildMessage: (ctx) => ({
+      title: 'Hóa đơn mới',
+      message: `Hóa đơn ${ctx.metadata?.soHoaDon ?? ''} — ${ctx.metadata?.khachHang ?? ''}: ${ctx.metadata?.thanhTien ?? 0} VNĐ.`,
+    }),
+    resolveRecipients: async () => getAdminEmployeeIds(),
+  },
+
+  // ── Debt ──
+  {
+    event: NotificationEvent.DEBT_CREATED,
+    notificationType: NotificationType.DEBT,
+    buildMessage: (ctx) => ({
+      title: 'Công nợ mới',
+      message: `Công nợ mới cho ${ctx.metadata?.tenNhaCungCap ?? ''}: ${ctx.metadata?.soTienPhaiTra ?? 0} VNĐ.`,
+    }),
+    resolveRecipients: async () => getAdminEmployeeIds(),
+  },
+
+  // ── Production Report ──
+  {
+    event: NotificationEvent.PRODUCTION_REPORT_CREATED,
+    notificationType: NotificationType.PRODUCTION_REPORT,
+    buildMessage: (ctx) => ({
+      title: 'Báo cáo sản lượng mới',
+      message: `Báo cáo sản lượng ngày ${ctx.metadata?.ngayThang ?? ''} đã được tạo.`,
+    }),
+    resolveRecipients: async () => getAdminEmployeeIds(),
+  },
+
+  // ── Machine Activity ──
+  {
+    event: NotificationEvent.MACHINE_ACTIVITY_REPORTED,
+    notificationType: NotificationType.PRODUCTION_REPORT,
+    buildMessage: (ctx) => ({
+      title: 'Báo cáo hoạt động máy',
+      message: `${ctx.metadata?.soLuongNgung ?? 0} máy ngưng hoạt động tại ${ctx.metadata?.viTri ?? ''} — ${ctx.metadata?.tenHeThong ?? ''}.`,
+    }),
+    resolveRecipients: async () => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds();
       return [...new Set([...technical, ...admins])];
     },
   },

@@ -30,6 +30,7 @@ import purchaseRequestService from '../../services/purchaseRequestService';
 import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } from '../../services/supplierService';
 import { parseNumberInput } from '../../utils/numberInput';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 
 interface PurchaseRequest {
   id: string;
@@ -61,6 +62,7 @@ interface PurchaseRequest {
 
 const PurchasingMaterials = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'suppliers' | 'orderList' | 'purchaseRequestList'>('suppliers');
 
   // State for purchase requests
@@ -76,6 +78,21 @@ const PurchasingMaterials = () => {
       fetchPurchaseRequests();
     }
   }, [activeTab, purchaseRequestPage, purchaseRequestSearch]);
+
+  // Open specific purchase request detail from URL param (e.g. from notification)
+  useEffect(() => {
+    const prId = searchParams.get('purchaseRequestId');
+    if (prId) {
+      setActiveTab('purchaseRequestList');
+      purchaseRequestService.getPurchaseRequestById(prId).then((res) => {
+        if (res.data) {
+          setSelectedPurchaseRequest(res.data);
+        }
+      }).catch((err) => {
+        console.error('Error loading purchase request from URL:', err);
+      });
+    }
+  }, [searchParams]);
 
   const fetchPurchaseRequests = async () => {
     try {

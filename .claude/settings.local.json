@@ -98,7 +98,8 @@
       "Bash(sed -i '' \"s/maSanPham: 'SP001'/maSanPham: 'SP-001'/g; s/maSanPham: 'SP002'/maSanPham: 'SP-002'/g; s/maSanPham: 'SP003'/maSanPham: 'SP-003'/g; s/maSanPham: 'SP004'/maSanPham: 'SP-004'/g; s/maSanPham: 'SP005'/maSanPham: 'SP-005'/g\" seed-business.ts)",
       "Bash(sed -i '' \"s/'YCCU-2026-001'/'YC-CC-2026-001'/g; s/'YCMH-2026-001'/'YC-MH-2026-001'/g\" seed-business.ts)",
       "Bash(sed -i '' \"s/employeeCode: 'NV001'/employeeCode: 'NV0001'/g; s/employeeCode: 'NV002'/employeeCode: 'NV0002'/g\" /Users/vunam/Downloads/koola/ERP/ERP_V6/backend/src/__tests__/employeeService.test.ts)",
-      "Bash(sed -i '' \"s/expect\\(createCall.data.employeeCode\\).toBe\\('NV001'\\)/expect\\(createCall.data.employeeCode\\).toBe\\('NV0001'\\)/\" /Users/vunam/Downloads/koola/ERP/ERP_V6/backend/src/__tests__/employeeService.test.ts)"
+      "Bash(sed -i '' \"s/expect\\(createCall.data.employeeCode\\).toBe\\('NV001'\\)/expect\\(createCall.data.employeeCode\\).toBe\\('NV0001'\\)/\" /Users/vunam/Downloads/koola/ERP/ERP_V6/backend/src/__tests__/employeeService.test.ts)",
+      "Bash(export TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNtcDIzdzByNDAwZWFvMThsejVtaGJzaHUiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6IkFETUlOIiwiZGVwYXJ0bWVudElkIjoiY21wMjN3MGdtMDAwMG8xOGx6NXR4dDJvZCIsInN1YkRlcGFydG1lbnRJZCI6bnVsbCwic2Vjb25kYXJ5RGVwYXJ0bWVudHMiOltdLCJpYXQiOjE3Nzk5NTM4MjksImV4cCI6MTc4MDU1ODYyOX0.roL3ex2Rq4dZIPM-7bZ95CqAuI2h8d2i55Lq5tA_T-g\")"
     ]
   }
 }
