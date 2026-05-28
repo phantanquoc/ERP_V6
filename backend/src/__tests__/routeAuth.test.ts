@@ -34,6 +34,18 @@ const EMPLOYEE_PAYLOAD: JwtPayload = {
   subDepartmentId: 'sub-2',
 };
 
+// Primary EMPLOYEE but TEAM_LEAD in a secondary department
+const EMPLOYEE_WITH_SECONDARY_TEAM_LEAD: JwtPayload = {
+  id: 'emp-2',
+  email: 'emp2@example.com',
+  role: 'EMPLOYEE',
+  departmentId: 'dept-4',
+  subDepartmentId: 'sub-2',
+  secondaryDepartments: [
+    { departmentId: 'dept-production', subDepartmentId: 'sub-warehouse', role: 'TEAM_LEAD' },
+  ],
+};
+
 const mockResponse = () => {
   const res: any = {};
   res.status = jest.fn().mockReturnValue(res);
@@ -254,6 +266,43 @@ describe('Route auth enforcement', () => {
       const router = require('@routes/warehouseIssueRoutes').default;
       const count = getRouteMiddlewareCount(router, 'post', '/');
       expect(count).toBeGreaterThan(1);
+    });
+  });
+
+  describe('authorize middleware — secondary department roles', () => {
+    it('EMPLOYEE with secondary TEAM_LEAD passes authorize(TEAM_LEAD)', () => {
+      const middleware = authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD');
+      const req = makeAuthReq(EMPLOYEE_WITH_SECONDARY_TEAM_LEAD);
+      const res = mockResponse();
+      middleware(req, res, mockNext);
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('EMPLOYEE with secondary TEAM_LEAD is still blocked by authorize(ADMIN, DEPARTMENT_HEAD)', () => {
+      const middleware = authorize('ADMIN', 'DEPARTMENT_HEAD');
+      const req = makeAuthReq(EMPLOYEE_WITH_SECONDARY_TEAM_LEAD);
+      const res = mockResponse();
+      middleware(req, res, mockNext);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('EMPLOYEE with secondary TEAM_LEAD is blocked by authorize(ADMIN) only', () => {
+      const middleware = authorize('ADMIN');
+      const req = makeAuthReq(EMPLOYEE_WITH_SECONDARY_TEAM_LEAD);
+      const res = mockResponse();
+      middleware(req, res, mockNext);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('EMPLOYEE without secondary departments remains blocked', () => {
+      const middleware = authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD');
+      const req = makeAuthReq(EMPLOYEE_PAYLOAD);
+      const res = mockResponse();
+      middleware(req, res, mockNext);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(mockNext).not.toHaveBeenCalled();
     });
   });
 
