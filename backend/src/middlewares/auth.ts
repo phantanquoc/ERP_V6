@@ -33,12 +33,22 @@ export const authorize = (...allowedRoles: string[]) => {
     // Flatten allowedRoles in case it's passed as array or individual args
     const roles = allowedRoles.flat();
 
-    if (!roles.includes(req.user.role)) {
-      res.status(403).json({ success: false, message: 'Truy cập bị từ chối' });
+    // Check primary role
+    if (roles.includes(req.user.role)) {
+      next();
       return;
     }
 
-    next();
+    // Check secondary department roles — a user may have a higher role in a secondary dept
+    const hasSecondaryRole =
+      req.user.secondaryDepartments?.some(s => roles.includes(s.role)) ?? false;
+
+    if (hasSecondaryRole) {
+      next();
+      return;
+    }
+
+    res.status(403).json({ success: false, message: 'Truy cập bị từ chối' });
   };
 };
 
