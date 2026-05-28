@@ -291,6 +291,35 @@ const entries: NotificationEventDef[] = [
     resolveRecipients: resolveDirectRecipients,
   },
 
+  // ── Purchase Request (notify requester) ──
+  {
+    event: NotificationEvent.PURCHASE_REQUEST_APPROVED,
+    notificationType: NotificationType.PURCHASE_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu mua hàng được duyệt',
+      message: `Yêu cầu mua hàng ${ctx.metadata?.maYeuCau ?? ''} của bạn đã được phê duyệt bởi ${ctx.metadata?.nguoiDuyet ?? 'bộ phận thu mua'}.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.PURCHASE_REQUEST_REJECTED,
+    notificationType: NotificationType.PURCHASE_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu mua hàng bị từ chối',
+      message: `Yêu cầu mua hàng ${ctx.metadata?.maYeuCau ?? ''} của bạn đã bị từ chối${ctx.metadata?.lyDo ? ': ' + ctx.metadata.lyDo : ''}.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.PURCHASE_REQUEST_COMPLETED,
+    notificationType: NotificationType.PURCHASE_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu mua hàng hoàn thành',
+      message: `Yêu cầu mua hàng ${ctx.metadata?.maYeuCau ?? ''} đã được hoàn thành — hàng đã được mua và sẵn sàng nhập kho.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+
   // ── Repair Request ──
   {
     event: NotificationEvent.REPAIR_REQUEST_CREATED,

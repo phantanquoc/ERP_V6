@@ -258,9 +258,23 @@ class PurchaseRequestService {
       throw new NotFoundError('Không tìm thấy yêu cầu mua hàng');
     }
 
+    // Validate approval fields
+    if (data.trangThai === 'Đã duyệt') {
+      const errors: string[] = [];
+      if (!data.nguoiDuyet || !(data.nguoiDuyet as string).trim()) {
+        errors.push('Người duyệt không được để trống khi duyệt yêu cầu');
+      }
+      if (!data.ngayDuyet) {
+        errors.push('Ngày duyệt không được để trống khi duyệt yêu cầu');
+      }
+      if (errors.length > 0) {
+        throw new ValidationError(errors.join('; '));
+      }
+    }
+
     // Parse soLuong to float if it's a string (from FormData)
     const { items, ...updateData } = data as any;
-    if (updateData.soLuong !== undefined) {
+    if (updateData.soLuong !== undefined && updateData.soLuong !== null) {
       updateData.soLuong = parseFloat(updateData.soLuong.toString());
     }
     if (updateData.ngayDuyet) {
@@ -319,6 +333,38 @@ class PurchaseRequestService {
       }
     }
 
+    // Notify requester when approved
+    if (updateData.trangThai === 'Đã duyệt' && existingRequest.employeeId) {
+      try {
+        await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_APPROVED, {
+          targetEmployeeIds: [existingRequest.employeeId],
+          metadata: {
+            maYeuCau: existingRequest.maYeuCau,
+            purchaseRequestId: id,
+            nguoiDuyet: updateData.nguoiDuyet ?? '',
+          },
+        });
+      } catch (notifError) {
+        console.error('Error sending purchase request approved notification:', notifError);
+      }
+    }
+
+    // Notify requester when rejected
+    if (updateData.trangThai === 'Từ chối' && existingRequest.employeeId) {
+      try {
+        await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_REJECTED, {
+          targetEmployeeIds: [existingRequest.employeeId],
+          metadata: {
+            maYeuCau: existingRequest.maYeuCau,
+            purchaseRequestId: id,
+            lyDo: updateData.ghiChuMuaHang ?? '',
+          },
+        });
+      } catch (notifError) {
+        console.error('Error sending purchase request rejected notification:', notifError);
+      }
+    }
+
     // Notify warehouse when purchasing marks as "Hoàn thành" (goods purchased, ready for intake)
     if (updateData.trangThai === 'Hoàn thành') {
       // Advance supply request status to "Đã mua hàng"
@@ -353,6 +399,21 @@ class PurchaseRequestService {
         }
       } catch (notifError) {
         console.error('Error sending warehouse notification:', notifError);
+      }
+
+      // Notify requester that their purchase request is completed
+      if (existingRequest.employeeId) {
+        try {
+          await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_COMPLETED, {
+            targetEmployeeIds: [existingRequest.employeeId],
+            metadata: {
+              maYeuCau: existingRequest.maYeuCau,
+              purchaseRequestId: id,
+            },
+          });
+        } catch (notifError) {
+          console.error('Error sending purchase request completed notification:', notifError);
+        }
       }
     }
 
