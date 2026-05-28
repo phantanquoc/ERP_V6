@@ -183,10 +183,6 @@ class AuthService {
             departmentCode: mapDeptCodeToPermCode(s.departmentCode) ?? mapDepartmentNameToCode(s.departmentName),
             subDepartmentCode: mapSubDeptCodeToPermCode(s.subDepartmentCode) ?? mapSubDepartmentNameToCode(s.subDepartmentName),
           })),
-          // @deprecated backward compat — populated from secondaryDepartments[0]
-          secondaryDepartment: data.data.user.secondaryDepartmentName ? mapDepartmentNameToCode(data.data.user.secondaryDepartmentName) : undefined,
-          secondarySubDepartment: data.data.user.secondarySubDepartmentName ? mapSubDepartmentNameToCode(data.data.user.secondarySubDepartmentName) : undefined,
-          secondaryRole: data.data.user.secondaryRole ? mapBackendRoleToUserRole(data.data.user.secondaryRole) : undefined,
           // Employee information
           employeeId: data.data.employee?.id,
           employeeCode: data.data.employee?.employeeCode,

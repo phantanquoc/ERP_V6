@@ -104,7 +104,7 @@ export const hasModuleAccess = (
   module: string,
   userRole: UserRole,
   userDepartment?: string,
-  secondaryDepartments?: SecondaryDepartmentEntry[] | string  // accept array or legacy string
+  secondaryDepartments?: SecondaryDepartmentEntry[]
 ): boolean => {
   const permission = DEPARTMENT_PERMISSIONS.find(p => p.module === module);
   if (!permission) return false;
@@ -112,14 +112,11 @@ export const hasModuleAccess = (
   if (userDepartment === DEPARTMENTS.ADMIN) return true;
   if (permission.allowedDepartments.includes(userDepartment)) return true;
 
-  // Support both new array format and legacy string format
   if (Array.isArray(secondaryDepartments)) {
     return secondaryDepartments.some(s =>
       s.departmentCode && permission.allowedDepartments.includes(s.departmentCode)
     );
   }
-  // Legacy: single string
-  if (secondaryDepartments && permission.allowedDepartments.includes(secondaryDepartments)) return true;
 
   return false;
 };
@@ -131,9 +128,7 @@ export const hasSubModuleAccess = (
   userDepartment?: string,
   userSubDepartment?: string,
   userRole?: string,
-  secondaryDepartments?: SecondaryDepartmentEntry[] | string,  // accept array or legacy string
-  userSecondarySubDepartment?: string,
-  userSecondaryRole?: string
+  secondaryDepartments?: SecondaryDepartmentEntry[]
 ): boolean => {
   if (userDepartment === DEPARTMENTS.ADMIN) return true;
 
@@ -143,7 +138,7 @@ export const hasSubModuleAccess = (
     if (userRole === UserRole.EMPLOYEE && userSubDepartment === subModule) return true;
   }
 
-  // Check secondary departments — new array format
+  // Check secondary departments
   if (Array.isArray(secondaryDepartments)) {
     for (const s of secondaryDepartments) {
       if (s.departmentCode !== department) continue;
@@ -151,15 +146,6 @@ export const hasSubModuleAccess = (
       if (effectiveRole === UserRole.DEPARTMENT_HEAD || effectiveRole === UserRole.TEAM_LEAD) return true;
       if (effectiveRole === UserRole.EMPLOYEE && s.subDepartmentCode === subModule) return true;
     }
-    return false;
-  }
-
-  // Legacy: single string params
-  const userSecondaryDepartment = secondaryDepartments as string | undefined;
-  if (userSecondaryDepartment === department) {
-    const effectiveRole = userSecondaryRole || UserRole.EMPLOYEE;
-    if (effectiveRole === UserRole.DEPARTMENT_HEAD || effectiveRole === UserRole.TEAM_LEAD) return true;
-    if (effectiveRole === UserRole.EMPLOYEE && userSecondarySubDepartment === subModule) return true;
   }
 
   return false;

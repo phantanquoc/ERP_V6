@@ -26,9 +26,6 @@ export class UserService {
           createdAt: true,
           departmentId: true,
           subDepartmentId: true,
-          secondaryDepartmentId: true,
-          secondarySubDepartmentId: true,
-          secondaryRole: true,
           supervisor1Id: true,
           supervisor2Id: true,
           secondaryDepartments: {
@@ -46,8 +43,6 @@ export class UserService {
       users.map(async (user: any) => {
         let departmentName = null;
         let subDepartmentName = null;
-        let secondaryDepartmentName = null;
-        let secondarySubDepartmentName = null;
         let supervisor1 = null;
         let supervisor2 = null;
 
@@ -65,22 +60,6 @@ export class UserService {
             select: { name: true },
           });
           subDepartmentName = subDept?.name;
-        }
-
-        if (user.secondaryDepartmentId) {
-          const dept2 = await prisma.department.findUnique({
-            where: { id: user.secondaryDepartmentId },
-            select: { name: true },
-          });
-          secondaryDepartmentName = dept2?.name;
-        }
-
-        if (user.secondarySubDepartmentId) {
-          const subDept2 = await prisma.subDepartment.findUnique({
-            where: { id: user.secondarySubDepartmentId },
-            select: { name: true },
-          });
-          secondarySubDepartmentName = subDept2?.name;
         }
 
         if (user.supervisor1Id) {
@@ -116,8 +95,6 @@ export class UserService {
           ...user,
           departmentName,
           subDepartmentName,
-          secondaryDepartmentName,
-          secondarySubDepartmentName,
           secondaryDepartments,
           supervisor1,
           supervisor2,
@@ -148,8 +125,6 @@ export class UserService {
         updatedAt: true,
         departmentId: true,
         subDepartmentId: true,
-        secondaryDepartmentId: true,
-        secondarySubDepartmentId: true,
         supervisor1Id: true,
         supervisor2Id: true,
         secondaryDepartments: {
@@ -180,8 +155,6 @@ export class UserService {
 
     let departmentName = null;
     let subDepartmentName = null;
-    let secondaryDepartmentName = null;
-    let secondarySubDepartmentName = null;
     let supervisor1 = null;
     let supervisor2 = null;
 
@@ -192,14 +165,6 @@ export class UserService {
     if (user.subDepartmentId) {
       const subDept = await prisma.subDepartment.findUnique({ where: { id: user.subDepartmentId }, select: { name: true } });
       subDepartmentName = subDept?.name;
-    }
-    if (user.secondaryDepartmentId) {
-      const dept2 = await prisma.department.findUnique({ where: { id: user.secondaryDepartmentId }, select: { name: true } });
-      secondaryDepartmentName = dept2?.name;
-    }
-    if (user.secondarySubDepartmentId) {
-      const subDept2 = await prisma.subDepartment.findUnique({ where: { id: user.secondarySubDepartmentId }, select: { name: true } });
-      secondarySubDepartmentName = subDept2?.name;
     }
     if (user.supervisor1Id) {
       supervisor1 = await prisma.user.findUnique({ where: { id: user.supervisor1Id }, select: { id: true, firstName: true, lastName: true, email: true } });
@@ -239,8 +204,6 @@ export class UserService {
       shoeSize: employeeData?.shoeSize || null,
       departmentName,
       subDepartmentName,
-      secondaryDepartmentName,
-      secondarySubDepartmentName,
       secondaryDepartments,
       supervisor1,
       supervisor2,
@@ -256,9 +219,6 @@ export class UserService {
       isActive?: boolean;
       departmentId?: string | null;
       subDepartmentId?: string | null;
-      secondaryDepartmentId?: string | null;
-      secondarySubDepartmentId?: string | null;
-      secondaryRole?: string | null;
       supervisor1Id?: string | null;
       supervisor2Id?: string | null;
       /** New: replace all secondary departments. If provided, takes precedence over legacy fields. */
@@ -316,9 +276,6 @@ export class UserService {
         ...(data.isActive !== undefined && { isActive: data.isActive }),
         ...(data.departmentId !== undefined && { departmentId: data.departmentId }),
         ...(data.subDepartmentId !== undefined && { subDepartmentId: data.subDepartmentId }),
-        ...(data.secondaryDepartmentId !== undefined && { secondaryDepartmentId: data.secondaryDepartmentId }),
-        ...(data.secondarySubDepartmentId !== undefined && { secondarySubDepartmentId: data.secondarySubDepartmentId }),
-        ...(data.secondaryRole !== undefined && { secondaryRole: data.secondaryRole as any }),
         ...(supervisor1Id !== undefined && { supervisor1Id: supervisor1Id }),
         ...(supervisor2Id !== undefined && { supervisor2Id: supervisor2Id }),
       },
@@ -331,8 +288,6 @@ export class UserService {
         isActive: true,
         departmentId: true,
         subDepartmentId: true,
-        secondaryDepartmentId: true,
-        secondarySubDepartmentId: true,
         supervisor1Id: true,
         supervisor2Id: true,
         updatedAt: true,
@@ -351,19 +306,6 @@ export class UserService {
             role: (s.role ?? 'EMPLOYEE') as any,
           })),
           skipDuplicates: true,
-        });
-      }
-    } else if (data.secondaryDepartmentId !== undefined) {
-      // Backward compat: single field update → sync to relation table
-      await prisma.userSecondaryDepartment.deleteMany({ where: { userId: id } });
-      if (data.secondaryDepartmentId) {
-        await prisma.userSecondaryDepartment.create({
-          data: {
-            userId: id,
-            departmentId: data.secondaryDepartmentId,
-            subDepartmentId: data.secondarySubDepartmentId ?? null,
-            role: (data.secondaryRole ?? 'EMPLOYEE') as any,
-          },
         });
       }
     }
@@ -420,9 +362,6 @@ export class UserService {
     role: string;
     departmentId?: string | null;
     subDepartmentId?: string | null;
-    secondaryDepartmentId?: string | null;
-    secondarySubDepartmentId?: string | null;
-    secondaryRole?: string | null;
     supervisor1Id?: string | null;
     supervisor2Id?: string | null;
     /** New: array of secondary departments */
@@ -477,9 +416,6 @@ export class UserService {
           isActive: true,
           departmentId: data.departmentId || null,
           subDepartmentId: data.subDepartmentId || null,
-          secondaryDepartmentId: data.secondaryDepartmentId || null,
-          secondarySubDepartmentId: data.secondarySubDepartmentId || null,
-          secondaryRole: (data.secondaryRole as any) || null,
           supervisor1Id: supervisor1Id,
           supervisor2Id: supervisor2Id,
         },
@@ -492,9 +428,6 @@ export class UserService {
           isActive: true,
           departmentId: true,
           subDepartmentId: true,
-          secondaryDepartmentId: true,
-          secondarySubDepartmentId: true,
-          secondaryRole: true,
           supervisor1Id: true,
           supervisor2Id: true,
           createdAt: true,
@@ -535,10 +468,7 @@ export class UserService {
       }
 
       // Create secondary departments
-      const secondaryList = data.secondaryDepartments
-        ?? (data.secondaryDepartmentId
-            ? [{ departmentId: data.secondaryDepartmentId, subDepartmentId: data.secondarySubDepartmentId, role: data.secondaryRole ?? 'EMPLOYEE' }]
-            : []);
+      const secondaryList = data.secondaryDepartments ?? [];
       if (secondaryList.length > 0) {
         await tx.userSecondaryDepartment.createMany({
           data: secondaryList.map(s => ({

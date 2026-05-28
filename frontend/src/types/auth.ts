@@ -36,12 +36,6 @@ export interface User {
   departmentName?: string;     // department display name (Vietnamese)
   position?: string;
   secondaryDepartments?: SecondaryDepartmentEntry[];
-  /** @deprecated use secondaryDepartments[0]?.departmentCode */
-  secondaryDepartment?: string;
-  /** @deprecated use secondaryDepartments[0]?.subDepartmentCode */
-  secondarySubDepartment?: string;
-  /** @deprecated use secondaryDepartments[0]?.role */
-  secondaryRole?: UserRole;
   // Employee specific information
   employeeId?: string;
   employeeCode?: string;

@@ -43,12 +43,6 @@ export interface AuthResponse {
       subDepartmentName?: string | null;
       subDepartmentCode?: string | null;
     }>;
-    // @deprecated — kept for backward compat, populated from secondaryDepartments[0]
-    secondaryDepartmentId?: string | null;
-    secondaryDepartmentName?: string | null;
-    secondarySubDepartmentId?: string | null;
-    secondarySubDepartmentName?: string | null;
-    secondaryRole?: string | null;
   };
   employee?: {
     id: string;
