@@ -224,18 +224,3 @@ Request → authenticate (JWT) → authorize (RBAC) → checkAccess (ABAC) → C
 - Không được tạo/sửa/xóa dữ liệu master
 
 ---
-
-## 8. Test Accounts (Development)
-
-| Email | Password | Role | Department |
-|-------|----------|------|------------|
-| `admin@example.com` | `admin123` | ADMIN | General |
-| `office1@example.com` | `office1123` | EMPLOYEE | General |
-| `office2@example.com` | `office2123` | EMPLOYEE | General |
-| `nguyễnvăn a@example.com` | `employee123` | EMPLOYEE | General |
-| `trầnthị b@example.com` | `employee123` | EMPLOYEE | Quality |
-| `lêvăn c@example.com` | `employee123` | EMPLOYEE | Business |
-| `phạmthị d@example.com` | `employee123` | EMPLOYEE | Accounting |
-| `hoàngvăn e@example.com` | `employee123` | EMPLOYEE | Purchasing |
-| `vũthị f@example.com` | `employee123` | EMPLOYEE | Production |
-| `đặngvăn g@example.com` | `employee123` | EMPLOYEE | Technical |
