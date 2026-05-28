@@ -24,6 +24,7 @@ export const NotificationType = {
   DAILY_WORK_REPORT: 'DAILY_WORK_REPORT',
   WORK_PLAN: 'WORK_PLAN',
   REPAIR_REQUEST: 'REPAIR_REQUEST',
+  PURCHASE_REQUEST: 'PURCHASE_REQUEST',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
@@ -67,6 +68,10 @@ export const NotificationEvent = {
   // Technical
   REPAIR_REQUEST_CREATED: 'REPAIR_REQUEST_CREATED',
   REPAIR_REQUEST_UPDATED: 'REPAIR_REQUEST_UPDATED',
+  // Purchase request (notify requester)
+  PURCHASE_REQUEST_APPROVED: 'PURCHASE_REQUEST_APPROVED',
+  PURCHASE_REQUEST_REJECTED: 'PURCHASE_REQUEST_REJECTED',
+  PURCHASE_REQUEST_COMPLETED: 'PURCHASE_REQUEST_COMPLETED',
 } as const;
 
 export type NotificationEvent = typeof NotificationEvent[keyof typeof NotificationEvent];
