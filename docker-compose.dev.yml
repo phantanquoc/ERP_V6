@@ -70,7 +70,8 @@ services:
       - "8001:8001"
     volumes:
       - deepface_weights:/home/appuser/.deepface/weights
-      - ./docs/chatbot:/app/docs/chatbot:ro
+      - hf_cache:/home/appuser/.cache/huggingface
+      - ./docs:/app/docs:ro
       - ai_chroma_dev:/app/chroma_data
       - ./ai-service/main.py:/app/main.py:ro
       - ./ai-service/app.py:/app/app.py:ro
@@ -133,6 +134,8 @@ volumes:
     driver: local
   deepface_weights:
     driver: local  # persist ArcFace/FaceNet weights across rebuilds
+  hf_cache:
+    driver: local  # persist SentenceTransformer model across rebuilds
   ai_chroma_dev:
     driver: local
 
