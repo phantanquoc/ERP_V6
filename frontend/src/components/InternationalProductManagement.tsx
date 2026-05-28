@@ -4,8 +4,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 import { useProducts, productKeys } from '../hooks/useProducts';
 import TableFilter, { FilterField } from './TableFilter';
+import { useAuth } from '../contexts/AuthContext';
 
 const InternationalProductManagement: React.FC = () => {
+  const { user } = useAuth();
+  const canCreateEdit = user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD' || user?.role === 'TEAM_LEAD';
+  const canDelete = user?.role === 'ADMIN';
+  const canManageCategories = user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD';
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', loaiSanPham: '' });
   const searchTerm = filterValues._search || '';
   const [currentPage, setCurrentPage] = useState(1);
@@ -218,14 +223,16 @@ const InternationalProductManagement: React.FC = () => {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Danh sách hàng hóa</h2>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => { fetchCategories(); setShowCategoryModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-            title="Cài đặt loại hàng hóa"
-          >
-            <Settings className="w-4 h-4" />
-            Cài đặt
-          </button>
+          {canManageCategories && (
+            <button
+              onClick={() => { fetchCategories(); setShowCategoryModal(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              title="Cài đặt loại hàng hóa"
+            >
+              <Settings className="w-4 h-4" />
+              Cài đặt
+            </button>
+          )}
           <button
             onClick={async () => {
               try {
@@ -240,13 +247,15 @@ const InternationalProductManagement: React.FC = () => {
             <Download className="w-4 h-4" />
             Xuất Excel
           </button>
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Thêm hàng hóa
-          </button>
+          {canCreateEdit && (
+            <button
+              onClick={openCreateModal}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm hàng hóa
+            </button>
+          )}
         </div>
       </div>
 
@@ -318,20 +327,24 @@ const InternationalProductManagement: React.FC = () => {
                       >
                         <Eye className="w-5 h-5" />
                       </button>
-                      <button
-                        onClick={() => openEditModal(product)}
-                        className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(product.id)}
-                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      {canCreateEdit && (
+                        <button
+                          onClick={() => openEditModal(product)}
+                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDelete(product.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
