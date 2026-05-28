@@ -63,6 +63,7 @@ const ROUTE_MAP: Record<string, string> = {
   faceAttendance: '/api/face-attendance',
   chat: '/api/chat',
   agent: '/api/agent',
+  docs: '/api/docs',
 };
 
 export const registerRoutes = (app: Express): void => {

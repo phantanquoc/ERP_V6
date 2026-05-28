@@ -1,5 +1,7 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import { NotificationEvent } from '@types';
+import notificationService from '@services/notificationService';
 
 export class ProductionReportService {
   async getAllProductionReports(page: number = 1, limit: number = 10) {
@@ -67,6 +69,14 @@ export class ProductionReportService {
         chenhLechKhoiLuong,
       },
     });
+
+    try {
+      await notificationService.notify(NotificationEvent.PRODUCTION_REPORT_CREATED, {
+        actorUserId: userId,
+        entityId: report.id,
+        metadata: { ngayThang: data.ngayThang },
+      });
+    } catch {}
 
     return report;
   }

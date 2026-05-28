@@ -61,6 +61,9 @@ const SystemSettingsPage = React.lazy(() => import('./pages/SystemSettingsPage')
 const FaceAdminPage = React.lazy(() => import('./pages/face/FaceAdminPage'));
 const FaceKioskPage = React.lazy(() => import('./pages/face/FaceKioskPage'));
 
+// Documentation
+const DocumentationGuide = React.lazy(() => import('./pages/DocumentationGuide'));
+
 function App() {
   return (
     <Router>
@@ -242,6 +245,9 @@ function App() {
                 <FaceAdminPage />
               </AdminRoute>
             } />
+
+            {/* Documentation Guide */}
+            <Route path="/huong-dan" element={<DocumentationGuide />} />
           </Route>
         </Routes>
         </Suspense>

@@ -151,7 +151,7 @@ Khách hàng yêu cầu
 | Yêu cầu sản phẩm | | Văn bản | Placeholder: "VD: kg, tấn, thùng..." |
 | Quy cách đóng gói | | Văn bản | |
 | Số lượng | ✅ | Số | Lỗi: "Sản phẩm {n}: Vui lòng nhập số lượng hợp lệ" |
-| Đơn vị tính | ✅ | Văn bản | Placeholder: "VD: kg, tấn, thùng...". Lỗi: "Sản phẩm {n}: Vui lòng nhập đơn vị tính" |
+| Đơn vị tính | ✅ | Dropdown | Kg / MT / Tấn / Thùng / Hộp / Cái / Lít. Lỗi: "Sản phẩm {n}: Vui lòng nhập đơn vị tính" |
 | Giá đối thủ bán (VND) | | Số | |
 | Giá bán gần nhất (VND) | | Số | |
 
@@ -161,8 +161,8 @@ Nút trong phần sản phẩm: **"Thêm sản phẩm"** (xanh lá, biểu tư�
 
 | Trường | Quốc tế | Nội địa |
 |---|---|---|
-| Hình thức vận chuyển | Nhập tay (placeholder: "VD: FOB, CIF, CFR...") | Dropdown: Giao hàng tận nơi / Khách tự đến lấy / Vận chuyển đường bộ / Vận chuyển đường thủy |
-| Hình thức thanh toán | Nhập tay (placeholder: "VD: T/T, L/C...") | Dropdown: Tiền mặt / Chuyển khoản / Công nợ 15 ngày / Công nợ 30 ngày / Công nợ 45 ngày |
+| Hình thức vận chuyển | Dropdown: Đường biển / Đường hàng không / Đường bộ / Đường sắt / Đa phương thức | Dropdown: Giao hàng tận nơi / Khách tự đến lấy / Vận chuyển đường bộ / Vận chuyển đường thủy |
+| Hình thức thanh toán | Dropdown: T/T / L/C / D/P / D/A / CAD / Open Account | Dropdown: Tiền mặt / Chuyển khoản / Công nợ 15 ngày / Công nợ 30 ngày / Công nợ 45 ngày |
 | Địa điểm giao | Quốc gia (văn bản) + Cảng đến (văn bản) | Địa chỉ giao hàng (văn bản, placeholder: "Nhập địa chỉ giao hàng...") |
 
 **Trường chung:**
@@ -368,6 +368,37 @@ Các phần hiển thị: Thông tin cơ bản (Mã ĐH, Ngày đặt, Mã BG, M
 
 **Nút:** "Đóng" + "Chỉnh sửa"
 
+#### Bảng tính báo giá (QuotationCalculatorModal)
+
+Nhấn nút **"Xem bảng tính"** trên dòng đơn hàng để mở modal bảng tính giá thành chi tiết. Modal này hiển thị toàn bộ cấu trúc tính giá của đơn hàng:
+
+**Cấu trúc tab:** Mỗi sản phẩm trong đơn hàng có 1 tab riêng + có thể thêm "Chi phí bổ sung" (tab phụ).
+
+**Thông tin mỗi tab sản phẩm:**
+
+| Nhóm | Nội dung |
+|---|---|
+| Định mức | Mã định mức · Tên định mức · Tỉ lệ thu hồi (%) · Sản phẩm đầu ra · Nguyên liệu đầu vào |
+| Tồn kho & SX | Thành phẩm tồn kho · Tổng thành phẩm cần SX thêm · Tổng nguyên liệu cần SX · Nguyên liệu tồn kho · Nguyên liệu cần nhập thêm |
+| Thực tế | Tổng khối lượng thành phẩm thực tế · Thành phẩm tồn kho thực tế · Tổng thành phẩm cần SX thêm thực tế · Tổng nguyên liệu cần SX thực tế |
+| Thời gian | Thời gian cho phép tối đa · Ngày bắt đầu SX (KH) · Ngày bắt đầu SX thực tế · Ngày hoàn thành thực tế |
+| Chi phí | Chi phí SX (KH/TT) · Chi phí chung (KH/TT) · Chi phí xuất khẩu (KH/TT) |
+| Giá | Giá hòa vốn (tự tính) · Lợi nhuận cộng thêm · Tỉ giá USD |
+
+**Chi phí chung & Chi phí xuất khẩu:**
+- Lấy từ danh mục chi phí đã thiết lập tại **Bộ phận tổng hợp → Phòng giá thành → Tab Chi phí**
+- Mỗi chi phí có giá trị Kế hoạch và Thực tế (VNĐ)
+- Chi phí xuất khẩu có thêm giá trị USD và tỉ giá
+
+**Tổng hợp đơn hàng:**
+- Phần trăm thuế (%) · Phần trăm quỹ (%)
+- Tổng chi phí kế hoạch / thực tế
+- Giá báo khách (VNĐ/KG) và giá USD (nếu có tỉ giá)
+
+**Nút:** "Tạo báo giá" (mở form tạo BG từ bảng tính) / "Đóng"
+
+> **Lưu ý:** Bảng tính này là công cụ tính giá thành — dữ liệu chi phí chung và chi phí xuất khẩu phải được thiết lập trước tại Bộ phận tổng hợp. Nếu chưa có chi phí, liên hệ Phòng giá thành để tạo.
+
 ---
 
 ### 3.4 Tab: Khách hàng quốc tế (tab **Khách hàng quốc tế**)
@@ -532,7 +563,7 @@ Trang gồm **5 tab** tương tự Quốc Tế, nhưng dành cho thị trường
 | Danh sách khách hàng nội địa | `customers` | Hồ sơ khách hàng Việt Nam |
 | Danh sách phản hồi từ KH | `feedback` | Phản hồi khách hàng nội địa |
 
-> **Lưu ý:** Các tab YCBG, BG, Đơn hàng, Phản hồi KH dùng chung component với Quốc Tế nhưng lọc `customerType="Nội địa"`. Trường **Quốc gia** và **Cảng đến** không xuất hiện trong YCBG nội địa — thay bằng **Địa chỉ giao hàng**. Hình thức vận chuyển và thanh toán dùng dropdown thay vì nhập tay.
+> **Lưu ý:** Các tab YCBG, BG, Đơn hàng, Phản hồi KH dùng chung component với Quốc Tế nhưng lọc `customerType="Nội địa"`. Trường **Quốc gia** và **Cảng đến** không xuất hiện trong YCBG nội địa — thay bằng **Địa chỉ giao hàng**. Cả hai phòng đều dùng dropdown cho hình thức vận chuyển và thanh toán, nhưng danh sách tùy chọn khác nhau (xem bảng so sánh ở mục 3.1).
 
 ### 4.1 Khách hàng Nội Địa (tab **Khách hàng nội địa**)
 
@@ -600,7 +631,52 @@ Sản phẩm dùng trong YCBG và BG được tải từ danh mục sản phẩm
 
 ---
 
-## 6. Khi không có quyền — Escalation
+## 6. Trang Tổng quan Kinh doanh (BusinessReport)
+
+**Truy cập:** Nhấn **Bộ phận kinh doanh** → chọn **Tổng quan** (hoặc trang mặc định khi vào bộ phận)
+
+Trang hiển thị báo cáo tổng hợp hoạt động kinh doanh:
+
+### 4 thẻ thống kê đầu trang
+
+| Thẻ | Chỉ số |
+|---|---|
+| Đơn hàng | Tổng số đơn hàng |
+| Khách hàng quốc tế | Tổng số KH quốc tế |
+| Khách hàng nội địa | Tổng số KH nội địa |
+| Phản hồi KH | Tổng số phản hồi |
+
+### Biểu đồ
+
+| Biểu đồ | Loại | Nội dung |
+|---|---|---|
+| Phân bổ đơn hàng theo loại khách | Tròn (Pie) | Tỷ lệ đơn hàng quốc tế vs nội địa |
+| Phân bổ phản hồi theo loại khách | Tròn (Pie) | Tỷ lệ phản hồi quốc tế vs nội địa |
+| Đơn hàng quốc tế theo năm | Đường (Line) | So sánh số đơn hàng QT năm nay vs năm trước, theo tháng |
+| Đơn hàng nội địa theo năm | Đường (Line) | So sánh số đơn hàng NĐ năm nay vs năm trước, theo tháng |
+
+> **Lưu ý:** Trạng thái khách hàng trên trang này hiển thị "Đang giao dịch" / "Ngừng giao dịch" (khác với "Hoạt động" / "Tạm ngưng" / "Ngừng hợp tác" trong form quản lý KH).
+
+---
+
+## 7. Phụ thuộc liên bộ phận
+
+Bộ phận Kinh doanh phụ thuộc dữ liệu từ các bộ phận khác. Nếu thiếu dữ liệu, hướng dẫn nhân viên liên hệ đúng bộ phận:
+
+| Dữ liệu cần | Nguồn | Nếu thiếu |
+|---|---|---|
+| Danh mục sản phẩm (dropdown khi tạo YCBG) | **Bộ phận tổng hợp** → Phòng hàng hóa QT → Tab Sản phẩm | Liên hệ Phòng hàng hóa QT để thêm sản phẩm mới |
+| Danh sách khách hàng (dropdown khi tạo YCBG) | Tab **Khách hàng** trong cùng phòng KD | Tạo khách hàng mới tại tab Khách hàng trước khi tạo YCBG |
+| Chi phí chung / Chi phí xuất khẩu (bảng tính giá) | **Bộ phận tổng hợp** → Phòng giá thành → Tab Chi phí | Liên hệ Phòng giá thành để thiết lập chi phí |
+| Định mức nguyên vật liệu (bảng tính giá) | **Bộ phận tổng hợp** → Phòng giá thành → Tab Định mức | Liên hệ Phòng giá thành để tạo định mức |
+| Quy trình sản xuất (bảng tính giá) | **Bộ phận tổng hợp** → Phòng giá thành → Tab Quy trình | Liên hệ Phòng giá thành để thiết lập quy trình |
+| Tồn kho (kiểm tra khi tính giá) | **Bộ phận tổng hợp** → Phòng hàng hóa QT → Tab Kho | Liên hệ Phòng kho để cập nhật tồn kho |
+
+> **Thứ tự thiết lập:** Trước khi Phòng KD có thể tạo YCBG đầy đủ, cần: (1) Sản phẩm đã được tạo, (2) Khách hàng đã được tạo. Trước khi tính giá thành: (3) Định mức + Quy trình đã thiết lập, (4) Chi phí chung/xuất khẩu đã tạo.
+
+---
+
+## 8. Khi không có quyền — Escalation
 
 | Tình huống | Liên hệ ai | Hành động |
 |---|---|---|
@@ -612,7 +688,7 @@ Sản phẩm dùng trong YCBG và BG được tải từ danh mục sản phẩm
 
 ---
 
-## 7. Câu hỏi thường gặp (FAQ)
+## 9. Câu hỏi thường gặp (FAQ)
 
 **Q1: YCBG và Báo giá (BG) khác nhau như thế nào?**
 > **YCBG (Yêu cầu báo giá):** Là yêu cầu từ phía khách hàng, nhân viên KD nhập thông tin nhu cầu của khách (sản phẩm, số lượng, điều kiện giao hàng).
@@ -633,5 +709,5 @@ Sản phẩm dùng trong YCBG và BG được tải từ danh mục sản phẩm
 **Q6: Phản hồi khách hàng loại "Khẩn cấp" cần xử lý trong bao lâu?**
 > Hệ thống không đặt SLA cố định, nhưng phản hồi mức **Khẩn cấp** nên được xử lý trong ngày. Sau khi ghi nhận, cập nhật trạng thái xử lý từ "Chưa xử lý" sang "Đang xử lý" và thông báo cho DEPARTMENT_HEAD.
 
-**Q7: Hình thức thanh toán "Công nợ" có nghĩa là gì?**
-> Công nợ 15/30/45 ngày có nghĩa là khách hàng được phép thanh toán **sau khi nhận hàng** trong vòng 15, 30 hoặc 45 ngày. Đây là điều kiện thường dùng trong giao dịch B2B. Nếu điều kiện không có sẵn trong dropdown, nhân viên có thể nhập tay (VD: T/T 60 days, L/C at sight).
+**Q7: Hình thức thanh toán và vận chuyển được chọn như thế nào?**
+> Cả quốc tế và nội địa đều dùng **dropdown** (chọn từ danh sách có sẵn). Quốc tế: vận chuyển (Đường biển / Đường hàng không / Đường bộ / Đường sắt / Đa phương thức), thanh toán (T/T / L/C / D/P / D/A / CAD / Open Account). Nội địa: vận chuyển (Giao hàng tận nơi / Khách tự đến lấy / Vận chuyển đường bộ / Vận chuyển đường thủy), thanh toán (Tiền mặt / Chuyển khoản / Công nợ 15/30/45 ngày).

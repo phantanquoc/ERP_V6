@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
 import { nextYearlyCode, yearlyCodeWhere, nextStaticCode, staticCodeWhere } from '../utils/codeGenerator';
 import supplyRequestService from '../services/supplyRequestService';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
 
 export const generateReceiptCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -136,6 +138,14 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
       data: receipt,
       message: 'Tạo phiếu nhập kho thành công',
     });
+
+    try {
+      await notificationService.notify(NotificationEvent.WAREHOUSE_RECEIPT_CREATED, {
+        actorUserId: (req as any).user?.id,
+        entityId: receipt.id,
+        metadata: { maPhieuNhap, soLuongNhap: soLuongNhapFloat, donViTinh, tenSanPham },
+      });
+    } catch {}
 
     // Trigger supply request status advancement (after response sent)
     if (supplyRequestId) {

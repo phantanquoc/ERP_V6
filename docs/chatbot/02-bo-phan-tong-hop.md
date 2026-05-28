@@ -46,9 +46,9 @@ Ngoài ra, bộ phận tổng hợp có quyền truy cập module **Bảng lươ
 
 Phòng giá thành quản lý toàn bộ quy trình từ tiếp nhận yêu cầu báo giá đến hoàn tất đơn hàng. Trang chủ hiển thị 3 card thống kê:
 
-- **Tổng quan yêu cầu BG** — tổng số YCBG, phân loại theo trạng thái
-- **Tổng quan báo giá** — tổng số báo giá đã lập
-- **Tổng quan đơn hàng** — tổng số đơn hàng, xu hướng theo tháng
+- **Tổng quan yêu cầu BG** — tổng số YCBG, phân loại Quốc tế / Nội địa
+- **Tổng quan báo giá** — tổng số báo giá, phân loại Quốc tế / Nội địa
+- **Tổng quan đơn hàng** — tổng số đơn hàng, phân loại Quốc tế / Nội địa
 
 ### 3.2. Chi tiết các tab — Phòng giá thành
 
@@ -56,7 +56,7 @@ Phòng giá thành quản lý toàn bộ quy trình từ tiếp nhận yêu cầ
 
 **Truy cập:** `/general/pricing` → tab **"Danh sách YCBG"**
 
-> **Lưu ý:** Phòng giá thành chỉ có quyền **xem** và **tạo báo giá từ YCBG**, không tạo/sửa/xóa YCBG (đó là quyền của Phòng kinh doanh).
+> **Lưu ý quan trọng:** Phòng giá thành chỉ có quyền **xem** và **tạo báo giá từ YCBG**, không tạo/sửa/xóa YCBG. Việc tạo YCBG là quyền của **Phòng kinh doanh**.
 
 **Cột bảng danh sách:**
 
@@ -73,7 +73,18 @@ Phòng giá thành quản lý toàn bộ quy trình từ tiếp nhận yêu cầ
 
 **Bộ lọc:** Mã YC (văn bản), Nhân viên (văn bản), Khách hàng (văn bản), ô tìm kiếm tổng (placeholder: "Tìm kiếm mã YC, nhân viên, khách hàng...")
 
-**Tạo báo giá từ YCBG:** Nhấn biểu tượng **"Tạo báo giá"** trên dòng YCBG → mở bảng tính báo giá để lập báo giá.
+**Tạo báo giá từ YCBG:** Nhấn biểu tượng **"Tạo báo giá"** trên dòng YCBG → mở **Bảng tính báo giá** (modal lớn) để lập báo giá chi tiết.
+
+**Dữ liệu phụ thuộc (nếu thiếu, yêu cầu phòng ban tương ứng tạo trước):**
+
+| Dữ liệu cần | Phòng ban tạo | Ghi chú |
+|---|---|---|
+| Khách hàng (mã, tên công ty) | Phòng kinh doanh | Phải có trong danh sách khách hàng quốc tế/nội địa |
+| Sản phẩm (mã, tên) | Phòng kinh doanh | Phải có trong danh sách sản phẩm quốc tế |
+| Định mức nguyên vật liệu | Phòng kỹ thuật | Cần cho bảng tính báo giá |
+| Quy trình sản xuất + lưu đồ | Phòng kỹ thuật / Phòng sản xuất | Cần cho tính chi phí sản xuất |
+| Chi phí chung | Phòng giá thành (tự tạo) | Tab Chi phí → Chi phí chung |
+| Chi phí xuất khẩu | Phòng giá thành (tự tạo) | Tab Chi phí → Chi phí xuất khẩu |
 
 ---
 
@@ -98,28 +109,28 @@ Phòng giá thành quản lý toàn bộ quy trình từ tiếp nhận yêu cầ
 
 **Trạng thái báo giá (`tinhTrang`):**
 
-| Giá trị | Nhãn hiển thị |
-|---|---|
-| `DRAFT` | Nháp |
-| `DANG_CHO_PHAN_HOI` | Đang chờ phản hồi |
-| `DANG_CHO_GUI_DON_HANG` | Đang chờ gửi đơn hàng |
-| `DA_DAT_HANG` | Đã đặt hàng |
-| `KHONG_DAT_HANG` | Không đặt hàng |
-| `SENT` | Đã gửi |
-| `APPROVED` | Đã duyệt |
-| `REJECTED` | Từ chối |
-| `EXPIRED` | Hết hạn |
+| Giá trị | Nhãn hiển thị | Ý nghĩa |
+|---|---|---|
+| `DRAFT` | Nháp | Mới tạo, chưa gửi khách |
+| `DANG_CHO_PHAN_HOI` | Đang chờ phản hồi | Đã gửi khách, chờ phản hồi |
+| `DANG_CHO_GUI_DON_HANG` | Đang chờ gửi đơn hàng | Khách đồng ý, chờ tạo đơn |
+| `DA_DAT_HANG` | Đã đặt hàng | Đã tạo đơn hàng thành công |
+| `KHONG_DAT_HANG` | Không đặt hàng | Khách từ chối |
+| `SENT` | Đã gửi | Đã gửi báo giá |
+| `APPROVED` | Đã duyệt | Được duyệt nội bộ |
+| `REJECTED` | Từ chối | Bị từ chối nội bộ |
+| `EXPIRED` | Hết hạn | Quá thời hạn hiệu lực |
 
 **Nút hành động trên mỗi dòng:**
 
-| Nút | Hành động |
-|---|---|
-| Mắt (Xem) | Mở modal xem chi tiết báo giá |
-| Bút (Sửa) | Mở form chỉnh sửa |
-| Giỏ hàng (Tạo đơn hàng) | Xác nhận: "Bạn có chắc chắn muốn tạo đơn hàng từ báo giá này?" |
-| Thùng rác (Xóa) | Xác nhận: "Bạn có chắc chắn muốn xóa báo giá này?" |
+| Nút | Hành động | Điều kiện |
+|---|---|---|
+| Mắt (Xem) | Mở modal xem chi tiết báo giá | Tất cả vai trò |
+| Bút (Sửa) | Mở form chỉnh sửa | TEAM_LEAD trở lên |
+| Giỏ hàng (Tạo đơn hàng) | Xác nhận tạo đơn hàng từ báo giá | TEAM_LEAD trở lên |
+| Thùng rác (Xóa) | Xác nhận xóa báo giá | DEPARTMENT_HEAD / ADMIN |
 
-**Form chỉnh sửa báo giá** — các trường có thể sửa:
+**Form chỉnh sửa báo giá — các trường có thể sửa:**
 
 | Trường | Bắt buộc | Loại nhập | Ghi chú |
 |---|:---:|---|---|
@@ -151,17 +162,17 @@ Phòng giá thành quản lý toàn bộ quy trình từ tiếp nhận yêu cầ
 | Trạng thái TT | Badge trạng thái thanh toán |
 | Hành động | Xem / Xem bảng tính / Sửa / Xóa |
 
-**Trạng thái sản xuất (`trangThaiSanXuat`):**
+**Trạng thái sản xuất (`trangThaiSanXuat`) — forward-only, không lùi:**
 
-| Giá trị | Nhãn hiển thị |
-|---|---|
-| `CHO_LEN_KE_HOACH` | Chờ lên kế hoạch |
-| `CHO_SAN_XUAT` | Chờ sản xuất |
-| `DANG_SAN_XUAT` | Đang sản xuất |
-| `CHO_GIAO_HANG` | Chờ giao hàng |
-| `DA_LEN_CONTAINER` | Đã lên container |
-| `DANG_VAN_CHUYEN` | Đang vận chuyển |
-| `DA_GIAO_CHO_KHACH_HANG` | Đã giao cho khách hàng |
+| Giá trị | Nhãn hiển thị | Bước |
+|---|---|---|
+| `CHO_LEN_KE_HOACH` | Chờ lên kế hoạch | 1 |
+| `CHO_SAN_XUAT` | Chờ sản xuất | 2 |
+| `DANG_SAN_XUAT` | Đang sản xuất | 3 |
+| `CHO_GIAO_HANG` | Chờ giao hàng | 4 |
+| `DA_LEN_CONTAINER` | Đã lên container | 5 |
+| `DANG_VAN_CHUYEN` | Đang vận chuyển | 6 |
+| `DA_GIAO_CHO_KHACH_HANG` | Đã giao cho khách hàng | 7 |
 
 **Trạng thái thanh toán (`trangThaiThanhToan`):**
 
@@ -171,7 +182,7 @@ Phòng giá thành quản lý toàn bộ quy trình từ tiếp nhận yêu cầ
 | `CHO_THANH_TOAN_DOT_2` | Chờ thanh toán đợt 2 |
 | `DA_THANH_TOAN_DU` | Đã thanh toán đủ |
 
-**Form chỉnh sửa đơn hàng** — các trường có thể sửa:
+**Form chỉnh sửa đơn hàng — các trường có thể sửa:**
 
 | Nhóm | Trường | Loại nhập |
 |---|---|---|
@@ -189,28 +200,30 @@ Phòng giá thành quản lý toàn bộ quy trình từ tiếp nhận yêu cầ
 | Sản xuất | Ngày giao hàng | Chọn ngày |
 | Trạng thái | Trạng thái sản xuất | Dropdown (7 giá trị trên) |
 | Trạng thái | Trạng thái thanh toán | Dropdown (3 giá trị trên) |
-| | Ghi chú | Văn bản dài (4 dòng), placeholder: "Nhập ghi chú..." |
+| | Ghi chú | Văn bản dài (4 dòng) |
 
 **Nút:** "Lưu thay đổi" / "Hủy"
 
 ---
 
-#### Tab 4: Chi phí (`costs`)
+#### Tab 4: Chi phí (`costs`) — CHỈ CÓ TRONG BỘ PHẬN TỔNG HỢP
 
 **Truy cập:** `/general/pricing` → tab **"Chi phí"**
 
+> **QUAN TRỌNG:** Chức năng tạo/quản lý "Chi phí xuất khẩu" và "Chi phí chung" thuộc **Bộ phận tổng hợp → Phòng giá thành → Tab Chi phí**. KHÔNG phải bộ phận kế toán. Bộ phận kế toán quản lý công nợ và hóa đơn, không quản lý chi phí sản xuất/xuất khẩu.
+
 Có 2 loại chi phí, chuyển đổi bằng nút toggle:
 
-| Nút | Loại |
-|---|---|
-| **Chi phí Xuất khẩu** | Chi phí liên quan xuất khẩu |
-| **Chi phí Chung** | Chi phí vận hành chung |
+| Nút | Loại | Mục đích |
+|---|---|---|
+| **Chi phí Xuất khẩu** | Chi phí liên quan xuất khẩu | Dùng trong bảng tính báo giá xuất khẩu |
+| **Chi phí Chung** | Chi phí vận hành chung | Phân bổ cho tất cả sản phẩm |
 
 **Cột bảng danh sách:**
 
 | Cột | Nội dung |
 |---|---|
-| Mã chi phí | `maChiPhi` |
+| Mã chi phí | `maChiPhi` (tự sinh) |
 | Tên chi phí | `tenChiPhi` |
 | Loại chi phí | `loaiChiPhi` |
 | Đơn vị tính | `donViTinh` |
@@ -224,16 +237,118 @@ Có 2 loại chi phí, chuyển đổi bằng nút toggle:
 
 | Trường | Bắt buộc | Loại nhập | Ghi chú |
 |---|:---:|---|---|
-| Tên chi phí | ✅ | Văn bản | Lỗi: "Vui lòng nhập đầy đủ thông tin bắt buộc" |
-| Loại chi phí | ✅ | Văn bản | Lỗi: "Vui lòng nhập đầy đủ thông tin bắt buộc" |
-| Đơn vị tính | | Văn bản | |
+| Tên chi phí | ✅ | Văn bản | Lỗi nếu trống: "Vui lòng nhập đầy đủ thông tin bắt buộc" |
+| Loại chi phí | ✅ | Văn bản | Lỗi nếu trống: "Vui lòng nhập đầy đủ thông tin bắt buộc" |
+| Đơn vị tính | | Văn bản | VD: ngày, tháng, chuyến |
 | Giá thành/ngày | | Số (bước 0.01) | Placeholder: "Nhập giá thành/ngày" |
 | Đơn vị tiền | | Dropdown | VND / USD (mặc định: VND) |
 | Ghi chú | | Văn bản dài | |
 
 **Nút:** "Tạo mới" / "Cập nhật" / "Hủy"
 
-### 3.3. Bảng lương (PayrollManagement)
+---
+
+### 3.3. Bảng tính báo giá (QuotationCalculator)
+
+Bảng tính báo giá là công cụ chính của Phòng giá thành. Mở từ: Tab YCBG → nhấn biểu tượng "Tạo báo giá" trên dòng YCBG.
+
+#### Cấu trúc bảng tính
+
+Bảng tính hiển thị dạng modal lớn với nhiều tab:
+- **Tab sản phẩm chính** (1 tab cho mỗi sản phẩm trong YCBG): Sản phẩm 1, Sản phẩm 2...
+- **Tab chi phí bổ sung** (tùy chọn): CP bổ sung 1, CP bổ sung 2...
+
+#### Mỗi tab sản phẩm gồm các section:
+
+**Section 1: Thông tin sản phẩm**
+
+| Trường | Bắt buộc | Nguồn dữ liệu | Ghi chú |
+|---|:---:|---|---|
+| Loại sản phẩm | ✅ | Dropdown từ danh sách sản phẩm | Lọc sản phẩm theo loại |
+| Tên sản phẩm | ✅ | Dropdown (lọc theo loại SP) | Tự động từ YCBG |
+| Khối lượng | | Số | Từ YCBG hoặc nhập tay |
+| Đơn vị | | Văn bản | Kg, MT, Tấn... |
+| Mã định mức NVL | | Dropdown | Chọn từ danh sách định mức (Phòng kỹ thuật tạo) |
+
+> **Nếu không có định mức NVL:** Yêu cầu Phòng kỹ thuật tạo định mức nguyên vật liệu cho sản phẩm trước.
+
+**Section 2: Nguyên liệu, Tồn kho & Sản xuất**
+
+Chia 2 cột:
+
+*Cột trái — Nguyên liệu & Tồn kho:*
+
+| Trường | Ghi chú |
+|---|---|
+| NL đầu vào | Dropdown — chọn nguyên liệu từ định mức |
+| SP đầu ra | Dropdown — chọn thành phẩm từ định mức |
+| Nút "Tồn kho" | Kiểm tra tồn kho hiện tại của NL/SP đã chọn |
+| Bảng nguyên liệu | Hiển thị danh sách NL từ định mức với số lượng kế hoạch/thực tế |
+
+*Cột phải — Sản xuất & Thời gian:*
+
+| Trường | Loại nhập | Ghi chú |
+|---|---|---|
+| Quy trình sản xuất | Dropdown | Chọn từ danh sách quy trình (Phòng kỹ thuật tạo) |
+| Lưu đồ quy trình | Hiển thị tự động | Nếu chưa có lưu đồ → thông báo "Vui lòng tạo lưu đồ trong module Quy trình sản xuất" |
+| Số ngày SX (KH) | Số | Kế hoạch |
+| Số ngày SX (TT) | Số | Thực tế |
+| Số công nhân | Số | |
+| Tiền OT/ngày | Số | VNĐ |
+
+> **Nếu không có quy trình sản xuất:** Yêu cầu Phòng kỹ thuật hoặc Phòng sản xuất tạo quy trình và lưu đồ trước.
+
+**Section 3: Tổng hợp chi phí (mỗi sản phẩm)**
+
+Bảng tổng hợp tự động tính:
+
+| Mục | Công thức | Ghi chú |
+|---|---|---|
+| Chi phí nguyên liệu | Tổng (NL × đơn giá) | Từ định mức + giá NL |
+| Chi phí nhân công | Số công nhân × ngày × đơn giá | |
+| Chi phí OT | Tiền OT × số ngày | |
+| Chi phí chung (phân bổ) | Từ bảng chi phí chung | Phân bổ theo khối lượng SP |
+| Chi phí xuất khẩu | Từ bảng chi phí XK | Chỉ cho đơn quốc tế |
+| **Giá vốn/kg** | Tổng chi phí ÷ khối lượng | Tự động |
+| Lợi nhuận cộng thêm | Nhập tay (VNĐ/kg) | |
+| **Giá bán/kg** | Giá vốn + Lợi nhuận | Tự động |
+
+#### Bảng chi phí chung (áp dụng cho nhiều sản phẩm)
+
+Nằm bên dưới các tab sản phẩm, gồm:
+- Tên bảng chi phí (VD: "Chi phí chung 1")
+- Chọn chi phí từ danh sách chi phí chung đã tạo ở Tab 4
+- Mỗi chi phí có: Kế hoạch (VNĐ) + Thực tế (VNĐ)
+- Chọn sản phẩm được phân bổ (nếu không chọn → phân bổ cho tất cả)
+- Nút "Thêm bảng chi phí chung" để tạo nhiều bảng
+
+#### Bảng chi phí xuất khẩu
+
+- Chọn chi phí từ danh sách chi phí xuất khẩu đã tạo ở Tab 4
+- Mỗi chi phí có: Kế hoạch USD + Thực tế USD + Tỉ giá kế hoạch + Tỉ giá thực tế
+- Tự động quy đổi sang VNĐ
+
+#### Tổng hợp toàn đơn hàng (sidebar phải)
+
+| Mục | Công thức |
+|---|---|
+| Phần trăm thuế (%) | Nhập tay |
+| Lợi nhuận trước thuế | Tổng (lợi nhuận × kg chính phẩm) của tất cả SP |
+| Lợi nhuận sau thuế | Lợi nhuận trước thuế - (trước thuế × % thuế) |
+| Phần trăm quỹ (%) | Nhập tay |
+| Trích các quỹ | Lợi nhuận sau thuế × % quỹ |
+| **Lợi nhuận thực nhận** | Lợi nhuận sau thuế - Trích các quỹ |
+
+Mỗi mục đều hiển thị 2 dòng: **Kế hoạch** (màu xanh dương) và **Thực tế** (màu xanh lá).
+
+#### Lưu và tạo báo giá
+
+- **Nút "Lưu"**: Lưu bảng tính vào database, có thể mở lại chỉnh sửa sau
+- **Nút "Tạo báo giá"**: Tạo báo giá chính thức từ bảng tính → yêu cầu nhập thêm: Hiệu lực báo giá (ngày), Trạng thái, Ghi chú
+
+---
+
+### 3.4. Bảng lương (PayrollManagement)
 
 Module bảng lương cho phép quản lý và tính toán lương nhân viên theo tháng/năm.
 
@@ -245,7 +360,7 @@ Module bảng lương cho phép quản lý và tính toán lương nhân viên t
 | Lương KPI | Thưởng theo KPI đạt được |
 | Phụ cấp chức vụ | Phụ cấp theo vị trí |
 | Phụ cấp khác | Các phụ cấp phát sinh |
-| **Tổng thu nhập** | Tự động tính = Lương cơ bản + Lương KPI + Phụ cấp chức vụ + Phụ cấp khác |
+| **Tổng thu nhập** | Tự động = Lương cơ bản + Lương KPI + Phụ cấp chức vụ + Phụ cấp khác |
 
 #### Khấu trừ
 
@@ -257,7 +372,7 @@ Module bảng lương cho phép quản lý và tính toán lương nhân viên t
 | Thuế TNCN | Thuế thu nhập cá nhân |
 | Khấu trừ KPI | Trừ khi không đạt KPI |
 | Khấu trừ ngày nghỉ | Tự động tính theo số ngày nghỉ |
-| **Tổng khấu trừ** | Tự động tính = tổng các khoản khấu trừ |
+| **Tổng khấu trừ** | Tự động = tổng các khoản khấu trừ |
 
 #### Ngày công
 
@@ -291,7 +406,7 @@ Module bảng lương cho phép quản lý và tính toán lương nhân viên t
 
 Phòng chăm sóc đối tác chịu trách nhiệm quản lý quan hệ với khách hàng, nhà cung cấp và đối tác logistics.
 
-> **Lưu ý:** Một số tính năng đang trong quá trình phát triển.
+> **Lưu ý:** Tính năng đang trong quá trình phát triển.
 
 ### 4.2. Các tính năng đang xây dựng
 
@@ -308,7 +423,57 @@ Nhân viên phòng chăm sóc đối tác hiện có thể:
 
 ---
 
-## 5. Escalation (Leo thang xử lý)
+<!-- ## 5. Luồng công việc chính (Workflow)
+
+### 5.1. Luồng từ YCBG đến Đơn hàng
+
+Phòng kinh doanh tạo YCBG
+  → Phòng giá thành xem YCBG (Tab 1)
+  → Nhấn "Tạo báo giá" → Mở bảng tính
+  → Nhập chi phí, tính giá vốn, giá bán
+  → Lưu bảng tính → Tạo báo giá (Tab 2)
+  → Gửi khách → Chờ phản hồi
+  → Khách đồng ý → Tạo đơn hàng (Tab 3)
+  → Theo dõi trạng thái SX + thanh toán
+
+### 5.2. Luồng tạo chi phí
+
+Phòng giá thành vào Tab Chi phí (Tab 4)
+  → Chọn loại: Chi phí xuất khẩu / Chi phí chung
+  → Nhấn "Tạo chi phí..."
+  → Nhập: Tên, Loại, Đơn vị tính, Giá thành/ngày, Đơn vị tiền
+  → Lưu → Chi phí xuất hiện trong bảng tính báo giá
+
+### 5.3. Luồng bảng lương
+
+Chọn Tháng + Năm
+  → Hệ thống hiển thị danh sách nhân viên
+  → Click vào nhân viên → Nhập thu nhập, khấu trừ, ngày công
+  → Hệ thống tự tính tổng
+  → DEPARTMENT_HEAD/ADMIN nhấn "Gửi bảng lương" → Thông báo đến NV
+-->
+
+---
+
+## 6. Phụ thuộc dữ liệu giữa các phòng ban
+
+| Phòng giá thành cần | Phòng ban cung cấp | Cách kiểm tra |
+|---|---|---|
+| Danh sách khách hàng | Phòng kinh doanh | Dropdown khách hàng trong form YCBG |
+| Danh sách sản phẩm | Phòng kinh doanh | Dropdown sản phẩm trong form YCBG |
+| Định mức nguyên vật liệu | Phòng kỹ thuật | Dropdown "Mã định mức NVL" trong bảng tính |
+| Quy trình sản xuất + lưu đồ | Phòng kỹ thuật / Sản xuất | Dropdown quy trình trong bảng tính |
+| Tồn kho nguyên liệu | Kho (module kho) | Nút "Tồn kho" trong bảng tính |
+| Thông tin nhân viên (cho bảng lương) | Phòng nhân sự / Admin | Danh sách NV trong module bảng lương |
+
+**Khi dữ liệu phụ thuộc chưa có:**
+- Dropdown sẽ trống hoặc không có lựa chọn phù hợp
+- Thông báo lỗi: "Vui lòng tạo lưu đồ trong module Quy trình sản xuất trước khi sử dụng"
+- Giải pháp: Liên hệ phòng ban tương ứng để tạo dữ liệu trước
+
+---
+
+## 7. Escalation (Leo thang xử lý)
 
 Khi gặp sự cố hoặc vượt thẩm quyền, thực hiện theo trình tự:
 
@@ -317,28 +482,44 @@ Khi gặp sự cố hoặc vượt thẩm quyền, thực hiện theo trình t�
 3. **DEPARTMENT_HEAD:** Liên hệ ADMIN hệ thống hoặc bộ phận IT nếu vấn đề liên quan kỹ thuật.
 4. **Vấn đề bảng lương sai số liệu:** Kiểm tra lại công thức cài đặt (ngày công chuẩn, giá OT) trước khi báo cáo.
 5. **Vấn đề phân quyền:** Liên hệ ADMIN để cấp lại quyền truy cập.
+6. **Thiếu dữ liệu phụ thuộc:** Liên hệ phòng ban tương ứng (xem bảng mục 6).
 
 ---
 
-## 6. FAQ
+## 8. FAQ
 
 **Q1: Làm thế nào để tạo một yêu cầu báo giá (YCBG)?**
-> Phòng giá thành **không tạo YCBG** — đó là quyền của Phòng kinh doanh. Phòng giá thành chỉ xem YCBG và tạo báo giá từ đó. Vào tab **"Danh sách YCBG"** → tìm YCBG cần xử lý → nhấn biểu tượng **"Tạo báo giá"** (file) trên dòng đó → điền các trường: Giá báo khách (VNĐ/KG), Thời gian giao hàng (ngày), Hiệu lực báo giá (ngày), Trạng thái, Ghi chú → nhấn **"Tạo mới"**.
+> Phòng giá thành **không tạo YCBG** — đó là quyền của Phòng kinh doanh. Phòng giá thành chỉ xem YCBG và tạo báo giá từ đó. Vào tab **"Danh sách YCBG"** → tìm YCBG cần xử lý → nhấn biểu tượng **"Tạo báo giá"** (file) → điền bảng tính → nhấn **"Tạo báo giá"**.
 
-**Q2: Bảng lương tháng hiển thị sai, tôi cần làm gì?**
+**Q2: Bảng tính báo giá yêu cầu "Mã định mức NVL" nhưng dropdown trống?**
+> Định mức nguyên vật liệu do **Phòng kỹ thuật** tạo. Liên hệ Phòng kỹ thuật để tạo định mức cho sản phẩm cần báo giá.
+
+**Q3: Bảng tính báo giá báo "Vui lòng tạo lưu đồ trong module Quy trình sản xuất"?**
+> Quy trình sản xuất và lưu đồ do **Phòng kỹ thuật** hoặc **Phòng sản xuất** tạo. Liên hệ để tạo quy trình trước khi tính chi phí sản xuất.
+
+**Q4: Bảng lương tháng hiển thị sai, tôi cần làm gì?**
 > Kiểm tra lại các thông số cài đặt: **Số ngày công chuẩn / tháng** và **Giá tiền OT**. Nếu đã đúng, kiểm tra lại số ngày nghỉ và giờ OT của nhân viên đó rồi lưu lại.
 
-**Q3: Tại sao cột "Tổng thu nhập" và "Tổng khấu trừ" không thể nhập tay?**
+**Q5: Tại sao cột "Tổng thu nhập" và "Tổng khấu trừ" không thể nhập tay?**
 > Đây là các trường tính tự động dựa trên các khoản thu nhập và khấu trừ đã nhập. Hệ thống tự cộng để tránh sai sót.
 
-**Q4: Làm sao gửi thông báo bảng lương cho toàn bộ nhân viên?**
+**Q6: Làm sao gửi thông báo bảng lương cho toàn bộ nhân viên?**
 > Vào module **Bảng lương**, chọn đúng **Tháng** và **Năm**, sau đó nhấn nút **Gửi bảng lương**. Thao tác này yêu cầu quyền ADMIN hoặc DEPARTMENT_HEAD.
 
-**Q5: Phòng chăm sóc đối tác có quản lý hợp đồng không?**
+**Q7: Phòng chăm sóc đối tác có quản lý hợp đồng không?**
 > Tính năng quản lý hợp đồng đối tác đang trong quá trình phát triển. Hiện tại có thể tra cứu thông tin đối tác cơ bản và phối hợp với phòng giá thành.
 
-**Q6: Tôi có thể xem báo giá từ tab nào?**
-> Vào **Phòng giá thành** → tab **Danh sách báo giá** hoặc truy cập trực tiếp `/general/pricing?tab=quotes`.
-
-**Q7: Khấu trừ ngày nghỉ được tính như thế nào?**
+**Q8: Khấu trừ ngày nghỉ được tính như thế nào?**
 > Công thức: `Khấu trừ ngày nghỉ = Lương cơ bản ÷ Số ngày công chuẩn × Số ngày nghỉ`. Số ngày công chuẩn được cấu hình trong phần cài đặt bảng lương.
+
+**Q9: Chi phí chung và chi phí xuất khẩu khác nhau thế nào?**
+> **Chi phí chung** là chi phí vận hành (điện, nước, nhân sự gián tiếp...) — phân bổ cho tất cả sản phẩm theo khối lượng. **Chi phí xuất khẩu** là chi phí riêng cho đơn hàng quốc tế (vận chuyển biển, bảo hiểm, thủ tục hải quan...) — tính bằng USD với tỉ giá.
+
+**Q10: Làm sao thêm chi phí bổ sung vào bảng tính?**
+> Trong bảng tính báo giá, nhấn nút **"Thêm chi phí bổ sung"** → tạo tab mới → chọn loại sản phẩm, tên sản phẩm, khối lượng, định mức → nhập chi phí tương tự tab sản phẩm chính.
+
+**Q11: Tôi muốn xem lại bảng tính của báo giá đã tạo?**
+> Vào tab **"Danh sách đơn hàng"** → nhấn nút **"Xem bảng tính"** trên dòng đơn hàng tương ứng. Hoặc vào tab **"Danh sách báo giá"** → nhấn **"Xem"** để xem chi tiết.
+
+**Q12: Trạng thái sản xuất có thể lùi lại không?**
+> Không. Trạng thái sản xuất chỉ tiến theo thứ tự: Chờ lên kế hoạch → Chờ SX → Đang SX → Chờ giao hàng → Đã lên container → Đang vận chuyển → Đã giao. Không thể lùi hoặc nhảy cóc.

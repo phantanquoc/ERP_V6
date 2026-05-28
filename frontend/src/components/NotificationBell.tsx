@@ -177,6 +177,19 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setIsWorkPlanListModalOpen(true);
     } else if (notification.type === 'PASSWORD_RESET') {
       setSelectedPasswordResetNotification(notification);
+    } else if (notification.type === 'PURCHASE_REQUEST') {
+      const prId = (notification.metadata as any)?.purchaseRequestId;
+      navigate(prId ? `/purchasing/materials?purchaseRequestId=${prId}` : '/purchasing/materials');
+    } else if (notification.type === 'ORDER') {
+      navigate('/business/international');
+    } else if (notification.type === 'WAREHOUSE') {
+      navigate('/production/warehouse');
+    } else if (notification.type === 'INVOICE') {
+      navigate('/accounting/admin?tab=invoices');
+    } else if (notification.type === 'DEBT') {
+      navigate('/accounting/admin?tab=debts');
+    } else if (notification.type === 'PRODUCTION_REPORT') {
+      navigate('/production/management?tab=productionReport');
     }
     if (onNotificationClick) {
       onNotificationClick(notification);

@@ -3,6 +3,8 @@ import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
+import { NotificationEvent } from '@types';
+import notificationService from '@services/notificationService';
 import ExcelJS from 'exceljs';
 
 export class InvoiceService {
@@ -103,6 +105,14 @@ export class InvoiceService {
     data.thanhTien = tongTien + (tongTien * thue / 100);
 
     const invoice = await prisma.invoice.create({ data });
+
+    try {
+      await notificationService.notify(NotificationEvent.INVOICE_CREATED, {
+        entityId: invoice.id,
+        metadata: { soHoaDon: invoice.soHoaDon, khachHang: invoice.khachHang, thanhTien: invoice.thanhTien },
+      });
+    } catch {}
+
     return invoice;
   }
 

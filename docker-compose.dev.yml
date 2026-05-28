@@ -49,6 +49,7 @@ services:
       - backend_uploads_dev:/app/uploads
       - ./backend/src:/app/src:ro
       - ./backend/prisma:/app/prisma:ro
+      - ./docs:/app/docs:ro
     depends_on:
       postgres:
         condition: service_healthy
