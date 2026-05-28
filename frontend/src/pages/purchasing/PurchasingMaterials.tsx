@@ -29,6 +29,7 @@ import OrderManagement from '../../components/OrderManagement';
 import purchaseRequestService from '../../services/purchaseRequestService';
 import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } from '../../services/supplierService';
 import { parseNumberInput } from '../../utils/numberInput';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface PurchaseRequest {
   id: string;
@@ -45,16 +46,21 @@ interface PurchaseRequest {
   mucDichYeuCau: string;
   mucDoUuTien: string;
   ghiChu?: string;
+  ghiChuMuaHang?: string;
   fileKemTheo?: string;
   trangThai: string;
   nguoiDuyet?: string;
   ngayDuyet?: string;
+  nhaCungCapId?: string;
+  giaDuKien?: number;
   supplyRequestId?: string;
   createdAt: string;
   updatedAt: string;
+  items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number }[];
 }
 
 const PurchasingMaterials = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'suppliers' | 'orderList' | 'purchaseRequestList'>('suppliers');
 
   // State for purchase requests
@@ -218,6 +224,7 @@ const PurchasingMaterials = () => {
   const [editingPurchaseRequest, setEditingPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<PurchaseRequest>>({});
   const [editLoading, setEditLoading] = useState(false);
+  const [editFormErrors, setEditFormErrors] = useState<{ nguoiDuyet?: string; ngayDuyet?: string; api?: string }>({});
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const openDetailModal = (item: any) => {
@@ -239,20 +246,19 @@ const PurchasingMaterials = () => {
   };
 
   const openEditPurchaseRequest = (item: PurchaseRequest) => {
+    const currentUserName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
+    const today = new Date().toISOString();
     setEditingPurchaseRequest(item);
     setSelectedFile(null);
     setEditFormData({
-      phanLoai: item.phanLoai,
-      tenHangHoa: item.tenHangHoa,
-      soLuong: item.soLuong,
-      donViTinh: item.donViTinh,
-      mucDichYeuCau: item.mucDichYeuCau,
-      mucDoUuTien: item.mucDoUuTien,
-      ghiChu: item.ghiChu || '',
       trangThai: item.trangThai,
-      nguoiDuyet: item.nguoiDuyet || '',
-      ngayDuyet: item.ngayDuyet || '',
+      nhaCungCapId: item.nhaCungCapId || '',
+      giaDuKien: item.giaDuKien,
+      ghiChuMuaHang: item.ghiChuMuaHang || '',
       fileKemTheo: item.fileKemTheo || '',
+      // Auto-fill người duyệt và ngày duyệt
+      nguoiDuyet: item.nguoiDuyet || currentUserName,
+      ngayDuyet: item.ngayDuyet || today,
     });
   };
 
@@ -260,6 +266,7 @@ const PurchasingMaterials = () => {
     setEditingPurchaseRequest(null);
     setEditFormData({});
     setSelectedFile(null);
+    setEditFormErrors({});
   };
 
 
@@ -267,10 +274,9 @@ const PurchasingMaterials = () => {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPurchaseRequest) return;
-
+    setEditFormErrors({});
     setEditLoading(true);
     try {
-      // Gửi file cùng với data
       const dataToSend = {
         ...editFormData,
         file: selectedFile || undefined,
@@ -280,7 +286,8 @@ const PurchasingMaterials = () => {
       closeEditPurchaseRequest();
       fetchPurchaseRequests();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi cập nhật');
+      const message = error.response?.data?.message || error.message || 'Lỗi hệ thống, vui lòng thử lại';
+      setEditFormErrors({ api: message });
     } finally {
       setEditLoading(false);
     }
@@ -925,96 +932,176 @@ const PurchasingMaterials = () => {
           </div>
         )}
 
-        {/* Edit Purchase Request Modal */}
+        {/* Xử lý yêu cầu mua hàng Modal */}
         {editingPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <form onSubmit={handleEditSubmit} className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">Chỉnh sửa yêu cầu mua hàng</h2>
-                  <button
-                    type="button"
-                    onClick={closeEditPurchaseRequest}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                {/* Header */}
+                <div className="flex justify-between items-center mb-5">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-800">Xử lý yêu cầu mua hàng</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">{editingPurchaseRequest.maYeuCau}</p>
+                  </div>
+                  <button type="button" onClick={closeEditPurchaseRequest} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-6 h-6" />
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mã yêu cầu</label>
-                    <input
-                      type="text"
-                      value={editingPurchaseRequest.maYeuCau}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
-                    />
+                {/* API error banner */}
+                {editFormErrors.api && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-md flex items-start gap-2">
+                    <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-sm text-red-700">{editFormErrors.api}</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phân loại</label>
-                    <input
-                      type="text"
-                      value={editFormData.phanLoai || ''}
-                      onChange={(e) => setEditFormData({...editFormData, phanLoai: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
+                )}
+
+                {/* Section 1: Thông tin yêu cầu (read-only) */}
+                <div className="bg-gray-50 rounded-lg p-4 mb-5">
+                  <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Thông tin yêu cầu</h3>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                    <div className="flex gap-2">
+                      <span className="text-gray-500 flex-shrink-0">Người yêu cầu:</span>
+                      <span className="font-medium text-gray-800">
+                        {editingPurchaseRequest.tenNhanVien}
+                        {editingPurchaseRequest.maNhanVien && (
+                          <span className="text-gray-400 ml-1">({editingPurchaseRequest.maNhanVien})</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="text-gray-500 flex-shrink-0">Ngày yêu cầu:</span>
+                      <span className="font-medium text-gray-800">
+                        {new Date(editingPurchaseRequest.ngayYeuCau).toLocaleDateString('vi-VN')}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="text-gray-500 flex-shrink-0">Mức độ ưu tiên:</span>
+                      <span className={`font-medium ${
+                        editingPurchaseRequest.mucDoUuTien === 'Cao' ? 'text-red-600' :
+                        editingPurchaseRequest.mucDoUuTien === 'Trung bình' ? 'text-yellow-600' : 'text-green-600'
+                      }`}>{editingPurchaseRequest.mucDoUuTien}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="text-gray-500 flex-shrink-0">Phân loại:</span>
+                      <span className="font-medium text-gray-800">{editingPurchaseRequest.phanLoai || '—'}</span>
+                    </div>
+
+                    {/* Hàng hóa: single item hoặc multi-item */}
+                    {editingPurchaseRequest.items && editingPurchaseRequest.items.length > 0 ? (
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Danh sách hàng hóa:</span>
+                        <div className="mt-1 space-y-1">
+                          {editingPurchaseRequest.items.map((item, i) => (
+                            <div key={i} className="flex items-center gap-2 bg-white border border-gray-200 rounded px-3 py-1.5 text-xs">
+                              <span className="font-medium text-gray-800">{item.tenHangHoa}</span>
+                              <span className="text-gray-400">·</span>
+                              <span className="text-gray-600">{item.soLuong} {item.donViTinh}</span>
+                              {item.phanLoai && <><span className="text-gray-400">·</span><span className="text-gray-500">{item.phanLoai}</span></>}
+                              {item.giaDuKien && <><span className="text-gray-400">·</span><span className="text-green-700">{Number(item.giaDuKien).toLocaleString('vi-VN')}đ</span></>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="col-span-2 flex gap-2">
+                          <span className="text-gray-500 flex-shrink-0">Hàng hóa:</span>
+                          <span className="font-medium text-gray-800">
+                            {editingPurchaseRequest.tenHangHoa || '—'}
+                          </span>
+                        </div>
+                        {(editingPurchaseRequest.soLuong || editingPurchaseRequest.donViTinh) && (
+                          <div className="flex gap-2">
+                            <span className="text-gray-500 flex-shrink-0">Số lượng:</span>
+                            <span className="font-medium text-gray-800">
+                              {editingPurchaseRequest.soLuong} {editingPurchaseRequest.donViTinh}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {editingPurchaseRequest.mucDichYeuCau && (
+                      <div className="col-span-2 flex gap-2">
+                        <span className="text-gray-500 flex-shrink-0">Mục đích:</span>
+                        <span className="text-gray-700">{editingPurchaseRequest.mucDichYeuCau}</span>
+                      </div>
+                    )}
+                    {editingPurchaseRequest.ghiChu && (
+                      <div className="col-span-2 flex gap-2">
+                        <span className="text-gray-500 flex-shrink-0">Ghi chú YC:</span>
+                        <span className="text-gray-700 italic">{editingPurchaseRequest.ghiChu}</span>
+                      </div>
+                    )}
+
+                    {/* Nhà cung cấp đã chọn trước đó */}
+                    {editingPurchaseRequest.nhaCungCapId && (() => {
+                      const sup = suppliers.find(s => s.id === editingPurchaseRequest.nhaCungCapId);
+                      return sup ? (
+                        <div className="flex gap-2">
+                          <span className="text-gray-500 flex-shrink-0">NCC đã chọn:</span>
+                          <span className="font-medium text-gray-800">{sup.tenNhaCungCap}</span>
+                        </div>
+                      ) : null;
+                    })()}
+
+                    {/* Giá dự kiến đã nhập */}
+                    {editingPurchaseRequest.giaDuKien != null && (
+                      <div className="flex gap-2">
+                        <span className="text-gray-500 flex-shrink-0">Giá dự kiến:</span>
+                        <span className="font-medium text-green-700">
+                          {Number(editingPurchaseRequest.giaDuKien).toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Ghi chú mua hàng đã nhập */}
+                    {editingPurchaseRequest.ghiChuMuaHang && (
+                      <div className="col-span-2 flex gap-2">
+                        <span className="text-gray-500 flex-shrink-0">Ghi chú MH:</span>
+                        <span className="text-gray-700 italic">{editingPurchaseRequest.ghiChuMuaHang}</span>
+                      </div>
+                    )}
+
+                    {/* File đính kèm */}
+                    {editingPurchaseRequest.fileKemTheo && (
+                      <div className="col-span-2 flex gap-2">
+                        <span className="text-gray-500 flex-shrink-0">File đính kèm:</span>
+                        <a
+                          href={editingPurchaseRequest.fileKemTheo}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline truncate text-xs"
+                        >
+                          {editingPurchaseRequest.fileKemTheo.split('/').pop()}
+                        </a>
+                      </div>
+                    )}
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên hàng hoá</label>
-                    <input
-                      type="text"
-                      value={editFormData.tenHangHoa || ''}
-                      onChange={(e) => setEditFormData({...editFormData, tenHangHoa: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng</label>
-                    <input
-                      type="number"
-                      value={editFormData.soLuong || ''}
-                      onChange={(e) => setEditFormData({...editFormData, soLuong: parseNumberInput(e.target.value)})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị tính</label>
-                    <input
-                      type="text"
-                      value={editFormData.donViTinh || ''}
-                      onChange={(e) => setEditFormData({...editFormData, donViTinh: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mục đích yêu cầu</label>
-                    <input
-                      type="text"
-                      value={editFormData.mucDichYeuCau || ''}
-                      onChange={(e) => setEditFormData({...editFormData, mucDichYeuCau: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mức độ ưu tiên</label>
-                    <select
-                      value={editFormData.mucDoUuTien || ''}
-                      onChange={(e) => setEditFormData({...editFormData, mucDoUuTien: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                    >
-                      <option value="Thấp">Thấp</option>
-                      <option value="Trung bình">Trung bình</option>
-                      <option value="Cao">Cao</option>
-                    </select>
-                  </div>
+                </div>
+
+                {/* Section 2: Xử lý thu mua (editable) */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Xử lý thu mua</h3>
+
+                  {/* Trạng thái */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
                     <select
                       value={editFormData.trangThai || ''}
-                      onChange={(e) => setEditFormData({...editFormData, trangThai: e.target.value})}
+                      onChange={(e) => {
+                        const newStatus = e.target.value;
+                        const currentUserName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
+                        setEditFormData(prev => ({
+                          ...prev,
+                          trangThai: newStatus,
+                          nguoiDuyet: newStatus === 'Đã duyệt' ? (prev.nguoiDuyet || currentUserName) : prev.nguoiDuyet,
+                          ngayDuyet: newStatus === 'Đã duyệt' ? (prev.ngayDuyet || new Date().toISOString()) : prev.ngayDuyet,
+                        }));
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     >
                       <option value="Chờ duyệt">Chờ duyệt</option>
@@ -1023,48 +1110,87 @@ const PurchasingMaterials = () => {
                       <option value="Hoàn thành">Hoàn thành</option>
                     </select>
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+
+                  {/* Thông tin duyệt — chỉ hiện khi chọn "Đã duyệt" */}
+                  {editFormData.trangThai === 'Đã duyệt' && (
+                    <div className="grid grid-cols-2 gap-4 bg-green-50 border border-green-200 rounded-md p-3">
+                      <div>
+                        <label className="block text-xs font-medium text-green-800 mb-1">Người duyệt</label>
+                        <input
+                          type="text"
+                          value={editFormData.nguoiDuyet || ''}
+                          readOnly
+                          className="w-full px-3 py-2 border border-green-200 rounded-md bg-white text-sm text-gray-700 cursor-default"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-green-800 mb-1">Ngày duyệt</label>
+                        <input
+                          type="date"
+                          value={editFormData.ngayDuyet ? new Date(editFormData.ngayDuyet).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                          onChange={(e) => setEditFormData(prev => ({
+                            ...prev,
+                            ngayDuyet: e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString(),
+                          }))}
+                          className="w-full px-3 py-2 border border-green-200 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Nhà cung cấp */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nhà cung cấp</label>
+                    <select
+                      value={editFormData.nhaCungCapId || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, nhaCungCapId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">— Chưa chọn nhà cung cấp —</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>{s.tenNhaCungCap}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Giá dự kiến */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Giá dự kiến (VNĐ)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editFormData.giaDuKien ?? ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, giaDuKien: e.target.value ? parseFloat(e.target.value) : undefined })}
+                      placeholder="Nhập giá dự kiến..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  {/* Ghi chú mua hàng */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú mua hàng</label>
                     <textarea
-                      value={editFormData.ghiChu || ''}
-                      onChange={(e) => setEditFormData({...editFormData, ghiChu: e.target.value})}
+                      value={editFormData.ghiChuMuaHang || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, ghiChuMuaHang: e.target.value })}
                       rows={3}
+                      placeholder="Ghi chú nội bộ của phòng thu mua..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Người duyệt</label>
-                    <input
-                      type="text"
-                      value={editFormData.nguoiDuyet || ''}
-                      onChange={(e) => setEditFormData({...editFormData, nguoiDuyet: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                      placeholder="Nhập tên người duyệt"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ngày duyệt</label>
-                    <input
-                      type="date"
-                      value={editFormData.ngayDuyet ? new Date(editFormData.ngayDuyet).toISOString().split('T')[0] : ''}
-                      onChange={(e) => setEditFormData({...editFormData, ngayDuyet: e.target.value ? new Date(e.target.value).toISOString() : undefined})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <FileUpload
-                      label="File đính kèm"
-                      files={selectedFile ? [selectedFile] : []}
-                      onChange={(files) => setSelectedFile(files[0] || null)}
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                      existingFileName={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined}
-                      existingFileUrl={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined}
-                      onRemoveExisting={() => setEditFormData({...editFormData, fileKemTheo: ''})}
-                    />
-                  </div>
+
+                  {/* File đính kèm */}
+                  <FileUpload
+                    label="File đính kèm"
+                    files={selectedFile ? [selectedFile] : []}
+                    onChange={(files) => setSelectedFile(files[0] || null)}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                    existingFileName={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined}
+                    existingFileUrl={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined}
+                    onRemoveExisting={() => setEditFormData({ ...editFormData, fileKemTheo: '' })}
+                  />
                 </div>
 
-                <div className="flex justify-end gap-4 mt-6">
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
                   <button
                     type="button"
                     onClick={closeEditPurchaseRequest}
@@ -1077,7 +1203,7 @@ const PurchasingMaterials = () => {
                     disabled={editLoading}
                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
                   >
-                    {editLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
+                    {editLoading ? 'Đang lưu...' : 'Lưu cập nhật'}
                   </button>
                 </div>
               </form>
