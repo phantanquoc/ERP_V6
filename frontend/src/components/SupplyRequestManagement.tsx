@@ -57,6 +57,9 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     { key: 'boPhan', label: 'Bộ phận', type: 'text' },
     { key: 'trangThai', label: 'Trạng thái', type: 'select', options: [
       { value: 'Chưa cung cấp', label: 'Chưa cung cấp' },
+      { value: 'Đang xử lý', label: 'Đang xử lý' },
+      { value: 'Đã duyệt mua', label: 'Đã duyệt mua' },
+      { value: 'Đã mua hàng', label: 'Đã mua hàng — chờ nhập kho' },
       { value: 'Đã cung cấp', label: 'Đã cung cấp' },
     ]},
     { key: 'mucDoUuTien', label: 'Mức độ ưu tiên', type: 'select', options: [
@@ -313,7 +316,11 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                 filteredRequests.map((request, index) => (
                   <tr
                     key={request.id}
-                    className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors border-b border-gray-200`}
+                    className={`${
+                      request.trangThai === 'Đã mua hàng'
+                        ? 'bg-amber-50 border-l-4 border-l-amber-400'
+                        : index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    } hover:bg-blue-50 transition-colors border-b border-gray-200`}
                   >
                     <td className="px-6 py-4 text-sm border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-6 py-4 text-sm border-r border-gray-200">{new Date(request.ngayYeuCau).toLocaleDateString('vi-VN')}</td>
