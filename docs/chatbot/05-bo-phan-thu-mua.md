@@ -243,7 +243,32 @@ Cấu trúc form giống phòng NVL (13 trường), nhưng:
 
 ---
 
-## 5. Escalation (Leo thang xử lý)
+## 5. Luồng thông báo — Yêu cầu mua hàng
+
+Hệ thống tự động gửi thông báo real-time (chuông thông báo + Web Push) khi trạng thái yêu cầu mua hàng thay đổi. Áp dụng cho cả phòng NVL lẫn phòng Thiết bị.
+
+### 5.1. Bảng tổng hợp thông báo
+
+| Sự kiện | Người nhận | Tiêu đề thông báo | Nội dung |
+|---|---|---|---|
+| Trạng thái → **Đã duyệt** | Người tạo yêu cầu | "Yêu cầu mua hàng được duyệt" | "Yêu cầu mua hàng [mã] của bạn đã được phê duyệt bởi [người duyệt]." |
+| Trạng thái → **Từ chối** | Người tạo yêu cầu | "Yêu cầu mua hàng bị từ chối" | "Yêu cầu mua hàng [mã] của bạn đã bị từ chối[: lý do nếu có]." |
+| Trạng thái → **Hoàn thành** | Người tạo yêu cầu | "Yêu cầu mua hàng hoàn thành" | "Yêu cầu mua hàng [mã] đã được hoàn thành — hàng đã được mua và sẵn sàng nhập kho." |
+| Trạng thái → **Hoàn thành** | Nhân viên kho sản xuất (`SUBDEPT_PRODUCTION_WAREHOUSE`) | "Yêu cầu cung cấp đã duyệt" | "Yêu cầu cung cấp [mã YC-CC liên kết] đã được phê duyệt." |
+
+> **Lưu ý:** Thông báo tới kho chỉ được gửi khi yêu cầu mua hàng **có liên kết với một yêu cầu cung cấp** (tức là được tạo từ màn hình kho qua luồng YC-CC → YC-MH). Nếu tạo trực tiếp từ bộ phận thu mua mà không có YC-CC, kho vẫn nhận thông báo (chứa mã YC-MH nhưng không có mã YC-CC).
+
+### 5.2. Lý do từ chối
+
+Khi từ chối yêu cầu, thu mua điền lý do vào trường **Ghi chú mua hàng** (`ghiChuMuaHang`). Nội dung này sẽ được đính kèm vào thông báo gửi cho người tạo yêu cầu, giúp họ hiểu nguyên nhân và tạo lại nếu cần.
+
+### 5.3. Ai gửi thông báo?
+
+Thông báo được hệ thống backend tự động gửi sau khi lưu thành công. Không cần thao tác thêm từ người dùng. Người duyệt không cần nhớ thông báo thủ công.
+
+---
+
+## 6. Escalation (Leo thang xử lý)
 
 1. **Nhân viên (EMPLOYEE):** Liên hệ TEAM_LEAD khi cần duyệt yêu cầu mua hàng hoặc gặp lỗi không tạo được phiếu.
 2. **TEAM_LEAD:** Báo lên DEPARTMENT_HEAD nếu nhà cung cấp không đủ điều kiện hoặc đơn hàng vượt hạn mức.
@@ -253,7 +278,7 @@ Cấu trúc form giống phòng NVL (13 trường), nhưng:
 
 ---
 
-## 6. FAQ
+## 7. FAQ
 
 **Q1: Làm thế nào để thêm nhà cung cấp NVL mới?**
 > Vào **Phòng thu mua NVL** → tab **Nhà cung cấp NVL** → nhấn **Thêm NCC**. Điền đầy đủ 13 trường thông tin, các trường có dấu `*` là bắt buộc. Mã NCC sẽ được tự động sinh.
@@ -265,7 +290,14 @@ Cấu trúc form giống phòng NVL (13 trường), nhưng:
 > Ba mức: **Thấp**, **Trung bình**, **Cao**. Mức ưu tiên ảnh hưởng đến thứ tự xử lý của người duyệt.
 
 **Q4: Trạng thái yêu cầu mua hàng thay đổi như thế nào?**
-> Luồng xử lý: `Chờ duyệt` → `Đã duyệt` hoặc `Từ chối` → `Hoàn thành`. Người có quyền TEAM_LEAD trở lên mới được thay đổi trạng thái. Ngoài ra, có nút **"Đã mua xong"** — khi nhấn, hệ thống đổi trạng thái thành "Hoàn thành" và **thông báo cho kho chuẩn bị nhập hàng**.
+> Luồng xử lý: `Chờ duyệt` → `Đã duyệt` hoặc `Từ chối` → `Hoàn thành`. Người có quyền TEAM_LEAD trở lên mới được thay đổi trạng thái.
+>
+> Hệ thống tự động gửi thông báo tới người liên quan khi trạng thái thay đổi:
+> - **Đã duyệt** → người tạo yêu cầu nhận thông báo "Yêu cầu mua hàng được duyệt".
+> - **Từ chối** → người tạo yêu cầu nhận thông báo kèm lý do (nếu có trong ghi chú mua hàng).
+> - **Hoàn thành** → người tạo yêu cầu **và** nhân viên kho (`SUBDEPT_PRODUCTION_WAREHOUSE`) đều nhận thông báo để chuẩn bị nhập hàng.
+>
+> Xem chi tiết tại **Mục 5 — Luồng thông báo**.
 
 **Q5: Màu sắc hiển thị mã nhà cung cấp có ý nghĩa gì?**
 > Mã NCC của **Phòng thu mua NVL** hiển thị màu **xanh dương**, của **Phòng mua Thiết bị** hiển thị màu **tím**. Đây là cách phân biệt nhanh trên giao diện.
