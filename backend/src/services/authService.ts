@@ -147,11 +147,6 @@ export class AuthService {
         subDepartmentId: user.subDepartmentId,
         subDepartmentName: null,
         secondaryDepartments: [],
-        secondaryDepartmentId: null,
-        secondaryDepartmentName: null,
-        secondarySubDepartmentId: null,
-        secondarySubDepartmentName: null,
-        secondaryRole: null,
       },
       employee: undefined,
     };
@@ -266,8 +261,6 @@ export class AuthService {
     let departmentCode: string | null = null;
     let subDepartmentName = null;
     let subDepartmentCode: string | null = null;
-    let secondaryDepartmentName = null;
-    let secondarySubDepartmentName = null;
 
     if (user.departmentId) {
       const dept = await prisma.department.findUnique({
@@ -285,22 +278,6 @@ export class AuthService {
       });
       subDepartmentName = subDept?.name ?? null;
       subDepartmentCode = subDept?.code ?? null;
-    }
-
-    if (user.secondaryDepartmentId) {
-      const dept2 = await prisma.department.findUnique({
-        where: { id: user.secondaryDepartmentId },
-        select: { name: true, code: true },
-      });
-      secondaryDepartmentName = dept2?.name;
-    }
-
-    if (user.secondarySubDepartmentId) {
-      const subDept2 = await prisma.subDepartment.findUnique({
-        where: { id: user.secondarySubDepartmentId },
-        select: { name: true, code: true },
-      });
-      secondarySubDepartmentName = subDept2?.name;
     }
 
     // Build secondary departments array from relation table
@@ -381,12 +358,6 @@ export class AuthService {
         subDepartmentName,
         subDepartmentCode,
         secondaryDepartments,
-        // @deprecated backward compat — populated from secondaryDepartments[0]
-        secondaryDepartmentId: secondaryDepartments[0]?.departmentId ?? user.secondaryDepartmentId,
-        secondaryDepartmentName: secondaryDepartments[0]?.departmentName ?? secondaryDepartmentName,
-        secondarySubDepartmentId: secondaryDepartments[0]?.subDepartmentId ?? user.secondarySubDepartmentId,
-        secondarySubDepartmentName: secondaryDepartments[0]?.subDepartmentName ?? secondarySubDepartmentName,
-        secondaryRole: secondaryDepartments[0]?.role ?? user.secondaryRole,
       },
       employee: employee ? {
         id: employee.id,

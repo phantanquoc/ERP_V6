@@ -24,10 +24,6 @@ interface CreateUserRequest {
   departmentId?: string | null;
   subDepartmentId?: string | null;
   secondaryDepartments?: SecondaryDeptInput[];
-  // @deprecated
-  secondaryDepartmentId?: string | null;
-  secondarySubDepartmentId?: string | null;
-  secondaryRole?: string | null;
 }
 
 interface UpdateUserRequest {
@@ -38,10 +34,6 @@ interface UpdateUserRequest {
   departmentId?: string | null;
   subDepartmentId?: string | null;
   secondaryDepartments?: SecondaryDeptInput[];
-  // @deprecated
-  secondaryDepartmentId?: string | null;
-  secondarySubDepartmentId?: string | null;
-  secondaryRole?: string | null;
 }
 
 interface ChangePasswordRequest {

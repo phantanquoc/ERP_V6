@@ -49,12 +49,6 @@ interface User {
     subDepartmentName?: string | null;
     role: string;
   }>;
-  // @deprecated
-  secondaryDepartmentId?: string | null;
-  secondaryDepartmentName?: string | null;
-  secondarySubDepartmentId?: string | null;
-  secondarySubDepartmentName?: string | null;
-  secondaryRole?: string | null;
   supervisor1Id?: string | null;
   supervisor2Id?: string | null;
   supervisor1?: { id: string; firstName: string; lastName: string; email: string } | null;
@@ -307,15 +301,11 @@ const UserManagement: React.FC = () => {
     skipSubDeptResetRef.current = true;
 
     // Map secondaryDepartments array (new) or fallback to legacy fields
-    const secondaryList: SecondaryDeptEntry[] = user.secondaryDepartments?.length
-      ? user.secondaryDepartments.map(s => ({
-          departmentId: s.departmentId,
-          subDepartmentId: s.subDepartmentId ?? '',
-          role: s.role,
-        }))
-      : user.secondaryDepartmentId
-        ? [{ departmentId: user.secondaryDepartmentId, subDepartmentId: user.secondarySubDepartmentId ?? '', role: user.secondaryRole ?? 'EMPLOYEE' }]
-        : [];
+    const secondaryList: SecondaryDeptEntry[] = (user.secondaryDepartments ?? []).map(s => ({
+      departmentId: s.departmentId,
+      subDepartmentId: s.subDepartmentId ?? '',
+      role: s.role,
+    }));
 
     setFormData({
       email: user.email,
@@ -525,28 +515,18 @@ const UserManagement: React.FC = () => {
                       {(user.secondaryDepartments ?? []).map((s, i) => (
                         <div key={i} className="text-xs text-blue-600 mt-0.5">(Phụ {i+1}) {getRoleDisplayName(s.role)}</div>
                       ))}
-                      {/* legacy fallback */}
-                      {!user.secondaryDepartments?.length && user.secondaryRole && (
-                        <div className="text-xs text-blue-600 mt-0.5">(Phụ) {getRoleDisplayName(user.secondaryRole)}</div>
-                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                       <div>{user.departmentName || '-'}</div>
                       {(user.secondaryDepartments ?? []).map((s, i) => (
                         <div key={i} className="text-xs text-blue-600 mt-0.5">(Phụ {i+1}) {s.departmentName}</div>
                       ))}
-                      {!user.secondaryDepartments?.length && user.secondaryDepartmentName && (
-                        <div className="text-xs text-blue-600 mt-0.5">(Phụ) {user.secondaryDepartmentName}</div>
-                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                       <div>{user.subDepartmentName || '-'}</div>
                       {(user.secondaryDepartments ?? []).map((s, i) => s.subDepartmentName ? (
                         <div key={i} className="text-xs text-blue-600 mt-0.5">(Phụ {i+1}) {s.subDepartmentName}</div>
                       ) : null)}
-                      {!user.secondaryDepartments?.length && user.secondarySubDepartmentName && (
-                        <div className="text-xs text-blue-600 mt-0.5">(Phụ) {user.secondarySubDepartmentName}</div>
-                      )}
                     </td>
                     <td className="px-6 py-4 text-center border-r border-gray-200">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
