@@ -1,184 +1,382 @@
-# Quy trình hướng dẫn — Bộ phận Kỹ thuật
+## Cách truy cập
 
-## 1. Phòng QLHTM (`/technical/quality`)
+Từ thanh điều hướng bên trái (sidebar):
 
-### 1.1 Danh sách hệ thống máy (tab DS Hệ thống máy)
+- **Phòng QLHTM**: Nhấn **Bộ phận kỹ thuật** → chọn **Phòng QLHTM**
+- **Phòng cơ-điện**: Nhấn **Bộ phận kỹ thuật** → chọn **Phòng cơ-điện** (đang phát triển)
 
-#### Xem danh sách
+## 1. Tổng quan
 
-1. Vào **Phòng QLHTM** → tab **Danh sách hệ thống máy**
-2. Danh sách hệ thống máy theo khu vực
-
-#### Thêm hệ thống máy mới
-
-1. Nhấn **"Thêm hệ thống máy"**
+Bộ phận kỹ thuật quản lý toàn bộ hệ thống máy móc, báo cáo hoạt động, yêu cầu sửa chữa và nghiệm thu bàn giao thiết bị. Có hai phòng chức năng chính:
 
 
-| Trường               | Bắt buộc | Ghi chú |
-| -------------------- | -------- | ------- |
-| Tên hệ thống         | ✅        |         |
-| Mã hệ thống          | ✅        |         |
-| Khu vực              | ✅        |         |
-| Vị trí               | ✅        |         |
-| Thông số kỹ thuật    |          |         |
-| Ngày bảo trì định kỳ |          |         |
+| Phòng                                  | Đường dẫn               | Mô tả                                                                                                           |
+| -------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Phòng QLHTM** (Quản lý hệ thống máy) | `/technical/quality`    | 5 tab: Danh sách hệ thống máy, Báo cáo hoạt động máy, Danh sách đơn hàng, Yêu cầu sửa chữa, Nghiệm thu bàn giao |
+| **Phòng cơ-điện**                      | `/technical/mechanical` | Đang phát triển                                                                                                 |
 
 
-1. Nhấn **"Lưu"**
+Các tab trong Phòng QLHTM:
 
-#### Sửa / Xóa
 
-- **Sửa**: Nhấn icon Sửa
-- **Xóa**: Nhấn icon Xóa → xác nhận (chỉ ADMIN/DEPARTMENT_HEAD)
+| Tab key           | Tên hiển thị                  | Component                                  |
+| ----------------- | ----------------------------- | ------------------------------------------ |
+| `machineSystems`  | Danh sách hệ thống máy        | MachineSystemList                          |
+| `machineActivity` | Báo cáo hoạt động của máy     | MachineActivityReport                      |
+| `orders`          | Danh sách đơn hàng            | OrderManagement (dùng chung)               |
+| `repairRequests`  | Danh sách yêu cầu sửa chữa    | RepairRequestList                          |
+| `acceptance`      | Danh sách nghiệm thu bàn giao | Inline table + AcceptanceHandoverViewModal |
+
 
 ---
 
-### 1.2 Báo cáo hoạt động máy (tab Báo cáo HĐ máy)
+## 2. Quyền truy cập
 
-#### Tạo báo cáo
-
-1. Nhấn **"Thêm báo cáo"**
+### Danh sách hệ thống máy (`/api/machine-systems`)
 
 
-| Trường            | Bắt buộc | Ghi chú           |
-| ----------------- | -------- | ----------------- |
-| Ngày              | ✅        |                   |
-| Hệ thống máy      | ✅        | Chọn từ danh sách |
-| Số giờ hoạt động  | ✅        |                   |
-| Số giờ ngưng      | ✅        |                   |
-| Nguyên nhân ngưng |          | Nếu có ngưng máy  |
-| Ghi chú           |          |                   |
+| Role          | Xem (GET) | Tạo (POST) | Sửa (PUT) | Xóa (DELETE) |
+| ------------- | --------- | ---------- | --------- | ------------ |
+| Quản trị viên | ✅         | ✅          | ✅         | ✅            |
+| Trưởng phòng  | ✅         | ✅          | ✅         | ✅            |
+| Tổ trưởng     | ✅         | ❌          | ❌         | ❌            |
+| Nhân viên     | ✅         | ❌          | ❌         | ❌            |
 
 
-1. Nhấn **"Lưu"** → admin + kỹ thuật nhận thông báo nếu có máy ngưng
-
----
-
-### 1.3 Yêu cầu sửa chữa (tab Yêu cầu sửa chữa)
-
-#### Xem danh sách YC-SC
-
-- Danh sách yêu cầu sửa chữa từ các bộ phận
-- Các trạng thái: Chờ tiếp nhận → Đang xử lý → Hoàn thành → Từ chối
-
-#### Tiếp nhận YC-SC
-
-1. Nhấn **"Tiếp nhận"** trên YC-SC
-2. Phân công kỹ thuật viên
-3. Cập nhật trạng thái → **Đang xử lý**
-
-#### Xử lý và hoàn thành
-
-1. Kỹ thuật viên sửa chữa xong
-2. Nhấn **"Hoàn thành"**
-3. Nhập kết quả, thời gian thực hiện, vật tư đã dùng
-4. Nhấn **"Lưu"**
-
-> **Lưu ý:** Mọi cập nhật trạng thái YC-SC đều gửi thông báo đến bộ phận kỹ thuật + admin.
-
----
-
-### 1.4 Nghiệm thu bàn giao (tab Nghiệm thu bàn giao)
-
-#### Tạo phiếu nghiệm thu
-
-1. Nhấn **"Thêm nghiệm thu"**
+### Báo cáo hoạt động máy (`/api/machine-activity-reports`)
 
 
-| Trường              | Bắt buộc | Ghi chú            |
-| ------------------- | -------- | ------------------ |
-| Mã nghiệm thu       | ✅        | Tự động sinh       |
-| Thiết bị / Hệ thống | ✅        | Chọn từ danh sách  |
-| Người bàn giao      | ✅        |                    |
-| Người nhận          | ✅        |                    |
-| Ngày bàn giao       | ✅        |                    |
-| Kết quả             | ✅        | Đạt / Không đạt    |
-| Ghi chú             |          |                    |
-| File đính kèm       |          | Hình ảnh, tài liệu |
+| Role          | Xem (GET) | Tạo (POST) | Sửa (PUT) | Xóa (DELETE) |
+| ------------- | --------- | ---------- | --------- | ------------ |
+| Quản trị viên | ✅         | ✅          | ✅         | ✅            |
+| Trưởng phòng  | ✅         | ✅          | ✅         | ✅            |
+| Tổ trưởng     | ✅         | ✅          | ✅         | ❌            |
+| Nhân viên     | ✅         | ❌          | ❌         | ❌            |
 
 
-1. Nhấn **"Lưu"** → người nhận nhận thông báo
+### Yêu cầu sửa chữa (`/api/repair-requests`)
 
-#### Xem chi tiết
 
-- Nhấn icon Mắt trên dòng → modal chi tiết nghiệm thu
+| Role          | Xem (GET) | Tạo (POST) | Sửa (PUT) | Xóa (DELETE) |
+| ------------- | --------- | ---------- | --------- | ------------ |
+| Quản trị viên | ✅         | ✅          | ✅         | ✅            |
+| Trưởng phòng  | ✅         | ✅          | ✅         | ✅            |
+| Tổ trưởng     | ✅         | ✅          | ✅         | ❌            |
+| Nhân viên     | ✅         | ✅          | ❌         | ❌            |
+
+
+### Nghiệm thu bàn giao (`/api/acceptance-handovers`)
+
+
+| Role          | Xem (GET) | Tạo (POST) | Sửa (PUT) | Xóa (DELETE) |
+| ------------- | --------- | ---------- | --------- | ------------ |
+| Quản trị viên | ✅         | ✅          | ✅         | ✅            |
+| Trưởng phòng  | ✅         | ✅          | ✅         | ✅            |
+| Tổ trưởng     | ✅         | ✅          | ✅         | ❌            |
+| Nhân viên     | ✅         | ❌          | ❌         | ❌            |
+
+
+> Tất cả endpoint đều yêu cầu đăng nhập (`authenticate`). Truy cập menu bị giới hạn theo `DEPT_TECHNICAL`.
 
 ---
 
-## 2. Phòng cơ-điện
+## 3. Phòng QLHTM
 
-> ⚠️ **Đang phát triển** — chức năng sẽ được cập nhật sau.
+### 3.1 Danh sách hệ thống máy — Tab "Danh sách hệ thống máy" (`machineSystems`)
+
+**Truy cập:** `/technical/quality` → tab **"Danh sách hệ thống máy"**
+
+#### Nút header
+
+
+| Nút            | Hành động                      |
+| -------------- | ------------------------------ |
+| **Xuất Excel** | Xuất danh sách ra file `.xlsx` |
+| **Thêm mới**   | Mở form tạo hệ thống mới       |
+
+
+#### Cột bảng danh sách (14 cột)
+
+
+| Cột             | Nội dung                               |
+| --------------- | -------------------------------------- |
+| STT             | Số thứ tự                              |
+| Khu vực         | `khuVuc`                               |
+| Vị trí          | `viTri`                                |
+| Mã hệ thống     | `maHeThong` (chữ xanh)                 |
+| Tên hệ thống    | `tenHeThong`                           |
+| Chức năng       | `chucNang`                             |
+| Mã thiết bị     | `maThietBi`                            |
+| Tên thiết bị    | `tenThietBi`                           |
+| Nhiệm vụ        | `nhiemVu`                              |
+| Mã NTH          | `maNguoiThucHien` (mã người thực hiện) |
+| Người thực hiện | `nguoiThucHien`                        |
+| File            | Link "Xem file" nếu có                 |
+| Ngày tạo        | `createdAt` (DD/MM/YYYY)               |
+| Hoạt động       | Nút **Xem** / **Sửa** / **Xóa**        |
+
+
+#### Bộ lọc
+
+
+| Bộ lọc   | Loại     | Ghi chú                                                                           |
+| -------- | -------- | --------------------------------------------------------------------------------- |
+| Khu vực  | Dropdown | Khu A · Khu B · Khu C · Khu sản xuất · Khu kho · Khu văn phòng · Khu xử lý · Khác |
+| Tìm kiếm | Văn bản  | Tìm theo tên hệ thống, mã hệ thống, tên thiết bị                                  |
+
+
+#### Form thêm / chỉnh sửa hệ thống — 11 trường
+
+
+| #   | Trường             | Bắt buộc | Loại nhập            | Ghi chú                                                                           |
+| --- | ------------------ | -------- | -------------------- | --------------------------------------------------------------------------------- |
+| 1   | Khu vực            | ✅        | Dropdown             | Khu A · Khu B · Khu C · Khu sản xuất · Khu kho · Khu văn phòng · Khu xử lý · Khác |
+| 2   | Vị trí             | ✅        | Văn bản              | Vị trí cụ thể trong khu vực                                                       |
+| 3   | Mã hệ thống        | ✅        | Văn bản              | VD: HT-001                                                                        |
+| 4   | Tên hệ thống       | ✅        | Văn bản              | VD: Hệ thống chiên chân không                                                     |
+| 5   | Chức năng          |          | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng                                                          |
+| 6   | Mã thiết bị        |          | Văn bản              | VD: TB-001                                                                        |
+| 7   | Tên thiết bị       |          | Văn bản              | VD: Nồi chiên VF-003                                                              |
+| 8   | Nhiệm vụ           |          | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng                                                          |
+| 9   | Người thực hiện    |          | Dropdown             | Chọn từ danh sách nhân viên (hiển thị mã + tên)                                   |
+| 10  | Mã người thực hiện |          | Tự động              | **Tự động điền** khi chọn người thực hiện (readOnly)                              |
+| 11  | File đính kèm      |          | Tải tệp              | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG                                         |
+
+
+**Nút:** "Thêm mới" (tạo) / "Cập nhật" (sửa) / "Đóng"
+
+> **Lưu ý:** Tab "Quản lý máy móc" (CRUD máy riêng lẻ) thuộc **Bộ phận sản xuất** (Phòng QLSX), không nằm trong Phòng QLHTM.
+
+### 3.2 Báo cáo hoạt động của máy — Tab "Báo cáo hoạt động của máy" (`machineActivity`)
+
+**Truy cập:** `/technical/quality` → tab **"Báo cáo hoạt động của máy"**
+
+**Nút header:** "Xuất Excel" + "Thêm báo cáo"
+
+#### Cột bảng danh sách (10 cột)
+
+
+| Cột                   | Nội dung                             |
+| --------------------- | ------------------------------------ |
+| STT                   | Số thứ tự                            |
+| Vị trí                | `viTri` — vị trí đặt máy/hệ thống    |
+| Tên hệ thống/thiết bị | `tenHeThong`                         |
+| Tổng số lượng         | `tongSoLuong` — tổng số thiết bị     |
+| SL hoạt động          | `soLuongHoatDong` (chữ xanh lá)      |
+| SL ngưng              | `soLuongNgung` (chữ đỏ)              |
+| Nguyên nhân           | `nguyenNhan` — lý do ngừng hoạt động |
+| Người báo cáo         | `nguoiBaoCao`                        |
+| Ngày tạo              | `createdAt` (DD/MM/YYYY)             |
+| Hoạt động             | Nút **Xem** / **Sửa** / **Xóa**      |
+
+
+#### Form thêm / chỉnh sửa báo cáo — 7 trường
+
+
+| #   | Trường                       | Bắt buộc | Loại nhập            | Ghi chú                                         |
+| --- | ---------------------------- | -------- | -------------------- | ----------------------------------------------- |
+| 1   | Vị trí                       | ✅        | Văn bản              | **Tự động điền** khi chọn hệ thống (có thể sửa) |
+| 2   | Tên hệ thống/thiết bị        | ✅        | Dropdown             | Chọn từ danh sách hệ thống máy đã tạo (tab 3.1) |
+| 3   | Tổng số lượng                | ✅        | Số (min 0)           | Tổng thiết bị trong hệ thống                    |
+| 4   | Số lượng máy hoạt động       | ✅        | Số (min 0)           | Số thiết bị đang vận hành                       |
+| 5   | Số lượng máy ngưng hoạt động | ✅        | Số (min 0)           | Số thiết bị ngừng                               |
+| 6   | Nguyên nhân                  | ✅        | Văn bản dài (3 dòng) | Nguyên nhân ngừng hoạt động                     |
+| 7   | Người báo cáo                |          | Văn bản              | **Tự động điền** tên người đăng nhập (readOnly) |
+| +   | File đính kèm                |          | Tải tệp              | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG       |
+
+
+> **Lưu ý:** Khi chọn "Tên hệ thống/thiết bị" từ dropdown, trường "Vị trí" sẽ tự động điền theo vị trí đã khai báo trong danh sách hệ thống máy. Trường `createdAt` được hệ thống tự động ghi nhận.
+
+### 3.3 Danh sách đơn hàng — Tab "Danh sách đơn hàng" (`orders`)
+
+**Truy cập:** `/technical/quality` → tab **"Danh sách đơn hàng"**
+
+Tab này hiển thị danh sách đơn hàng chung (giống Bộ phận sản xuất và Kinh doanh) để phòng kỹ thuật theo dõi tiến độ sản xuất liên quan đến máy móc.
+
+**Cột bảng:** STT · Ngày đặt hàng · Mã đơn hàng · Mã báo giá · Khách hàng · Số lượng SP · Trạng thái SX · Trạng thái TT · Hành động
+
+**Hành động:** Xem chi tiết, Xem bảng tính, Chỉnh sửa, Xóa, Xuất Excel
+
+> **Lưu ý:** Tab "Thông số vận hành hệ thống" thuộc **Bộ phận sản xuất** (Phòng QLSX), không thuộc Bộ phận kỹ thuật.
+
+### 3.4 Yêu cầu sửa chữa — Tab "Danh sách yêu cầu sửa chữa" (`repairRequests`)
+
+**Truy cập:** `/technical/quality` → tab **"Danh sách yêu cầu sửa chữa"**
+
+**Nút header:** "Xuất Excel"
+
+#### Cột bảng danh sách (7 cột)
+
+
+| Cột                   | Nội dung                                         |
+| --------------------- | ------------------------------------------------ |
+| STT                   | Số thứ tự                                        |
+| Ngày tháng            | `ngayThang` (DD/MM/YYYY)                         |
+| Mã yêu cầu            | `maYeuCau` (chữ xanh đậm)                        |
+| Tên hệ thống/thiết bị | `tenHeThong`                                     |
+| Mức độ ưu tiên        | Badge màu theo mức độ                            |
+| Trạng thái            | Badge màu theo trạng thái                        |
+| Hoạt động             | Nút **Xem** / **Sửa** / **Nghiệm thu** / **Xóa** |
+
+
+#### Mức độ ưu tiên (4 mức)
+
+
+| Giá trị    | Màu badge |
+| ---------- | --------- |
+| Thấp       | Xanh lá   |
+| Trung bình | Vàng      |
+| Cao        | Cam       |
+| Khẩn cấp   | Đỏ        |
+
+
+#### Trạng thái yêu cầu (3 trạng thái)
+
+
+| Giá trị       | Màu badge  | Mô tả                   |
+| ------------- | ---------- | ----------------------- |
+| Chờ xử lý     | Xám        | Mới tạo, chưa phân công |
+| Đang sửa chữa | Xanh dương | Đang được xử lý         |
+| Hoàn thành    | Xanh lá    | Đã sửa xong             |
+
+
+#### Loại lỗi (6 loại)
+
+`Lỗi cơ khí` · `Lỗi điện` · `Lỗi phần mềm điều khiển` · `Lỗi thủy lực` · `Lỗi khí nén` · `Khác`
+
+#### Form thêm / chỉnh sửa yêu cầu — 9 trường
+
+
+| #   | Trường                | Bắt buộc | Loại nhập            | Ghi chú                                   |
+| --- | --------------------- | -------- | -------------------- | ----------------------------------------- |
+| 1   | Ngày tháng            | ✅        | Date picker          | Mặc định: ngày hiện tại                   |
+| 2   | Mã yêu cầu sửa chữa   | ✅        | Văn bản              | **Tự động sinh** khi tạo mới (VD: YC-001) |
+| 3   | Tên hệ thống/thiết bị | ✅        | Dropdown             | Chọn từ danh sách hệ thống máy (tab 3.1)  |
+| 4   | Khu vực sử dụng       | ✅        | Văn bản              | VD: Xưởng sản xuất, Kho nguyên liệu       |
+| 5   | Loại lỗi              | ✅        | Dropdown             | 6 loại (xem bảng trên)                    |
+| 6   | Mức độ ưu tiên        | ✅        | Dropdown             | Thấp · Trung bình · Cao · Khẩn cấp        |
+| 7   | Trạng thái            | ✅        | Dropdown             | Chờ xử lý · Đang sửa chữa · Hoàn thành    |
+| 8   | Nội dung lỗi          | ✅        | Văn bản dài (3 dòng) | Mô tả chi tiết triệu chứng lỗi            |
+| 9   | Ghi chú               |          | Văn bản dài (2 dòng) | Ghi chú thêm (nếu có)                     |
+| +   | File đính kèm         |          | Tải tệp              | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG |
+
+
+> **Lưu ý quan trọng:** Mã yêu cầu được tự động sinh từ API (`/repair-requests/generate-code`) khi nhấn "Thêm mới". Trường "Tên hệ thống/thiết bị" lấy từ danh sách hệ thống máy đã khai báo ở tab 3.1 — nếu chưa có hệ thống nào, cần tạo trước.
+
+#### Nút "Nghiệm thu" trên mỗi dòng
+
+Nhấn nút **Nghiệm thu** (biểu tượng ✓ tím) trên dòng yêu cầu sửa chữa sẽ mở form **Nghiệm thu bàn giao** (xem mục 3.5) với thông tin yêu cầu đã được điền sẵn.
+
+### 3.5 Nghiệm thu bàn giao — Tab "Danh sách nghiệm thu bàn giao" (`acceptance`)
+
+**Truy cập:** `/technical/quality` → tab **"Danh sách nghiệm thu bàn giao"**
+
+Sau khi sửa chữa hoàn thành, kỹ thuật viên tạo biên bản nghiệm thu bàn giao. Có 2 cách tạo:
+
+1. Từ tab **Yêu cầu sửa chữa** → nhấn nút **Nghiệm thu** trên dòng yêu cầu (thông tin tự động điền)
+2. Từ tab **Nghiệm thu bàn giao** → nhấn **Thêm mới**
+
+**Nút header:** "Xuất Excel" + "Thêm mới"
+
+#### Cột bảng danh sách (10 cột)
+
+
+| Cột                   | Nội dung                     |
+| --------------------- | ---------------------------- |
+| STT                   | Số thứ tự                    |
+| Mã nghiệm thu         | `maNghiemThu`                |
+| Ngày nghiệm thu       | `ngayNghiemThu` (DD/MM/YYYY) |
+| Mã YC sửa chữa        | `maYeuCauSuaChua`            |
+| Tên hệ thống/thiết bị | `tenHeThongThietBi`          |
+| Tình trạng trước SC   | `tinhTrangTruocSuaChua`      |
+| Tình trạng sau SC     | `tinhTrangSauSuaChua`        |
+| Người bàn giao        | `nguoiBanGiao`               |
+| Người nhận            | `nguoiNhan`                  |
+| Hoạt động             | Nút **Xem** / **Xóa**        |
+
+
+#### Form tạo nghiệm thu bàn giao — 8 trường
+
+
+| #   | Trường                        | Bắt buộc | Loại nhập            | Ghi chú                                                            |
+| --- | ----------------------------- | -------- | -------------------- | ------------------------------------------------------------------ |
+| 1   | Mã yêu cầu sửa chữa           | ✅        | Văn bản              | **Tự động điền** từ yêu cầu sửa chữa (readOnly)                    |
+| 2   | Tên hệ thống/thiết bị         | ✅        | Văn bản              | **Tự động điền** từ yêu cầu sửa chữa (readOnly)                    |
+| 3   | Người bàn giao                | ✅        | Văn bản              | **Tự động điền** tên người đăng nhập (readOnly)                    |
+| 4   | Phòng ban                     |          | Dropdown             | Lọc danh sách người nhận theo phòng ban                            |
+| 5   | Người nhận                    | ✅        | Dropdown             | Chọn từ danh sách nhân viên (hiển thị tên + mã NV)                 |
+| 6   | Tình trạng trước khi sửa chữa | ✅        | Văn bản dài (3 dòng) | **Tự động điền** từ yêu cầu (có thể sửa)                           |
+| 7   | Tình trạng sau khi sửa chữa   | ✅        | Văn bản dài (3 dòng) | Mô tả kết quả sau sửa chữa                                         |
+| 8   | Ghi chú                       |          | Văn bản dài (2 dòng) | Ghi chú bổ sung                                                    |
+| +   | File đính kèm                 |          | Tải tệp              | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG, ZIP, RAR (tối đa 100MB) |
+
+
+> **Lưu ý quan trọng:** Khi tạo nghiệm thu từ nút "Nghiệm thu" trên tab Yêu cầu sửa chữa, các trường Mã yêu cầu, Tên hệ thống/thiết bị, Người bàn giao và Tình trạng trước sửa chữa được tự động điền. Chỉ cần chọn **Người nhận** và nhập **Tình trạng sau khi sửa chữa**.
+
+> Mã nghiệm thu (`maNghiemThu`) và Ngày nghiệm thu (`ngayNghiemThu`) được hệ thống tự động sinh khi lưu.
 
 ---
 
-## 3. Quy trình phối hợp
+## 4. Phòng cơ-điện
 
-### 3.1 Luồng Yêu cầu sửa chữa
+Đường dẫn: `/technical/mechanical`
 
-```
-[Nhân viên] Tạo YC-SC (qua Chức năng chung)
-    → [Kỹ thuật] Nhận thông báo
-    → [Kỹ thuật] Tiếp nhận, phân công
-    → [Kỹ thuật] Xử lý
-    → [Kỹ thuật] Hoàn thành, cập nhật trạng thái
-    → [Nhân viên] Nhận thông báo hoàn thành
-```
-
-### 3.2 Luồng báo cáo hoạt động máy
-
-```
-[Kỹ thuật] Ghi nhận hoạt động máy hàng ngày
-    → Nếu có máy ngưng → thông báo đến kỹ thuật + admin
-    → [Kỹ thuật] Xử lý sự cố
-    → Cập nhật trạng thái máy
-```
-
-### 3.3 Bảo trì định kỳ
-
-1. Theo dõi lịch bảo trì trong tab **DS Hệ thống máy**
-2. Tạo phiếu bảo trì khi đến hạn
-3. Ghi nhận kết quả bảo trì
-4. Cập nhật trạng thái thiết bị
+> Trang **Phòng cơ-điện** hiện đang trong giai đoạn phát triển. Giao diện hiển thị thông báo: "Nội dung quản lý cơ điện sẽ được hiển thị ở đây". Chưa có chức năng hoạt động.
 
 ---
 
-## 4. FAQ
+## 5. Bảng leo thang (Escalation)
 
-**Q1: Làm thế nào để tạo yêu cầu sửa chữa?**  
+
+| Tình huống                                      | Cấp xử lý                                 | Thời hạn        |
+| ----------------------------------------------- | ----------------------------------------- | --------------- |
+| Yêu cầu sửa chữa mức "Khẩn cấp" chưa được xử lý | Tổ trưởng → Trưởng phòng                  | Ngay lập tức    |
+| Yêu cầu sửa chữa mức "Cao" kẹt ở "Chờ xử lý"    | Tổ trưởng                                 | 4 giờ làm việc  |
+| Máy ngừng hoạt động ảnh hưởng sản xuất          | Trưởng phòng → Quản trị viên              | Ngay lập tức    |
+| Nghiệm thu bàn giao chưa hoàn tất sau sửa chữa  | Tổ trưởng                                 | 1 ngày làm việc |
+| Không thấy menu kỹ thuật                        | Kiểm tra tài khoản thuộc `DEPT_TECHNICAL` | —               |
+| Không xuất được Excel                           | Kiểm tra kết nối mạng và quyền tài khoản  | —               |
+
+
+---
+
+## 6. FAQ
+
+**Q1: Làm thế nào để tạo yêu cầu sửa chữa?**
 Vào **Phòng QLHTM** → tab **"Danh sách yêu cầu sửa chữa"** → nhấn **Thêm mới** (hệ thống tự sinh mã yêu cầu) → chọn Tên hệ thống/thiết bị từ dropdown → điền Loại lỗi, Mức độ ưu tiên, Nội dung lỗi → nhấn **Thêm mới**.
 
-**Q2: Mức độ ưu tiên nào được xử lý trước?**  
+**Q2: Mức độ ưu tiên nào được xử lý trước?**
 Thứ tự ưu tiên từ cao đến thấp: **Khẩn cấp → Cao → Trung bình → Thấp**. Yêu cầu "Khẩn cấp" cần xử lý ngay lập tức.
 
-**Q3: Ai tạo biên bản nghiệm thu bàn giao?**  
-TEAM_LEAD hoặc DEPARTMENT_HEAD tạo sau khi sửa chữa hoàn thành. EMPLOYEE chỉ có quyền xem, không tạo được nghiệm thu.
+**Q3: Ai tạo biên bản nghiệm thu bàn giao?**
+Tổ trưởng hoặc Trưởng phòng tạo sau khi sửa chữa hoàn thành. Nhân viên chỉ có quyền xem, không tạo được nghiệm thu.
 
 **Q4: Báo cáo hoạt động máy khác với thông số vận hành như thế nào?**
 
 - **Báo cáo hoạt động** (Bộ phận kỹ thuật): Ghi nhận số lượng máy hoạt động/ngừng theo vị trí, nguyên nhân ngừng.
 - **Thông số vận hành** (Bộ phận sản xuất): Ghi chi tiết nhiệt độ, áp suất, thời gian theo từng giai đoạn chiên/sấy.
 
-**Q5: Có thể lọc yêu cầu sửa chữa theo trạng thái không?**  
+**Q5: Có thể lọc yêu cầu sửa chữa theo trạng thái không?**
 Hiện tại bảng hiển thị badge trạng thái nhưng chưa có bộ lọc riêng. Có thể tìm kiếm theo mã yêu cầu hoặc tên thiết bị.
 
-**Q6: Xuất danh sách nghiệm thu bàn giao sang Excel được không?**  
+**Q6: Xuất danh sách nghiệm thu bàn giao sang Excel được không?**
 Có. Nhấn nút **Xuất Excel** trên tab "Danh sách nghiệm thu bàn giao".
 
-**Q7: Trạng thái máy "BẢO_TRÌ" ảnh hưởng thế nào đến sản xuất?**  
+**Q7: Trạng thái máy "BẢO_TRÌ" ảnh hưởng thế nào đến sản xuất?**
 Máy có trạng thái BẢO_TRÌ được tách khỏi tính toán thành phẩm (chỉ tính máy HOAT_DONG). Cần thông báo cho bộ phận sản xuất biết để điều chỉnh kế hoạch.
 
-**Q8: Tại sao không thấy hệ thống/thiết bị trong dropdown khi tạo yêu cầu sửa chữa?**  
-Hệ thống/thiết bị phải được tạo trước tại tab **"Danh sách hệ thống máy"** (tab 3.1). Chỉ ADMIN hoặc DEPARTMENT_HEAD mới có quyền tạo hệ thống mới.
+**Q8: Tại sao không thấy hệ thống/thiết bị trong dropdown khi tạo yêu cầu sửa chữa?**
+Hệ thống/thiết bị phải được tạo trước tại tab **"Danh sách hệ thống máy"** (tab 3.1). Chỉ Quản trị viên hoặc Trưởng phòng mới có quyền tạo hệ thống mới.
 
-**Q9: Làm thế nào để tạo nghiệm thu bàn giao?**  
+**Q9: Làm thế nào để tạo nghiệm thu bàn giao?**
 Cách nhanh nhất: Vào tab **"Danh sách yêu cầu sửa chữa"** → nhấn nút **Nghiệm thu** (biểu tượng ✓ tím) trên dòng yêu cầu đã sửa xong → chọn **Người nhận** → nhập **Tình trạng sau khi sửa chữa** → nhấn **Tạo nghiệm thu**.
 
-**Q10: Phòng cơ-điện có chức năng gì?**  
+**Q10: Phòng cơ-điện có chức năng gì?**
 Phòng cơ-điện (`/technical/mechanical`) hiện đang trong giai đoạn phát triển, chưa có chức năng hoạt động.
 
 ---
 
-## 5. Phụ thuộc liên phòng ban
+## 7. Phụ thuộc liên phòng ban
 
 
 | Dữ liệu cần                                           | Nguồn                       | Ghi chú                                           |
@@ -199,7 +397,7 @@ Phòng cơ-điện (`/technical/mechanical`) hiện đang trong giai đoạn ph�
 
 ---
 
-## 6. Lưu ý quan trọng
+## 8. Lưu ý quan trọng
 
 - **Hệ thống máy là dữ liệu gốc**: Tất cả Báo cáo hoạt động và Yêu cầu sửa chữa đều tham chiếu đến danh sách hệ thống máy. Cần tạo hệ thống máy trước khi sử dụng các tab khác.
 - **Phân biệt với Bộ phận sản xuất**: Tab "Quản lý máy móc" (CRUD máy riêng lẻ) và "Thông số vận hành hệ thống" thuộc **Bộ phận sản xuất** (Phòng QLSX), KHÔNG thuộc Bộ phận kỹ thuật.
