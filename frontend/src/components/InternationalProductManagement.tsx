@@ -5,12 +5,13 @@ import internationalProductService, { InternationalProduct } from '../services/i
 import { useProducts, productKeys } from '../hooks/useProducts';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 
 const InternationalProductManagement: React.FC = () => {
   const { user } = useAuth();
-  const canCreateEdit = user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD' || user?.role === 'TEAM_LEAD';
-  const canDelete = user?.role === 'ADMIN';
-  const canManageCategories = user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD';
+  const canCreateEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD;
+  const canDelete = user?.role === UserRole.ADMIN;
+  const canManageCategories = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD;
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', loaiSanPham: '' });
   const searchTerm = filterValues._search || '';
   const [currentPage, setCurrentPage] = useState(1);
