@@ -703,6 +703,7 @@ model QuotationRequest {
   hinhThucThanhToan String?
   quocGia           String?
   cangDen           String?
+  tiGiaUSD          Float?
   ghiChu            String?
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
