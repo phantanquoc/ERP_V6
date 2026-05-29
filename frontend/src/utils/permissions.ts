@@ -108,7 +108,7 @@ export const hasModuleAccess = (
 ): boolean => {
   const permission = DEPARTMENT_PERMISSIONS.find(p => p.module === module);
   if (!permission) return false;
-  if (!userDepartment) return false;
+  if (!userDepartment) return module === 'dashboard' || module === 'common';
   if (userDepartment === DEPARTMENTS.ADMIN) return true;
   if (permission.allowedDepartments.includes(userDepartment)) return true;
 

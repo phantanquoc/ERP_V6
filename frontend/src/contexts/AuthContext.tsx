@@ -121,15 +121,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const token = AuthService.getAccessToken();
 
         if (currentUser && token) {
-          // Stale localStorage check: if critical RBAC field is missing (was omitted
-          // when undefined during JSON.stringify), clear storage and force re-login.
-          if (!currentUser.department) {
-            localStorage.removeItem('user');
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-            setIsLoading(false);
-            return;
-          }
           setUser(currentUser);
         }
       } catch (error) {
