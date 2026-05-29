@@ -416,7 +416,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       {/* Machine Tabs */}
       <div className="bg-white rounded-lg shadow">
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+          <nav className="-mb-px flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
             {machines.map((machine) => (
               <button
                 key={machine.id}
