@@ -8,16 +8,6 @@ import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 
-const DANH_GIA_OPTIONS = [
-  'Màu sắc đạt',
-  'Mùi đạt',
-  'Độ ẩm đạt',
-  'Không có tạp chất',
-  'Kích thước đạt',
-  'Độ chín đạt',
-  'Không bị dập nát',
-  'Đạt tiêu chuẩn',
-];
 
 interface MaterialEvaluationManagementProps {
   onCreateSystemOperation?: (maChien: string, thoiGianChien: string) => void;
@@ -732,17 +722,17 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     Đánh giá trước ngâm <span className="text-red-500">*</span>
                   </label>
                   <div className="grid grid-cols-2 gap-1 p-3 border border-gray-300 rounded-md bg-white">
-                    {DANH_GIA_OPTIONS.map(option => {
-                      const selected = (formData.danhGiaTruocNgam || '').split(',').map(s => s.trim()).includes(option);
+                    {criteria.map(c => {
+                      const selected = (formData.danhGiaTruocNgam || '').split(',').map(s => s.trim()).includes(String(c.code));
                       return (
-                        <label key={option} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
+                        <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
                           <input
                             type="checkbox"
                             checked={selected}
-                            onChange={() => handleDanhGiaToggle('danhGiaTruocNgam', option)}
+                            onChange={() => handleDanhGiaToggle('danhGiaTruocNgam', String(c.code))}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
-                          <span>{option}</span>
+                          <span>{c.code}. {c.description}</span>
                         </label>
                       );
                     })}
@@ -754,17 +744,17 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     Đánh giá sau ngâm <span className="text-red-500">*</span>
                   </label>
                   <div className="grid grid-cols-2 gap-1 p-3 border border-gray-300 rounded-md bg-white">
-                    {DANH_GIA_OPTIONS.map(option => {
-                      const selected = (formData.danhGiaSauNgam || '').split(',').map(s => s.trim()).includes(option);
+                    {criteria.map(c => {
+                      const selected = (formData.danhGiaSauNgam || '').split(',').map(s => s.trim()).includes(String(c.code));
                       return (
-                        <label key={option} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
+                        <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
                           <input
                             type="checkbox"
                             checked={selected}
-                            onChange={() => handleDanhGiaToggle('danhGiaSauNgam', option)}
+                            onChange={() => handleDanhGiaToggle('danhGiaSauNgam', String(c.code))}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
-                          <span>{option}</span>
+                          <span>{c.code}. {c.description}</span>
                         </label>
                       );
                     })}
@@ -876,9 +866,14 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <label className="block text-sm font-medium text-gray-700 mb-1">Đánh giá trước ngâm</label>
                   {selectedEvaluation.danhGiaTruocNgam ? (
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {selectedEvaluation.danhGiaTruocNgam.split(',').map(s => s.trim()).filter(Boolean).map(tag => (
-                        <span key={tag} className="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">{tag}</span>
-                      ))}
+                      {selectedEvaluation.danhGiaTruocNgam.split(',').map(s => s.trim()).filter(Boolean).map(tag => {
+                        const code = parseInt(tag);
+                        const criterion = !isNaN(code) ? criteria.find(c => c.code === code) : null;
+                        const display = criterion ? `${code}. ${criterion.description}` : tag;
+                        return (
+                          <span key={tag} className="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">{display}</span>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-sm text-gray-900">-</p>
@@ -888,9 +883,14 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <label className="block text-sm font-medium text-gray-700 mb-1">Đánh giá sau ngâm</label>
                   {selectedEvaluation.danhGiaSauNgam ? (
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {selectedEvaluation.danhGiaSauNgam.split(',').map(s => s.trim()).filter(Boolean).map(tag => (
-                        <span key={tag} className="inline-block px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">{tag}</span>
-                      ))}
+                      {selectedEvaluation.danhGiaSauNgam.split(',').map(s => s.trim()).filter(Boolean).map(tag => {
+                        const code = parseInt(tag);
+                        const criterion = !isNaN(code) ? criteria.find(c => c.code === code) : null;
+                        const display = criterion ? `${code}. ${criterion.description}` : tag;
+                        return (
+                          <span key={tag} className="inline-block px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">{display}</span>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-sm text-gray-900">-</p>
