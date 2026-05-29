@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Package,
   ArrowUp,
@@ -16,8 +17,22 @@ import warehouseReceiptService from '../../services/warehouseReceiptService';
 import warehouseIssueService from '../../services/warehouseIssueService';
 import supplyRequestService from '../../services/supplyRequestService';
 
+type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products';
+const VALID_TABS: TabType[] = ['inbound', 'outbound', 'supplyRequest', 'warehouseManagement', 'products'];
+
 const ProductionWarehouse = () => {
-  const [activeTab, setActiveTab] = useState<'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products'>('warehouseManagement');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const tabParam = searchParams.get('tab');
+    return VALID_TABS.includes(tabParam as TabType) ? tabParam as TabType : 'warehouseManagement';
+  });
+
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      setSearchParams({ tab: activeTab }, { replace: true });
+    }
+  }, [activeTab]);
 
   // Overview data states
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
@@ -196,7 +211,7 @@ const ProductionWarehouse = () => {
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}

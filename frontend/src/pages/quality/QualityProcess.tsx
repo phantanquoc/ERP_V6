@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Settings,
   FileText,
@@ -53,8 +54,22 @@ interface Process {
   dvt: string;
 }
 
+const VALID_TABS = ['processList', 'orderList', 'inspection'] as const;
+type TabType = typeof VALID_TABS[number];
+
 const QualityProcess = () => {
-  const [activeTab, setActiveTab] = useState<'processList' | 'orderList' | 'inspection'>('processList');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const tabParam = searchParams.get('tab') as TabType;
+    return VALID_TABS.includes(tabParam) ? tabParam : 'processList';
+  });
+
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      setSearchParams({ tab: activeTab }, { replace: true });
+    }
+  }, [activeTab]);
 
   // State for Process List
   const [processDetails, setProcessDetails] = useState<ProcessDetail[]>([]);
@@ -420,7 +435,7 @@ const QualityProcess = () => {
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}

@@ -27,8 +27,12 @@ import machineService from '../../services/machineService';
 import { orderService } from '../../services/orderService';
 
 const ProductionDepartment = () => {
-  const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'machines' | 'processList' | 'productionOrders' | 'orderList' | 'standards' | 'materialEvaluation' | 'systemOperation' | 'finishedProduct' | 'qualityEvaluation' | 'productionReport'>('machines');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'machines' | 'processList' | 'productionOrders' | 'orderList' | 'standards' | 'materialEvaluation' | 'systemOperation' | 'finishedProduct' | 'qualityEvaluation' | 'productionReport'>(() => {
+    const tabParam = searchParams.get('tab');
+    const validTabs = ['machines', 'processList', 'productionOrders', 'orderList', 'standards', 'materialEvaluation', 'systemOperation', 'finishedProduct', 'qualityEvaluation', 'productionReport'];
+    return validTabs.includes(tabParam || '') ? tabParam as any : 'machines';
+  });
   const [selectedMaChien, setSelectedMaChien] = useState<string>('');
   const [selectedThoiGianChien, setSelectedThoiGianChien] = useState<string>('');
 
@@ -55,16 +59,13 @@ const ProductionDepartment = () => {
     loadAllStats();
   }, []);
 
-  // Read ?tab= from URL (e.g. from notification navigation)
+  // Sync tab to URL when changed
   useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam) {
-      const validTabs = ['machines', 'processList', 'productionOrders', 'orderList', 'standards', 'materialEvaluation', 'systemOperation', 'finishedProduct', 'qualityEvaluation', 'productionReport'];
-      if (validTabs.includes(tabParam)) {
-        setActiveTab(tabParam as any);
-      }
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      setSearchParams({ tab: activeTab }, { replace: true });
     }
-  }, [searchParams]);
+  }, [activeTab]);
 
   const loadAllStats = async () => {
     setLoading(true);
@@ -215,7 +216,7 @@ const ProductionDepartment = () => {
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
