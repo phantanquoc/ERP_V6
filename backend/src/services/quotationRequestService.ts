@@ -225,6 +225,7 @@ export class QuotationRequestService {
         hinhThucThanhToan: data.hinhThucThanhToan,
         quocGia: data.quocGia,
         cangDen: data.cangDen,
+        tiGiaUSD: data.tiGiaUSD,
         ghiChu: data.ghiChu,
         items: {
           create: itemsData,
@@ -280,6 +281,7 @@ export class QuotationRequestService {
     if (data.hinhThucThanhToan !== undefined) updateData.hinhThucThanhToan = data.hinhThucThanhToan;
     if (data.quocGia !== undefined) updateData.quocGia = data.quocGia;
     if (data.cangDen !== undefined) updateData.cangDen = data.cangDen;
+    if (data.tiGiaUSD !== undefined) updateData.tiGiaUSD = data.tiGiaUSD;
     if (data.ghiChu !== undefined) updateData.ghiChu = data.ghiChu;
 
     // If updating items

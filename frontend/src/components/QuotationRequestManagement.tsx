@@ -42,6 +42,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     hinhThucThanhToan: '',
     quocGia: '',
     cangDen: '',
+    tiGiaUSD: '',
     ghiChu: '',
     items: [] as Array<{
       productId: string;
@@ -201,6 +202,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
         hinhThucThanhToan: formData.hinhThucThanhToan,
         quocGia: formData.quocGia,
         cangDen: formData.cangDen,
+        tiGiaUSD: formData.tiGiaUSD ? Number(formData.tiGiaUSD) : undefined,
         ghiChu: formData.ghiChu,
         items: formData.items.map(item => ({
           ...item,
@@ -258,6 +260,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
         hinhThucThanhToan: formData.hinhThucThanhToan,
         quocGia: formData.quocGia,
         cangDen: formData.cangDen,
+        tiGiaUSD: formData.tiGiaUSD ? Number(formData.tiGiaUSD) : undefined,
         ghiChu: formData.ghiChu,
         items: formData.items.map(item => ({
           ...item,
@@ -311,6 +314,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
         hinhThucThanhToan: '',
         quocGia: '',
         cangDen: '',
+        tiGiaUSD: '',
         ghiChu: '',
         items: [{
           productId: '',
@@ -340,6 +344,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       hinhThucThanhToan: request.hinhThucThanhToan || '',
       quocGia: request.quocGia || '',
       cangDen: request.cangDen || '',
+      tiGiaUSD: request.tiGiaUSD ? String(request.tiGiaUSD) : '',
       ghiChu: request.ghiChu || '',
       items: request.items && request.items.length > 0 ? request.items.map((item: any) => ({
         productId: item.productId,
@@ -376,6 +381,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       hinhThucThanhToan: '',
       quocGia: '',
       cangDen: '',
+      tiGiaUSD: '',
       ghiChu: '',
       items: [],
     });
@@ -905,7 +911,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                     />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Quốc gia
@@ -927,6 +933,19 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                         name="cangDen"
                         value={formData.cangDen}
                         onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tỉ giá USD
+                      </label>
+                      <input
+                        type="number"
+                        name="tiGiaUSD"
+                        value={formData.tiGiaUSD}
+                        onChange={handleInputChange}
+                        placeholder="VD: 25000"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -1078,7 +1097,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                     <p className="mt-1 text-sm text-gray-900">{selectedRequest.cangDen || '-'}</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-500">Quốc gia</label>
                       <p className="mt-1 text-sm text-gray-900">{selectedRequest.quocGia || '-'}</p>
@@ -1086,6 +1105,10 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                     <div>
                       <label className="block text-sm font-medium text-gray-500">Cảng đến</label>
                       <p className="mt-1 text-sm text-gray-900">{selectedRequest.cangDen || '-'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">Tỉ giá USD</label>
+                      <p className="mt-1 text-sm text-gray-900">{selectedRequest.tiGiaUSD ? selectedRequest.tiGiaUSD.toLocaleString('vi-VN') : '-'}</p>
                     </div>
                   </div>
                 )}
