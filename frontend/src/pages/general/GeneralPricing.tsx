@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Calculator,
   FileText,
@@ -13,10 +14,22 @@ import { quotationService } from '../../services/quotationService';
 import { quotationRequestService } from '../../services/quotationRequestService';
 import { orderService } from '../../services/orderService';
 
+const VALID_TABS = ['requests', 'quotes', 'orders', 'costs'] as const;
+type TabType = typeof VALID_TABS[number];
+
 const GeneralPricing = () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const initialTab = (['requests', 'quotes', 'orders', 'costs'].includes(urlParams.get('tab') || '') ? urlParams.get('tab') : 'requests') as 'requests' | 'quotes' | 'orders' | 'costs';
-  const [activeTab, setActiveTab] = useState<'requests' | 'quotes' | 'orders' | 'costs'>(initialTab);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const tabParam = searchParams.get('tab') as TabType;
+    return VALID_TABS.includes(tabParam) ? tabParam : 'requests';
+  });
+
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      setSearchParams({ tab: activeTab }, { replace: true });
+    }
+  }, [activeTab]);
 
   // Stats overview
   const [requestStats, setRequestStats] = useState({
@@ -197,7 +210,7 @@ const GeneralPricing = () => {
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}

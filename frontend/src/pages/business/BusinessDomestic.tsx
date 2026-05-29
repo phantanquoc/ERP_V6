@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Home,
   Users,
@@ -16,8 +17,22 @@ import { quotationService } from '../../services/quotationService';
 import { orderService } from '../../services/orderService';
 import customerFeedbackService from '../../services/customerFeedbackService';
 
+const VALID_TABS = ['orders', 'quotations', 'quotationRequests', 'customers', 'feedback'] as const;
+type TabType = typeof VALID_TABS[number];
+
 const BusinessDomestic = () => {
-  const [activeTab, setActiveTab] = useState<'orders' | 'quotations' | 'quotationRequests' | 'customers' | 'feedback'>('quotationRequests');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const tabParam = searchParams.get('tab') as TabType;
+    return VALID_TABS.includes(tabParam) ? tabParam : 'quotationRequests';
+  });
+
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      setSearchParams({ tab: activeTab }, { replace: true });
+    }
+  }, [activeTab]);
 
   // Overview stats
   const [quotationRequestStats, setQuotationRequestStats] = useState({
@@ -301,7 +316,7 @@ const BusinessDomestic = () => {
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}

@@ -60,10 +60,26 @@ interface PurchaseRequest {
   items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number }[];
 }
 
+const VALID_TABS = ['suppliers', 'orderList', 'purchaseRequestList'] as const;
+type TabType = typeof VALID_TABS[number];
+
 const PurchasingMaterials = () => {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'suppliers' | 'orderList' | 'purchaseRequestList'>('suppliers');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const tabParam = searchParams.get('tab') as TabType;
+    return VALID_TABS.includes(tabParam) ? tabParam : 'suppliers';
+  });
+
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      const params: Record<string, string> = { tab: activeTab };
+      const prId = searchParams.get('purchaseRequestId');
+      if (prId) params.purchaseRequestId = prId;
+      setSearchParams(params, { replace: true });
+    }
+  }, [activeTab]);
 
   // State for purchase requests
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
@@ -360,7 +376,7 @@ const PurchasingMaterials = () => {
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}

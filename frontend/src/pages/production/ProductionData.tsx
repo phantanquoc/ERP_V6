@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ClipboardCheck, TrendingUp, PackageCheck } from 'lucide-react';
 import MaterialEvaluationManagement from '../../components/MaterialEvaluationManagement';
 import SystemOperationManagement from '../../components/SystemOperationManagement';
 import FinishedProductManagement from '../../components/FinishedProductManagement';
 
 type Tab = 'materialEvaluation' | 'systemOperation' | 'finishedProduct';
+const VALID_TABS: Tab[] = ['materialEvaluation', 'systemOperation', 'finishedProduct'];
 
 const ProductionData = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('materialEvaluation');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const tabParam = searchParams.get('tab');
+    return VALID_TABS.includes(tabParam as Tab) ? tabParam as Tab : 'materialEvaluation';
+  });
   const [selectedMaChien, setSelectedMaChien] = useState('');
   const [selectedThoiGianChien, setSelectedThoiGianChien] = useState('');
+
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      setSearchParams({ tab: activeTab }, { replace: true });
+    }
+  }, [activeTab]);
 
   const handleCreateSystemOperation = (maChien: string, thoiGianChien: string) => {
     setSelectedMaChien(maChien);
@@ -28,7 +41,7 @@ const ProductionData = () => {
       {/* Tabs */}
       <div className="mb-6">
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
+          <nav className="-mb-px flex space-x-8 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}

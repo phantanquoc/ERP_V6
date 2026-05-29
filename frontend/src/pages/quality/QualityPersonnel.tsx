@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Users,
   FileText,
@@ -37,6 +38,7 @@ interface Employee {
 
 const QualityPersonnel = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   // /api/employees now allows EMPLOYEE (read-only) + ADMIN | DEPARTMENT_HEAD | TEAM_LEAD
   const canViewEmployees = user?.role === UserRole.ADMIN
     || user?.role === UserRole.DEPARTMENT_HEAD
@@ -48,12 +50,21 @@ const QualityPersonnel = () => {
     || user?.role === UserRole.TEAM_LEAD
     || user?.role === UserRole.EMPLOYEE;
 
+  const VALID_TABS = ['employees', 'positions', 'responsibilities', 'levels', 'evaluations', 'payroll', 'attendance', 'leave-requests', 'users'];
   const [activeTab, setActiveTab] = useState<'employees' | 'positions' | 'responsibilities' | 'levels' | 'evaluations' | 'payroll' | 'attendance' | 'leave-requests' | 'users'>(() => {
-  // EMPLOYEE can now view employee list (default to 'employees' if tab allowed)
-  if (!user?.role) return 'attendance';
-  if (user.role === UserRole.EMPLOYEE && canViewEmployees) return 'employees';
-  return 'employees';
+    const tabParam = searchParams.get('tab');
+    if (tabParam && VALID_TABS.includes(tabParam)) return tabParam as any;
+    if (!user?.role) return 'attendance';
+    if (user.role === UserRole.EMPLOYEE && canViewEmployees) return 'employees';
+    return 'employees';
   });
+
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      setSearchParams({ tab: activeTab }, { replace: true });
+    }
+  }, [activeTab]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
@@ -296,7 +307,7 @@ const QualityPersonnel = () => {
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}

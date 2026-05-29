@@ -26,7 +26,7 @@ import acceptanceHandoverService, { AcceptanceHandover } from '../../services/ac
 type TabType = 'machineSystems' | 'machineActivity' | 'orders' | 'repairRequests' | 'acceptance';
 
 const TechnicalQuality = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = (searchParams.get('tab') as TabType) || 'machineSystems';
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,6 +34,14 @@ const TechnicalQuality = () => {
   const [loading, setLoading] = useState(false);
   const [selectedAcceptance, setSelectedAcceptance] = useState<AcceptanceHandover | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  // Sync tab to URL when changed
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      setSearchParams({ tab: activeTab }, { replace: true });
+    }
+  }, [activeTab]);
 
   // Sync tab when URL query param changes (e.g. from notification click)
   useEffect(() => {
@@ -112,7 +120,7 @@ const TechnicalQuality = () => {
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}

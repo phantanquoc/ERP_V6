@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Calculator,
   Receipt,
@@ -39,7 +40,19 @@ interface RevenueOverview {
 }
 
 const AccountingAdmin = () => {
-  const [activeTab, setActiveTab] = useState<'invoices' | 'assets' | 'orders' | 'debts'>('invoices');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'invoices' | 'assets' | 'orders' | 'debts'>(() => {
+    const tabParam = searchParams.get('tab');
+    const validTabs = ['invoices', 'assets', 'orders', 'debts'];
+    return validTabs.includes(tabParam || '') ? tabParam as any : 'invoices';
+  });
+
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      setSearchParams({ tab: activeTab }, { replace: true });
+    }
+  }, [activeTab]);
 
   // Overview states
   const [assetOverview, setAssetOverview] = useState<AssetOverview>({
@@ -272,7 +285,7 @@ const AccountingAdmin = () => {
         {/* Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
