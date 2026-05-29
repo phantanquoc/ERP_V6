@@ -169,7 +169,7 @@ class AuthService {
           role: mapBackendRoleToUserRole(data.data.user.role),
           department: data.data.user.role === 'ADMIN'
             ? 'admin'
-            : (mapDeptCodeToPermCode(data.data.user.departmentCode) ?? mapDepartmentNameToCode(data.data.user.departmentName) ?? 'general'),
+            : (mapDeptCodeToPermCode(data.data.user.departmentCode) ?? mapDepartmentNameToCode(data.data.user.departmentName) ?? undefined),
           departmentName: data.data.user.departmentName ?? undefined,
           subDepartment: mapSubDeptCodeToPermCode(data.data.user.subDepartmentCode) ?? mapSubDepartmentNameToCode(data.data.user.subDepartmentName),
           subDepartmentName: data.data.user.subDepartmentName,
