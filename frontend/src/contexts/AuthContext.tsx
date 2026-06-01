@@ -51,9 +51,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'NOTIFICATION') {
-          queryClient.invalidateQueries({ queryKey: ['notifications'] });
-          // Dispatch custom event for components that need immediate update
-          window.dispatchEvent(new CustomEvent('ws-notification', { detail: msg.payload }));
+          if (msg.payload?.type === 'USER_PROFILE_UPDATED') {
+            AuthService.fetchMe().then(fresh => {
+              if (fresh) setUser(fresh);
+            }).catch(() => {});
+          } else {
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            window.dispatchEvent(new CustomEvent('ws-notification', { detail: msg.payload }));
+          }
         } else if (msg.type === 'FORCE_LOGOUT') {
           disconnectWs();
           AuthService.logout().then(() => setUser(null));
@@ -114,14 +119,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   /* ── Auth state ──────────────────────────────────────────────────────────── */
 
+  const refreshProfile = useCallback(async () => {
+    try {
+      const freshUser = await AuthService.fetchMe();
+      if (freshUser) setUser(freshUser);
+    } catch { /* silent — network errors are non-fatal */ }
+  }, []);
+
   useEffect(() => {
-    const checkAuth = () => {
+    const checkAuth = async () => {
       try {
         const currentUser = AuthService.getCurrentUser();
         const token = AuthService.getAccessToken();
 
         if (currentUser && token) {
           setUser(currentUser);
+          // Refresh from server in background to pick up any changes
+          AuthService.fetchMe().then(fresh => {
+            if (fresh) setUser(fresh);
+          }).catch(() => {});
         }
       } catch (error) {
         console.error('Auth check error:', error);
@@ -132,6 +148,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     checkAuth();
   }, []);
+
+  // Refresh profile when tab regains focus
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        refreshProfile();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [user?.id, refreshProfile]);
 
   const login = async (credentials: LoginRequest): Promise<void> => {
     try {
