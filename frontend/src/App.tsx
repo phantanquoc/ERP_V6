@@ -7,6 +7,7 @@ import ProtectedSubRoute from './components/ProtectedSubRoute';
 import ProtectedModuleRoute from './components/ProtectedModuleRoute';
 import AdminRoute from './components/AdminRoute';
 import Dashboard1 from './pages/Dashboard1';
+import { usePageTitle } from './hooks/usePageTitle';
 
 const Login = React.lazy(() => import('./pages/Login'));
 const ForgotPassword = React.lazy(() => import('./pages/ForgotPassword'));
@@ -64,9 +65,15 @@ const FaceKioskPage = React.lazy(() => import('./pages/face/FaceKioskPage'));
 // Documentation
 const DocumentationGuide = React.lazy(() => import('./pages/DocumentationGuide'));
 
+function PageTitleUpdater() {
+  usePageTitle();
+  return null;
+}
+
 function App() {
   return (
     <Router>
+      <PageTitleUpdater />
       <AuthProvider>
         <SystemSettingsProvider>
         <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
