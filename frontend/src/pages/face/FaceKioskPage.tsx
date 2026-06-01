@@ -137,6 +137,15 @@ const FaceKioskPage: React.FC = () => {
       setAccessGranted(true);
       return;
     }
+    // Priority 1: device key (persistent, survives backend restart)
+    const { deviceKey } = kioskConfig;
+    if (deviceKey) {
+      faceAttendanceService.validateDeviceKey(deviceKey).then(valid => {
+        setAccessGranted(valid);
+      });
+      return;
+    }
+    // Priority 2: legacy session key from URL (in-memory, lost on restart)
     const params = new URLSearchParams(window.location.search);
     const key = params.get('key');
     if (!key) {

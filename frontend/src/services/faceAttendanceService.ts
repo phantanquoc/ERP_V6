@@ -142,6 +142,19 @@ const faceAttendanceService = {
       return false;
     }
   },
+
+  /** Validate device key — persistent, survives backend restart */
+  async validateDeviceKey(deviceKey: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE_URL}${BASE}/kiosk/validate-device`, {
+        headers: { 'x-device-key': deviceKey },
+      });
+      const data = await response.json();
+      return data?.data?.valid === true;
+    } catch {
+      return false;
+    }
+  },
 };
 
 export default faceAttendanceService;

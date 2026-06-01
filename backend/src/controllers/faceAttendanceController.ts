@@ -190,6 +190,24 @@ export class FaceAttendanceController {
       next(error);
     }
   }
+
+  async validateDeviceKey(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const apiKey = req.headers['x-device-key'] as string;
+      if (!apiKey) {
+        res.json({ success: true, data: { valid: false } });
+        return;
+      }
+      const device = await faceAttendanceService.validateDevice(apiKey);
+      if (!device) {
+        res.json({ success: true, data: { valid: false } });
+        return;
+      }
+      res.json({ success: true, data: { valid: true, device: { name: device.name, location: device.location } } });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new FaceAttendanceController();
