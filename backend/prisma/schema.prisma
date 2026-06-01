@@ -2097,20 +2097,40 @@ model RepairRequest {
   id                 Int                   @id @default(autoincrement())
   ngayThang          DateTime              @default(now())
   maYeuCau           String                @unique
-  tenHeThong         String                // Tên hệ thống/thiết bị
-  tinhTrangThietBi   String                // Tình trạng thiết bị
-  loaiLoi            String                // Loại lỗi
+  // @deprecated — kept for backward compatibility, use items relation instead
+  tenHeThong         String?               // Tên hệ thống/thiết bị
+  // @deprecated — kept for backward compatibility, use items relation instead
+  tinhTrangThietBi   String?               // Tình trạng thiết bị
+  // @deprecated — kept for backward compatibility, use items relation instead
+  loaiLoi            String?               // Loại lỗi
   mucDoUuTien        String                // Mức độ ưu tiên
-  noiDungLoi         String                @db.Text // Nội dung lỗi
+  // @deprecated — kept for backward compatibility, use items relation instead
+  noiDungLoi         String?               @db.Text // Nội dung lỗi
   ghiChu             String?               @db.Text
   trangThai          String                @default("Chờ xử lý") // Trạng thái
   fileDinhKem        String?               // File đính kèm
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 
+  items               RepairRequestItem[]
   acceptanceHandovers AcceptanceHandover[]
 
   @@map("repair_requests")
+  @@schema("common")
+}
+
+model RepairRequestItem {
+  id                String        @id @default(cuid())
+  repairRequestId   Int
+  tenHeThong        String        // Tên hệ thống/thiết bị
+  tinhTrangThietBi  String        // Khu vực sử dụng / tình trạng
+  loaiLoi           String        // Loại lỗi (Lỗi mới / Lỗi lặp lại)
+  noiDungLoi        String        @db.Text // Nội dung lỗi
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  repairRequest     RepairRequest @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+
+  @@map("repair_request_items")
   @@schema("common")
 }
 

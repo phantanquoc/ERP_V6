@@ -184,20 +184,23 @@ export const updateSystemOperationSchema = z.object({
 });
 
 // ==================== REQUEST SCHEMAS ====================
-// Schema cho yêu cầu sửa chữa
-export const repairRequestSchema = z.object({
-  employeeName: z.string().min(1, 'Tên nhân viên là bắt buộc'),
-  systemName: z.string().min(1, 'Tên hệ thống/thiết bị là bắt buộc'),
-  usageArea: z.string().min(1, 'Khu vực sử dụng là bắt buộc'),
-  errorContent: z.string().min(10, 'Nội dung lỗi phải có ít nhất 10 ký tự'),
-  errorType: z.enum(['loi_moi', 'loi_lap_lai', 'loi_he_thong', 'loi_phan_cung', 'loi_phan_mem'], {
-    errorMap: () => ({ message: 'Vui lòng chọn loại lỗi' })
+// Schema cho từng thiết bị trong yêu cầu sửa chữa
+export const repairRequestItemSchema = z.object({
+  tenHeThong: z.string().min(1, 'Tên hệ thống/thiết bị là bắt buộc'),
+  tinhTrangThietBi: z.string().min(1, 'Khu vực sử dụng là bắt buộc'),
+  loaiLoi: z.enum(['Lỗi mới', 'Lỗi lặp lại'], {
+    errorMap: () => ({ message: 'Vui lòng chọn loại lỗi' }),
   }),
-  priority: z.enum(['cao', 'trung_binh', 'thap', 'khan_cap'], {
-    errorMap: () => ({ message: 'Vui lòng chọn mức độ ưu tiên' })
+  noiDungLoi: z.string().min(1, 'Nội dung lỗi là bắt buộc'),
+});
+
+// Schema cho yêu cầu sửa chữa (multi-item — items validated manually via validateRepairItems)
+export const repairRequestSchema = z.object({
+  priority: z.enum(['khan_cap', 'cao', 'trung_binh', 'thap'], {
+    errorMap: () => ({ message: 'Vui lòng chọn mức độ ưu tiên' }),
   }),
   notes: z.string().optional(),
-  files: z.any().optional()
+  files: z.any().optional(),
 });
 
 // Schema cho các yêu cầu khác
@@ -237,5 +240,6 @@ export type CreateBulkSystemOperationFormData = z.infer<typeof createBulkSystemO
 export type UpdateSystemOperationFormData = z.infer<typeof updateSystemOperationSchema>;
 
 // Request types
+export type RepairRequestItemFormData = z.infer<typeof repairRequestItemSchema>;
 export type RepairRequestFormData = z.infer<typeof repairRequestSchema>;
 export type GeneralRequestFormData = z.infer<typeof generalRequestSchema>;

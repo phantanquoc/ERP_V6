@@ -6,17 +6,29 @@ import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 import ExcelJS from 'exceljs';
 
-interface CreateRepairRequestData {
-  ngayThang: Date;
-  maYeuCau: string;
+interface RepairRequestItemData {
   tenHeThong: string;
   tinhTrangThietBi: string;
   loaiLoi: string;
-  mucDoUuTien: string;
   noiDungLoi: string;
+}
+
+interface CreateRepairRequestData {
+  ngayThang: Date;
+  maYeuCau: string;
+  // @deprecated — kept for backward compatibility
+  tenHeThong?: string;
+  // @deprecated — kept for backward compatibility
+  tinhTrangThietBi?: string;
+  // @deprecated — kept for backward compatibility
+  loaiLoi?: string;
+  mucDoUuTien: string;
+  // @deprecated — kept for backward compatibility
+  noiDungLoi?: string;
   ghiChu?: string;
   trangThai?: string;
   fileDinhKem?: string;
+  items?: RepairRequestItemData[];
 }
 
 interface UpdateRepairRequestData {
@@ -29,6 +41,7 @@ interface UpdateRepairRequestData {
   ghiChu?: string;
   trangThai?: string;
   fileDinhKem?: string;
+  items?: RepairRequestItemData[];
 }
 
 class RepairRequestService {
@@ -55,6 +68,9 @@ class RepairRequestService {
         orderBy: {
           createdAt: 'desc',
         },
+        include: {
+          items: true,
+        },
       }),
       prisma.repairRequest.count(),
     ]);
@@ -78,6 +94,7 @@ class RepairRequestService {
       where: { id },
       include: {
         acceptanceHandovers: true,
+        items: true,
       },
     });
 
@@ -92,27 +109,49 @@ class RepairRequestService {
    * Create new repair request
    */
   async createRepairRequest(data: CreateRepairRequestData) {
-    const request = await prisma.repairRequest.create({
-      data: {
-        ngayThang: data.ngayThang,
-        maYeuCau: data.maYeuCau,
-        tenHeThong: data.tenHeThong,
-        tinhTrangThietBi: data.tinhTrangThietBi,
-        loaiLoi: data.loaiLoi,
-        mucDoUuTien: data.mucDoUuTien,
-        noiDungLoi: data.noiDungLoi,
-        ghiChu: data.ghiChu,
-        trangThai: data.trangThai || 'Chờ xử lý',
-        fileDinhKem: data.fileDinhKem,
-      },
+    const firstItem = data.items && data.items.length > 0 ? data.items[0] : null;
+
+    const request = await prisma.$transaction(async (tx) => {
+      const created = await tx.repairRequest.create({
+        data: {
+          ngayThang: data.ngayThang,
+          maYeuCau: data.maYeuCau,
+          // Backward compat: store first item's fields on parent
+          tenHeThong: firstItem ? firstItem.tenHeThong : (data.tenHeThong ?? null),
+          tinhTrangThietBi: firstItem ? firstItem.tinhTrangThietBi : (data.tinhTrangThietBi ?? null),
+          loaiLoi: firstItem ? firstItem.loaiLoi : (data.loaiLoi ?? null),
+          noiDungLoi: firstItem ? firstItem.noiDungLoi : (data.noiDungLoi ?? null),
+          mucDoUuTien: data.mucDoUuTien,
+          ghiChu: data.ghiChu,
+          trangThai: data.trangThai || 'Chờ xử lý',
+          fileDinhKem: data.fileDinhKem,
+        },
+      });
+
+      if (data.items && data.items.length > 0) {
+        await tx.repairRequestItem.createMany({
+          data: data.items.map((item) => ({
+            repairRequestId: created.id,
+            tenHeThong: item.tenHeThong,
+            tinhTrangThietBi: item.tinhTrangThietBi,
+            loaiLoi: item.loaiLoi,
+            noiDungLoi: item.noiDungLoi,
+          })),
+        });
+      }
+
+      return tx.repairRequest.findUnique({
+        where: { id: created.id },
+        include: { items: true },
+      });
     });
 
     // Notify quality personnel + admin
     notificationService.notify(NotificationEvent.REPAIR_REQUEST_CREATED, {
-      entityId: String(request.id),
+      entityId: String(request!.id),
       metadata: {
-        maYeuCau: request.maYeuCau,
-        tenHeThong: request.tenHeThong,
+        maYeuCau: request!.maYeuCau,
+        tenHeThong: request!.tenHeThong,
       },
     }).catch(() => {});
 
@@ -125,9 +164,38 @@ class RepairRequestService {
   async updateRepairRequest(id: number, data: UpdateRepairRequestData) {
     const existing = await this.getRepairRequestById(id);
 
-    const updated = await prisma.repairRequest.update({
-      where: { id },
-      data,
+    const { items, ...scalarData } = data;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // If items provided, delete-then-recreate
+      if (items !== undefined) {
+        await tx.repairRequestItem.deleteMany({ where: { repairRequestId: id } });
+
+        if (items.length > 0) {
+          await tx.repairRequestItem.createMany({
+            data: items.map((item) => ({
+              repairRequestId: id,
+              tenHeThong: item.tenHeThong,
+              tinhTrangThietBi: item.tinhTrangThietBi,
+              loaiLoi: item.loaiLoi,
+              noiDungLoi: item.noiDungLoi,
+            })),
+          });
+
+          // Update backward-compat scalar fields from first item
+          const firstItem = items[0];
+          scalarData.tenHeThong = firstItem.tenHeThong;
+          scalarData.tinhTrangThietBi = firstItem.tinhTrangThietBi;
+          scalarData.loaiLoi = firstItem.loaiLoi;
+          scalarData.noiDungLoi = firstItem.noiDungLoi;
+        }
+      }
+
+      return tx.repairRequest.update({
+        where: { id },
+        data: scalarData,
+        include: { items: true },
+      });
     });
 
     // Notify if status changed
@@ -175,6 +243,7 @@ class RepairRequestService {
     const data = await prisma.repairRequest.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      include: { items: true },
     });
 
     const workbook = new ExcelJS.Workbook();
@@ -200,19 +269,40 @@ class RepairRequestService {
       fgColor: { argb: 'FFE0E0E0' },
     };
 
-    data.forEach((item, index) => {
-      worksheet.addRow({
-        stt: index + 1,
-        ngayThang: item.ngayThang ? new Date(item.ngayThang).toLocaleDateString('vi-VN') : '',
-        maYeuCau: item.maYeuCau,
-        tenHeThong: item.tenHeThong,
-        tinhTrangThietBi: item.tinhTrangThietBi,
-        loaiLoi: item.loaiLoi,
-        mucDoUuTien: item.mucDoUuTien,
-        noiDungLoi: item.noiDungLoi,
-        trangThai: item.trangThai,
-        ghiChu: item.ghiChu || '',
-      });
+    let rowIndex = 1;
+    data.forEach((request) => {
+      const ngayThangStr = request.ngayThang ? new Date(request.ngayThang).toLocaleDateString('vi-VN') : '';
+      if (request.items && request.items.length > 0) {
+        // One row per item, repeat parent fields
+        request.items.forEach((item) => {
+          worksheet.addRow({
+            stt: rowIndex++,
+            ngayThang: ngayThangStr,
+            maYeuCau: request.maYeuCau,
+            tenHeThong: item.tenHeThong,
+            tinhTrangThietBi: item.tinhTrangThietBi,
+            loaiLoi: item.loaiLoi,
+            mucDoUuTien: request.mucDoUuTien,
+            noiDungLoi: item.noiDungLoi,
+            trangThai: request.trangThai,
+            ghiChu: request.ghiChu || '',
+          });
+        });
+      } else {
+        // Fallback to deprecated scalar fields for old records
+        worksheet.addRow({
+          stt: rowIndex++,
+          ngayThang: ngayThangStr,
+          maYeuCau: request.maYeuCau,
+          tenHeThong: request.tenHeThong,
+          tinhTrangThietBi: request.tinhTrangThietBi,
+          loaiLoi: request.loaiLoi,
+          mucDoUuTien: request.mucDoUuTien,
+          noiDungLoi: request.noiDungLoi,
+          trangThai: request.trangThai,
+          ghiChu: request.ghiChu || '',
+        });
+      }
     });
 
     const buffer = await workbook.xlsx.writeBuffer();

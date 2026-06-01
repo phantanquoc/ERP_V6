@@ -12,7 +12,7 @@ import CreateWorkPlanModal from '../components/CreateWorkPlanModal';
 import OvertimePlanListModal from '../components/OvertimePlanListModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
 import {
-  FileText, Settings, Users, Briefcase, MessageSquare, AlertTriangle, Plus,
+  FileText, Settings, Users, Briefcase, MessageSquare, AlertTriangle, Plus, Trash2,
 } from 'lucide-react';
 import {
   repairRequestSchema, generalRequestSchema,
@@ -23,6 +23,20 @@ import { FeedbackType } from '../services/privateFeedbackService';
 type RequestType =
   | 'yeu_cau_sua_chua' | 'yeu_cau_bo_sung' | 'de_nghi_dieu_chinh'
   | 'ke_hoach_tang_ca' | 'nhiem_vu' | 'ke_hoach' | 'gop_y' | 'neu_kho_khan';
+
+interface RepairItemRow {
+  tenHeThong: string;
+  tinhTrangThietBi: string;
+  loaiLoi: string;
+  noiDungLoi: string;
+}
+
+const emptyRepairItem = (): RepairItemRow => ({
+  tenHeThong: '',
+  tinhTrangThietBi: '',
+  loaiLoi: '',
+  noiDungLoi: '',
+});
 
 const CommonManagement = () => {
   const { user } = useAuth();
@@ -36,12 +50,15 @@ const CommonManagement = () => {
   const [feedbackType, setFeedbackType]                 = useState<FeedbackType>('GOP_Y');
   const [isSubmitting, setIsSubmitting]                 = useState(false);
 
+  // Multi-item repair state
+  const [repairItems, setRepairItems] = useState<RepairItemRow[]>([emptyRepairItem()]);
+  const [repairItemErrors, setRepairItemErrors] = useState<{ [key: string]: string }>({});
+
   const repairForm = useForm<RepairRequestFormData>({
     resolver: zodResolver(repairRequestSchema),
     defaultValues: {
-      employeeName: `${user?.firstName || ''} ${user?.lastName || ''}`,
-      systemName: '', usageArea: '', errorContent: '',
-      errorType: undefined, priority: undefined, notes: '',
+      priority: undefined,
+      notes: '',
     },
   });
 
@@ -107,13 +124,41 @@ const CommonManagement = () => {
     setIsModalOpen(false);
     setSelectedCategory('');
     repairForm.reset();
+    setRepairItems([emptyRepairItem()]);
+    setRepairItemErrors({});
     generalForm.reset({ title: '', description: '', priority: undefined, department: user?.department || '' });
   };
 
+  const updateRepairItem = (index: number, updates: Partial<RepairItemRow>) => {
+    setRepairItems(prev => prev.map((row, i) => i === index ? { ...row, ...updates } : row));
+  };
+
+  const addRepairItem = () => {
+    setRepairItems(prev => [...prev, emptyRepairItem()]);
+  };
+
+  const removeRepairItem = (index: number) => {
+    if (repairItems.length === 1) return;
+    setRepairItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const validateRepairItems = (): boolean => {
+    const errors: { [key: string]: string } = {};
+    repairItems.forEach((item, i) => {
+      if (!item.tenHeThong.trim()) errors[`${i}_tenHeThong`] = 'Bắt buộc';
+      if (!item.tinhTrangThietBi.trim()) errors[`${i}_tinhTrangThietBi`] = 'Bắt buộc';
+      if (!item.loaiLoi) errors[`${i}_loaiLoi`] = 'Bắt buộc';
+      if (!item.noiDungLoi.trim()) errors[`${i}_noiDungLoi`] = 'Bắt buộc';
+    });
+    setRepairItemErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const onSubmitRepair = repairForm.handleSubmit(async (data) => {
+    if (!validateRepairItems()) return;
+
     setIsSubmitting(true);
     try {
-      const formDataToSend = new FormData();
       let maYeuCau = '';
       try {
         const token = localStorage.getItem('accessToken');
@@ -124,19 +169,18 @@ const CommonManagement = () => {
         maYeuCau = result?.data?.code ?? '';
       } catch { /* backend sẽ reject nếu thiếu mã */ }
 
-      formDataToSend.append('ngayThang', new Date().toISOString().split('T')[0]);
-      formDataToSend.append('maYeuCau', maYeuCau);
-      formDataToSend.append('tenHeThong', data.systemName);
-      formDataToSend.append('tinhTrangThietBi', data.usageArea);
-      formDataToSend.append('loaiLoi', data.errorType === 'loi_moi' ? 'Lỗi mới' : 'Lỗi lặp lại');
-      formDataToSend.append('mucDoUuTien',
+      const mucDoUuTien =
         data.priority === 'khan_cap' ? 'Khẩn cấp' :
         data.priority === 'cao'      ? 'Cao' :
-        data.priority === 'trung_binh' ? 'Trung bình' : 'Thấp'
-      );
-      formDataToSend.append('noiDungLoi', data.errorContent);
+        data.priority === 'trung_binh' ? 'Trung bình' : 'Thấp';
+
+      const formDataToSend = new FormData();
+      formDataToSend.append('ngayThang', new Date().toISOString().split('T')[0]);
+      formDataToSend.append('maYeuCau', maYeuCau);
+      formDataToSend.append('mucDoUuTien', mucDoUuTien);
       formDataToSend.append('ghiChu', data.notes || '');
       formDataToSend.append('trangThai', 'Chờ xử lý');
+      formDataToSend.append('items', JSON.stringify(repairItems));
       if (data.files?.[0]) formDataToSend.append('file', data.files[0]);
 
       const token = localStorage.getItem('accessToken');
@@ -166,7 +210,6 @@ const CommonManagement = () => {
     handleCloseModal();
   });
 
-  const re = repairForm;
   const ge = generalForm;
 
   return (
@@ -210,56 +253,144 @@ const CommonManagement = () => {
         isOpen={isModalOpen && selectedCategory === 'yeu_cau_sua_chua'}
         onClose={handleCloseModal}
         title="Tạo phiếu yêu cầu sửa chữa kiểm tra"
+        maxWidth="4xl"
         isLoading={isSubmitting}
         footer={<ModalFooter onClose={handleCloseModal} onSubmit={() => onSubmitRepair()} submitLabel="Tạo yêu cầu sửa chữa" isLoading={isSubmitting} />}
       >
         <div className="space-y-4">
+          {/* Tên nhân viên */}
           <FormField label="Tên nhân viên">
             <input type="text" readOnly value={`${user?.firstName || ''} ${user?.lastName || ''}`} className={readonlyCls} />
           </FormField>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField label="Tên hệ thống / thiết bị" required error={re.formState.errors.systemName?.message}>
-              <input {...re.register('systemName')} className={inputCls(!!re.formState.errors.systemName)}
-                placeholder="VD: Máy sấy MS-01, Băng tải đóng gói, Nồi chiên VF-003" />
-            </FormField>
-            <FormField label="Khu vực sử dụng" required error={re.formState.errors.usageArea?.message}>
-              <input {...re.register('usageArea')} className={inputCls(!!re.formState.errors.usageArea)}
-                placeholder="VD: Xưởng sản xuất, Kho nguyên liệu, Phòng kỹ thuật" />
-            </FormField>
+          {/* Danh sách thiết bị */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Danh sách thiết bị <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={addRepairItem}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4" />
+                Thêm thiết bị
+              </button>
+            </div>
+
+            <div className="border border-gray-200 rounded-md overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-8">#</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên hệ thống/thiết bị</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Khu vực sử dụng</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-32">Loại lỗi</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nội dung lỗi</th>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {repairItems.map((row, index) => (
+                    <tr key={index} className="align-top">
+                      <td className="px-3 py-2 text-gray-500 text-center pt-3">{index + 1}</td>
+
+                      {/* Tên hệ thống/thiết bị */}
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={row.tenHeThong}
+                          onChange={(e) => updateRepairItem(index, { tenHeThong: e.target.value })}
+                          className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${repairItemErrors[`${index}_tenHeThong`] ? 'border-red-400' : 'border-gray-300'}`}
+                          placeholder="VD: Máy sấy MS-01"
+                        />
+                        {repairItemErrors[`${index}_tenHeThong`] && (
+                          <p className="text-xs text-red-500 mt-0.5">{repairItemErrors[`${index}_tenHeThong`]}</p>
+                        )}
+                      </td>
+
+                      {/* Khu vực sử dụng */}
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={row.tinhTrangThietBi}
+                          onChange={(e) => updateRepairItem(index, { tinhTrangThietBi: e.target.value })}
+                          className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${repairItemErrors[`${index}_tinhTrangThietBi`] ? 'border-red-400' : 'border-gray-300'}`}
+                          placeholder="VD: Xưởng sản xuất"
+                        />
+                        {repairItemErrors[`${index}_tinhTrangThietBi`] && (
+                          <p className="text-xs text-red-500 mt-0.5">{repairItemErrors[`${index}_tinhTrangThietBi`]}</p>
+                        )}
+                      </td>
+
+                      {/* Loại lỗi */}
+                      <td className="px-3 py-2">
+                        <select
+                          value={row.loaiLoi}
+                          onChange={(e) => updateRepairItem(index, { loaiLoi: e.target.value })}
+                          className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${repairItemErrors[`${index}_loaiLoi`] ? 'border-red-400' : 'border-gray-300'}`}
+                        >
+                          <option value="">Chọn</option>
+                          <option value="Lỗi mới">Lỗi mới</option>
+                          <option value="Lỗi lặp lại">Lỗi lặp lại</option>
+                        </select>
+                        {repairItemErrors[`${index}_loaiLoi`] && (
+                          <p className="text-xs text-red-500 mt-0.5">{repairItemErrors[`${index}_loaiLoi`]}</p>
+                        )}
+                      </td>
+
+                      {/* Nội dung lỗi */}
+                      <td className="px-3 py-2">
+                        <textarea
+                          value={row.noiDungLoi}
+                          onChange={(e) => updateRepairItem(index, { noiDungLoi: e.target.value })}
+                          rows={2}
+                          className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none ${repairItemErrors[`${index}_noiDungLoi`] ? 'border-red-400' : 'border-gray-300'}`}
+                          placeholder="Mô tả triệu chứng lỗi..."
+                        />
+                        {repairItemErrors[`${index}_noiDungLoi`] && (
+                          <p className="text-xs text-red-500 mt-0.5">{repairItemErrors[`${index}_noiDungLoi`]}</p>
+                        )}
+                      </td>
+
+                      {/* Xóa */}
+                      <td className="px-3 py-2 text-center pt-3">
+                        <button
+                          type="button"
+                          onClick={() => removeRepairItem(index)}
+                          disabled={repairItems.length === 1}
+                          className="text-red-500 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+                          title="Xóa dòng"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <FormField label="Nội dung lỗi" required error={re.formState.errors.errorContent?.message}>
-            <textarea rows={3} {...re.register('errorContent')} className={textareaCls(!!re.formState.errors.errorContent)}
-              placeholder="Mô tả chi tiết triệu chứng lỗi, thời điểm phát sinh, ảnh hưởng đến sản xuất..." />
+          {/* Mức độ ưu tiên */}
+          <FormField label="Mức độ ưu tiên" required error={repairForm.formState.errors.priority?.message}>
+            <select {...repairForm.register('priority')} className={selectCls(!!repairForm.formState.errors.priority)}>
+              <option value="">Chọn mức độ ưu tiên</option>
+              <option value="khan_cap">Khẩn cấp</option>
+              <option value="cao">Cao</option>
+              <option value="trung_binh">Trung bình</option>
+              <option value="thap">Thấp</option>
+            </select>
           </FormField>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField label="Loại lỗi" required error={re.formState.errors.errorType?.message}>
-              <select {...re.register('errorType')} className={selectCls(!!re.formState.errors.errorType)}>
-                <option value="">Chọn loại lỗi</option>
-                <option value="loi_moi">Lỗi mới</option>
-                <option value="loi_lap_lai">Lỗi lặp lại</option>
-              </select>
-            </FormField>
-            <FormField label="Mức độ ưu tiên" required error={re.formState.errors.priority?.message}>
-              <select {...re.register('priority')} className={selectCls(!!re.formState.errors.priority)}>
-                <option value="">Chọn mức độ ưu tiên</option>
-                <option value="khan_cap">Khẩn cấp</option>
-                <option value="cao">Cao</option>
-                <option value="trung_binh">Trung bình</option>
-                <option value="thap">Thấp</option>
-              </select>
-            </FormField>
-          </div>
-
           <FormField label="Ghi chú">
-            <textarea rows={2} {...re.register('notes')} className={textareaCls()}
+            <textarea rows={2} {...repairForm.register('notes')} className={textareaCls()}
               placeholder="Ghi chú thêm nếu có..." />
           </FormField>
 
           <FormField label="Tệp đính kèm">
-            <FileDropZone id="repair-file-upload" inputProps={{ ...re.register('files') }} />
+            <FileDropZone id="repair-file-upload" inputProps={{ ...repairForm.register('files') }} />
           </FormField>
         </div>
       </ModalForm>
