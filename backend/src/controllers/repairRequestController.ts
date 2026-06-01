@@ -37,6 +37,14 @@ class RepairRequestController {
 
   async createRepairRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      // items may arrive as JSON string (FormData) or as array (JSON body)
+      let items: any[] | undefined;
+      if (req.body.items !== undefined) {
+        items = typeof req.body.items === 'string'
+          ? JSON.parse(req.body.items)
+          : req.body.items;
+      }
+
       const data = {
         ngayThang: new Date(req.body.ngayThang),
         maYeuCau: req.body.maYeuCau,
@@ -48,6 +56,7 @@ class RepairRequestController {
         ghiChu: req.body.ghiChu,
         trangThai: req.body.trangThai,
         fileDinhKem: req.file ? getFileUrl('repair-requests', req.file.filename) : undefined,
+        ...(items !== undefined && { items }),
       };
 
       const request = await repairRequestService.createRepairRequest(data);
@@ -65,6 +74,15 @@ class RepairRequestController {
   async updateRepairRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
+
+      // items may arrive as JSON string (FormData) or as array (JSON body)
+      let items: any[] | undefined;
+      if (req.body.items !== undefined) {
+        items = typeof req.body.items === 'string'
+          ? JSON.parse(req.body.items)
+          : req.body.items;
+      }
+
       const data: any = {
         tenHeThong: req.body.tenHeThong,
         tinhTrangThietBi: req.body.tinhTrangThietBi,
@@ -73,6 +91,7 @@ class RepairRequestController {
         noiDungLoi: req.body.noiDungLoi,
         ghiChu: req.body.ghiChu,
         trangThai: req.body.trangThai,
+        ...(items !== undefined && { items }),
       };
 
       if (req.body.ngayThang) {

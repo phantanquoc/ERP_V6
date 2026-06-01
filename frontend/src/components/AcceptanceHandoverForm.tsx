@@ -5,12 +5,21 @@ import acceptanceHandoverService, { CreateAcceptanceHandoverRequest } from '../s
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/apiClient';
 
+interface RepairRequestItem {
+  id: string;
+  tenHeThong: string;
+  tinhTrangThietBi: string;
+  loaiLoi: string;
+  noiDungLoi: string;
+}
+
 interface RepairRequest {
   id: number;
   maYeuCau: string;
-  tenHeThong: string;
-  tinhTrangThietBi: string;
-  noiDungLoi: string;
+  tenHeThong: string | null;
+  tinhTrangThietBi: string | null;
+  noiDungLoi: string | null;
+  items?: RepairRequestItem[];
 }
 
 interface AcceptanceHandoverFormProps {
@@ -38,11 +47,19 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   const [loadingEmployees, setLoadingEmployees] = useState(false);
 
+  const deviceNames = repairRequest.items && repairRequest.items.length > 0
+    ? repairRequest.items.map(i => i.tenHeThong).join(', ')
+    : (repairRequest.tenHeThong || '');
+
+  const preRepairCondition = repairRequest.items && repairRequest.items.length > 0
+    ? repairRequest.items.map(i => `${i.tenHeThong}: ${i.noiDungLoi}`).join('; ')
+    : (repairRequest.tinhTrangThietBi || repairRequest.noiDungLoi || '');
+
   const [formData, setFormData] = useState<CreateAcceptanceHandoverRequest>({
     repairRequestId: repairRequest.id,
     maYeuCauSuaChua: repairRequest.maYeuCau,
-    tenHeThongThietBi: repairRequest.tenHeThong,
-    tinhTrangTruocSuaChua: repairRequest.tinhTrangThietBi || repairRequest.noiDungLoi,
+    tenHeThongThietBi: deviceNames,
+    tinhTrangTruocSuaChua: preRepairCondition,
     tinhTrangSauSuaChua: '',
     nguoiBanGiao: user?.fullName || user?.username || '',
     nguoiNhan: '',

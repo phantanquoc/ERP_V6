@@ -6,29 +6,31 @@ import apiClient from '../services/apiClient';
 import FileUpload from './FileUpload';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
 
+interface RepairRequestItem {
+  id: string;
+  tenHeThong: string;
+  tinhTrangThietBi: string;
+  loaiLoi: string;
+  noiDungLoi: string;
+}
+
 interface RepairRequest {
   id: number;
   ngayThang: string;
   maYeuCau: string;
-  tenHeThong: string;
-  tinhTrangThietBi: string;
-  loaiLoi: string;
+  tenHeThong: string | null;
+  tinhTrangThietBi: string | null;
+  loaiLoi: string | null;
   mucDoUuTien: string;
-  noiDungLoi: string;
+  noiDungLoi: string | null;
   ghiChu: string;
   trangThai: string;
   fileDinhKem?: string;
   ngayTao: string;
+  items?: RepairRequestItem[];
 }
 
-const LOAI_LOI_OPTIONS = [
-  'Lỗi cơ khí',
-  'Lỗi điện',
-  'Lỗi phần mềm điều khiển',
-  'Lỗi thủy lực',
-  'Lỗi khí nén',
-  'Khác',
-];
+const LOAI_LOI_OPTIONS = ['Lỗi mới', 'Lỗi lặp lại'];
 
 const RepairRequestList = () => {
   const { user } = useAuth();
@@ -43,15 +45,12 @@ const RepairRequestList = () => {
   const [selectedRequestForAcceptance, setSelectedRequestForAcceptance] = useState<RepairRequest | null>(null);
   const [machineSystems, setMachineSystems] = useState<{ id: string; tenHeThong: string }[]>([]);
   const [loadingMachineSystems, setLoadingMachineSystems] = useState(false);
-  
+  const [editItems, setEditItems] = useState<RepairRequestItem[]>([]);
+
   const [formData, setFormData] = useState({
     ngayThang: new Date().toISOString().split('T')[0],
     maYeuCau: '',
-    tenHeThong: '',
-    tinhTrangThietBi: '',
-    loaiLoi: '',
     mucDoUuTien: 'Thấp',
-    noiDungLoi: '',
     ghiChu: '',
     trangThai: 'Chờ xử lý',
   });
@@ -88,9 +87,17 @@ const RepairRequestList = () => {
     e.preventDefault();
 
     const formDataToSend = new FormData();
-    Object.keys(formData).forEach(key => {
-      formDataToSend.append(key, formData[key as keyof typeof formData]);
-    });
+    formDataToSend.append('ngayThang', formData.ngayThang);
+    formDataToSend.append('maYeuCau', formData.maYeuCau);
+    formDataToSend.append('mucDoUuTien', formData.mucDoUuTien);
+    formDataToSend.append('ghiChu', formData.ghiChu);
+    formDataToSend.append('trangThai', formData.trangThai);
+    formDataToSend.append('items', JSON.stringify(editItems.map(item => ({
+      tenHeThong: item.tenHeThong,
+      tinhTrangThietBi: item.tinhTrangThietBi,
+      loaiLoi: item.loaiLoi,
+      noiDungLoi: item.noiDungLoi,
+    }))));
 
     if (selectedFile) {
       formDataToSend.append('file', selectedFile);
@@ -125,14 +132,14 @@ const RepairRequestList = () => {
     setFormData({
       ngayThang: request.ngayThang.split('T')[0],
       maYeuCau: request.maYeuCau,
-      tenHeThong: request.tenHeThong,
-      tinhTrangThietBi: request.tinhTrangThietBi,
-      loaiLoi: request.loaiLoi,
       mucDoUuTien: request.mucDoUuTien,
-      noiDungLoi: request.noiDungLoi,
       ghiChu: request.ghiChu,
       trangThai: request.trangThai,
     });
+    setEditItems(request.items && request.items.length > 0
+      ? request.items
+      : [{ id: '', tenHeThong: request.tenHeThong || '', tinhTrangThietBi: request.tinhTrangThietBi || '', loaiLoi: request.loaiLoi || '', noiDungLoi: request.noiDungLoi || '' }]
+    );
     setIsViewMode(false);
     fetchMachineSystems();
     setIsModalOpen(true);
@@ -143,14 +150,14 @@ const RepairRequestList = () => {
     setFormData({
       ngayThang: request.ngayThang.split('T')[0],
       maYeuCau: request.maYeuCau,
-      tenHeThong: request.tenHeThong,
-      tinhTrangThietBi: request.tinhTrangThietBi,
-      loaiLoi: request.loaiLoi,
       mucDoUuTien: request.mucDoUuTien,
-      noiDungLoi: request.noiDungLoi,
       ghiChu: request.ghiChu,
       trangThai: request.trangThai,
     });
+    setEditItems(request.items && request.items.length > 0
+      ? request.items
+      : [{ id: '', tenHeThong: request.tenHeThong || '', tinhTrangThietBi: request.tinhTrangThietBi || '', loaiLoi: request.loaiLoi || '', noiDungLoi: request.noiDungLoi || '' }]
+    );
     setIsViewMode(true);
     fetchMachineSystems();
     setIsModalOpen(true);
@@ -160,11 +167,7 @@ const RepairRequestList = () => {
     const emptyForm = {
       ngayThang: new Date().toISOString().split('T')[0],
       maYeuCau: '',
-      tenHeThong: '',
-      tinhTrangThietBi: '',
-      loaiLoi: '',
       mucDoUuTien: 'Thấp',
-      noiDungLoi: '',
       ghiChu: '',
       trangThai: 'Chờ xử lý',
     };
@@ -176,6 +179,7 @@ const RepairRequestList = () => {
       console.error('Error generating code:', error);
       setFormData(emptyForm);
     }
+    setEditItems([{ id: '', tenHeThong: '', tinhTrangThietBi: '', loaiLoi: '', noiDungLoi: '' }]);
     fetchMachineSystems();
     setIsModalOpen(true);
   };
@@ -185,14 +189,11 @@ const RepairRequestList = () => {
     setIsViewMode(false);
     setEditingRequest(null);
     setSelectedFile(null);
+    setEditItems([{ id: '', tenHeThong: '', tinhTrangThietBi: '', loaiLoi: '', noiDungLoi: '' }]);
     setFormData({
       ngayThang: new Date().toISOString().split('T')[0],
       maYeuCau: '',
-      tenHeThong: '',
-      tinhTrangThietBi: '',
-      loaiLoi: '',
       mucDoUuTien: 'Thấp',
-      noiDungLoi: '',
       ghiChu: '',
       trangThai: 'Chờ xử lý',
     });
@@ -293,7 +294,11 @@ const RepairRequestList = () => {
                   {new Date(request.ngayThang).toLocaleDateString('vi-VN')}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600">{request.maYeuCau}</td>
-                <td className="px-4 py-3 text-sm text-gray-900">{request.tenHeThong}</td>
+                <td className="px-4 py-3 text-sm text-gray-900">
+                  {request.items && request.items.length > 0
+                    ? request.items.map(item => item.tenHeThong).join(', ')
+                    : request.tenHeThong || '—'}
+                </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(request.mucDoUuTien)}`}>
                     {request.mucDoUuTien}
@@ -413,60 +418,6 @@ const RepairRequestList = () => {
                   />
                 </div>
 
-                {/* Tên hệ thống/thiết bị */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tên hệ thống/thiết bị <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.tenHeThong}
-                    onChange={(e) => setFormData({ ...formData, tenHeThong: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                    disabled={isViewMode || loadingMachineSystems}
-                  >
-                    <option value="">-- Chọn hệ thống/thiết bị --</option>
-                    {machineSystems.map((ms) => (
-                      <option key={ms.id} value={ms.tenHeThong}>{ms.tenHeThong}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Khu vực sử dụng */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Khu vực sử dụng <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.tinhTrangThietBi}
-                    onChange={(e) => setFormData({ ...formData, tinhTrangThietBi: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                    disabled={isViewMode}
-                    placeholder="VD: Xưởng sản xuất, Kho nguyên liệu, Phòng kỹ thuật"
-                  />
-                </div>
-
-                {/* Loại lỗi */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Loại lỗi <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.loaiLoi}
-                    onChange={(e) => setFormData({ ...formData, loaiLoi: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                    disabled={isViewMode}
-                  >
-                    <option value="">-- Chọn loại lỗi --</option>
-                    {LOAI_LOI_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
-
                 {/* Mức độ ưu tiên */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -504,20 +455,127 @@ const RepairRequestList = () => {
                   </select>
                 </div>
 
-                {/* Nội dung lỗi */}
+                {/* Danh sách thiết bị lỗi */}
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nội dung lỗi <span className="text-red-500">*</span>
+                    Danh sách thiết bị lỗi <span className="text-red-500">*</span>
                   </label>
-                  <textarea
-                    value={formData.noiDungLoi}
-                    onChange={(e) => setFormData({ ...formData, noiDungLoi: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                    disabled={isViewMode}
-                    rows={3}
-                    placeholder="Mô tả chi tiết triệu chứng lỗi, thời điểm phát sinh, ảnh hưởng đến sản xuất..."
-                  />
+                  <div className="border border-gray-200 rounded-md overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-gray-600">Hệ thống/Thiết bị</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-600">Khu vực sử dụng</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-600">Loại lỗi</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-600">Nội dung lỗi</th>
+                          {!isViewMode && <th className="px-3 py-2 w-10"></th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {editItems.map((item, idx) => (
+                          <tr key={idx} className="border-t border-gray-100">
+                            <td className="px-3 py-2">
+                              {isViewMode ? (
+                                <span>{item.tenHeThong}</span>
+                              ) : (
+                                <select
+                                  value={item.tenHeThong}
+                                  onChange={(e) => {
+                                    const updated = [...editItems];
+                                    updated[idx] = { ...updated[idx], tenHeThong: e.target.value };
+                                    setEditItems(updated);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
+                                  disabled={loadingMachineSystems}
+                                >
+                                  <option value="">-- Chọn --</option>
+                                  {machineSystems.map((ms) => (
+                                    <option key={ms.id} value={ms.tenHeThong}>{ms.tenHeThong}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              {isViewMode ? (
+                                <span>{item.tinhTrangThietBi}</span>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={item.tinhTrangThietBi}
+                                  onChange={(e) => {
+                                    const updated = [...editItems];
+                                    updated[idx] = { ...updated[idx], tinhTrangThietBi: e.target.value };
+                                    setEditItems(updated);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
+                                  placeholder="Khu vực"
+                                />
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              {isViewMode ? (
+                                <span>{item.loaiLoi}</span>
+                              ) : (
+                                <select
+                                  value={item.loaiLoi}
+                                  onChange={(e) => {
+                                    const updated = [...editItems];
+                                    updated[idx] = { ...updated[idx], loaiLoi: e.target.value };
+                                    setEditItems(updated);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
+                                >
+                                  <option value="">-- Chọn --</option>
+                                  {LOAI_LOI_OPTIONS.map((opt) => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              {isViewMode ? (
+                                <span>{item.noiDungLoi}</span>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={item.noiDungLoi}
+                                  onChange={(e) => {
+                                    const updated = [...editItems];
+                                    updated[idx] = { ...updated[idx], noiDungLoi: e.target.value };
+                                    setEditItems(updated);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
+                                  placeholder="Mô tả lỗi"
+                                />
+                              )}
+                            </td>
+                            {!isViewMode && (
+                              <td className="px-3 py-2">
+                                {editItems.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditItems(editItems.filter((_, i) => i !== idx))}
+                                    className="text-red-500 hover:text-red-700"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {!isViewMode && (
+                    <button
+                      type="button"
+                      onClick={() => setEditItems([...editItems, { id: '', tenHeThong: '', tinhTrangThietBi: '', loaiLoi: '', noiDungLoi: '' }])}
+                      className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      + Thêm thiết bị
+                    </button>
+                  )}
                 </div>
 
                 {/* Ghi chú */}
