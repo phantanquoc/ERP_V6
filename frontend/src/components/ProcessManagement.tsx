@@ -55,6 +55,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
     tenQuyTrinh: '',
     loaiQuyTrinh: '',
   });
+  const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
 
   // Flowchart sections state
   const [flowchartSections, setFlowchartSections] = useState<ProcessFlowchartSection[]>([]);
@@ -155,6 +156,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingProcess(null);
+    setFormErrors({});
   };
 
   const handleCloseViewModal = () => {
@@ -326,16 +328,26 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
       ...prev,
       [name]: value
     }));
+    if (formErrors[name]) {
+      setFormErrors(prev => ({ ...prev, [name]: false }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
-    if (!formData.msnv || !formData.tenNhanVien || !formData.tenQuyTrinh || !formData.loaiQuyTrinh) {
-      alert('Vui lòng điền đầy đủ các trường bắt buộc!');
+    const errors: Record<string, boolean> = {};
+    if (!formData.tenQuyTrinh) errors.tenQuyTrinh = true;
+    if (!formData.loaiQuyTrinh) errors.loaiQuyTrinh = true;
+    if (!formData.msnv) errors.msnv = true;
+    if (!formData.tenNhanVien) errors.tenNhanVien = true;
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       return;
     }
+    setFormErrors({});
 
     try {
       let processId: string;
@@ -355,11 +367,13 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
       );
 
       if (hasFlowchartData) {
-        try {
-          // Try update first (works if flowchart already exists)
-          await processService.updateFlowchart(processId, flowchartSections);
-        } catch {
-          // If update fails (flowchart doesn't exist), create new
+        if (editingProcess) {
+          try {
+            await processService.updateFlowchart(processId, flowchartSections);
+          } catch {
+            await processService.createFlowchart(processId, flowchartSections);
+          }
+        } else {
           await processService.createFlowchart(processId, flowchartSections);
         }
       }
@@ -691,9 +705,10 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                     name="tenQuyTrinh"
                     value={formData.tenQuyTrinh}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.tenQuyTrinh ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     required
                   />
+                  {formErrors.tenQuyTrinh && <p className="text-red-500 text-xs mt-1">Tên quy trình là bắt buộc</p>}
                 </div>
 
                 {/* Loại quy trình */}
@@ -705,7 +720,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                     name="loaiQuyTrinh"
                     value={formData.loaiQuyTrinh}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.loaiQuyTrinh ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     required
                   >
                     <option value="">-- Chọn loại quy trình --</option>
@@ -715,6 +730,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                     <option value="Vận chuyển">Vận chuyển</option>
                     <option value="Khác">Khác</option>
                   </select>
+                  {formErrors.loaiQuyTrinh && <p className="text-red-500 text-xs mt-1">Loại quy trình là bắt buộc</p>}
                 </div>
 
                 {/* LƯU ĐỒ SECTION */}
