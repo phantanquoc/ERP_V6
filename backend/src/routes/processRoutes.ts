@@ -129,7 +129,7 @@ router.get('/:id', processController.getProcessById);
  */
 router.post(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
   processController.createProcess
 );
 
@@ -161,7 +161,7 @@ router.post(
  */
 router.post(
   '/upload-file',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
   uploadProcessFile,
   processController.uploadFile
 );
@@ -199,7 +199,7 @@ router.post(
  */
 router.put(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
   processController.updateProcess
 );
 
@@ -298,7 +298,7 @@ router.get('/:processId/flowchart', processController.getFlowchart);
  */
 router.post(
   '/:processId/flowchart',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
   processController.createFlowchart
 );
 
@@ -333,7 +333,7 @@ router.post(
  */
 router.put(
   '/:processId/flowchart',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
   processController.updateFlowchart
 );
 
