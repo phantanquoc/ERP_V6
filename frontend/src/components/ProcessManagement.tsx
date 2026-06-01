@@ -1,20 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit, Trash2, Eye, X, FileText, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, FileText, Download, Upload, Printer } from 'lucide-react';
 import FileUpload from './FileUpload';
 import processService, { Process, CreateProcessData, ProcessFlowchartSection, ProcessFlowchartCost } from '../services/processService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import { SERVER_BASE_URL } from '../config/api';
 
 interface ProcessManagementProps {
   mode?: 'full' | 'standard-only' | 'production';
-  // 'full' = đầy đủ CRUD (Quality Process)
-  // 'standard-only' = chỉ xem và tạo định mức (Production Management - tab 1)
-  // 'production' = xem và nhập dữ liệu sản xuất (Production Management - tab 2)
-  showToggleHienThi?: boolean; // Hiển thị cột toggle "Công khai"
+  showToggleHienThi?: boolean;
+  filterLoaiQuyTrinh?: 'production' | 'non-production';
 }
 
-const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', showToggleHienThi = false }) => {
+const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', showToggleHienThi = false, filterLoaiQuyTrinh }) => {
   const { user } = useAuth(); // Get current logged-in user
   const [processes, setProcesses] = useState<Process[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,6 +55,9 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
     loaiQuyTrinh: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
+  const [processFiles, setProcessFiles] = useState<string[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
 
   // Flowchart sections state
   const [flowchartSections, setFlowchartSections] = useState<ProcessFlowchartSection[]>([]);
@@ -77,6 +79,12 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
     }
   };
 
+  const baseProcesses = useMemo(() => {
+    if (!filterLoaiQuyTrinh) return processes;
+    if (filterLoaiQuyTrinh === 'production') return processes.filter(p => p.loaiQuyTrinh === 'Sản xuất');
+    return processes.filter(p => p.loaiQuyTrinh !== 'Sản xuất');
+  }, [processes, filterLoaiQuyTrinh]);
+
   const createEmptySection = (stt: number): ProcessFlowchartSection => ({
     phanDoan: `Phân đoạn ${stt}`,
     tenPhanDoan: '',
@@ -95,7 +103,6 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
   const handleOpenModal = () => {
     setEditingProcess(null);
 
-    // Auto-fill employee info from logged-in user
     const msnv = user?.employeeCode || '';
     const tenNhanVien = user ? `${user.firstName} ${user.lastName}`.trim() : '';
 
@@ -105,6 +112,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
       tenQuyTrinh: '',
       loaiQuyTrinh: '',
     });
+    setProcessFiles([]);
     setFlowchartSections([createEmptySection(1)]);
     setIsModalOpen(true);
   };
@@ -117,6 +125,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
       tenQuyTrinh: process.tenQuyTrinh,
       loaiQuyTrinh: process.loaiQuyTrinh,
     });
+    setProcessFiles(process.files || []);
 
     // Load flowchart if exists
     try {
@@ -322,6 +331,44 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
     }
   };
 
+  const handleProcessFilesUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+    setUploadingFiles(true);
+    try {
+      const response = await processService.uploadFiles(files);
+      if (response.success) {
+        setProcessFiles(prev => [...prev, ...response.data.map(f => f.fileUrl)]);
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      alert('Lỗi khi tải files lên');
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  const handleRemoveProcessFile = (index: number) => {
+    setProcessFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const getFileName = (url: string) => {
+    const parts = url.split('/');
+    const filename = parts[parts.length - 1];
+    return decodeURIComponent(filename.replace(/-\d+-\d+(?=\.)/, ''));
+  };
+
+  const getFullFileUrl = (url: string) => {
+    if (url.startsWith('http')) return url;
+    return `${SERVER_BASE_URL}${url}`;
+  };
+
+  const handlePrintFile = (url: string) => {
+    const printWindow = window.open(getFullFileUrl(url), '_blank');
+    if (printWindow) {
+      printWindow.onload = () => printWindow.print();
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -353,11 +400,12 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
       let processId: string;
 
       // Step 1: Save Process
+      const dataWithFiles = { ...formData, files: processFiles };
       if (editingProcess) {
-        await processService.updateProcess(editingProcess.id, formData);
+        await processService.updateProcess(editingProcess.id, dataWithFiles);
         processId = editingProcess.id;
       } else {
-        const response = await processService.createProcess(formData);
+        const response = await processService.createProcess(dataWithFiles);
         processId = response.data.id;
       }
 
@@ -468,6 +516,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nhân viên</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên quy trình</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại quy trình</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Files</th>
                 {showToggleHienThi && (
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Công khai</th>
                 )}
@@ -477,7 +526,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
             <tbody>
               {(() => {
                 const search = (filterValues._search || '').toLowerCase();
-                const filteredProcesses = processes.filter(process => {
+                const filteredProcesses = baseProcesses.filter(process => {
                   if (search && !(
                     (process.maQuyTrinh || '').toLowerCase().includes(search) ||
                     (process.tenQuyTrinh || '').toLowerCase().includes(search) ||
@@ -492,7 +541,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                 if (loading) {
                   return (
                     <tr>
-                      <td colSpan={showToggleHienThi ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={showToggleHienThi ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
                         Đang tải...
                       </td>
                     </tr>
@@ -501,7 +550,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                 if (filteredProcesses.length === 0) {
                   return (
                     <tr>
-                      <td colSpan={showToggleHienThi ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={showToggleHienThi ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
                         Không có dữ liệu
                       </td>
                     </tr>
@@ -524,6 +573,25 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{process.tenNhanVien}</td>
                     <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{process.tenQuyTrinh}</td>
                     <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{process.loaiQuyTrinh}</td>
+                    <td className="px-6 py-4 text-center border-r border-gray-200">
+                      {process.files && process.files.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 justify-center">
+                          {process.files.map((fileUrl, fIdx) => (
+                            <button
+                              key={fIdx}
+                              onClick={() => setPreviewFileUrl(fileUrl)}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs hover:bg-blue-100"
+                              title={getFileName(fileUrl)}
+                            >
+                              <FileText className="w-3 h-3" />
+                              {fIdx + 1}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
                     {showToggleHienThi && (
                       <td className="px-6 py-4 text-center border-r border-gray-200">
                         <input
@@ -592,7 +660,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
         {/* Pagination */}
         {(() => {
           const search = (filterValues._search || '').toLowerCase();
-          const filteredProcesses = processes.filter(process => {
+          const filteredProcesses = baseProcesses.filter(process => {
             if (search && !(
               (process.maQuyTrinh || '').toLowerCase().includes(search) ||
               (process.tenQuyTrinh || '').toLowerCase().includes(search) ||
@@ -731,6 +799,66 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                     <option value="Khác">Khác</option>
                   </select>
                   {formErrors.loaiQuyTrinh && <p className="text-red-500 text-xs mt-1">Loại quy trình là bắt buộc</p>}
+                </div>
+
+                {/* FILE ĐÍNH KÈM */}
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    File đính kèm (PDF, DOC, XLS, hình ảnh...)
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar"
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          handleProcessFilesUpload(Array.from(e.target.files));
+                          e.target.value = '';
+                        }
+                      }}
+                      className="hidden"
+                      id="process-files-input"
+                    />
+                    <label
+                      htmlFor="process-files-input"
+                      className="flex items-center justify-center gap-2 cursor-pointer text-blue-600 hover:text-blue-800"
+                    >
+                      <Upload className="w-5 h-5" />
+                      {uploadingFiles ? 'Đang tải lên...' : 'Chọn files để upload'}
+                    </label>
+                  </div>
+                  {processFiles.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {processFiles.map((fileUrl, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md">
+                          <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                          <span className="text-sm text-gray-700 truncate flex-1">{getFileName(fileUrl)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewFileUrl(fileUrl)}
+                            className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                          >
+                            Xem
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePrintFile(fileUrl)}
+                            className="text-green-600 hover:text-green-800 text-xs font-medium"
+                          >
+                            In
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveProcessFile(idx)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* LƯU ĐỒ SECTION */}
@@ -982,6 +1110,33 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                   <p className="text-sm text-gray-900">{new Date(viewingProcess.updatedAt).toLocaleString('vi-VN')}</p>
                 </div>
               </div>
+
+              {/* Files đính kèm */}
+              {viewingProcess.files && viewingProcess.files.length > 0 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-500 mb-2">File đính kèm:</label>
+                  <div className="space-y-2">
+                    {viewingProcess.files.map((fileUrl, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md">
+                        <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                        <span className="text-sm text-gray-700 truncate flex-1">{getFileName(fileUrl)}</span>
+                        <button
+                          onClick={() => setPreviewFileUrl(fileUrl)}
+                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                        >
+                          Xem
+                        </button>
+                        <button
+                          onClick={() => handlePrintFile(fileUrl)}
+                          className="text-green-600 hover:text-green-800 text-xs font-medium"
+                        >
+                          In
+                        </button>
+                              </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Flowchart Data - Table Format */}
               {viewingProcess.flowchart && viewingProcess.flowchart.sections && viewingProcess.flowchart.sections.length > 0 && (
@@ -1425,6 +1580,53 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
               >
                 Lưu định mức
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* PDF Preview Modal */}
+      {previewFileUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[10000] p-4" onClick={() => setPreviewFileUrl(null)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-sm font-medium text-gray-700 truncate flex-1">
+                {getFileName(previewFileUrl)}
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePrintFile(previewFileUrl)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  <Printer className="w-4 h-4" />
+                  In
+                </button>
+                <button
+                  onClick={() => setPreviewFileUrl(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              {previewFileUrl.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={`${getFullFileUrl(previewFileUrl)}#toolbar=0`}
+                  className="w-full h-full border-0"
+                  title="PDF Preview"
+                />
+              ) : previewFileUrl.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+                <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
+                  <img src={getFullFileUrl(previewFileUrl)} alt="Preview" className="max-w-full max-h-full object-contain" onContextMenu={(e) => e.preventDefault()} draggable={false} />
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">Không thể xem trước file này</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

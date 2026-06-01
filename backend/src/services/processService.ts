@@ -89,13 +89,12 @@ export class ProcessService {
     tenNhanVien: string;
     tenQuyTrinh: string;
     loaiQuyTrinh: string;
+    files?: string[];
   }): Promise<any> {
-    // Validate required fields
     if (!data.msnv || !data.tenNhanVien || !data.tenQuyTrinh || !data.loaiQuyTrinh) {
       throw new ValidationError('Missing required fields');
     }
 
-    // Generate process code
     const maQuyTrinh = await this.generateProcessCode();
 
     const process = await prisma.process.create({
@@ -105,6 +104,7 @@ export class ProcessService {
         tenNhanVien: data.tenNhanVien,
         tenQuyTrinh: data.tenQuyTrinh,
         loaiQuyTrinh: data.loaiQuyTrinh,
+        files: data.files || [],
       },
     });
 
@@ -118,6 +118,7 @@ export class ProcessService {
       tenNhanVien?: string;
       tenQuyTrinh?: string;
       loaiQuyTrinh?: string;
+      files?: string[];
     }
   ): Promise<any> {
     const existingProcess = await this.getProcessById(id);
@@ -129,6 +130,7 @@ export class ProcessService {
         tenNhanVien: data.tenNhanVien ?? existingProcess.tenNhanVien,
         tenQuyTrinh: data.tenQuyTrinh ?? existingProcess.tenQuyTrinh,
         loaiQuyTrinh: data.loaiQuyTrinh ?? existingProcess.loaiQuyTrinh,
+        ...(data.files !== undefined && { files: data.files }),
       },
     });
 

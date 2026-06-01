@@ -408,6 +408,7 @@ model Process {
   tenQuyTrinh         String
   loaiQuyTrinh        String
   hienThiTrongChung   Boolean             @default(false)
+  files               String[]            @default([])
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   flowchart           ProcessFlowchart?

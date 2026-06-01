@@ -54,14 +54,14 @@ interface Process {
   dvt: string;
 }
 
-const VALID_TABS = ['processList', 'orderList', 'inspection'] as const;
+const VALID_TABS = ['processProduction', 'processGeneral', 'orderList', 'inspection'] as const;
 type TabType = typeof VALID_TABS[number];
 
 const QualityProcess = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const tabParam = searchParams.get('tab') as TabType;
-    return VALID_TABS.includes(tabParam) ? tabParam : 'processList';
+    return VALID_TABS.includes(tabParam) ? tabParam : 'processProduction';
   });
 
   useEffect(() => {
@@ -307,7 +307,8 @@ const QualityProcess = () => {
   };
 
   const tabs = [
-    { id: 'processList', name: 'Danh sách quy trình', icon: <FileText className="w-4 h-4" /> },
+    { id: 'processProduction', name: 'Quy trình sản xuất', icon: <FileText className="w-4 h-4" /> },
+    { id: 'processGeneral', name: 'Quy trình chung', icon: <FileText className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'inspection', name: 'Kiểm tra nội bộ', icon: <ShieldCheck className="w-4 h-4" /> }
   ];
@@ -458,10 +459,17 @@ const QualityProcess = () => {
 
         {/* Content */}
         <div className="bg-white rounded-lg shadow-sm">
-          {/* DANH SÁCH QUY TRÌNH - SỬ DỤNG ProcessManagement COMPONENT */}
-          {activeTab === 'processList' && (
+          {/* QUY TRÌNH SẢN XUẤT */}
+          {activeTab === 'processProduction' && (
             <div className="p-6">
-              <ProcessManagement showToggleHienThi={true} />
+              <ProcessManagement showToggleHienThi={true} filterLoaiQuyTrinh="production" />
+            </div>
+          )}
+
+          {/* QUY TRÌNH CHUNG */}
+          {activeTab === 'processGeneral' && (
+            <div className="p-6">
+              <ProcessManagement showToggleHienThi={true} filterLoaiQuyTrinh="non-production" />
             </div>
           )}
 

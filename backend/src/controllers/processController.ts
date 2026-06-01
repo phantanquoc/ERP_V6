@@ -162,6 +162,32 @@ export class ProcessController {
     }
   }
 
+  async uploadFiles(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const files = req.files as Express.Multer.File[] | undefined;
+      if (!files || files.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'No files uploaded',
+        });
+        return;
+      }
+
+      const uploadedFiles = files.map(file => ({
+        fileUrl: getFileUrl('processes', file.filename),
+        fileName: file.originalname,
+      }));
+
+      res.json({
+        success: true,
+        data: uploadedFiles,
+        message: 'Files uploaded successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // ==================== FLOWCHART OPERATIONS ====================
 
   async getFlowchart(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Eye, ChevronLeft, ChevronRight, FileText, Printer, X } from 'lucide-react';
 import { processService, Process } from '../services/processService';
 import { ModalForm } from './ModalForm';
+import { SERVER_BASE_URL } from '../config/api';
 
 interface ProcessListModalProps {
   isOpen: boolean;
@@ -15,6 +16,25 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedProcess, setSelectedProcess] = useState<Process | null>(null);
+  const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
+
+  const getFullFileUrl = (url: string) => {
+    if (url.startsWith('http')) return url;
+    return `${SERVER_BASE_URL}${url}`;
+  };
+
+  const getFileName = (url: string) => {
+    const parts = url.split('/');
+    const filename = parts[parts.length - 1];
+    return decodeURIComponent(filename.replace(/-\d+-\d+(?=\.)/, ''));
+  };
+
+  const handlePrintFile = (url: string) => {
+    const printWindow = window.open(getFullFileUrl(url), '_blank');
+    if (printWindow) {
+      printWindow.onload = () => printWindow.print();
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -91,6 +111,7 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
               <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Loại quy trình</th>
               <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Người tạo</th>
               <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Ngày tạo</th>
+              <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Files</th>
               <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Hành động</th>
             </tr>
           </thead>
@@ -103,6 +124,25 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
                 <td className="border border-gray-300 px-4 py-3">{process.loaiQuyTrinh}</td>
                 <td className="border border-gray-300 px-4 py-3">{process.tenNhanVien}</td>
                 <td className="border border-gray-300 px-4 py-3 text-center">{new Date(process.createdAt).toLocaleDateString('vi-VN')}</td>
+                <td className="border border-gray-300 px-4 py-3 text-center">
+                  {process.files && process.files.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      {process.files.map((fileUrl, fIdx) => (
+                        <button
+                          key={fIdx}
+                          onClick={() => setPreviewFileUrl(fileUrl)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs hover:bg-blue-100"
+                          title={getFileName(fileUrl)}
+                        >
+                          <FileText className="w-3 h-3" />
+                          {fIdx + 1}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-gray-400 text-xs">—</span>
+                  )}
+                </td>
                 <td className="border border-gray-300 px-4 py-3 text-center">
                   <button onClick={() => handleViewDetails(process)}
                     className="inline-flex items-center px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs">
@@ -173,6 +213,33 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
             </div>
           </div>
 
+          {/* Files đính kèm */}
+          {selectedProcess.files && selectedProcess.files.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold text-gray-800 mb-2">File đính kèm</h4>
+              <div className="space-y-2">
+                {selectedProcess.files.map((fileUrl, idx) => (
+                  <div key={idx} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md">
+                    <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    <span className="text-sm text-gray-700 truncate flex-1">{getFileName(fileUrl)}</span>
+                    <button
+                      onClick={() => setPreviewFileUrl(fileUrl)}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                    >
+                      Xem
+                    </button>
+                    <button
+                      onClick={() => handlePrintFile(fileUrl)}
+                      className="text-green-600 hover:text-green-800 text-xs font-medium"
+                    >
+                      In
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {selectedProcess.flowchart?.sections && selectedProcess.flowchart.sections.length > 0 && (
             <div className="mt-4">
               <h4 className="text-sm font-semibold text-gray-800 mb-3">Sơ đồ quy trình</h4>
@@ -221,6 +288,42 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
         </div>
       )}
     </ModalForm>
+
+    {/* File Preview Modal */}
+    {previewFileUrl && (
+      <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[10000] p-4" onClick={() => setPreviewFileUrl(null)}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-4 border-b border-gray-200">
+            <h3 className="text-sm font-medium text-gray-700 truncate flex-1">{getFileName(previewFileUrl)}</h3>
+            <div className="flex items-center gap-2">
+              <button onClick={() => handlePrintFile(previewFileUrl)}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700">
+                <Printer className="w-4 h-4" />In
+              </button>
+              <button onClick={() => setPreviewFileUrl(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            {previewFileUrl.toLowerCase().endsWith('.pdf') ? (
+              <iframe src={`${getFullFileUrl(previewFileUrl)}#toolbar=0`} className="w-full h-full border-0" title="PDF Preview" />
+            ) : previewFileUrl.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+              <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
+                <img src={getFullFileUrl(previewFileUrl)} alt="Preview" className="max-w-full max-h-full object-contain" onContextMenu={(e) => e.preventDefault()} draggable={false} />
+              </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center">
+                  <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">Không thể xem trước file này</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 };
