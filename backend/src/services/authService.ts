@@ -489,6 +489,93 @@ export class AuthService {
     return { accessToken };
   }
 
+  async getMe(userId: string): Promise<Omit<AuthResponse, 'accessToken' | 'refreshToken'>> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive) {
+      throw new AuthenticationError('Không tìm thấy người dùng hoặc tài khoản đã bị vô hiệu hóa');
+    }
+
+    let departmentName = null;
+    let departmentCode: string | null = null;
+    let subDepartmentName = null;
+    let subDepartmentCode: string | null = null;
+
+    if (user.departmentId) {
+      const dept = await prisma.department.findUnique({
+        where: { id: user.departmentId },
+        select: { name: true, code: true },
+      });
+      departmentName = dept?.name ?? null;
+      departmentCode = dept?.code ?? null;
+    }
+
+    if (user.subDepartmentId) {
+      const subDept = await prisma.subDepartment.findUnique({
+        where: { id: user.subDepartmentId },
+        select: { name: true, code: true },
+      });
+      subDepartmentName = subDept?.name ?? null;
+      subDepartmentCode = subDept?.code ?? null;
+    }
+
+    const secondaryDepartments = await buildSecondaryDepartments(user.id);
+
+    const employee = await prisma.employee.findUnique({
+      where: { userId: user.id },
+      include: {
+        position: { select: { id: true, name: true } },
+        positionLevel: { select: { id: true, level: true, baseSalary: true, kpiSalary: true } },
+      },
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        departmentId: user.departmentId,
+        departmentName,
+        departmentCode,
+        subDepartmentId: user.subDepartmentId,
+        subDepartmentName,
+        subDepartmentCode,
+        secondaryDepartments,
+      },
+      employee: employee ? {
+        id: employee.id,
+        employeeCode: employee.employeeCode,
+        gender: employee.gender,
+        dateOfBirth: employee.dateOfBirth,
+        phoneNumber: employee.phoneNumber,
+        address: employee.address,
+        positionId: employee.positionId,
+        position: employee.position,
+        positionLevelId: employee.positionLevelId,
+        positionLevel: employee.positionLevel,
+        subDepartmentId: user.subDepartmentId,
+        status: employee.status,
+        hireDate: employee.hireDate,
+        contractType: employee.contractType,
+        educationLevel: employee.educationLevel,
+        specialization: employee.specialization,
+        specialSkills: employee.specialSkills,
+        baseSalary: employee.baseSalary,
+        kpiLevel: employee.kpiLevel,
+        responsibilityCode: employee.responsibilityCode,
+        weight: employee.weight,
+        height: employee.height,
+        shirtSize: employee.shirtSize,
+        pantSize: employee.pantSize,
+        shoeSize: employee.shoeSize,
+        bankAccount: employee.bankAccount,
+        lockerNumber: employee.lockerNumber,
+        notes: employee.notes,
+      } : undefined,
+    };
+  }
+
   async logout(refreshToken: string): Promise<void> {
     await prisma.refreshToken.delete({
       where: { token: refreshToken },

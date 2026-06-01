@@ -105,6 +105,19 @@ export class AuthController {
     }
   }
 
+  async getMe(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await authService.getMe(req.user!.id);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async forgotPassword(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { identifier } = req.body;

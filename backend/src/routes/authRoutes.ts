@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authController from '@controllers/authController';
 import { validate } from '@middlewares/validation';
+import { authenticate } from '@middlewares/auth';
 
 const router = Router();
 
@@ -118,6 +119,8 @@ router.post(
  *         description: Đăng xuất thành công
  */
 router.post('/logout', (req, res, next) => authController.logout(req, res, next));
+
+router.get('/me', authenticate, (req, res, next) => authController.getMe(req, res, next));
 
 router.post(
   '/forgot-password',
