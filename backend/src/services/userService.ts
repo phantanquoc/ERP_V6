@@ -3,6 +3,7 @@ import logger from '@config/logger';
 import { NotFoundError, AuthenticationError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages, hashPassword, comparePassword } from '@utils/helpers';
 import { nextEmployeeCode } from '@utils/codeGenerator';
+import { pushNotification } from '@services/wsManager';
 import type { PaginatedResponse } from '@types';
 import { UserRole } from '@types';
 import { Gender } from '@prisma/client';
@@ -320,6 +321,18 @@ export class UserService {
 
     // Employee code is NOT changed when department changes
     // Employee code format: NV0001, NV0002, NV0003... (assigned once, never changes)
+
+    // Push profile update via WebSocket if department-related fields changed
+    if (deptChanged || subDeptChanged || data.secondaryDepartments !== undefined) {
+      try {
+        const employee = await prisma.employee.findUnique({
+          where: { userId: id },
+          select: { id: true },
+        });
+        const clientKey = employee ? employee.id : `u:${id}`;
+        pushNotification(clientKey, { type: 'USER_PROFILE_UPDATED' });
+      } catch (e) { /* notification must not bubble */ }
+    }
 
     return updated;
   }
