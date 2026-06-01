@@ -46,9 +46,10 @@ export interface Process {
   tenQuyTrinh: string;
   loaiQuyTrinh: string;
   hienThiTrongChung: boolean;
+  files: string[];
   createdAt: string;
   updatedAt: string;
-  flowchart?: ProcessFlowchart; // Optional flowchart data for view details
+  flowchart?: ProcessFlowchart;
 }
 
 export interface CreateProcessData {
@@ -56,6 +57,7 @@ export interface CreateProcessData {
   tenNhanVien: string;
   tenQuyTrinh: string;
   loaiQuyTrinh: string;
+  files?: string[];
 }
 
 export interface UpdateProcessData {
@@ -170,6 +172,14 @@ export const processService = {
 
      const response = await apiClient.post('/processes/upload-file', formData);
      return response as unknown as { success: boolean; data: { fileUrl: string; fileName: string } };
+  },
+
+  async uploadFiles(files: File[]): Promise<{ success: boolean; data: { fileUrl: string; fileName: string }[] }> {
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+
+    const response = await apiClient.post('/processes/upload-files', formData);
+    return response as unknown as { success: boolean; data: { fileUrl: string; fileName: string }[] };
   },
 
   async toggleHienThiTrongChung(id: string): Promise<SingleResponse> {

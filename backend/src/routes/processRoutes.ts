@@ -2,9 +2,10 @@ import { Router } from 'express';
 import processController from '@controllers/processController';
 import { authenticate, authorize } from '@middlewares/auth';
 import { UserRole } from '@types';
-import { createSingleUploadMiddleware } from '@middlewares/upload';
+import { createSingleUploadMiddleware, createUploadMiddleware } from '@middlewares/upload';
 
 const uploadProcessFile = createSingleUploadMiddleware('processes');
+const uploadProcessFiles = createUploadMiddleware('processes', 10);
 
 const router = Router();
 
@@ -164,6 +165,13 @@ router.post(
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
   uploadProcessFile,
   processController.uploadFile
+);
+
+router.post(
+  '/upload-files',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  uploadProcessFiles,
+  processController.uploadFiles
 );
 
 /**
