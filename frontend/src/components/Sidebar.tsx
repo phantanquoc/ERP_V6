@@ -256,6 +256,27 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
             </>
           )}
         </div>
+
+        {/* Powered by Koola */}
+        <div className="border-t border-gray-800/50 px-3 py-2">
+          <a
+            href="https://koola.vn"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 opacity-60 hover:opacity-100 transition-opacity"
+            title="Powered by Koola"
+          >
+            {collapsed ? (
+              <img src="/koola-logo.png" alt="Koola" className="w-5 h-5 object-contain" />
+            ) : (
+              <>
+                <span className="text-[10px] text-gray-500">Powered by</span>
+                <img src="/koola-logo.png" alt="Koola" className="h-4 object-contain" />
+                <span className="text-[10px] font-semibold text-gray-400">KOOLA</span>
+              </>
+            )}
+          </a>
+        </div>
       </div>
     </>
   );
