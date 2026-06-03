@@ -1,13 +1,19 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { useProductionEmployees } from '../hooks/useProductionEmployees';
+import { QualityEvaluation } from '../services/qualityEvaluationService';
+
+type QualityEvaluationFormData = Partial<QualityEvaluation> & {
+  danhGiaTongQuan?: string;
+};
 
 interface QualityEvaluationModalProps {
   isOpen: boolean;
   isEditing: boolean;
-  formData: any;
+  formData: QualityEvaluationFormData;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
-  onChange: (field: string, value: any) => void;
+  onChange: (field: keyof QualityEvaluationFormData, value: string) => void;
 }
 
 const QualityEvaluationModal: React.FC<QualityEvaluationModalProps> = ({
@@ -18,6 +24,8 @@ const QualityEvaluationModal: React.FC<QualityEvaluationModalProps> = ({
   onSubmit,
   onChange,
 }) => {
+  const { data: productionEmployees = [] } = useProductionEmployees();
+
   if (!isOpen) return null;
 
   return (
@@ -219,11 +227,17 @@ const QualityEvaluationModal: React.FC<QualityEvaluationModalProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">Người thực hiện</label>
             <input
               type="text"
-              value={formData.nguoiThucHien || '(Tự động điền từ tài khoản đăng nhập)'}
-              readOnly
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
-              placeholder="Tự động điền từ tài khoản đăng nhập"
+              value={formData.nguoiThucHien || ''}
+              list="quality-evaluation-employees-list"
+              onChange={(e) => onChange('nguoiThucHien', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Nhập tên hoặc chọn từ danh sách"
             />
+            <datalist id="quality-evaluation-employees-list">
+              {productionEmployees.map(employee => (
+                <option key={employee.id} value={employee.name} />
+              ))}
+            </datalist>
           </div>
 
           {/* Action Buttons */}

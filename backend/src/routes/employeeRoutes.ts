@@ -25,7 +25,7 @@ router.use(authenticate);
  *         description: Chưa xác thực
  */
 router.get('/for-assignment',
-  employeeController.getAllEmployees
+  employeeController.getEmployeesForAssignment
 );
 
 /**
@@ -306,4 +306,3 @@ router.patch('/:id',
 router.delete('/:id', authorize(UserRole.ADMIN), employeeController.deleteEmployee);
 
 export default router;
-

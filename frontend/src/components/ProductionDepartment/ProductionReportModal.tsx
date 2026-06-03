@@ -7,6 +7,7 @@ import Modal from '../Modal';
 import DatePicker from '../DatePicker';
 import { parseNumberInput } from '../../utils/numberInput';
 import { useAuth } from '../../contexts/AuthContext';
+import { useProductionEmployees } from '../../hooks/useProductionEmployees';
 
 interface ProductionReportModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
   onSuccess,
 }) => {
   const { user } = useAuth();
+  const { data: productionEmployees = [] } = useProductionEmployees();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [materialStandards, setMaterialStandards] = useState<MaterialStandard[]>([]);
@@ -452,9 +454,17 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
           <input
             type="text"
             value={formData.nguoiThucHien}
-            readOnly
-            className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg cursor-not-allowed text-gray-600"
+            list="production-report-employees-list"
+            onChange={(e) => setFormData({ ...formData, nguoiThucHien: e.target.value })}
+            disabled={viewMode}
+            placeholder="Nhập tên hoặc chọn từ danh sách"
+            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
           />
+          <datalist id="production-report-employees-list">
+            {productionEmployees.map(employee => (
+              <option key={employee.id} value={employee.name} />
+            ))}
+          </datalist>
         </div>
 
         {!viewMode && (
@@ -482,4 +492,3 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
 };
 
 export default ProductionReportModal;
-

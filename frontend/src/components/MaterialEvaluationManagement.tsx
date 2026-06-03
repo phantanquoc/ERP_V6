@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Upload, Settings, Save } from 'lucide-react';
 import materialEvaluationService, { MaterialEvaluation } from '../services/materialEvaluationService';
 import materialEvaluationCriteriaService, { MaterialEvaluationCriteria } from '../services/materialEvaluationCriteriaService';
@@ -7,14 +7,24 @@ import DateTimePicker from './DateTimePicker';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
+import { useProductionEmployees } from '../hooks/useProductionEmployees';
 
 
 interface MaterialEvaluationManagementProps {
   onCreateSystemOperation?: (maChien: string, thoiGianChien: string) => void;
 }
 
+const normalizeSearchText = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
 const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> = ({ onCreateSystemOperation }) => {
   const { user } = useAuth();
+  const { data: productionEmployees = [], isLoading: loadingProductionEmployees } = useProductionEmployees();
+  const [isNguoiThucHienOpen, setIsNguoiThucHienOpen] = useState(false);
   const [evaluations, setEvaluations] = useState<MaterialEvaluation[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -55,6 +65,19 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     danhGiaSauNgam: '',
     nguoiThucHien: '',
   });
+
+  const filteredProductionEmployees = useMemo(() => {
+    const keyword = normalizeSearchText(formData.nguoiThucHien || '');
+
+    if (!keyword) {
+      return productionEmployees;
+    }
+
+    return productionEmployees.filter(employee => {
+      const searchable = normalizeSearchText(`${employee.name} ${employee.employeeCode}`);
+      return searchable.includes(keyword);
+    });
+  }, [formData.nguoiThucHien, productionEmployees]);
 
   useEffect(() => {
     loadEvaluations();
@@ -268,6 +291,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     setIsModalOpen(false);
     setSelectedEvaluation(null);
     setIsEditing(false);
+    setIsNguoiThucHienOpen(false);
   };
 
   const handleViewDetail = (evaluation: MaterialEvaluation) => {
@@ -283,6 +307,15 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         ? parseNumberInput(value)
         : value
     }));
+  };
+
+  const handleNguoiThucHienSelect = (value: string) => {
+    if (!value) return;
+    setFormData(prev => ({
+      ...prev,
+      nguoiThucHien: value,
+    }));
+    setIsNguoiThucHienOpen(false);
   };
 
   const handleDanhGiaToggle = (field: 'danhGiaTruocNgam' | 'danhGiaSauNgam', option: string) => {
@@ -765,14 +798,49 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Người thực hiện <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="nguoiThucHien"
-                    value={formData.nguoiThucHien}
-                    readOnly
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed focus:ring-blue-500 focus:border-blue-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="nguoiThucHien"
+                      value={formData.nguoiThucHien}
+                      onChange={(e) => {
+                        handleInputChange(e);
+                        setIsNguoiThucHienOpen(true);
+                      }}
+                      onFocus={() => setIsNguoiThucHienOpen(true)}
+                      onBlur={() => window.setTimeout(() => setIsNguoiThucHienOpen(false), 120)}
+                      required
+                      autoComplete="off"
+                      placeholder="Nhập hoặc chọn nhân viên sản xuất"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    {isNguoiThucHienOpen && (
+                      <div className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                        {loadingProductionEmployees ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">Đang tải danh sách...</div>
+                        ) : productionEmployees.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">Không có nhân viên sản xuất</div>
+                        ) : filteredProductionEmployees.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">Không tìm thấy nhân viên phù hợp</div>
+                        ) : (
+                          filteredProductionEmployees.map(employee => (
+                            <button
+                              key={employee.id}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleNguoiThucHienSelect(employee.name);
+                              }}
+                              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50 focus:bg-blue-50"
+                            >
+                              <span className="font-medium text-gray-900">{employee.name}</span>
+                              <span className="ml-3 text-xs text-gray-500">{employee.employeeCode}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -1071,4 +1139,3 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
 };
 
 export default MaterialEvaluationManagement;
-

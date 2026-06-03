@@ -9,7 +9,14 @@ interface PaginatedResponse<T> {
   totalPages: number;
 }
 
-interface Employee {
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface Employee {
   id: string;
   userId: string;
   employeeCode: string;
@@ -119,10 +126,46 @@ interface UpdateEmployeeRequest {
 }
 
 class EmployeeService {
-  async getAllEmployees(page: number = 1, limit: number = 10): Promise<PaginatedResponse<Employee>> {
+  async getAllEmployees(page: number = 1, limit: number = 10, departmentId?: string): Promise<PaginatedResponse<Employee>> {
     try {
-      const response = await apiClient.get('/employees', { params: { page, limit } });
+      const params: Record<string, string | number> = { page, limit };
+      if (departmentId) params.departmentId = departmentId;
+      const response = await apiClient.get('/employees', { params });
       return response;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async getEmployeesForAssignment(params: {
+    page?: number;
+    limit?: number;
+    departmentId?: string;
+    departmentCode?: string;
+    subDepartmentId?: string;
+    subDepartmentCode?: string;
+    positionName?: string;
+    positionCode?: string;
+    search?: string;
+  } = {}): Promise<{ data: Employee[]; pagination?: PaginationMeta }> {
+    try {
+      const response = await apiClient.get<Employee[]>('/employees/for-assignment', {
+        params: {
+          page: params.page ?? 1,
+          limit: params.limit ?? 200,
+          departmentId: params.departmentId,
+          departmentCode: params.departmentCode,
+          subDepartmentId: params.subDepartmentId,
+          subDepartmentCode: params.subDepartmentCode,
+          positionName: params.positionName,
+          positionCode: params.positionCode,
+          search: params.search,
+        },
+      });
+      return {
+        data: response.data || [],
+        pagination: response.pagination,
+      };
     } catch (error) {
       throw this.handleError(error);
     }
@@ -181,7 +224,7 @@ class EmployeeService {
     }
   }
 
-  private handleError(error: any): Error {
+  private handleError(error: unknown): Error {
     if (error instanceof Error) {
       const message = error.message;
       return new Error(message);
@@ -209,4 +252,3 @@ class EmployeeService {
 }
 
 export default new EmployeeService();
-

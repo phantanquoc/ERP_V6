@@ -4,6 +4,43 @@ import type { AuthenticatedRequest, ApiResponse } from '@types';
 import { Request } from 'express';
 
 export class EmployeeController {
+  async getEmployeesForAssignment(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const search = (req.query.search as string) || undefined;
+      const departmentId = (req.query.departmentId as string) || undefined;
+      const departmentCode = (req.query.departmentCode as string) || undefined;
+      const subDepartmentId = (req.query.subDepartmentId as string) || undefined;
+      const subDepartmentCode = (req.query.subDepartmentCode as string) || undefined;
+      const positionName = (req.query.positionName as string) || undefined;
+      const positionCode = (req.query.positionCode as string) || undefined;
+
+      const result = await employeeService.getEmployeesForAssignment(page, limit, {
+        departmentId,
+        departmentCode,
+        subDepartmentId,
+        subDepartmentCode,
+        positionName,
+        positionCode,
+        search,
+      });
+
+      res.json({
+        success: true,
+        data: result.data,
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      } as ApiResponse<any>);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getAllEmployees(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
@@ -135,4 +172,3 @@ export class EmployeeController {
 }
 
 export default new EmployeeController();
-
