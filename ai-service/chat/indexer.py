@@ -250,3 +250,32 @@ def init_rag():
 
         except Exception as e:
             logger.error(f"RAG init failed: {e}")
+
+
+def index_uploaded_chunks(chunks: List[dict], filename: str):
+    """Index chunks from uploaded documents into ChromaDB + BM25."""
+    global bm25_index, bm25_chunks, chroma_collection, rag_ready
+
+    if not rag_ready:
+        init_rag()
+
+    if not rag_ready:
+        logger.warning("RAG not ready — skipping upload indexing")
+        return
+
+    texts = [c["text"] for c in chunks]
+    embeddings = embedder.encode(texts, normalize_embeddings=True).tolist()
+    start_id = len(bm25_chunks)
+
+    chroma_collection.add(
+        ids=[f"upload_{start_id + i}" for i in range(len(chunks))],
+        embeddings=embeddings,
+        documents=texts,
+        metadatas=[c["metadata"] for c in chunks],
+    )
+
+    tokenized = [re.findall(r"\w+", c["text"].lower()) for c in chunks]
+    bm25_chunks.extend(chunks)
+    bm25_index = BM25Okapi([re.findall(r"\w+", c["text"].lower()) for c in bm25_chunks])
+
+    logger.info(f"Indexed {len(chunks)} uploaded chunks from '{filename}'")
