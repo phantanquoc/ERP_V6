@@ -30,8 +30,8 @@ BACKEND_API_URL = os.environ.get("BACKEND_API_URL", "http://backend:5000")
 MAX_ITERATIONS = 5
 REQUEST_TIMEOUT = 90  # seconds — overall timeout for entire ReAct loop
 MAX_TOOL_RESULT_CHARS = 6000  # truncate tool results to fit LLM context
-MAX_HISTORY_MESSAGES = 10  # keep last 10 messages (5 turns)
-MAX_HISTORY_CHARS = 4000  # trim oldest if total history content exceeds this
+MAX_HISTORY_MESSAGES = 20  # keep last 20 messages (10 turns)
+MAX_HISTORY_CHARS = 6000  # summarize oldest if total history content exceeds this
 
 REACT_SYSTEM = """Bạn là trợ lý ERP thông minh của An Binh Foods. Bạn giúp nhân viên thực hiện thao tác và trả lời câu hỏi về hệ thống.
 
@@ -60,6 +60,30 @@ Trước MỖI hành động (gọi tool hoặc trả lời), bạn PHẢI suy n
 Ví dụ:
 <think>User hỏi "ai nghỉ nhiều nhất tháng này" → cần gọi list_leave_requests với status=approved, startDate=đầu tháng, endDate=cuối tháng, rồi đếm theo nhân viên.</think>
 
+VÍ DỤ VỀ CÁCH TRẢ LỜI:
+
+1. User: "Xem danh sách đơn hàng tháng này"
+   → Gọi list_orders(startDate="2026-06-01", endDate="2026-06-30")
+   → Hiển thị dưới dạng BẢNG MARKDOWN với đầy đủ thông tin
+
+2. User: "Tạo khách hàng mới tên ABC Company, quốc tế"
+   → Gọi create_customer(tenCongTy="ABC Company", phanLoaiDiaLy="Quốc tế", ...)
+   → Xác nhận: "Khách hàng ABC Company đã được tạo thành công!"
+
+3. User: "Bao nhiêu đơn hàng đang chờ duyệt?"
+   → Gọi list_orders(status="pending")
+   → Đếm và trả lời: "Hiện có X đơn hàng đang chờ duyệt"
+
+4. User: "Nghỉ phép hết bao nhiêu ngày phép?"
+   → Gọi get_my_profile() để lấy employeeId
+   → Gọi get_leave_balance(employeeId=...)
+   → Trả lời: "Bạn còn X ngày phép năm, Y ngày phép ốm"
+
+5. User: "Tạo yêu cầu mua hàng 100kg trái cây"
+   → Gọi list_suppliers() để tìm nhà cung cấp phù hợp
+   → Gọi create_purchase_request(...) với thông tin tìm được
+   → Xác nhận với mã yêu cầu
+
 Quy tắc:
 - Sử dụng tools để thực hiện yêu cầu. Có thể gọi nhiều tools liên tiếp nếu cần.
 - KHÔNG BAO GIỜ trả lời kiểu "đợi một chút", "để tôi kiểm tra", "tôi sẽ tra cứu" mà không gọi tool. Khi cần dữ liệu, GỌI TOOL NGAY trong cùng lượt, không trả text trước.
@@ -76,6 +100,19 @@ Quy tắc:
 - Status dùng tiếng Anh: pending/approved/rejected
 - Khi tìm nhân viên theo chức vụ/phòng ban, dùng search với từ khóa ngắn gọn
 - Khi cần employeeId cho các tool tạo mới, gọi get_my_profile trước để lấy
+
+QUAN TRỌNG - Định dạng phản hồi:
+- Danh sách (>3 records): BẢNG MARKDOWN với headers rõ ràng
+- Chi tiết 1 record: BULLET POINTS với **bold** cho labels
+- Tạo/sửa/xóa: Xác nhận ngắn gọn + mã định danh
+- Thống kê: Số + biểu tượng (✓已完成, ⏳chờ xử lý, ✗lỗi)
+- LUÔN kết thúc bằng 1-2 gợi ý câu hỏi tiếp theo liên quan
+
+QUAN TRỌNG - Xử lý lỗi:
+- Nếu tool trả lỗi 404/not found: Hỏi user kiểm tra lại thông tin, gợi ý dùng tool tìm kiếm trước
+- Nếu tool trả lỗi 400/validation: Hiển thị lỗi cụ thể, gợi ý cách sửa
+- Nếu tool trả lỗi 500/server: Nói "Hệ thống gặp sự cố, vui lòng thử lại sau"
+- KHÔNG BAO GIỜ hiển thị lỗi kỹ thuật (stack trace, SQL error) cho user
 
 QUAN TRỌNG - Quy tắc tính ngày (hôm nay: {today}, thứ {weekday}):
 - "hôm nay" → {today}
@@ -284,14 +321,18 @@ def _build_react_messages(message: str, history: list, today: str, department: s
         effective_history = []
     else:
         effective_history = list(history[-MAX_HISTORY_MESSAGES:])
-        # Trim from oldest if total content too long (save tokens)
+        # Summarize old messages if total content too long (save tokens)
         total_chars = sum(
             len(h.content if hasattr(h, 'content') else h.get('content', ''))
             for h in effective_history
         )
-        while total_chars > MAX_HISTORY_CHARS and len(effective_history) > 2:
-            removed = effective_history.pop(0)
-            total_chars -= len(removed.content if hasattr(removed, 'content') else removed.get('content', ''))
+        if total_chars > MAX_HISTORY_CHARS:
+            effective_history = _summarize_old_messages(
+                [{"role": h.role if hasattr(h, 'role') else h.get('role', ''),
+                  "content": h.content if hasattr(h, 'content') else h.get('content', '')}
+                 for h in effective_history],
+                keep_recent=10
+            )
 
     # Add conversation history, sanitize text tool calls and completed actions
     # Build pairs: skip user+assistant pairs where assistant is a completed action marker
@@ -316,6 +357,35 @@ def _build_react_messages(message: str, history: list, today: str, department: s
 
     messages.append({"role": "user", "content": message})
     return messages
+
+
+def _summarize_old_messages(messages: list, keep_recent: int = 10) -> list:
+    """Summarize old messages to save context window. Keep recent messages intact."""
+    if len(messages) <= keep_recent:
+        return messages
+
+    old_messages = messages[:-keep_recent]
+    recent_messages = messages[-keep_recent:]
+
+    # Build a summary of old conversation
+    summary_parts = []
+    for msg in old_messages:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if not content:
+            continue
+        if role == "user":
+            # Keep first 100 chars of user messages
+            summary_parts.append(f"User: {content[:100]}...")
+        elif role == "assistant":
+            # Keep first 50 chars of assistant messages
+            summary_parts.append(f"Agent: {content[:50]}...")
+
+    if summary_parts:
+        summary = "[Tóm tắt cuộc hội thoại trước]: " + " | ".join(summary_parts[-5:])
+        return [{"role": "user", "content": summary}] + recent_messages
+
+    return recent_messages
 
 
 def _coerce_params(tool: dict, params: dict) -> dict:
@@ -598,6 +668,61 @@ def _friendly_error(e: Exception) -> str:
     return "Lỗi khi xử lý yêu cầu. Vui lòng thử lại sau."
 
 
+def _format_tool_result_summary(tool_name: str, result: dict) -> str:
+    """Generate a brief summary of tool results for the LLM to use."""
+    if not result.get("success", True):
+        return f"Lỗi: {result.get('message', 'Không xác định')}"
+
+    data = result.get("data", result)
+    if isinstance(data, list):
+        count = len(data)
+        if count == 0:
+            return "Không tìm thấy kết quả nào"
+        return f"Tìm thấy {count} kết quả"
+    elif isinstance(data, dict):
+        if "total" in data:
+            return f"Tổng cộng: {data['total']} bản ghi"
+        return "Đã lấy dữ liệu thành công"
+    return "Đã xử lý xong"
+
+
+_suggestions_map = {
+    "list_orders": "\n\n💡 **Gợi ý:** Xem chi tiết đơn hàng [mã] | Tạo đơn hàng mới | Xuất Excel",
+    "list_leave_requests": "\n\n💡 **Gợi ý:** Duyệt đơn nghỉ phép | Xem lịch sử | Tạo đơn mới",
+    "list_customers": "\n\n💡 **Gợi ý:** Xem chi tiết khách hàng | Tạo khách hàng mới | Xem báo giá",
+    "list_employees": "\n\n💡 **Gợi ý:** Xem chi tiết nhân viên | Giao nhiệm vụ | Xem đánh giá",
+    "list_purchase_requests": "\n\n💡 **Gợi ý:** Duyệt yêu cầu | Tạo yêu cầu mới | Xem lịch sử",
+    "search_knowledge": "\n\n💡 **Gợi ý:** Bạn có thể hỏi thêm \"Cách thực hiện [thao tác cụ thể]\"",
+}
+
+
+def _default_suggestion(text: str) -> str:
+    """Add default suggestion if none matched."""
+    if len(text) > 100 and "💡" not in text:
+        return text + "\n\n💡 **Gợi ý:** Hỏi thêm chi tiết hoặc thực hiện thao tác liên quan"
+    return text
+
+
+def _add_suggestions(text: str, messages: list) -> str:
+    """Add contextual suggestions to the response."""
+    # Don't add suggestions if response already has them
+    if "💡" in text or "Gợi ý:" in text:
+        return text
+
+    # Extract last tool name from messages
+    last_tool = None
+    for msg in reversed(messages):
+        if isinstance(msg, dict) and msg.get("tool_calls"):
+            tc = msg["tool_calls"][0]
+            last_tool = tc.get("function", {}).get("name")
+            break
+
+    if last_tool and last_tool in _suggestions_map:
+        return text + _suggestions_map[last_tool]
+
+    return _default_suggestion(text)
+
+
 def _call_llm_with_retry(messages: list, tools: list, request_id: str):
     """Call OpenRouter LLM with retry on transient errors."""
     if not _openrouter_client:
@@ -764,7 +889,7 @@ def execute_stream(
                 messages.append({"role": "user", "content": "KHÔNG output <function> tag. Hãy sử dụng tool calling API đúng cách."})
                 continue
 
-            yield text
+            yield _add_suggestions(text, messages)
             return
 
         # Model returns tool call (may have <think> in content alongside tool_calls)

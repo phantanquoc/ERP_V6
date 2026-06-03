@@ -99,7 +99,7 @@ TOOLS: List[dict] = [
             {"name": "page", "type": "integer", "required": False},
             {"name": "limit", "type": "integer", "required": False},
             {"name": "search", "type": "string", "required": False, "description": "Tìm theo tên/mã KH"},
-            {"name": "phanLoaiDiaLy", "type": "string", "required": False, "description": "Phân loại: Quốc tế hoặc Nội địa"},
+            {"name": "phanLoaiDiaLy", "type": "string", "required": False, "description": "Phân loại: Quốc tế hoặc Nội địa", "enum": ["Quốc tế", "Nội địa"]},
         ],
         "body_params": [],
         "is_write": False,
@@ -141,7 +141,7 @@ TOOLS: List[dict] = [
         "query_params": [
             {"name": "page", "type": "integer", "required": False, "description": "Số trang"},
             {"name": "limit", "type": "integer", "required": False, "description": "Số lượng mỗi trang"},
-            {"name": "status", "type": "string", "required": False, "description": "Trạng thái đơn hàng"},
+            {"name": "status", "type": "string", "required": False, "description": "Trạng thái đơn hàng", "enum": ["pending", "approved", "rejected", "completed", "cancelled"]},
         ],
         "body_params": [],
         "is_write": False,
@@ -258,7 +258,7 @@ TOOLS: List[dict] = [
     # ─── Suppliers ──────────────────────────────────────────────────────────
     {
         "name": "list_suppliers",
-        "description": "Xem danh sách nhà cung cấp. Dùng phanLoaiNCC='NVL' cho NCC nguyên vật liệu, 'Thiết bị' cho NCC thiết bị",
+        "description": "Xem danh sách nhà cung cấp (nguyên vật liệu, thiết bị, bao bì). Dùng phanLoaiNCC='NVL' cho NCC nguyên vật liệu, 'Thiết bị' cho NCC thiết bị",
         "method": "GET",
         "path": "/api/suppliers",
         "path_params": [],
@@ -284,7 +284,7 @@ TOOLS: List[dict] = [
         "query_params": [
             {"name": "page", "type": "integer", "required": False, "description": "Số trang"},
             {"name": "limit", "type": "integer", "required": False, "description": "Số lượng mỗi trang"},
-            {"name": "status", "type": "string", "required": False, "description": "Trạng thái"},
+            {"name": "status", "type": "string", "required": False, "description": "Trạng thái: pending (chờ duyệt), approved (đã duyệt), rejected (từ chối)", "enum": ["pending", "approved", "rejected"]},
         ],
         "body_params": [],
         "is_write": False,
@@ -294,7 +294,7 @@ TOOLS: List[dict] = [
     },
     {
         "name": "create_purchase_request",
-        "description": "Tạo yêu cầu mua hàng mới",
+        "description": "Tạo yêu cầu mua hàng mới. Cần gọi get_my_profile() trước để lấy employeeId, maNhanVien, tenNhanVien. Items cần ít nhất 1 sản phẩm với thông tin: phanLoai, tenHangHoa, soLuong, donViTinh, giaDuKien.",
         "method": "POST",
         "path": "/api/purchase-requests",
         "path_params": [],
@@ -340,7 +340,7 @@ TOOLS: List[dict] = [
         "query_params": [
             {"name": "page", "type": "integer", "required": False, "description": "Số trang"},
             {"name": "limit", "type": "integer", "required": False, "description": "Số lượng mỗi trang"},
-            {"name": "status", "type": "string", "required": False, "description": "Trạng thái"},
+            {"name": "status", "type": "string", "required": False, "description": "Trạng thái: pending (chờ xử lý), approved (đã duyệt), rejected (từ chối)", "enum": ["pending", "approved", "rejected"]},
         ],
         "body_params": [],
         "is_write": False,
@@ -350,7 +350,7 @@ TOOLS: List[dict] = [
     },
     {
         "name": "list_products",
-        "description": "Xem danh sách sản phẩm. Dùng khi cần tìm productId cho báo giá.",
+        "description": "Xem danh sách sản phẩm (trái cây sấy, rau củ sấy, v.v.). Dùng khi cần tìm productId cho báo giá hoặc kiểm tra tồn kho.",
         "method": "GET",
         "path": "/api/international-products",
         "path_params": [],
@@ -367,7 +367,7 @@ TOOLS: List[dict] = [
     },
     {
         "name": "create_quotation_request",
-        "description": "Tạo yêu cầu báo giá mới cho khách hàng",
+        "description": "Tạo yêu cầu báo giá mới cho khách hàng. LUÔN gọi list_customers trước để lấy customerId, list_products trước để lấy productId. Cần điền đầy đủ thông tin sản phẩm (productId, số lượng, đơn vị tính).",
         "method": "POST",
         "path": "/api/quotation-requests",
         "path_params": [],
@@ -855,7 +855,7 @@ TOOLS: List[dict] = [
             {"name": "page", "type": "integer", "required": False, "description": "Trang"},
             {"name": "limit", "type": "integer", "required": False, "description": "Số lượng/trang"},
             {"name": "search", "type": "string", "required": False, "description": "Tìm theo mã hoặc tên nhân viên"},
-            {"name": "status", "type": "string", "required": False, "description": "Trạng thái: pending/approved/rejected"},
+            {"name": "status", "type": "string", "required": False, "description": "Trạng thái: pending (chờ xử lý), approved (đã duyệt), rejected (từ chối)", "enum": ["pending", "approved", "rejected"]},
         ],
         "body_params": [],
         "is_write": False,
