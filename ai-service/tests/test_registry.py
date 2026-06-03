@@ -24,7 +24,7 @@ RESTRICTED_TOOLS = {
 class TestGetToolsForRole:
     def test_admin_nhan_tat_ca_tools(self):
         tools = get_tools_for_role("ADMIN")
-        assert len(tools) == len(TOOLS) == 66
+        assert len(tools) == len(TOOLS) == 68
 
     def test_admin_case_insensitive(self):
         tools_upper = get_tools_for_role("ADMIN")

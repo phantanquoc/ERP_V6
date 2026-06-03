@@ -1126,6 +1126,40 @@ TOOLS: List[dict] = [
         "required_roles": [],
         "category": "feedback",
     },
+    # ─── Documents ─────────────────────────────────────────────────────────────
+    {
+        "name": "search_uploaded_documents",
+        "description": "Tìm kiếm trong các tài liệu đã upload (PDF, DOCX, Excel). Dùng khi user hỏi về nội dung tài liệu đã upload.",
+        "method": "GET",
+        "path": "/api/docs/search",
+        "path_params": [],
+        "query_params": [
+            {"name": "q", "type": "string", "required": True, "description": "Truy vấn tìm kiếm"},
+            {"name": "limit", "type": "integer", "required": False, "description": "Số kết quả (mặc định 5)"},
+        ],
+        "body_params": [],
+        "is_write": False,
+        "is_export": False,
+        "required_roles": [],
+        "category": "document",
+    },
+    {
+        "name": "process_file_action",
+        "description": "Xử lý file upload và tạo/cập nhật records trong hệ thống. Dùng khi user muốn tạo dữ liệu từ file đã upload.",
+        "method": "POST",
+        "path": "/api/agent/docs/process",
+        "path_params": [],
+        "query_params": [],
+        "body_params": [
+            {"name": "file_id", "type": "string", "required": True, "description": "ID file đã upload"},
+            {"name": "action", "type": "string", "required": True, "description": "Hành động: create_process, create_customer, create_supplier, create_product, create_purchase_request, create_task"},
+            {"name": "params", "type": "object", "required": False, "description": " tham số bổ sung"},
+        ],
+        "is_write": True,
+        "is_export": False,
+        "required_roles": [],
+        "category": "document",
+    },
     # ─── Knowledge Base (RAG) ──────────────────────────────────────────────
     {
         "name": "search_knowledge",
@@ -1162,6 +1196,7 @@ DEPARTMENT_CATEGORY_ACCESS: dict[str, list[str]] = {
 _COMMON_CATEGORIES: set[str] = {
     "attendance", "leave", "task", "employee", "notification",
     "knowledge", "report", "planning", "hr", "supply", "payroll",
+    "document",
 }
 
 

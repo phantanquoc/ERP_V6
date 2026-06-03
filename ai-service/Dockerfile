@@ -28,6 +28,7 @@ COPY main.py .
 COPY face/ ./face/
 COPY chat/ ./chat/
 COPY agent/ ./agent/
+COPY docs/ ./docs/
 
 EXPOSE 8001
 
