@@ -1,15 +1,19 @@
 import { Request, Response, NextFunction } from 'express';
 import purchaseRequestService from '@services/purchaseRequestService';
 import { getFileUrl } from '@middlewares/upload';
+import type { AuthenticatedRequest } from '@types';
 
 class PurchaseRequestController {
-  async getAllPurchaseRequests(req: Request, res: Response, next: NextFunction) {
+  async getAllPurchaseRequests(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
 
-      const result = await purchaseRequestService.getAllPurchaseRequests(page, limit, search);
+      const isAdmin = req.user?.role === 'ADMIN';
+      const departmentId = isAdmin ? undefined : (req.user?.departmentId ?? undefined);
+
+      const result = await purchaseRequestService.getAllPurchaseRequests(page, limit, search, departmentId);
 
       return res.json({
         success: true,
