@@ -2180,6 +2180,7 @@ model MachineSystem {
   maNguoiThucHien   String?
   nguoiThucHien     String?
   fileDinhKem       String?
+  hoatDong          Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -2320,4 +2321,104 @@ model AttendanceDevice {
 
   @@map("attendance_devices")
   @@schema("common")
+}
+
+// ==================== FAULT RECORD (Danh sách lỗi) ====================
+model FaultRecord {
+  id             String   @id @default(cuid())
+  maLoi          String   @unique   // VD: LI-2026-001
+  tenLoi         String
+  moTa           String   @db.Text
+  maHeThong      String?            // soft ref tới MachineSystem.maHeThong
+  mucDo          String             // Nghiêm trọng / Trung bình / Nhẹ
+  trangThai      String   @default("Đang theo dõi") // Đang theo dõi / Đã xử lý / Tái phát
+  nguoiPhatHien  String
+  ngayPhatHien   DateTime @default(now())
+  fileDinhKem    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([maLoi])
+  @@index([trangThai])
+  @@map("fault_records")
+  @@schema("business")
+}
+
+// ==================== SPARE PART (Danh sách linh kiện) ====================
+model SparePart {
+  id            String   @id @default(cuid())
+  maLinhKien    String   @unique  // VD: LK-CK-2026-001
+  tenLinhKien   String
+  loai          String            // CK=Cơ khí, DT=Điện tử, D=Điện, TH=Tổng hợp
+  donVi         String            // Cái / Bộ / Mét / Kg
+  soLuongTon    Int      @default(0)
+  giaNhap       Float?
+  nhaCungCap    String?
+  trangThai     String   @default("Chưa sử dụng") // Đang sử dụng / Chưa sử dụng / Hết hàng
+  ngayMua       DateTime?
+  fileDinhKem   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([maLinhKien])
+  @@index([loai])
+  @@index([trangThai])
+  @@map("spare_parts")
+  @@schema("business")
+}
+
+// ==================== PROJECT (Danh sách dự án) ====================
+model Project {
+  id           String          @id @default(cuid())
+  maDuAn       String          @unique  // VD: DA-2026-001
+  tenDuAn      String
+  moTa         String?         @db.Text
+  ngayBatDau   DateTime
+  ngayKetThuc  DateTime?
+  trangThai    String          @default("Lên kế hoạch") // Lên kế hoạch / Đang thực hiện / Hoàn thành / Tạm dừng
+  nguoiTaoId   String          // userId người tạo
+  fileDinhKem  String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  members      ProjectMember[]
+  tasks        ProjectTask[]
+
+  @@index([nguoiTaoId])
+  @@index([trangThai])
+  @@map("projects")
+  @@schema("business")
+}
+
+model ProjectMember {
+  id          String   @id @default(cuid())
+  projectId   String
+  userId      String
+  vaiTro      String   @default("Thành viên") // Quản lý / Thành viên / Cố vấn
+  ngayThamGia DateTime @default(now())
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+  @@schema("business")
+}
+
+model ProjectTask {
+  id              String   @id @default(cuid())
+  projectId       String
+  tieuDe          String
+  moTa            String?  @db.Text
+  nguoiPhuTrach   String?
+  deadline        DateTime?
+  trangThai       String   @default("Chưa bắt đầu") // Chưa bắt đầu / Đang làm / Hoàn thành / Trễ
+  thuTu           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_tasks")
+  @@schema("business")
 }
