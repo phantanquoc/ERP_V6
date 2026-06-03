@@ -142,7 +142,7 @@ class AttendanceService {
   }
 
   async createAttendance(data: {
-    employeeCode: string;
+    employeeId: string;
     attendanceDate: string;
     checkInTime?: string;
     checkOutTime?: string;
@@ -154,7 +154,7 @@ class AttendanceService {
       const attendanceDate = new Date(data.attendanceDate + 'T00:00:00');
 
       const response = await apiClient.post('/attendances', {
-        employeeId: data.employeeCode, // Will be resolved by backend
+        employeeId: data.employeeId,
         attendanceDate: attendanceDate.toISOString(),
         checkInTime: data.checkInTime ? new Date(data.checkInTime).toISOString() : undefined,
         checkOutTime: data.checkOutTime ? new Date(data.checkOutTime).toISOString() : undefined,
@@ -209,4 +209,3 @@ class AttendanceService {
 }
 
 export default new AttendanceService();
-
