@@ -64,6 +64,8 @@ const AttendanceManagement: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editEntries, setEditEntries] = useState<EditEntry[]>([]);
   const [selectedEmployeeName, setSelectedEmployeeName] = useState('');
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState(false);
   const [formData, setFormData] = useState({
     employeeCode: '',
     attendanceDate: new Date().toISOString().split('T')[0],
@@ -76,6 +78,18 @@ const AttendanceManagement: React.FC = () => {
   // Use React Query for employees — only fetch if the user's role permits it
   const { data: employeesData } = useEmployees(1, 1000, canViewEmployees);
   const employees = employeesData?.data || [];
+  const employeeSearchKeyword = employeeSearch.trim().toLowerCase();
+  const filteredEmployees = employees
+    .filter((employee) => {
+      if (!employeeSearchKeyword) {
+        return true;
+      }
+
+      const fullName = `${employee.user.firstName} ${employee.user.lastName}`.trim().toLowerCase();
+      return fullName.includes(employeeSearchKeyword)
+        || employee.employeeCode.toLowerCase().includes(employeeSearchKeyword);
+    })
+    .slice(0, 8);
 
   // Use React Query for attendance data
   const queryClient = useQueryClient();
@@ -85,6 +99,8 @@ const AttendanceManagement: React.FC = () => {
     setEditingId(null);
     setEditEntries([]);
     setSelectedEmployeeName('');
+    setEmployeeSearch('');
+    setIsEmployeeDropdownOpen(false);
     setFormData({
       employeeCode: '',
       attendanceDate: new Date().toISOString().split('T')[0],
@@ -96,28 +112,29 @@ const AttendanceManagement: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleEmployeeCodeChange = (code: string) => {
-    setFormData({ ...formData, employeeCode: code });
+  const getEmployeeFullName = (employee: typeof employees[number]) =>
+    `${employee.user.firstName} ${employee.user.lastName}`.trim();
 
-    console.log('Searching for employee code:', code);
-    console.log('Available employees:', employees.length);
+  const handleEmployeeSearchChange = (value: string) => {
+    setEmployeeSearch(value);
+    setIsEmployeeDropdownOpen(true);
+    setSelectedEmployeeName('');
+    setFormData({ ...formData, employeeCode: '' });
+  };
 
-    // Find employee by code
-    const employee = employees.find(emp => emp.employeeCode === code);
-    console.log('Found employee:', employee);
-
-    if (employee) {
-      const fullName = `${employee.user.firstName} ${employee.user.lastName}`;
-      console.log('Employee name:', fullName);
-      setSelectedEmployeeName(fullName);
-    } else {
-      setSelectedEmployeeName('');
-    }
+  const handleEmployeeSelect = (employee: typeof employees[number]) => {
+    const fullName = getEmployeeFullName(employee);
+    setEmployeeSearch(fullName);
+    setSelectedEmployeeName(fullName);
+    setFormData({ ...formData, employeeCode: employee.employeeCode });
+    setIsEmployeeDropdownOpen(false);
   };
 
   const handleEdit = (record: AttendanceRecord) => {
     setEditingId(record.id);
     setSelectedEmployeeName(record.employeeName);
+    setEmployeeSearch(record.employeeName);
+    setIsEmployeeDropdownOpen(false);
 
     // Convert UTC time to local time for editing
     const getLocalTimeString = (dateTimeString: string | null | undefined) => {
@@ -181,8 +198,15 @@ const AttendanceManagement: React.FC = () => {
         }
         alert('Cập nhật điểm danh thành công');
       } else {
+        const selectedEmployee = employees.find(emp => emp.employeeCode === formData.employeeCode);
+
+        if (!selectedEmployee) {
+          alert('Vui lòng chọn nhân viên hợp lệ từ danh sách');
+          return;
+        }
+
         const createData = {
-          employeeCode: formData.employeeCode,
+          employeeId: selectedEmployee.id,
           attendanceDate: formData.attendanceDate,
           checkInTime: formData.checkInTime ? `${formData.attendanceDate}T${formData.checkInTime}:00` : undefined,
           checkOutTime: formData.checkOutTime ? `${formData.attendanceDate}T${formData.checkOutTime}:00` : undefined,
@@ -476,24 +500,7 @@ const AttendanceManagement: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mã nhân viên</label>
-                <input
-                  type="text"
-                  value={formData.employeeCode}
-                  onChange={(e) => handleEmployeeCodeChange(e.target.value)}
-                  placeholder="Nhập mã nhân viên"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={!!editingId}
-                />
-                {formData.employeeCode && !selectedEmployeeName && !editingId && (
-                  <p className="mt-1 text-sm text-red-600">
-                    ✗ Không tìm thấy nhân viên
-                  </p>
-                )}
-              </div>
-
-              {selectedEmployeeName && (
+              {editingId ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên</label>
                   <input
@@ -502,6 +509,52 @@ const AttendanceManagement: React.FC = () => {
                     disabled
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-medium"
                   />
+                </div>
+              ) : (
+                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nhân viên</label>
+                  <input
+                    type="text"
+                    value={employeeSearch}
+                    onChange={(e) => handleEmployeeSearchChange(e.target.value)}
+                    onFocus={() => setIsEmployeeDropdownOpen(true)}
+                    onBlur={() => {
+                      window.setTimeout(() => setIsEmployeeDropdownOpen(false), 150);
+                    }}
+                    placeholder="Nhập tên hoặc mã nhân viên"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {isEmployeeDropdownOpen && (
+                    <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                      {filteredEmployees.length > 0 ? (
+                        filteredEmployees.map((employee) => {
+                          const fullName = getEmployeeFullName(employee);
+
+                          return (
+                            <button
+                              key={employee.id}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleEmployeeSelect(employee)}
+                              className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-blue-50"
+                            >
+                              <span className="font-medium text-gray-900">{fullName}</span>
+                              <span className="text-sm text-gray-500">{employee.employeeCode}</span>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-gray-500">
+                          Không tìm thấy nhân viên phù hợp
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {employeeSearch && !formData.employeeCode && (
+                    <p className="mt-1 text-sm text-red-600">
+                      ✗ Vui lòng chọn nhân viên từ danh sách gợi ý
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -673,4 +726,3 @@ const AttendanceManagement: React.FC = () => {
 };
 
 export default AttendanceManagement;
-

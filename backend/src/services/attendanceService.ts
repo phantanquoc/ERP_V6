@@ -295,8 +295,25 @@ export class AttendanceService {
     status: AttendanceStatus;
     notes?: string;
   }): Promise<any> {
+    const employee = await prisma.employee.findUnique({
+      where: { id: data.employeeId },
+      select: { id: true },
+    });
+
+    if (!employee) {
+      throw new NotFoundError('Không tìm thấy nhân viên');
+    }
+
+    const workHours = data.workHours
+      ?? (data.checkInTime && data.checkOutTime
+        ? this.calculateWorkHours(data.checkInTime, data.checkOutTime)
+        : 0);
+
     const attendance = await prisma.attendance.create({
-      data,
+      data: {
+        ...data,
+        workHours,
+      },
       include: {
         employee: {
           include: {
@@ -472,4 +489,3 @@ export class AttendanceService {
 }
 
 export default new AttendanceService();
-
