@@ -64,7 +64,7 @@ router.get('/export/excel', invoiceController.exportToExcel);
 /**
  * @swagger
  * /api/invoices/generate-code:
- *   post:
+ *   get:
  *     tags: [Invoices]
  *     summary: Tạo số hóa đơn
  *     security:
@@ -75,7 +75,7 @@ router.get('/export/excel', invoiceController.exportToExcel);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/generate-code', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), invoiceController.generateInvoiceNumber);
+router.get('/generate-code', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), invoiceController.generateInvoiceNumber);
 
 /**
  * @swagger

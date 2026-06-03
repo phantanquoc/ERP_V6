@@ -97,12 +97,17 @@ export class InvoiceService {
       data.ngayThanhToan = new Date(data.ngayThanhToan);
     }
 
-    // Calculate thanhTien
+    // Calculate thanhTien (auto-calculate, but allow manual override if thanhTien is explicitly provided)
     const tongTien = parseFloat(data.tongTien) || 0;
     const thue = parseFloat(data.thue) || 0;
     data.tongTien = tongTien;
     data.thue = thue;
-    data.thanhTien = tongTien + (tongTien * thue / 100);
+    // Only auto-calculate if thanhTien was not explicitly provided by the caller
+    if (data.thanhTien === undefined || data.thanhTien === null || data.thanhTien === '') {
+      data.thanhTien = tongTien + (tongTien * thue / 100);
+    } else {
+      data.thanhTien = parseFloat(data.thanhTien) || 0;
+    }
 
     const invoice = await prisma.invoice.create({ data });
 
@@ -127,13 +132,18 @@ export class InvoiceService {
       data.ngayThanhToan = new Date(data.ngayThanhToan);
     }
 
-    // Recalculate thanhTien if tongTien or thue changed
+    // Recalculate thanhTien if tongTien or thue changed, but allow manual override
     if (data.tongTien !== undefined || data.thue !== undefined) {
       const tongTien = parseFloat(data.tongTien) || 0;
       const thue = parseFloat(data.thue) || 0;
       data.tongTien = tongTien;
       data.thue = thue;
-      data.thanhTien = tongTien + (tongTien * thue / 100);
+      // Only auto-calculate if thanhTien was not explicitly provided
+      if (data.thanhTien === undefined || data.thanhTien === null || data.thanhTien === '') {
+        data.thanhTien = tongTien + (tongTien * thue / 100);
+      } else {
+        data.thanhTien = parseFloat(data.thanhTien) || 0;
+      }
     }
 
     const invoice = await prisma.invoice.update({ where: { id }, data });

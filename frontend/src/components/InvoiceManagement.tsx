@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Edit, Eye, Trash2, Plus, X, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Edit, Eye, Trash2, Plus, X, Download, AlertCircle, CheckCircle, Upload, FileText } from 'lucide-react';
 import invoiceService, { Invoice } from '../services/invoiceService';
+import { supplierService, Supplier } from '../services/supplierService';
 import TableFilter, { FilterField } from './TableFilter';
 import DatePicker from './DatePicker';
 import { useAuth } from '../contexts/AuthContext';
 import internationalCustomerService from '../services/internationalCustomerService';
 import { parseNumberInputStr } from '../utils/numberInput';
+import { SERVER_BASE_URL } from '../config/api';
 
 interface Customer {
   id: string;
@@ -15,11 +17,26 @@ interface Customer {
   tinhThanh?: string; // Khách hàng nội địa
 }
 
+const getFileName = (url: string) => {
+  const parts = url.split('/');
+  const filename = parts[parts.length - 1];
+  return decodeURIComponent(filename.replace(/-\d+-\d+(?=\.)/, ''));
+};
+
+const getFullFileUrl = (url: string) => {
+  if (url.startsWith('http')) return url;
+  return `${SERVER_BASE_URL}${url}`;
+};
+
 const InvoiceManagement: React.FC = () => {
   const { user } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [invoiceFiles, setInvoiceFiles] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', loaiHoaDon: '', trangThai: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const [exportLoading, setExportLoading] = useState(false);
@@ -48,6 +65,9 @@ const InvoiceManagement: React.FC = () => {
     ngayThanhToan: '',
     nhanVienLap: '',
     ghiChu: '',
+    boPhanSuDung: '',
+    mucDichSuDung: '',
+    nhaCungCap: '',
   });
 
   const filterFields: FilterField[] = [
@@ -103,6 +123,15 @@ const InvoiceManagement: React.FC = () => {
     }
   };
 
+  const fetchSuppliers = async () => {
+    try {
+      const res = await supplierService.getAllSuppliers(1, 1000);
+      setSuppliers(res.data || []);
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+    }
+  };
+
   // Generate next invoice number
   const generateInvoiceNumber = async (): Promise<string> => {
     try {
@@ -124,6 +153,7 @@ const InvoiceManagement: React.FC = () => {
   useEffect(() => {
     fetchInvoices();
     fetchCustomers();
+    fetchSuppliers();
   }, []);
 
   const formatCurrency = (value: number) => {
@@ -133,6 +163,33 @@ const InvoiceManagement: React.FC = () => {
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('vi-VN');
+  };
+
+  // Auto-calculate thanhTien from tongTien and thue
+  const calcThanhTien = (tongTien: string, thue: string): string => {
+    const t = parseFloat(tongTien) || 0;
+    const v = parseFloat(thue) || 0;
+    return String(t + (t * v / 100));
+  };
+
+  const handleFilesUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+    setUploadingFiles(true);
+    try {
+      const response = await invoiceService.uploadFiles(files);
+      if (response.success) {
+        setInvoiceFiles(prev => [...prev, ...response.data.map(f => f.fileUrl)]);
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      alert('Lỗi khi tải files lên');
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setInvoiceFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const resetFormData = () => {
@@ -150,7 +207,11 @@ const InvoiceManagement: React.FC = () => {
       ngayThanhToan: '',
       nhanVienLap: '',
       ghiChu: '',
+      boPhanSuDung: '',
+      mucDichSuDung: '',
+      nhaCungCap: '',
     });
+    setInvoiceFiles([]);
   };
 
   const handleAddClick = async () => {
@@ -172,7 +233,37 @@ const InvoiceManagement: React.FC = () => {
       ngayThanhToan: '',
       nhanVienLap: employeeName,
       ghiChu: '',
+      boPhanSuDung: '',
+      mucDichSuDung: '',
+      nhaCungCap: '',
     });
+    setInvoiceFiles([]);
+    setIsAddModalOpen(true);
+  };
+
+  const handleMuaNhanhClick = async () => {
+    const autoInvoiceNumber = await generateInvoiceNumber();
+    const employeeName = user ? `${user.firstName} ${user.lastName}` : '';
+
+    setFormData({
+      soHoaDon: autoInvoiceNumber,
+      ngayLap: new Date().toISOString().split('T')[0],
+      khachHang: '',
+      maSoThue: '',
+      tongTien: '',
+      thue: '',
+      thanhTien: '',
+      trangThai: 'Chưa thanh toán',
+      loaiHoaDon: 'Mua hàng',
+      phuongThucThanhToan: '',
+      ngayThanhToan: '',
+      nhanVienLap: employeeName,
+      ghiChu: '',
+      boPhanSuDung: user?.department || '',
+      mucDichSuDung: '',
+      nhaCungCap: '',
+    });
+    setInvoiceFiles([]);
     setIsAddModalOpen(true);
   };
 
@@ -192,7 +283,11 @@ const InvoiceManagement: React.FC = () => {
       ngayThanhToan: invoice.ngayThanhToan || '',
       nhanVienLap: invoice.nhanVienLap || '',
       ghiChu: invoice.ghiChu || '',
+      boPhanSuDung: invoice.boPhanSuDung || '',
+      mucDichSuDung: invoice.mucDichSuDung || '',
+      nhaCungCap: invoice.nhaCungCap || '',
     });
+    setInvoiceFiles(invoice.files || []);
     setIsEditModalOpen(true);
   };
 
@@ -223,6 +318,7 @@ const InvoiceManagement: React.FC = () => {
         thue: Number(formData.thue) || 0,
         thanhTien: Number(formData.thanhTien) || 0,
         ngayThanhToan: formData.ngayThanhToan || null,
+        files: invoiceFiles,
       });
       alert('Thêm hóa đơn thành công!');
       setIsAddModalOpen(false);
@@ -246,6 +342,7 @@ const InvoiceManagement: React.FC = () => {
         thue: Number(formData.thue) || 0,
         thanhTien: Number(formData.thanhTien) || 0,
         ngayThanhToan: formData.ngayThanhToan || null,
+        files: invoiceFiles,
       });
       alert('Cập nhật hóa đơn thành công!');
       setIsEditModalOpen(false);
@@ -299,6 +396,13 @@ const InvoiceManagement: React.FC = () => {
           >
             <Download size={18} />
             {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
+          </button>
+          <button
+            onClick={handleMuaNhanhClick}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Hóa đơn mua nhanh
           </button>
           <button
             onClick={handleAddClick}
@@ -454,9 +558,8 @@ const InvoiceManagement: React.FC = () => {
                   <DatePicker label="Ngày lập" value={formData.ngayLap} onChange={(date) => setFormData({ ...formData, ngayLap: date })} required placeholder="Chọn ngày lập" allowClear />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Khách hàng <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
                   <select
-                    required
                     value={formData.khachHang}
                     onChange={(e) => {
                       const selectedCustomer = customers.find(c => c.tenCongTy === e.target.value);
@@ -477,6 +580,19 @@ const InvoiceManagement: React.FC = () => {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nhà cung cấp</label>
+                  <select
+                    value={formData.nhaCungCap}
+                    onChange={(e) => setFormData({ ...formData, nhaCungCap: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">-- Chọn nhà cung cấp --</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.tenNhaCungCap}>{s.tenNhaCungCap}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mã số thuế</label>
                   <input type="text" readOnly value={formData.maSoThue} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600" />
                   <p className="text-xs text-gray-500 mt-1">Tự động điền theo khách hàng</p>
@@ -491,16 +607,31 @@ const InvoiceManagement: React.FC = () => {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận sử dụng</label>
+                  <input type="text" value={formData.boPhanSuDung} onChange={(e) => setFormData({ ...formData, boPhanSuDung: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: Phòng sản xuất, Phòng kinh doanh..." />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mục đích sử dụng</label>
+                  <input type="text" value={formData.mucDichSuDung} onChange={(e) => setFormData({ ...formData, mucDichSuDung: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: Mua nguyên liệu sản xuất tháng 6..." />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tổng tiền</label>
-                  <input type="number" value={formData.tongTien} onChange={(e) => setFormData({ ...formData, tongTien: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <input type="number" value={formData.tongTien} onChange={(e) => {
+                    const tongTien = parseNumberInputStr(e.target.value);
+                    setFormData(prev => ({ ...prev, tongTien, thanhTien: calcThanhTien(tongTien, prev.thue) }));
+                  }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thuế VAT (%)</label>
-                  <input type="number" value={formData.thue} onChange={(e) => setFormData({ ...formData, thue: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <input type="number" value={formData.thue} onChange={(e) => {
+                    const thue = parseNumberInputStr(e.target.value);
+                    setFormData(prev => ({ ...prev, thue, thanhTien: calcThanhTien(prev.tongTien, thue) }));
+                  }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
                   <input type="number" value={formData.thanhTien} onChange={(e) => setFormData({ ...formData, thanhTien: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <p className="text-xs text-gray-500 mt-1">Tự động tính từ tổng tiền + thuế, có thể sửa thủ công</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
@@ -530,7 +661,46 @@ const InvoiceManagement: React.FC = () => {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                  <textarea value={formData.ghiChu} onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <textarea value={formData.ghiChu} onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: tên từng loại sản phẩm - giá tiền từng món - thuế (tùy sản phẩm có hay không) - các chi phí liên quan (vận chuyển,...)" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tài liệu đính kèm</label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          handleFilesUpload(Array.from(e.target.files));
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingFiles}
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm disabled:opacity-50"
+                    >
+                      <Upload className="w-4 h-4" />
+                      {uploadingFiles ? 'Đang tải...' : 'Chọn file'}
+                    </button>
+                    {invoiceFiles.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {invoiceFiles.map((fileUrl, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded px-3 py-2">
+                            <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                            <a href={getFullFileUrl(fileUrl)} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate flex-1">{getFileName(fileUrl)}</a>
+                            <button type="button" onClick={() => handleRemoveFile(idx)} className="text-red-400 hover:text-red-600 flex-shrink-0">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
@@ -563,9 +733,8 @@ const InvoiceManagement: React.FC = () => {
                   <DatePicker label="Ngày lập" value={formData.ngayLap} onChange={(date) => setFormData({ ...formData, ngayLap: date })} required placeholder="Chọn ngày lập" allowClear />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Khách hàng <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
                   <select
-                    required
                     value={formData.khachHang}
                     onChange={(e) => {
                       const selectedCustomer = customers.find(c => c.tenCongTy === e.target.value);
@@ -586,6 +755,19 @@ const InvoiceManagement: React.FC = () => {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nhà cung cấp</label>
+                  <select
+                    value={formData.nhaCungCap}
+                    onChange={(e) => setFormData({ ...formData, nhaCungCap: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">-- Chọn nhà cung cấp --</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.tenNhaCungCap}>{s.tenNhaCungCap}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mã số thuế</label>
                   <input type="text" readOnly value={formData.maSoThue} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600" />
                 </div>
@@ -599,16 +781,31 @@ const InvoiceManagement: React.FC = () => {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận sử dụng</label>
+                  <input type="text" value={formData.boPhanSuDung} onChange={(e) => setFormData({ ...formData, boPhanSuDung: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: Phòng sản xuất, Phòng kinh doanh..." />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mục đích sử dụng</label>
+                  <input type="text" value={formData.mucDichSuDung} onChange={(e) => setFormData({ ...formData, mucDichSuDung: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: Mua nguyên liệu sản xuất tháng 6..." />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tổng tiền</label>
-                  <input type="number" value={formData.tongTien} onChange={(e) => setFormData({ ...formData, tongTien: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <input type="number" value={formData.tongTien} onChange={(e) => {
+                    const tongTien = parseNumberInputStr(e.target.value);
+                    setFormData(prev => ({ ...prev, tongTien, thanhTien: calcThanhTien(tongTien, prev.thue) }));
+                  }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thuế VAT (%)</label>
-                  <input type="number" value={formData.thue} onChange={(e) => setFormData({ ...formData, thue: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <input type="number" value={formData.thue} onChange={(e) => {
+                    const thue = parseNumberInputStr(e.target.value);
+                    setFormData(prev => ({ ...prev, thue, thanhTien: calcThanhTien(prev.tongTien, thue) }));
+                  }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thành tiền</label>
                   <input type="number" value={formData.thanhTien} onChange={(e) => setFormData({ ...formData, thanhTien: parseNumberInputStr(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <p className="text-xs text-gray-500 mt-1">Tự động tính từ tổng tiền + thuế, có thể sửa thủ công</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
@@ -637,7 +834,46 @@ const InvoiceManagement: React.FC = () => {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                  <textarea value={formData.ghiChu} onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  <textarea value={formData.ghiChu} onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: tên từng loại sản phẩm - giá tiền từng món - thuế (tùy sản phẩm có hay không) - các chi phí liên quan (vận chuyển,...)" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tài liệu đính kèm</label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          handleFilesUpload(Array.from(e.target.files));
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingFiles}
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm disabled:opacity-50"
+                    >
+                      <Upload className="w-4 h-4" />
+                      {uploadingFiles ? 'Đang tải...' : 'Chọn file'}
+                    </button>
+                    {invoiceFiles.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {invoiceFiles.map((fileUrl, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded px-3 py-2">
+                            <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                            <a href={getFullFileUrl(fileUrl)} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate flex-1">{getFileName(fileUrl)}</a>
+                            <button type="button" onClick={() => handleRemoveFile(idx)} className="text-red-400 hover:text-red-600 flex-shrink-0">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
@@ -717,6 +953,37 @@ const InvoiceManagement: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-500 mb-1">Ghi chú</label>
                   <p className="text-gray-900">{selectedInvoice.ghiChu || '-'}</p>
                 </div>
+                {selectedInvoice.boPhanSuDung && (
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-500 mb-1">Bộ phận sử dụng</label>
+                    <p className="text-gray-900">{selectedInvoice.boPhanSuDung}</p>
+                  </div>
+                )}
+                {selectedInvoice.mucDichSuDung && (
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-500 mb-1">Mục đích sử dụng</label>
+                    <p className="text-gray-900">{selectedInvoice.mucDichSuDung}</p>
+                  </div>
+                )}
+                {selectedInvoice.nhaCungCap && (
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-500 mb-1">Nhà cung cấp</label>
+                    <p className="text-gray-900">{selectedInvoice.nhaCungCap}</p>
+                  </div>
+                )}
+                {selectedInvoice.files && selectedInvoice.files.length > 0 && (
+                  <div className="bg-gray-50 p-3 rounded-lg md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-500 mb-2">Tài liệu đính kèm</label>
+                    <div className="space-y-2">
+                      {selectedInvoice.files.map((fileUrl, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                          <a href={getFullFileUrl(fileUrl)} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate">{getFileName(fileUrl)}</a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button onClick={() => setIsViewModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Đóng</button>

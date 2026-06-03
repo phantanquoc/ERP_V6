@@ -1444,6 +1444,10 @@ model Invoice {
   ghiChu                String?
 
   createdAt             DateTime  @default(now())
+  boPhanSuDung          String?   // Bộ phận sử dụng
+  mucDichSuDung         String?   // Mục đích sử dụng dành cho hạng mục nào
+  nhaCungCap            String?   // Nhà cung cấp (for loaiHoaDon = 'Mua hàng')
+  files                 String[]  @default([])
   updatedAt             DateTime  @updatedAt
 
   @@map("invoices")
