@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Eye, Trash2, X, Download } from 'lucide-react';
+import { Plus, Edit, Eye, Trash2, X, Download, Activity } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
 import { parseNumberInput } from '../utils/numberInput';
@@ -265,7 +265,15 @@ const MachineActivityReport = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {reports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((report, index) => (
+            {reports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).length === 0 ? (
+              <tr>
+                <td colSpan={10} className="px-4 py-12 text-center">
+                  <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg">Chưa có báo cáo hoạt động</p>
+                </td>
+              </tr>
+            ) : (
+            reports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((report, index) => (
               <tr key={report.id} className="hover:bg-gray-50">
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{report.viTri}</td>
@@ -308,7 +316,8 @@ const MachineActivityReport = () => {
                   </div>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </div>

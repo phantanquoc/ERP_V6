@@ -27,6 +27,7 @@ interface MachineSystem {
   maNguoiThucHien: string;
   nguoiThucHien: string;
   fileDinhKem?: string;
+  hoatDong: boolean;
   createdAt: string;
 }
 
@@ -63,6 +64,7 @@ const MachineSystemList = () => {
     nhiemVu: '',
     maNguoiThucHien: '',
     nguoiThucHien: '',
+    hoatDong: true,
   });
 
   useEffect(() => {
@@ -114,7 +116,7 @@ const MachineSystemList = () => {
     e.preventDefault();
     const formDataToSend = new FormData();
     Object.entries(formData).forEach(([key, value]) => {
-      formDataToSend.append(key, value);
+      formDataToSend.append(key, String(value));
     });
     if (selectedFile) {
       formDataToSend.append('file', selectedFile);
@@ -161,6 +163,7 @@ const MachineSystemList = () => {
       nhiemVu: system.nhiemVu,
       maNguoiThucHien: system.maNguoiThucHien,
       nguoiThucHien: system.nguoiThucHien,
+      hoatDong: system.hoatDong ?? true,
     });
     setIsViewMode(false);
     setIsModalOpen(true);
@@ -179,6 +182,7 @@ const MachineSystemList = () => {
       nhiemVu: system.nhiemVu,
       maNguoiThucHien: system.maNguoiThucHien,
       nguoiThucHien: system.nguoiThucHien,
+      hoatDong: system.hoatDong ?? true,
     });
     setIsViewMode(true);
     setIsModalOpen(true);
@@ -192,6 +196,7 @@ const MachineSystemList = () => {
     setFormData({
       khuVuc: '', viTri: '', maHeThong: '', tenHeThong: '', chucNang: '',
       maThietBi: '', tenThietBi: '', nhiemVu: '', maNguoiThucHien: '', nguoiThucHien: '',
+      hoatDong: true,
     });
   };
 
@@ -257,6 +262,7 @@ const MachineSystemList = () => {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">File</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày tạo</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hoạt động</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thao tác</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -284,6 +290,11 @@ const MachineSystemList = () => {
                   {system.createdAt && new Date(system.createdAt).toLocaleDateString('vi-VN')}
                 </td>
                 <td className="px-4 py-4 text-sm">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${system.hoatDong ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
+                    {system.hoatDong ? 'Hoạt động' : 'Dừng'}
+                  </span>
+                </td>
+                <td className="px-4 py-4 text-sm">
                   <div className="flex items-center gap-2">
                     <button onClick={() => handleView(system)} className="text-blue-600 hover:text-blue-800" title="Xem"><Eye className="w-4 h-4" /></button>
                     <button onClick={() => handleEdit(system)} className="text-green-600 hover:text-green-800" title="Sửa"><Edit className="w-4 h-4" /></button>
@@ -293,7 +304,7 @@ const MachineSystemList = () => {
               </tr>
             ))}
             {systems.length === 0 && (
-              <tr><td colSpan={14} className="px-4 py-8 text-center text-gray-500">Chưa có dữ liệu</td></tr>
+              <tr><td colSpan={15} className="px-4 py-8 text-center text-gray-500">Chưa có dữ liệu</td></tr>
             )}
           </tbody>
         </table>
@@ -446,6 +457,22 @@ const MachineSystemList = () => {
                     />
                   </div>
                 )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái hoạt động</label>
+                  <div className="flex items-center gap-3 mt-2">
+                    <button
+                      type="button"
+                      disabled={isViewMode}
+                      onClick={() => !isViewMode && setFormData({ ...formData, hoatDong: !formData.hoatDong })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.hoatDong ? 'bg-green-500' : 'bg-gray-300'} ${isViewMode ? 'cursor-default' : 'cursor-pointer'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.hoatDong ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                    <span className={`text-sm font-medium ${formData.hoatDong ? 'text-green-700' : 'text-gray-500'}`}>
+                      {formData.hoatDong ? 'Đang hoạt động' : 'Dừng hoạt động'}
+                    </span>
+                  </div>
+                </div>
               </div>
               <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
                 <button type="button" onClick={handleCloseModal} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Đóng</button>

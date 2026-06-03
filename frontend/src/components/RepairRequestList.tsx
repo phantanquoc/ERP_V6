@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Eye, Trash2, X, CheckCircle, Download } from 'lucide-react';
+import { Plus, Edit, Eye, Trash2, X, CheckCircle, Download, Wrench } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL, getFileUrl } from '../config/api';
 import apiClient from '../services/apiClient';
@@ -263,13 +263,22 @@ const RepairRequestList = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800">Danh sách yêu cầu sửa chữa</h2>
-        <button
-          onClick={handleExportExcel}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <Download size={18} />
-          Xuất Excel
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Download size={18} />
+            Xuất Excel
+          </button>
+          <button
+            onClick={handleAddNew}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={18} />
+            Thêm mới
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -287,7 +296,15 @@ const RepairRequestList = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {paginatedRequests.map((request, index) => (
+            {paginatedRequests.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-12 text-center">
+                  <Wrench className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg">Chưa có yêu cầu sửa chữa</p>
+                </td>
+              </tr>
+            ) : (
+              paginatedRequests.map((request, index) => (
               <tr key={request.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
@@ -326,7 +343,8 @@ const RepairRequestList = () => {
                   </div>
                 </td>
               </tr>
-            ))}
+            ))
+          )}
           </tbody>
         </table>
       </div>

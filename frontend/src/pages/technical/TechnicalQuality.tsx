@@ -7,10 +7,7 @@ import {
   CheckCircle,
   Package,
   Search,
-  Filter,
   Download,
-  Plus,
-  Edit,
   Eye,
   Trash2,
   Settings,
@@ -160,7 +157,17 @@ const TechnicalQuality = () => {
           {/* DANH SÁCH NGHIỆM THU BÀN GIAO */}
           {activeTab === 'acceptance' && (
             <div className="overflow-x-auto">
-              <div className="flex justify-end p-4">
+              <div className="flex items-center justify-between p-4 gap-4">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm nghiệm thu..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
                 <button
                   onClick={handleExportAcceptanceExcel}
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -191,7 +198,16 @@ const TechnicalQuality = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {acceptanceData.length === 0 ? (
+                    {(searchTerm
+                      ? acceptanceData.filter(item =>
+                          item.maNghiemThu?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          item.maYeuCauSuaChua?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          item.tenHeThongThietBi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          item.nguoiBanGiao?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          item.nguoiNhan?.toLowerCase().includes(searchTerm.toLowerCase())
+                        )
+                      : acceptanceData
+                    ).length === 0 ? (
                       <tr>
                         <td colSpan={11} className="px-4 py-12 text-center">
                           <CheckCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -199,7 +215,16 @@ const TechnicalQuality = () => {
                         </td>
                       </tr>
                     ) : (
-                      acceptanceData.map((item, index) => (
+                      (searchTerm
+                        ? acceptanceData.filter(item =>
+                            item.maNghiemThu?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.maYeuCauSuaChua?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.tenHeThongThietBi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.nguoiBanGiao?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.nguoiNhan?.toLowerCase().includes(searchTerm.toLowerCase())
+                          )
+                        : acceptanceData
+                      ).map((item, index) => (
                         <tr key={item.id} className="hover:bg-gray-50">
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
