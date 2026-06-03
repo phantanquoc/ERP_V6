@@ -16,6 +16,10 @@ export interface Invoice {
   ngayThanhToan?: string | null;
   nhanVienLap?: string;
   ghiChu?: string;
+  boPhanSuDung?: string;
+  mucDichSuDung?: string;
+  nhaCungCap?: string;
+  files?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -73,6 +77,13 @@ class InvoiceService {
     } catch (error) {
       throw this.handleError(error);
     }
+  }
+
+  async uploadFiles(files: File[]): Promise<{ success: boolean; data: { fileUrl: string; fileName: string }[] }> {
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+    const response = await apiClient.post('/processes/upload-files', formData);
+    return response as unknown as { success: boolean; data: { fileUrl: string; fileName: string }[] };
   }
 
   private handleError(error: unknown): Error {
