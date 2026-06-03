@@ -4,27 +4,24 @@ import {
   Target,
   CheckSquare,
   Calendar,
-  AlertTriangle,
   FileText,
   Award,
   Activity,
   User,
-  X,
-  ScanFace
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useSystemSettings } from "../contexts/SystemSettingsContext";
 import { getDepartmentDisplayName } from "../utils/permissions";
 import { ThemeHeader, getThemePageBackground } from "../components/ThemeHeaders";
 import PersonalInfoModal from "../components/PersonalInfoModal";
-import AttendanceModal from "../components/AttendanceModal";
+import AttendanceHistoryModal from "../components/AttendanceHistoryModal";
 import LeaveRequestModal from "../components/LeaveRequestModal";
 import EmployeeSelfEvaluationModal from "../components/EmployeeSelfEvaluationModal";
 import DailyWorkReportListModal from "../components/DailyWorkReportListModal";
 import TaskListModal from "../components/TaskListModal";
 import WorkPlanListModal from "../components/WorkPlanListModal";
 import notificationService, { AppNotification } from "../services/notificationService";
-import dailyWorkReportService, { DailyWorkReport } from "../services/dailyWorkReportService";
+import dailyWorkReportService from "../services/dailyWorkReportService";
 import { workPlanService } from "../services/workPlanService";
 import { useMyTasksCount } from "../hooks";
 
@@ -78,15 +75,14 @@ const getPersonalStats = (user: any, evaluationNotification?: AppNotification | 
 };
 
 // Quick Actions for Employee
-const getQuickActions = (department: string) => {
+const getQuickActions = () => {
   return [
     {
-      title: "Chấm công",
-      description: "Chấm công vào/ra ca",
+      title: "Dữ liệu điểm danh",
+      description: "Xem lịch sử quẹt và thống kê công",
       icon: <Clock className="w-6 h-6" />,
       color: "bg-blue-500",
-      action: "attendance",
-      disabled: true
+      action: "attendance"
     },
     {
       title: "Báo cáo công việc",
@@ -156,17 +152,10 @@ const QuickActionCard: React.FC<{
   action: any;
   onProfileClick?: () => void;
   onAttendanceClick?: () => void;
-  onAttendanceDisabledClick?: () => void;
   onLeaveRequestClick?: () => void;
   onDailyReportClick?: () => void;
-}> = ({ action, onProfileClick, onAttendanceClick, onAttendanceDisabledClick, onLeaveRequestClick, onDailyReportClick }) => {
-  const isDisabled = !!action.disabled;
-
+}> = ({ action, onProfileClick, onAttendanceClick, onLeaveRequestClick, onDailyReportClick }) => {
   const handleClick = () => {
-    if (isDisabled) {
-      if (action.action === 'attendance' && onAttendanceDisabledClick) onAttendanceDisabledClick();
-      return;
-    }
     if (action.action === 'profile' && onProfileClick) onProfileClick();
     else if (action.action === 'attendance' && onAttendanceClick) onAttendanceClick();
     else if (action.action === 'leave' && onLeaveRequestClick) onLeaveRequestClick();
@@ -176,28 +165,19 @@ const QuickActionCard: React.FC<{
   return (
     <div
       onClick={handleClick}
-      className={`relative bg-white rounded-xl shadow-sm border p-8 transition-all h-full
-        ${isDisabled
-          ? 'border-gray-200 opacity-60 cursor-pointer grayscale'
-          : 'border-gray-100 hover:shadow-md cursor-pointer group'
-        }`}
+      className="relative h-full cursor-pointer rounded-xl border border-gray-100 bg-white p-8 shadow-sm transition-all hover:shadow-md group"
     >
-      {isDisabled && (
-        <span className="absolute top-2 right-2 text-[10px] font-semibold bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full uppercase tracking-wide">
-          Đã ngưng
-        </span>
-      )}
       <div className="flex items-center space-x-4">
-        <div className={`p-4 rounded-lg ${isDisabled ? 'bg-gray-400' : action.color} ${!isDisabled ? 'group-hover:scale-110 transition-transform' : ''}`}>
+        <div className={`rounded-lg p-4 ${action.color} transition-transform group-hover:scale-110`}>
           <div className="text-white w-8 h-8 flex items-center justify-center">
             {action.icon}
           </div>
         </div>
         <div className="flex-1">
-          <h3 className={`font-semibold text-lg transition-colors ${isDisabled ? 'text-gray-400' : 'text-gray-900 group-hover:text-blue-600'}`}>
+          <h3 className="text-lg font-semibold text-gray-900 transition-colors group-hover:text-blue-600">
             {action.title}
           </h3>
-          <p className="text-sm text-gray-400 mt-1">{action.description}</p>
+          <p className="mt-1 text-sm text-gray-500">{action.description}</p>
         </div>
       </div>
     </div>
@@ -209,15 +189,11 @@ const QuickActionCard: React.FC<{
 const EmployeeDashboard: React.FC = () => {
   const { user } = useAuth();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
-  const [isAttendanceDeprecatedOpen, setIsAttendanceDeprecatedOpen] = useState(false);
+  const [isAttendanceHistoryModalOpen, setIsAttendanceHistoryModalOpen] = useState(false);
   const [isLeaveRequestModalOpen, setIsLeaveRequestModalOpen] = useState(false);
   const [latestEvaluationNotification, setLatestEvaluationNotification] = useState<AppNotification | null>(null);
-  const [notificationLoading, setNotificationLoading] = useState(false);
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
-  const [recentReports, setRecentReports] = useState<DailyWorkReport[]>([]);
-  const [reportsLoading, setReportsLoading] = useState(false);
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
   const [isWorkPlanModalOpen, setIsWorkPlanModalOpen] = useState(false);
   const [workPlansCount, setWorkPlansCount] = useState<number>(0);
@@ -234,25 +210,18 @@ const EmployeeDashboard: React.FC = () => {
 
   const loadLatestEvaluationNotification = async () => {
     try {
-      setNotificationLoading(true);
       const notification = await notificationService.getLatestEvaluationNotification();
       setLatestEvaluationNotification(notification);
     } catch (error) {
       console.error('Error loading evaluation notification:', error);
-    } finally {
-      setNotificationLoading(false);
     }
   };
 
   const loadRecentReports = async () => {
     try {
-      setReportsLoading(true);
-      const response = await dailyWorkReportService.getMyReports(1, 5);
-      setRecentReports(response.data);
+      await dailyWorkReportService.getMyReports(1, 5);
     } catch (error) {
       console.error('Error loading recent reports:', error);
-    } finally {
-      setReportsLoading(false);
     }
   };
 
@@ -278,7 +247,7 @@ const EmployeeDashboard: React.FC = () => {
 
   const departmentName = getDepartmentDisplayName(user.department);
   const personalStats = getPersonalStats(user, latestEvaluationNotification, tasksCount, workPlansCount);
-  const quickActions = getQuickActions(user.department || '');
+  const quickActions = getQuickActions();
 
   return (
     <div className={`min-h-full ${getThemePageBackground(activeTheme)}`}>
@@ -313,8 +282,7 @@ const EmployeeDashboard: React.FC = () => {
                   key={index}
                   action={action}
                   onProfileClick={() => setIsProfileModalOpen(true)}
-                  onAttendanceClick={() => setIsAttendanceModalOpen(true)}
-                  onAttendanceDisabledClick={() => setIsAttendanceDeprecatedOpen(true)}
+                  onAttendanceClick={() => setIsAttendanceHistoryModalOpen(true)}
                   onLeaveRequestClick={() => setIsLeaveRequestModalOpen(true)}
                   onDailyReportClick={() => setIsDailyReportModalOpen(true)}
                 />
@@ -379,11 +347,11 @@ const EmployeeDashboard: React.FC = () => {
           onClose={() => setIsProfileModalOpen(false)}
         />
 
-        {/* Attendance Modal */}
-        <AttendanceModal
-          isOpen={isAttendanceModalOpen}
-          onClose={() => setIsAttendanceModalOpen(false)}
-          showBackdrop={true}
+        <AttendanceHistoryModal
+          isOpen={isAttendanceHistoryModalOpen}
+          onClose={() => setIsAttendanceHistoryModalOpen(false)}
+          employeeId={user.employeeId}
+          employeeName={`${user.firstName} ${user.lastName}`.trim()}
         />
 
         {/* Leave Request Modal */}
@@ -422,54 +390,6 @@ const EmployeeDashboard: React.FC = () => {
           isOpen={isWorkPlanModalOpen}
           onClose={() => setIsWorkPlanModalOpen(false)}
         />
-
-        {/* Attendance Deprecated Notice */}
-        {isAttendanceDeprecatedOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
-              {/* Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-orange-100 rounded-xl">
-                    <ScanFace className="w-6 h-6 text-orange-600" />
-                  </div>
-                  <h2 className="text-lg font-bold text-gray-900">Thông báo quan trọng</h2>
-                </div>
-                <button
-                  onClick={() => setIsAttendanceDeprecatedOpen(false)}
-                  className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Body */}
-              <div className="space-y-3 text-sm text-gray-700 leading-relaxed">
-                <p>
-                  Công ty <strong>An Bình Foods</strong> đã chính thức triển khai hệ thống{' '}
-                  <strong className="text-orange-600">chấm công bằng nhận diện khuôn mặt</strong>.
-                </p>
-                <p>
-                  Kể từ ngày <strong className="text-red-600">01/06/2026</strong>, chức năng chấm
-                  công thủ công này <strong>không còn được sử dụng</strong>.
-                </p>
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mt-2">
-                  <p className="font-semibold text-orange-800 text-center">
-                    Yêu cầu toàn thể nhân viên nghiêm túc thực hiện chấm công bằng khuôn mặt tại máy kiosk.
-                  </p>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <button
-                onClick={() => setIsAttendanceDeprecatedOpen(false)}
-                className="mt-5 w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition-colors"
-              >
-                Đã hiểu
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
