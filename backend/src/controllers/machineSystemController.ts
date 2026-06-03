@@ -39,6 +39,7 @@ class MachineSystemController {
         nhiemVu: req.body.nhiemVu,
         maNguoiThucHien: req.body.maNguoiThucHien,
         nguoiThucHien: req.body.nguoiThucHien,
+        hoatDong: req.body.hoatDong !== undefined ? req.body.hoatDong === 'true' || req.body.hoatDong === true : undefined,
         fileDinhKem: req.file ? getFileUrl('machine-systems', req.file.filename) : undefined,
       };
 
@@ -63,6 +64,10 @@ class MachineSystemController {
         maNguoiThucHien: req.body.maNguoiThucHien,
         nguoiThucHien: req.body.nguoiThucHien,
       };
+
+      if (req.body.hoatDong !== undefined) {
+        data.hoatDong = req.body.hoatDong === 'true' || req.body.hoatDong === true;
+      }
 
       if (req.file) {
         data.fileDinhKem = getFileUrl('machine-systems', req.file.filename);

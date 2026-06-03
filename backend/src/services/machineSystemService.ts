@@ -15,6 +15,7 @@ interface CreateMachineSystemData {
   maNguoiThucHien?: string;
   nguoiThucHien?: string;
   fileDinhKem?: string;
+  hoatDong?: boolean;
 }
 
 interface UpdateMachineSystemData {
@@ -29,6 +30,7 @@ interface UpdateMachineSystemData {
   maNguoiThucHien?: string;
   nguoiThucHien?: string;
   fileDinhKem?: string;
+  hoatDong?: boolean;
 }
 
 class MachineSystemService {
@@ -100,6 +102,7 @@ class MachineSystemService {
       { header: 'Nhiệm vụ', key: 'nhiemVu', width: 30 },
       { header: 'Mã NTH', key: 'maNguoiThucHien', width: 12 },
       { header: 'Người thực hiện', key: 'nguoiThucHien', width: 20 },
+      { header: 'Hoạt động', key: 'hoatDong', width: 12 },
       { header: 'Ngày tạo', key: 'createdAt', width: 15 },
     ];
 
@@ -116,6 +119,7 @@ class MachineSystemService {
         nhiemVu: item.nhiemVu ?? '',
         maNguoiThucHien: item.maNguoiThucHien ?? '',
         nguoiThucHien: item.nguoiThucHien ?? '',
+        hoatDong: item.hoatDong ? 'Có' : 'Không',
         createdAt: item.createdAt.toLocaleDateString('vi-VN'),
       });
     });

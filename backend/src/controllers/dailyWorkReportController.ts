@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import dailyWorkReportService from '@services/dailyWorkReportService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 import prisma from '@config/database';
@@ -265,11 +265,14 @@ export class DailyWorkReportController {
   }
 
   /**
-   * Get count of submitted (unreviewed) daily work reports
+   * Get count of submitted (unreviewed) daily work reports.
+   * ADMIN sees all; DEPARTMENT_HEAD sees only their department.
    */
-  async getSubmittedCount(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getSubmittedCount(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const count = await dailyWorkReportService.getSubmittedCount();
+      const isAdmin = req.user?.role === 'ADMIN';
+      const departmentId = isAdmin ? undefined : (req.user?.departmentId ?? undefined);
+      const count = await dailyWorkReportService.getSubmittedCount(departmentId);
       res.json({ success: true, data: { count } });
     } catch (error) {
       next(error);

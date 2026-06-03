@@ -42,28 +42,37 @@ class PurchaseRequestService {
     return nextYearlyCode(last?.maYeuCau ?? null, 'YC-MH', year);
   }
 
-  async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string) {
+  async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string, departmentId?: string) {
     const { skip } = getPaginationParams(page, limit);
+
+    const deptFilter = departmentId
+      ? { employee: { user: { departmentId } } }
+      : {};
 
     const where = search
       ? {
-          OR: [
-            { maYeuCau: { contains: search, mode: 'insensitive' as const } },
-            { tenNhanVien: { contains: search, mode: 'insensitive' as const } },
-            { maNhanVien: { contains: search, mode: 'insensitive' as const } },
+          AND: [
+            deptFilter,
             {
-              items: {
-                some: {
-                  OR: [
-                    { tenHangHoa: { contains: search, mode: 'insensitive' as const } },
-                    { phanLoai: { contains: search, mode: 'insensitive' as const } },
-                  ],
+              OR: [
+                { maYeuCau: { contains: search, mode: 'insensitive' as const } },
+                { tenNhanVien: { contains: search, mode: 'insensitive' as const } },
+                { maNhanVien: { contains: search, mode: 'insensitive' as const } },
+                {
+                  items: {
+                    some: {
+                      OR: [
+                        { tenHangHoa: { contains: search, mode: 'insensitive' as const } },
+                        { phanLoai: { contains: search, mode: 'insensitive' as const } },
+                      ],
+                    },
+                  },
                 },
-              },
+              ],
             },
           ],
         }
-      : {};
+      : deptFilter;
 
     const [data, total] = await Promise.all([
       prisma.purchaseRequest.findMany({
