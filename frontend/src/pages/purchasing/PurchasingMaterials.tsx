@@ -162,11 +162,12 @@ const PurchasingMaterials = () => {
   };
 
   const openAddSupplierModal = async () => {
+    if (!user?.employeeId) {
+      alert('Không tìm thấy thông tin nhân viên. Vui lòng đăng nhập lại.');
+      return;
+    }
     try {
       const { code } = await supplierService.generateCode('NVL');
-      // Get employeeId from localStorage
-      const userStr = localStorage.getItem('user');
-      const user = userStr ? JSON.parse(userStr) : null;
       setSupplierFormData({
         maNhaCungCap: code,
         tenNhaCungCap: '',
@@ -182,7 +183,7 @@ const PurchasingMaterials = () => {
         trangThai: 'Đang cung cấp',
         phanLoaiNCC: 'NVL',
         doanhChi: 0,
-        employeeId: user?.employee?.id || '',
+        employeeId: user.employeeId,
       });
       setIsAddSupplierModalOpen(true);
     } catch (error) {

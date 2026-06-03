@@ -93,6 +93,21 @@ class SupplyRequestController {
       next(error);
     }
   }
+
+  async markMuaNhanhAsPurchased(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const soTien = req.body.soTien !== undefined ? Number(req.body.soTien) : undefined;
+      await supplyRequestService.markMuaNhanhAsPurchased(id, soTien);
+
+      return res.json({
+        success: true,
+        message: 'Đã đánh dấu đã mua hàng',
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export default new SupplyRequestController();

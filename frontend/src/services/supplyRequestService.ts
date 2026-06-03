@@ -26,6 +26,8 @@ export interface SupplyRequest {
   ghiChu?: string;
   trangThai: string;
   fileKemTheo?: string;
+  loaiYeuCau?: string;
+  soTien?: number;
   createdAt: string;
   updatedAt: string;
   items: SupplyRequestItem[];
@@ -43,6 +45,8 @@ export interface CreateSupplyRequestRequest {
   mucDoUuTien: string;
   ghiChu?: string;
   fileKemTheo?: string;
+  loaiYeuCau?: string;
+  soTien?: number;
 }
 
 export interface UpdateSupplyRequestRequest {
@@ -81,6 +85,11 @@ class SupplyRequestService {
 
   async deleteSupplyRequest(id: string) {
     const response = await apiClient.delete(`/supply-requests/${id}`);
+    return response;
+  }
+
+  async markMuaNhanhAsPurchased(id: string, soTien?: number) {
+    const response = await apiClient.patch(`/supply-requests/${id}/mark-purchased`, { soTien });
     return response;
   }
 
