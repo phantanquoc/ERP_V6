@@ -166,8 +166,8 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
           </FormField>
         </div>
 
-            {/* Items table */}
-            <div>
+        {/* Items table */}
+        <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-gray-700">
                   Danh sách sản phẩm <span className="text-red-500">*</span>
@@ -345,7 +345,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                 />
               </FormField>
             </div>
-          </form>
+      </form>
     </ModalForm>
   );
 };

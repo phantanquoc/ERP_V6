@@ -23,6 +23,8 @@ interface CreateSupplyRequestRequest {
   mucDoUuTien: string;
   ghiChu?: string;
   fileKemTheo?: string;
+  loaiYeuCau?: string;
+  soTien?: number;
 }
 
 interface UpdateSupplyRequestRequest {
@@ -35,6 +37,8 @@ interface UpdateSupplyRequestRequest {
 
 // Status sequence for advancement checks
 const STATUS_SEQUENCE = ['Chưa cung cấp', 'Đang xử lý', 'Đã duyệt mua', 'Đã mua hàng', 'Đã cung cấp'];
+// Mua nhanh skips to Đã mua hàng directly
+const MUAN_HANH_STATUS_SEQUENCE = ['Chưa cung cấp', 'Đã mua hàng', 'Đã cung cấp'];
 
 class SupplyRequestService {
   async getAllSupplyRequests(page: number = 1, limit: number = 10, search?: string) {
@@ -152,6 +156,8 @@ class SupplyRequestService {
           ghiChu: data.ghiChu,
           trangThai: 'Chưa cung cấp',
           fileKemTheo: data.fileKemTheo,
+          loaiYeuCau: data.loaiYeuCau || 'Thường',
+          soTien: data.soTien,
         },
       });
 
@@ -264,6 +270,35 @@ class SupplyRequestService {
     await prisma.supplyRequest.delete({
       where: { id },
     });
+  }
+
+  /**
+   * Mark a "Mua nhanh" supply request as purchased.
+   * Advances status directly to "Đã mua hàng", optionally recording soTien.
+   */
+  async markMuaNhanhAsPurchased(id: string, soTien?: number): Promise<void> {
+    const request = await prisma.supplyRequest.findUnique({
+      where: { id },
+      select: { trangThai: true, loaiYeuCau: true },
+    });
+
+    if (!request) {
+      throw new NotFoundError('Supply request not found');
+    }
+
+    const sequence = request.loaiYeuCau === 'Mua nhanh' ? MUAN_HANH_STATUS_SEQUENCE : STATUS_SEQUENCE;
+    const currentIndex = sequence.indexOf(request.trangThai);
+    const newIndex = sequence.indexOf('Đã mua hàng');
+
+    if (newIndex > currentIndex) {
+      await prisma.supplyRequest.update({
+        where: { id },
+        data: {
+          trangThai: 'Đã mua hàng',
+          ...(soTien !== undefined ? { soTien } : {}),
+        },
+      });
+    }
   }
 
   /**

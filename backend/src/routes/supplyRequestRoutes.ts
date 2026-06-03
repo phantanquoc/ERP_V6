@@ -182,5 +182,10 @@ router.delete(
   supplyRequestController.deleteSupplyRequest
 );
 
+router.patch(
+  '/:id/mark-purchased',
+  supplyRequestController.markMuaNhanhAsPurchased
+);
+
 export default router;
 

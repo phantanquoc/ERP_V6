@@ -1127,6 +1127,8 @@ model SupplyRequest {
   ghiChu        String?
   trangThai     String   @default("Chưa cung cấp")
   fileKemTheo   String?
+  loaiYeuCau    String?  @default("Thường") // "Thường" | "Mua nhanh"
+  soTien        Float?   // Số tiền thực tế (dùng cho Mua nhanh)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   employee          Employee           @relation(fields: [employeeId], references: [id])
