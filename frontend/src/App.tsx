@@ -54,6 +54,7 @@ const ProductionData = React.lazy(() => import('./pages/production/ProductionDat
 const TechnicalManagement = React.lazy(() => import('./pages/TechnicalManagement'));
 const TechnicalQuality = React.lazy(() => import('./pages/technical/TechnicalQuality'));
 const TechnicalMechanical = React.lazy(() => import('./pages/technical/TechnicalMechanical'));
+const TechnicalProjects = React.lazy(() => import('./pages/technical/TechnicalProjects'));
 
 // System Settings
 const SystemSettingsPage = React.lazy(() => import('./pages/SystemSettingsPage'));
@@ -236,6 +237,11 @@ function App() {
             <Route path="/technical/mechanical" element={
               <ProtectedSubRoute department="technical" subModule="mechanical">
                 <TechnicalMechanical />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/technical/projects" element={
+              <ProtectedSubRoute department="technical" subModule="projects">
+                <TechnicalProjects />
               </ProtectedSubRoute>
             } />
 
