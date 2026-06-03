@@ -1,5 +1,4 @@
 import prisma from '@config/database';
-import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 
@@ -96,7 +95,22 @@ export class FinishedProductService {
 
     const product = await prisma.finishedProduct.create({
       data: {
-        ...data,
+        maChien: data.maChien,
+        thoiGianChien: new Date(data.thoiGianChien),
+        tenHangHoa: data.tenHangHoa,
+        khoiLuong: data.khoiLuong,
+        machineId: data.machineId,
+        tenMay: data.tenMay,
+        materialEvaluationId: data.materialEvaluationId,
+        aKhoiLuong: data.aKhoiLuong || 0,
+        bKhoiLuong: data.bKhoiLuong || 0,
+        bDauKhoiLuong: data.bDauKhoiLuong || 0,
+        cKhoiLuong: data.cKhoiLuong || 0,
+        vunLonKhoiLuong: data.vunLonKhoiLuong || 0,
+        vunNhoKhoiLuong: data.vunNhoKhoiLuong || 0,
+        phePhamKhoiLuong: data.phePhamKhoiLuong || 0,
+        uotKhoiLuong: data.uotKhoiLuong || 0,
+        fileDinhKem: data.fileDinhKem,
         nguoiThucHien,
         tongKhoiLuong,
         aTiLe: calculatePercentage(data.aKhoiLuong || 0),
@@ -211,15 +225,17 @@ export class FinishedProductService {
    * Similar to "Tổng các máy" tab calculation - sums all component weights from all machines
    */
   async getTotalWeightByDate(date: string) {
-    // Parse the input date (format: YYYY-MM-DD)
-    // thoiGianChien is stored as a String in format YYYY-MM-DDTHH:mm
-    // We need to find all products where thoiGianChien starts with the date
+    const targetDate = date.split('T')[0];
+    const startOfDay = new Date(`${targetDate}T00:00:00.000Z`);
+    const endOfDay = new Date(`${targetDate}T23:59:59.999Z`);
 
-    logger.debug('[getTotalWeightByDate] Input date:', date);
-
-    // Get all finished products and filter by date in application code
-    // since thoiGianChien is a String field, not DateTime
-    const allProducts = await prisma.finishedProduct.findMany({
+    const products = await prisma.finishedProduct.findMany({
+      where: {
+        thoiGianChien: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
       select: {
         maChien: true,
         thoiGianChien: true,
@@ -236,41 +252,6 @@ export class FinishedProductService {
       },
     });
 
-    logger.debug('[getTotalWeightByDate] Total products in DB:', allProducts.length);
-    logger.debug('[getTotalWeightByDate] Sample thoiGianChien values:', allProducts.slice(0, 5).map(p => p.thoiGianChien));
-
-    // Filter products by date (thoiGianChien format: YYYY-MM-DDTHH:mm or ISO string)
-    const products = allProducts.filter(product => {
-      if (!product.thoiGianChien) return false;
-
-      // Extract date part from thoiGianChien
-      // Handle both YYYY-MM-DDTHH:mm and ISO string formats (with timezone)
-      // Need to convert to local date for proper comparison
-      let productDate: string;
-
-      // Check if it's an ISO string with timezone (contains 'Z' or '+' or has milliseconds)
-      if (product.thoiGianChien.includes('Z') || product.thoiGianChien.includes('+') || product.thoiGianChien.includes('.')) {
-        // Parse as Date and get local date
-        const dateObj = new Date(product.thoiGianChien);
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const day = String(dateObj.getDate()).padStart(2, '0');
-        productDate = `${year}-${month}-${day}`;
-      } else {
-        // Simple format like YYYY-MM-DDTHH:mm, just split by T
-        productDate = product.thoiGianChien.split('T')[0];
-      }
-
-      const targetDate = date.split('T')[0]; // In case date includes time
-
-      return productDate === targetDate;
-    });
-
-    logger.debug('[getTotalWeightByDate] Filtered products count:', products.length);
-    logger.debug('[getTotalWeightByDate] Filtered products:', products.map(p => ({ maChien: p.maChien, tenMay: p.tenMay, thoiGianChien: p.thoiGianChien })));
-
-    // Calculate total weight by summing all component weights from all machines
-    // This matches the "Tổng các máy" tab calculation logic
     const totalWeight = products.reduce((sum, product) => {
       const productTotal =
         (product.aKhoiLuong || 0) +
@@ -288,7 +269,7 @@ export class FinishedProductService {
       date,
       totalWeight,
       productCount: products.length,
-      machines: [...new Set(products.map(p => p.tenMay).filter(Boolean))], // List of unique machines
+      machines: [...new Set(products.map(p => p.tenMay).filter(Boolean))],
     };
   }
 

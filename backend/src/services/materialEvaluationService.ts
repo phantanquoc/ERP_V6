@@ -132,12 +132,12 @@ export class MaterialEvaluationService {
           thoiGianChien,
           tenHangHoa: data.tenHangHoa,
           soLoKien: data.soLoKien,
-          khoiLuong: data.khoiLuong ? parseFloat(data.khoiLuong) : undefined,
-          soLanNgam: data.soLanNgam ? parseInt(data.soLanNgam) : undefined,
-          nhietDoNuocTruocNgam: data.nhietDoNuocTruocNgam ? parseFloat(data.nhietDoNuocTruocNgam) : undefined,
-          nhietDoNuocSauVot: data.nhietDoNuocSauVot ? parseFloat(data.nhietDoNuocSauVot) : undefined,
-          thoiGianNgam: data.thoiGianNgam ? parseInt(data.thoiGianNgam) : undefined,
-          brixNuocNgam: data.brixNuocNgam ? parseFloat(data.brixNuocNgam) : undefined,
+          khoiLuong: data.khoiLuong != null ? parseFloat(data.khoiLuong) : undefined,
+          soLanNgam: data.soLanNgam != null ? parseInt(data.soLanNgam) : undefined,
+          nhietDoNuocTruocNgam: data.nhietDoNuocTruocNgam != null ? parseFloat(data.nhietDoNuocTruocNgam) : undefined,
+          nhietDoNuocSauVot: data.nhietDoNuocSauVot != null ? parseFloat(data.nhietDoNuocSauVot) : undefined,
+          thoiGianNgam: data.thoiGianNgam != null ? parseInt(data.thoiGianNgam) : undefined,
+          brixNuocNgam: data.brixNuocNgam != null ? parseFloat(data.brixNuocNgam) : undefined,
           danhGiaTruocNgam: data.danhGiaTruocNgam,
           danhGiaSauNgam: data.danhGiaSauNgam,
           fileDinhKem: data.fileDinhKem,
@@ -155,10 +155,10 @@ export class MaterialEvaluationService {
           data: { thoiGianChien: thoiGianChien },
         });
 
-        // Sync to FinishedProduct (thoiGianChien is String type)
+        // Sync to FinishedProduct (thoiGianChien is DateTime type)
         await tx.finishedProduct.updateMany({
           where: { materialEvaluationId: id },
-          data: { thoiGianChien: thoiGianChienString },
+          data: { thoiGianChien: thoiGianChien },
         });
 
         // Sync to QualityEvaluation (thoiGianChien is String type)

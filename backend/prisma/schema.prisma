@@ -1738,9 +1738,9 @@ enum SystemOperationStatus {
 }
 
 model FinishedProduct {
-  id                    String              @id @default(uuid())
+  id                    String              @id @default(cuid())
   maChien               String
-  thoiGianChien         String
+  thoiGianChien         DateTime
   tenHangHoa            String
   khoiLuong             Float
 

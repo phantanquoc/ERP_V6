@@ -137,7 +137,7 @@ export class SystemOperationService {
             tx.finishedProduct.create({
               data: {
                 maChien: materialEvaluation.maChien,
-                thoiGianChien: materialEvaluation.thoiGianChien.toISOString(),
+                thoiGianChien: materialEvaluation.thoiGianChien,
                 tenHangHoa: materialEvaluation.tenHangHoa,
                 khoiLuong: 0, // Will be filled by user later
                 nguoiThucHien: '',
@@ -156,7 +156,7 @@ export class SystemOperationService {
             tx.qualityEvaluation.create({
               data: {
                 maChien: finishedProduct.maChien,
-                thoiGianChien: finishedProduct.thoiGianChien,
+                thoiGianChien: finishedProduct.thoiGianChien.toISOString(),
                 tenHangHoa: finishedProduct.tenHangHoa,
                 machineId: finishedProduct.machineId,
                 tenMay: finishedProduct.tenMay,
@@ -234,10 +234,10 @@ export class SystemOperationService {
 
     // Calculate total drying time
     const tongThoiGianSay =
-      parseInt(data.giaiDoan1ThoiGian || 0) +
-      parseInt(data.giaiDoan2ThoiGian || 0) +
-      parseInt(data.giaiDoan3ThoiGian || 0) +
-      parseInt(data.giaiDoan4ThoiGian || 0);
+      Number(data.giaiDoan1ThoiGian || 0) +
+      Number(data.giaiDoan2ThoiGian || 0) +
+      Number(data.giaiDoan3ThoiGian || 0) +
+      Number(data.giaiDoan4ThoiGian || 0);
 
     // Create system operation and finished product in a transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -248,19 +248,19 @@ export class SystemOperationService {
           machineId: machine.id,
           tenMay: data.tenMay,
           thoiGianChien: new Date(data.thoiGianChien),
-          khoiLuongDauVao: data.khoiLuongDauVao ? parseFloat(data.khoiLuongDauVao) : 0,
-          giaiDoan1ThoiGian: parseInt(data.giaiDoan1ThoiGian || 0),
-          giaiDoan1NhietDo: parseFloat(data.giaiDoan1NhietDo || 0),
-          giaiDoan1ApSuat: parseFloat(data.giaiDoan1ApSuat || 0),
-          giaiDoan2ThoiGian: parseInt(data.giaiDoan2ThoiGian || 0),
-          giaiDoan2NhietDo: parseFloat(data.giaiDoan2NhietDo || 0),
-          giaiDoan2ApSuat: parseFloat(data.giaiDoan2ApSuat || 0),
-          giaiDoan3ThoiGian: parseInt(data.giaiDoan3ThoiGian || 0),
-          giaiDoan3NhietDo: parseFloat(data.giaiDoan3NhietDo || 0),
-          giaiDoan3ApSuat: parseFloat(data.giaiDoan3ApSuat || 0),
-          giaiDoan4ThoiGian: parseInt(data.giaiDoan4ThoiGian || 0),
-          giaiDoan4NhietDo: parseFloat(data.giaiDoan4NhietDo || 0),
-          giaiDoan4ApSuat: parseFloat(data.giaiDoan4ApSuat || 0),
+          khoiLuongDauVao: data.khoiLuongDauVao ? Number(data.khoiLuongDauVao) : 0,
+          giaiDoan1ThoiGian: Number(data.giaiDoan1ThoiGian || 0),
+          giaiDoan1NhietDo: Number(data.giaiDoan1NhietDo || 0),
+          giaiDoan1ApSuat: Number(data.giaiDoan1ApSuat || 0),
+          giaiDoan2ThoiGian: Number(data.giaiDoan2ThoiGian || 0),
+          giaiDoan2NhietDo: Number(data.giaiDoan2NhietDo || 0),
+          giaiDoan2ApSuat: Number(data.giaiDoan2ApSuat || 0),
+          giaiDoan3ThoiGian: Number(data.giaiDoan3ThoiGian || 0),
+          giaiDoan3NhietDo: Number(data.giaiDoan3NhietDo || 0),
+          giaiDoan3ApSuat: Number(data.giaiDoan3ApSuat || 0),
+          giaiDoan4ThoiGian: Number(data.giaiDoan4ThoiGian || 0),
+          giaiDoan4NhietDo: Number(data.giaiDoan4NhietDo || 0),
+          giaiDoan4ApSuat: Number(data.giaiDoan4ApSuat || 0),
           tongThoiGianSay,
           trangThai: this.mapMachineStatusToOperationStatus(machine.trangThai),
           ghiChu: data.ghiChu,
@@ -274,7 +274,7 @@ export class SystemOperationService {
         await tx.finishedProduct.create({
           data: {
             maChien: materialEvaluation.maChien,
-            thoiGianChien: materialEvaluation.thoiGianChien.toISOString(),
+            thoiGianChien: materialEvaluation.thoiGianChien,
             tenHangHoa: materialEvaluation.tenHangHoa,
             khoiLuong: 0, // Will be filled by user later
             nguoiThucHien: data.nguoiThucHien,
@@ -302,31 +302,30 @@ export class SystemOperationService {
     }
 
     // Calculate total drying time
-    const tongThoiGianSay = 
-      parseInt(data.giaiDoan1ThoiGian ?? existing.giaiDoan1ThoiGian) +
-      parseInt(data.giaiDoan2ThoiGian ?? existing.giaiDoan2ThoiGian) +
-      parseInt(data.giaiDoan3ThoiGian ?? existing.giaiDoan3ThoiGian) +
-      parseInt(data.giaiDoan4ThoiGian ?? existing.giaiDoan4ThoiGian);
+    const tongThoiGianSay =
+      Number(data.giaiDoan1ThoiGian ?? existing.giaiDoan1ThoiGian) +
+      Number(data.giaiDoan2ThoiGian ?? existing.giaiDoan2ThoiGian) +
+      Number(data.giaiDoan3ThoiGian ?? existing.giaiDoan3ThoiGian) +
+      Number(data.giaiDoan4ThoiGian ?? existing.giaiDoan4ThoiGian);
 
     const operation = await prisma.systemOperation.update({
       where: { id },
       data: {
         thoiGianChien: data.thoiGianChien ? new Date(data.thoiGianChien) : undefined,
         khoiLuongDauVao: data.khoiLuongDauVao !== undefined ? parseFloat(data.khoiLuongDauVao) : undefined,
-        giaiDoan1ThoiGian: data.giaiDoan1ThoiGian !== undefined ? parseInt(data.giaiDoan1ThoiGian) : undefined,
-        giaiDoan1NhietDo: data.giaiDoan1NhietDo !== undefined ? parseFloat(data.giaiDoan1NhietDo) : undefined,
-        giaiDoan1ApSuat: data.giaiDoan1ApSuat !== undefined ? parseFloat(data.giaiDoan1ApSuat) : undefined,
-        giaiDoan2ThoiGian: data.giaiDoan2ThoiGian !== undefined ? parseInt(data.giaiDoan2ThoiGian) : undefined,
-        giaiDoan2NhietDo: data.giaiDoan2NhietDo !== undefined ? parseFloat(data.giaiDoan2NhietDo) : undefined,
-        giaiDoan2ApSuat: data.giaiDoan2ApSuat !== undefined ? parseFloat(data.giaiDoan2ApSuat) : undefined,
-        giaiDoan3ThoiGian: data.giaiDoan3ThoiGian !== undefined ? parseInt(data.giaiDoan3ThoiGian) : undefined,
-        giaiDoan3NhietDo: data.giaiDoan3NhietDo !== undefined ? parseFloat(data.giaiDoan3NhietDo) : undefined,
-        giaiDoan3ApSuat: data.giaiDoan3ApSuat !== undefined ? parseFloat(data.giaiDoan3ApSuat) : undefined,
-        giaiDoan4ThoiGian: data.giaiDoan4ThoiGian !== undefined ? parseInt(data.giaiDoan4ThoiGian) : undefined,
-        giaiDoan4NhietDo: data.giaiDoan4NhietDo !== undefined ? parseFloat(data.giaiDoan4NhietDo) : undefined,
-        giaiDoan4ApSuat: data.giaiDoan4ApSuat !== undefined ? parseFloat(data.giaiDoan4ApSuat) : undefined,
+        giaiDoan1ThoiGian: data.giaiDoan1ThoiGian !== undefined ? Number(data.giaiDoan1ThoiGian) : undefined,
+        giaiDoan1NhietDo: data.giaiDoan1NhietDo !== undefined ? Number(data.giaiDoan1NhietDo) : undefined,
+        giaiDoan1ApSuat: data.giaiDoan1ApSuat !== undefined ? Number(data.giaiDoan1ApSuat) : undefined,
+        giaiDoan2ThoiGian: data.giaiDoan2ThoiGian !== undefined ? Number(data.giaiDoan2ThoiGian) : undefined,
+        giaiDoan2NhietDo: data.giaiDoan2NhietDo !== undefined ? Number(data.giaiDoan2NhietDo) : undefined,
+        giaiDoan2ApSuat: data.giaiDoan2ApSuat !== undefined ? Number(data.giaiDoan2ApSuat) : undefined,
+        giaiDoan3ThoiGian: data.giaiDoan3ThoiGian !== undefined ? Number(data.giaiDoan3ThoiGian) : undefined,
+        giaiDoan3NhietDo: data.giaiDoan3NhietDo !== undefined ? Number(data.giaiDoan3NhietDo) : undefined,
+        giaiDoan3ApSuat: data.giaiDoan3ApSuat !== undefined ? Number(data.giaiDoan3ApSuat) : undefined,
+        giaiDoan4ThoiGian: data.giaiDoan4ThoiGian !== undefined ? Number(data.giaiDoan4ThoiGian) : undefined,
+        giaiDoan4NhietDo: data.giaiDoan4NhietDo !== undefined ? Number(data.giaiDoan4NhietDo) : undefined,
+        giaiDoan4ApSuat: data.giaiDoan4ApSuat !== undefined ? Number(data.giaiDoan4ApSuat) : undefined,
         tongThoiGianSay,
-        trangThai: data.trangThai,
         ghiChu: data.ghiChu,
         nguoiThucHien: data.nguoiThucHien,
       },

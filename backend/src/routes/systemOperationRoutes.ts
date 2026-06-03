@@ -48,35 +48,6 @@ router.get(
 
 /**
  * @swagger
- * /api/system-operations/{id}:
- *   get:
- *     tags: [System Operations]
- *     summary: Chi tiết thông số hệ thống
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID của thông số
- *     responses:
- *       200:
- *         description: Lấy chi tiết thông số thành công
- *       401:
- *         description: Không có quyền truy cập
- *       404:
- *         description: Không tìm thấy thông số
- */
-router.get(
-  '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
-  systemOperationController.getSystemOperationById
-);
-
-/**
- * @swagger
  * /api/system-operations/ma-chien/{maChien}:
  *   get:
  *     tags: [System Operations]
@@ -102,6 +73,35 @@ router.get(
   '/ma-chien/:maChien',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   systemOperationController.getSystemOperationsByMaChien
+);
+
+/**
+ * @swagger
+ * /api/system-operations/{id}:
+ *   get:
+ *     tags: [System Operations]
+ *     summary: Chi tiết thông số hệ thống
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của thông số
+ *     responses:
+ *       200:
+ *         description: Lấy chi tiết thông số thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ *       404:
+ *         description: Không tìm thấy thông số
+ */
+router.get(
+  '/:id',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  systemOperationController.getSystemOperationById
 );
 
 /**

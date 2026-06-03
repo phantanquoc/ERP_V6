@@ -71,7 +71,7 @@ export class SystemOperationController {
       res.status(201).json({
         success: true,
         data: operation,
-        message: 'System operation created successfully',
+        message: 'Tạo thông số hệ thống thành công',
       } as ApiResponse<any>);
     } catch (error) {
       next(error);
@@ -86,7 +86,7 @@ export class SystemOperationController {
       res.json({
         success: true,
         data: operation,
-        message: 'System operation updated successfully',
+        message: 'Cập nhật thông số hệ thống thành công',
       } as ApiResponse<any>);
     } catch (error) {
       next(error);
