@@ -487,6 +487,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                 onChange={(e) => setSingleForm({ ...singleForm, ghiChu: e.target.value })}
                 rows={2}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                placeholder="VD: sản xuất nhập kho / mua nhập kho - nhà cung cấp - ..."
               />
             </div>
             <div className="flex justify-end gap-2">

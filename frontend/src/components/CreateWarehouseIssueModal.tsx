@@ -319,7 +319,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                       <input type="text" value={row.ghiChu}
                         onChange={(e) => updateRow(index, { ghiChu: e.target.value })}
                         className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500"
-                        placeholder="Ghi chú" />
+                        placeholder="VD: theo đơn hàng nào? khách hàng nào? lẻ hay không?" />
                     </div>
                   </div>
                 </div>
