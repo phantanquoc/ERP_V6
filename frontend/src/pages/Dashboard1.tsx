@@ -1,9 +1,8 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ShoppingCart,
   ShieldCheck,
-  Clock,
-  Target,
   BarChart3,
   Factory,
   Building2,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { getDepartmentDisplayName, isAdmin } from "../utils/permissions";
+import { UserRole } from "../types/auth";
 import { useSystemSettings } from "../contexts/SystemSettingsContext";
 import { ThemeHeader, getThemePageBackground } from "../components/ThemeHeaders";
 import EmployeeDashboard from "./EmployeeDashboard";
@@ -120,21 +120,27 @@ const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purcha
 const DepartmentCard: React.FC<{
   department: any;
   onClick: () => void;
+  onStatClick: (link: string) => void;
   isFullWidth?: boolean;
-}> = ({ department, onClick, isFullWidth = false }) => (
+}> = ({ department, onClick, onStatClick, isFullWidth = false }) => (
   <div
     onClick={onClick}
-    className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer border border-gray-200"
+    className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer border border-gray-100 hover:border-gray-200"
   >
     {/* Header with accent bar */}
     <div className="p-4 rounded-t-xl relative overflow-hidden">
-      <div className={`absolute top-0 left-0 w-full h-3 ${department.color}`}></div>
-      <div className="flex items-center justify-between text-gray-700">
+      <div className={`absolute top-0 left-0 w-full h-1 ${department.color}`}></div>
+      <div className="flex items-center justify-between text-gray-700 pt-1">
         <div className="flex items-center space-x-3">
-          <div className="text-gray-500">{department.icon}</div>
-          <h3 className="text-lg font-semibold text-gray-800">{department.name}</h3>
+          <div className={`p-2 rounded-lg ${department.color} bg-opacity-10`}>
+            <div className="text-gray-600">{department.icon}</div>
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-gray-800">{department.name}</h3>
+            <p className="text-[11px] text-gray-400 font-medium">{department.stats.length} chỉ tiêu</p>
+          </div>
         </div>
-        <div className="text-gray-400">
+        <div className="text-gray-300 hover:text-gray-500 transition-colors">
           <BarChart3 className="h-5 w-5" />
         </div>
       </div>
@@ -146,14 +152,14 @@ const DepartmentCard: React.FC<{
         {department.stats.map((stat: any, index: number) => (
           <div
             key={index}
-            className={`text-center p-2 rounded-lg bg-gray-50 ${stat.link ? 'hover:bg-blue-50 hover:shadow-sm transition-all' : ''}`}
+            className={`text-center p-3 rounded-xl bg-gray-50 ${stat.link ? 'cursor-pointer hover:bg-blue-50 hover:shadow-sm transition-all duration-200' : ''}`}
             onClick={stat.link ? (e: React.MouseEvent) => {
               e.stopPropagation();
-              window.location.href = stat.link;
+              onStatClick(stat.link);
             } : undefined}
           >
-            <div className="text-2xl font-bold text-gray-800">{stat.value}</div>
-            <div className="text-sm text-gray-500">{stat.label}</div>
+            <div className="text-2xl font-bold text-gray-800 tabular-nums leading-none">{stat.value}</div>
+            <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mt-1.5">{stat.label}</div>
           </div>
         ))}
       </div>
@@ -167,19 +173,21 @@ const QuickStatCard: React.FC<{
   onClick?: () => void;
 }> = ({ stat, onClick }) => (
   <div
-    className={`bg-white rounded-lg shadow-sm px-3 py-4 border border-gray-100 ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 transition-all' : ''} relative`}
+    className={`bg-white rounded-xl shadow-sm px-4 py-3.5 border border-gray-100 ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 hover:scale-[1.02] transition-all duration-200' : ''} relative`}
     onClick={stat.clickable ? onClick : undefined}
   >
-    <div className="flex items-center gap-2.5">
-      <div className={`p-2 rounded-lg ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0`}>
+    <div className="flex items-center gap-3">
+      <div className={`p-2.5 rounded-xl ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0`}>
         {stat.icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-1.5 flex-wrap">
-          <span className="text-sm font-medium text-gray-600 whitespace-nowrap">{stat.label}</span>
-          <span className={`text-xl font-bold leading-none ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">{stat.label}</span>
         </div>
-        <p className={`text-[11px] font-medium ${stat.color} truncate mt-0.5`}>{stat.change}</p>
+        <div className="flex items-baseline gap-2 mt-0.5">
+          <span className={`text-2xl font-bold leading-none tabular-nums ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</span>
+        </div>
+        <p className={`text-[11px] font-medium ${stat.color} truncate mt-1`}>{stat.change}</p>
       </div>
     </div>
   </div>
@@ -203,6 +211,7 @@ interface PurchaseRequest {
 
 const Dashboard1: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
   const [isFeedbackListModalOpen, setIsFeedbackListModalOpen] = useState(false);
@@ -218,6 +227,8 @@ const Dashboard1: React.FC = () => {
   const [customEnd, setCustomEnd] = useState<string>('');
 
   const userIsAdmin = user ? isAdmin(user.department) : false;
+  const isDepartmentHead = user?.role === UserRole.DEPARTMENT_HEAD;
+  const canSeeStats = userIsAdmin || isDepartmentHead;
   const { settings } = useSystemSettings();
   const activeTheme = settings?.activeTheme || 'DEFAULT';
 
@@ -229,142 +240,138 @@ const Dashboard1: React.FC = () => {
   // Purchase requests query
   const { data: purchaseRequestsData } = useQuery({
     queryKey: ['purchaseRequests', 'dashboard'],
-    queryFn: () => purchaseRequestService.getAllPurchaseRequests(1, 100),
-    enabled: userIsAdmin,
+    queryFn: () => purchaseRequestService.getAllPurchaseRequests(1, 10000),
+    enabled: canSeeStats,
   });
 
   const purchaseRequests = purchaseRequestsData?.data || [];
-  const purchaseRequestCount = purchaseRequests.length;
-  const purchaseRequestPendingCount = purchaseRequests.filter(
-    (r: PurchaseRequest) => r.trangThai === 'Chờ duyệt'
-  ).length;
 
   // Dashboard stats queries
   const { data: ordersData } = useQuery({
     queryKey: ['dashboard', 'orders'],
     queryFn: () => orderService.getAllOrders(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: quotationsData } = useQuery({
     queryKey: ['dashboard', 'quotations'],
     queryFn: () => quotationService.getAllQuotations(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: customersData } = useQuery({
     queryKey: ['dashboard', 'customers'],
     queryFn: () => internationalCustomerService.getAllCustomers(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: feedbacksData } = useQuery({
     queryKey: ['dashboard', 'feedbacks'],
     queryFn: () => customerFeedbackService.getAllFeedbacks(),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: processesData } = useQuery({
     queryKey: ['dashboard', 'processes'],
     queryFn: () => processService.getAllProcesses(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: inspectionsData } = useQuery({
     queryKey: ['dashboard', 'inspections'],
     queryFn: () => internalInspectionService.getAllInspections(),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: qualityEvalData } = useQuery({
     queryKey: ['dashboard', 'qualityEvaluations'],
     queryFn: () => qualityEvaluationService.getAllQualityEvaluations(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: employeesData } = useQuery({
     queryKey: ['dashboard', 'employees'],
     queryFn: () => employeeService.getAllEmployees(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: invoicesData } = useQuery({
     queryKey: ['dashboard', 'invoices'],
     queryFn: () => invoiceService.getAllInvoices(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: costsData } = useQuery({
     queryKey: ['dashboard', 'costs'],
     queryFn: () => generalCostService.getAllGeneralCosts(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: debtSummaryData } = useQuery({
     queryKey: ['dashboard', 'debtSummary'],
     queryFn: () => debtService.getDebtSummary(),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: taxReportsData } = useQuery({
     queryKey: ['dashboard', 'taxReports'],
     queryFn: () => taxReportService.getAllTaxReports(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: machinesData } = useQuery({
     queryKey: ['dashboard', 'machines'],
     queryFn: () => machineService.getAllMachines(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: finishedProductsData } = useQuery({
     queryKey: ['dashboard', 'finishedProducts'],
     queryFn: () => finishedProductService.getAllFinishedProducts(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: suppliersData } = useQuery({
     queryKey: ['dashboard', 'suppliers'],
     queryFn: () => supplierService.getAllSuppliers(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: supplyRequestsData } = useQuery({
     queryKey: ['dashboard', 'supplyRequests'],
     queryFn: () => supplyRequestService.getAllSupplyRequests(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: workPlansData } = useQuery({
     queryKey: ['dashboard', 'workPlans'],
     queryFn: () => workPlanService.getAllWorkPlans(1, 10000),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: overtimePlansData } = useQuery({
     queryKey: ['dashboard', 'overtimePlans'],
     queryFn: () => overtimePlanService.getAll({ page: 1, limit: 1 }),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: overtimePlansPendingData } = useQuery({
     queryKey: ['dashboard', 'overtimePlansPending'],
     queryFn: () => overtimePlanService.getAll({ page: 1, limit: 1, trangThai: OvertimePlanStatus.CHO_DUYET }),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
   });
 
   const { data: evaluationPendingCount = 0 } = useQuery({
     queryKey: ['dashboard', 'evaluationPendingCount'],
     queryFn: () => employeeEvaluationService.getPendingCount(),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
     staleTime: 2 * 60 * 1000,
   });
 
   const { data: reportUnreadCount = 0 } = useQuery({
     queryKey: ['dashboard', 'reportSubmittedCount'],
     queryFn: () => dailyWorkReportService.getSubmittedCount(),
-    enabled: userIsAdmin,
+    enabled: canSeeStats,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -386,7 +393,6 @@ const Dashboard1: React.FC = () => {
   const suppliers = suppliersData?.data || [];
   const supplyRequests = supplyRequestsData?.data || [];
   const workPlans = workPlansData?.data || [];
-  const workPlanCount = workPlans.length;
   const overtimeCount = overtimePlansData?.total ?? 0;
   const overtimePendingCount = overtimePlansPendingData?.total ?? 0;
 
@@ -413,7 +419,15 @@ const Dashboard1: React.FC = () => {
   const filteredCosts            = filterByDateRange(costs,            filterStart, filterEnd);
   const filteredTaxReports       = filterByDateRange(taxReports,       filterStart, filterEnd);
   const filteredFinishedProducts = filterByDateRange(finishedProducts, filterStart, filterEnd);
-  const filteredSupplyRequests   = filterByDateRange(supplyRequests,   filterStart, filterEnd, 'createdAt', 'ngayYeuCau');
+  const filteredSupplyRequests   = filterByDateRange(supplyRequests,   filterStart, filterEnd, 'ngayYeuCau', 'createdAt');
+  const filteredWorkPlans        = filterByDateRange(workPlans,        filterStart, filterEnd, 'ngayBatDau');
+  const filteredPurchaseRequests = filterByDateRange(purchaseRequests, filterStart, filterEnd, 'ngayYeuCau', 'createdAt');
+  // Derived counts — always reflect the active period filter
+  const workPlanCount             = filteredWorkPlans.length;
+  const purchaseRequestCount      = filteredPurchaseRequests.length;
+  const purchaseRequestPendingCount = filteredPurchaseRequests.filter(
+    (r: PurchaseRequest) => r.trangThai === 'Chờ duyệt'
+  ).length;
   // ──────────────────────────────────────────────────────────────────────────
 
   // Mutation for approving/rejecting purchase requests
@@ -452,8 +466,8 @@ const Dashboard1: React.FC = () => {
     );
   }
 
-  // Nếu không phải admin, hiển thị Employee Dashboard
-  if (!userIsAdmin) {
+  // Non-stats users (EMPLOYEE, TEAM_LEAD) see the personal employee dashboard
+  if (!canSeeStats) {
     return <EmployeeDashboard />;
   }
 
@@ -468,7 +482,7 @@ const Dashboard1: React.FC = () => {
       color: "bg-slate-400",
       stats: [
         { label: "Đơn hàng", value: filteredOrders.length.toString(), link: "/general/pricing?tab=orders" },
-        { label: "Báo giá", value: filteredQuotations.length.toString(), link: "/general/pricing?tab=requests" },
+        { label: "Báo giá", value: filteredQuotations.length.toString(), link: "/general/pricing?tab=quotes" },
         { label: "Khách hàng", value: customers.length.toString(), link: "/general/partners" },
         { label: "Phản hồi KH", value: filteredFeedbacks.length.toString(), link: "/general/partners" }
       ]
@@ -479,9 +493,9 @@ const Dashboard1: React.FC = () => {
       color: "bg-emerald-400",
       stats: [
         { label: "Quy trình", value: processes.length.toString(), link: "/quality/process" },
-        { label: "Kiểm tra NB", value: filteredInspections.length.toString(), link: "/quality/office" },
-        { label: "Đánh giá CL", value: filteredQualityEvals.length.toString(), link: "/quality" },
-        { label: "Nhân viên", value: employees.length.toString(), link: "/quality/personnel" }
+        { label: "Kiểm tra NB", value: filteredInspections.length.toString(), link: "/quality/process?tab=inspection" },
+        { label: "Đánh giá CL", value: filteredQualityEvals.length.toString(), link: "/production/management?tab=qualityEvaluation" },
+        { label: "Nhân viên", value: employees.length.toString(), link: "/quality/personnel?tab=employees" }
       ]
     },
     business: {
@@ -489,10 +503,10 @@ const Dashboard1: React.FC = () => {
       icon: <Briefcase className="h-6 w-6" />,
       color: "bg-blue-400",
       stats: [
-        { label: "Đơn hàng", value: filteredOrders.length.toString(), link: "/business/management" },
-        { label: "Khách hàng", value: customers.length.toString(), link: "/business/international" },
-        { label: "Báo giá", value: filteredQuotations.length.toString(), link: "/business/management" },
-        { label: "Phản hồi", value: filteredFeedbacks.length.toString(), link: "/business/domestic" }
+        { label: "Đơn hàng", value: filteredOrders.length.toString(), link: "/business/domestic?tab=orders" },
+        { label: "Khách hàng", value: customers.length.toString(), link: "/business/international?tab=customers" },
+        { label: "Báo giá", value: filteredQuotations.length.toString(), link: "/business/domestic?tab=quotations" },
+        { label: "Phản hồi", value: filteredFeedbacks.length.toString(), link: "/business/domestic?tab=feedback" }
       ]
     },
     accounting: {
@@ -500,9 +514,9 @@ const Dashboard1: React.FC = () => {
       icon: <Calculator className="h-6 w-6" />,
       color: "bg-amber-400",
       stats: [
-        { label: "Hóa đơn", value: filteredInvoices.length.toString(), link: "/accounting" },
-        { label: "Chi phí", value: filteredCosts.length.toString(), link: "/accounting/admin" },
-        { label: "Công nợ", value: (debtSummary?.soLuongCongNo || 0).toString(), link: "/accounting" },
+        { label: "Hóa đơn", value: filteredInvoices.length.toString(), link: "/accounting/admin?tab=invoices" },
+        { label: "Chi phí", value: filteredCosts.length.toString(), link: "/general" },
+        { label: "Công nợ", value: (debtSummary?.soLuongCongNo || 0).toString(), link: "/accounting/admin?tab=debts" },
         { label: "Báo cáo thuế", value: filteredTaxReports.length.toString(), link: "/accounting/tax" }
       ]
     },
@@ -511,10 +525,10 @@ const Dashboard1: React.FC = () => {
       icon: <Factory className="h-6 w-6" />,
       color: "bg-indigo-400",
       stats: [
-        { label: "Máy móc", value: machines.length.toString(), link: "/production/management" },
-        { label: "Đang SX", value: filteredOrders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length.toString(), link: "/production/management" },
-        { label: "Thành phẩm", value: filteredFinishedProducts.length.toString(), link: "/production/warehouse" },
-        { label: "Đã giao", value: filteredOrders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length.toString(), link: "/production/management" }
+        { label: "Máy móc", value: machines.length.toString(), link: "/production/management?tab=machines" },
+        { label: "Đang SX", value: filteredOrders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length.toString(), link: "/production/management?tab=productionOrders" },
+        { label: "Thành phẩm", value: filteredFinishedProducts.length.toString(), link: "/production/management?tab=finishedProduct" },
+        { label: "Đã giao", value: filteredOrders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length.toString(), link: "/production/management?tab=orderList" }
       ]
     },
     purchasing: {
@@ -522,10 +536,10 @@ const Dashboard1: React.FC = () => {
       icon: <ShoppingCart className="h-6 w-6" />,
       color: "bg-teal-400",
       stats: [
-        { label: "Yêu cầu mua", value: purchaseRequestCount.toString(), link: "/purchasing" },
-        { label: "Nhà cung cấp", value: suppliers.length.toString(), link: "/purchasing/materials" },
-        { label: "Yêu cầu cung ứng", value: filteredSupplyRequests.length.toString(), link: "/purchasing/equipment" },
-        { label: "Chờ duyệt", value: purchaseRequestPendingCount.toString(), link: "/purchasing" }
+        { label: "Yêu cầu mua", value: purchaseRequestCount.toString(), link: "/purchasing/materials?tab=purchaseRequestList" },
+        { label: "Nhà cung cấp", value: suppliers.length.toString(), link: "/purchasing/materials?tab=suppliers" },
+        { label: "Yêu cầu cung ứng", value: filteredSupplyRequests.length.toString(), link: "/production/warehouse?tab=supplyRequest" },
+        { label: "Chờ duyệt", value: purchaseRequestPendingCount.toString(), link: "/purchasing/materials?tab=purchaseRequestList" }
       ]
     },
     technical: {
@@ -533,17 +547,20 @@ const Dashboard1: React.FC = () => {
       icon: <Wrench className="h-6 w-6" />,
       color: "bg-rose-400",
       stats: [
-        { label: "Máy móc", value: machines.length.toString(), link: "/technical" },
-        { label: "Bảo trì", value: machines.filter((m: any) => m.trangThai === 'BẢO_TRÌ').length.toString(), link: "/technical/mechanical" },
-        { label: "Hoạt động", value: machines.filter((m: any) => m.trangThai === 'HOAT_DONG').length.toString(), link: "/technical" },
-        { label: "Ngừng", value: machines.filter((m: any) => m.trangThai === 'NGỪNG_HOẠT_ĐỘNG').length.toString(), link: "/technical" }
+        { label: "Máy móc", value: machines.length.toString(), link: "/production/management?tab=machines" },
+        { label: "Bảo trì", value: machines.filter((m: any) => m.trangThai === 'BẢO_TRÌ').length.toString(), link: "/production/management?tab=machines" },
+        { label: "Hoạt động", value: machines.filter((m: any) => m.trangThai === 'HOAT_DONG').length.toString(), link: "/production/management?tab=machines" },
+        { label: "Ngừng", value: machines.filter((m: any) => m.trangThai === 'NGỪNG_HOẠT_ĐỘNG').length.toString(), link: "/production/management?tab=machines" }
       ]
     }
   };
 
   const handleDepartmentClick = (deptKey: string) => {
-    // Navigate to department page
-    window.location.href = `/${deptKey}`;
+    navigate(`/${deptKey}`);
+  };
+
+  const handleStatClick = (link: string) => {
+    navigate(link);
   };
 
   return (
@@ -652,7 +669,7 @@ const Dashboard1: React.FC = () => {
         </div>
 
         {/* Quick Stats Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-8">
           {quickStats.map((stat, index) => (
             <QuickStatCard
               key={index}
@@ -691,85 +708,33 @@ const Dashboard1: React.FC = () => {
                   <DepartmentCard
                     department={department}
                     onClick={() => handleDepartmentClick(key)}
+                    onStatClick={handleStatClick}
                     isFullWidth={true}
                   />
                 </div>
               ))}
             </div>
           </div>
-        ) : (
-          /* User Dashboard - Personal Department View */
+        ) : isDepartmentHead ? (
+          /* Department Head — only their own department card */
           <div>
             <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">Dashboard cá nhân</h2>
-              <p className="text-gray-600">Thông tin và nhiệm vụ của bạn trong {departmentName}</p>
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">Dashboard phòng ban</h2>
+              <p className="text-gray-600">Thống kê hoạt động của {departmentName}</p>
             </div>
 
-            {/* Personal Department Card */}
-            <div className="max-w-2xl mx-auto">
+            <div className="max-w-3xl mx-auto">
               {departmentStats[user.department as keyof typeof departmentStats] && (
                 <DepartmentCard
                   department={departmentStats[user.department as keyof typeof departmentStats]}
                   onClick={() => handleDepartmentClick(user.department || '')}
+                  onStatClick={handleStatClick}
+                  isFullWidth={true}
                 />
               )}
             </div>
-
-            {/* Personal Tasks/Activities */}
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                  <Target className="h-5 w-5 text-blue-600 mr-2" />
-                  Nhiệm vụ của tôi
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                    <span className="text-gray-700">Hoàn thành báo cáo tháng</span>
-                    <span className="text-blue-600 font-medium">85%</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                    <span className="text-gray-700">Xem xét đơn hàng mới</span>
-                    <span className="text-green-600 font-medium">Hoàn thành</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
-                    <span className="text-gray-700">Họp team hàng tuần</span>
-                    <span className="text-orange-600 font-medium">Đang chờ</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                  <Clock className="h-5 w-5 text-purple-600 mr-2" />
-                  Hoạt động gần đây
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                    <div>
-                      <p className="text-gray-700 text-sm">Tạo yêu cầu sửa chữa thiết bị</p>
-                      <p className="text-gray-500 text-xs">2 giờ trước</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start space-x-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                    <div>
-                      <p className="text-gray-700 text-sm">Phê duyệt đơn hàng #DH001</p>
-                      <p className="text-gray-500 text-xs">5 giờ trước</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start space-x-3">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
-                    <div>
-                      <p className="text-gray-700 text-sm">Cập nhật báo cáo chất lượng</p>
-                      <p className="text-gray-500 text-xs">1 ngày trước</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Task List Modal for Admin - Shows ALL tasks */}
