@@ -31,7 +31,11 @@ export class AttendanceController {
 
   async getEmployeeAttendance(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const employeeId = req.params.employeeId as string;
+      if (!req.user) {
+        throw new ValidationError('Thiếu thông tin người dùng');
+      }
+
+      const requestedEmployeeId = req.params.employeeId as string;
       const { startDate, endDate } = req.query;
 
       if (!startDate || !endDate) {
@@ -44,6 +48,11 @@ export class AttendanceController {
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
         throw new ValidationError('Invalid date format');
       }
+
+      const employeeId = await attendanceService.resolveEmployeeAttendanceAccess(requestedEmployeeId, {
+        userId: req.user.id,
+        role: req.user.role,
+      });
 
       const attendances = await attendanceService.getEmployeeAttendance(employeeId, start, end);
       res.json({
@@ -211,4 +220,3 @@ export class AttendanceController {
 }
 
 export default new AttendanceController();
-

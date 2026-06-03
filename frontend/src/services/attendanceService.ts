@@ -32,6 +32,23 @@ export interface IndividualAttendanceRecord {
   notes: string | null;
 }
 
+const toLocalIsoBoundary = (date: string, boundary: 'start' | 'end'): string => {
+  const [year, month, day] = date.split('-').map(Number);
+  const boundaryTime = boundary === 'start'
+    ? [0, 0, 0, 0]
+    : [23, 59, 59, 999];
+
+  return new Date(
+    year,
+    (month || 1) - 1,
+    day || 1,
+    boundaryTime[0],
+    boundaryTime[1],
+    boundaryTime[2],
+    boundaryTime[3]
+  ).toISOString();
+};
+
 class AttendanceService {
   async getAttendanceByDateRange(startDate: string, endDate: string): Promise<AttendanceRecord[]> {
     try {
@@ -49,8 +66,8 @@ class AttendanceService {
     try {
       const response = await apiClient.get(`/attendances/employee/${employeeId}`, {
         params: {
-          startDate: new Date(startDate).toISOString(),
-          endDate: new Date(endDate).toISOString(),
+          startDate: toLocalIsoBoundary(startDate, 'start'),
+          endDate: toLocalIsoBoundary(endDate, 'end'),
         },
       });
       return response.data || [];

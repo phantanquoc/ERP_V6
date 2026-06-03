@@ -1,5 +1,5 @@
 import prisma from '@config/database';
-import { NotFoundError } from '@utils/errors';
+import { AuthorizationError, NotFoundError } from '@utils/errors';
 import { AttendanceStatus, Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import workShiftService from './workShiftService';
@@ -142,8 +142,33 @@ export class AttendanceService {
       checkOutTime: attendance.checkOutTime,
       workHours: attendance.workHours,
       status: attendance.status,
+      isOvertime: attendance.isOvertime,
       notes: attendance.notes,
     }));
+  }
+
+  async resolveEmployeeAttendanceAccess(
+    requestedEmployeeId: string,
+    requester: { userId: string; role: string }
+  ): Promise<string> {
+    if (requester.role !== 'EMPLOYEE') {
+      return requestedEmployeeId;
+    }
+
+    const employee = await prisma.employee.findFirst({
+      where: { userId: requester.userId },
+      select: { id: true },
+    });
+
+    if (!employee) {
+      throw new NotFoundError('Không tìm thấy thông tin nhân viên');
+    }
+
+    if (employee.id !== requestedEmployeeId) {
+      throw new AuthorizationError('Bạn chỉ được xem dữ liệu điểm danh của chính mình');
+    }
+
+    return employee.id;
   }
 
   async checkIn(employeeId: string, checkInTime: Date, tx?: Prisma.TransactionClient): Promise<any> {

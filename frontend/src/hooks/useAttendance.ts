@@ -7,6 +7,12 @@ export const attendanceKeys = {
   lists: () => [...attendanceKeys.all, 'list'] as const,
   list: (filters: Record<string, any>) => [...attendanceKeys.lists(), filters] as const,
   dateRange: (startDate: string, endDate: string) => [...attendanceKeys.lists(), { startDate, endDate }] as const,
+  employeeHistory: (employeeId: string, startDate: string, endDate: string) => [
+    ...attendanceKeys.lists(),
+    'employee-history',
+    employeeId,
+    { startDate, endDate },
+  ] as const,
   details: () => [...attendanceKeys.all, 'detail'] as const,
   detail: (id: string) => [...attendanceKeys.details(), id] as const,
 };
@@ -17,6 +23,19 @@ export const useAttendanceByDateRange = (startDate: string, endDate: string) => 
     queryKey: attendanceKeys.dateRange(startDate, endDate),
     queryFn: () => attendanceService.getAttendanceByDateRange(startDate, endDate),
     enabled: !!startDate && !!endDate,
+  });
+};
+
+export const useEmployeeAttendanceHistory = (
+  employeeId: string | undefined,
+  startDate: string,
+  endDate: string,
+  enabled: boolean = true
+) => {
+  return useQuery({
+    queryKey: attendanceKeys.employeeHistory(employeeId || 'unknown', startDate, endDate),
+    queryFn: () => attendanceService.getEmployeeAttendance(employeeId!, startDate, endDate),
+    enabled: enabled && !!employeeId && !!startDate && !!endDate,
   });
 };
 
@@ -55,4 +74,3 @@ export const useDeleteAttendance = () => {
     },
   });
 };
-
