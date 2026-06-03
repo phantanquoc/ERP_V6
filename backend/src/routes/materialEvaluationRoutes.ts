@@ -72,36 +72,6 @@ router.post(
 
 /**
  * @swagger
- * /api/material-evaluations/{id}:
- *   get:
- *     tags: [Material Evaluations]
- *     summary: "Chi tiết đánh giá vật liệu"
- *     description: "Roles cho phép: ADMIN, DEPARTMENT_HEAD, TEAM_LEAD, EMPLOYEE"
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: "ID của đánh giá vật liệu"
- *     responses:
- *       200:
- *         description: "Lấy chi tiết đánh giá vật liệu thành công"
- *       401:
- *         description: "Không có quyền truy cập"
- *       404:
- *         description: "Không tìm thấy đánh giá vật liệu"
- */
-router.get(
-  '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
-  materialEvaluationController.getMaterialEvaluationById
-);
-
-/**
- * @swagger
  * /api/material-evaluations/ma-chien/{maChien}:
  *   get:
  *     tags: [Material Evaluations]
@@ -128,6 +98,36 @@ router.get(
   '/ma-chien/:maChien',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   materialEvaluationController.getMaterialEvaluationByMaChien
+);
+
+/**
+ * @swagger
+ * /api/material-evaluations/{id}:
+ *   get:
+ *     tags: [Material Evaluations]
+ *     summary: "Chi tiết đánh giá vật liệu"
+ *     description: "Roles cho phép: ADMIN, DEPARTMENT_HEAD, TEAM_LEAD, EMPLOYEE"
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: "ID của đánh giá vật liệu"
+ *     responses:
+ *       200:
+ *         description: "Lấy chi tiết đánh giá vật liệu thành công"
+ *       401:
+ *         description: "Không có quyền truy cập"
+ *       404:
+ *         description: "Không tìm thấy đánh giá vật liệu"
+ */
+router.get(
+  '/:id',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  materialEvaluationController.getMaterialEvaluationById
 );
 
 /**

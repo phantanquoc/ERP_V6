@@ -153,6 +153,22 @@ export const createSystemOperationSchema = z.object({
   thoiGianChien: z.string().min(1, 'Thời gian chiên là bắt buộc'),
   tenMay: z.string().optional(),
   machineId: z.string().optional(),
+  khoiLuongDauVao: z.number().min(0).optional(),
+  giaiDoan1ThoiGian: z.number().min(0).optional(),
+  giaiDoan1NhietDo: z.number().optional(),
+  giaiDoan1ApSuat: z.number().optional(),
+  giaiDoan2ThoiGian: z.number().min(0).optional(),
+  giaiDoan2NhietDo: z.number().optional(),
+  giaiDoan2ApSuat: z.number().optional(),
+  giaiDoan3ThoiGian: z.number().min(0).optional(),
+  giaiDoan3NhietDo: z.number().optional(),
+  giaiDoan3ApSuat: z.number().optional(),
+  giaiDoan4ThoiGian: z.number().min(0).optional(),
+  giaiDoan4NhietDo: z.number().optional(),
+  giaiDoan4ApSuat: z.number().optional(),
+  ghiChu: z.string().optional(),
+  nguoiThucHien: z.string().optional(),
+  materialEvaluationId: z.string().optional(),
 });
 
 export const createBulkSystemOperationSchema = z.object({
@@ -175,7 +191,6 @@ export const updateSystemOperationSchema = z.object({
   giaiDoan4NhietDo: z.number().optional(),
   giaiDoan4ApSuat: z.number().optional(),
   tongThoiGianSay: z.number().min(0).optional(),
-  trangThai: z.string().optional(),
   ghiChu: z.string().optional(),
   nguoiThucHien: z.string().optional(),
 });
