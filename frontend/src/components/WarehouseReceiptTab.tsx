@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, FileText, Eye } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import warehouseReceiptService, { WarehouseReceipt } from '../services/warehouseReceiptService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import { warehouseKeys } from '../hooks';
 
 const WarehouseReceiptTab: React.FC = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [receipts, setReceipts] = useState<WarehouseReceipt[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [lots, setLots] = useState<Lot[]>([]);
@@ -147,6 +150,7 @@ const WarehouseReceiptTab: React.FC = () => {
       setShowModal(false);
       fetchReceipts();
       fetchWarehouses(); // Refresh to get updated quantities
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi tạo phiếu nhập kho');
     } finally {
@@ -584,7 +588,7 @@ const WarehouseReceiptTab: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nhập ghi chú (nếu có)"
+                  placeholder="VD: sản xuất nhập kho / mua nhập kho - nhà cung cấp - ..."
                 />
               </div>
 
