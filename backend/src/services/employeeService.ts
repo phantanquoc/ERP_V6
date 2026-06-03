@@ -14,7 +14,69 @@ export class EmployeeService {
     });
     return nextEmployeeCode(last?.employeeCode ?? null);
   }
-  async getAllEmployees(page: number = 1, limit: number = 10, departmentId?: string, search?: string, subDepartmentId?: string): Promise<PaginatedResponse<any>> {
+
+  async getEmployeesForAssignment(
+    page: number = 1,
+    limit: number = 10,
+    filters: {
+      departmentId?: string;
+      departmentCode?: string;
+      subDepartmentId?: string;
+      subDepartmentCode?: string;
+      positionName?: string;
+      positionCode?: string;
+      search?: string;
+    } = {}
+  ): Promise<PaginatedResponse<any>> {
+    let departmentId = filters.departmentId;
+    let subDepartmentId = filters.subDepartmentId;
+
+    if (!departmentId && filters.departmentCode) {
+      const department = await prisma.department.findUnique({
+        where: { code: filters.departmentCode },
+        select: { id: true },
+      });
+
+      if (!department) {
+        throw new NotFoundError('Không tìm thấy bộ phận');
+      }
+
+      departmentId = department.id;
+    }
+
+    if (!subDepartmentId && filters.subDepartmentCode) {
+      const subDepartment = await prisma.subDepartment.findUnique({
+        where: { code: filters.subDepartmentCode },
+        select: { id: true },
+      });
+
+      if (!subDepartment) {
+        throw new NotFoundError('Không tìm thấy phòng ban');
+      }
+
+      subDepartmentId = subDepartment.id;
+    }
+
+    return this.getAllEmployees(
+      page,
+      limit,
+      departmentId,
+      filters.search,
+      subDepartmentId,
+      filters.positionName,
+      filters.positionCode
+    );
+  }
+
+  async getAllEmployees(
+    page: number = 1,
+    limit: number = 10,
+    departmentId?: string,
+    search?: string,
+    subDepartmentId?: string,
+    positionName?: string,
+    positionCode?: string
+  ): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
     // Build where conditions
@@ -31,6 +93,24 @@ export class EmployeeService {
           { subDepartment: { departmentId } },
         ],
       });
+    }
+
+    if (positionName || positionCode) {
+      const positionConditions: any[] = [];
+
+      if (positionName) {
+        positionConditions.push({
+          position: { name: { equals: positionName, mode: 'insensitive' } },
+        });
+      }
+
+      if (positionCode) {
+        positionConditions.push({
+          position: { code: positionCode },
+        });
+      }
+
+      conditions.push({ OR: positionConditions });
     }
 
     // Filter theo search (tên, mã NV, email, chức vụ, tên bộ phận)
@@ -415,4 +495,3 @@ export class EmployeeService {
 }
 
 export default new EmployeeService();
-

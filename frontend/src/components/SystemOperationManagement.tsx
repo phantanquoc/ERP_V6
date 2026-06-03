@@ -6,6 +6,7 @@ import materialEvaluationService, { MaterialEvaluation } from '../services/mater
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
+import { useProductionEmployees } from '../hooks/useProductionEmployees';
 
 interface FormData {
   maChien: string;
@@ -28,6 +29,7 @@ interface SystemOperationManagementProps {
 
 const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ initialMaChien, initialThoiGianChien }) => {
   const { user } = useAuth();
+  const { data: productionEmployees = [] } = useProductionEmployees();
   const [operations, setOperations] = useState<SystemOperation[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [materialEvaluations, setMaterialEvaluations] = useState<MaterialEvaluation[]>([]);
@@ -829,11 +831,18 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                   <input
                     type="text"
                     name="nguoiThucHien"
+                    list="production-employees-list"
                     value={formData.nguoiThucHien}
-                    readOnly
+                    onChange={handleInputChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
+                    placeholder="Nhập tên hoặc chọn từ danh sách"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
+                  <datalist id="production-employees-list">
+                    {productionEmployees.map(emp => (
+                      <option key={emp.id} value={emp.name} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div>
@@ -1036,4 +1045,3 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
 };
 
 export default SystemOperationManagement;
-

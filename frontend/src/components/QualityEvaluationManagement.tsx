@@ -142,7 +142,7 @@ const QualityEvaluationManagement: React.FC = () => {
     }
   };
 
-  const handleFormChange = (field: string, value: any) => {
+  const handleFormChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -226,13 +226,10 @@ const QualityEvaluationManagement: React.FC = () => {
       setLoading(true);
       setError('');
 
-      // Remove nguoiThucHien from formData to let backend auto-fill from logged-in user
-      const { nguoiThucHien, ...dataToSubmit } = formData;
-
       if (isEditing && selectedEvaluation) {
-        await qualityEvaluationService.updateQualityEvaluation(selectedEvaluation.id, dataToSubmit);
+        await qualityEvaluationService.updateQualityEvaluation(selectedEvaluation.id, formData);
       } else {
-        await qualityEvaluationService.createQualityEvaluation(dataToSubmit);
+        await qualityEvaluationService.createQualityEvaluation(formData);
       }
 
       await loadEvaluations();
@@ -487,4 +484,3 @@ const QualityEvaluationManagement: React.FC = () => {
 };
 
 export default QualityEvaluationManagement;
-

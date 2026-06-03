@@ -513,14 +513,11 @@ const FinishedProductManagement: React.FC = () => {
       setLoading(true);
       setError('');
 
-      // Remove nguoiThucHien from formData to let backend auto-fill from logged-in user
-      const { nguoiThucHien, ...restData } = formData;
-
       // Convert datetime-local to ISO string for consistent storage
       const dataToSubmit = {
-        ...restData,
-        thoiGianChien: restData.thoiGianChien
-          ? new Date(restData.thoiGianChien).toISOString()
+        ...formData,
+        thoiGianChien: formData.thoiGianChien
+          ? new Date(formData.thoiGianChien).toISOString()
           : '',
       };
 
@@ -561,7 +558,7 @@ const FinishedProductManagement: React.FC = () => {
     setIsViewModalOpen(true);
   };
 
-  const handleFormChange = (field: string, value: any) => {
+  const handleFormChange = (field: string, value: string | number) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -699,7 +696,7 @@ const FinishedProductManagement: React.FC = () => {
                         {product.tenHangHoa}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center font-semibold">
-                        {product.khoiLuong.toFixed(2)}
+                        {product.tongKhoiLuong.toFixed(2)}
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                         {product.nguoiThucHien}
@@ -1120,4 +1117,3 @@ const FinishedProductManagement: React.FC = () => {
 };
 
 export default FinishedProductManagement;
-

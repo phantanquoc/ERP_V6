@@ -3,14 +3,15 @@ import { X } from 'lucide-react';
 import { FinishedProduct } from '../services/finishedProductService';
 import DateTimePicker from './DateTimePicker';
 import { parseNumberInput } from '../utils/numberInput';
+import { useProductionEmployees } from '../hooks/useProductionEmployees';
 
 interface FinishedProductModalProps {
   isOpen: boolean;
   isEditing: boolean;
-  formData: any;
+  formData: Partial<FinishedProduct>;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
-  onChange: (field: string, value: any) => void;
+  onChange: (field: keyof FinishedProduct, value: string | number) => void;
 }
 
 const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
@@ -21,9 +22,11 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
   onSubmit,
   onChange,
 }) => {
+  const { data: productionEmployees = [] } = useProductionEmployees();
+
   if (!isOpen) return null;
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: keyof FinishedProduct, value: string | number) => {
     onChange(field, value);
   };
 
@@ -104,11 +107,17 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
               </label>
               <input
                 type="text"
-                value={formData.nguoiThucHien || '(Tự động điền từ tài khoản đăng nhập)'}
-                readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
-                placeholder="Tự động điền từ tài khoản đăng nhập"
+                value={formData.nguoiThucHien || ''}
+                list="finished-product-employees-list"
+                onChange={(e) => handleInputChange('nguoiThucHien', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Nhập tên hoặc chọn từ danh sách"
               />
+              <datalist id="finished-product-employees-list">
+                {productionEmployees.map(employee => (
+                  <option key={employee.id} value={employee.name} />
+                ))}
+              </datalist>
             </div>
 
             <div>
@@ -396,4 +405,3 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
 };
 
 export default FinishedProductModal;
-
