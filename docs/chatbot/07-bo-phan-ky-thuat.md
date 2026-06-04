@@ -125,11 +125,11 @@ Các tab trong Phòng QLHTM:
 | 3 | Mã hệ thống | ✅ | Văn bản | VD: HT-001 |
 | 4 | Tên hệ thống | ✅ | Văn bản | VD: Hệ thống chiên chân không |
 | 5 | Chức năng | | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng |
-| 6 | Mã thiết bị | | Văn bản | VD: TB-001 |
-| 7 | Tên thiết bị | | Văn bản | VD: Nồi chiên VF-003 |
-| 8 | Nhiệm vụ | | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng |
-| 9 | Người thực hiện | | Dropdown | Chọn từ danh sách nhân viên (hiển thị mã + tên) |
-| 10 | Mã người thực hiện | | Tự động | **Tự động điền** khi chọn người thực hiện (readOnly) |
+| 6 | Thiết bị | | Dropdown | Chọn từ danh sách máy (hiển thị mã máy + tên máy); tự động điền cả Mã thiết bị và Tên thiết bị |
+| 7 | Nhiệm vụ | | Văn bản dài (2 dòng) | Chiếm toàn bộ chiều rộng |
+| 8 | Người thực hiện | | Dropdown | Chọn từ danh sách nhân viên (hiển thị mã + tên) |
+| 9 | Mã người thực hiện | | Tự động | **Tự động điền** khi chọn người thực hiện (readOnly) |
+| 10 | Trạng thái hoạt động | | Toggle | Bật = "Đang hoạt động" (xanh lá) · Tắt = "Dừng hoạt động" (xám) |
 | 11 | File đính kèm | | Tải tệp | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG |
 
 **Nút:** "Thêm mới" (tạo) / "Cập nhật" (sửa) / "Đóng"
@@ -219,26 +219,35 @@ Tab này hiển thị danh sách đơn hàng chung (giống Bộ phận sản xu
 | Đang sửa chữa | Xanh dương | Đang được xử lý |
 | Hoàn thành | Xanh lá | Đã sửa xong |
 
-#### Loại lỗi (6 loại)
+#### Loại lỗi (2 loại)
 
-`Lỗi cơ khí` · `Lỗi điện` · `Lỗi phần mềm điều khiển` · `Lỗi thủy lực` · `Lỗi khí nén` · `Khác`
+`Lỗi mới` · `Lỗi lặp lại`
 
-#### Form thêm / chỉnh sửa yêu cầu — 9 trường
+#### Form thêm / chỉnh sửa yêu cầu — trường header + bảng thiết bị
+
+**Trường header (5 trường):**
 
 | # | Trường | Bắt buộc | Loại nhập | Ghi chú |
 |---|---|:---:|---|---|
 | 1 | Ngày tháng | ✅ | Date picker | Mặc định: ngày hiện tại |
 | 2 | Mã yêu cầu sửa chữa | ✅ | Văn bản | **Tự động sinh** khi tạo mới (VD: YC-001) |
-| 3 | Tên hệ thống/thiết bị | ✅ | Dropdown | Chọn từ danh sách hệ thống máy (tab 3.1) |
-| 4 | Khu vực sử dụng | ✅ | Văn bản | VD: Xưởng sản xuất, Kho nguyên liệu |
-| 5 | Loại lỗi | ✅ | Dropdown | 6 loại (xem bảng trên) |
-| 6 | Mức độ ưu tiên | ✅ | Dropdown | Thấp · Trung bình · Cao · Khẩn cấp |
-| 7 | Trạng thái | ✅ | Dropdown | Chờ xử lý · Đang sửa chữa · Hoàn thành |
-| 8 | Nội dung lỗi | ✅ | Văn bản dài (3 dòng) | Mô tả chi tiết triệu chứng lỗi |
-| 9 | Ghi chú | | Văn bản dài (2 dòng) | Ghi chú thêm (nếu có) |
+| 3 | Mức độ ưu tiên | ✅ | Dropdown | Thấp · Trung bình · Cao · Khẩn cấp |
+| 4 | Trạng thái | ✅ | Dropdown | Chờ xử lý · Đang sửa chữa · Hoàn thành |
+| 5 | Ghi chú | | Văn bản dài (2 dòng) | Ghi chú thêm (nếu có) |
 | + | File đính kèm | | Tải tệp | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG |
 
-> **Lưu ý quan trọng:** Mã yêu cầu được tự động sinh từ API (`/repair-requests/generate-code`) khi nhấn "Thêm mới". Trường "Tên hệ thống/thiết bị" lấy từ danh sách hệ thống máy đã khai báo ở tab 3.1 — nếu chưa có hệ thống nào, cần tạo trước.
+**Bảng "Danh sách thiết bị lỗi" (nhiều dòng, bắt buộc ít nhất 1 dòng):**
+
+| Cột | Loại nhập | Ghi chú |
+|---|---|---|
+| Hệ thống/Thiết bị | Dropdown | Chọn từ danh sách hệ thống máy (tab 3.1) |
+| Khu vực sử dụng | Văn bản | VD: Xưởng sản xuất, Kho nguyên liệu |
+| Loại lỗi | Dropdown | Lỗi mới · Lỗi lặp lại |
+| Nội dung lỗi | Văn bản | Mô tả triệu chứng lỗi |
+
+Nhấn **"+ Thêm thiết bị"** để thêm dòng mới; nhấn biểu tượng thùng rác để xóa dòng (phải có ít nhất 1 dòng).
+
+> **Lưu ý quan trọng:** Mã yêu cầu được tự động sinh từ API (`/repair-requests/generate-code`) khi nhấn "Thêm mới". Cột "Hệ thống/Thiết bị" lấy từ danh sách hệ thống máy đã khai báo ở tab 3.1 — nếu chưa có hệ thống nào, cần tạo trước.
 
 #### Nút "Nghiệm thu" trên mỗi dòng
 
@@ -313,7 +322,7 @@ Sau khi sửa chữa hoàn thành, kỹ thuật viên tạo biên bản nghiệm
 ## 6. FAQ
 
 **Q1: Làm thế nào để tạo yêu cầu sửa chữa?**
-Vào **Phòng QLHTM** → tab **"Danh sách yêu cầu sửa chữa"** → nhấn **Thêm mới** (hệ thống tự sinh mã yêu cầu) → chọn Tên hệ thống/thiết bị từ dropdown → điền Loại lỗi, Mức độ ưu tiên, Nội dung lỗi → nhấn **Thêm mới**.
+Vào **Phòng QLHTM** → tab **"Danh sách yêu cầu sửa chữa"** → nhấn **Thêm mới** (hệ thống tự sinh mã yêu cầu) → chọn Mức độ ưu tiên và Trạng thái → trong bảng "Danh sách thiết bị lỗi" chọn Hệ thống/Thiết bị, nhập Khu vực sử dụng, chọn Loại lỗi (Lỗi mới/Lỗi lặp lại), nhập Nội dung lỗi → nhấn **Thêm mới**.
 
 **Q2: Mức độ ưu tiên nào được xử lý trước?**
 Thứ tự ưu tiên từ cao đến thấp: **Khẩn cấp → Cao → Trung bình → Thấp**. Yêu cầu "Khẩn cấp" cần xử lý ngay lập tức.

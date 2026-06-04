@@ -101,7 +101,7 @@ Phòng thu mua NVL quản lý toàn bộ chu trình thu mua nguyên vật liệu
 | 7 | Số điện thoại | ✅ | Text | |
 | 8 | Email liên hệ | ✅ | Email | |
 | 9 | Địa chỉ | ✅ | Text | |
-| 10 | Khả năng cung cấp | ❌ | Textarea | Mô tả năng lực cung cấp |
+| 10 | Khả năng cung cấp | ❌ | Text | Mô tả năng lực cung cấp |
 | 11 | Loại hình | ✅ | Dropdown | `Sản xuất` / `Thương mại` |
 | 12 | Trạng thái | ❌ | Dropdown | `Đang cung cấp` / `Ngừng cung cấp` (mặc định: "Đang cung cấp") |
 | 13 | Doanh chi (VNĐ) | ❌ | Số | Doanh số chi trả cho NCC (mặc định: 0) |
@@ -339,7 +339,7 @@ Giống phòng NVL (xem mục 3.3): STT · Mã NCC · Tên NCC · Loại cung c�
 | 7 | SĐT | ✅ | Text |
 | 8 | Email | ✅ | Email |
 | 9 | Địa chỉ | ✅ | Text |
-| 10 | Khả năng cung cấp | ❌ | Textarea |
+| 10 | Khả năng cung cấp | ❌ | Text |
 | 11 | Loại hình | ✅ | Dropdown — `Sản xuất` / `Thương mại` |
 | 12 | Trạng thái | ❌ | Dropdown — `Đang cung cấp` / `Ngừng cung cấp` |
 | 13 | Doanh chi (VNĐ) | ❌ | Số |

@@ -163,7 +163,7 @@ Nút trong phần sản phẩm: **"Thêm sản phẩm"** (xanh lá, biểu tư�
 |---|---|---|
 | Hình thức vận chuyển | Dropdown: Đường biển / Đường hàng không / Đường bộ / Đường sắt / Đa phương thức | Dropdown: Giao hàng tận nơi / Khách tự đến lấy / Vận chuyển đường bộ / Vận chuyển đường thủy |
 | Hình thức thanh toán | Dropdown: T/T / L/C / D/P / D/A / CAD / Open Account | Dropdown: Tiền mặt / Chuyển khoản / Công nợ 15 ngày / Công nợ 30 ngày / Công nợ 45 ngày |
-| Địa điểm giao | Quốc gia (văn bản) + Cảng đến (văn bản) | Địa chỉ giao hàng (văn bản, placeholder: "Nhập địa chỉ giao hàng...") |
+| Địa điểm giao | Quốc gia (văn bản) + Cảng đến (văn bản) + Tỉ giá USD (số, VD: 25000) | Địa chỉ giao hàng (văn bản, placeholder: "Nhập địa chỉ giao hàng...") |
 
 **Trường chung:**
 
@@ -665,12 +665,12 @@ Bộ phận Kinh doanh phụ thuộc dữ liệu từ các bộ phận khác. N�
 
 | Dữ liệu cần | Nguồn | Nếu thiếu |
 |---|---|---|
-| Danh mục sản phẩm (dropdown khi tạo YCBG) | **Bộ phận tổng hợp** → Phòng hàng hóa QT → Tab Sản phẩm | Liên hệ Phòng hàng hóa QT để thêm sản phẩm mới |
+| Danh mục sản phẩm (dropdown khi tạo YCBG) | **Bộ phận sản xuất** → Quản lý kho → Tab Danh sách hàng hóa | Liên hệ Bộ phận sản xuất (Quản lý kho) để thêm sản phẩm mới |
 | Danh sách khách hàng (dropdown khi tạo YCBG) | Tab **Khách hàng** trong cùng phòng KD | Tạo khách hàng mới tại tab Khách hàng trước khi tạo YCBG |
 | Chi phí chung / Chi phí xuất khẩu (bảng tính giá) | **Bộ phận tổng hợp** → Phòng giá thành → Tab Chi phí | Liên hệ Phòng giá thành để thiết lập chi phí |
-| Định mức nguyên vật liệu (bảng tính giá) | **Bộ phận tổng hợp** → Phòng giá thành → Tab Định mức | Liên hệ Phòng giá thành để tạo định mức |
-| Quy trình sản xuất (bảng tính giá) | **Bộ phận tổng hợp** → Phòng giá thành → Tab Quy trình | Liên hệ Phòng giá thành để thiết lập quy trình |
-| Tồn kho (kiểm tra khi tính giá) | **Bộ phận tổng hợp** → Phòng hàng hóa QT → Tab Kho | Liên hệ Phòng kho để cập nhật tồn kho |
+| Định mức nguyên vật liệu (bảng tính giá) | **Bộ phận sản xuất** → Phòng QLSX → Tab Định mức NVL | Liên hệ Phòng QLSX để tạo định mức |
+| Quy trình sản xuất (bảng tính giá) | **Bộ phận chất lượng** → Phòng CL Quy trình → Tab Danh sách quy trình | Liên hệ Phòng CL Quy trình để thiết lập quy trình |
+| Tồn kho (kiểm tra khi tính giá) | **Bộ phận sản xuất** → Quản lý kho → Tab Danh sách hàng hóa | Liên hệ Bộ phận sản xuất (Quản lý kho) để cập nhật tồn kho |
 
 > **Thứ tự thiết lập:** Trước khi Phòng KD có thể tạo YCBG đầy đủ, cần: (1) Sản phẩm đã được tạo, (2) Khách hàng đã được tạo. Trước khi tính giá thành: (3) Định mức + Quy trình đã thiết lập, (4) Chi phí chung/xuất khẩu đã tạo.
 

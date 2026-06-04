@@ -81,8 +81,8 @@ Phòng giá thành quản lý toàn bộ quy trình từ tiếp nhận yêu cầ
 |---|---|---|
 | Khách hàng (mã, tên công ty) | Phòng kinh doanh | Phải có trong danh sách khách hàng quốc tế/nội địa |
 | Sản phẩm (mã, tên) | Phòng kinh doanh | Phải có trong danh sách sản phẩm quốc tế |
-| Định mức nguyên vật liệu | Phòng kỹ thuật | Cần cho bảng tính báo giá |
-| Quy trình sản xuất + lưu đồ | Phòng kỹ thuật / Phòng sản xuất | Cần cho tính chi phí sản xuất |
+| Định mức nguyên vật liệu | Bộ phận sản xuất (Phòng QLSX) | Cần cho bảng tính báo giá |
+| Quy trình sản xuất + lưu đồ | Bộ phận chất lượng (Phòng CL Quy trình) / Bộ phận sản xuất (Phòng QLSX) | Cần cho tính chi phí sản xuất |
 | Chi phí chung | Phòng giá thành (tự tạo) | Tab Chi phí → Chi phí chung |
 | Chi phí xuất khẩu | Phòng giá thành (tự tạo) | Tab Chi phí → Chi phí xuất khẩu |
 
@@ -268,9 +268,9 @@ Bảng tính hiển thị dạng modal lớn với nhiều tab:
 | Tên sản phẩm | ✅ | Dropdown (lọc theo loại SP) | Tự động từ YCBG |
 | Khối lượng | | Số | Từ YCBG hoặc nhập tay |
 | Đơn vị | | Văn bản | Kg, MT, Tấn... |
-| Mã định mức NVL | | Dropdown | Chọn từ danh sách định mức (Phòng kỹ thuật tạo) |
+| Mã định mức NVL | | Dropdown | Chọn từ danh sách định mức (Bộ phận sản xuất — Phòng QLSX tạo) |
 
-> **Nếu không có định mức NVL:** Yêu cầu Phòng kỹ thuật tạo định mức nguyên vật liệu cho sản phẩm trước.
+> **Nếu không có định mức NVL:** Yêu cầu Bộ phận sản xuất (Phòng QLSX) tạo định mức nguyên vật liệu cho sản phẩm trước.
 
 **Section 2: Nguyên liệu, Tồn kho & Sản xuất**
 
@@ -289,14 +289,14 @@ Chia 2 cột:
 
 | Trường | Loại nhập | Ghi chú |
 |---|---|---|
-| Quy trình sản xuất | Dropdown | Chọn từ danh sách quy trình (Phòng kỹ thuật tạo) |
+| Quy trình sản xuất | Dropdown | Chọn từ danh sách quy trình (Bộ phận chất lượng — Phòng CL Quy trình tạo) |
 | Lưu đồ quy trình | Hiển thị tự động | Nếu chưa có lưu đồ → thông báo "Vui lòng tạo lưu đồ trong module Quy trình sản xuất" |
 | Số ngày SX (KH) | Số | Kế hoạch |
 | Số ngày SX (TT) | Số | Thực tế |
 | Số công nhân | Số | |
 | Tiền OT/ngày | Số | VNĐ |
 
-> **Nếu không có quy trình sản xuất:** Yêu cầu Phòng kỹ thuật hoặc Phòng sản xuất tạo quy trình và lưu đồ trước.
+> **Nếu không có quy trình sản xuất:** Yêu cầu Bộ phận chất lượng (Phòng CL Quy trình) tạo quy trình và Bộ phận sản xuất (Phòng QLSX) tạo lưu đồ trước.
 
 **Section 3: Tổng hợp chi phí (mỗi sản phẩm)**
 
@@ -461,8 +461,8 @@ Chọn Tháng + Năm
 |---|---|---|
 | Danh sách khách hàng | Phòng kinh doanh | Dropdown khách hàng trong form YCBG |
 | Danh sách sản phẩm | Phòng kinh doanh | Dropdown sản phẩm trong form YCBG |
-| Định mức nguyên vật liệu | Phòng kỹ thuật | Dropdown "Mã định mức NVL" trong bảng tính |
-| Quy trình sản xuất + lưu đồ | Phòng kỹ thuật / Sản xuất | Dropdown quy trình trong bảng tính |
+| Định mức nguyên vật liệu | Bộ phận sản xuất (Phòng QLSX) | Dropdown "Mã định mức NVL" trong bảng tính |
+| Quy trình sản xuất + lưu đồ | Bộ phận chất lượng (Phòng CL Quy trình) / Bộ phận sản xuất (Phòng QLSX) | Dropdown quy trình trong bảng tính |
 | Tồn kho nguyên liệu | Kho (module kho) | Nút "Tồn kho" trong bảng tính |
 | Thông tin nhân viên (cho bảng lương) | Phòng nhân sự / Admin | Danh sách NV trong module bảng lương |
 
@@ -492,10 +492,10 @@ Khi gặp sự cố hoặc vượt thẩm quyền, thực hiện theo trình t�
 > Phòng giá thành **không tạo YCBG** — đó là quyền của Phòng kinh doanh. Phòng giá thành chỉ xem YCBG và tạo báo giá từ đó. Vào tab **"Danh sách YCBG"** → tìm YCBG cần xử lý → nhấn biểu tượng **"Tạo báo giá"** (file) → điền bảng tính → nhấn **"Tạo báo giá"**.
 
 **Q2: Bảng tính báo giá yêu cầu "Mã định mức NVL" nhưng dropdown trống?**
-> Định mức nguyên vật liệu do **Phòng kỹ thuật** tạo. Liên hệ Phòng kỹ thuật để tạo định mức cho sản phẩm cần báo giá.
+> Định mức nguyên vật liệu do **Bộ phận sản xuất (Phòng QLSX)** tạo. Liên hệ Phòng QLSX để tạo định mức cho sản phẩm cần báo giá.
 
 **Q3: Bảng tính báo giá báo "Vui lòng tạo lưu đồ trong module Quy trình sản xuất"?**
-> Quy trình sản xuất và lưu đồ do **Phòng kỹ thuật** hoặc **Phòng sản xuất** tạo. Liên hệ để tạo quy trình trước khi tính chi phí sản xuất.
+> Quy trình sản xuất do **Bộ phận chất lượng (Phòng CL Quy trình)** tạo. Lưu đồ do **Bộ phận sản xuất (Phòng QLSX)** tạo. Liên hệ các phòng ban tương ứng trước khi tính chi phí sản xuất.
 
 **Q4: Bảng lương tháng hiển thị sai, tôi cần làm gì?**
 > Kiểm tra lại các thông số cài đặt: **Số ngày công chuẩn / tháng** và **Giá tiền OT**. Nếu đã đúng, kiểm tra lại số ngày nghỉ và giờ OT của nhân viên đó rồi lưu lại.
