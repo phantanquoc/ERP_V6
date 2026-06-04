@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { Eye, CheckCircle, Clock, ChevronDown, ChevronRight, Search, ClipboardEdit } from 'lucide-react';
 import employeeEvaluationService, { EvaluationDetailsResponse } from '@services/employeeEvaluationService';
 
 interface Subordinate {
@@ -24,12 +24,81 @@ interface SubordinateEvaluationListProps {
   onEvaluate: (subordinate: Subordinate, details: EvaluationDetailsResponse) => void;
 }
 
+type FilterOption = 'all' | 'mine' | 'self_pending' | 'other_supervisor' | 'completed';
+
+// Determine which group a subordinate falls into from the current user's perspective
+function getGroup(s: Subordinate): 'mine' | 'self_pending' | 'other_supervisor' | 'completed' {
+  if (s.status === 'COMPLETED') return 'completed';
+  if (s.status === 'SELF_PENDING') return 'self_pending';
+  if (
+    (s.status === 'SUPERVISOR1_PENDING' && s.isSupervisor1) ||
+    (s.status === 'SUPERVISOR2_PENDING' && s.isSupervisor2)
+  ) {
+    return 'mine';
+  }
+  // SUPERVISOR1_PENDING but user is supervisor2, or SUPERVISOR2_PENDING but user is supervisor1
+  return 'other_supervisor';
+}
+
+function getRoleBadge(s: Subordinate) {
+  if (s.isSupervisor1 && s.isSupervisor2) {
+    return (
+      <span className="inline-flex items-center gap-0.5">
+        <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">CT1</span>
+        <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-700">CT2</span>
+      </span>
+    );
+  }
+  if (s.isSupervisor1) {
+    return <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">CT1</span>;
+  }
+  if (s.isSupervisor2) {
+    return <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-700">CT2</span>;
+  }
+  return null;
+}
+
+function getWaitingFor(s: Subordinate): string {
+  if (s.status === 'SUPERVISOR1_PENDING') return 'Chờ cấp trên 1';
+  if (s.status === 'SUPERVISOR2_PENDING') return 'Chờ cấp trên 2';
+  return s.status;
+}
+
+interface SectionProps {
+  title: string;
+  count: number;
+  defaultOpen: boolean;
+  accentClass: string;
+  children: React.ReactNode;
+}
+
+const Section = ({ title, count, defaultOpen, accentClass, children }: SectionProps) => {
+  const [open, setOpen] = useState(defaultOpen);
+  if (count === 0) return null;
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`w-full flex items-center justify-between px-4 py-3 text-left ${accentClass} hover:brightness-95 transition-all`}
+      >
+        <span className="flex items-center gap-2 font-medium text-sm">
+          {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          {title}
+          <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-white/60">{count}</span>
+        </span>
+      </button>
+      {open && <div className="overflow-x-auto">{children}</div>}
+    </div>
+  );
+};
+
 const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvaluationListProps) => {
   const [subordinates, setSubordinates] = useState<Subordinate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<FilterOption>('all');
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
     loadSubordinates();
@@ -38,9 +107,9 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
   const loadSubordinates = async () => {
     try {
       setLoading(true);
+      setActionError('');
       const data = await employeeEvaluationService.getSubordinatesForEvaluation(month, year);
       setSubordinates(data || []);
-      setCurrentPage(1);
       setError('');
     } catch (err) {
       setError('Lỗi tải danh sách nhân viên cấp dưới');
@@ -50,37 +119,17 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusMap: { [key: string]: { label: string; color: string; icon: any } } = {
-      'SELF_PENDING': { label: 'Chờ tự đánh giá', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-      'SUPERVISOR1_PENDING': { label: 'Chờ cấp trên 1', color: 'bg-blue-100 text-blue-800', icon: Clock },
-      'SUPERVISOR2_PENDING': { label: 'Chờ cấp trên 2', color: 'bg-purple-100 text-purple-800', icon: Clock },
-      'COMPLETED': { label: 'Hoàn thành', color: 'bg-green-100 text-green-800', icon: CheckCircle },
-      'NOT_STARTED': { label: 'Chưa bắt đầu', color: 'bg-gray-100 text-gray-800', icon: AlertCircle },
-    };
-
-    const config = statusMap[status] || statusMap['NOT_STARTED'];
-    const Icon = config.icon;
-
-    return (
-      <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${config.color}`}>
-        <Icon className="w-4 h-4" />
-        {config.label}
-      </div>
-    );
-  };
-
   const handleViewEvaluation = async (subordinate: Subordinate) => {
     if (!subordinate.evaluationId) {
-      setError('Chưa có đánh giá cho nhân viên này trong kỳ này');
+      setActionError('Chưa có đánh giá cho nhân viên này trong kỳ này');
       return;
     }
     try {
-      // BUG 4: Pass isManager=true to go directly to manager endpoint
+      setActionError('');
       const details = await employeeEvaluationService.getEvaluationDetails(subordinate.evaluationId, true);
       onEvaluate(subordinate, details);
     } catch (err) {
-      setError('Lỗi tải chi tiết đánh giá');
+      setActionError('Lỗi tải chi tiết đánh giá');
       console.error(err);
     }
   };
@@ -93,96 +142,310 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
     return <div className="p-8 text-center text-red-500">{error}</div>;
   }
 
-  if (subordinates.length === 0) {
-    return <div className="p-8 text-center text-gray-500">Không có nhân viên cấp dưới</div>;
-  }
+  // --- Derived counts (before search filter) ---
+  const mineCount = subordinates.filter(s => getGroup(s) === 'mine').length;
+  const selfPendingCount = subordinates.filter(s => getGroup(s) === 'self_pending').length;
+  const otherSupervisorCount = subordinates.filter(s => getGroup(s) === 'other_supervisor').length;
+  const completedCount = subordinates.filter(s => getGroup(s) === 'completed').length;
 
-  const totalItems = subordinates.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedSubordinates = subordinates.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  // --- Search + filter ---
+  const q = search.toLowerCase().trim();
+  const filtered = subordinates.filter(s => {
+    const matchSearch =
+      !q ||
+      s.employeeCode.toLowerCase().includes(q) ||
+      s.employeeName.toLowerCase().includes(q);
+    const group = getGroup(s);
+    const matchFilter = filter === 'all' || filter === group;
+    return matchSearch && matchFilter;
+  });
+
+  const grouped = {
+    mine: filtered.filter(s => getGroup(s) === 'mine'),
+    self_pending: filtered.filter(s => getGroup(s) === 'self_pending'),
+    other_supervisor: filtered.filter(s => getGroup(s) === 'other_supervisor'),
+    completed: filtered.filter(s => getGroup(s) === 'completed'),
+  };
+
+  const totalFiltered = filtered.length;
 
   return (
-    <div>
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead className="bg-gray-50 border-b">
-          <tr>
-            <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">MNV</th>
-            <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Tên NV</th>
-            <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Vị trí</th>
-            <th className="px-6 py-3 text-center text-sm font-medium text-gray-700">Tự đánh giá</th>
-            <th className="px-6 py-3 text-center text-sm font-medium text-gray-700">Cấp trên 1</th>
-            <th className="px-6 py-3 text-center text-sm font-medium text-gray-700">Cấp trên 2</th>
-            <th className="px-6 py-3 text-center text-sm font-medium text-gray-700">Trạng thái</th>
-            <th className="px-6 py-3 text-center text-sm font-medium text-gray-700">Hành động</th>
-          </tr>
-        </thead>
-        <tbody>
-          {paginatedSubordinates.map(subordinate => (
-            <tr key={subordinate.employeeId} className="border-b hover:bg-gray-50">
-              <td className="px-6 py-4 text-sm text-gray-900">{subordinate.employeeCode}</td>
-              <td className="px-6 py-4 text-sm text-gray-900">{subordinate.employeeName}</td>
-              <td className="px-6 py-4 text-sm text-gray-900">{subordinate.positionName}</td>
-              <td className="px-6 py-4 text-center text-sm text-gray-900">{subordinate.selfScorePercentage.toFixed(1)}%</td>
-              <td className="px-6 py-4 text-center text-sm text-gray-900">{subordinate.supervisorScore1Percentage.toFixed(1)}%</td>
-              <td className="px-6 py-4 text-center text-sm text-gray-900">{subordinate.supervisorScore2Percentage.toFixed(1)}%</td>
-              <td className="px-6 py-4 text-center text-sm">{getStatusBadge(subordinate.status)}</td>
-              <td className="px-6 py-4 text-center">
-                <button
-                  onClick={() => handleViewEvaluation(subordinate)}
-                  className="text-blue-600 hover:text-blue-800"
-                  title="Xem chi tiết đánh giá"
-                >
-                  <Eye className="w-5 h-5" />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-
-    {totalPages > 1 && (
-      <div className="flex items-center justify-between mt-4 px-2">
-        <span className="text-sm text-gray-600">
-          Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Trước
-          </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1)
-            .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-            .map((page, idx, arr) => (
-              <React.Fragment key={page}>
-                {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                <button
-                  onClick={() => setCurrentPage(page)}
-                  className={`px-3 py-1.5 text-sm rounded-md ${
-                    page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {page}
-                </button>
-              </React.Fragment>
-            ))}
-          <button
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Sau
-          </button>
-        </div>
+    <div className="space-y-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <button
+          onClick={() => setFilter(filter === 'mine' ? 'all' : 'mine')}
+          className={`flex flex-col items-start p-3 rounded-lg border-2 text-left transition-colors ${
+            filter === 'mine'
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-transparent bg-blue-50 hover:border-blue-300'
+          }`}
+        >
+          <span className="text-2xl font-bold text-blue-600">{mineCount}</span>
+          <span className="text-xs text-blue-700 font-medium mt-0.5">Cần đánh giá</span>
+        </button>
+        <button
+          onClick={() => setFilter(filter === 'self_pending' ? 'all' : 'self_pending')}
+          className={`flex flex-col items-start p-3 rounded-lg border-2 text-left transition-colors ${
+            filter === 'self_pending'
+              ? 'border-yellow-500 bg-yellow-50'
+              : 'border-transparent bg-yellow-50 hover:border-yellow-300'
+          }`}
+        >
+          <span className="text-2xl font-bold text-yellow-600">{selfPendingCount}</span>
+          <span className="text-xs text-yellow-700 font-medium mt-0.5">Chờ NV tự đánh giá</span>
+        </button>
+        <button
+          onClick={() => setFilter(filter === 'other_supervisor' ? 'all' : 'other_supervisor')}
+          className={`flex flex-col items-start p-3 rounded-lg border-2 text-left transition-colors ${
+            filter === 'other_supervisor'
+              ? 'border-purple-500 bg-purple-50'
+              : 'border-transparent bg-purple-50 hover:border-purple-300'
+          }`}
+        >
+          <span className="text-2xl font-bold text-purple-600">{otherSupervisorCount}</span>
+          <span className="text-xs text-purple-700 font-medium mt-0.5">Chờ cấp trên khác</span>
+        </button>
+        <button
+          onClick={() => setFilter(filter === 'completed' ? 'all' : 'completed')}
+          className={`flex flex-col items-start p-3 rounded-lg border-2 text-left transition-colors ${
+            filter === 'completed'
+              ? 'border-green-500 bg-green-50'
+              : 'border-transparent bg-green-50 hover:border-green-300'
+          }`}
+        >
+          <span className="text-2xl font-bold text-green-600">{completedCount}</span>
+          <span className="text-xs text-green-700 font-medium mt-0.5">Hoàn thành</span>
+        </button>
       </div>
-    )}
+
+      {/* Search + Filter bar */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Tìm theo tên hoặc mã NV..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value as FilterOption)}
+          className="px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="all">Tất cả ({subordinates.length})</option>
+          <option value="mine">Cần đánh giá ({mineCount})</option>
+          <option value="self_pending">Chờ NV tự đánh giá ({selfPendingCount})</option>
+          <option value="other_supervisor">Chờ cấp trên khác ({otherSupervisorCount})</option>
+          <option value="completed">Hoàn thành ({completedCount})</option>
+        </select>
+      </div>
+
+      {/* Action error */}
+      {actionError && (
+        <div className="px-3 py-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+          {actionError}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {totalFiltered === 0 && (
+        <div className="py-10 text-center text-sm text-gray-500">
+          {search || filter !== 'all'
+            ? 'Không có kết quả phù hợp với bộ lọc.'
+            : 'Không có nhân viên cấp dưới trong kỳ này.'}
+        </div>
+      )}
+
+      {/* Grouped sections */}
+      <div className="space-y-3">
+        {/* Section: Cần bạn đánh giá */}
+        <Section
+          title="Cần bạn đánh giá"
+          count={grouped.mine.length}
+          defaultOpen={true}
+          accentClass="bg-blue-50 text-blue-800"
+        >
+          <table className="w-full">
+            <thead className="bg-blue-50 border-b border-blue-100">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">MNV</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tên NV</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Vị trí</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Tự ĐG</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Vai trò</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.mine.map(s => (
+                <tr key={s.employeeId} className="border-b last:border-0 hover:bg-gray-50">
+                  <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
+                  <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
+                  <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
+                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{s.selfScorePercentage.toFixed(1)}%</td>
+                  <td className="px-4 py-2.5 text-center">{getRoleBadge(s)}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    <button
+                      onClick={() => handleViewEvaluation(s)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                      title="Đánh giá nhân viên này"
+                    >
+                      <ClipboardEdit className="w-3.5 h-3.5" />
+                      Đánh giá
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+
+        {/* Section: Chờ nhân viên tự đánh giá */}
+        <Section
+          title="Chờ nhân viên tự đánh giá"
+          count={grouped.self_pending.length}
+          defaultOpen={true}
+          accentClass="bg-yellow-50 text-yellow-800"
+        >
+          <table className="w-full">
+            <thead className="bg-yellow-50 border-b border-yellow-100">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">MNV</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tên NV</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Vị trí</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Vai trò</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Trạng thái</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.self_pending.map(s => (
+                <tr key={s.employeeId} className="border-b last:border-0 hover:bg-gray-50">
+                  <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
+                  <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
+                  <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
+                  <td className="px-4 py-2.5 text-center">{getRoleBadge(s)}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      <Clock className="w-3 h-3" />
+                      Chờ tự đánh giá
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    <button
+                      onClick={() => handleViewEvaluation(s)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                      title="Xem chi tiết"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      Xem
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+
+        {/* Section: Chờ cấp trên khác */}
+        <Section
+          title="Chờ cấp trên khác"
+          count={grouped.other_supervisor.length}
+          defaultOpen={true}
+          accentClass="bg-purple-50 text-purple-800"
+        >
+          <table className="w-full">
+            <thead className="bg-purple-50 border-b border-purple-100">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">MNV</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tên NV</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Vị trí</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Vai trò</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Đang chờ</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.other_supervisor.map(s => (
+                <tr key={s.employeeId} className="border-b last:border-0 hover:bg-gray-50">
+                  <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
+                  <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
+                  <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
+                  <td className="px-4 py-2.5 text-center">{getRoleBadge(s)}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      <Clock className="w-3 h-3" />
+                      {getWaitingFor(s)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    <button
+                      onClick={() => handleViewEvaluation(s)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                      title="Xem chi tiết"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      Xem
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+
+        {/* Section: Hoàn thành (collapsed by default) */}
+        <Section
+          title="Hoàn thành"
+          count={grouped.completed.length}
+          defaultOpen={false}
+          accentClass="bg-green-50 text-green-800"
+        >
+          <table className="w-full">
+            <thead className="bg-green-50 border-b border-green-100">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">MNV</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tên NV</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Vị trí</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Vai trò</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Tự ĐG</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">CT1</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">CT2</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.completed.map(s => (
+                <tr key={s.employeeId} className="border-b last:border-0 hover:bg-gray-50">
+                  <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
+                  <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
+                  <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
+                  <td className="px-4 py-2.5 text-center">{getRoleBadge(s)}</td>
+                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{s.selfScorePercentage.toFixed(1)}%</td>
+                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{s.supervisorScore1Percentage.toFixed(1)}%</td>
+                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{s.supervisorScore2Percentage.toFixed(1)}%</td>
+                  <td className="px-4 py-2.5 text-center">
+                    <button
+                      onClick={() => handleViewEvaluation(s)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                      title="Xem chi tiết"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      Xem
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      </div>
     </div>
   );
 };
 
 export default SubordinateEvaluationList;
-
