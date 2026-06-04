@@ -322,6 +322,19 @@ Giao diện có **thanh tab phụ theo từng máy** + tab đặc biệt **"Tổ
 
 #### Form tạo/sửa thành phẩm — nhập liệu theo mã chiên
 
+**Thông tin cơ bản:**
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Mã chiên | ✅ | Văn bản | Mã định danh mẻ chiên |
+| Thời gian chiên | ✅ | Chọn ngày giờ | DateTimePicker |
+| Tên hàng hóa | ✅ | Văn bản | Tên nguyên liệu/sản phẩm |
+| Khối lượng đầu vào (kg) | ✅ | Số (bước 0.01) | Khối lượng nguyên liệu vào |
+| Người thực hiện | | Văn bản | Nhập tên hoặc chọn từ datalist nhân viên |
+| File đính kèm | | Văn bản | Nhập **URL** file đính kèm (không phải widget upload file) |
+
+**Khối lượng và tỉ lệ thành phẩm (8 loại):**
+
 | Loại thành phẩm | Trường khối lượng | Trường tỉ lệ |
 |---|---|---|
 | **Loại A** | aKhoiLuong (Kg) | aTiLe (%) |
@@ -526,17 +539,25 @@ Báo cáo sản lượng hàng ngày, so sánh kế hoạch vs thực tế.
 | Số lượng nhập | Số lượng nhập kho |
 | Ghi chú | Ghi chú thêm |
 
-**Form tạo phiếu nhập:**
+**Form tạo phiếu nhập** có 2 chế độ:
 
-| Trường | Bắt buộc | Ghi chú |
-|---|---|---|
-| Tên nhân viên | — | Tự động từ tài khoản đăng nhập |
-| Mã nhân viên | — | Tự động từ tài khoản đăng nhập |
-| Chọn kho | ✅ | Dropdown danh sách kho |
-| Chọn số lô | ✅ | Dropdown lô trong kho đã chọn |
-| Chọn hàng hóa nhập kho | ✅ | Dropdown danh sách hàng hóa |
-| Số lượng nhập kho | ✅ | Nhập số lượng |
-| Ghi chú | — | Nhập ghi chú (nếu có) |
+**Chế độ đơn lẻ** (không có yêu cầu cung cấp đi kèm):
+
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Mã phiếu nhập | — | Chỉ đọc | **Tự động sinh** từ API |
+| Tên sản phẩm | ✅ | Văn bản | Nhập tự do (không phải dropdown danh mục) |
+| Số lượng | ✅ | Số (bước 0.01, min 0) | |
+| Đơn vị tính | — | Dropdown | Kg / Cái / Hộp / Thùng / Lít / Gói / Bao / Tấn |
+| Kho | ✅ | Dropdown | Danh sách kho |
+| Lô | ✅ | Dropdown | Lô trong kho đã chọn (cascade) |
+| Ghi chú | — | Văn bản dài | |
+
+**Chế độ nhiều dòng** (tạo từ yêu cầu cung cấp, sản phẩm được điền sẵn từ items của YC-CC):
+
+Hiển thị bảng nhiều dòng với các cột: Chọn (checkbox) · Sản phẩm (tên điền sẵn) · Số lượng · Đơn vị · Kho (dropdown) · Lô (dropdown, cascade theo kho). Có nút **"Áp dụng cho tất cả"** để nhanh chóng chọn cùng kho và lô cho các dòng đã tick.
+
+> Sản phẩm mới chưa có trong kho sẽ được tự động tạo. Sản phẩm đã có sẽ cộng dồn số lượng.
 
 ### 4.3 Xuất kho (tab **Xuất kho**)
 
@@ -552,17 +573,18 @@ Báo cáo sản lượng hàng ngày, so sánh kế hoạch vs thực tế.
 | Số lượng xuất | Số lượng xuất kho |
 | Ghi chú | Ghi chú thêm |
 
-**Form tạo phiếu xuất:**
+**Form tạo phiếu xuất** — hỗ trợ nhiều dòng:
 
-| Trường | Bắt buộc | Ghi chú |
-|---|---|---|
-| Tên nhân viên | — | Tự động từ tài khoản đăng nhập |
-| Mã nhân viên | — | Tự động từ tài khoản đăng nhập |
-| Chọn kho | ✅ | Dropdown danh sách kho |
-| Chọn số lô | ✅ | Dropdown lô trong kho đã chọn |
-| Chọn hàng hóa xuất kho | ✅ | Hàng hóa cần xuất |
-| Số lượng xuất kho | ✅ | Nhập số lượng |
-| Ghi chú | — | Nhập ghi chú (nếu có) |
+| Trường | Bắt buộc | Loại nhập | Ghi chú |
+|---|:---:|---|---|
+| Mã phiếu xuất | — | Chỉ đọc | **Tự động sinh** từ API; nếu nhiều dòng thì mỗi dòng thêm hậu tố -A, -B, -C |
+| Kho | ✅ | Dropdown | Danh sách kho (mỗi dòng) |
+| Lô | ✅ | Dropdown | Lô trong kho đã chọn (cascade theo kho) |
+| Sản phẩm | ✅ | Dropdown | Sản phẩm trong lô đã chọn; hiển thị: tên sản phẩm + "Tồn: X đơn vị" |
+| Số lượng xuất | ✅ | Số (bước 0.01, min 0) | Sau khi chọn sản phẩm, hiển thị preview: "Tồn kho: X → Sau xuất: Y" |
+| Ghi chú | — | Văn bản | VD: theo đơn hàng nào, khách hàng nào |
+
+Nhấn **"+ Thêm dòng"** để thêm dòng mới; nhấn biểu tượng thùng rác để xóa (phải có ít nhất 1 dòng).
 
 ### 4.4 Yêu cầu cung cấp — Tab "Yêu cầu cung cấp" (`supplyRequest`)
 

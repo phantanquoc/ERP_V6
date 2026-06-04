@@ -91,15 +91,13 @@ Hiển thị họ tên, bộ phận, vai trò, email và các thông tin hồ s�
 ### 4.1 Form tạo đơn nghỉ phép
 
 
-| Trường          | Bắt buộc | Loại nhập         | Tùy chọn / Ghi chú                      |
-| --------------- | -------- | ----------------- | --------------------------------------- |
-| Mã đơn          |          | Văn bản (chỉ đọc) | Hệ thống tự sinh                        |
-| Loại nghỉ phép  | ✅        | Chọn từ danh sách | Xem bảng loại nghỉ bên dưới             |
-| Ngày bắt đầu    | ✅        | Chọn ngày         |                                         |
-| Ngày kết thúc   | ✅        | Chọn ngày         | Phải ≥ ngày bắt đầu                     |
-| Nghỉ nửa ngày   |          | Checkbox          | Tích nếu chỉ nghỉ buổi sáng hoặc chiều  |
-| Lý do nghỉ phép | ✅        | Văn bản dài       |                                         |
-| File đính kèm   |          | Tải tệp           | PDF, DOC, DOCX, JPG, PNG (tối đa 100MB) |
+| Trường          | Bắt buộc | Loại nhập         | Tùy chọn / Ghi chú                                                                  |
+| --------------- | -------- | ----------------- | ----------------------------------------------------------------------------------- |
+| Loại nghỉ phép  | ✅        | Chọn từ danh sách | Xem bảng loại nghỉ bên dưới                                                         |
+| Nghỉ nửa ngày   |          | Checkbox          | Tích nếu chỉ nghỉ nửa ngày; khi tích sẽ hiện thêm lựa chọn **Buổi sáng / Buổi chiều** |
+| Ngày bắt đầu    | ✅        | Chọn ngày         |                                                                                     |
+| Ngày kết thúc   | ✅        | Chọn ngày         | Phải ≥ ngày bắt đầu                                                                 |
+| Lý do nghỉ phép | ✅        | Văn bản dài       |                                                                                     |
 
 
 ### 4.2 Các loại nghỉ phép
@@ -136,16 +134,18 @@ Hiển thị họ tên, bộ phận, vai trò, email và các thông tin hồ s�
 ### 5.1 Form tạo yêu cầu vật tư
 
 
-| Trường               | Bắt buộc | Loại nhập         | Tùy chọn / Ghi chú                       |
-| -------------------- | -------- | ----------------- | ---------------------------------------- |
-| Danh sách sản phẩm   | ✅        | Nhiều dòng        | Nhấn "+ Thêm sản phẩm" để thêm từng dòng |
-| — Phân loại sản phẩm |          | Văn bản           | Placeholder: "Phân loại"                 |
-| — Tên gọi sản phẩm   |          | Văn bản           | Placeholder: "Tên gọi"                   |
-| — Số lượng           | ✅        | Số                | Phải > 0                                 |
-| — Đơn vị tính        | ✅        | Chọn từ danh sách | Kg / Cái / Hệ / Lít / Thùng / Bộ         |
-| Mục đích yêu cầu     | ✅        | Văn bản dài       | Mô tả mục đích sử dụng                   |
-| Mức độ ưu tiên       | ✅        | Chọn từ danh sách | Cao / Trung bình / Thấp                  |
-| Ghi chú              |          | Văn bản dài       | Thông tin bổ sung                        |
+| Trường               | Bắt buộc | Loại nhập         | Tùy chọn / Ghi chú                                                     |
+| -------------------- | -------- | ----------------- | ---------------------------------------------------------------------- |
+| Tên nhân viên        |          | Văn bản (chỉ đọc) | Tự động điền từ tài khoản đang đăng nhập                               |
+| Bộ phận              |          | Văn bản (chỉ đọc) | Tự động điền theo bộ phận của người đăng nhập                          |
+| Danh sách sản phẩm   | ✅        | Nhiều dòng        | Nhấn "+ Thêm sản phẩm" để thêm từng dòng                               |
+| — Phân loại sản phẩm |          | Chọn từ danh sách | Dropdown tải danh mục từ hệ thống; có thể nhập tay bằng nút "Tay"      |
+| — Tên gọi sản phẩm   | ✅        | Chọn từ danh sách | Dropdown lọc theo phân loại đã chọn; có thể nhập tay bằng nút "Tay"    |
+| — Số lượng           | ✅        | Số                | Phải > 0                                                               |
+| — Đơn vị tính        | ✅        | Chọn từ danh sách | Kg / Cái / Hệ / Lít / Thùng / Bộ                                       |
+| Mục đích yêu cầu     | ✅        | Văn bản dài       | Mô tả mục đích sử dụng                                                 |
+| Mức độ ưu tiên       | ✅        | Chọn từ danh sách | Cao / Trung bình / Thấp                                                |
+| Ghi chú              |          | Văn bản dài       | Thông tin bổ sung                                                      |
 
 
 ### 5.2 Bộ lọc danh sách vật tư (quản lý)
@@ -168,16 +168,27 @@ Hiển thị họ tên, bộ phận, vai trò, email và các thông tin hồ s�
 
 ### 6.1 Form tạo yêu cầu sửa chữa
 
+Form sử dụng cấu trúc **bảng nhiều thiết bị**: phần header chứa thông tin chung, phần bảng cho phép thêm nhiều dòng thiết bị cần sửa.
 
-| Trường                  | Bắt buộc | Loại nhập         | Tùy chọn / Ghi chú                                                        |
-| ----------------------- | -------- | ----------------- | ------------------------------------------------------------------------- |
-| Tên hệ thống / thiết bị | ✅        | Văn bản           | Placeholder: "Nhập tên hệ thống/thiết bị..."                              |
-| Khu vực sử dụng         | ✅        | Văn bản           | Placeholder: "Nhập khu vực sử dụng..."                                    |
-| Nội dung lỗi            | ✅        | Văn bản dài       | Placeholder: "Mô tả chi tiết lỗi..."                                      |
-| Loại lỗi                | ✅        | Chọn từ danh sách | Lỗi mới (`loi_moi`) / Lỗi lặp lại (`loi_lap_lai`) / Khẩn cấp (`khan_cap`) |
-| Mức độ ưu tiên          | ✅        | Chọn từ danh sách | Cao (`cao`) / Trung bình (`trung_binh`) / Thấp (`thap`)                   |
-| Ghi chú                 |          | Văn bản dài       | Placeholder: "Ghi chú thêm..."                                            |
-| Tệp đính kèm            |          | Tải tệp           | PDF, DOC, DOCX, JPG, PNG (tối đa 100MB)                                   |
+**Thông tin chung:**
+
+| Trường         | Bắt buộc | Loại nhập         | Tùy chọn / Ghi chú                                   |
+| -------------- | -------- | ----------------- | ----------------------------------------------------- |
+| Ngày tháng     | ✅        | Chọn ngày         | Mặc định hôm nay                                      |
+| Mã yêu cầu     | ✅        | Văn bản (chỉ đọc) | Tự động sinh khi mở form (dạng YC-001)                |
+| Mức độ ưu tiên | ✅        | Chọn từ danh sách | Thấp · Trung bình · Cao · Khẩn cấp                    |
+| Trạng thái     | ✅        | Chọn từ danh sách | Chờ xử lý · Đang sửa chữa · Hoàn thành               |
+| Ghi chú        |          | Văn bản dài       | Ghi chú thêm (nếu có)                                 |
+| Tệp đính kèm   |          | Tải tệp           | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG             |
+
+**Bảng thiết bị lỗi** (nhấn "+ Thêm thiết bị" để thêm dòng):
+
+| Cột trong bảng          | Bắt buộc | Ghi chú                                                      |
+| ----------------------- | -------- | ------------------------------------------------------------ |
+| Hệ thống / Thiết bị     | ✅        | Dropdown chọn từ danh sách hệ thống máy (xem mục kỹ thuật)  |
+| Khu vực sử dụng         |          | Văn bản; placeholder: "Khu vực"                              |
+| Loại lỗi                |          | Dropdown: **Lỗi mới** · **Lỗi lặp lại**                     |
+| Nội dung lỗi            |          | Văn bản; placeholder: "Mô tả lỗi"                           |
 
 
 ---
@@ -193,13 +204,14 @@ Hiển thị họ tên, bộ phận, vai trò, email và các thông tin hồ s�
 
 | Trường              | Bắt buộc | Loại nhập         | Tùy chọn / Ghi chú                                 |
 | ------------------- | -------- | ----------------- | -------------------------------------------------- |
-| Ngày giao           |          | Chọn ngày         | Mặc định hôm nay                                   |
+| Ngày giao           |          | Chỉ đọc           | Tự động lấy ngày hiện tại                          |
 | Lọc theo phòng ban  |          | Chọn từ danh sách | Để lọc người nhận                                  |
-| Người nhận nhiệm vụ | ✅        | Chọn từ danh sách | Danh sách nhân viên trong hệ thống                 |
+| Người nhận nhiệm vụ | ✅        | Chọn từ danh sách | Danh sách nhân viên trong hệ thống (nhiều lựa chọn) |
 | Nội dung nhiệm vụ   | ✅        | Văn bản dài       | Placeholder: "Mô tả chi tiết nội dung nhiệm vụ..." |
-| Thời hạn hoàn thành |          | Chọn ngày         | Placeholder: "Chọn thời hạn hoàn thành"            |
-| Mức độ ưu tiên      | ✅        | Chọn từ danh sách | Low / Medium / High                                |
+| Mức độ ưu tiên      | ✅        | Chọn từ danh sách | Thấp · Trung bình · Cao · Khẩn cấp                 |
+| Thời hạn hoàn thành | ✅        | Chọn ngày         | Placeholder: "Chọn thời hạn hoàn thành"            |
 | Ghi chú             |          | Văn bản dài       | Placeholder: "Ghi chú thêm (nếu có)..."            |
+| File kèm theo       |          | Tải tệp (nhiều)   | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG           |
 
 
 ---
@@ -216,13 +228,14 @@ Hiển thị họ tên, bộ phận, vai trò, email và các thông tin hồ s�
 | Trường            | Bắt buộc | Loại nhập         | Tùy chọn / Ghi chú                                 |
 | ----------------- | -------- | ----------------- | -------------------------------------------------- |
 | Ngày tạo          |          | Chỉ đọc           | Tự động lấy ngày hiện tại                          |
-| Người thực hiện   |          | Chọn từ danh sách | Mặc định là người đang đăng nhập                   |
+| Người thực hiện   |          | Chỉ đọc           | Tự động điền tên người đang đăng nhập              |
 | Tiêu đề kế hoạch  | ✅        | Văn bản           | Placeholder: "Nhập tiêu đề kế hoạch..."            |
 | Nội dung kế hoạch | ✅        | Văn bản dài       | Placeholder: "Mô tả chi tiết nội dung kế hoạch..." |
-| Ngày bắt đầu      |          | Chọn ngày         | Placeholder: "Chọn ngày bắt đầu"                   |
-| Ngày kết thúc     |          | Chọn ngày         | Placeholder: "Chọn ngày kết thúc"                  |
-| Mức độ ưu tiên    | ✅        | Chọn từ danh sách | Low / Medium / High                                |
+| Mức độ ưu tiên    | ✅        | Chọn từ danh sách | Thấp · Trung bình · Cao · Khẩn cấp                 |
+| Ngày bắt đầu      | ✅        | Chọn ngày         | Placeholder: "Chọn ngày bắt đầu"                   |
+| Ngày kết thúc     | ✅        | Chọn ngày         | Placeholder: "Chọn ngày kết thúc"                  |
 | Ghi chú           |          | Văn bản dài       | Placeholder: "Ghi chú thêm (nếu có)..."            |
+| File kèm theo     |          | Tải tệp (nhiều)   | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG           |
 
 
 ---
@@ -239,13 +252,14 @@ Hiển thị họ tên, bộ phận, vai trò, email và các thông tin hồ s�
 | Trường                     | Bắt buộc | Loại nhập               | Tùy chọn / Ghi chú                                          |
 | -------------------------- | -------- | ----------------------- | ----------------------------------------------------------- |
 | Ngày tạo                   |          | Chỉ đọc                 | Tự động                                                     |
-| Ngày tăng ca               | ✅        | Chọn ngày               | Placeholder: "Chọn ngày tăng ca"                            |
 | Lọc theo phòng ban         |          | Chọn từ danh sách       | Để lọc danh sách nhân viên                                  |
 | Người tham gia tăng ca     | ✅        | Chọn nhiều từ danh sách | Danh sách nhân viên                                         |
 | Nội dung công việc tăng ca | ✅        | Văn bản dài             | Placeholder: "Mô tả chi tiết nội dung công việc tăng ca..." |
+| Ngày tăng ca               | ✅        | Chọn ngày               | Placeholder: "Chọn ngày tăng ca"                            |
 | Giờ bắt đầu                | ✅        | Chọn giờ                |                                                             |
 | Giờ kết thúc               | ✅        | Chọn giờ                |                                                             |
 | Ghi chú                    |          | Văn bản dài             | Placeholder: "Ghi chú thêm (nếu có)..."                     |
+| File kèm theo              |          | Tải tệp (nhiều)         | PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG (chỉ khi tạo mới, không hiển thị khi chỉnh sửa) |
 
 
 ### 9.2 Trạng thái kế hoạch tăng ca
@@ -434,9 +448,9 @@ Nếu nhân viên cần thực hiện chức năng ngoài quyền hạn của m�
 
 > Thời gian phê duyệt tùy thuộc vào DEPARTMENT_HEAD hoặc ADMIN. Bạn có thể liên hệ trực tiếp với quản lý để đôn đốc. Khi được duyệt hoặc từ chối, trạng thái sẽ cập nhật trong danh sách kế hoạch tăng ca.
 
-**Q5: Tôi muốn đính kèm file khi xin nghỉ ốm — định dạng nào được hỗ trợ?**
+**Q5: Tôi muốn đính kèm file khi xin nghỉ ốm — có được không?**
 
-> Hệ thống hỗ trợ: **PDF, DOC, DOCX, JPG, PNG**. Kích thước tối đa **100MB** mỗi tệp.
+> Form xin nghỉ phép không có trường đính kèm file. Nếu cần gửi tài liệu (ví dụ: giấy chứng nhận nghỉ bệnh), hãy gửi riêng qua email hoặc theo hướng dẫn của bộ phận HR.
 
 **Q6: Tôi đã nộp yêu cầu vật tư nhưng muốn chỉnh sửa — phải làm sao?**
 
@@ -444,5 +458,5 @@ Nếu nhân viên cần thực hiện chức năng ngoài quyền hạn của m�
 
 **Q7: Mức độ ưu tiên "Cao" trong yêu cầu sửa chữa có nghĩa là sẽ được xử lý ngay không?**
 
-> Mức độ ưu tiên giúp bộ phận phụ trách sắp xếp thứ tự xử lý, nhưng không đảm bảo thời gian cố định. Nếu khẩn cấp, hãy chọn loại lỗi "Khẩn cấp (`khan_cap`)" và liên hệ trực tiếp bộ phận kỹ thuật.
+> Mức độ ưu tiên giúp bộ phận phụ trách sắp xếp thứ tự xử lý, nhưng không đảm bảo thời gian cố định. Nếu khẩn cấp, hãy chọn mức độ ưu tiên "Khẩn cấp" và liên hệ trực tiếp bộ phận kỹ thuật.
 
