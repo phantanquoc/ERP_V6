@@ -148,7 +148,7 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
 
                   <div className="mb-3">
                     <p className="text-gray-900 font-medium mb-1">
-                      {feedback.user ? `${feedback.user.firstName} ${feedback.user.lastName}` : 'N/A'}
+                      {feedback.user ? `${feedback.user.lastName} ${feedback.user.firstName}` : 'N/A'}
                     </p>
                     <p className="text-gray-700 text-sm line-clamp-2">{feedback.content}</p>
                   </div>
@@ -219,7 +219,7 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Người gửi</label>
                 <p className="text-gray-900">
-                  {selectedFeedback.user ? `${selectedFeedback.user.firstName} ${selectedFeedback.user.lastName}` : 'N/A'}
+                  {selectedFeedback.user ? `${selectedFeedback.user.lastName} ${selectedFeedback.user.firstName}` : 'N/A'}
                 </p>
               </div>
 

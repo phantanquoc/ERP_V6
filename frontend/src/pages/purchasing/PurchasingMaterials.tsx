@@ -280,7 +280,7 @@ const PurchasingMaterials = () => {
   };
 
   const openEditPurchaseRequest = (item: PurchaseRequest) => {
-    const currentUserName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
+    const currentUserName = user ? `${user.lastName} ${user.firstName}`.trim() : '';
     const today = new Date().toISOString();
     setEditingPurchaseRequest(item);
     setSelectedFile(null);
@@ -516,7 +516,7 @@ const PurchasingMaterials = () => {
                             {item.doanhChi ? `${(item.doanhChi / 1000000).toFixed(0)}M` : '-'}
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                            {item.employee?.user ? `${item.employee.user.firstName} ${item.employee.user.lastName}` : '-'}
+                            {item.employee?.user ? `${item.employee.user.lastName} ${item.employee.user.firstName}` : '-'}
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                             <div className="flex items-center gap-2">
@@ -1128,7 +1128,7 @@ const PurchasingMaterials = () => {
                       value={editFormData.trangThai || ''}
                       onChange={(e) => {
                         const newStatus = e.target.value;
-                        const currentUserName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
+                        const currentUserName = user ? `${user.lastName} ${user.firstName}`.trim() : '';
                         setEditFormData(prev => ({
                           ...prev,
                           trangThai: newStatus,

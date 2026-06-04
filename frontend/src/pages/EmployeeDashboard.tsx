@@ -351,7 +351,7 @@ const EmployeeDashboard: React.FC = () => {
           isOpen={isAttendanceHistoryModalOpen}
           onClose={() => setIsAttendanceHistoryModalOpen(false)}
           employeeId={user.employeeId}
-          employeeName={`${user.firstName} ${user.lastName}`.trim()}
+          employeeName={`${user.lastName} ${user.firstName}`.trim()}
         />
 
         {/* Leave Request Modal */}

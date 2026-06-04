@@ -53,7 +53,7 @@ export class ProductionReportService {
         select: { firstName: true, lastName: true },
       });
       if (user) {
-        nguoiThucHien = `${user.firstName} ${user.lastName}`.trim();
+        nguoiThucHien = `${user.lastName} ${user.firstName}`.trim();
       }
     }
 
@@ -92,7 +92,7 @@ export class ProductionReportService {
         select: { firstName: true, lastName: true },
       });
       if (user) {
-        nguoiThucHien = `${user.firstName} ${user.lastName}`.trim();
+        nguoiThucHien = `${user.lastName} ${user.firstName}`.trim();
       }
     }
 

@@ -160,7 +160,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSu
   const getSelectedEmployeeNames = () => {
     return employees
       .filter(emp => formData.nguoiNhan.includes(emp._id))
-      .map(emp => `${emp.firstName} ${emp.lastName}`)
+      .map(emp => `${emp.lastName} ${emp.firstName}`)
       .join(', ');
   };
 
@@ -243,7 +243,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSu
                         className="w-4 h-4 mt-0.5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 flex-shrink-0"
                       />
                       <span className="text-sm text-gray-700">
-                        <span className="font-medium">{emp.firstName} {emp.lastName}</span>
+                        <span className="font-medium">{emp.lastName} {emp.firstName}</span>
                         <span className="text-gray-500"> - {emp.employeeCode}</span>
                         <span className="text-gray-400 text-xs block">{emp.department}</span>
                       </span>

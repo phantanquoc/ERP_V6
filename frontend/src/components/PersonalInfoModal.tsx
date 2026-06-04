@@ -219,12 +219,12 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
                 <span className="text-lg font-bold text-white">
-                  {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                  {user.lastName?.charAt(0)}{user.firstName?.charAt(0)}
                 </span>
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white">
-                  {user.firstName} {user.lastName}
+                  {user.lastName} {user.firstName}
                 </h2>
                 <p className="text-green-100 text-sm">{user.position || 'Chưa có chức vụ'}</p>
                 <div className="flex items-center flex-wrap gap-1 mt-1">
@@ -292,7 +292,7 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <InfoRow icon={<User    className="w-5 h-5" />} label="Họ và tên"
-                      value={`${user.firstName} ${user.lastName}`} />
+                      value={`${user.lastName} ${user.firstName}`} />
                     <InfoRow icon={<User    className="w-5 h-5" />} label="Giới tính"
                       value={getGenderDisplay(user.gender)} />
                     <InfoRow icon={<Calendar className="w-5 h-5" />} label="Ngày sinh"

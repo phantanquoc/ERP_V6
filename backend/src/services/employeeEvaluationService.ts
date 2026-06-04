@@ -86,7 +86,7 @@ export class EmployeeEvaluationService {
 
     return employees.map(emp => {
       const evaluation = emp.evaluations[0];
-      const fullName = emp.user ? `${emp.user.firstName} ${emp.user.lastName}`.trim() : '';
+      const fullName = emp.user ? `${emp.user.lastName} ${emp.user.firstName}`.trim() : '';
 
       // Calculate total weight (should be 100%)
       const totalWeight = evaluation?.details.reduce((sum, d) => {
@@ -188,7 +188,7 @@ export class EmployeeEvaluationService {
     });
 
     const fullName = evaluation.employee.user
-      ? `${evaluation.employee.user.firstName} ${evaluation.employee.user.lastName}`.trim()
+      ? `${evaluation.employee.user.lastName} ${evaluation.employee.user.firstName}`.trim()
       : '';
 
     return {
@@ -488,7 +488,7 @@ export class EmployeeEvaluationService {
             include: { user: true },
           });
           const fullName = employee?.user
-            ? `${employee.user.firstName} ${employee.user.lastName}`.trim()
+            ? `${employee.user.lastName} ${employee.user.firstName}`.trim()
             : '';
 
           if (employee?.user?.supervisor1Id) {
@@ -583,7 +583,7 @@ export class EmployeeEvaluationService {
             include: { user: true },
           });
           const fullName = employee?.user
-            ? `${employee.user.firstName} ${employee.user.lastName}`.trim()
+            ? `${employee.user.lastName} ${employee.user.firstName}`.trim()
             : '';
 
           if (employee?.user?.supervisor2Id) {
@@ -859,7 +859,7 @@ export class EmployeeEvaluationService {
       if (!user.employees) return [];
       const employee = user.employees;
       const evaluation = employee.evaluations[0];
-      const fullName = `${user.firstName} ${user.lastName}`.trim();
+      const fullName = `${user.lastName} ${user.firstName}`.trim();
 
       // Calculate scores
       const totalWeight = evaluation?.details.reduce((sum: number, d: any) => {

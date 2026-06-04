@@ -85,7 +85,7 @@ const AttendanceManagement: React.FC = () => {
         return true;
       }
 
-      const fullName = `${employee.user.firstName} ${employee.user.lastName}`.trim().toLowerCase();
+      const fullName = `${employee.user.lastName} ${employee.user.firstName}`.trim().toLowerCase();
       return fullName.includes(employeeSearchKeyword)
         || employee.employeeCode.toLowerCase().includes(employeeSearchKeyword);
     })
@@ -113,7 +113,7 @@ const AttendanceManagement: React.FC = () => {
   };
 
   const getEmployeeFullName = (employee: typeof employees[number]) =>
-    `${employee.user.firstName} ${employee.user.lastName}`.trim();
+    `${employee.user.lastName} ${employee.user.firstName}`.trim();
 
   const handleEmployeeSearchChange = (value: string) => {
     setEmployeeSearch(value);

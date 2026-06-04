@@ -1951,7 +1951,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
       // Get employee name from user object
       const tenNhanVien = user?.firstName && user?.lastName
-        ? `${user.firstName} ${user.lastName}`
+        ? `${user.lastName} ${user.firstName}`
         : user?.name || user?.email || 'Unknown';
 
       const data = {

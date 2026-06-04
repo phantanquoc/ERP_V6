@@ -159,7 +159,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
           maPhieuXuat,
           employeeId: user?.id || '',
           maNhanVien: user?.employeeCode || '',
-          tenNhanVien: `${user?.firstName} ${user?.lastName}`,
+          tenNhanVien: `${user?.lastName} ${user?.firstName}`,
           warehouseId: row.warehouseId,
           tenKho: warehouse?.tenKho || '',
           lotId: row.lotId,
@@ -225,7 +225,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên</label>
-              <input type="text" value={`${user?.firstName} ${user?.lastName}`} disabled
+              <input type="text" value={`${user?.lastName} ${user?.firstName}`} disabled
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" />
             </div>
           </div>

@@ -32,7 +32,7 @@ const FinishedProductManagement: React.FC = () => {
   ];
 
   // Get current user's full name
-  const currentUserName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
+  const currentUserName = user ? `${user.lastName} ${user.firstName}`.trim() : '';
 
   const [formData, setFormData] = useState({
     maChien: '',

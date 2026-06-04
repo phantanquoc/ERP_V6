@@ -416,7 +416,7 @@ const PurchasingEquipment = () => {
                             </span>
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{item.doanhChi ? `${(item.doanhChi / 1000000).toFixed(0)}M` : '-'}</td>
-                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{item.employee?.user ? `${item.employee.user.firstName} ${item.employee.user.lastName}` : '-'}</td>
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{item.employee?.user ? `${item.employee.user.lastName} ${item.employee.user.firstName}` : '-'}</td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                             <div className="flex items-center gap-2">
                               <button onClick={() => openDetailModal(item)} className="text-purple-600 hover:text-purple-800" title="Xem chi tiết"><Eye className="w-4 h-4" /></button>

@@ -58,9 +58,9 @@ const UserProfileDropdown: React.FC = () => {
 
   // Get user initials for avatar
   const getInitials = (firstName?: string, lastName?: string) => {
-    const first = firstName?.charAt(0) || '';
     const last = lastName?.charAt(0) || '';
-    return (first + last).toUpperCase() || 'U';
+    const first = firstName?.charAt(0) || '';
+    return (last + first).toUpperCase() || 'U';
   };
 
   return (
@@ -78,7 +78,7 @@ const UserProfileDropdown: React.FC = () => {
         {/* User Info */}
         <div className="text-left">
           <div className="text-sm font-medium text-gray-900">
-            {user.firstName} {user.lastName}
+            {user.lastName} {user.firstName}
           </div>
           <div className="text-xs text-gray-500">
             {user.role === 'admin' ? 'Admin System' : user.position}
@@ -104,7 +104,7 @@ const UserProfileDropdown: React.FC = () => {
               </div>
               <div>
                 <div className="font-semibold text-lg">
-                  {user.firstName} {user.lastName}
+                  {user.lastName} {user.firstName}
                 </div>
                 <div className="text-blue-100 text-sm">
                   {user.email}

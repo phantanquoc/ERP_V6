@@ -246,7 +246,7 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
                   setFormData(prev => ({
                     ...prev,
                     nguoiNhanId: empId,
-                    nguoiNhan: emp ? `${emp.firstName} ${emp.lastName}` : '',
+                    nguoiNhan: emp ? `${emp.lastName} ${emp.firstName}` : '',
                   }));
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -255,7 +255,7 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
                 <option value="">Chọn người nhận</option>
                 {filteredEmployees.map((emp) => (
                   <option key={emp._id} value={emp._id}>
-                    {emp.firstName} {emp.lastName} ({emp.employeeCode})
+                    {emp.lastName} {emp.firstName} ({emp.employeeCode})
                   </option>
                 ))}
               </select>

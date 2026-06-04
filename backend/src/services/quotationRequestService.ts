@@ -217,7 +217,7 @@ export class QuotationRequestService {
         maYeuCauBaoGia: data.maYeuCauBaoGia,
         employeeId: data.employeeId,
         maNhanVien: employee.employeeCode,
-        tenNhanVien: `${employee.user.firstName} ${employee.user.lastName}`,
+        tenNhanVien: `${employee.user.lastName} ${employee.user.firstName}`,
         customerId: data.customerId,
         maKhachHang: customer.maKhachHang,
         tenKhachHang: customer.tenCongTy,

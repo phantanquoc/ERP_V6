@@ -162,7 +162,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Người giao</label>
               <p className="mt-1 text-sm text-gray-900">
-                {selectedTask.nguoiGiao ? `${selectedTask.nguoiGiao.firstName} ${selectedTask.nguoiGiao.lastName}` : 'N/A'}
+                {selectedTask.nguoiGiao ? `${selectedTask.nguoiGiao.lastName} ${selectedTask.nguoiGiao.firstName}` : 'N/A'}
               </p>
             </div>
             <div>
@@ -188,7 +188,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
                 const statusBadge = getAcceptanceStatusBadge(status);
                 return (
                   <div key={n.id} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-900">{n.firstName} {n.lastName}</span>
+                    <span className="text-gray-900">{n.lastName} {n.firstName}</span>
                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusBadge.class}`}>{statusBadge.label}</span>
                   </div>
                 );
@@ -376,14 +376,14 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
                             <div className="line-clamp-2" title={task.noiDung}>{task.noiDung}</div>
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                            {task.nguoiGiao ? `${task.nguoiGiao.firstName} ${task.nguoiGiao.lastName}` : 'N/A'}
+                            {task.nguoiGiao ? `${task.nguoiGiao.lastName} ${task.nguoiGiao.firstName}` : 'N/A'}
                           </td>
                       <td className="px-3 py-3 text-sm text-gray-900">
                         {task.nguoiNhan && task.nguoiNhan.length > 0 ? (
                           <div className="max-w-[120px]">
                             <span className="text-blue-600 font-medium">{task.nguoiNhan.length} người</span>
-                            <div className="text-xs text-gray-500 truncate" title={task.nguoiNhan.map(n => `${n.firstName} ${n.lastName}`).join(', ')}>
-                              {task.nguoiNhan.map(n => `${n.firstName} ${n.lastName}`).join(', ')}
+                            <div className="text-xs text-gray-500 truncate" title={task.nguoiNhan.map(n => `${n.lastName} ${n.firstName}`).join(', ')}>
+                              {task.nguoiNhan.map(n => `${n.lastName} ${n.firstName}`).join(', ')}
                             </div>
                           </div>
                         ) : '-'}

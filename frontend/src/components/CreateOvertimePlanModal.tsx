@@ -133,7 +133,7 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({ isOpe
   const handleClose = () => { setFormData(defaultForm); setSelectedDepartment(''); setError(''); onClose(); };
 
   const getSelectedNames = () =>
-    employees.filter(emp => formData.nguoiThamGia.includes(emp._id)).map(emp => `${emp.firstName} ${emp.lastName}`).join(', ');
+    employees.filter(emp => formData.nguoiThamGia.includes(emp._id)).map(emp => `${emp.lastName} ${emp.firstName}`).join(', ');
 
   return (
     <ModalForm
@@ -155,7 +155,7 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({ isOpe
           ) : (<><div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-gray-50"><div className="space-y-1.5">
             {filteredEmployees.map(emp => (<label key={emp._id} className="flex items-start space-x-2.5 cursor-pointer hover:bg-white p-2 rounded transition-colors">
               <input type="checkbox" checked={formData.nguoiThamGia.includes(emp._id)} onChange={() => handleEmployeeToggle(emp._id)} className="w-4 h-4 mt-0.5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 flex-shrink-0" />
-              <span className="text-sm text-gray-700"><span className="font-medium">{emp.firstName} {emp.lastName}</span><span className="text-gray-500"> - {emp.employeeCode}</span><span className="text-gray-400 text-xs block">{emp.department}</span></span>
+              <span className="text-sm text-gray-700"><span className="font-medium">{emp.lastName} {emp.firstName}</span><span className="text-gray-500"> - {emp.employeeCode}</span><span className="text-gray-400 text-xs block">{emp.department}</span></span>
             </label>))}</div></div>
             {formData.nguoiThamGia.length > 0 && (<div className="mt-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg"><p className="text-sm text-blue-700"><span className="font-medium">Đã chọn {formData.nguoiThamGia.length} người:</span><span className="ml-1">{getSelectedNames()}</span></p></div>)}</>)}</div>
         <div><label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center"><FileText className="w-4 h-4 mr-1.5" />Nội dung công việc tăng ca <span className="text-red-500 ml-1">*</span></label>

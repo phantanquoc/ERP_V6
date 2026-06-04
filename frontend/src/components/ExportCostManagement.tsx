@@ -32,7 +32,7 @@ const ExportCostManagement: React.FC = () => {
     giaThanhNgay: undefined,
     donViTien: 'VND',
     msnv: user?.employeeCode || '',
-    tenNhanVien: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : '',
+    tenNhanVien: user?.firstName && user?.lastName ? `${user.lastName} ${user.firstName}` : '',
   });
 
   useEffect(() => {
@@ -89,7 +89,7 @@ const ExportCostManagement: React.FC = () => {
         giaThanhNgay: 0,
         donViTien: 'VND',
         msnv: user?.employeeCode || '',
-        tenNhanVien: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : '',
+        tenNhanVien: user?.firstName && user?.lastName ? `${user.lastName} ${user.firstName}` : '',
       });
     }
     setShowModal(true);

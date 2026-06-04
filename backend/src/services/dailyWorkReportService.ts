@@ -197,7 +197,7 @@ export class DailyWorkReportService {
     // Notify admin about new daily report
     try {
       const employeeName = report.employee?.user
-        ? `${report.employee.user.firstName} ${report.employee.user.lastName}`
+        ? `${report.employee.user.lastName} ${report.employee.user.firstName}`
         : 'Nhân viên';
       const reportDateStr = new Date(report.reportDate).toLocaleDateString('vi-VN');
       await notificationService.notify(NotificationEvent.DAILY_WORK_REPORT_SUBMITTED, {

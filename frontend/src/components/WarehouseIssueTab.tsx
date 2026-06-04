@@ -131,7 +131,7 @@ const WarehouseIssueTab: React.FC = () => {
         maPhieuXuat: formData.maPhieuXuat,
         employeeId: user?.id || '',
         maNhanVien: user?.employeeCode || '',
-        tenNhanVien: `${user?.firstName} ${user?.lastName}`,
+        tenNhanVien: `${user?.lastName} ${user?.firstName}`,
         warehouseId: formData.warehouseId,
         tenKho: warehouse?.tenKho || '',
         lotId: formData.lotId,
@@ -443,7 +443,7 @@ const WarehouseIssueTab: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={`${user?.firstName} ${user?.lastName}`}
+                  value={`${user?.lastName} ${user?.firstName}`}
                   disabled
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
                 />
