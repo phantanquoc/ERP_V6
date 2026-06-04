@@ -13,6 +13,41 @@ interface ProcessManagementProps {
   filterLoaiQuyTrinh?: 'production' | 'non-production';
 }
 
+type ProcessCostColumn = {
+  key: keyof ProcessFlowchartCost;
+  label: string;
+  subLabel?: string;
+  modes?: Array<NonNullable<ProcessManagementProps['mode']>>;
+  group?: 'laborQuantity';
+  className?: string;
+};
+
+const hasDisplayValue = (value: unknown) => value !== undefined && value !== null && value !== '';
+
+const formatCostCellValue = (value: unknown) => hasDisplayValue(value) ? String(value) : '-';
+
+const processCostColumns: ProcessCostColumn[] = [
+  { key: 'loaiChiPhi', label: 'LOẠI CHI PHÍ', className: 'text-center' },
+  { key: 'tenChiPhi', label: 'TÊN CHI PHÍ' },
+  { key: 'donVi', label: 'ĐVT', className: 'text-center' },
+  { key: 'dinhMucLaoDong', label: 'ĐỊNH MỨC LAO ĐỘNG', modes: ['standard-only', 'production'], className: 'text-center' },
+  { key: 'donViDinhMucLaoDong', label: 'ĐƠN VỊ', modes: ['standard-only', 'production'], className: 'text-center' },
+  { key: 'soLuongNguyenLieu', label: 'SỐ LƯỢNG NGUYÊN LIỆU CẦN HOÀN THÀNH (Kg)', modes: ['production'], className: 'text-center' },
+  { key: 'soPhutThucHien', label: 'SỐ PHÚT CẦN THỰC HIỆN XONG', modes: ['production'], className: 'text-center' },
+  { key: 'soLuongKeHoach', label: 'SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ CẦN DÙNG', subLabel: 'SỐ LƯỢNG', modes: ['production'], group: 'laborQuantity', className: 'text-center' },
+  { key: 'soLuongThucTe', label: 'SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ CẦN DÙNG', subLabel: 'THỰC TẾ', modes: ['production'], group: 'laborQuantity', className: 'text-center' },
+];
+
+const getVisibleProcessCostColumns = (
+  sections: ProcessFlowchartSection[],
+  mode: NonNullable<ProcessManagementProps['mode']>,
+) => {
+  const costs = sections.flatMap(section => section.costs || []);
+  return processCostColumns
+    .filter(column => !column.modes || column.modes.includes(mode))
+    .filter(column => costs.some(cost => hasDisplayValue(cost[column.key])));
+};
+
 const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', showToggleHienThi = false, filterLoaiQuyTrinh }) => {
   const { user } = useAuth(); // Get current logged-in user
   const [processes, setProcesses] = useState<Process[]>([]);
@@ -1143,6 +1178,13 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                 <div className="border-t border-gray-200 pt-6">
                   <h4 className="text-md font-semibold text-gray-900 mb-4">Lưu đồ quy trình</h4>
 
+                  {(() => {
+                    const visibleCostColumns = getVisibleProcessCostColumns(viewingProcess.flowchart!.sections, mode);
+                    const regularCostColumns = visibleCostColumns.filter(column => column.group !== 'laborQuantity');
+                    const laborQuantityColumns = visibleCostColumns.filter(column => column.group === 'laborQuantity');
+                    const baseColumnCount = 3;
+
+                    return (
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse border border-gray-400">
                       <thead>
@@ -1150,37 +1192,23 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                           <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-12">STT</th>
                           <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">PHÂN ĐOẠN</th>
                           <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">NỘI DUNG CÔNG VIỆC</th>
-                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">LOẠI CHI PHÍ</th>
-                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-40">TÊN CHI PHÍ</th>
-                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-20">ĐVT</th>
-                          {(mode === 'standard-only' || mode === 'production') && (
-                            <>
-                              <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐỊNH MỨC LAO ĐỘNG</th>
-                              <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">ĐƠN VỊ</th>
-                            </>
-                          )}
-                          {mode === 'production' && (
-                            <>
-                              <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">SỐ LƯỢNG NGUYÊN LIỆU CẦN HOÀN THÀNH (Kg)</th>
-                              <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">SỐ PHÚT CẦN THỰC HIỆN XONG</th>
-                              <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ CẦN DÙNG</th>
-                            </>
+                          {regularCostColumns.map(column => (
+                            <th key={column.key} className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">{column.label}</th>
+                          ))}
+                          {laborQuantityColumns.length > 0 && (
+                            <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" colSpan={laborQuantityColumns.length}>
+                              SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ CẦN DÙNG
+                            </th>
                           )}
                         </tr>
-                        {mode === 'production' && (
+                        {laborQuantityColumns.length > 0 && (
                           <tr className="bg-blue-50">
-                            <th className="border border-gray-400 px-3 py-2"></th>
-                            <th className="border border-gray-400 px-3 py-2"></th>
-                            <th className="border border-gray-400 px-3 py-2"></th>
-                            <th className="border border-gray-400 px-3 py-2"></th>
-                            <th className="border border-gray-400 px-3 py-2"></th>
-                            <th className="border border-gray-400 px-3 py-2"></th>
-                            <th className="border border-gray-400 px-3 py-2"></th>
-                            <th className="border border-gray-400 px-3 py-2"></th>
-                            <th className="border border-gray-400 px-3 py-2"></th>
-                            <th className="border border-gray-400 px-3 py-2"></th>
-                            <th className="border border-gray-400 px-3 py-2 text-center text-xs font-bold">SỐ LƯỢNG</th>
-                            <th className="border border-gray-400 px-3 py-2 text-center text-xs font-bold">THỰC TẾ</th>
+                            <th className="border border-gray-400 px-3 py-2" colSpan={baseColumnCount + regularCostColumns.length}></th>
+                            {laborQuantityColumns.map(column => (
+                              <th key={column.key} className="border border-gray-400 px-3 py-2 text-center text-xs font-bold">
+                                {column.subLabel}
+                              </th>
+                            ))}
                           </tr>
                         )}
                       </thead>
@@ -1224,51 +1252,11 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                     {section.noiDungCongViec || '-'}
                                   </td>
                                 )}
-                                {/* LOẠI CHI PHÍ */}
-                                <td className="border border-gray-400 px-3 py-2 text-center">
-                                  {cost.loaiChiPhi || '-'}
-                                </td>
-                                {/* TÊN CHI PHÍ */}
-                                <td className="border border-gray-400 px-3 py-2">
-                                  {cost.tenChiPhi || '-'}
-                                </td>
-                                {/* ĐVT */}
-                                <td className="border border-gray-400 px-3 py-2 text-center">
-                                  {cost.donVi || '-'}
-                                </td>
-                                {/* ĐỊNH MỨC LAO ĐỘNG - Hiển thị ở mode standard-only và production */}
-                                {(mode === 'standard-only' || mode === 'production') && (
-                                  <>
-                                    <td className="border border-gray-400 px-3 py-2 text-center">
-                                      {cost.dinhMucLaoDong !== undefined && cost.dinhMucLaoDong !== null ? cost.dinhMucLaoDong : '-'}
-                                    </td>
-                                    {/* ĐƠN VỊ ĐỊNH MỨC LAO ĐỘNG */}
-                                    <td className="border border-gray-400 px-3 py-2 text-center">
-                                      {cost.donViDinhMucLaoDong || '-'}
-                                    </td>
-                                  </>
-                                )}
-                                {/* 8 CỘT MỚI - Chỉ hiển thị ở mode production */}
-                                {mode === 'production' && (
-                                  <>
-                                    {/* SỐ LƯỢNG NGUYÊN LIỆU */}
-                                    <td className="border border-gray-400 px-3 py-2 text-center">
-                                      {cost.soLuongNguyenLieu !== undefined && cost.soLuongNguyenLieu !== null ? cost.soLuongNguyenLieu : '-'}
-                                    </td>
-                                    {/* SỐ PHÚT THỰC HIỆN */}
-                                    <td className="border border-gray-400 px-3 py-2 text-center">
-                                      {cost.soPhutThucHien !== undefined && cost.soPhutThucHien !== null ? cost.soPhutThucHien : '-'}
-                                    </td>
-                                    {/* SỐ LƯỢNG KẾ HOẠCH */}
-                                    <td className="border border-gray-400 px-3 py-2 text-center">
-                                      {cost.soLuongKeHoach !== undefined && cost.soLuongKeHoach !== null ? cost.soLuongKeHoach : '-'}
-                                    </td>
-                                    {/* SỐ LƯỢNG THỰC TẾ */}
-                                    <td className="border border-gray-400 px-3 py-2 text-center">
-                                      {cost.soLuongThucTe !== undefined && cost.soLuongThucTe !== null ? cost.soLuongThucTe : '-'}
-                                    </td>
-                                  </>
-                                )}
+                                {visibleCostColumns.map(column => (
+                                  <td key={column.key} className={`border border-gray-400 px-3 py-2 ${column.className || ''}`}>
+                                    {formatCostCellValue(cost[column.key])}
+                                  </td>
+                                ))}
                               </tr>
                             ))
                           ) : (
@@ -1297,16 +1285,19 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                               <td className="border border-gray-400 px-3 py-2 whitespace-pre-wrap">
                                 {section.noiDungCongViec || '-'}
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 text-center text-gray-400">-</td>
-                              <td className="border border-gray-400 px-3 py-2 text-gray-400">-</td>
-                              <td className="border border-gray-400 px-3 py-2 text-center text-gray-400">-</td>
-                              <td className="border border-gray-400 px-3 py-2 text-center text-gray-400">-</td>
+                              {visibleCostColumns.length > 0 && (
+                                <td className="border border-gray-400 px-3 py-2 text-center text-gray-400" colSpan={visibleCostColumns.length}>
+                                  Không có chi phí
+                                </td>
+                              )}
                             </tr>
                           );
                         })}
                       </tbody>
                     </table>
                   </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -1636,4 +1627,3 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
 };
 
 export default ProcessManagement;
-
