@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageCircle, X, Send, Bot, User, Sparkles, ThumbsUp, ThumbsDown, Download, CheckCircle, XCircle, Edit3, Maximize2, Minimize2, Square, Plus, Menu, Pencil, Trash2 } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, User, Sparkles, ThumbsUp, ThumbsDown, Download, CheckCircle, XCircle, Edit3, Maximize2, Minimize2, Square, Plus, Menu, Pencil, Trash2, Paperclip, FileText, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '../contexts/AuthContext';
@@ -50,6 +50,14 @@ const FIELD_LABELS: Record<string, string> = {
   reportDate: 'Ngày báo cáo', workDescription: 'Mô tả công việc', achievements: 'Kết quả đạt được',
   challenges: 'Khó khăn', planForNextDay: 'Kế hoạch ngày tiếp theo',
   loaiPhanHoi: 'Loại phản hồi', noiDungPhanHoi: 'Nội dung phản hồi', mucDoNghiemTrong: 'Mức độ nghiêm trọng',
+  processId: 'Quy trình', sections: 'Các phân đoạn',
+  phanDoan: 'Phân đoạn', tenPhanDoan: 'Tên phân đoạn', noiDungCongViec: 'Nội dung công việc',
+  costs: 'Chi phí', loaiChiPhi: 'Loại chi phí', tenChiPhi: 'Tên chi phí', donVi: 'Đơn vị',
+  dinhMucLaoDong: 'Định mức lao động', donViDinhMucLaoDong: 'Đơn vị định mức lao động',
+  soLuongNguyenLieu: 'Số lượng nguyên liệu', soPhutThucHien: 'Số phút thực hiện',
+  soLuongKeHoach: 'Số lượng kế hoạch', soLuongThucTe: 'Số lượng thực tế',
+  giaKeHoach: 'Giá kế hoạch', thanhTienKeHoach: 'Thành tiền kế hoạch',
+  giaThucTe: 'Giá thực tế', thanhTienThucTe: 'Thành tiền thực tế',
 };
 
 const HIDDEN_FIELDS = new Set(['employeeId', 'maNhanVien', 'tenNhanVien', 'approvedBy', 'id']);
@@ -59,6 +67,18 @@ const READONLY_FIELDS = new Set(['nguoiNhan', 'customerId', 'supplierId', 'produ
 
 // Fields that use date picker
 const DATE_FIELDS = new Set(['thoiHanHoanThanh', 'startDate', 'endDate', 'reportDate', 'ngayYeuCau', 'ngayBaoCao']);
+
+const FLOWCHART_NUMERIC_COST_FIELDS = [
+  'dinhMucLaoDong',
+  'soLuongNguyenLieu',
+  'soPhutThucHien',
+  'soLuongKeHoach',
+  'soLuongThucTe',
+  'giaKeHoach',
+  'thanhTienKeHoach',
+  'giaThucTe',
+  'thanhTienThucTe',
+];
 
 // Fields that use select dropdown with predefined options
 const SELECT_OPTIONS: Record<string, { value: string; label: string }[]> = {
@@ -161,6 +181,248 @@ function groupSessionsByDate(sessions: ChatSession[]): { label: string; items: C
 }
 
 // --- Sub-components ---
+type FlowchartCostDraft = Record<string, unknown> & {
+  loaiChiPhi?: string;
+  tenChiPhi?: string;
+  donVi?: string;
+};
+
+type FlowchartSectionDraft = Record<string, unknown> & {
+  phanDoan?: string;
+  tenPhanDoan?: string;
+  noiDungCongViec?: string;
+  costs?: FlowchartCostDraft[];
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+);
+
+const getFlowchartSections = (params: Record<string, unknown>): FlowchartSectionDraft[] => {
+  if (!Array.isArray(params.sections)) return [];
+  return params.sections.filter(isRecord).map(section => {
+    if (!Array.isArray(section.costs)) return { ...section };
+    return { ...section, costs: section.costs.filter(isRecord) };
+  });
+};
+
+const formatPreviewText = (value: unknown, fallback = 'Chưa có nội dung'): string => {
+  const text = String(value ?? '').trim();
+  if (!text) return fallback;
+  return text.length > 160 ? `${text.slice(0, 160)}...` : text;
+};
+
+const formatCostValue = (value: unknown): string => {
+  if (value === null || value === undefined || value === '') return '';
+  return String(value);
+};
+
+const FlowchartConfirmationPreview: React.FC<{ params: Record<string, unknown> }> = ({ params }) => {
+  const sections = getFlowchartSections(params);
+
+  if (sections.length === 0) {
+    return (
+      <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        Chưa có phân đoạn nào để hiển thị.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50/60 p-3">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div>
+          <p className="text-xs font-semibold text-gray-800">Lưu đồ quy trình</p>
+          <p className="text-[11px] text-gray-500">{sections.length} phân đoạn sẽ được tạo</p>
+        </div>
+        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-blue-600 border border-blue-100">
+          {sections.length} bước
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {sections.map((section, idx) => {
+          const costs = Array.isArray(section.costs) ? section.costs : [];
+          return (
+            <div key={`${section.phanDoan ?? idx}-${idx}`} className="rounded-lg border border-gray-200 bg-white p-3">
+              <div className="flex items-start gap-2">
+                <div className="flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-100 px-2 text-[11px] font-semibold text-blue-700">
+                  {section.phanDoan || idx + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-gray-800">{section.tenPhanDoan || `Phân đoạn ${idx + 1}`}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-gray-600 whitespace-pre-wrap">{formatPreviewText(section.noiDungCongViec)}</p>
+                </div>
+              </div>
+
+              {costs.length > 0 && (
+                <div className="mt-2 space-y-1 border-t border-gray-100 pt-2">
+                  <p className="text-[11px] font-medium text-gray-500">Chi phí ({costs.length})</p>
+                  {costs.map((cost, costIdx) => (
+                    <div key={costIdx} className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-gray-600">
+                      <span className="font-medium text-gray-700">{cost.loaiChiPhi || `Chi phí ${costIdx + 1}`}</span>
+                      {cost.tenChiPhi && <span>{cost.tenChiPhi}</span>}
+                      {cost.donVi && <span>Đơn vị: {cost.donVi}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const FlowchartEditForm: React.FC<{
+  params: Record<string, unknown>;
+  onSubmit: (edited: Record<string, unknown>) => void;
+  onCancel: () => void;
+}> = ({ params, onSubmit, onCancel }) => {
+  const [sections, setSections] = useState<FlowchartSectionDraft[]>(() => getFlowchartSections(params));
+
+  const updateSection = (index: number, key: keyof FlowchartSectionDraft, value: string) => {
+    setSections(prev => prev.map((section, idx) => (
+      idx === index ? { ...section, [key]: value } : section
+    )));
+  };
+
+  const updateCost = (sectionIndex: number, costIndex: number, key: string, value: string) => {
+    setSections(prev => prev.map((section, idx) => {
+      if (idx !== sectionIndex) return section;
+      const costs = Array.isArray(section.costs) ? section.costs : [];
+      return {
+        ...section,
+        costs: costs.map((cost, cIdx) => {
+          if (cIdx !== costIndex) return cost;
+          const nextValue = FLOWCHART_NUMERIC_COST_FIELDS.includes(key)
+            ? (value === '' ? undefined : Number(value))
+            : value;
+          return { ...cost, [key]: nextValue };
+        }),
+      };
+    }));
+  };
+
+  const handleSubmit = () => {
+    onSubmit({ ...params, sections });
+  };
+
+  if (sections.length === 0) {
+    return (
+      <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+        <p className="text-xs text-gray-500">Không có phân đoạn để chỉnh sửa.</p>
+        <div className="flex gap-2">
+          <button onClick={onCancel} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+            <XCircle size={12} /> Quay lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+      <div>
+        <div className="text-xs font-medium text-gray-700">Chỉnh sửa lưu đồ quy trình</div>
+        <div className="text-[11px] text-gray-500">{sections.length} phân đoạn</div>
+      </div>
+
+      <div className="space-y-3">
+        {sections.map((section, sectionIndex) => {
+          const costs = Array.isArray(section.costs) ? section.costs : [];
+          return (
+            <div key={`${section.phanDoan ?? sectionIndex}-${sectionIndex}`} className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-[96px_1fr] gap-2">
+                <div className="space-y-0.5">
+                  <label className="text-xs font-medium text-gray-600">Phân đoạn</label>
+                  <input
+                    type="text"
+                    value={String(section.phanDoan ?? '')}
+                    onChange={e => updateSection(sectionIndex, 'phanDoan', e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <label className="text-xs font-medium text-gray-600">Tên phân đoạn</label>
+                  <input
+                    type="text"
+                    value={String(section.tenPhanDoan ?? '')}
+                    onChange={e => updateSection(sectionIndex, 'tenPhanDoan', e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-0.5">
+                <label className="text-xs font-medium text-gray-600">Nội dung công việc</label>
+                <textarea
+                  value={String(section.noiDungCongViec ?? '')}
+                  onChange={e => updateSection(sectionIndex, 'noiDungCongViec', e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-400 focus:border-blue-400 resize-y min-h-[72px]"
+                  rows={3}
+                />
+              </div>
+
+              {costs.length > 0 && (
+                <div className="space-y-2 border-t border-gray-100 pt-2">
+                  <p className="text-[11px] font-medium text-gray-500">Chi phí</p>
+                  {costs.map((cost, costIndex) => {
+                    const presentNumericFields = FLOWCHART_NUMERIC_COST_FIELDS.filter(field => Object.prototype.hasOwnProperty.call(cost, field));
+                    return (
+                      <div key={costIndex} className="rounded-md border border-gray-100 bg-gray-50 p-2 space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          {['loaiChiPhi', 'tenChiPhi', 'donVi'].map(field => (
+                            <div key={field} className="space-y-0.5">
+                              <label className="text-[11px] font-medium text-gray-600">{FIELD_LABELS[field]}</label>
+                              <input
+                                type="text"
+                                value={formatCostValue(cost[field])}
+                                onChange={e => updateCost(sectionIndex, costIndex, field, e.target.value)}
+                                className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-400 focus:border-blue-400 bg-white"
+                              />
+                            </div>
+                          ))}
+                        </div>
+
+                        {presentNumericFields.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {presentNumericFields.map(field => (
+                              <div key={field} className="space-y-0.5">
+                                <label className="text-[11px] font-medium text-gray-600">{FIELD_LABELS[field] || field}</label>
+                                <input
+                                  type="number"
+                                  value={formatCostValue(cost[field])}
+                                  onChange={e => updateCost(sectionIndex, costIndex, field, e.target.value)}
+                                  className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-400 focus:border-blue-400 bg-white"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex gap-2 pt-1">
+        <button onClick={handleSubmit} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors">
+          <CheckCircle size={12} /> Xác nhận
+        </button>
+        <button onClick={onCancel} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+          <XCircle size={12} /> Hủy
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const EditParamsForm: React.FC<{
   params: Record<string, unknown>;
   display?: Record<string, string>;
@@ -274,6 +536,39 @@ const TypingDots: React.FC = () => (
   </div>
 );
 
+// Parse [THINK:...] and [TOOL_CALL:...] markers from content
+interface ParsedContent {
+  thinkBlocks: string[];
+  toolCallLabel: string | null;
+  cleanContent: string;
+}
+
+function parseAgentMarkers(content: string): ParsedContent {
+  const thinkBlocks: string[] = [];
+  let toolCallLabel: string | null = null;
+  
+  // Extract [THINK:...] blocks
+  const thinkRegex = /\[THINK:(.*?)\]/gs;
+  let match;
+  while ((match = thinkRegex.exec(content)) !== null) {
+    thinkBlocks.push(match[1].trim());
+  }
+  
+  // Extract [TOOL_CALL:...] marker
+  const toolMatch = content.match(/\[TOOL_CALL:(.*?)\]/);
+  if (toolMatch) {
+    toolCallLabel = toolMatch[1].trim();
+  }
+  
+  // Remove markers from display content
+  const cleanContent = content
+    .replace(/\[THINK:.*?\]/gs, '')
+    .replace(/\[TOOL_CALL:.*?\]/g, '')
+    .trim();
+  
+  return { thinkBlocks, toolCallLabel, cleanContent };
+}
+
 // --- Main Component ---
 const ChatWidget: React.FC = () => {
   const { user } = useAuth();
@@ -301,6 +596,11 @@ const ChatWidget: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // File upload state
+  const [pendingFiles, setPendingFiles] = useState<{ id: string; name: string; chunks: number }[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   // --- Session persistence ---
   const persistSessions = useCallback((updated: ChatSession[]) => {
@@ -437,6 +737,37 @@ const ChatWidget: React.FC = () => {
     if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
   };
 
+  // --- File upload ---
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    const token = localStorage.getItem('accessToken');
+    for (const file of Array.from(files)) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`${API_BASE_URL}/agent/upload`, {
+          method: 'POST',
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.file_id) {
+          setPendingFiles(prev => [...prev, { id: data.file_id, name: file.name, chunks: data.chunks_count || 0 }]);
+        }
+      } catch {
+        // silently fail
+      }
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removePendingFile = (id: string) => {
+    setPendingFiles(prev => prev.filter(f => f.id !== id));
+  };
+
   // --- Send message ---
   const sendMessage = async (confirmTool?: string, confirmParams?: Record<string, unknown>, confirmContext?: Record<string, unknown>) => {
     const text = input.trim();
@@ -451,6 +782,7 @@ const ChatWidget: React.FC = () => {
       currentMessages = [...currentMessages, userMsg];
       setMessages(currentMessages);
       setInput('');
+      setPendingFiles([]);
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
       // Create session if first message
@@ -487,6 +819,7 @@ const ChatWidget: React.FC = () => {
       confirm_tool: confirmTool || '',
       confirm_params: confirmParams || {},
       confirm_context: confirmContext || null,
+      uploaded_files: pendingFiles.map(f => ({ file_id: f.id, filename: f.name })),
     };
 
     try {
@@ -555,8 +888,17 @@ const ChatWidget: React.FC = () => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
-  const handleConfirm = (action: AgentAction) => { setEditingMsgIndex(null); sendMessage(action.tool, action.params as Record<string, unknown>, action.context as Record<string, unknown> | undefined); };
-  const handleEditSubmit = (action: AgentAction, editedParams: Record<string, unknown>) => { setEditingMsgIndex(null); sendMessage(action.tool, editedParams, action.context as Record<string, unknown> | undefined); };
+  const handleConfirm = (action: AgentAction) => { 
+    setEditingMsgIndex(null); 
+    // Clear action buttons from the message
+    setMessages(prev => prev.map((m, idx) => idx === prev.length - 1 ? { ...m, agentAction: undefined } : m));
+    sendMessage(action.tool, action.params as Record<string, unknown>, action.context as Record<string, unknown> | undefined); 
+  };
+  const handleEditSubmit = (action: AgentAction, editedParams: Record<string, unknown>) => { 
+    setEditingMsgIndex(null); 
+    setMessages(prev => prev.map((m, idx) => idx === prev.length - 1 ? { ...m, agentAction: undefined } : m));
+    sendMessage(action.tool, editedParams, action.context as Record<string, unknown> | undefined); 
+  };
   const handleExport = (action: AgentAction) => {
     const token = localStorage.getItem('accessToken');
     fetch(`${API_BASE_URL}${action.url}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
@@ -576,10 +918,14 @@ const ChatWidget: React.FC = () => {
         @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes popIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
         @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+        @keyframes thinkPulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        @keyframes toolSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .chat-panel { animation: fadeSlideUp 0.2s ease-out; }
         .chat-fab { animation: popIn 0.15s ease-out; }
         .msg-bubble { animation: fadeSlideUp 0.12s ease-out; }
         .sidebar-slide { animation: slideIn 0.2s ease-out; }
+        .thinking-block { animation: fadeSlideUp 0.15s ease-out; }
+        .tool-call-indicator { animation: fadeSlideUp 0.12s ease-out; }
       `}</style>
 
       {/* FAB */}
@@ -738,21 +1084,58 @@ const ChatWidget: React.FC = () => {
                         <span className="whitespace-pre-wrap">{msg.content}</span>
                       ) : (
                         <>
-                          {msg.content && <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{msg.content}</ReactMarkdown>}
+                          {(() => {
+                            const { thinkBlocks, toolCallLabel, cleanContent } = parseAgentMarkers(msg.content || '');
+                            return (
+                              <>
+                                {/* Thinking blocks */}
+                                {thinkBlocks.length > 0 && (
+                                  <details className="thinking-block mb-2 rounded-lg border border-purple-100 bg-purple-50/60 px-3 py-2 text-xs text-gray-600">
+                                    <summary className="flex cursor-pointer list-none items-center gap-1.5 text-purple-600">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-purple-400" style={{ animation: 'thinkPulse 2s ease-in-out infinite' }} />
+                                      <span className="font-medium">{streaming && i === messages.length - 1 ? 'Trợ lý đang xử lý' : 'Đã phân tích yêu cầu'}</span>
+                                      <span className="text-[11px] text-purple-400">Chi tiết</span>
+                                    </summary>
+                                    <div className="mt-2 space-y-2 border-t border-purple-100 pt-2">
+                                      {thinkBlocks.map((block, idx) => (
+                                        <div key={idx} className="whitespace-pre-wrap text-gray-600">{block}</div>
+                                      ))}
+                                    </div>
+                                  </details>
+                                )}
+                                {/* Tool call indicator */}
+                                {toolCallLabel && (
+                                  <div className="tool-call-indicator flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-2 text-xs text-blue-600">
+                                    <Loader2 size={14} className="animate-spin text-blue-500" />
+                                    <span className="font-medium">{toolCallLabel}</span>
+                                  </div>
+                                )}
+                                {/* Main content */}
+                                {cleanContent && <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{cleanContent}</ReactMarkdown>}
+                              </>
+                            );
+                          })()}
                           {streaming && i === messages.length - 1 && msg.content && (
                             <span className="inline-block w-0.5 h-4 bg-blue-500 ml-0.5 align-middle rounded-full" style={{ animation: 'typingBounce 1s ease-in-out infinite' }} />
                           )}
                           {msg.agentAction && !streaming && (
                             <div className="mt-3 pt-3 border-t border-gray-100">
                               {msg.agentAction.type === 'confirm' && editingMsgIndex !== i && (
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <button onClick={() => handleConfirm(msg.agentAction!)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors shadow-sm"><CheckCircle size={13} /> Xác nhận</button>
-                                  <button onClick={() => setEditingMsgIndex(i)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"><Edit3 size={13} /> Chỉnh sửa</button>
-                                  <button onClick={() => { setEditingMsgIndex(null); setMessages(prev => { const u = [...prev]; u[u.length-1] = {...u[u.length-1], agentAction: undefined}; return [...u, {role:'assistant',content:'Đã hủy thao tác.'}]; }); }} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"><XCircle size={13} /> Hủy</button>
-                                </div>
+                                <>
+                                  {msg.agentAction.tool === 'create_flowchart' && <FlowchartConfirmationPreview params={msg.agentAction.params} />}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <button onClick={() => handleConfirm(msg.agentAction!)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors shadow-sm"><CheckCircle size={13} /> Xác nhận</button>
+                                    <button onClick={() => setEditingMsgIndex(i)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"><Edit3 size={13} /> Chỉnh sửa</button>
+                                    <button onClick={() => { setEditingMsgIndex(null); setMessages(prev => { const u = [...prev]; u[u.length-1] = {...u[u.length-1], agentAction: undefined}; return [...u, {role:'assistant',content:'Đã hủy thao tác.'}]; }); }} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"><XCircle size={13} /> Hủy</button>
+                                  </div>
+                                </>
                               )}
                               {msg.agentAction.type === 'confirm' && editingMsgIndex === i && (
-                                <EditParamsForm params={msg.agentAction.params} display={msg.agentAction.display} onSubmit={edited => handleEditSubmit(msg.agentAction!, edited)} onCancel={() => setEditingMsgIndex(null)} />
+                                msg.agentAction.tool === 'create_flowchart' ? (
+                                  <FlowchartEditForm params={msg.agentAction.params} onSubmit={edited => handleEditSubmit(msg.agentAction!, edited)} onCancel={() => setEditingMsgIndex(null)} />
+                                ) : (
+                                  <EditParamsForm params={msg.agentAction.params} display={msg.agentAction.display} onSubmit={edited => handleEditSubmit(msg.agentAction!, edited)} onCancel={() => setEditingMsgIndex(null)} />
+                                )
                               )}
                               {msg.agentAction.type === 'export' && (
                                 <button onClick={() => handleExport(msg.agentAction!)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors shadow-sm"><Download size={13} /> Tải xuống {msg.agentAction.filename}</button>
@@ -788,7 +1171,30 @@ const ChatWidget: React.FC = () => {
 
               {/* Input */}
               <div className="flex-shrink-0 border-t border-gray-100 bg-white px-4 py-3">
+                {/* Pending files */}
+                {pendingFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {pendingFiles.map(f => (
+                      <div key={f.id} className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                        <FileText size={12} />
+                        <span className="max-w-[120px] truncate">{f.name}</span>
+                        <span className="text-blue-400">({f.chunks} chunks)</span>
+                        <button onClick={() => removePendingFile(f.id)} className="ml-0.5 text-blue-400 hover:text-blue-600"><X size={11} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="flex items-end gap-2">
+                  <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.docx,.xlsx,.xls,.csv" multiple onChange={handleFileSelect} />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={streaming || uploading}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 bg-gray-100 hover:bg-gray-200 text-gray-500"
+                    aria-label="Gửi file"
+                    title="Gửi file (PDF, DOCX, Excel)"
+                  >
+                    {uploading ? <Loader2 size={15} className="animate-spin" /> : <Paperclip size={15} />}
+                  </button>
                   <textarea
                     ref={textareaRef}
                     value={input}

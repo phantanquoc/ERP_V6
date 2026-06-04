@@ -15,6 +15,8 @@ class AgentRequest(BaseModel):
     confirm_tool: str = ""
     confirm_params: dict = {}
     confirm_context: Optional[dict] = None  # Context to resume ReAct loop after confirm
+    # File upload fields
+    uploaded_files: List[dict] = []  # [{file_id: str, filename: str}]
 
 
 class AgentAction(BaseModel):

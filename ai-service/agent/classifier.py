@@ -53,6 +53,9 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "sản xuất", "production", "chất lượng", "qc", "nguyên liệu",
         "thành phẩm", "mẻ sấy", "sấy", "định mức", "quy trình sx",
         "vận hành", "kiểm tra nội bộ", "tiêu chí",
+        "tạo quy trình", "tạo process", "new process", "create process",
+        "tạo mới quy trình", "thêm quy trình",
+        "lưu đồ", "flowchart", "tạo lưu đồ", "phân đoạn",
     ],
     "warehouse": [
         "kho hàng", "warehouse", "nhập kho", "xuất kho", "lô hàng", "lot",

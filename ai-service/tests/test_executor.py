@@ -1144,6 +1144,42 @@ class TestMultiStepChaining:
         # No chaining — no __AGENT_ACTION__
         assert "__AGENT_ACTION__" not in output
 
+    def test_confirmed_create_flowchart_is_terminal(self):
+        """create_flowchart confirmed → success only, no resume to duplicate process creation."""
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 200
+        mock_http_resp.json.return_value = {"success": True, "data": {"id": "flowchart-1"}}
+
+        with patch("agent.executor._http_client") as mock_http, \
+             patch("agent.executor._openrouter_client") as mock_groq:
+            mock_http.post.return_value = mock_http_resp
+            from agent.executor import execute_confirmed
+            output = _collect(execute_confirmed(
+                "create_flowchart",
+                {
+                    "processId": "process-1",
+                    "sections": [
+                        {
+                            "phanDoan": "1",
+                            "tenPhanDoan": "Thông báo tuyển dụng",
+                            "noiDungCongViec": "Thông báo nhu cầu tuyển dụng",
+                        }
+                    ],
+                },
+                "jwt",
+                "req-1",
+                confirm_context={
+                    "message": "tạo quy trình thông báo tuyển dụng nhân sự từ file",
+                    "role": "ADMIN",
+                    "department": "",
+                    "today": "2026-06-04",
+                },
+            ))
+
+        assert "Lưu đồ quy trình đã được tạo thành công" in output
+        assert "__AGENT_ACTION__" not in output
+        mock_groq.chat.completions.create.assert_not_called()
+
     def test_confirmed_chain_final_text_response(self):
         """Chaining ends when agent returns text (no more writes)."""
         # Step 1: create_customer succeeds
@@ -1345,5 +1381,4 @@ class TestThinkTagsNotInHistory:
 
         assert "<think>" not in output
         assert "Đây là kết quả." in output
-
 

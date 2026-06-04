@@ -119,6 +119,7 @@ async def agent_stream(req: AgentRequest, request: Request):
             department=req.department,
             secondary_departments=req.secondary_departments,
             request_id=request_id,
+            uploaded_files=req.uploaded_files,
         ):
             yield chunk
         duration_ms = int((time.time() - start) * 1000)

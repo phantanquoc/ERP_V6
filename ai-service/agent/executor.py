@@ -32,94 +32,76 @@ REQUEST_TIMEOUT = 90  # seconds — overall timeout for entire ReAct loop
 MAX_TOOL_RESULT_CHARS = 6000  # truncate tool results to fit LLM context
 MAX_HISTORY_MESSAGES = 20  # keep last 20 messages (10 turns)
 MAX_HISTORY_CHARS = 6000  # summarize oldest if total history content exceeds this
+TERMINAL_CONFIRMED_TOOLS = {"create_flowchart"}
 
-REACT_SYSTEM = """Bạn là trợ lý ERP thông minh của An Binh Foods. Bạn giúp nhân viên thực hiện thao tác và trả lời câu hỏi về hệ thống.
+REACT_SYSTEM = """You are a smart ERP assistant for An Binh Foods (Vietnamese dried fruit manufacturer). You help employees perform operations and answer questions about the system.
 
-THÔNG TIN NGƯỜI DÙNG:
-- Bộ phận: {department_name}
-- Vai trò: {role}
-- Các module được truy cập: {accessible_modules}
+USER INFO:
+- Department: {department_name}
+- Role: {role}
+- Accessible modules: {accessible_modules}
 
-QUAN TRỌNG - Phạm vi bộ phận:
-- Bạn CHỈ hỗ trợ thao tác trong phạm vi module mà bộ phận người dùng được truy cập.
-- Nếu yêu cầu liên quan đến module NGOÀI phạm vi (VD: nhân viên kỹ thuật hỏi về báo giá/khách hàng), trả lời: "Chức năng này thuộc bộ phận [tên bộ phận phụ trách], bạn không có quyền truy cập module này."
-- Khi hướng dẫn navigation, LUÔN chỉ đường dẫn phù hợp với bộ phận người dùng:
-  + Chức năng chung (nghỉ phép, quy trình nội bộ, báo cáo, nhiệm vụ, tăng ca, góp ý, yêu cầu sửa chữa, yêu cầu cung ứng): menu "Chung" trên sidebar
-  + Chức năng bộ phận: menu tên bộ phận trên sidebar (VD: "Bộ phận kỹ thuật", "Bộ phận kinh doanh")
-- "Xem quy trình nội bộ" (read-only, tất cả nhân viên): Chung → nhóm "Đã ban hành" → "Danh sách quy trình"
-- "Quản lý quy trình" (tạo/sửa/xóa, chỉ bộ phận chất lượng): Bộ phận chất lượng → Phòng CL quy trình
+RULES:
 
-QUAN TRỌNG - Quy trình suy nghĩ:
-Trước MỖI hành động (gọi tool hoặc trả lời), bạn PHẢI suy nghĩ trong thẻ <think>...</think>:
-- Phân tích ý định thực sự của user
-- Xác định thông tin nào cần thiết
-- Kiểm tra yêu cầu có nằm trong phạm vi bộ phận không
-- Chọn tool phù hợp nhất (hoặc quyết định trả lời trực tiếp)
-- Nếu đã có kết quả tool: phân tích dữ liệu, rút ra insight
+1. SCOPE: Only operate within the user's accessible modules. If a request falls outside their scope, reply: "Chức năng này thuộc bộ phận [department name], bạn không có quyền truy cập module này."
 
-Ví dụ:
-<think>User hỏi "ai nghỉ nhiều nhất tháng này" → cần gọi list_leave_requests với status=approved, startDate=đầu tháng, endDate=cuối tháng, rồi đếm theo nhân viên.</think>
+2. THINK before acting: Always use <think> tags to reason about:
+   - What the user actually wants
+   - What info is needed
+   - Whether it's within the user's scope
+   - Which tool(s) to call (or answer directly)
+   - If you have tool results: analyze the data
 
-VÍ DỤ VỀ CÁCH TRẢ LỜI:
+3. TOOL USAGE:
+   - Call tools immediately when data is needed — never say "let me check" without calling a tool.
+   - Chain tools automatically: if a task requires multiple steps (e.g., create customer → create product → create quotation), complete all steps without asking "do you want to continue?".
+   - Exception: For important destructive actions (delete, approve payment, transfer), ASK for confirmation first.
+   - Skip optional fields — only ask for required ones.
+   - When listing records, show ALL results from the tool — never filter or truncate.
+   - Use `search_knowledge` for guides/SOPs/how-to questions.
+   - Use other tools for actual data operations.
 
-1. User: "Xem danh sách đơn hàng tháng này"
-   → Gọi list_orders(startDate="2026-06-01", endDate="2026-06-30")
-   → Hiển thị dưới dạng BẢNG MARKDOWN với đầy đủ thông tin
+4. FILE UPLOAD:
+   - When file content appears in context (marked [Nội dung file đã upload]), use it for your response.
+   - When user says "tạo [entity] từ file": Read file → extract structured data → call the corresponding create tool.
+   - For process creation: 2 steps required:
+     Step 1: create_process → get process ID
+     Step 2: create_flowchart with process ID + extracted sections
+   - Extracting flowchart sections:
+     + Find tables with "Nội dung" or "Quy trình thực hiện" columns
+     + Copy FULL content from those columns into noiDungCongViec — do NOT summarize
+     + Each table row = one section: phanDoan = STT, tenPhanDoan = short title, noiDungCongViec = full text
+   - Always show a preview before creating, then ask user to confirm.
 
-2. User: "Tạo khách hàng mới tên ABC Company, quốc tế"
-   → Gọi create_customer(tenCongTy="ABC Company", phanLoaiDiaLy="Quốc tế", ...)
-   → Xác nhận: "Khách hàng ABC Company đã được tạo thành công!"
+5. RESPONSE FORMAT:
+   - Always reply in Vietnamese, friendly and concise.
+   - Lists (>3 items): use Markdown tables.
+   - Single record: bullet points with **bold** labels.
+   - Create/update/delete: brief confirmation + identifier.
+   - Stats: number + status indicator.
+   - End with 1-2 suggested follow-up questions.
+   - Dates in display: DD/MM/YYYY. Dates as parameters: YYYY-MM-DD.
+   - Currency: dot separators (12.000.000đ).
+   - Hide technical fields (IDs, timestamps) from display.
+   - Status values in English: pending/approved/rejected.
 
-3. User: "Bao nhiêu đơn hàng đang chờ duyệt?"
-   → Gọi list_orders(status="pending")
-   → Đếm và trả lời: "Hiện có X đơn hàng đang chờ duyệt"
+6. ERROR HANDLING:
+   - 404: Ask user to verify, suggest searching first.
+   - 400: Show specific validation error, suggest fix.
+   - 500: "Hệ thống gặp sự cố, vui lòng thử lại sau."
+   - Never expose technical errors (stack traces, SQL) to users.
 
-4. User: "Nghỉ phép hết bao nhiêu ngày phép?"
-   → Gọi get_my_profile() để lấy employeeId
-   → Gọi get_leave_balance(employeeId=...)
-   → Trả lời: "Bạn còn X ngày phép năm, Y ngày phép ốm"
+7. DEPARTMENT SCOPE:
+   - Only perform actions within the user's accessible modules.
+   - If request is outside scope: "Chức năng này thuộc bộ phận [tên bộ phận phụ trách], bạn không có quyền truy cập module này."
+   - Navigation: Common features → "Chung" menu. Dept features → dept name on sidebar.
 
-5. User: "Tạo yêu cầu mua hàng 100kg trái cây"
-   → Gọi list_suppliers() để tìm nhà cung cấp phù hợp
-   → Gọi create_purchase_request(...) với thông tin tìm được
-   → Xác nhận với mã yêu cầu
-
-Quy tắc:
-- Sử dụng tools để thực hiện yêu cầu. Có thể gọi nhiều tools liên tiếp nếu cần.
-- KHÔNG BAO GIỜ trả lời kiểu "đợi một chút", "để tôi kiểm tra", "tôi sẽ tra cứu" mà không gọi tool. Khi cần dữ liệu, GỌI TOOL NGAY trong cùng lượt, không trả text trước.
-- QUAN TRỌNG: Khi yêu cầu cần nhiều bước (VD: tạo khách hàng → tạo sản phẩm → tạo báo giá), sau khi hoàn thành 1 bước, PHẢI tự động tiếp tục bước tiếp theo. KHÔNG hỏi lại user "bạn có muốn tiếp tục không". Chỉ dừng khi thiếu thông tin bắt buộc mà user chưa cung cấp. Các field optional thì bỏ qua, không cần hỏi.
-- Khi trả kết quả danh sách, PHẢI hiển thị ĐẦY ĐỦ tất cả records nhận được từ tool, không tự ý lọc bỏ.
-- Tool "search_knowledge": dùng khi user hỏi hướng dẫn, quy trình, cách sử dụng hệ thống
-- Các tool khác: dùng khi user muốn xem/tạo/xuất dữ liệu thực tế
-- Nếu thiếu thông tin bắt buộc, hỏi lại user
-- Trả lời bằng tiếng Việt, thân thiện, ngắn gọn
-- Format kết quả dạng bảng markdown (nếu danh sách) hoặc bullet points (nếu chi tiết)
-- Format ngày dễ đọc (DD/MM/YYYY), tiền tệ có dấu chấm (12.000.000đ)
-- Bỏ qua các trường kỹ thuật (IDs, timestamps) khi trình bày
-- Ngày tham số PHẢI dùng format YYYY-MM-DD
-- Status dùng tiếng Anh: pending/approved/rejected
-- Khi tìm nhân viên theo chức vụ/phòng ban, dùng search với từ khóa ngắn gọn
-- Khi cần employeeId cho các tool tạo mới, gọi get_my_profile trước để lấy
-
-QUAN TRỌNG - Định dạng phản hồi:
-- Danh sách (>3 records): BẢNG MARKDOWN với headers rõ ràng
-- Chi tiết 1 record: BULLET POINTS với **bold** cho labels
-- Tạo/sửa/xóa: Xác nhận ngắn gọn + mã định danh
-- Thống kê: Số + biểu tượng (✓已完成, ⏳chờ xử lý, ✗lỗi)
-- LUÔN kết thúc bằng 1-2 gợi ý câu hỏi tiếp theo liên quan
-
-QUAN TRỌNG - Xử lý lỗi:
-- Nếu tool trả lỗi 404/not found: Hỏi user kiểm tra lại thông tin, gợi ý dùng tool tìm kiếm trước
-- Nếu tool trả lỗi 400/validation: Hiển thị lỗi cụ thể, gợi ý cách sửa
-- Nếu tool trả lỗi 500/server: Nói "Hệ thống gặp sự cố, vui lòng thử lại sau"
-- KHÔNG BAO GIỜ hiển thị lỗi kỹ thuật (stack trace, SQL error) cho user
-
-QUAN TRỌNG - Quy tắc tính ngày (hôm nay: {today}, thứ {weekday}):
-- "hôm nay" → {today}
-- "tuần này" → {mon} (thứ Hai) đến {sun} (Chủ nhật)
-- "tháng này" → {year}-{month}-01 đến cuối tháng {month}
-- "ngày mai" → {tomorrow}
-- "tháng N" → {year}-MM-01 đến {year}-MM-cuối tháng (MM là số tháng 2 chữ số, ví dụ tháng 3 → {year}-03-01)"""
+8. DATE REASONING (today: {today}, weekday: {weekday}):
+   - "hôm nay" → {today}
+   - "tuần này" → {mon} to {sun}
+   - "tháng này" → {year}-{month}-01 to end of {month}
+   - "ngày mai" → {tomorrow}
+   - "tháng N" → {year}-MM-01 to {year}-MM-end of month"""
 
 
 # ─── Helper Functions ──────────────────────────────────────────────────────────
@@ -136,6 +118,23 @@ def _strip_think_tags(text: str) -> str:
         logger.debug(f"Agent reasoning: {t.strip()}")
     cleaned = _THINK_RE.sub("", text).strip()
     return cleaned
+
+
+def _format_think_for_streaming(text: str) -> str:
+    """Convert <think> tags to visible markers for frontend display.
+    
+    Converts: <think>reasoning</think> → [THINK:reasoning]
+    The frontend will parse [THINK:...] and render it as a collapsible thinking section.
+    """
+    if not text:
+        return text
+    def _replace_think(match):
+        content = match.group(1).strip()
+        # Truncate very long thinking to keep UI clean
+        if len(content) > 500:
+            content = content[:500] + "..."
+        return f"\n[THINK:{content}]\n"
+    return _THINK_RE.sub(_replace_think, text).strip()
 
 _STALLING_PATTERNS = [
     "đợi", "chờ", "để tôi", "tôi sẽ", "kiểm tra", "tra cứu",
@@ -158,10 +157,16 @@ _TEXT_TOOL_CALL_RE2 = re.compile(
     re.DOTALL,
 )
 
+# Third format: <tool_calls_begin><tool_call_begin>function<tool_sep>tool_name\n```json\n{json}\n```<tool_call_end><tool_calls_end>
+_TEXT_TOOL_CALL_RE3 = re.compile(
+    r"<tool_call_begin>function<tool_sep>(\w+)\s*\n```json\s*\n(\{.*?\})\s*\n```",
+    re.DOTALL,
+)
+
 
 def _is_text_tool_call(text: str) -> bool:
-    """Detect if text contains a tool call output (either format)."""
-    return "<function>" in text or "\uff5c" in text
+    """Detect if text contains a tool call output (any format)."""
+    return "<function>" in text or "\uff5c" in text or "<tool_call_begin>" in text
 
 
 def _parse_text_tool_call(text: str):
@@ -182,6 +187,9 @@ def _parse_text_tool_call(text: str):
         # Try format 2: function<｜tool▁sep｜>tool_name\n\n{json}
         matches = list(_TEXT_TOOL_CALL_RE2.finditer(text))
     if not matches:
+        # Try format 3: <tool_call_begin>function<tool_sep>tool_name\n```json\n{json}\n```
+        matches = list(_TEXT_TOOL_CALL_RE3.finditer(text))
+    if not matches:
         return None
     # Use last match (most relevant to current message)
     match = matches[-1]
@@ -190,6 +198,26 @@ def _parse_text_tool_call(text: str):
         fn_args = json.loads(match.group(2))
     except (json.JSONDecodeError, ValueError):
         fn_args = {}
+    
+    # Fix: DeepSeek sometimes outputs array params as Python list strings
+    # Convert string representations of lists to actual lists
+    for key, val in fn_args.items():
+        if isinstance(val, str) and val.startswith("[") and val.endswith("]"):
+            try:
+                # Try to parse as JSON array (with escaped quotes)
+                parsed = json.loads(val.replace('\\"', '"').replace("\\'", "'"))
+                if isinstance(parsed, list):
+                    fn_args[key] = parsed
+            except (json.JSONDecodeError, ValueError):
+                try:
+                    # Try to parse as Python literal
+                    import ast
+                    parsed = ast.literal_eval(val)
+                    if isinstance(parsed, list):
+                        fn_args[key] = parsed
+                except (ValueError, SyntaxError):
+                    pass
+    
     return (fn_name, fn_args)
 
 
@@ -569,6 +597,37 @@ def _call_rag_search(query: str, department: str, role: str) -> dict:
         return {"found": False, "message": f"Lỗi tìm kiếm: {str(e)}"}
 
 
+def _read_uploaded_files(uploaded_files: list) -> str:
+    """Read content from uploaded files and return as context string."""
+    import httpx
+    # Call AI service directly (agent runs inside AI service)
+    ai_service_url = os.environ.get("AI_SERVICE_URL", "http://localhost:8001")
+    file_contents = []
+    
+    for file_info in uploaded_files:
+        file_id = file_info.get("file_id", "")
+        filename = file_info.get("filename", "unknown")
+        if not file_id:
+            continue
+        
+        try:
+            # Call the docs/extract endpoint to get file content
+            with httpx.Client(timeout=30.0) as client:
+                resp = client.get(f"{ai_service_url}/docs/extract/{file_id}")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw_text = data.get("raw_text", "")
+                    if raw_text:
+                        # Truncate to reasonable length for LLM context
+                        truncated = raw_text[:8000]
+                        file_contents.append(f"=== File: {filename} ===\n{truncated}\n=== End of {filename} ===")
+        except Exception as e:
+            logger.warning(f"Failed to read file {filename}: {e}")
+            file_contents.append(f"=== File: {filename} ===\n[Không thể đọc nội dung file]\n=== End of {filename} ===")
+    
+    return "\n\n".join(file_contents) if file_contents else ""
+
+
 def _extract_employee_names(messages: list) -> dict:
     """Extract employee id→name mapping from tool results in message history."""
     names = {}
@@ -604,6 +663,7 @@ def _build_confirm_message(tool: dict, params: dict, context: dict = None, displ
         "create_daily_work_report": "tạo báo cáo công việc",
         "create_customer_feedback": "ghi nhận phản hồi khách hàng",
         "create_repair_request": "tạo yêu cầu sửa chữa",
+        "create_flowchart": "tạo lưu đồ quy trình",
     }
     action_name = friendly_actions.get(tool["name"], tool["description"].split(".")[0].lower())
 
@@ -615,7 +675,19 @@ def _build_confirm_message(tool: dict, params: dict, context: dict = None, displ
         if k in display_exclude:
             continue
         display_v = display_names.get(k, v)
-        desc_parts.append(f"- **{k}**: {display_v}")
+        # Special handling for flowchart sections array
+        if k == "sections" and isinstance(v, list) and len(v) > 0:
+            desc_parts.append(f"- **Số phân đoạn**: {len(v)}")
+            for idx, section in enumerate(v):
+                if isinstance(section, dict):
+                    phanDoan = section.get("phanDoan", str(idx + 1))
+                    tenPhanDoan = section.get("tenPhanDoan", "")
+                    noiDung = section.get("noiDungCongViec", "")
+                    # Truncate long content for preview
+                    noiDung_preview = noiDung[:120] + "..." if len(noiDung) > 120 else noiDung
+                    desc_parts.append(f"  **Phân đoạn {phanDoan}**: {tenPhanDoan}\n  {noiDung_preview}")
+        else:
+            desc_parts.append(f"- **{k}**: {display_v}")
     confirm_msg = f"Mình sẽ **{action_name}** với thông tin sau:\n\n" + "\n".join(desc_parts) + "\n\nBạn xác nhận thực hiện không?"
     action = AgentAction(
         type="confirm",
@@ -756,7 +828,7 @@ def _call_llm_with_retry(messages: list, tools: list, request_id: str):
 def execute_stream(
     message: str, history: list, role: str, jwt_token: str, today: str,
     department: str = "", secondary_departments: list = None, request_id: str = "",
-    _resume_messages: list = None,
+    _resume_messages: list = None, uploaded_files: list = None,
 ) -> Generator[str, None, None]:
     """
     ReAct agent executor — Think → Act → Observe loop.
@@ -764,10 +836,16 @@ def execute_stream(
 
     _resume_messages / _resume_result: internal params for chaining write actions.
     When resuming after a confirmed write, we inject the previous result into messages.
+    uploaded_files: list of {file_id, filename} from frontend upload
     """
     if not _openrouter_client:
         yield "Lỗi: AI service chưa được cấu hình (cần OPENROUTER_API_KEY)"
         return
+
+    # If uploaded files exist, read their content and inject into context
+    file_context = ""
+    if uploaded_files:
+        file_context = _read_uploaded_files(uploaded_files)
 
     available_tools = get_tools_for_role(role)
     available_tools = get_tools_for_department(available_tools, department, role, secondary_departments)
@@ -797,6 +875,12 @@ def execute_stream(
             logger.info(f"[{request_id}] Topic switch detected — clearing history context")
 
         messages = _build_react_messages(message, history, today, department=department, role=role, secondary_departments=secondary_departments, topic_switched=topic_switched)
+
+    # Inject file content into context if files were uploaded
+    if file_context:
+        # Add file content as a system context message
+        messages.insert(1, {"role": "user", "content": f"[Nội dung file đã upload]:\n{file_context}"})
+        logger.info(f"[{request_id}] Injected {len(uploaded_files or [])} file(s) into context")
 
     start_time = time.time()
 
@@ -857,6 +941,7 @@ def execute_stream(
                             "department": department,
                             "secondary_departments": secondary_departments,
                             "today": today,
+                            "uploaded_files": uploaded_files or [],
                         }, display_names=display_names)
                         return
                     if tool.get("is_export"):
@@ -892,10 +977,8 @@ def execute_stream(
             yield _add_suggestions(text, messages)
             return
 
-        # Model returns tool call (may have <think> in content alongside tool_calls)
+        # Model returns tool call (any <think> content is logged/stripped, not streamed)
         if choice.message.tool_calls:
-            if choice.message.content:
-                _strip_think_tags(choice.message.content)  # log reasoning only
             tc = choice.message.tool_calls[0]
             fn_name = tc.function.name
             try:
@@ -911,6 +994,28 @@ def execute_stream(
 
             fn_args = _coerce_params(tool, fn_args)
             logger.info(f"[{request_id}] ReAct [{iteration+1}/{MAX_ITERATIONS}] → {fn_name}({fn_args})")
+
+            # Yield tool call progress indicator
+            tool_display_name = {
+                "get_my_profile": "Lấy thông tin người dùng",
+                "get_attendance_by_date": "Tra cứu chấm công",
+                "list_leave_requests": "Xem đơn nghỉ phép",
+                "create_leave_request": "Tạo đơn nghỉ phép",
+                "list_orders": "Tra cứu đơn hàng",
+                "list_customers": "Tra cứu khách hàng",
+                "create_customer": "Tạo khách hàng mới",
+                "list_suppliers": "Tra cứu nhà cung cấp",
+                "create_supplier": "Tạo nhà cung cấp mới",
+                "list_processes": "Tra cứu quy trình",
+                "create_process": "Tạo quy trình mới",
+                "create_flowchart": "Tạo lưu đồ quy trình",
+                "search_knowledge": "Tìm kiếm kiến thức",
+                "get_leave_balance": "Xem số ngày phép",
+                "create_task": "Tạo nhiệm vụ",
+                "list_employees": "Tra cứu nhân viên",
+                "create_purchase_request": "Tạo yêu cầu mua hàng",
+            }.get(fn_name, f"Thực hiện {fn_name}")
+            yield f"[TOOL_CALL:{tool_display_name}]\n\n"
 
             # Write action → return confirm (don't execute)
             if tool.get("is_write"):
@@ -936,6 +1041,7 @@ def execute_stream(
                     "department": department,
                     "secondary_departments": secondary_departments,
                     "today": today,
+                    "uploaded_files": uploaded_files or [],
                 }, display_names=display_names)
                 return
 
@@ -1009,12 +1115,14 @@ def execute_confirmed(
             "create_daily_work_report": "Báo cáo công việc đã được ghi nhận! 🎉",
             "create_customer_feedback": "Phản hồi khách hàng đã được ghi nhận! 🎉",
             "create_repair_request": "Yêu cầu sửa chữa đã được tạo thành công! 🎉",
+            "create_flowchart": "Lưu đồ quy trình đã được tạo thành công! 🎉",
         }
         msg = friendly_names.get(tool_name, f"Đã thực hiện thành công! ✅")
         yield msg
 
-        # Resume ReAct loop if context provided (multi-step chaining)
-        if confirm_context:
+        # Resume only when the confirmed write can be followed by another step.
+        # Flowchart creation is the terminal step for process-from-file flows.
+        if confirm_context and tool_name not in TERMINAL_CONFIRMED_TOOLS:
             logger.info(f"[{request_id}] Resuming ReAct loop after {tool_name} (chaining)")
             # Build resume messages: original conversation (with history) + this tool result
             stored_history = confirm_context.get("history", [])
@@ -1060,6 +1168,7 @@ def execute_confirmed(
                 department=confirm_context.get("department", ""),
                 request_id=request_id,
                 _resume_messages=resume_messages,
+                uploaded_files=confirm_context.get("uploaded_files", []),
             )
     else:
         error_msg = result.get('error', result.get('message', 'Lỗi không xác định'))
