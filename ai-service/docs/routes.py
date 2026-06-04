@@ -87,6 +87,7 @@ async def extract_file_data(
                 "action": action,
                 "required_fields": entity_info["required_fields"],
                 "tool": entity_info["tool"],
+                "document_type": entity_info.get("document_type"),
             }
 
     return {"raw_text": raw_text[:3000], "action": None}

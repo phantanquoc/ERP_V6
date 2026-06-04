@@ -16,6 +16,8 @@ from agent.registry import (
 RESTRICTED_TOOLS = {
     "approve_leave_request",
     "create_customer",
+    "create_order_from_quotation",
+    "create_quotation",
     "list_employees",
     "export_employees_excel",
 }
@@ -24,7 +26,7 @@ RESTRICTED_TOOLS = {
 class TestGetToolsForRole:
     def test_admin_nhan_tat_ca_tools(self):
         tools = get_tools_for_role("ADMIN")
-        assert len(tools) == len(TOOLS) == 68
+        assert len(tools) == len(TOOLS) == 72
 
     def test_admin_case_insensitive(self):
         tools_upper = get_tools_for_role("ADMIN")
@@ -132,12 +134,49 @@ class TestGetToolByName:
         assert tool is not None
         assert tool["method"] == "POST"
         assert tool["is_write"] is True
+        assert tool["required_roles"] == []
         body_params = {p["name"]: p for p in tool["body_params"]}
         assert "customerId" in body_params
         assert body_params["customerId"]["required"] is True
         assert "employeeId" in body_params
         assert "items" in body_params
         assert body_params["items"]["type"] == "array"
+
+    def test_tim_create_quotation(self):
+        tool = get_tool_by_name("create_quotation")
+        assert tool is not None
+        assert tool["method"] == "POST"
+        assert tool["path"] == "/api/quotations"
+        assert tool["is_write"] is True
+        assert tool["required_roles"] == ["ADMIN", "DEPARTMENT_HEAD"]
+        body_params = {p["name"]: p for p in tool["body_params"]}
+        assert body_params["quotationRequestId"]["required"] is True
+        assert body_params["items"]["type"] == "array"
+
+    def test_tim_create_order_from_quotation(self):
+        tool = get_tool_by_name("create_order_from_quotation")
+        assert tool is not None
+        assert tool["method"] == "POST"
+        assert tool["path"] == "/api/orders/from-quotation"
+        assert tool["is_write"] is True
+        assert tool["required_roles"] == ["ADMIN", "DEPARTMENT_HEAD"]
+        body_params = {p["name"]: p for p in tool["body_params"]}
+        assert body_params["quotationId"]["required"] is True
+
+    def test_tim_quotation_calculator_write_tools(self):
+        upsert = get_tool_by_name("upsert_quotation_calculator")
+        create = get_tool_by_name("create_quotation_from_calculator")
+        assert upsert is not None
+        assert upsert["method"] == "POST"
+        assert upsert["path"] == "/api/quotation-calculators"
+        assert upsert["category"] == "quotation"
+        upsert_body = {p["name"]: p for p in upsert["body_params"]}
+        assert upsert_body["quotationRequestId"]["required"] is True
+        assert upsert_body["products"]["type"] == "array"
+        assert create is not None
+        assert create["path"] == "/api/quotation-calculators/quotation-request/{quotationRequestId}/create-quotation"
+        path_params = {p["name"]: p for p in create["path_params"]}
+        assert path_params["quotationRequestId"]["required"] is True
 
     def test_approve_leave_request_co_approvedBy(self):
         tool = get_tool_by_name("approve_leave_request")

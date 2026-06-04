@@ -63,7 +63,10 @@ RULES:
 
 4. FILE UPLOAD:
    - When file content appears in context (marked [Nội dung file đã upload]), use it for your response.
+   - Uploaded files may include [File action metadata] with action/tool/required_fields. Use that metadata to choose the write tool instead of treating the file as generic raw text.
    - When user says "tạo [entity] từ file": Read file → extract structured data → call the corresponding create tool.
+   - For quotation request/RFQ files: resolve customerId via list_customers, resolve productId values via list_products, get employeeId via get_my_profile, then call create_quotation_request with items.
+   - For real quotation files: resolve or use quotationRequestId, then call create_quotation. If the file is a calculator/costing sheet and the user asks for calculator flow, use upsert_quotation_calculator then create_quotation_from_calculator.
    - For process creation: 2 steps required:
      Step 1: create_process → get process ID
      Step 2: create_flowchart with process ID + extracted sections
@@ -597,9 +600,14 @@ def _call_rag_search(query: str, department: str, role: str) -> dict:
         return {"found": False, "message": f"Lỗi tìm kiếm: {str(e)}"}
 
 
-def _read_uploaded_files(uploaded_files: list) -> str:
+def _read_uploaded_files(uploaded_files: list, message: str = "") -> str:
     """Read content from uploaded files and return as context string."""
     import httpx
+    try:
+        from doc_processing.actions import detect_file_action_info
+    except ImportError:
+        from docs.actions import detect_file_action_info
+
     # Call AI service directly (agent runs inside AI service)
     ai_service_url = os.environ.get("AI_SERVICE_URL", "http://localhost:8001")
     file_contents = []
@@ -609,18 +617,31 @@ def _read_uploaded_files(uploaded_files: list) -> str:
         filename = file_info.get("filename", "unknown")
         if not file_id:
             continue
+        action_info = detect_file_action_info(f"{message or ''} {filename}")
         
         try:
             # Call the docs/extract endpoint to get file content
             with httpx.Client(timeout=30.0) as client:
-                resp = client.get(f"{ai_service_url}/docs/extract/{file_id}")
+                query = {"action": action_info["action"]} if action_info else None
+                resp = client.get(f"{ai_service_url}/docs/extract/{file_id}", params=query)
                 if resp.status_code == 200:
                     data = resp.json()
                     raw_text = data.get("raw_text", "")
                     if raw_text:
                         # Truncate to reasonable length for LLM context
                         truncated = raw_text[:8000]
-                        file_contents.append(f"=== File: {filename} ===\n{truncated}\n=== End of {filename} ===")
+                        raw_action_info = action_info or detect_file_action_info(f"{message or ''} {filename} {raw_text[:1200]}")
+                        metadata = {
+                            "action": data.get("action") or (raw_action_info or {}).get("action"),
+                            "tool": data.get("tool") or (raw_action_info or {}).get("tool"),
+                            "required_fields": data.get("required_fields") or (raw_action_info or {}).get("required_fields"),
+                            "document_type": data.get("document_type") or (raw_action_info or {}).get("document_type"),
+                        }
+                        metadata = {k: v for k, v in metadata.items() if v}
+                        metadata_text = ""
+                        if metadata:
+                            metadata_text = f"[File action metadata]: {json.dumps(metadata, ensure_ascii=False)}\n"
+                        file_contents.append(f"=== File: {filename} ===\n{metadata_text}{truncated}\n=== End of {filename} ===")
         except Exception as e:
             logger.warning(f"Failed to read file {filename}: {e}")
             file_contents.append(f"=== File: {filename} ===\n[Không thể đọc nội dung file]\n=== End of {filename} ===")
@@ -659,6 +680,10 @@ def _build_confirm_message(tool: dict, params: dict, context: dict = None, displ
         "create_supplier": "thêm nhà cung cấp mới",
         "create_product": "tạo sản phẩm mới",
         "create_quotation_request": "tạo yêu cầu báo giá",
+        "create_quotation": "tạo báo giá",
+        "upsert_quotation_calculator": "lưu bảng tính giá",
+        "create_quotation_from_calculator": "tạo báo giá từ bảng tính giá",
+        "create_order_from_quotation": "tạo đơn hàng từ báo giá",
         "create_supply_request": "tạo yêu cầu cung ứng",
         "create_daily_work_report": "tạo báo cáo công việc",
         "create_customer_feedback": "ghi nhận phản hồi khách hàng",
@@ -675,7 +700,7 @@ def _build_confirm_message(tool: dict, params: dict, context: dict = None, displ
         if k in display_exclude:
             continue
         display_v = display_names.get(k, v)
-        # Special handling for flowchart sections array
+        # Special handling for arrays so previews stay readable.
         if k == "sections" and isinstance(v, list) and len(v) > 0:
             desc_parts.append(f"- **Số phân đoạn**: {len(v)}")
             for idx, section in enumerate(v):
@@ -686,6 +711,17 @@ def _build_confirm_message(tool: dict, params: dict, context: dict = None, displ
                     # Truncate long content for preview
                     noiDung_preview = noiDung[:120] + "..." if len(noiDung) > 120 else noiDung
                     desc_parts.append(f"  **Phân đoạn {phanDoan}**: {tenPhanDoan}\n  {noiDung_preview}")
+        elif isinstance(v, list) and len(v) > 0:
+            desc_parts.append(f"- **{k}**: {len(v)} dòng")
+            for idx, item in enumerate(v[:5]):
+                if isinstance(item, dict):
+                    preview_fields = []
+                    for field in ("tenSanPham", "tenThanhPham", "productId", "soLuong", "donViTinh", "giaHoaVon", "loiNhuanCongThem", "tiLe", "khoiLuongTuongUng"):
+                        if item.get(field) not in (None, ""):
+                            preview_fields.append(f"{field}: {item[field]}")
+                    desc_parts.append(f"  {idx + 1}. " + (", ".join(preview_fields) if preview_fields else json.dumps(item, ensure_ascii=False)[:160]))
+            if len(v) > 5:
+                desc_parts.append(f"  ... và {len(v) - 5} dòng khác")
         else:
             desc_parts.append(f"- **{k}**: {display_v}")
     confirm_msg = f"Mình sẽ **{action_name}** với thông tin sau:\n\n" + "\n".join(desc_parts) + "\n\nBạn xác nhận thực hiện không?"
@@ -845,7 +881,7 @@ def execute_stream(
     # If uploaded files exist, read their content and inject into context
     file_context = ""
     if uploaded_files:
-        file_context = _read_uploaded_files(uploaded_files)
+        file_context = _read_uploaded_files(uploaded_files, message)
 
     available_tools = get_tools_for_role(role)
     available_tools = get_tools_for_department(available_tools, department, role, secondary_departments)
@@ -1009,6 +1045,13 @@ def execute_stream(
                 "list_processes": "Tra cứu quy trình",
                 "create_process": "Tạo quy trình mới",
                 "create_flowchart": "Tạo lưu đồ quy trình",
+                "list_quotation_requests": "Tra cứu yêu cầu báo giá",
+                "create_quotation_request": "Tạo yêu cầu báo giá",
+                "list_quotations": "Tra cứu báo giá",
+                "create_quotation": "Tạo báo giá",
+                "upsert_quotation_calculator": "Lưu bảng tính giá",
+                "create_quotation_from_calculator": "Tạo báo giá từ bảng tính giá",
+                "create_order_from_quotation": "Tạo đơn hàng từ báo giá",
                 "search_knowledge": "Tìm kiếm kiến thức",
                 "get_leave_balance": "Xem số ngày phép",
                 "create_task": "Tạo nhiệm vụ",
@@ -1111,6 +1154,10 @@ def execute_confirmed(
             "create_supplier": "Nhà cung cấp mới đã được thêm thành công! 🎉",
             "create_product": "Sản phẩm mới đã được tạo thành công! 🎉",
             "create_quotation_request": "Yêu cầu báo giá đã được tạo thành công! 🎉",
+            "create_quotation": "Báo giá đã được tạo thành công! 🎉",
+            "upsert_quotation_calculator": "Bảng tính giá đã được lưu thành công! 🎉",
+            "create_quotation_from_calculator": "Báo giá từ bảng tính giá đã được tạo thành công! 🎉",
+            "create_order_from_quotation": "Đơn hàng từ báo giá đã được tạo thành công! 🎉",
             "create_supply_request": "Yêu cầu cung ứng đã được tạo thành công! 🎉",
             "create_daily_work_report": "Báo cáo công việc đã được ghi nhận! 🎉",
             "create_customer_feedback": "Phản hồi khách hàng đã được ghi nhận! 🎉",

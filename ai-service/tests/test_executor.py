@@ -921,6 +921,140 @@ class TestExecuteConfirmedMultipleTools:
 
         assert "Yêu cầu báo giá đã được tạo thành công" in output
 
+    def test_create_quotation_success(self):
+        """create_quotation confirmed → friendly success."""
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 200
+        mock_http_resp.json.return_value = {"success": True, "data": {"id": "quotation-new"}}
+
+        with patch("agent.executor._http_client") as mock_client:
+            mock_client.post.return_value = mock_http_resp
+            from agent.executor import execute_confirmed
+            output = _collect(execute_confirmed("create_quotation", {
+                "quotationRequestId": "req-1",
+                "items": [{"tenThanhPham": "Mít sấy", "tiLe": 80}],
+            }, "jwt"))
+
+        assert "Báo giá đã được tạo thành công" in output
+
+    def test_create_order_from_quotation_success(self):
+        """create_order_from_quotation confirmed → friendly success."""
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 201
+        mock_http_resp.json.return_value = {"success": True, "data": {"id": "order-new"}}
+
+        with patch("agent.executor._http_client") as mock_client:
+            mock_client.post.return_value = mock_http_resp
+            from agent.executor import execute_confirmed
+            output = _collect(execute_confirmed("create_order_from_quotation", {
+                "quotationId": "quotation-1",
+            }, "jwt"))
+
+        assert "Đơn hàng từ báo giá đã được tạo thành công" in output
+
+    def test_upsert_quotation_calculator_success(self):
+        """upsert_quotation_calculator confirmed → friendly success."""
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 200
+        mock_http_resp.json.return_value = {"success": True, "data": {"id": "calculator-new"}}
+
+        with patch("agent.executor._http_client") as mock_client:
+            mock_client.post.return_value = mock_http_resp
+            from agent.executor import execute_confirmed
+            output = _collect(execute_confirmed("upsert_quotation_calculator", {
+                "quotationRequestId": "req-1",
+                "maYeuCauBaoGia": "YCBG-2026-001",
+                "products": [{"productId": "prod-1", "tenSanPham": "Mít sấy", "soLuong": 10, "donViTinh": "kg"}],
+            }, "jwt"))
+
+        assert "Bảng tính giá đã được lưu thành công" in output
+
+    def test_read_uploaded_files_passes_detected_action_metadata(self):
+        """Uploaded RFQ files should call docs/extract with action metadata."""
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 200
+        mock_http_resp.json.return_value = {
+            "raw_text": "Khách hàng ABC cần báo giá 10kg mít sấy",
+            "action": "create_quotation_request",
+            "tool": "create_quotation_request",
+            "required_fields": ["customerId", "employeeId", "items"],
+            "document_type": "quotation_request",
+        }
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_http_resp
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_client
+
+        with patch("agent.executor.httpx.Client", return_value=mock_context):
+            from agent.executor import _read_uploaded_files
+            content = _read_uploaded_files(
+                [{"file_id": "file-1", "filename": "rfq.pdf"}],
+                "Tạo yêu cầu báo giá từ file RFQ",
+            )
+
+        mock_client.get.assert_called_once_with(
+            "http://localhost:8001/docs/extract/file-1",
+            params={"action": "create_quotation_request"},
+        )
+        assert "[File action metadata]" in content
+        assert '"tool": "create_quotation_request"' in content
+
+    def test_read_uploaded_files_detects_action_from_filename(self):
+        """Filename context should help detect action when message is generic."""
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 200
+        mock_http_resp.json.return_value = {
+            "raw_text": "Bảng báo giá khách hàng ABC",
+            "action": "create_quotation",
+            "tool": "create_quotation",
+            "required_fields": ["quotationRequestId"],
+            "document_type": "quotation",
+        }
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_http_resp
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_client
+
+        with patch("agent.executor.httpx.Client", return_value=mock_context):
+            from agent.executor import _read_uploaded_files
+            content = _read_uploaded_files(
+                [{"file_id": "file-1", "filename": "bao_gia_khach_hang.xlsx"}],
+                "Tạo từ file này",
+            )
+
+        mock_client.get.assert_called_once_with(
+            "http://localhost:8001/docs/extract/file-1",
+            params={"action": "create_quotation"},
+        )
+        assert '"tool": "create_quotation"' in content
+
+    def test_read_uploaded_files_detects_action_from_raw_text(self):
+        """Raw file content should provide metadata when message and filename are generic."""
+        mock_http_resp = MagicMock()
+        mock_http_resp.status_code = 200
+        mock_http_resp.json.return_value = {
+            "raw_text": "BẢNG BÁO GIÁ\nKhách hàng ABC\nMít sấy 10 kg",
+            "action": None,
+        }
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_http_resp
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_client
+
+        with patch("agent.executor.httpx.Client", return_value=mock_context):
+            from agent.executor import _read_uploaded_files
+            content = _read_uploaded_files(
+                [{"file_id": "file-1", "filename": "document.xlsx"}],
+                "Tạo từ file này",
+            )
+
+        mock_client.get.assert_called_once_with(
+            "http://localhost:8001/docs/extract/file-1",
+            params=None,
+        )
+        assert "[File action metadata]" in content
+        assert '"tool": "create_quotation"' in content
+
     def test_create_repair_request_success(self):
         """create_repair_request confirmed → friendly success."""
         mock_http_resp = MagicMock()
@@ -1381,4 +1515,3 @@ class TestThinkTagsNotInHistory:
 
         assert "<think>" not in output
         assert "Đây là kết quả." in output
-

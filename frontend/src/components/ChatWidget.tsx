@@ -3,7 +3,6 @@ import { MessageCircle, X, Send, Bot, User, Sparkles, ThumbsUp, ThumbsDown, Down
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '../contexts/AuthContext';
-import { getDepartmentDisplayName } from '../utils/permissions';
 import { API_BASE_URL } from '../config/api';
 
 // --- Types ---
@@ -53,6 +52,13 @@ const FIELD_LABELS: Record<string, string> = {
   processId: 'Quy trình', sections: 'Các phân đoạn',
   phanDoan: 'Phân đoạn', tenPhanDoan: 'Tên phân đoạn', noiDungCongViec: 'Nội dung công việc',
   costs: 'Chi phí', loaiChiPhi: 'Loại chi phí', tenChiPhi: 'Tên chi phí', donVi: 'Đơn vị',
+  quotationRequestId: 'Yêu cầu báo giá', quotationId: 'Báo giá', maYeuCauBaoGia: 'Mã yêu cầu báo giá',
+  maBaoGia: 'Mã báo giá', products: 'Sản phẩm tính giá', generalCosts: 'Chi phí chung',
+  exportCosts: 'Chi phí xuất khẩu', generalCostGroups: 'Nhóm chi phí chung',
+  quotationRequestItemId: 'Dòng YCBG', productId: 'Sản phẩm', costId: 'Mã chi phí',
+  tenThanhPham: 'Thành phẩm', tiLe: 'Tỉ lệ', khoiLuongTuongUng: 'Khối lượng tương ứng',
+  soLuong: 'Số lượng', yeuCauSanPham: 'Yêu cầu sản phẩm', quyDongGoi: 'Quy đóng gói',
+  giaDoiThuBan: 'Giá đối thủ bán', giaBanGanNhat: 'Giá bán gần nhất',
   dinhMucLaoDong: 'Định mức lao động', donViDinhMucLaoDong: 'Đơn vị định mức lao động',
   soLuongNguyenLieu: 'Số lượng nguyên liệu', soPhutThucHien: 'Số phút thực hiện',
   soLuongKeHoach: 'Số lượng kế hoạch', soLuongThucTe: 'Số lượng thực tế',
@@ -275,6 +281,99 @@ const FlowchartConfirmationPreview: React.FC<{ params: Record<string, unknown> }
   );
 };
 
+const BUSINESS_DOCUMENT_TOOLS = new Set([
+  'create_quotation_request',
+  'create_quotation',
+  'upsert_quotation_calculator',
+]);
+
+const BUSINESS_ARRAY_FIELDS: Record<string, string[]> = {
+  items: ['tenSanPham', 'tenThanhPham', 'productId', 'soLuong', 'donViTinh', 'yeuCauSanPham', 'quyDongGoi', 'giaDoiThuBan', 'giaBanGanNhat', 'tiLe', 'khoiLuongTuongUng'],
+  products: ['quotationRequestItemId', 'productId', 'tenSanPham', 'soLuong', 'donViTinh', 'maBaoGia', 'giaHoaVon', 'loiNhuanCongThem', 'materialStandardId'],
+  generalCosts: ['costId', 'tenChiPhi', 'maChiPhi', 'donViTinh', 'keHoach', 'thucTe'],
+  exportCosts: ['costId', 'tenChiPhi', 'maChiPhi', 'donViTinh', 'keHoach', 'thucTe'],
+  generalCostGroups: ['tenBangChiPhi', 'selectedProducts'],
+};
+
+const formatBusinessValue = (value: unknown): string => {
+  if (value === null || value === undefined || value === '') return '';
+  if (Array.isArray(value)) return `${value.length} mục`;
+  if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString('vi-VN') : '';
+  return String(value);
+};
+
+const getBusinessRows = (value: unknown): Record<string, unknown>[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord);
+};
+
+const BusinessDocumentPreview: React.FC<{ tool: string; params: Record<string, unknown> }> = ({ tool, params }) => {
+  if (!BUSINESS_DOCUMENT_TOOLS.has(tool)) return null;
+
+  const arrayEntries = Object.entries(params)
+    .map(([key, value]) => ({ key, rows: getBusinessRows(value) }))
+    .filter(entry => entry.rows.length > 0 && BUSINESS_ARRAY_FIELDS[entry.key]);
+
+  if (arrayEntries.length === 0) return null;
+
+  return (
+    <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50/60 p-3">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold text-gray-800">Tài liệu báo giá</p>
+          <p className="text-[11px] text-gray-500">Kiểm tra các dòng dữ liệu trước khi tạo</p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {arrayEntries.map(({ key, rows }) => {
+          const preferredFields = BUSINESS_ARRAY_FIELDS[key];
+          const visibleFields = preferredFields.filter(field => rows.some(row => row[field] !== undefined && row[field] !== null && row[field] !== ''));
+          const fields = visibleFields.length > 0 ? visibleFields : Object.keys(rows[0] || {}).slice(0, 4);
+
+          return (
+            <div key={key} className="rounded-lg border border-gray-200 bg-white p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-gray-800">{FIELD_LABELS[key] || key}</p>
+                <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-600">
+                  {rows.length} dòng
+                </span>
+              </div>
+
+              <div className="overflow-x-auto rounded-md border border-gray-100">
+                <table className="min-w-full text-[11px]">
+                  <thead className="bg-gray-50 text-gray-500">
+                    <tr>
+                      {fields.map(field => (
+                        <th key={field} className="px-2 py-1.5 text-left font-medium whitespace-nowrap">{FIELD_LABELS[field] || field}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white text-gray-700">
+                    {rows.slice(0, 5).map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                        {fields.map(field => (
+                          <td key={field} className="max-w-[160px] px-2 py-1.5 align-top whitespace-nowrap overflow-hidden text-ellipsis">
+                            {formatBusinessValue(row[field]) || '-'}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {rows.length > 5 && (
+                <p className="mt-2 text-[11px] text-gray-500">Còn {rows.length - 5} dòng khác.</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const FlowchartEditForm: React.FC<{
   params: Record<string, unknown>;
   onSubmit: (edited: Record<string, unknown>) => void;
@@ -446,6 +545,22 @@ const EditParamsForm: React.FC<{
     onSubmit(merged);
   };
 
+  const updateArrayItem = (key: string, rowIndex: number, field: string, nextValue: string) => {
+    setFormData(prev => {
+      const current = prev[key];
+      if (!Array.isArray(current)) return prev;
+      return {
+        ...prev,
+        [key]: current.map((item, idx) => {
+          if (idx !== rowIndex || !isRecord(item)) return item;
+          const originalValue = item[field];
+          const value = typeof originalValue === 'number' && nextValue !== '' ? Number(nextValue) : nextValue;
+          return { ...item, [field]: value };
+        }),
+      };
+    });
+  };
+
   const formatDisplayValue = (value: unknown): string => {
     if (Array.isArray(value)) return value.join(', ');
     if (typeof value === 'object' && value !== null) return JSON.stringify(value);
@@ -476,11 +591,38 @@ const EditParamsForm: React.FC<{
         const isLong = strValue.length > 50 || (typeof value === 'object' && !Array.isArray(value));
         const selectOpts = SELECT_OPTIONS[key];
         const isDate = DATE_FIELDS.has(key);
+        const arrayRows = Array.isArray(value) ? value.filter(isRecord) : [];
+        const preferredFields = BUSINESS_ARRAY_FIELDS[key] || [];
+        const arrayFields = arrayRows.length > 0
+          ? (preferredFields.filter(field => arrayRows.some(row => row[field] !== undefined && row[field] !== null && row[field] !== '')) || [])
+          : [];
+        const editableArrayFields = arrayFields.length > 0 ? arrayFields : Object.keys(arrayRows[0] || {});
 
         return (
           <div key={key} className="space-y-0.5">
             <label className="text-xs font-medium text-gray-600">{label}</label>
-            {selectOpts ? (
+            {arrayRows.length > 0 ? (
+              <div className="space-y-2 rounded-md border border-gray-200 bg-white p-2">
+                {arrayRows.map((row, rowIndex) => (
+                  <div key={rowIndex} className="rounded-md border border-gray-100 bg-gray-50 p-2">
+                    <div className="mb-1 text-[11px] font-medium text-gray-500">Dòng {rowIndex + 1}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {editableArrayFields.map(field => (
+                        <div key={field} className="space-y-0.5">
+                          <label className="text-[11px] font-medium text-gray-600">{FIELD_LABELS[field] || field}</label>
+                          <input
+                            type={typeof row[field] === 'number' ? 'number' : 'text'}
+                            value={typeof row[field] === 'number' ? String(row[field]) : formatBusinessValue(row[field])}
+                            onChange={e => updateArrayItem(key, rowIndex, field, e.target.value)}
+                            className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-400 focus:border-blue-400 bg-white"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : selectOpts ? (
               <select
                 value={String(value ?? '')}
                 onChange={e => setFormData(prev => ({ ...prev, [key]: e.target.value }))}
@@ -1123,6 +1265,7 @@ const ChatWidget: React.FC = () => {
                               {msg.agentAction.type === 'confirm' && editingMsgIndex !== i && (
                                 <>
                                   {msg.agentAction.tool === 'create_flowchart' && <FlowchartConfirmationPreview params={msg.agentAction.params} />}
+                                  <BusinessDocumentPreview tool={msg.agentAction.tool} params={msg.agentAction.params} />
                                   <div className="flex flex-wrap items-center gap-2">
                                     <button onClick={() => handleConfirm(msg.agentAction!)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors shadow-sm"><CheckCircle size={13} /> Xác nhận</button>
                                     <button onClick={() => setEditingMsgIndex(i)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"><Edit3 size={13} /> Chỉnh sửa</button>
