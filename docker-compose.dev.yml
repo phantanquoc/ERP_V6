@@ -79,6 +79,7 @@ services:
       - ./ai-service/face:/app/face:ro
       - ./ai-service/chat:/app/chat:ro
       - ./ai-service/agent:/app/agent:ro
+      - ./ai-service/docs:/app/doc_processing:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 30s

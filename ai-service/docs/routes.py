@@ -22,19 +22,12 @@ class UploadResponse(BaseModel):
     message: str
 
 
-class SearchResponse(BaseModel):
-    results: List[dict]
-    query: str
-    total: int
-
-
 @router.post("/upload", response_model=UploadResponse)
 async def upload_document(
     file: Annotated[UploadFile, File(description="Business document (PDF, DOCX, Excel, CSV)")],
 ):
-    """Upload a business document for RAG indexing."""
-    from docs.extractors import extract_text
-    from docs.chunker import chunk_for_rag
+    """Upload a business document for record creation."""
+    from doc_processing.extractors import extract_text
 
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -50,42 +43,20 @@ async def upload_document(
 
     save_path.write_bytes(content)
 
+    # Extract text for later use (stored on disk, not indexed into RAG)
     try:
         raw_text = extract_text(str(save_path))
-        chunks = chunk_for_rag(raw_text, {"source": "upload"}, file.filename or safe_name)
     except Exception as e:
         raise HTTPException(422, f"Lỗi xử lý file: {str(e)}")
-
-    # Index into RAG (ChromaDB + BM25)
-    try:
-        from chat.indexer import index_uploaded_chunks
-        index_uploaded_chunks(chunks, file.filename or safe_name)
-    except Exception as e:
-        # Log error but don't fail upload
-        pass
 
     file_id = safe_name.replace(ext, "")
     return UploadResponse(
         filename=file.filename or "",
         file_size=len(content),
-        chunks_count=len(chunks),
+        chunks_count=0,  # No RAG indexing
         file_id=file_id,
-        message=f"Đã xử lý và indexing thành công {len(chunks)} chunks từ '{file.filename}'"
+        message=f"Đã upload thành công '{file.filename}'"
     )
-
-
-@router.get("/search", response_model=SearchResponse)
-async def search_documents(
-    q: Annotated[str, Query(description="Search query")],
-    limit: int = Query(5, ge=1, le=20),
-):
-    """Search within uploaded documents."""
-    try:
-        from chat.indexer import search_rag
-        results = search_rag(q, top_k=limit)
-        return SearchResponse(results=results, query=q, total=len(results))
-    except Exception as e:
-        return SearchResponse(results=[], query=q, total=0)
 
 
 @router.get("/extract/{file_id}")
@@ -94,8 +65,8 @@ async def extract_file_data(
     action: Optional[str] = Query(None, description="Action to perform"),
 ):
     """Extract structured data from uploaded file for action execution."""
-    from docs.extractors import extract_text
-    from docs.actions import get_entity_info
+    from doc_processing.extractors import extract_text
+    from doc_processing.actions import get_entity_info
 
     # Find the file
     upload_dir = UPLOAD_DIR

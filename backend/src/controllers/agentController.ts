@@ -27,11 +27,13 @@ export class AgentController {
 
   async stream(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { message, history, confirm_tool, confirm_params } = req.body as {
+      const { message, history, confirm_tool, confirm_params, confirm_context, uploaded_files } = req.body as {
         message?: string;
         history?: Array<{ role: string; content: string }>;
         confirm_tool?: string;
         confirm_params?: Record<string, unknown>;
+        confirm_context?: Record<string, unknown>;
+        uploaded_files?: Array<{ file_id: string; filename: string }>;
       };
 
       if (!message && !confirm_tool) {
@@ -62,6 +64,8 @@ export class AgentController {
             history: Array.isArray(history) ? history : [],
             confirm_tool: confirm_tool ?? '',
             confirm_params: confirm_params ?? {},
+            confirm_context: confirm_context ?? null,
+            uploaded_files: Array.isArray(uploaded_files) ? uploaded_files : [],
           }),
           signal: controller.signal,
         });
@@ -104,6 +108,28 @@ export class AgentController {
       } finally {
         clearTimeout(timeoutId);
       }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async upload(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const file = req.file;
+      if (!file) {
+        throw new ValidationError('Không có file nào được tải lên');
+      }
+
+      const formData = new FormData();
+      formData.append('file', new Blob([file.buffer], { type: file.mimetype }), file.originalname);
+
+      const fetchRes = await fetch(`${env.AI_SERVICE_URL}/docs/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await fetchRes.json();
+      res.status(fetchRes.status).json(data);
     } catch (error) {
       next(error);
     }
