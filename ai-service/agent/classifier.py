@@ -44,7 +44,8 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "lương", "bảng lương", "payroll", "thu nhập", "salary",
     ],
     "quotation": [
-        "báo giá", "quotation", "ycbg", "yêu cầu báo giá", "quote",
+        "báo giá", "quotation", "ycbg", "yêu cầu báo giá", "quote", "rfq", "request for quotation",
+        "bảng tính giá", "tính giá", "calculator", "costing",
     ],
     "product": [
         "sản phẩm", "product", "hàng hóa", "mít sấy", "trái cây sấy",

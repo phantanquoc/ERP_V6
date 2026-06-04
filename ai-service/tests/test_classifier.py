@@ -27,6 +27,18 @@ class TestClassifyIntent:
         assert "customer" in cats
         assert "product" in cats
 
+    def test_rfq_includes_related(self):
+        """RFQ/YCBG wording should route to quotation tools."""
+        cats = classify_intent("tạo RFQ từ file khách gửi")
+        assert "quotation" in cats
+        assert "customer" in cats
+        assert "product" in cats
+
+    def test_quotation_calculator_routes_to_quotation(self):
+        """Costing/calculator wording should keep quotation calculator tools available."""
+        cats = classify_intent("lưu bảng tính giá từ file")
+        assert "quotation" in cats
+
     def test_purchase_includes_supplier(self):
         cats = classify_intent("tạo yêu cầu mua hàng")
         assert "purchase" in cats
@@ -132,6 +144,7 @@ class TestFilterToolsByIntent:
             {"name": "create_leave_request", "category": "leave"},
             {"name": "list_products", "category": "product"},
             {"name": "create_quotation_request", "category": "quotation"},
+            {"name": "upsert_quotation_calculator", "category": "quotation"},
         ]
 
     def test_filters_to_relevant_categories(self, sample_tools):
@@ -153,6 +166,11 @@ class TestFilterToolsByIntent:
         assert "create_quotation_request" in names
         assert "list_customers" in names
         assert "list_products" in names
+
+    def test_quotation_calculator_filter(self, sample_tools):
+        result = filter_tools_by_intent(sample_tools, "lưu bảng tính giá")
+        names = [t["name"] for t in result]
+        assert "upsert_quotation_calculator" in names
 
     def test_reduces_tool_count(self, sample_tools):
         """Filtered result should be smaller than full set."""
