@@ -2,7 +2,46 @@ import prisma from '@config/database';
 import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import notificationService from './notificationService';
-import { NotificationType, EvaluationStatus, NotificationEvent } from '@types';
+import { EvaluationStatus, NotificationEvent } from '@types';
+
+/**
+ * Calculate a weighted average score from evaluation details.
+ * For each score type (self, supervisor1, supervisor2), if ALL details have a non-null
+ * value → compute weighted score = sum(score * weight) / 100.
+ * Average only the score types that are fully filled.
+ */
+function computeWeightedScore(details: Array<{
+  selfScore: number | null;
+  supervisorScore1: number | null;
+  supervisorScore2: number | null;
+  positionResponsibility: { weight: number } | null;
+}>): number {
+  const total = details.length;
+  if (total === 0) return 0;
+
+  const hasSelf = details.every(d => d.selfScore !== null);
+  const hasSup1 = details.every(d => d.supervisorScore1 !== null);
+  const hasSup2 = details.every(d => d.supervisorScore2 !== null);
+
+  const scoresToAverage: number[] = [];
+
+  if (hasSelf) {
+    const s = details.reduce((sum, d) => sum + ((d.selfScore ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / 100;
+    scoresToAverage.push(s);
+  }
+  if (hasSup1) {
+    const s = details.reduce((sum, d) => sum + ((d.supervisorScore1 ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / 100;
+    scoresToAverage.push(s);
+  }
+  if (hasSup2) {
+    const s = details.reduce((sum, d) => sum + ((d.supervisorScore2 ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / 100;
+    scoresToAverage.push(s);
+  }
+
+  return scoresToAverage.length > 0
+    ? scoresToAverage.reduce((a, b) => a + b, 0) / scoresToAverage.length
+    : 0;
+}
 
 export class EmployeeEvaluationService {
   async getEmployeeEvaluations(month: number, year: number, userDepartmentId?: string, userSubDepartmentId?: string): Promise<any[]> {
@@ -365,6 +404,30 @@ export class EmployeeEvaluationService {
           throw new ValidationError('Không thể cập nhật điểm cấp trên: bạn không có quyền');
         }
       }
+
+      // Strict supervisor authorization: non-ADMIN managers must be the assigned supervisor
+      if (currentUser?.role !== 'ADMIN') {
+        if (data.supervisorScore1 !== undefined) {
+          if (detail.evaluation.employee.userId) {
+            const evalUser = await prisma.user.findUnique({
+              where: { id: detail.evaluation.employee.userId },
+              select: { supervisor1Id: true },
+            });
+            if (evalUser?.supervisor1Id !== userId) {
+              throw new ValidationError('Bạn không phải cấp trên 1 được chỉ định cho nhân viên này');
+            }
+          }
+        }
+        if (data.supervisorScore2 !== undefined) {
+          const evalUser = await prisma.user.findUnique({
+            where: { id: detail.evaluation.employee.userId },
+            select: { supervisor2Id: true },
+          });
+          if (evalUser?.supervisor2Id !== userId) {
+            throw new ValidationError('Bạn không phải cấp trên 2 được chỉ định cho nhân viên này');
+          }
+        }
+      }
     }
 
     // Validate scores
@@ -395,10 +458,15 @@ export class EmployeeEvaluationService {
 
     // Handle notification workflow — each branch uses a transaction to prevent
     // race conditions when two requests concurrently save the last detail.
-    // Status update happens inside the transaction; notifications are sent after commit.
+    // Status update + score calculation happen inside the transaction;
+    // notifications are sent after commit (outside transaction).
     try {
       if (data.selfScore !== undefined) {
-        const notifRef: { target: { type: 'supervisor1' | 'supervisor2' | 'completed'; userId: string } | null } = { target: null };
+        type SelfNotifTarget =
+          | { type: 'supervisor1'; supervisorEmployeeId: string | null; supervisorUserId: string; employeeName: string }
+          | { type: 'supervisor2'; supervisorEmployeeId: string | null; supervisorUserId: string; employeeName: string }
+          | { type: 'completed'; employeeId: string };
+        const notifRef: { target: SelfNotifTarget | null } = { target: null };
 
         await prisma.$transaction(async (tx) => {
           const currentEval = await tx.evaluation.findUnique({
@@ -419,61 +487,81 @@ export class EmployeeEvaluationService {
             where: { id: detail.evaluation.employeeId },
             include: { user: true },
           });
+          const fullName = employee?.user
+            ? `${employee.user.firstName} ${employee.user.lastName}`.trim()
+            : '';
 
           if (employee?.user?.supervisor1Id) {
+            // Resolve supervisor1's employeeId inside transaction for consistency
+            const supervisorUser = await tx.user.findUnique({
+              where: { id: employee.user.supervisor1Id },
+              include: { employees: { select: { id: true } } },
+            });
             await tx.evaluation.update({
               where: { id: detail.evaluation.id },
               data: { status: EvaluationStatus.SUPERVISOR1_PENDING },
             });
-            notifRef.target = { type: 'supervisor1', userId: employee.user.supervisor1Id };
+            notifRef.target = {
+              type: 'supervisor1',
+              supervisorUserId: employee.user.supervisor1Id,
+              supervisorEmployeeId: supervisorUser?.employees?.id ?? null,
+              employeeName: fullName,
+            };
           } else if (employee?.user?.supervisor2Id) {
+            const supervisorUser = await tx.user.findUnique({
+              where: { id: employee.user.supervisor2Id },
+              include: { employees: { select: { id: true } } },
+            });
             await tx.evaluation.update({
               where: { id: detail.evaluation.id },
               data: { status: EvaluationStatus.SUPERVISOR2_PENDING },
             });
-            notifRef.target = { type: 'supervisor2', userId: employee.user.supervisor2Id };
+            notifRef.target = {
+              type: 'supervisor2',
+              supervisorUserId: employee.user.supervisor2Id,
+              supervisorEmployeeId: supervisorUser?.employees?.id ?? null,
+              employeeName: fullName,
+            };
           } else {
+            // No supervisors — auto-finalize with score
+            const allDetails = await tx.evaluationDetail.findMany({
+              where: { evaluationId: detail.evaluation.id },
+              include: { positionResponsibility: true },
+            });
+            const calculatedScore = computeWeightedScore(allDetails);
             await tx.evaluation.update({
               where: { id: detail.evaluation.id },
-              data: { status: EvaluationStatus.COMPLETED },
+              data: { status: EvaluationStatus.COMPLETED, score: calculatedScore },
             });
-            if (employee?.user?.id) {
-              notifRef.target = { type: 'completed', userId: employee.user.id };
-            }
+            notifRef.target = { type: 'completed', employeeId: detail.evaluation.employeeId };
           }
         });
 
         const notifTarget = notifRef.target;
         if (notifTarget?.type === 'supervisor1') {
-          await notificationService.createNotification({
-            userId: notifTarget.userId,
-            type: NotificationType.EVALUATION_SUPERVISOR1,
-            title: 'Đánh giá cấp trên 1',
-            message: 'Bạn có 1 đánh giá mới',
-            evaluationId: detail.evaluation.id,
-            period: detail.evaluation.period,
+          await notificationService.notify(NotificationEvent.EVALUATION_SUPERVISOR1_PENDING, {
+            targetEmployeeIds: notifTarget.supervisorEmployeeId ? [notifTarget.supervisorEmployeeId] : [],
+            entityId: detail.evaluation.id,
+            metadata: { evaluationId: detail.evaluation.id, period: detail.evaluation.period, employeeName: notifTarget.employeeName },
           });
         } else if (notifTarget?.type === 'supervisor2') {
-          await notificationService.createNotification({
-            userId: notifTarget.userId,
-            type: NotificationType.EVALUATION_SUPERVISOR2,
-            title: 'Đánh giá cấp trên 2',
-            message: 'Bạn có 1 đánh giá mới',
-            evaluationId: detail.evaluation.id,
-            period: detail.evaluation.period,
+          await notificationService.notify(NotificationEvent.EVALUATION_SUPERVISOR2_PENDING, {
+            targetEmployeeIds: notifTarget.supervisorEmployeeId ? [notifTarget.supervisorEmployeeId] : [],
+            entityId: detail.evaluation.id,
+            metadata: { evaluationId: detail.evaluation.id, period: detail.evaluation.period, employeeName: notifTarget.employeeName },
           });
         } else if (notifTarget?.type === 'completed') {
-          await notificationService.createNotification({
-            userId: notifTarget.userId,
-            type: NotificationType.EVALUATION_COMPLETED,
-            title: 'Đánh giá hoàn thành',
-            message: 'Đánh giá của bạn đã hoàn thành',
-            evaluationId: detail.evaluation.id,
-            period: detail.evaluation.period,
+          await notificationService.notify(NotificationEvent.EVALUATION_COMPLETED, {
+            targetEmployeeIds: [notifTarget.employeeId],
+            entityId: detail.evaluation.id,
+            metadata: { evaluationId: detail.evaluation.id, period: detail.evaluation.period },
           });
         }
       } else if (data.supervisorScore1 !== undefined) {
-        const notifRef: { target: { type: 'supervisor2' | 'completed'; userId: string } | null } = { target: null };
+        type Sup1NotifTarget =
+          | { type: 'supervisor2'; supervisorEmployeeId: string | null; employeeName: string }
+          | { type: 'completed'; employeeId: string };
+        const notifRef: { target: Sup1NotifTarget | null } = { target: null };
 
         await prisma.$transaction(async (tx) => {
           const currentEval = await tx.evaluation.findUnique({
@@ -494,46 +582,55 @@ export class EmployeeEvaluationService {
             where: { id: detail.evaluation.employeeId },
             include: { user: true },
           });
+          const fullName = employee?.user
+            ? `${employee.user.firstName} ${employee.user.lastName}`.trim()
+            : '';
 
           if (employee?.user?.supervisor2Id) {
+            const supervisorUser = await tx.user.findUnique({
+              where: { id: employee.user.supervisor2Id },
+              include: { employees: { select: { id: true } } },
+            });
             await tx.evaluation.update({
               where: { id: detail.evaluation.id },
               data: { status: EvaluationStatus.SUPERVISOR2_PENDING },
             });
-            notifRef.target = { type: 'supervisor2', userId: employee.user.supervisor2Id };
+            notifRef.target = {
+              type: 'supervisor2',
+              supervisorEmployeeId: supervisorUser?.employees?.id ?? null,
+              employeeName: fullName,
+            };
           } else {
+            // No supervisor2 — auto-finalize with score
+            const allDetails = await tx.evaluationDetail.findMany({
+              where: { evaluationId: detail.evaluation.id },
+              include: { positionResponsibility: true },
+            });
+            const calculatedScore = computeWeightedScore(allDetails);
             await tx.evaluation.update({
               where: { id: detail.evaluation.id },
-              data: { status: EvaluationStatus.COMPLETED },
+              data: { status: EvaluationStatus.COMPLETED, score: calculatedScore },
             });
-            if (employee?.user?.id) {
-              notifRef.target = { type: 'completed', userId: employee.user.id };
-            }
+            notifRef.target = { type: 'completed', employeeId: detail.evaluation.employeeId };
           }
         });
 
         const notifTarget2 = notifRef.target;
         if (notifTarget2?.type === 'supervisor2') {
-          await notificationService.createNotification({
-            userId: notifTarget2.userId,
-            type: NotificationType.EVALUATION_SUPERVISOR2,
-            title: 'Đánh giá cấp trên 2',
-            message: 'Bạn có 1 đánh giá mới',
-            evaluationId: detail.evaluation.id,
-            period: detail.evaluation.period,
+          await notificationService.notify(NotificationEvent.EVALUATION_SUPERVISOR2_PENDING, {
+            targetEmployeeIds: notifTarget2.supervisorEmployeeId ? [notifTarget2.supervisorEmployeeId] : [],
+            entityId: detail.evaluation.id,
+            metadata: { evaluationId: detail.evaluation.id, period: detail.evaluation.period, employeeName: notifTarget2.employeeName },
           });
         } else if (notifTarget2?.type === 'completed') {
-          await notificationService.createNotification({
-            userId: notifTarget2.userId,
-            type: NotificationType.EVALUATION_COMPLETED,
-            title: 'Đánh giá hoàn thành',
-            message: 'Đánh giá của bạn đã hoàn thành',
-            evaluationId: detail.evaluation.id,
-            period: detail.evaluation.period,
+          await notificationService.notify(NotificationEvent.EVALUATION_COMPLETED, {
+            targetEmployeeIds: [notifTarget2.employeeId],
+            entityId: detail.evaluation.id,
+            metadata: { evaluationId: detail.evaluation.id, period: detail.evaluation.period },
           });
         }
       } else if (data.supervisorScore2 !== undefined) {
-        let shouldNotifyEmployee: string | null = null;
+        let completedEmployeeId: string | null = null;
 
         await prisma.$transaction(async (tx) => {
           const currentEval = await tx.evaluation.findUnique({
@@ -550,28 +647,25 @@ export class EmployeeEvaluationService {
           });
           if (filled < total) return;
 
+          // Auto-finalize with score
+          const allDetails = await tx.evaluationDetail.findMany({
+            where: { evaluationId: detail.evaluation.id },
+            include: { positionResponsibility: true },
+          });
+          const calculatedScore = computeWeightedScore(allDetails);
           await tx.evaluation.update({
             where: { id: detail.evaluation.id },
-            data: { status: EvaluationStatus.COMPLETED },
+            data: { status: EvaluationStatus.COMPLETED, score: calculatedScore },
           });
 
-          const employee = await tx.employee.findUnique({
-            where: { id: detail.evaluation.employeeId },
-            include: { user: true },
-          });
-          if (employee?.user?.id) {
-            shouldNotifyEmployee = employee.user.id;
-          }
+          completedEmployeeId = detail.evaluation.employeeId;
         });
 
-        if (shouldNotifyEmployee) {
-          await notificationService.createNotification({
-            userId: shouldNotifyEmployee,
-            type: NotificationType.EVALUATION_COMPLETED,
-            title: 'Đánh giá hoàn thành',
-            message: 'Đánh giá của bạn đã hoàn thành',
-            evaluationId: detail.evaluation.id,
-            period: detail.evaluation.period,
+        if (completedEmployeeId) {
+          await notificationService.notify(NotificationEvent.EVALUATION_COMPLETED, {
+            targetEmployeeIds: [completedEmployeeId],
+            entityId: detail.evaluation.id,
+            metadata: { evaluationId: detail.evaluation.id, period: detail.evaluation.period },
           });
         }
       }
@@ -669,11 +763,8 @@ export class EmployeeEvaluationService {
       throw new NotFoundError('Evaluation not found');
     }
 
-    // Only allow finalize when all supervisor steps are done
-    const allowedStatuses: string[] = [
-      EvaluationStatus.SUPERVISOR2_PENDING,
-      EvaluationStatus.COMPLETED,
-    ];
+    // Only allow finalize when status is already COMPLETED (idempotent recalculation)
+    const allowedStatuses: string[] = [EvaluationStatus.COMPLETED];
     if (!allowedStatuses.includes(evaluation.status)) {
       throw new ValidationError('Không thể hoàn thành đánh giá: chưa hoàn tất tất cả bước đánh giá');
     }
@@ -687,50 +778,9 @@ export class EmployeeEvaluationService {
       throw new ValidationError('Không thể hoàn thành đánh giá: chưa có điểm nào được nhập');
     }
 
-    // BUG 6: Determine which score types have been filled in (null-safe check)
-    // A score type is "filled" if ALL details have a non-null value for it
-    const totalDetails = evaluation.details.length;
+    // Recalculate weighted average score using shared helper
+    const averageScore = computeWeightedScore(evaluation.details);
 
-    const detailsWithSelfScore = evaluation.details.filter(d => d.selfScore !== null).length;
-    const detailsWithSupervisorScore1 = evaluation.details.filter(d => d.supervisorScore1 !== null).length;
-    const detailsWithSupervisorScore2 = evaluation.details.filter(d => d.supervisorScore2 !== null).length;
-
-    const hasSelfScore = totalDetails > 0 && detailsWithSelfScore === totalDetails;
-    const hasSupervisorScore1 = totalDetails > 0 && detailsWithSupervisorScore1 === totalDetails;
-    const hasSupervisorScore2 = totalDetails > 0 && detailsWithSupervisorScore2 === totalDetails;
-
-    // Calculate weighted scores only for score types that are fully filled
-    const scoresToAverage: number[] = [];
-
-    if (hasSelfScore) {
-      const selfScore = evaluation.details.reduce((sum, d) => {
-        const weight = d.positionResponsibility?.weight || 0;
-        return sum + ((d.selfScore ?? 0) * weight);
-      }, 0) / 100;
-      scoresToAverage.push(selfScore);
-    }
-
-    if (hasSupervisorScore1) {
-      const supervisorScore1 = evaluation.details.reduce((sum, d) => {
-        const weight = d.positionResponsibility?.weight || 0;
-        return sum + ((d.supervisorScore1 ?? 0) * weight);
-      }, 0) / 100;
-      scoresToAverage.push(supervisorScore1);
-    }
-
-    if (hasSupervisorScore2) {
-      const supervisorScore2 = evaluation.details.reduce((sum, d) => {
-        const weight = d.positionResponsibility?.weight || 0;
-        return sum + ((d.supervisorScore2 ?? 0) * weight);
-      }, 0) / 100;
-      scoresToAverage.push(supervisorScore2);
-    }
-
-    const averageScore = scoresToAverage.length > 0
-      ? scoresToAverage.reduce((a, b) => a + b, 0) / scoresToAverage.length
-      : 0;
-
-    // BUG 3: Also set status = COMPLETED when finalizing
     return await prisma.evaluation.update({
       where: { id: evaluationId },
       data: {

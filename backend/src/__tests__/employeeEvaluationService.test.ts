@@ -254,7 +254,7 @@ describe('updateEvaluationDetail — race condition guard', () => {
     // Status update should NOT have been called since guard detected stale status
     const txCall = (mockedPrisma.$transaction as jest.Mock).mock.calls[0];
     expect(txCall).toBeDefined();
-    expect(notificationService.createNotification).not.toHaveBeenCalled();
+    expect(notificationService.notify).not.toHaveBeenCalled();
   });
 
   it('does not transition status when not all details are filled', async () => {
@@ -282,7 +282,7 @@ describe('updateEvaluationDetail — race condition guard', () => {
 
     await service.updateEvaluationDetail('detail-1', { selfScore: 80 }, 'user-1');
 
-    expect(notificationService.createNotification).not.toHaveBeenCalled();
+    expect(notificationService.notify).not.toHaveBeenCalled();
   });
 });
 
@@ -334,15 +334,26 @@ describe('finalizeEvaluation', () => {
       { selfScore: null, supervisorScore1: null, supervisorScore2: null, positionResponsibility: { weight: 100 } },
     ];
     (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
-      makeEvaluation(EvaluationStatus.SUPERVISOR2_PENDING, emptyDetails)
+      makeEvaluation(EvaluationStatus.COMPLETED, emptyDetails)
     );
 
     await expect(service.finalizeEvaluation('eval-1')).rejects.toThrow(ValidationError);
   });
 
-  it('calculates weighted average score correctly when all score types present', async () => {
+  it('throws ValidationError when status is SUPERVISOR2_PENDING', async () => {
     (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
       makeEvaluation(EvaluationStatus.SUPERVISOR2_PENDING, detailsWithAllScores)
+    );
+
+    await expect(service.finalizeEvaluation('eval-1')).rejects.toThrow(ValidationError);
+    await expect(service.finalizeEvaluation('eval-1')).rejects.toThrow(
+      'chưa hoàn tất tất cả bước đánh giá'
+    );
+  });
+
+  it('calculates weighted average score correctly when all score types present', async () => {
+    (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
+      makeEvaluation(EvaluationStatus.COMPLETED, detailsWithAllScores)
     );
     (mockedPrisma.evaluation.update as jest.Mock).mockResolvedValue({ id: 'eval-1', score: 0 });
 
@@ -368,7 +379,7 @@ describe('finalizeEvaluation', () => {
       },
     ];
     (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
-      makeEvaluation(EvaluationStatus.SUPERVISOR2_PENDING, partialDetails)
+      makeEvaluation(EvaluationStatus.COMPLETED, partialDetails)
     );
     (mockedPrisma.evaluation.update as jest.Mock).mockResolvedValue({ id: 'eval-1', score: 0 });
 
@@ -392,6 +403,204 @@ describe('finalizeEvaluation', () => {
     (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(null);
 
     await expect(service.finalizeEvaluation('bad-id')).rejects.toThrow(NotFoundError);
+  });
+});
+
+// ─── updateEvaluationDetail — supervisor authorization ───────────────────────
+
+describe('updateEvaluationDetail — supervisor authorization', () => {
+  const detail = {
+    id: 'detail-1',
+    evaluation: {
+      id: 'eval-1',
+      employeeId: 'emp-1',
+      status: EvaluationStatus.SUPERVISOR1_PENDING,
+      period: '2026-05',
+      employee: { userId: 'user-employee' },
+    },
+  };
+
+  beforeEach(() => {
+    (mockedPrisma.evaluationDetail.findUnique as jest.Mock).mockResolvedValue(detail);
+    (mockedPrisma.evaluationDetail.update as jest.Mock).mockResolvedValue({ id: 'detail-1' });
+    (mockedPrisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
+      const txPrisma = {
+        ...mockedPrisma,
+        evaluation: {
+          ...mockedPrisma.evaluation,
+          findUnique: jest.fn().mockResolvedValue({ status: EvaluationStatus.SUPERVISOR1_PENDING }),
+          update: jest.fn(),
+        },
+        evaluationDetail: {
+          ...mockedPrisma.evaluationDetail,
+          count: jest.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(3),
+        },
+        employee: {
+          ...mockedPrisma.employee,
+          findUnique: jest.fn().mockResolvedValue({ user: { supervisor1Id: 'user-sup1', supervisor2Id: null } }),
+        },
+        user: {
+          ...mockedPrisma.user,
+          findUnique: jest.fn().mockResolvedValue({ employees: { id: 'emp-sup1' } }),
+        },
+      };
+      await fn(txPrisma);
+      return undefined;
+    });
+  });
+
+  it('rejects non-assigned supervisor1 from submitting supervisorScore1', async () => {
+    // currentUser is DEPARTMENT_HEAD but NOT the assigned supervisor1
+    (mockedPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: 'DEPARTMENT_HEAD' })    // currentUser check
+      .mockResolvedValueOnce({ supervisor1Id: 'user-other-sup' }); // evalUser — does NOT match userId
+
+    await expect(
+      service.updateEvaluationDetail('detail-1', { supervisorScore1: 80 }, 'user-wrong-sup')
+    ).rejects.toThrow(ValidationError);
+
+    (mockedPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: 'DEPARTMENT_HEAD' })
+      .mockResolvedValueOnce({ supervisor1Id: 'user-other-sup' });
+    const err = await service.updateEvaluationDetail('detail-1', { supervisorScore1: 80 }, 'user-wrong-sup').catch(e => e);
+    expect(err.message).toMatch('cấp trên 1');
+  });
+
+  it('rejects non-assigned supervisor2 from submitting supervisorScore2', async () => {
+    const detailSup2 = {
+      ...detail,
+      evaluation: { ...detail.evaluation, status: EvaluationStatus.SUPERVISOR2_PENDING },
+    };
+    (mockedPrisma.evaluationDetail.findUnique as jest.Mock).mockResolvedValue(detailSup2);
+    (mockedPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: 'TEAM_LEAD' })          // currentUser check
+      .mockResolvedValueOnce({ supervisor2Id: 'user-other-sup2' }); // evalUser check
+
+    await expect(
+      service.updateEvaluationDetail('detail-1', { supervisorScore2: 80 }, 'user-wrong-sup2')
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it('allows ADMIN to submit supervisorScore1 regardless of assignment', async () => {
+    (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: 'ADMIN' });
+
+    // ADMIN should not trigger the supervisor1Id check — should reach score update
+    await expect(
+      service.updateEvaluationDetail('detail-1', { supervisorScore1: 85 }, 'user-admin')
+    ).resolves.toBeDefined();
+
+    // The supervisor1Id lookup should NOT have been called
+    // (ADMIN bypasses the check entirely)
+    const userFindCalls = (mockedPrisma.user.findUnique as jest.Mock).mock.calls;
+    // Only one call: the currentUser fetch
+    expect(userFindCalls.length).toBe(1);
+  });
+
+  it('allows the correctly assigned supervisor1 to submit supervisorScore1', async () => {
+    (mockedPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: 'TEAM_LEAD' })          // currentUser check
+      .mockResolvedValueOnce({ supervisor1Id: 'user-sup1' }); // evalUser — matches userId
+
+    await expect(
+      service.updateEvaluationDetail('detail-1', { supervisorScore1: 85 }, 'user-sup1')
+    ).resolves.toBeDefined();
+  });
+});
+
+// ─── updateEvaluationDetail — auto-finalize score calculation ────────────────
+
+describe('updateEvaluationDetail — auto-finalize score calculation', () => {
+  const baseDetail = {
+    id: 'detail-1',
+    evaluation: {
+      id: 'eval-1',
+      employeeId: 'emp-1',
+      status: EvaluationStatus.SELF_PENDING,
+      period: '2026-05',
+      employee: { userId: 'user-1' },
+    },
+  };
+
+  it('calculates and saves weighted score when auto-finalizing (no supervisors)', async () => {
+    (mockedPrisma.evaluationDetail.findUnique as jest.Mock).mockResolvedValue(baseDetail);
+    (mockedPrisma.evaluationDetail.update as jest.Mock).mockResolvedValue({ id: 'detail-1' });
+    (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: 'EMPLOYEE' });
+
+    let capturedUpdateData: any = null;
+
+    (mockedPrisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
+      const txEvalUpdate = jest.fn().mockImplementation((args: any) => {
+        capturedUpdateData = args.data;
+        return Promise.resolve({});
+      });
+      const txPrisma = {
+        evaluation: {
+          findUnique: jest.fn().mockResolvedValue({ status: EvaluationStatus.SELF_PENDING }),
+          update: txEvalUpdate,
+        },
+        evaluationDetail: {
+          count: jest.fn().mockResolvedValueOnce(2).mockResolvedValueOnce(2), // filled=2, total=2 → all done
+          findMany: jest.fn().mockResolvedValue([
+            { selfScore: 80, supervisorScore1: null, supervisorScore2: null, positionResponsibility: { weight: 60 } },
+            { selfScore: 70, supervisorScore1: null, supervisorScore2: null, positionResponsibility: { weight: 40 } },
+          ]),
+        },
+        employee: {
+          findUnique: jest.fn().mockResolvedValue({
+            user: { firstName: 'Test', lastName: 'User', supervisor1Id: null, supervisor2Id: null },
+          }),
+        },
+        user: {
+          findUnique: jest.fn(),
+        },
+      };
+      await fn(txPrisma);
+      return undefined;
+    });
+
+    await service.updateEvaluationDetail('detail-1', { selfScore: 80 }, 'user-1');
+
+    // selfScore weighted: (80*60 + 70*40)/100 = 76, average of [76] = 76
+    expect(capturedUpdateData).not.toBeNull();
+    expect(capturedUpdateData.status).toBe(EvaluationStatus.COMPLETED);
+    expect(capturedUpdateData.score).toBeCloseTo(76, 1);
+  });
+
+  it('sends EVALUATION_COMPLETED notify (not createNotification) on auto-finalize', async () => {
+    (mockedPrisma.evaluationDetail.findUnique as jest.Mock).mockResolvedValue(baseDetail);
+    (mockedPrisma.evaluationDetail.update as jest.Mock).mockResolvedValue({ id: 'detail-1' });
+    (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: 'EMPLOYEE' });
+
+    (mockedPrisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
+      const txPrisma = {
+        evaluation: {
+          findUnique: jest.fn().mockResolvedValue({ status: EvaluationStatus.SELF_PENDING }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        evaluationDetail: {
+          count: jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(1),
+          findMany: jest.fn().mockResolvedValue([
+            { selfScore: 90, supervisorScore1: null, supervisorScore2: null, positionResponsibility: { weight: 100 } },
+          ]),
+        },
+        employee: {
+          findUnique: jest.fn().mockResolvedValue({
+            user: { firstName: 'A', lastName: 'B', supervisor1Id: null, supervisor2Id: null },
+          }),
+        },
+        user: { findUnique: jest.fn() },
+      };
+      await fn(txPrisma);
+      return undefined;
+    });
+
+    await service.updateEvaluationDetail('detail-1', { selfScore: 90 }, 'user-1');
+
+    expect(notificationService.notify).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ targetEmployeeIds: ['emp-1'] })
+    );
+    expect((notificationService as any).createNotification).not.toHaveBeenCalled();
   });
 });
 
