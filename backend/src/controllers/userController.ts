@@ -39,7 +39,7 @@ export class UserController {
     try {
       const id = req.params.id as string;
       const { firstName, lastName, role, isActive, departmentId, subDepartmentId,
-              secondaryDepartments } = req.body;
+              secondaryDepartments, supervisor1Id, supervisor2Id } = req.body;
 
       const user = await userService.updateUser(id as string, {
         firstName,
@@ -49,6 +49,8 @@ export class UserController {
         departmentId,
         subDepartmentId,
         secondaryDepartments,
+        supervisor1Id,
+        supervisor2Id,
       });
 
       res.status(200).json({

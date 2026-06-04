@@ -34,6 +34,8 @@ interface UpdateUserRequest {
   departmentId?: string | null;
   subDepartmentId?: string | null;
   secondaryDepartments?: SecondaryDeptInput[];
+  supervisor1Id?: string | null;
+  supervisor2Id?: string | null;
 }
 
 interface ChangePasswordRequest {

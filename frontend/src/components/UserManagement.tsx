@@ -64,6 +64,8 @@ interface FormData {
   departmentId?: string;
   subDepartmentId?: string;
   secondaryDepartments: SecondaryDeptEntry[];
+  supervisor1Id?: string;
+  supervisor2Id?: string;
 }
 
 interface Department {
@@ -151,6 +153,8 @@ const UserManagement: React.FC = () => {
     departmentId: '',
     subDepartmentId: '',
     secondaryDepartments: [],
+    supervisor1Id: '',
+    supervisor2Id: '',
   });
 
   const skipSubDeptResetRef = useRef(false);
@@ -315,6 +319,8 @@ const UserManagement: React.FC = () => {
       departmentId: user.departmentId || '',
       subDepartmentId: user.subDepartmentId || '',
       secondaryDepartments: secondaryList,
+      supervisor1Id: user.supervisor1Id || '',
+      supervisor2Id: user.supervisor2Id || '',
     });
 
     if (user.departmentId) {
@@ -340,6 +346,8 @@ const UserManagement: React.FC = () => {
       departmentId: '',
       subDepartmentId: '',
       secondaryDepartments: [],
+      supervisor1Id: '',
+      supervisor2Id: '',
     });
     setFilteredSubDepartments([]);
     setFilteredSecondarySubDepts([]);
@@ -370,6 +378,8 @@ const UserManagement: React.FC = () => {
             subDepartmentId: s.subDepartmentId || null,
             role: s.role,
           })),
+          supervisor1Id: formData.supervisor1Id || null,
+          supervisor2Id: formData.supervisor2Id || null,
         });
         setSuccess('Cập nhật người dùng thành công');
       } else {
@@ -505,7 +515,7 @@ const UserManagement: React.FC = () => {
                     }`}
                   >
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {user.firstName} {user.lastName}
+                      {user.lastName} {user.firstName}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                       {user.email}
@@ -716,7 +726,7 @@ const UserManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Cấp trên 1</label>
                     {selectedUser.supervisor1 ? (
                       <div className="text-gray-900">
-                        <p className="font-medium">{selectedUser.supervisor1.firstName} {selectedUser.supervisor1.lastName}</p>
+                        <p className="font-medium">{selectedUser.supervisor1.lastName} {selectedUser.supervisor1.firstName}</p>
                         <p className="text-sm text-gray-500">{selectedUser.supervisor1.email}</p>
                       </div>
                     ) : (
@@ -727,7 +737,7 @@ const UserManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Cấp trên 2</label>
                     {selectedUser.supervisor2 ? (
                       <div className="text-gray-900">
-                        <p className="font-medium">{selectedUser.supervisor2.firstName} {selectedUser.supervisor2.lastName}</p>
+                        <p className="font-medium">{selectedUser.supervisor2.lastName} {selectedUser.supervisor2.firstName}</p>
                         <p className="text-sm text-gray-500">{selectedUser.supervisor2.email}</p>
                       </div>
                     ) : (
@@ -936,6 +946,43 @@ const UserManagement: React.FC = () => {
                   ))}
                 </div>
 
+                {/* Supervisor Assignment */}
+                {isEditMode && (
+                  <div className="col-span-2 border-t border-gray-200 pt-4 mt-2">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Cấp trên đánh giá</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Cấp trên 1</label>
+                        <select
+                          name="supervisor1Id"
+                          value={formData.supervisor1Id || ''}
+                          onChange={handleFormChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">-- Không có --</option>
+                          {users.filter(u => u.id !== selectedUser?.id && (u.role === 'TEAM_LEAD' || u.role === 'DEPARTMENT_HEAD' || u.role === 'ADMIN')).map(u => (
+                            <option key={u.id} value={u.id}>{u.lastName} {u.firstName} ({getRoleDisplayName(u.role)})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Cấp trên 2</label>
+                        <select
+                          name="supervisor2Id"
+                          value={formData.supervisor2Id || ''}
+                          onChange={handleFormChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">-- Không có --</option>
+                          {users.filter(u => u.id !== selectedUser?.id && (u.role === 'TEAM_LEAD' || u.role === 'DEPARTMENT_HEAD' || u.role === 'ADMIN')).map(u => (
+                            <option key={u.id} value={u.id}>{u.lastName} {u.firstName} ({getRoleDisplayName(u.role)})</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-2 pt-4 col-span-2">
                   <button
                     type="button"
@@ -965,7 +1012,7 @@ const UserManagement: React.FC = () => {
             <div className="p-6">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Xác nhận xóa</h2>
               <p className="text-gray-600 mb-6">
-                Bạn có chắc chắn muốn xóa người dùng <strong>{selectedUser.firstName} {selectedUser.lastName}</strong>? Hành động này không thể hoàn tác.
+                Bạn có chắc chắn muốn xóa người dùng <strong>{selectedUser.lastName} {selectedUser.firstName}</strong>? Hành động này không thể hoàn tác.
               </p>
               <div className="flex justify-end gap-2">
                 <button
