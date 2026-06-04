@@ -29,6 +29,33 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
     return decodeURIComponent(filename.replace(/-\d+-\d+(?=\.)/, ''));
   };
 
+  const hasDisplayValue = (value: unknown) => value !== undefined && value !== null && value !== '';
+  const formatDisplayValue = (value: unknown) => hasDisplayValue(value) ? String(value) : '-';
+
+  const flowchartCostColumns = [
+    {
+      key: 'loaiChiPhi',
+      label: 'Loại chi phí',
+      render: (cost: NonNullable<Process['flowchart']>['sections'][number]['costs'][number]) => formatDisplayValue(cost.loaiChiPhi),
+    },
+    {
+      key: 'tenChiPhi',
+      label: 'Tên chi phí',
+      render: (cost: NonNullable<Process['flowchart']>['sections'][number]['costs'][number]) => formatDisplayValue(cost.tenChiPhi),
+    },
+    {
+      key: 'donVi',
+      label: 'Đơn vị',
+      render: (cost: NonNullable<Process['flowchart']>['sections'][number]['costs'][number]) => formatDisplayValue(cost.donVi),
+    },
+    {
+      key: 'dinhMucLaoDong',
+      label: 'Định mức',
+      hasValue: (cost: NonNullable<Process['flowchart']>['sections'][number]['costs'][number]) => hasDisplayValue(cost.dinhMucLaoDong),
+      render: (cost: NonNullable<Process['flowchart']>['sections'][number]['costs'][number]) => hasDisplayValue(cost.dinhMucLaoDong) ? `${cost.dinhMucLaoDong} ${cost.donViDinhMucLaoDong || ''}`.trim() : '-',
+    },
+  ];
+
   const handlePrintFile = (url: string) => {
     const printWindow = window.open(getFullFileUrl(url), '_blank');
     if (printWindow) {
@@ -251,35 +278,40 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
                     </div>
                     {section.tenPhanDoan && <div className="text-xs text-gray-600 mb-1"><span className="font-medium">Tên phân đoạn:</span> {section.tenPhanDoan}</div>}
                     {section.noiDungCongViec && <div className="text-xs text-gray-600 mb-2"><span className="font-medium">Nội dung công việc:</span> {section.noiDungCongViec}</div>}
-                    {section.costs && section.costs.length > 0 && (
-                      <div className="mt-2">
-                        <div className="text-xs font-medium text-gray-700 mb-1">Chi phí:</div>
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full text-xs border border-gray-300">
-                            <thead className="bg-gray-200">
-                              <tr>
-                                <th className="border border-gray-300 px-2 py-1">Loại chi phí</th>
-                                <th className="border border-gray-300 px-2 py-1">Tên chi phí</th>
-                                <th className="border border-gray-300 px-2 py-1">Đơn vị</th>
-                                <th className="border border-gray-300 px-2 py-1">Định mức</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {section.costs.map((cost, costIdx) => (
-                                <tr key={cost.id || costIdx} className="bg-white">
-                                  <td className="border border-gray-300 px-2 py-1">{cost.loaiChiPhi}</td>
-                                  <td className="border border-gray-300 px-2 py-1">{cost.tenChiPhi || '-'}</td>
-                                  <td className="border border-gray-300 px-2 py-1">{cost.donVi || '-'}</td>
-                                  <td className="border border-gray-300 px-2 py-1">
-                                    {cost.dinhMucLaoDong ? `${cost.dinhMucLaoDong} ${cost.donViDinhMucLaoDong || ''}` : '-'}
-                                  </td>
+                    {section.costs && section.costs.length > 0 && (() => {
+                      const visibleColumns = flowchartCostColumns.filter(column =>
+                        section.costs.some(cost => column.hasValue ? column.hasValue(cost) : hasDisplayValue(cost[column.key as keyof typeof cost]))
+                      );
+                      if (visibleColumns.length === 0) return null;
+
+                      return (
+                        <div className="mt-2">
+                          <div className="text-xs font-medium text-gray-700 mb-1">Chi phí:</div>
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full text-xs border border-gray-300">
+                              <thead className="bg-gray-200">
+                                <tr>
+                                  {visibleColumns.map(column => (
+                                    <th key={column.key} className="border border-gray-300 px-2 py-1">{column.label}</th>
+                                  ))}
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {section.costs.map((cost, costIdx) => (
+                                  <tr key={cost.id || costIdx} className="bg-white">
+                                    {visibleColumns.map(column => (
+                                      <td key={column.key} className="border border-gray-300 px-2 py-1">
+                                        {column.render(cost)}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -329,5 +361,3 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
 };
 
 export default ProcessListModal;
-
-

@@ -1,11 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, RefreshCw, Download } from 'lucide-react';
-import productionProcessService, { ProductionProcess, CreateProductionProcessData, ProductionFlowchartSection } from '../services/productionProcessService';
+import productionProcessService, { ProductionProcess, CreateProductionProcessData, ProductionFlowchartCost, ProductionFlowchartSection } from '../services/productionProcessService';
 import processService, { Process } from '../services/processService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+
+type ProductionCostColumn = {
+  key: keyof ProductionFlowchartCost;
+  label: string;
+  subLabel?: string;
+  group?: 'laborQuantity';
+  className?: string;
+};
+
+const hasDisplayValue = (value: unknown) => value !== undefined && value !== null && value !== '';
+
+const formatCostCellValue = (value: unknown) => hasDisplayValue(value) ? String(value) : '-';
+
+const productionCostColumns: ProductionCostColumn[] = [
+  { key: 'loaiChiPhi', label: 'LOẠI CHI PHÍ', className: 'text-center' },
+  { key: 'tenChiPhi', label: 'TÊN CHI PHÍ' },
+  { key: 'donVi', label: 'ĐVT', className: 'text-center' },
+  { key: 'dinhMucLaoDong', label: 'ĐỊNH MỨC LAO ĐỘNG', className: 'text-center' },
+  { key: 'donViDinhMucLaoDong', label: 'ĐƠN VỊ', className: 'text-center' },
+  { key: 'soLuongNguyenLieu', label: 'SỐ LƯỢNG NGUYÊN LIỆU (Kg)', className: 'text-center' },
+  { key: 'soPhutThucHien', label: 'SỐ PHÚT THỰC HIỆN', className: 'text-center' },
+  { key: 'soLuongKeHoach', label: 'SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ', subLabel: 'KẾ HOẠCH', group: 'laborQuantity', className: 'text-center bg-blue-50 font-medium' },
+  { key: 'soLuongThucTe', label: 'SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ', subLabel: 'THỰC TẾ', group: 'laborQuantity', className: 'text-center' },
+];
+
+const getVisibleProductionCostColumns = (sections: ProductionFlowchartSection[]) => {
+  const costs = sections.flatMap(section => section.costs || []);
+  return productionCostColumns.filter(column => costs.some(cost => hasDisplayValue(cost[column.key])));
+};
 
 const ProductionProcessManagement: React.FC = () => {
   const { user } = useAuth();
@@ -956,6 +985,13 @@ const ProductionProcessManagement: React.FC = () => {
               </div>
 
               {viewingProcess.flowchart && viewingProcess.flowchart.sections && viewingProcess.flowchart.sections.length > 0 ? (
+                (() => {
+                  const visibleCostColumns = getVisibleProductionCostColumns(viewingProcess.flowchart!.sections);
+                  const regularCostColumns = visibleCostColumns.filter(column => column.group !== 'laborQuantity');
+                  const laborQuantityColumns = visibleCostColumns.filter(column => column.group === 'laborQuantity');
+                  const baseColumnCount = 3;
+
+                  return (
                 <div className="overflow-x-auto">
                   <table className="min-w-full border-collapse border border-gray-200">
                     <thead>
@@ -963,29 +999,27 @@ const ProductionProcessManagement: React.FC = () => {
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">STT</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">PHÂN ĐOẠN</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">NỘI DUNG CÔNG VIỆC</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">LOẠI CHI PHÍ</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">TÊN CHI PHÍ</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐVT</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐỊNH MỨC LAO ĐỘNG</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐƠN VỊ</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">SỐ LƯỢNG NGUYÊN LIỆU (Kg)</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">SỐ PHÚT THỰC HIỆN</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
+                        {regularCostColumns.map(column => (
+                          <th key={column.key} className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">
+                            {column.label}
+                          </th>
+                        ))}
+                        {laborQuantityColumns.length > 0 && (
+                          <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900" colSpan={laborQuantityColumns.length}>
+                            SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ
+                          </th>
+                        )}
                       </tr>
-                      <tr className="bg-gray-50">
-                        <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-900">KẾ HOẠCH</th>
-                        <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-900">THỰC TẾ</th>
-                      </tr>
+                      {laborQuantityColumns.length > 0 && (
+                        <tr className="bg-gray-50">
+                          <th className="border border-gray-200 px-3 py-2" colSpan={baseColumnCount + regularCostColumns.length}></th>
+                          {laborQuantityColumns.map(column => (
+                            <th key={column.key} className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-900">
+                              {column.subLabel}
+                            </th>
+                          ))}
+                        </tr>
+                      )}
                     </thead>
                     <tbody>
                       {viewingProcess.flowchart.sections.map((section, sectionIndex) =>
@@ -1006,40 +1040,31 @@ const ProductionProcessManagement: React.FC = () => {
                                   </td>
                                 </>
                               )}
-                              <td className="border border-gray-200 px-3 py-2 text-center">{cost.loaiChiPhi}</td>
-                              <td className="border border-gray-200 px-3 py-2">{cost.tenChiPhi || '-'}</td>
-                              <td className="border border-gray-200 px-3 py-2 text-center">{cost.donVi || '-'}</td>
-                              <td className="border border-gray-200 px-3 py-2 text-center">
-                                {cost.dinhMucLaoDong !== undefined && cost.dinhMucLaoDong !== null ? cost.dinhMucLaoDong : '-'}
-                              </td>
-                              <td className="border border-gray-200 px-3 py-2 text-center">
-                                {cost.donViDinhMucLaoDong || '-'}
-                              </td>
-                              <td className="border border-gray-200 px-3 py-2 text-center">
-                                {cost.soLuongNguyenLieu !== undefined && cost.soLuongNguyenLieu !== null ? cost.soLuongNguyenLieu : '-'}
-                              </td>
-                              <td className="border border-gray-200 px-3 py-2 text-center">
-                                {cost.soPhutThucHien !== undefined && cost.soPhutThucHien !== null ? cost.soPhutThucHien : '-'}
-                              </td>
-                              <td className="border border-gray-200 px-3 py-2 text-center bg-blue-50 font-medium">
-                                {cost.soLuongKeHoach !== undefined && cost.soLuongKeHoach !== null ? cost.soLuongKeHoach.toFixed(2) : '-'}
-                              </td>
-                              <td className="border border-gray-200 px-3 py-2 text-center">
-                                {cost.soLuongThucTe !== undefined && cost.soLuongThucTe !== null ? cost.soLuongThucTe : '-'}
-                              </td>
+                              {visibleCostColumns.map(column => (
+                                <td key={column.key} className={`border border-gray-200 px-3 py-2 ${column.className || ''}`}>
+                                  {formatCostCellValue(cost[column.key])}
+                                </td>
+                              ))}
                             </tr>
                           ))
                         ) : (
                           <tr key={sectionIndex}>
                             <td className="border border-gray-200 px-3 py-2 text-center">{section.stt}</td>
                             <td className="border border-gray-200 px-3 py-2">{section.phanDoan}</td>
-                            <td className="border border-gray-200 px-3 py-2" colSpan={10}>Không có chi phí</td>
+                            <td className="border border-gray-200 px-3 py-2">{section.noiDungCongViec || '-'}</td>
+                            {visibleCostColumns.length > 0 && (
+                              <td className="border border-gray-200 px-3 py-2 text-center text-gray-400" colSpan={visibleCostColumns.length}>
+                                Không có chi phí
+                              </td>
+                            )}
                           </tr>
                         )
                       )}
                     </tbody>
                   </table>
                 </div>
+                  );
+                })()
               ) : (
                 <p className="text-center text-gray-500 py-8">Không có dữ liệu flowchart</p>
               )}
@@ -1070,4 +1095,3 @@ const ProductionProcessManagement: React.FC = () => {
 };
 
 export default ProductionProcessManagement;
-

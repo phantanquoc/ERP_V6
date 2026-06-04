@@ -5,6 +5,8 @@
 ERP An Binh Foods — hệ thống nội bộ cho nhà sản xuất trái cây sấy khô.
 3 services: **Frontend** (React 18 + Vite + TailwindCSS :5173), **Backend** (Express 5 + Prisma + PostgreSQL :5000), **AI Service** (FastAPI + Python :8001).
 
+UI/UX work must read `openspec/ui-dna.md` (or the existing DNA doc) before any visual change.
+
 ---
 
 ## Verification Commands (chạy trước khi kết thúc bất kỳ task nào)
