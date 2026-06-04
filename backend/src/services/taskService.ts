@@ -110,7 +110,7 @@ class TaskService {
 
     // Send notifications to all recipients
     try {
-      const assignerName = `${nguoiGiao.firstName} ${nguoiGiao.lastName}`;
+      const assignerName = `${nguoiGiao.lastName} ${nguoiGiao.firstName}`;
       const nguoiNhanEmployeeIds = nguoiNhanEmployees.map(emp => emp.id);
 
       await notificationService.notify(NotificationEvent.TASK_ASSIGNED, {
@@ -127,12 +127,12 @@ class TaskService {
 
     // Notify admin about new task (who assigned what to whom)
     try {
-      const assignerName = `${nguoiGiao.firstName} ${nguoiGiao.lastName}`;
+      const assignerName = `${nguoiGiao.lastName} ${nguoiGiao.firstName}`;
       const nguoiNhanUsers = await prisma.user.findMany({
         where: { id: { in: nguoiNhanUserIds } },
         select: { firstName: true, lastName: true },
       });
-      const recipientNames = nguoiNhanUsers.map(u => `${u.firstName} ${u.lastName}`).join(', ');
+      const recipientNames = nguoiNhanUsers.map(u => `${u.lastName} ${u.firstName}`).join(', ');
       await notificationService.notify(NotificationEvent.TASK_ADMIN_COPY, {
         actorUserId: nguoiGiaoId,
         entityId: task.id,
@@ -366,7 +366,7 @@ class TaskService {
         where: { id: userId },
         select: { firstName: true, lastName: true },
       });
-      const evaluatorName = nguoiGiao ? `${nguoiGiao.firstName} ${nguoiGiao.lastName}` : 'Người giao';
+      const evaluatorName = nguoiGiao ? `${nguoiGiao.lastName} ${nguoiGiao.firstName}` : 'Người giao';
 
       // Get employee IDs from user IDs in nguoiNhanIds
       const recipientEmployees = await prisma.employee.findMany({

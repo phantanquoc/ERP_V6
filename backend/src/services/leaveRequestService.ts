@@ -234,7 +234,7 @@ export class LeaveRequestService {
    * Create notification for Quality Personnel department
    */
   private async createNotificationForQualityPersonnel(leaveRequest: any) {
-    const employeeName = `${leaveRequest.employee.user.firstName} ${leaveRequest.employee.user.lastName}`;
+    const employeeName = `${leaveRequest.employee.user.lastName} ${leaveRequest.employee.user.firstName}`;
     const leaveTypeLabel = this.getLeaveTypeLabel(leaveRequest.leaveType);
 
     await notificationService.notify(NotificationEvent.LEAVE_REQUEST_SUBMITTED, {

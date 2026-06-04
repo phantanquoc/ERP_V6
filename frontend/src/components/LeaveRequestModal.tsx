@@ -190,7 +190,7 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-white">Đăng ký nghỉ phép</h2>
-                  <p className="text-orange-100 text-sm">{user?.firstName} {user?.lastName}</p>
+                  <p className="text-orange-100 text-sm">{user?.lastName} {user?.firstName}</p>
                 </div>
               </div>
               <button

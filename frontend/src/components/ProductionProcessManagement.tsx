@@ -115,7 +115,7 @@ const ProductionProcessManagement: React.FC = () => {
     setFormData({
       tenQuyTrinhSanXuat: '',
       maNVSanXuat: user?.employeeCode || '',
-      tenNVSanXuat: user ? `${user.firstName} ${user.lastName}`.trim() : '',
+      tenNVSanXuat: user ? `${user.lastName} ${user.firstName}`.trim() : '',
       khoiLuong: 0,
       thoiGian: 0,
       materialStandardId: '',
@@ -253,7 +253,7 @@ const ProductionProcessManagement: React.FC = () => {
     }
 
     const msnv = user?.employeeCode || '';
-    const tenNhanVien = user ? `${user.firstName} ${user.lastName}`.trim() : '';
+    const tenNhanVien = user ? `${user.lastName} ${user.firstName}`.trim() : '';
 
     const data: CreateProductionProcessData = {
       processId: selectedTemplateId,

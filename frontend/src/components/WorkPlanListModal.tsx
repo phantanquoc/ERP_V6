@@ -102,14 +102,14 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                         <div className="line-clamp-2" title={plan.tieuDe}>{plan.tieuDe}</div>
                       </td>
                       <td className="px-3 py-3 text-sm text-gray-900">
-                        {plan.nguoiTao ? `${plan.nguoiTao.firstName} ${plan.nguoiTao.lastName}` : 'N/A'}
+                        {plan.nguoiTao ? `${plan.nguoiTao.lastName} ${plan.nguoiTao.firstName}` : 'N/A'}
                       </td>
                       <td className="px-3 py-3 text-sm text-gray-900">
                         {plan.nguoiThucHien && plan.nguoiThucHien.length > 0 ? (
                           <div className="max-w-[120px]">
                             <span className="text-purple-600 font-medium">{plan.nguoiThucHien.length} người</span>
-                            <div className="text-xs text-gray-500 truncate" title={plan.nguoiThucHien.map((n: any) => `${n.firstName} ${n.lastName}`).join(', ')}>
-                              {plan.nguoiThucHien.map((n: any) => `${n.firstName} ${n.lastName}`).join(', ')}
+                            <div className="text-xs text-gray-500 truncate" title={plan.nguoiThucHien.map((n: any) => `${n.lastName} ${n.firstName}`).join(', ')}>
+                              {plan.nguoiThucHien.map((n: any) => `${n.lastName} ${n.firstName}`).join(', ')}
                             </div>
                           </div>
                         ) : '-'}
@@ -215,7 +215,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                     <User className="w-3.5 h-3.5 inline mr-1" />Người tạo
                   </label>
                   <p className="text-sm text-gray-900">
-                    {viewPlan.nguoiTao ? `${viewPlan.nguoiTao.firstName} ${viewPlan.nguoiTao.lastName}` : 'N/A'}
+                    {viewPlan.nguoiTao ? `${viewPlan.nguoiTao.lastName} ${viewPlan.nguoiTao.firstName}` : 'N/A'}
                   </p>
                 </div>
                 <div>
@@ -226,7 +226,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                     <div className="flex flex-wrap gap-1.5">
                       {viewPlan.nguoiThucHien.map((n: any, i: number) => (
                         <span key={i} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                          {n.firstName} {n.lastName}
+                          {n.lastName} {n.firstName}
                         </span>
                       ))}
                     </div>

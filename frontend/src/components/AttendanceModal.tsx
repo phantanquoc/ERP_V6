@@ -226,7 +226,7 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-white">Chấm công</h2>
-                  <p className="text-blue-100 text-sm">{user?.firstName} {user?.lastName}</p>
+                  <p className="text-blue-100 text-sm">{user?.lastName} {user?.firstName}</p>
                 </div>
               </div>
               <button

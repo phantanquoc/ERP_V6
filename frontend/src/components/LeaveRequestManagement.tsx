@@ -155,7 +155,7 @@ const LeaveRequestManagement = () => {
     const s = filterValues._search.toLowerCase();
     const matchesSearch = !s || (
       r.code.toLowerCase().includes(s) ||
-      (r.employee?.user.firstName + ' ' + r.employee?.user.lastName).toLowerCase().includes(s) ||
+      (r.employee?.user.lastName + ' ' + r.employee?.user.firstName).toLowerCase().includes(s) ||
       (r.employee?.employeeCode || '').toLowerCase().includes(s)
     );
     const matchesLeaveType = !filterValues.leaveType || r.leaveType === filterValues.leaveType;
@@ -236,7 +236,7 @@ const LeaveRequestManagement = () => {
                         <td className="px-6 py-4 text-sm border-r border-gray-200">
                           <div>
                             <div className="font-medium text-gray-900">
-                              {request.employee?.user.firstName} {request.employee?.user.lastName}
+                              {request.employee?.user.lastName} {request.employee?.user.firstName}
                             </div>
                             <div className="text-xs text-gray-500">{request.employee?.employeeCode}</div>
                           </div>
@@ -380,7 +380,7 @@ const LeaveRequestManagement = () => {
               <div>
                 <label className="text-sm font-semibold text-gray-700">Nhân viên</label>
                 <p className="text-gray-900">
-                  {selectedRequest.employee?.user.firstName} {selectedRequest.employee?.user.lastName}
+                  {selectedRequest.employee?.user.lastName} {selectedRequest.employee?.user.firstName}
                   <span className="text-sm text-gray-500 ml-2">({selectedRequest.employee?.employeeCode})</span>
                 </p>
                 <p className="text-sm text-gray-600">{selectedRequest.employee?.position.name}</p>

@@ -72,7 +72,7 @@ export class AttendanceService {
           id: attendance.id,
           ids: [attendance.id],
           employeeCode: attendance.employee.employeeCode,
-          employeeName: `${attendance.employee.user.firstName} ${attendance.employee.user.lastName}`.trim(),
+          employeeName: `${attendance.employee.user.lastName} ${attendance.employee.user.firstName}`.trim(),
           positionName: attendance.employee.position?.name || '',
           attendanceDate: attendance.attendanceDate,
           checkInTimes: attendance.checkInTime ? [attendance.checkInTime] : [],
@@ -352,7 +352,7 @@ export class AttendanceService {
     return {
       id: attendance.id,
       employeeCode: attendance.employee.employeeCode,
-      employeeName: `${attendance.employee.user.firstName} ${attendance.employee.user.lastName}`.trim(),
+      employeeName: `${attendance.employee.user.lastName} ${attendance.employee.user.firstName}`.trim(),
       positionName: attendance.employee.position?.name || '',
       attendanceDate: attendance.attendanceDate,
       checkInTime: attendance.checkInTime,
@@ -408,7 +408,7 @@ export class AttendanceService {
     return {
       id: updated.id,
       employeeCode: updated.employee.employeeCode,
-      employeeName: `${updated.employee.user.firstName} ${updated.employee.user.lastName}`.trim(),
+      employeeName: `${updated.employee.user.lastName} ${updated.employee.user.firstName}`.trim(),
       positionName: updated.employee.position?.name || '',
       attendanceDate: updated.attendanceDate,
       checkInTime: updated.checkInTime,

@@ -125,7 +125,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
       await supplyRequestService.createSupplyRequest({
         employeeId: user.employeeId,
         maNhanVien: user.employeeCode || '',
-        tenNhanVien: `${user.firstName} ${user.lastName}`,
+        tenNhanVien: `${user.lastName} ${user.firstName}`,
         boPhan: user.department || '',
         items: items.map(row => ({
           phanLoai: row.phanLoai,
@@ -159,7 +159,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
         {/* Tên nhân viên + Bộ phận */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField label="Tên nhân viên">
-            <input type="text" readOnly value={`${user?.firstName || ''} ${user?.lastName || ''}`} className={readonlyCls} />
+            <input type="text" readOnly value={`${user?.lastName || ''} ${user?.firstName || ''}`} className={readonlyCls} />
           </FormField>
           <FormField label="Bộ phận">
             <input type="text" readOnly value={user?.department || 'Chưa xác định'} className={readonlyCls} />

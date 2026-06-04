@@ -510,7 +510,7 @@ const EmployeeManagement: React.FC = () => {
                       {emp.employeeCode}
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
-                      {emp.user?.firstName} {emp.user?.lastName}
+                      {emp.user?.lastName} {emp.user?.firstName}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                       {emp.user?.email}
@@ -981,7 +981,7 @@ const EmployeeManagement: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Họ tên</label>
-                    <p className="text-gray-900">{selectedEmployee.user?.firstName} {selectedEmployee.user?.lastName}</p>
+                    <p className="text-gray-900">{selectedEmployee.user?.lastName} {selectedEmployee.user?.firstName}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Email</label>

@@ -218,7 +218,7 @@ const CommonManagement = () => {
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg">
         <h1 className="text-2xl font-bold">Chung</h1>
         <p className="text-blue-100 mt-2">
-          Tạo yêu cầu, nhiệm vụ và quản lý công việc chung — {user.firstName} {user.lastName}
+          Tạo yêu cầu, nhiệm vụ và quản lý công việc chung — {user.lastName} {user.firstName}
         </p>
       </div>
 
@@ -260,7 +260,7 @@ const CommonManagement = () => {
         <div className="space-y-4">
           {/* Tên nhân viên */}
           <FormField label="Tên nhân viên">
-            <input type="text" readOnly value={`${user?.firstName || ''} ${user?.lastName || ''}`} className={readonlyCls} />
+            <input type="text" readOnly value={`${user?.lastName || ''} ${user?.firstName || ''}`} className={readonlyCls} />
           </FormField>
 
           {/* Danh sách thiết bị */}

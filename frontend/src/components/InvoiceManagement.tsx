@@ -217,7 +217,7 @@ const InvoiceManagement: React.FC = () => {
   const handleAddClick = async () => {
     // Auto-fill số hóa đơn và nhân viên lập
     const autoInvoiceNumber = await generateInvoiceNumber();
-    const employeeName = user ? `${user.firstName} ${user.lastName}` : '';
+    const employeeName = user ? `${user.lastName} ${user.firstName}` : '';
 
     setFormData({
       soHoaDon: autoInvoiceNumber,
@@ -243,7 +243,7 @@ const InvoiceManagement: React.FC = () => {
 
   const handleMuaNhanhClick = async () => {
     const autoInvoiceNumber = await generateInvoiceNumber();
-    const employeeName = user ? `${user.firstName} ${user.lastName}` : '';
+    const employeeName = user ? `${user.lastName} ${user.firstName}` : '';
 
     setFormData({
       soHoaDon: autoInvoiceNumber,

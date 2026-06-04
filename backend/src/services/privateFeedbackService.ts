@@ -177,7 +177,7 @@ export const privateFeedbackService = {
     // Notify admin about new feedback
     try {
       const employeeName = feedback.user
-        ? `${feedback.user.firstName} ${feedback.user.lastName}`
+        ? `${feedback.user.lastName} ${feedback.user.firstName}`
         : 'Nhân viên';
       await notificationService.notify(NotificationEvent.PRIVATE_FEEDBACK_SUBMITTED, {
         actorUserId: data.userId,

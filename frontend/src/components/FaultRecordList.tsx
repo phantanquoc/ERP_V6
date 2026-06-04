@@ -106,7 +106,7 @@ const FaultRecordList = () => {
       maHeThong: '',
       mucDo: 'Trung bình',
       trangThai: 'Đang theo dõi',
-      nguoiPhatHien: user ? `${user.firstName} ${user.lastName}` : '',
+      nguoiPhatHien: user ? `${user.lastName} ${user.firstName}` : '',
       ngayPhatHien: new Date().toISOString().split('T')[0],
     });
     setIsModalOpen(true);

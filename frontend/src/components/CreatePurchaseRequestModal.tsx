@@ -140,7 +140,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
       await purchaseRequestService.createPurchaseRequest({
         employeeId: user.employeeId,
         maNhanVien: user.employeeCode || '',
-        tenNhanVien: `${user.firstName} ${user.lastName}`,
+        tenNhanVien: `${user.lastName} ${user.firstName}`,
         items: items.map(row => ({
           phanLoai: row.phanLoai,
           tenHangHoa: row.tenHangHoa,
@@ -196,7 +196,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
           {/* Row 2: Tên nhân viên */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên yêu cầu</label>
-            <input type="text" value={`${user?.firstName} ${user?.lastName}`} disabled
+            <input type="text" value={`${user?.lastName} ${user?.firstName}`} disabled
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" />
           </div>
 

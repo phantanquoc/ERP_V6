@@ -48,7 +48,7 @@ class OvertimePlanService {
     nguoiThamGiaUserIds.forEach(uid => { trangThaiTiepNhan[uid] = 'CHUA_TIEP_NHAN'; });
     const plan = await (prisma.overtimePlan as any).create({ data: { nguoiTaoId, nguoiThamGiaIds: nguoiThamGiaUserIds, noiDung: data.noiDung, ngayTangCa, gioBatDau: data.gioBatDau, gioKetThuc: data.gioKetThuc, ghiChu: data.ghiChu, files: files || [], mucDoUuTien: data.mucDoUuTien as any, trangThaiTiepNhan } });
     try {
-      const creatorName = `${nguoiTao.firstName} ${nguoiTao.lastName}`;
+      const creatorName = `${nguoiTao.lastName} ${nguoiTao.firstName}`;
       const ngayTangCaStr = new Date(data.ngayTangCa).toLocaleDateString('vi-VN');
       await notificationService.notify(NotificationEvent.OVERTIME_PLAN_SUBMITTED, {
         actorUserId: nguoiTaoId,

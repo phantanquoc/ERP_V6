@@ -139,7 +139,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
     setEditingProcess(null);
 
     const msnv = user?.employeeCode || '';
-    const tenNhanVien = user ? `${user.firstName} ${user.lastName}`.trim() : '';
+    const tenNhanVien = user ? `${user.lastName} ${user.firstName}`.trim() : '';
 
     setFormData({
       msnv,

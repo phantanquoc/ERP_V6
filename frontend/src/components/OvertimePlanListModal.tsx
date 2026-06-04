@@ -161,7 +161,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {plan.nguoiTao?.firstName} {plan.nguoiTao?.lastName}
+                      {plan.nguoiTao?.lastName} {plan.nguoiTao?.firstName}
                     </div>
                     <div className="text-xs text-gray-500">{plan.nguoiTao?.employeeCode}</div>
                     <div className="text-xs text-gray-400">{plan.nguoiTao?.department}</div>
@@ -289,7 +289,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
               </div>
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase">Người tạo</p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">{viewPlan.nguoiTao?.firstName} {viewPlan.nguoiTao?.lastName}</p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">{viewPlan.nguoiTao?.lastName} {viewPlan.nguoiTao?.firstName}</p>
                 <p className="text-xs text-gray-500">{viewPlan.nguoiTao?.department}</p>
               </div>
               <div>
@@ -315,7 +315,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                 {viewPlan.nguoiThamGia?.map((person, idx) => (
                   <div key={idx} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-lg">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{person.firstName} {person.lastName}</p>
+                      <p className="text-sm font-medium text-gray-900">{person.lastName} {person.firstName}</p>
                       <p className="text-xs text-gray-500">{person.employeeCode} • {person.department}</p>
                     </div>
                   </div>

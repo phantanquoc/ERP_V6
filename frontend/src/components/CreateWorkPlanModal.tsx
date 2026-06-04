@@ -143,7 +143,7 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
           </label>
           <input
             type="text"
-            value={user ? `${user.firstName} ${user.lastName}${user.employeeCode ? ` - ${user.employeeCode}` : ''}` : ''}
+            value={user ? `${user.lastName} ${user.firstName}${user.employeeCode ? ` - ${user.employeeCode}` : ''}` : ''}
             disabled
             className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 text-sm"
           />

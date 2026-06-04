@@ -115,7 +115,7 @@ export class PayrollService {
       const netSalary = totalIncome - totalDeductions + employeeOvertimePay;
 
       const fullName = employee.user
-        ? `${employee.user.firstName} ${employee.user.lastName}`.trim()
+        ? `${employee.user.lastName} ${employee.user.firstName}`.trim()
         : '';
 
       return {
@@ -196,7 +196,7 @@ export class PayrollService {
       id: payroll.id,
       employeeId: payroll.employeeId,
       employeeCode: payroll.employee.employeeCode,
-      employeeName: `${payroll.employee.user.firstName} ${payroll.employee.user.lastName}`.trim(),
+      employeeName: `${payroll.employee.user.lastName} ${payroll.employee.user.firstName}`.trim(),
       positionName: payroll.employee.position?.name || '',
       month: payroll.month,
       year: payroll.year,
@@ -654,7 +654,7 @@ export class PayrollService {
       employeeId: payroll.employeeId,
       employeeCode: employeeWithDetails?.employeeCode,
       employeeName: employeeWithDetails?.user
-        ? `${employeeWithDetails.user.firstName} ${employeeWithDetails.user.lastName}`.trim()
+        ? `${employeeWithDetails.user.lastName} ${employeeWithDetails.user.firstName}`.trim()
         : '',
       positionName: employeeWithDetails?.position?.name || '',
       month: payroll.month,
