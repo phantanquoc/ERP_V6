@@ -306,16 +306,20 @@ model Responsibility {
 }
 
 model Evaluation {
-  id         String             @id @default(cuid())
-  employeeId String
-  period     String
-  score      Float
-  comment    String?
-  status     String             @default("SELF_PENDING")
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  details    EvaluationDetail[]
-  employee   Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id             String             @id @default(cuid())
+  employeeId     String
+  period         String
+  score          Float
+  comment        String?
+  status         String             @default("SELF_PENDING")
+  evaluatedBy1Id String?            @db.VarChar(30)
+  evaluatedBy2Id String?            @db.VarChar(30)
+  acknowledgedAt DateTime?
+  acknowledgedBy String?            @db.VarChar(30)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  details        EvaluationDetail[]
+  employee       Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, period])
   @@map("evaluations")
@@ -329,6 +333,7 @@ model EvaluationDetail {
   selfScore                Float?
   supervisorScore1         Float?
   supervisorScore2         Float?
+  comment                  String?
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   evaluation               Evaluation             @relation(fields: [evaluationId], references: [id], onDelete: Cascade)

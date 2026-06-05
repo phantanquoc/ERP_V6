@@ -73,6 +73,7 @@ export interface AuthResponse {
     bankAccount?: string | null;
     lockerNumber?: string | null;
     notes?: string | null;
+    evaluationScore?: number | null;
   };
 }
 

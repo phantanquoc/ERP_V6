@@ -63,6 +63,13 @@ router.get(
   employeeEvaluationController.getPendingCount
 );
 
+router.get(
+  '/completion-stats',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  employeeEvaluationController.getCompletionStats
+);
+
 /**
  * @swagger
  * /api/employee-evaluations/my-evaluation/{evaluationId}:
@@ -220,7 +227,7 @@ router.post(
 router.post(
   '/evaluations',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD', 'EMPLOYEE'),
   employeeEvaluationController.createOrUpdateEvaluation
 );
 
@@ -302,6 +309,36 @@ router.patch(
   authenticate,
   authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
   employeeEvaluationController.updateEvaluationDetail
+);
+
+/**
+ * @swagger
+ * /api/employee-evaluations/evaluations/{evaluationId}/acknowledge:
+ *   post:
+ *     tags: [Employee Evaluations]
+ *     summary: Nhân viên xác nhận đã xem kết quả đánh giá
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: evaluationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID đánh giá
+ *     responses:
+ *       200:
+ *         description: Xác nhận thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ *       404:
+ *         description: Không tìm thấy đánh giá
+ */
+router.post(
+  '/evaluations/:evaluationId/acknowledge',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD', 'EMPLOYEE'),
+  employeeEvaluationController.acknowledgeEvaluation
 );
 
 /**

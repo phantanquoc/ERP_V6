@@ -80,13 +80,14 @@ export class EmployeeEvaluationController {
   async updateEvaluationDetail(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const detailId = req.params.detailId as string;
-      const { selfScore, supervisorScore1, supervisorScore2 } = req.body;
+      const { selfScore, supervisorScore1, supervisorScore2, comment } = req.body;
       const userId = req.user?.id;
 
       const detail = await employeeEvaluationService.updateEvaluationDetail(detailId, {
         selfScore,
         supervisorScore1,
         supervisorScore2,
+        comment,
       }, userId);
 
       res.json({
@@ -194,6 +195,56 @@ export class EmployeeEvaluationController {
         success: true,
         data: result,
         message: `Đồng bộ tiêu chí thành công: ${result.synced} đánh giá được cập nhật, ${result.skipped} đã đầy đủ`,
+      });
+      return;
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async acknowledgeEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const evaluationId = req.params.evaluationId as string;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Không có quyền truy cập' });
+        return;
+      }
+
+      const evaluation = await employeeEvaluationService.acknowledgeEvaluation(evaluationId, userId);
+
+      res.json({
+        success: true,
+        data: evaluation,
+        message: 'Đã xác nhận đánh giá thành công',
+      });
+      return;
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getCompletionStats(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { month, year } = req.query;
+
+      if (!month || !year) {
+        res.status(400).json({
+          success: false,
+          message: 'Month and year are required',
+        });
+        return;
+      }
+
+      const stats = await employeeEvaluationService.getEvaluationCompletionStats(
+        Number(month),
+        Number(year)
+      );
+
+      res.json({
+        success: true,
+        data: stats,
       });
       return;
     } catch (error) {
