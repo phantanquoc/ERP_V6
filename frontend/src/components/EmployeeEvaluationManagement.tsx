@@ -4,9 +4,14 @@ import {
   AlertCircle,
   CheckCircle,
   X,
+  Users,
+  Clock,
+  TrendingUp,
 } from 'lucide-react';
 import employeeEvaluationService, { EmployeeEvaluation, EvaluationDetailsResponse } from '@services/employeeEvaluationService';
+import { useCompletionStats } from '../hooks/useEmployeeEvaluation';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
 
@@ -37,6 +42,8 @@ const EmployeeEvaluationManagement = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEvaluation, setSelectedEvaluation] = useState<EvaluationDetailsResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  const { data: completionStats } = useCompletionStats(canView ? month : 0, canView ? year : 0);
 
   useEffect(() => {
     loadEvaluations();
@@ -94,6 +101,7 @@ const EmployeeEvaluationManagement = () => {
       // BUG 5: Use bulk endpoint instead of looping sequentially
       const result = await employeeEvaluationService.createBulkEvaluations(month, year);
       setSuccess(`Tạo đánh giá thành công cho ${result.created} nhân viên (bỏ qua ${result.skipped} đã có đánh giá)`);
+      setTimeout(() => setSuccess(''), 3000);
       loadEvaluations();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi tạo đánh giá');
@@ -146,6 +154,85 @@ const EmployeeEvaluationManagement = () => {
           </select>
         </div>
       </div>
+
+      {/* Completion Stats Dashboard */}
+      {canView && completionStats && (
+        <div className="space-y-4">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Users className="w-4 h-4 text-gray-500" />
+                <span className="text-xs text-gray-500 font-medium">Tổng số</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-800">{completionStats.total}</p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-yellow-100 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-4 h-4 text-yellow-500" />
+                <span className="text-xs text-gray-500 font-medium">Chờ tự đánh giá</span>
+              </div>
+              <p className="text-2xl font-bold text-yellow-600">{completionStats.selfPending}</p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-orange-100 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-4 h-4 text-orange-500" />
+                <span className="text-xs text-gray-500 font-medium">Chờ cấp trên</span>
+              </div>
+              <p className="text-2xl font-bold text-orange-600">
+                {completionStats.supervisor1Pending + completionStats.supervisor2Pending}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-green-100 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span className="text-xs text-gray-500 font-medium">Hoàn thành</span>
+              </div>
+              <p className="text-2xl font-bold text-green-600">
+                {completionStats.completed + completionStats.acknowledged}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-blue-100 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp className="w-4 h-4 text-blue-500" />
+                <span className="text-xs text-gray-500 font-medium">Tỷ lệ</span>
+              </div>
+              <p className="text-2xl font-bold text-blue-600">
+                {completionStats.completionRate.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+
+          {/* Department Breakdown */}
+          {completionStats.byDepartment.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Theo phòng ban</h3>
+              <div className="space-y-2">
+                {completionStats.byDepartment.map((dept) => (
+                  <div key={dept.departmentName} className="flex items-center gap-3">
+                    <span className="text-sm text-gray-700 w-40 shrink-0 truncate" title={dept.departmentName}>
+                      {dept.departmentName}
+                    </span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full transition-all"
+                        style={{ width: `${Math.min(dept.rate, 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-sm text-gray-600 w-24 shrink-0 text-right">
+                      {dept.completed}/{dept.total} ({dept.rate.toFixed(0)}%)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       {error && (
@@ -293,15 +380,14 @@ const EmployeeEvaluationManagement = () => {
       )}
 
       {/* Detail Modal */}
-      {isDetailModalOpen && selectedEvaluation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+      <Modal isOpen={isDetailModalOpen && !!selectedEvaluation} onClose={closeDetailModal} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
               <div className="flex justify-between items-center mb-4">
                 <div>
                   <h3 className="text-lg font-bold text-gray-800">Đánh giá nhân viên</h3>
                   <p className="text-sm text-gray-600 mt-1">
-                    {selectedEvaluation.employeeCode} - {selectedEvaluation.employeeName} ({selectedEvaluation.positionName})
+                    {selectedEvaluation?.employeeCode} - {selectedEvaluation?.employeeName} ({selectedEvaluation?.positionName})
                   </p>
                 </div>
                 <button onClick={closeDetailModal} className="text-gray-400 hover:text-gray-600">
@@ -325,7 +411,7 @@ const EmployeeEvaluationManagement = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedEvaluation.details.map(detail => (
+                      {selectedEvaluation?.details.map(detail => (
                         <tr key={detail.responsibilityId} className="hover:bg-gray-50">
                           <td className="border border-gray-300 px-4 py-2 text-sm">{detail.stt}</td>
                           <td className="border border-gray-300 px-4 py-2 text-sm">
@@ -365,8 +451,7 @@ const EmployeeEvaluationManagement = () => {
               </div>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

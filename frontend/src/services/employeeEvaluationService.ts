@@ -30,9 +30,26 @@ export interface EvaluationDetailsResponse {
   employeeName: string;
   positionName: string;
   period: string;
-  // SUGGESTION fix: status included so frontend can disable inputs by status
   status: string;
+  supervisor1Name?: string | null;
+  supervisor2Name?: string | null;
   details: EvaluationDetail[];
+}
+
+export interface CompletionStats {
+  total: number;
+  selfPending: number;
+  supervisor1Pending: number;
+  supervisor2Pending: number;
+  completed: number;
+  acknowledged: number;
+  completionRate: number;
+  byDepartment: Array<{
+    departmentName: string;
+    total: number;
+    completed: number;
+    rate: number;
+  }>;
 }
 
 class EmployeeEvaluationService {
@@ -108,13 +125,15 @@ class EmployeeEvaluationService {
     selfScore?: number,
     supervisorScore1?: number,
     supervisorScore2?: number,
-    isManager?: boolean
+    isManager?: boolean,
+    comment?: string
   ): Promise<any> {
     try {
       const body = {
         ...(selfScore !== undefined && { selfScore }),
         ...(supervisorScore1 !== undefined && { supervisorScore1 }),
         ...(supervisorScore2 !== undefined && { supervisorScore2 }),
+        ...(comment !== undefined && { comment }),
       };
 
       if (isManager) {
@@ -170,6 +189,17 @@ class EmployeeEvaluationService {
     }
   }
 
+  async acknowledgeEvaluation(evaluationId: string): Promise<any> {
+    try {
+      const response = await apiClient.post(
+        `/employee-evaluations/evaluations/${evaluationId}/acknowledge`
+      );
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   async getPendingCount(): Promise<number> {
     try {
       const response = await apiClient.get('/employee-evaluations/pending-count');
@@ -185,6 +215,17 @@ class EmployeeEvaluationService {
         `/employee-evaluations/subordinates/${month}/${year}`
       );
       return response.data || [];
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async getCompletionStats(month: number, year: number): Promise<CompletionStats> {
+    try {
+      const response = await apiClient.get('/employee-evaluations/completion-stats', {
+        params: { month, year },
+      });
+      return response.data;
     } catch (error) {
       throw this.handleError(error);
     }

@@ -28,7 +28,7 @@ type FilterOption = 'all' | 'mine' | 'self_pending' | 'other_supervisor' | 'comp
 
 // Determine which group a subordinate falls into from the current user's perspective
 function getGroup(s: Subordinate): 'mine' | 'self_pending' | 'other_supervisor' | 'completed' {
-  if (s.status === 'COMPLETED') return 'completed';
+  if (s.status === 'COMPLETED' || s.status === 'ACKNOWLEDGED') return 'completed';
   if (s.status === 'SELF_PENDING') return 'self_pending';
   if (
     (s.status === 'SUPERVISOR1_PENDING' && s.isSupervisor1) ||
@@ -61,7 +61,13 @@ function getRoleBadge(s: Subordinate) {
 function getWaitingFor(s: Subordinate): string {
   if (s.status === 'SUPERVISOR1_PENDING') return 'Chờ cấp trên 1';
   if (s.status === 'SUPERVISOR2_PENDING') return 'Chờ cấp trên 2';
-  return s.status;
+  if (s.status === 'NOT_STARTED') return 'Chưa bắt đầu';
+  const statusMap: Record<string, string> = {
+    SELF_PENDING: 'Chờ tự đánh giá',
+    COMPLETED: 'Hoàn thành',
+    ACKNOWLEDGED: 'Đã xác nhận',
+  };
+  return statusMap[s.status] || s.status;
 }
 
 interface SectionProps {
