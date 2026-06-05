@@ -73,6 +73,8 @@ describe('createOrUpdateEvaluation', () => {
     const existing = { id: 'eval-1', employeeId: 'emp-1', period: '2026-05', score: 0 };
     (mockedPrisma.employee.findUnique as jest.Mock).mockResolvedValue(mockEmployee);
     (mockedPrisma.evaluation.findFirst as jest.Mock).mockResolvedValue(existing);
+    (mockedPrisma.positionResponsibility.findMany as jest.Mock).mockResolvedValue([]);
+    (mockedPrisma.evaluationDetail.findMany as jest.Mock).mockResolvedValue([]);
 
     const result = await service.createOrUpdateEvaluation('emp-1', 5, 2026);
 

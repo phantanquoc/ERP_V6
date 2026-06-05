@@ -19,6 +19,9 @@ function computeWeightedScore(details: Array<{
   const total = details.length;
   if (total === 0) return 0;
 
+  const totalWeight = details.reduce((sum, d) => sum + (d.positionResponsibility?.weight ?? 0), 0);
+  if (totalWeight === 0) return 0;
+
   const hasSelf = details.every(d => d.selfScore !== null);
   const hasSup1 = details.every(d => d.supervisorScore1 !== null);
   const hasSup2 = details.every(d => d.supervisorScore2 !== null);
@@ -26,21 +29,48 @@ function computeWeightedScore(details: Array<{
   const scoresToAverage: number[] = [];
 
   if (hasSelf) {
-    const s = details.reduce((sum, d) => sum + ((d.selfScore ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / 100;
+    const s = details.reduce((sum, d) => sum + ((d.selfScore ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / totalWeight;
     scoresToAverage.push(s);
   }
   if (hasSup1) {
-    const s = details.reduce((sum, d) => sum + ((d.supervisorScore1 ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / 100;
+    const s = details.reduce((sum, d) => sum + ((d.supervisorScore1 ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / totalWeight;
     scoresToAverage.push(s);
   }
   if (hasSup2) {
-    const s = details.reduce((sum, d) => sum + ((d.supervisorScore2 ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / 100;
+    const s = details.reduce((sum, d) => sum + ((d.supervisorScore2 ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / totalWeight;
     scoresToAverage.push(s);
   }
 
   return scoresToAverage.length > 0
     ? scoresToAverage.reduce((a, b) => a + b, 0) / scoresToAverage.length
     : 0;
+}
+
+/**
+ * Compute weighted score for a specific score field (selfScore, supervisorScore1, supervisorScore2).
+ * Returns 0 if any detail has null for that field (not fully filled yet).
+ * Correct formula: sum(score × weight) / totalWeight
+ */
+function computeWeightedScoreForField(
+  details: Array<{
+    selfScore: number | null;
+    supervisorScore1: number | null;
+    supervisorScore2: number | null;
+    positionResponsibility: { weight: number } | null;
+  }>,
+  field: 'selfScore' | 'supervisorScore1' | 'supervisorScore2'
+): number {
+  const allFilled = details.every(d => d[field] !== null);
+  if (!allFilled || details.length === 0) return 0;
+
+  const totalWeight = details.reduce((sum, d) => sum + (d.positionResponsibility?.weight ?? 0), 0);
+  if (totalWeight === 0) return 0;
+
+  return details.reduce((sum, d) => {
+    const score = d[field] ?? 0;
+    const weight = d.positionResponsibility?.weight ?? 0;
+    return sum + score * weight;
+  }, 0) / totalWeight;
 }
 
 export class EmployeeEvaluationService {
@@ -88,28 +118,11 @@ export class EmployeeEvaluationService {
       const evaluation = emp.evaluations[0];
       const fullName = emp.user ? `${emp.user.lastName} ${emp.user.firstName}`.trim() : '';
 
-      // Calculate total weight (should be 100%)
-      const totalWeight = evaluation?.details.reduce((sum, d) => {
-        return sum + (d.positionResponsibility?.weight || 0);
-      }, 0) || 100;
-
-      // Calculate total score points for each score type
-      const selfScoreTotalPoints = evaluation?.details.reduce((sum, d) => {
-        return sum + (d.selfScore || 0);
-      }, 0) || 0;
-
-      const supervisorScore1TotalPoints = evaluation?.details.reduce((sum, d) => {
-        return sum + (d.supervisorScore1 || 0);
-      }, 0) || 0;
-
-      const supervisorScore2TotalPoints = evaluation?.details.reduce((sum, d) => {
-        return sum + (d.supervisorScore2 || 0);
-      }, 0) || 0;
-
-      // Calculate percentage: (total points / total weight) * 100
-      const selfScorePercentage = totalWeight > 0 ? (selfScoreTotalPoints / totalWeight) * 100 : 0;
-      const supervisorScore1Percentage = totalWeight > 0 ? (supervisorScore1TotalPoints / totalWeight) * 100 : 0;
-      const supervisorScore2Percentage = totalWeight > 0 ? (supervisorScore2TotalPoints / totalWeight) * 100 : 0;
+      // Calculate weighted scores using correct formula: sum(score × weight) / 100
+      const detailsForScoring = evaluation?.details ?? [];
+      const selfScorePercentage = computeWeightedScoreForField(detailsForScoring, 'selfScore');
+      const supervisorScore1Percentage = computeWeightedScoreForField(detailsForScoring, 'supervisorScore1');
+      const supervisorScore2Percentage = computeWeightedScoreForField(detailsForScoring, 'supervisorScore2');
 
       return {
         id: emp.id,
@@ -168,28 +181,43 @@ export class EmployeeEvaluationService {
       }
     }
 
-    // Get all responsibilities for the position
-    const responsibilities = evaluation.employee.position?.responsibilities || [];
-
-    // Map responsibilities with evaluation details
-    const details = responsibilities.map((resp, index) => {
-      const evalDetail = evaluation.details.find(d => d.positionResponsibilityId === resp.id);
+    // Map directly from evaluation details — guarantees detailId is always present
+    const details = evaluation.details.map((evalDetail, index) => {
+      const resp = evalDetail.positionResponsibility;
       return {
         stt: index + 1,
         responsibilityId: resp.id,
         title: resp.title,
         description: resp.description,
         weight: resp.weight,
-        selfScore: evalDetail?.selfScore ?? null,
-        supervisorScore1: evalDetail?.supervisorScore1 ?? null,
-        supervisorScore2: evalDetail?.supervisorScore2 ?? null,
-        detailId: evalDetail?.id || null,
+        selfScore: evalDetail.selfScore ?? null,
+        supervisorScore1: evalDetail.supervisorScore1 ?? null,
+        supervisorScore2: evalDetail.supervisorScore2 ?? null,
+        detailId: evalDetail.id,
       };
     });
 
     const fullName = evaluation.employee.user
       ? `${evaluation.employee.user.lastName} ${evaluation.employee.user.firstName}`.trim()
       : '';
+
+    // Get supervisor names
+    let supervisor1Name: string | null = null;
+    let supervisor2Name: string | null = null;
+    if (evaluation.employee.user?.supervisor1Id) {
+      const sup1 = await prisma.user.findUnique({
+        where: { id: evaluation.employee.user.supervisor1Id },
+        select: { firstName: true, lastName: true },
+      });
+      if (sup1) supervisor1Name = `${sup1.lastName} ${sup1.firstName}`.trim();
+    }
+    if (evaluation.employee.user?.supervisor2Id) {
+      const sup2 = await prisma.user.findUnique({
+        where: { id: evaluation.employee.user.supervisor2Id },
+        select: { firstName: true, lastName: true },
+      });
+      if (sup2) supervisor2Name = `${sup2.lastName} ${sup2.firstName}`.trim();
+    }
 
     return {
       evaluationId: evaluation.id,
@@ -199,6 +227,8 @@ export class EmployeeEvaluationService {
       period: evaluation.period,
       // SUGGESTION fix: include status so frontend can disable inputs accordingly
       status: evaluation.status,
+      supervisor1Name,
+      supervisor2Name,
       details,
     };
   }
@@ -256,6 +286,30 @@ export class EmployeeEvaluationService {
           metadata: { evaluationId: evaluation.id, period: `${year}-${String(month).padStart(2, '0')}`, monthName: new Date(year, month - 1).toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' }) },
         });
       }
+    } else if (evaluation) {
+      // Evaluation exists — backfill missing details if needed
+      const evalId = evaluation.id;
+      const responsibilities = employee.positionId
+        ? await prisma.positionResponsibility.findMany({
+            where: { positionId: employee.positionId },
+          })
+        : [];
+
+      const existingDetails = await prisma.evaluationDetail.findMany({
+        where: { evaluationId: evalId },
+        select: { positionResponsibilityId: true },
+      });
+      const existingIds = new Set(existingDetails.map(d => d.positionResponsibilityId));
+      const missing = responsibilities.filter(r => !existingIds.has(r.id));
+
+      if (missing.length > 0) {
+        await prisma.evaluationDetail.createMany({
+          data: missing.map(r => ({
+            evaluationId: evalId,
+            positionResponsibilityId: r.id,
+          })),
+        });
+      }
     }
 
     return evaluation;
@@ -265,11 +319,9 @@ export class EmployeeEvaluationService {
   async createBulkEvaluations(month: number, year: number): Promise<any> {
     const period = `${year}-${String(month).padStart(2, '0')}`;
 
-    // Find all employees that have positions (needed for evaluation details)
+    // Find ALL active employees (including those without positionId)
     const employees = await prisma.employee.findMany({
-      where: {
-        positionId: { not: null },
-      },
+      where: {},
       include: {
         user: { select: { role: true } },
         position: {
@@ -450,6 +502,8 @@ export class EmployeeEvaluationService {
         ...(data.selfScore !== undefined && { selfScore: data.selfScore }),
         ...(data.supervisorScore1 !== undefined && { supervisorScore1: data.supervisorScore1 }),
         ...(data.supervisorScore2 !== undefined && { supervisorScore2: data.supervisorScore2 }),
+        // comment can only be set by supervisors (non-self fields present)
+        ...(data.comment !== undefined && (data.supervisorScore1 !== undefined || data.supervisorScore2 !== undefined) && { comment: data.comment }),
       },
       include: {
         positionResponsibility: true,
@@ -593,7 +647,7 @@ export class EmployeeEvaluationService {
             });
             await tx.evaluation.update({
               where: { id: detail.evaluation.id },
-              data: { status: EvaluationStatus.SUPERVISOR2_PENDING },
+              data: { status: EvaluationStatus.SUPERVISOR2_PENDING, evaluatedBy1Id: userId },
             });
             notifRef.target = {
               type: 'supervisor2',
@@ -609,7 +663,7 @@ export class EmployeeEvaluationService {
             const calculatedScore = computeWeightedScore(allDetails);
             await tx.evaluation.update({
               where: { id: detail.evaluation.id },
-              data: { status: EvaluationStatus.COMPLETED, score: calculatedScore },
+              data: { status: EvaluationStatus.COMPLETED, score: calculatedScore, evaluatedBy1Id: userId },
             });
             notifRef.target = { type: 'completed', employeeId: detail.evaluation.employeeId };
           }
@@ -622,6 +676,20 @@ export class EmployeeEvaluationService {
             entityId: detail.evaluation.id,
             metadata: { evaluationId: detail.evaluation.id, period: detail.evaluation.period, employeeName: notifTarget2.employeeName },
           });
+          // Notify the employee that supervisor1 has completed their evaluation
+          try {
+            const evalEmployee = await prisma.employee.findUnique({
+              where: { id: detail.evaluation.employeeId },
+              select: { id: true },
+            });
+            if (evalEmployee) {
+              await notificationService.notify(NotificationEvent.EVALUATION_SUPERVISOR1_COMPLETED, {
+                targetEmployeeIds: [evalEmployee.id],
+                entityId: detail.evaluation.id,
+                metadata: { evaluationId: detail.evaluation.id, period: detail.evaluation.period },
+              });
+            }
+          } catch {}
         } else if (notifTarget2?.type === 'completed') {
           await notificationService.notify(NotificationEvent.EVALUATION_COMPLETED, {
             targetEmployeeIds: [notifTarget2.employeeId],
@@ -655,7 +723,7 @@ export class EmployeeEvaluationService {
           const calculatedScore = computeWeightedScore(allDetails);
           await tx.evaluation.update({
             where: { id: detail.evaluation.id },
-            data: { status: EvaluationStatus.COMPLETED, score: calculatedScore },
+            data: { status: EvaluationStatus.COMPLETED, score: calculatedScore, evaluatedBy2Id: userId },
           });
 
           completedEmployeeId = detail.evaluation.employeeId;
@@ -725,26 +793,101 @@ export class EmployeeEvaluationService {
         return sum + (d.positionResponsibility?.weight || 0);
       }, 0) || 100;
 
-      const selfScoreTotalPoints = evalItem.details.reduce((sum, d) => {
-        return sum + (d.selfScore || 0);
-      }, 0) || 0;
+      const selfScoreWeighted = evalItem.details.reduce((sum, d) => {
+        return sum + (d.selfScore || 0) * (d.positionResponsibility?.weight || 0);
+      }, 0);
+      const selfScorePercentage = totalWeight > 0 ? selfScoreWeighted / totalWeight : 0;
 
-      const selfScorePercentage = totalWeight > 0 ? (selfScoreTotalPoints / totalWeight) * 100 : 0;
+      const hasSup1 = evalItem.details.every(d => d.supervisorScore1 !== null);
+      const sup1ScoreWeighted = hasSup1 ? evalItem.details.reduce((sum, d) => {
+        return sum + (d.supervisorScore1 || 0) * (d.positionResponsibility?.weight || 0);
+      }, 0) : 0;
+      const sup1ScorePercentage = hasSup1 && totalWeight > 0 ? sup1ScoreWeighted / totalWeight : null;
+
+      const hasSup2 = evalItem.details.every(d => d.supervisorScore2 !== null);
+      const sup2ScoreWeighted = hasSup2 ? evalItem.details.reduce((sum, d) => {
+        return sum + (d.supervisorScore2 || 0) * (d.positionResponsibility?.weight || 0);
+      }, 0) : 0;
+      const sup2ScorePercentage = hasSup2 && totalWeight > 0 ? sup2ScoreWeighted / totalWeight : null;
 
       return {
         evaluationId: evalItem.id,
         period: evalItem.period,
+        status: evalItem.status,
         selfScore: selfScorePercentage,
+        supervisorScore1: sup1ScorePercentage,
+        supervisorScore2: sup2ScorePercentage,
         score: evalItem.score,
         createdAt: evalItem.createdAt,
         updatedAt: evalItem.updatedAt,
       };
     });
 
+    let supervisor1Name: string | null = null;
+    let supervisor2Name: string | null = null;
+    if (evaluation.employee.userId) {
+      const empUser = await prisma.user.findUnique({
+        where: { id: evaluation.employee.userId },
+        select: { supervisor1Id: true, supervisor2Id: true },
+      });
+      if (empUser?.supervisor1Id) {
+        const sup1 = await prisma.user.findUnique({
+          where: { id: empUser.supervisor1Id },
+          select: { lastName: true, firstName: true },
+        });
+        if (sup1) supervisor1Name = `${sup1.lastName} ${sup1.firstName}`;
+      }
+      if (empUser?.supervisor2Id) {
+        const sup2 = await prisma.user.findUnique({
+          where: { id: empUser.supervisor2Id },
+          select: { lastName: true, firstName: true },
+        });
+        if (sup2) supervisor2Name = `${sup2.lastName} ${sup2.firstName}`;
+      }
+    }
+
     return {
       employeeCode: evaluation.employee.employeeCode,
+      supervisor1Name,
+      supervisor2Name,
       history,
     };
+  }
+
+  async acknowledgeEvaluation(evaluationId: string, userId: string): Promise<any> {
+    const evaluation = await prisma.evaluation.findUnique({
+      where: { id: evaluationId },
+      include: {
+        employee: true,
+      },
+    });
+
+    if (!evaluation) {
+      throw new NotFoundError('Không tìm thấy đánh giá');
+    }
+
+    if (evaluation.status !== EvaluationStatus.COMPLETED) {
+      throw new ValidationError('Chỉ có thể xác nhận đánh giá đã hoàn thành');
+    }
+
+    // Verify the requesting user's employee matches the evaluation's employee
+    const requestingEmployee = await prisma.employee.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!requestingEmployee || requestingEmployee.id !== evaluation.employeeId) {
+      throw new ValidationError('Bạn chỉ có thể xác nhận đánh giá của mình');
+    }
+
+    return prisma.evaluation.update({
+      where: { id: evaluationId },
+      data: {
+        status: EvaluationStatus.ACKNOWLEDGED,
+        acknowledgedAt: new Date(),
+        acknowledgedBy: userId,
+      },
+    });
   }
 
   async finalizeEvaluation(evaluationId: string): Promise<any> {
@@ -861,26 +1004,11 @@ export class EmployeeEvaluationService {
       const evaluation = employee.evaluations[0];
       const fullName = `${user.lastName} ${user.firstName}`.trim();
 
-      // Calculate scores
-      const totalWeight = evaluation?.details.reduce((sum: number, d: any) => {
-        return sum + (d.positionResponsibility?.weight || 0);
-      }, 0) || 100;
-
-      const selfScoreTotalPoints = evaluation?.details.reduce((sum: number, d: any) => {
-        return sum + (d.selfScore || 0);
-      }, 0) || 0;
-
-      const supervisorScore1TotalPoints = evaluation?.details.reduce((sum: number, d: any) => {
-        return sum + (d.supervisorScore1 || 0);
-      }, 0) || 0;
-
-      const supervisorScore2TotalPoints = evaluation?.details.reduce((sum: number, d: any) => {
-        return sum + (d.supervisorScore2 || 0);
-      }, 0) || 0;
-
-      const selfScorePercentage = totalWeight > 0 ? (selfScoreTotalPoints / totalWeight) * 100 : 0;
-      const supervisorScore1Percentage = totalWeight > 0 ? (supervisorScore1TotalPoints / totalWeight) * 100 : 0;
-      const supervisorScore2Percentage = totalWeight > 0 ? (supervisorScore2TotalPoints / totalWeight) * 100 : 0;
+      // Calculate scores using correct weighted formula
+      const detailsForScoring = evaluation?.details ?? [];
+      const selfScorePercentage = computeWeightedScoreForField(detailsForScoring, 'selfScore');
+      const supervisorScore1Percentage = computeWeightedScoreForField(detailsForScoring, 'supervisorScore1');
+      const supervisorScore2Percentage = computeWeightedScoreForField(detailsForScoring, 'supervisorScore2');
 
       return [{
         userId: user.id,
@@ -898,6 +1026,99 @@ export class EmployeeEvaluationService {
         isSupervisor2: user.supervisor2Id === userId,
       }];
     });
+  }
+
+  async getEvaluationCompletionStats(month: number, year: number): Promise<{
+    total: number;
+    selfPending: number;
+    supervisor1Pending: number;
+    supervisor2Pending: number;
+    completed: number;
+    acknowledged: number;
+    completionRate: number;
+    byDepartment: Array<{
+      departmentName: string;
+      total: number;
+      completed: number;
+      rate: number;
+    }>;
+  }> {
+    const period = `${year}-${month.toString().padStart(2, '0')}`;
+
+    const evaluations = await prisma.evaluation.findMany({
+      where: { period },
+      select: {
+        status: true,
+        employee: {
+          select: {
+            subDepartment: {
+              select: {
+                department: {
+                  select: { name: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const total = evaluations.length;
+    let selfPending = 0;
+    let supervisor1Pending = 0;
+    let supervisor2Pending = 0;
+    let completed = 0;
+    let acknowledged = 0;
+
+    const deptMap = new Map<string, { total: number; completed: number }>();
+
+    for (const ev of evaluations) {
+      switch (ev.status) {
+        case EvaluationStatus.SELF_PENDING:
+          selfPending++;
+          break;
+        case EvaluationStatus.SUPERVISOR1_PENDING:
+          supervisor1Pending++;
+          break;
+        case EvaluationStatus.SUPERVISOR2_PENDING:
+          supervisor2Pending++;
+          break;
+        case EvaluationStatus.COMPLETED:
+          completed++;
+          break;
+        case EvaluationStatus.ACKNOWLEDGED:
+          acknowledged++;
+          break;
+      }
+
+      const deptName = ev.employee.subDepartment?.department?.name ?? 'Không xác định';
+      const existing = deptMap.get(deptName) ?? { total: 0, completed: 0 };
+      existing.total++;
+      if (ev.status === EvaluationStatus.COMPLETED || ev.status === EvaluationStatus.ACKNOWLEDGED) {
+        existing.completed++;
+      }
+      deptMap.set(deptName, existing);
+    }
+
+    const completionRate = total > 0 ? ((completed + acknowledged) / total) * 100 : 0;
+
+    const byDepartment = Array.from(deptMap.entries()).map(([departmentName, stats]) => ({
+      departmentName,
+      total: stats.total,
+      completed: stats.completed,
+      rate: stats.total > 0 ? (stats.completed / stats.total) * 100 : 0,
+    }));
+
+    return {
+      total,
+      selfPending,
+      supervisor1Pending,
+      supervisor2Pending,
+      completed,
+      acknowledged,
+      completionRate,
+      byDepartment,
+    };
   }
 
   async syncEvaluationDetails(month: number, year: number): Promise<{ synced: number; skipped: number }> {

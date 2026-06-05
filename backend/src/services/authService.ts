@@ -296,6 +296,19 @@ export class AuthService {
       },
     });
 
+    // Get latest evaluation score for the employee
+    let evaluationScore: number | null = null;
+    if (employee) {
+      const latestEvaluation = await prisma.evaluation.findFirst({
+        where: { employeeId: employee.id },
+        orderBy: { period: 'desc' },
+        select: { score: true, status: true },
+      });
+      if (latestEvaluation) {
+        evaluationScore = latestEvaluation.score > 0 ? latestEvaluation.score : null;
+      }
+    }
+
     // Generate tokens
     const payload: JwtPayload = {
       id: user.id,
@@ -388,6 +401,7 @@ export class AuthService {
         bankAccount: employee.bankAccount,
         lockerNumber: employee.lockerNumber,
         notes: employee.notes,
+        evaluationScore,
       } : undefined,
     };
   }
@@ -528,6 +542,19 @@ export class AuthService {
       },
     });
 
+    // Get latest evaluation score for the employee
+    let evaluationScore: number | null = null;
+    if (employee) {
+      const latestEvaluation = await prisma.evaluation.findFirst({
+        where: { employeeId: employee.id },
+        orderBy: { period: 'desc' },
+        select: { score: true, status: true },
+      });
+      if (latestEvaluation) {
+        evaluationScore = latestEvaluation.score > 0 ? latestEvaluation.score : null;
+      }
+    }
+
     return {
       user: {
         id: user.id,
@@ -572,6 +599,7 @@ export class AuthService {
         bankAccount: employee.bankAccount,
         lockerNumber: employee.lockerNumber,
         notes: employee.notes,
+        evaluationScore,
       } : undefined,
     };
   }

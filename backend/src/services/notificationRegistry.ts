@@ -114,6 +114,15 @@ const entries: NotificationEventDef[] = [
     resolveRecipients: resolveDirectRecipients,
   },
   {
+    event: NotificationEvent.EVALUATION_SUPERVISOR1_COMPLETED,
+    notificationType: NotificationType.EVALUATION_SUPERVISOR1_COMPLETED,
+    buildMessage: () => ({
+      title: 'Cấp trên 1 đã đánh giá',
+      message: 'Cấp trên 1 đã hoàn thành đánh giá cho bạn. Nhấn để xem chi tiết.',
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
     event: NotificationEvent.EVALUATION_COMPLETED,
     notificationType: NotificationType.EVALUATION_COMPLETED,
     buildMessage: () => ({
