@@ -54,10 +54,10 @@ const LoginHistoryModal: React.FC<LoginHistoryModalProps> = ({ isOpen, onClose }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="relative bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+    <Modal isOpen={isOpen} onClose={onClose} closeOnBackdrop={true}>
+      <div className="relative bg-white rounded-2xl shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 rounded-t-2xl">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 rounded-t-2xl shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
@@ -78,7 +78,7 @@ const LoginHistoryModal: React.FC<LoginHistoryModalProps> = ({ isOpen, onClose }
         </div>
 
         {/* Content */}
-        <div className="p-6 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 overflow-y-auto flex-1">
           {error ? (
             <div className="flex flex-col items-center justify-center py-12">
               <AlertCircle className="w-16 h-16 text-red-400 mb-4" />

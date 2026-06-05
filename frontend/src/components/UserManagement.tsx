@@ -18,6 +18,7 @@ import { useUsers, userKeys, useDepartments } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import TableFilter, { FilterField } from './TableFilter';
 import AdminResetPasswordModal from './AdminResetPasswordModal';
+import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
 
@@ -642,11 +643,11 @@ const UserManagement: React.FC = () => {
       )}
 
       {/* Detail Modal */}
-      {isDetailModalOpen && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
+      <Modal isOpen={isDetailModalOpen && !!selectedUser} onClose={closeDetailModal} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            {/* Header — shrink-0, outside scroll */}
+            <div className="px-6 py-4 border-b border-gray-200 shrink-0">
+              <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-gray-800">Chi tiết người dùng</h2>
                 <button
                   onClick={closeDetailModal}
@@ -657,6 +658,10 @@ const UserManagement: React.FC = () => {
                   </svg>
                 </button>
               </div>
+            </div>
+            {/* Body — scrollable */}
+            <div className="overflow-y-auto flex-1 px-6 py-5">
+              {selectedUser && (<>
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
@@ -755,17 +760,17 @@ const UserManagement: React.FC = () => {
                   Đóng
                 </button>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Form Modal (Create/Edit) */}
-      {isFormModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
+      <Modal isOpen={isFormModalOpen} onClose={closeFormModal} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            {/* Header — shrink-0, outside scroll */}
+            <div className="px-6 py-4 border-b border-gray-200 shrink-0">
+              <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-gray-800">
                   {isEditMode ? 'Chỉnh sửa người dùng' : 'Tạo người dùng mới'}
                 </h2>
@@ -778,7 +783,9 @@ const UserManagement: React.FC = () => {
                   </svg>
                 </button>
               </div>
-
+            </div>
+            {/* Body — scrollable */}
+            <div className="overflow-y-auto flex-1 px-6 py-5">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1002,17 +1009,15 @@ const UserManagement: React.FC = () => {
               </form>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Delete Confirmation Modal */}
-      {isDeleteConfirmOpen && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
+      <Modal isOpen={isDeleteConfirmOpen && !!selectedUser} onClose={() => setIsDeleteConfirmOpen(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Xác nhận xóa</h2>
               <p className="text-gray-600 mb-6">
-                Bạn có chắc chắn muốn xóa người dùng <strong>{selectedUser.lastName} {selectedUser.firstName}</strong>? Hành động này không thể hoàn tác.
+                Bạn có chắc chắn muốn xóa người dùng <strong>{selectedUser?.lastName} {selectedUser?.firstName}</strong>? Hành động này không thể hoàn tác.
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -1031,8 +1036,7 @@ const UserManagement: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Admin Reset Password Modal */}
       {resetPasswordUser && (

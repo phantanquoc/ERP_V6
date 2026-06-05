@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Calendar, Clock } from 'lucide-react';
 import WorkPlanListModal from './WorkPlanListModal';
 import OvertimePlanListModal from './OvertimePlanListModal';
+import Modal from './Modal';
 
 type Tab = 'workPlans' | 'overtimePlans';
 
@@ -28,11 +29,11 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <Modal isOpen={isOpen} onClose={handleClose} showBackdrop>
+      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-orange-500 px-6 py-4 flex items-center justify-between flex-shrink-0">
+        <div className="bg-gradient-to-r from-purple-600 to-orange-500 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6 text-white" />
             <h2 className="text-xl font-bold text-white">Kế hoạch</h2>
@@ -46,7 +47,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
+        <div className="flex border-b border-gray-200 bg-gray-50 shrink-0">
           <button
             onClick={() => setActiveTab('workPlans')}
             className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -94,7 +95,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </Modal>
   );
 };
 

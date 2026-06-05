@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import dailyWorkReportService, { DailyWorkReport } from '../services/dailyWorkReportService';
 import DailyWorkReportModal from './DailyWorkReportModal';
+import Modal from './Modal';
 import { getFileUrl } from '../config/api';
 
 const DailyWorkReportList: React.FC = () => {
@@ -268,10 +269,9 @@ const DailyWorkReportList: React.FC = () => {
       })()}
 
       {/* View Report Modal */}
-      {viewReport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
-            <div className="bg-gradient-to-r from-green-600 to-teal-600 px-6 py-4">
+      <Modal isOpen={!!viewReport} onClose={() => setViewReport(null)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-green-600 to-teal-600 px-6 py-4 shrink-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white">Chi tiết báo cáo</h3>
                 <button
@@ -282,7 +282,7 @@ const DailyWorkReportList: React.FC = () => {
                 </button>
               </div>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+            <div className="p-6 overflow-y-auto flex-1">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ngày báo cáo</label>
@@ -380,8 +380,7 @@ const DailyWorkReportList: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
         {/* Modal */}
         <DailyWorkReportModal

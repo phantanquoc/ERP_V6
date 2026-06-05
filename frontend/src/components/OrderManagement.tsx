@@ -4,6 +4,7 @@ import TableFilter, { FilterField } from './TableFilter';
 import { orderService, Order } from '../services/orderService';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
+import Modal from './Modal';
 import { useOrders, orderKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInput } from '../utils/numberInput';
@@ -369,11 +370,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
       })()}
 
       {/* View Modal */}
-      {showViewModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <Modal isOpen={showViewModal && !!selectedOrder} onClose={() => setShowViewModal(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            {selectedOrder && (<>
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100 shrink-0">
               <h3 className="text-xl font-bold text-gray-900 flex items-center">
                 <Package className="w-6 h-6 text-blue-600 mr-2" />
                 Chi tiết đơn hàng - {selectedOrder.maDonHang}
@@ -389,11 +390,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
             </div>
 
             {/* Modal Body */}
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Thông tin cơ bản */}
                 <div className="space-y-4">
-                  <h4 className="text-md font-semibold text-gray-800 border-b pb-2">Thông tin cơ bản</h4>
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-medium text-gray-500">Mã đơn hàng:</label>
@@ -600,7 +600,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
             </div>
 
             {/* Modal Footer */}
-            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
+            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50 shrink-0">
               <button
                 onClick={() => setShowViewModal(false)}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
@@ -617,16 +617,16 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                 Chỉnh sửa
               </button>
             </div>
+            </>)}
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Edit Modal */}
-      {showEditModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+      <Modal isOpen={showEditModal && !!selectedOrder} onClose={() => setShowEditModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            {selectedOrder && (<>
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-yellow-50 to-yellow-100">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-yellow-50 to-yellow-100 shrink-0">
               <h3 className="text-xl font-bold text-gray-900 flex items-center">
                 <Edit className="w-6 h-6 text-yellow-600 mr-2" />
                 Chỉnh sửa đơn hàng - {selectedOrder.maDonHang}
@@ -642,7 +642,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
             </div>
 
             {/* Modal Body */}
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1">
               <form onSubmit={handleUpdate}>
                 <div className="space-y-6">
                   {/* Giá trị đơn hàng */}
@@ -888,11 +888,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                 </div>
               </form>
             </div>
+            </>)}
           </div>
-        </div>
-      )}
-
-      {/* Quotation Calculator Modal */}
+      </Modal>
       <QuotationCalculatorModal
         isOpen={showCostingModal}
         onClose={() => {

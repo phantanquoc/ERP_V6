@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, FileText, Eye } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 import warehouseIssueService, { WarehouseIssue } from '../services/warehouseIssueService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import { useAuth } from '../contexts/AuthContext';
@@ -300,21 +301,22 @@ const WarehouseIssueTab: React.FC = () => {
       )}
 
       {/* Detail Modal */}
-      {showDetailModal && selectedIssue && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-[600px] max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Chi tiết phiếu xuất kho</h2>
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+      <Modal isOpen={showDetailModal && !!selectedIssue} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+            <h2 className="text-xl font-bold text-gray-900">Chi tiết phiếu xuất kho</h2>
+            <button
+              onClick={() => setShowDetailModal(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
+          {selectedIssue && (
+            <div className="overflow-y-auto flex-1 p-6">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-2 text-red-800 font-semibold text-lg">
                 <FileText className="h-5 w-5" />
@@ -417,25 +419,27 @@ const WarehouseIssueTab: React.FC = () => {
                 Tạo lúc: {new Date(selectedIssue.createdAt).toLocaleString('vi-VN')}
               </div>
             </div>
-
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-              >
-                Đóng
-              </button>
             </div>
+          )}
+
+          <div className="flex justify-end px-6 py-4 border-t border-gray-200 shrink-0">
+            <button
+              onClick={() => setShowDetailModal(false)}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+            >
+              Đóng
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Create Issue Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-[500px] max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Phiếu xuất kho</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="px-6 py-4 border-b border-gray-200 shrink-0">
+            <h2 className="text-xl font-bold">Phiếu xuất kho</h2>
+          </div>
+          <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6 space-y-4">
               {/* Tên nhân viên */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -596,7 +600,7 @@ const WarehouseIssueTab: React.FC = () => {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 mt-6">
+              <div className="flex justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -612,10 +616,9 @@ const WarehouseIssueTab: React.FC = () => {
                   {loading ? 'Đang xử lý...' : 'Tạo phiếu xuất'}
                 </button>
               </div>
-            </form>
-          </div>
+          </form>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

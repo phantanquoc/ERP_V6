@@ -10,6 +10,7 @@ import {
   Plus
 } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 import { useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '../config/api';
 import { useEmployees, useDepartments, usePositions, usePositionLevelsByPosition, employeeKeys } from '../hooks';
@@ -607,10 +608,9 @@ const EmployeeManagement: React.FC = () => {
       )}
 
       {/* Form Modal */}
-      {isFormModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-center p-6 border-b">
+      <Modal isOpen={isFormModalOpen} onClose={() => setIsFormModalOpen(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-6 border-b shrink-0">
                 <h2 className="text-xl font-bold">
                   {selectedEmployee ? 'Chỉnh sửa nhân viên' : 'Thêm nhân viên mới'}
                 </h2>
@@ -622,7 +622,7 @@ const EmployeeManagement: React.FC = () => {
                 </button>
               </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
               {/* Thông tin cơ bản */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Thông tin cơ bản</h3>
@@ -953,14 +953,12 @@ const EmployeeManagement: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Detail Modal */}
-      {isDetailModalOpen && selectedEmployee && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
+      <Modal isOpen={isDetailModalOpen && !!selectedEmployee} onClose={closeDetailModal} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b shrink-0">
               <h2 className="text-xl font-bold">Chi tiết nhân viên</h2>
               <button
                 onClick={closeDetailModal}
@@ -970,7 +968,8 @@ const EmployeeManagement: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              {selectedEmployee && (<>
               {/* Thông tin cơ bản */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Thông tin cơ bản</h3>
@@ -1112,6 +1111,7 @@ const EmployeeManagement: React.FC = () => {
                   </div>
                 </div>
               </div>
+              </>)}
             </div>
 
               <div className="flex justify-end gap-4 pt-4 border-t">
@@ -1134,8 +1134,7 @@ const EmployeeManagement: React.FC = () => {
                 )}
               </div>
             </div>
-          </div>
-      )}
+      </Modal>
     </div>
   );
 };

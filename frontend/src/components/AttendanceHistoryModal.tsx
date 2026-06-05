@@ -253,7 +253,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
   const errorMessage = error instanceof Error ? error.message : 'Không thể tải dữ liệu điểm danh';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} showBackdrop className="max-w-none">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true} className="max-w-none">
       <div
         className="relative flex h-[calc(100vh-2rem)] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl"
         onClick={(event) => event.stopPropagation()}

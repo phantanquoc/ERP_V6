@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Edit, Eye, X } from 'lucide-react';
 import warehouseService, { Warehouse, LotProduct } from '../services/warehouseService';
+import Modal from './Modal';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 
@@ -337,9 +338,10 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
       )}
 
       {/* View Product Modal */}
-      {viewModalOpen && selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
+      <Modal isOpen={viewModalOpen && !!selectedProduct} onClose={() => setViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
+            {selectedProduct && (<>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold">Chi tiết sản phẩm</h3>
               <button
@@ -406,14 +408,16 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                 Đóng
               </button>
             </div>
+            </>)}
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Edit Product Modal */}
-      {editModalOpen && selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      <Modal isOpen={editModalOpen && !!selectedProduct} onClose={() => setEditModalOpen(false)} showBackdrop>
+        <div className="bg-white rounded-lg max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
+            {selectedProduct && (<>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold">Chỉnh sửa giá thành</h3>
               <button
@@ -475,9 +479,10 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                 Lưu
               </button>
             </div>
+            </>)}
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Modal from './Modal';
 import { Bell, X, ChevronLeft, ChevronRight, CheckCheck, Trash2 } from 'lucide-react';
 import notificationService, { AppNotification } from '@services/notificationService';
 import { getNotificationIcon } from '../utils/notificationIcons';
@@ -112,10 +113,10 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <Bell className="w-6 h-6 text-white" />
             <div>
@@ -129,7 +130,7 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
         </div>
 
         {/* Filter tabs + Mark all read */}
-        <div className="flex gap-1 px-6 py-2 border-b border-gray-200 bg-white items-center">
+        <div className="flex gap-1 px-6 py-2 border-b border-gray-200 bg-white items-center shrink-0">
           <button
             onClick={() => { setShowUnreadOnly(false); setCurrentPage(1); }}
             className={`text-sm px-4 py-1.5 rounded-full transition-colors ${
@@ -242,7 +243,7 @@ const AllNotificationsModal: React.FC<AllNotificationsModalProps> = ({ isOpen, o
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 };
 

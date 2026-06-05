@@ -8,6 +8,7 @@ import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
+import Modal from './Modal';
 
 const PayrollManagement: React.FC = () => {
   const { user } = useAuth();
@@ -460,10 +461,9 @@ const PayrollManagement: React.FC = () => {
       )}
 
       {/* Detail Modal */}
-      {showDetailModal && editingPayroll && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gray-100 px-6 py-4 flex justify-between items-center border-b">
+      <Modal isOpen={showDetailModal && !!editingPayroll} onClose={() => setShowDetailModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b shrink-0">
               <h3 className="text-xl font-bold">Chi tiết Bảng Tính Lương</h3>
               <button
                 onClick={() => setShowDetailModal(false)}
@@ -473,7 +473,8 @@ const PayrollManagement: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="overflow-y-auto flex-1">
+            {editingPayroll && (<div className="p-6">
               {/* Employee Info */}
               <div className="grid grid-cols-2 gap-4 mb-6 pb-6 border-b">
                 <div>
@@ -791,16 +792,15 @@ const PayrollManagement: React.FC = () => {
                   Lưu
                 </button>
               </div>
+            </div>)}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Settings Modal */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
-            <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b rounded-t-lg">
+      <Modal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b rounded-t-lg shrink-0">
               <h3 className="text-lg font-bold">Cài đặt Bảng Lương</h3>
               <button
                 onClick={() => setShowSettingsModal(false)}
@@ -809,7 +809,7 @@ const PayrollManagement: React.FC = () => {
                 <X size={24} />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium mb-2">Số ngày công chuẩn / tháng</label>
                 <input
@@ -833,7 +833,7 @@ const PayrollManagement: React.FC = () => {
                 <p className="text-xs text-gray-500 mt-1">Tiền OT = Giá OT × Số giờ OT</p>
               </div>
             </div>
-            <div className="px-6 py-4 border-t flex justify-end gap-3">
+            <div className="px-6 py-4 border-t flex justify-end gap-3 shrink-0">
               <button
                 onClick={() => setShowSettingsModal(false)}
                 className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
@@ -858,9 +858,8 @@ const PayrollManagement: React.FC = () => {
                 {updateSettingsMutation.isPending ? 'Đang lưu...' : 'Lưu'}
               </button>
             </div>
-          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

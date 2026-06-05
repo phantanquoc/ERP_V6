@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Download } from 'lucide-react';
 import FileUpload from './FileUpload';
 import { API_BASE_URL, getFileUrl } from '../config/api';
+import Modal from './Modal';
 
 const authFetch = (url: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('accessToken');
@@ -353,16 +354,15 @@ const MachineSystemList = () => {
       })()}
 
       {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="text-lg font-semibold">
-                {isViewMode ? 'Chi tiết hệ thống' : editingSystem ? 'Chỉnh sửa hệ thống' : 'Thêm hệ thống mới'}
-              </h3>
-              <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-4">
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center p-4 border-b shrink-0">
+            <h3 className="text-lg font-semibold">
+              {isViewMode ? 'Chi tiết hệ thống' : editingSystem ? 'Chỉnh sửa hệ thống' : 'Thêm hệ thống mới'}
+            </h3>
+            <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700"><X className="w-5 h-5" /></button>
+          </div>
+          <form onSubmit={handleSubmit} className="p-4 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Khu vực</label>
@@ -484,8 +484,7 @@ const MachineSystemList = () => {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
     </div>
   );
 };

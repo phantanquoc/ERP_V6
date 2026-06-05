@@ -17,9 +17,9 @@ export const DefaultThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmen
       <div className="flex-1">
         <div>
           <p className="text-blue-200 text-sm font-medium tracking-wider mb-1">ABF SYSTEM</p>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">
-            Chào mừng, {user.firstName}!
-          </h1>
+           <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">
+             Chào mừng, {user.lastName} {user.firstName}!
+           </h1>
           <p className="text-blue-100 text-lg mt-1">
             {user.position} - {departmentName}
           </p>
@@ -104,7 +104,7 @@ export const TetThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentNam
       <div className="flex-1">
         <div>
           <p className="text-yellow-300 text-sm font-medium tracking-wider mb-1">🧧 CHÚC MỪNG NĂM MỚI 2026 ✨</p>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">Chào mừng, {user.firstName}!</h1>
+           <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">Chào mừng, {user.lastName} {user.firstName}!</h1>
           <p className="text-red-100 text-lg mt-1">{user.position} - {departmentName}</p>
         </div>
         <div className="flex items-center mt-3 space-x-2 flex-wrap gap-y-2">
@@ -533,7 +533,7 @@ export const Apr30ThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentN
             MỪNG NGÀY GIẢI PHÓNG 30/4 - QUỐC TẾ LAO ĐỘNG 1/5
           </p>
           <h1 className="text-2xl sm:text-3xl font-bold text-white" style={{textShadow: '0 2px 8px rgba(0,0,0,0.5)'}}>
-            Chào mừng, {user.firstName}!
+            Chào mừng, {user.lastName} {user.firstName}!
           </h1>
           <p className="text-red-100 text-lg mt-1" style={{textShadow: '0 1px 3px rgba(0,0,0,0.4)'}}>
             {user.position} - {departmentName}

@@ -210,11 +210,11 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="relative bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
+      <div className="relative bg-white rounded-2xl shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
 
         {/* ── Header ── */}
-        <div className="bg-gradient-to-r from-green-600 to-teal-600 px-6 py-4 rounded-t-2xl">
+        <div className="bg-gradient-to-r from-green-600 to-teal-600 px-6 py-4 rounded-t-2xl shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
@@ -256,7 +256,7 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
         </div>
 
         {/* ── Tabs ── */}
-        <div className="border-b border-gray-200 px-6">
+        <div className="border-b border-gray-200 px-6 shrink-0">
           <nav className="flex space-x-6">
             {tabs.map((tab) => (
               <button
@@ -276,7 +276,7 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
         </div>
 
         {/* ── Content ── */}
-        <div className="p-6 max-h-[60vh] overflow-y-auto">
+        <div className="p-6 overflow-y-auto flex-1">
           {submitSuccess ? (
             <div className="text-center py-8">
               <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />

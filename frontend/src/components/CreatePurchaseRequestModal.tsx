@@ -6,6 +6,7 @@ import supplierService, { Supplier } from '../services/supplierService';
 import { useAuth } from '../contexts/AuthContext';
 import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
+import Modal from './Modal';
 
 interface CreatePurchaseRequestModalProps {
   isOpen: boolean;
@@ -169,16 +170,16 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-[950px] max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-[950px] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <h2 className="text-xl font-bold text-gray-900">Tạo yêu cầu mua hàng</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-6 w-6" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 p-6 overflow-y-auto flex-1">
           {/* Row 1: Ngày yêu cầu & Mã yêu cầu */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -375,7 +376,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 };
 

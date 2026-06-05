@@ -12,6 +12,7 @@ import exportCostService, { ExportCost } from '../services/exportCostService';
 import quotationCalculatorService from '../services/quotationCalculatorService';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 import { parseNumberInputStr } from '../utils/numberInput';
+import Modal from './Modal';
 
 // Helper functions để format số với dấu chấm phân cách hàng ngàn
 const formatNumberWithDots = (value: number | string | undefined | null): string => {
@@ -2517,10 +2518,10 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
 
   return (
     <>
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-[95vw] w-full max-h-[90vh] overflow-y-auto">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
+      <div className="bg-white rounded-lg shadow-xl max-w-[95vw] w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-blue-600">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-blue-600 shrink-0">
           <h3 className="text-base font-bold text-white">BẢNG TÍNH CHI PHÍ</h3>
           <div className="flex items-center gap-2">
             <button
@@ -2540,7 +2541,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto">
+        <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto shrink-0">
           {items.map((item: any, index: number) => (
             <button
               key={index}
@@ -2619,7 +2620,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1">
           {/* Hiển thị tab Tổng chi phí đơn hàng */}
           {isOrderSummaryTab ? (
             <div className="space-y-6">
@@ -5470,13 +5471,12 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
 
     {/* Modal Tạo Báo Giá */}
-    {showCreateQuotationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
+    <Modal isOpen={showCreateQuotationModal} onClose={() => setShowCreateQuotationModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h3 className="text-lg font-bold text-gray-800">Tạo Báo Giá</h3>
               <button
                 onClick={() => setShowCreateQuotationModal(false)}
@@ -5486,7 +5486,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 p-6 overflow-y-auto flex-1">
               {/* Hiệu lực báo giá */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -5554,15 +5554,16 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 {loading ? 'Đang tạo...' : 'Tạo báo giá'}
               </button>
             </div>
-          </div>
         </div>
-      )}
+    </Modal>
 
       {/* Modal thêm chi phí bổ sung */}
-      {showAddCostModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Thêm chi phí bổ sung</h3>
+      <Modal isOpen={showAddCostModal} onClose={() => {}} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <h3 className="text-lg font-semibold text-gray-900">Thêm chi phí bổ sung</h3>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tên chi phí bổ sung <span className="text-red-500">*</span>
@@ -5597,13 +5598,12 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             </div>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Modal chọn sản phẩm cho chi phí chung */}
-      {showProductSelectionModal && editingGeneralCostGroupId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-            <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 flex justify-between items-center">
+      <Modal isOpen={showProductSelectionModal && !!editingGeneralCostGroupId} onClose={() => { setShowProductSelectionModal(false); setEditingGeneralCostGroupId(null); }} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold text-white">
                 Chọn sản phẩm cho: {generalCostGroups.find(g => g.id === editingGeneralCostGroupId)?.tenBangChiPhi || 'Chi phí chung'}
               </h3>
@@ -5618,7 +5618,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[calc(80vh-140px)]">
+            <div className="p-6 overflow-y-auto flex-1">
               <div className="mb-4 flex justify-between items-center">
                 <p className="text-sm text-gray-600">
                   Chọn các sản phẩm mà chi phí chung sẽ được phân bổ cho. Nếu không chọn sản phẩm nào, chi phí sẽ được phân bổ cho tất cả sản phẩm.
@@ -5787,15 +5787,13 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 </button>
               </div>
             </div>
-          </div>
         </div>
-      )}
+    </Modal>
 
       {/* Popup kiểm tra tồn kho */}
-      {inventoryCheckResult.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-[700px] max-w-[90vw] max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between mb-4">
+      <Modal isOpen={inventoryCheckResult.show} onClose={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl w-[700px] max-w-[90vw] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                 <Package className="w-5 h-5 text-teal-600" />
                 Kiểm tra tồn kho
@@ -5808,6 +5806,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               </button>
             </div>
 
+            <div className="overflow-y-auto flex-1 p-6">
             {inventoryCheckResult.loading ? (
               <div className="text-center py-6 text-gray-500">Đang tải...</div>
             ) : (
@@ -5924,10 +5923,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 {!inventoryCheckResult.productName && !inventoryCheckResult.materialName && (
                   <p className="text-sm text-orange-600 text-center py-4">Không có dữ liệu tồn kho</p>
                 )}
-              </div>
+            </div>
             )}
+            </div>
 
-            <div className="mt-4 text-right">
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end shrink-0">
               <button
                 onClick={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))}
                 className="px-4 py-2 bg-teal-600 text-white text-sm rounded-md hover:bg-teal-700"
@@ -5936,8 +5936,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </>
   );
 };

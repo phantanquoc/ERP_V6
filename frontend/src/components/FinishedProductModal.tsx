@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { FinishedProduct } from '../services/finishedProductService';
 import DateTimePicker from './DateTimePicker';
 import { parseNumberInput } from '../utils/numberInput';
+import Modal from './Modal';
 import { useProductionEmployees } from '../hooks/useProductionEmployees';
 
 interface FinishedProductModalProps {
@@ -31,10 +32,10 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
           <h3 className="text-xl font-semibold text-gray-900">
             {isEditing ? 'Sửa thành phẩm' : 'Thêm thành phẩm mới'}
           </h3>
@@ -47,7 +48,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={onSubmit} className="p-6 space-y-6">
+        <form onSubmit={onSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Thông tin cơ bản */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -400,7 +401,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 };
 

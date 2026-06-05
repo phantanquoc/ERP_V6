@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, FileText, Eye } from 'lucide-react';
+import Modal from './Modal';
 import { useQueryClient } from '@tanstack/react-query';
 import warehouseReceiptService, { WarehouseReceipt } from '../services/warehouseReceiptService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
@@ -304,10 +305,9 @@ const WarehouseReceiptTab: React.FC = () => {
       )}
 
       {/* Detail Modal */}
-      {showDetailModal && selectedReceipt && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-[600px] max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
+      <Modal isOpen={showDetailModal && !!selectedReceipt} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl w-[600px] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between border-b px-6 py-4 shrink-0">
               <h2 className="text-xl font-bold text-gray-900">Chi tiết phiếu nhập kho</h2>
               <button
                 onClick={() => setShowDetailModal(false)}
@@ -318,6 +318,8 @@ const WarehouseReceiptTab: React.FC = () => {
                 </svg>
               </button>
             </div>
+          <div className="overflow-y-auto flex-1 p-6">
+            {selectedReceipt && (<>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-2 text-blue-800 font-semibold text-lg">
@@ -430,16 +432,18 @@ const WarehouseReceiptTab: React.FC = () => {
                 Đóng
               </button>
             </div>
+            </>)}
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Create Receipt Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-[500px] max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Phiếu nhập kho</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl w-[500px] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b px-6 py-4 shrink-0">
+            <h2 className="text-xl font-bold">Phiếu nhập kho</h2>
+          </div>
+          <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6 space-y-4">
               {/* Tên nhân viên */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -592,7 +596,7 @@ const WarehouseReceiptTab: React.FC = () => {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 mt-6">
+              <div className="flex justify-end gap-2 mt-6 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -610,8 +614,7 @@ const WarehouseReceiptTab: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
     </div>
   );
 };

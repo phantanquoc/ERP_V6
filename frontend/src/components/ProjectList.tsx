@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getFileUrl } from '../config/api';
 import apiClient from '../services/apiClient';
 import FileUpload from './FileUpload';
+import Modal from './Modal';
 
 interface ProjectTask {
   id: string;
@@ -328,14 +329,13 @@ const ProjectList = () => {
       )}
 
       {/* Project create/edit modal */}
-      {isProjectModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b">
-              <h3 className="font-semibold text-gray-800">{editingProject ? 'Chỉnh sửa dự án' : 'Tạo dự án mới'}</h3>
-              <button onClick={() => setIsProjectModalOpen(false)} className="p-1.5 hover:bg-gray-100 rounded"><X size={18} /></button>
-            </div>
-            <form onSubmit={handleSubmitProject} className="p-5 space-y-4">
+      <Modal isOpen={isProjectModalOpen} onClose={() => setIsProjectModalOpen(false)} showBackdrop>
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-5 border-b shrink-0">
+            <h3 className="font-semibold text-gray-800">{editingProject ? 'Chỉnh sửa dự án' : 'Tạo dự án mới'}</h3>
+            <button onClick={() => setIsProjectModalOpen(false)} className="p-1.5 hover:bg-gray-100 rounded"><X size={18} /></button>
+          </div>
+          <form onSubmit={handleSubmitProject} className="p-5 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tên dự án <span className="text-red-500">*</span></label>
                 <input required type="text" value={formData.tenDuAn} onChange={e => setFormData(f => ({ ...f, tenDuAn: e.target.value }))}
@@ -374,21 +374,20 @@ const ProjectList = () => {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Project detail / tasks modal */}
-      {isDetailOpen && selectedProject && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b">
-              <div>
-                <p className="font-mono text-xs text-blue-600">{selectedProject.maDuAn}</p>
-                <h3 className="font-semibold text-gray-800">{selectedProject.tenDuAn}</h3>
-              </div>
-              <button onClick={() => setIsDetailOpen(false)} className="p-1.5 hover:bg-gray-100 rounded"><X size={18} /></button>
+      <Modal isOpen={isDetailOpen && !!selectedProject} onClose={() => setIsDetailOpen(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-5 border-b shrink-0">
+            <div>
+              <p className="font-mono text-xs text-blue-600">{selectedProject?.maDuAn}</p>
+              <h3 className="font-semibold text-gray-800">{selectedProject?.tenDuAn}</h3>
             </div>
-            <div className="p-5 space-y-5">
+            <button onClick={() => setIsDetailOpen(false)} className="p-1.5 hover:bg-gray-100 rounded"><X size={18} /></button>
+          </div>
+          <div className="p-5 space-y-5 overflow-y-auto flex-1">
+              {selectedProject && (<>
               {/* Project info */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-gray-500">Trạng thái:</span><p><span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${trangThaiBadge(selectedProject.trangThai)}`}>{selectedProject.trangThai}</span></p></div>
@@ -454,10 +453,10 @@ const ProjectList = () => {
                   </div>
                 )}
               </div>
-            </div>
+          </>)}
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

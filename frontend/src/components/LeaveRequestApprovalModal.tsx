@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Loader2, Check, XCircle } from 'lucide-react';
 import leaveRequestService, { LeaveRequest } from '../services/leaveRequestService';
 import { useAuth } from '../contexts/AuthContext';
+import Modal from './Modal';
 
 interface LeaveRequestApprovalModalProps {
   isOpen: boolean;
@@ -120,10 +121,10 @@ const LeaveRequestApprovalModal = ({ isOpen, onClose, leaveRequestId, notificati
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
+      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+        <div className="border-b px-6 py-4 flex justify-between items-center shrink-0">
           <h2 className="text-xl font-bold text-gray-800">Chi tiết đơn nghỉ phép</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-6 h-6" />
@@ -131,7 +132,7 @@ const LeaveRequestApprovalModal = ({ isOpen, onClose, leaveRequestId, notificati
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1">
           {loading && (
             <div className="flex justify-center items-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -238,7 +239,7 @@ const LeaveRequestApprovalModal = ({ isOpen, onClose, leaveRequestId, notificati
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t flex justify-end gap-2">
+        <div className="bg-gray-50 px-6 py-4 border-t flex justify-end gap-2 shrink-0">
           {data?.status === 'PENDING' && !showRejectForm && (
             <>
               <button
@@ -264,7 +265,7 @@ const LeaveRequestApprovalModal = ({ isOpen, onClose, leaveRequestId, notificati
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

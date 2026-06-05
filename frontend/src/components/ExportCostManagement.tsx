@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, X, Download, DollarSign, Plane } from 'lucide-react';
+import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
 import exportCostService, { ExportCost, CreateExportCostInput, UpdateExportCostInput } from '../services/exportCostService';
 import generalCostService, { GeneralCost, CreateGeneralCostInput, UpdateGeneralCostInput } from '../services/generalCostService';
@@ -343,20 +344,19 @@ const ExportCostManagement: React.FC = () => {
       })()}
 
       {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-800">
-                {editingCost ? `Chỉnh sửa ${label}` : `Tạo ${label}`}
-              </h3>
-              <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+      <Modal isOpen={showModal} onClose={handleCloseModal} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 shrink-0">
+            <h3 className="text-xl font-bold text-gray-800">
+              {editingCost ? `Chỉnh sửa ${label}` : `Tạo ${label}`}
+            </h3>
+            <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
-            <form onSubmit={handleSubmit}>
-              <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6">
+            <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Tên chi phí <span className="text-red-500">*</span>
@@ -432,7 +432,7 @@ const ExportCostManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end gap-2">
+              <div className="mt-6 flex justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={handleCloseModal}
@@ -447,10 +447,9 @@ const ExportCostManagement: React.FC = () => {
                   {editingCost ? 'Cập nhật' : 'Tạo mới'}
                 </button>
               </div>
-            </form>
-          </div>
+          </form>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

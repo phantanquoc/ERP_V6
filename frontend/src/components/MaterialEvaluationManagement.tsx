@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Upload, Settings, Save } from 'lucide-react';
+import Modal from './Modal';
 import materialEvaluationService, { MaterialEvaluation } from '../services/materialEvaluationService';
 import materialEvaluationCriteriaService, { MaterialEvaluationCriteria } from '../services/materialEvaluationCriteriaService';
 import systemOperationService from '../services/systemOperationService';
@@ -589,10 +590,9 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       })()}
 
       {/* Create/Edit Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
+        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center px-6 py-4 border-b shrink-0">
               <h2 className="text-xl font-bold">
                 {isEditing ? 'Chỉnh sửa đánh giá' : 'Thêm đánh giá mới'}
               </h2>
@@ -604,7 +604,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6">
+            <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -854,7 +854,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="flex justify-end gap-3 mt-6 shrink-0">
                 <button
                   type="button"
                   onClick={handleCloseModal}
@@ -871,14 +871,12 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
 
       {/* View Detail Modal */}
-      {isViewModalOpen && selectedEvaluation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
+      <Modal isOpen={isViewModalOpen && !!selectedEvaluation} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center px-6 py-4 border-b shrink-0">
               <h2 className="text-xl font-bold">Chi tiết đánh giá nguyên liệu</h2>
               <button
                 onClick={() => setIsViewModalOpen(false)}
@@ -888,7 +886,8 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="overflow-y-auto flex-1 p-6">
+              {selectedEvaluation && (<>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mã chiên</label>
@@ -970,7 +969,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 </div>
               </div>
 
-              <div className="flex justify-end mt-6">
+              <div className="flex justify-end mt-6 shrink-0">
                 <button
                   onClick={() => setIsViewModalOpen(false)}
                   className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
@@ -978,16 +977,15 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   Đóng
                 </button>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Settings Modal */}
-      {isSettingsModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
+      <Modal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center px-6 py-4 border-b shrink-0">
               <h2 className="text-xl font-bold">Cài đặt tiêu chí đánh giá nguyên liệu</h2>
               <button
                 onClick={() => setIsSettingsModalOpen(false)}
@@ -997,7 +995,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="overflow-y-auto flex-1 p-6">
               {/* Seed default button */}
               {criteria.length === 0 && (
                 <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -1122,7 +1120,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 )}
               </div>
 
-              <div className="flex justify-end mt-6">
+              <div className="flex justify-end mt-6 shrink-0">
                 <button
                   onClick={() => setIsSettingsModalOpen(false)}
                   className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
@@ -1132,8 +1130,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
     </div>
   );
 };

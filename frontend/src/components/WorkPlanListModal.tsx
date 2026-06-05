@@ -64,7 +64,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
 
   const tableContent = (
     <>
-        <div className={embedded ? "p-4 overflow-x-auto max-h-[calc(90vh-220px)]" : "p-6 overflow-x-auto max-h-[calc(90vh-200px)]"}>
+        <div className={embedded ? "p-4 overflow-x-auto max-h-[calc(90vh-220px)]" : "p-6 overflow-x-auto"}>
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
@@ -176,9 +176,9 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
   );
 
   const detailModal = viewPlan ? (
-    <Modal isOpen={true} onClose={() => setViewPlan(null)}>
-        <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
-          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+    <Modal isOpen={true} onClose={() => setViewPlan(null)} closeOnBackdrop={true}>
+        <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 shrink-0">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
@@ -192,7 +192,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
               </button>
             </div>
           </div>
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+          <div className="p-6 overflow-y-auto flex-1">
             <div className="space-y-5">
               {/* Tiêu đề */}
               <div>
@@ -310,9 +310,9 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
 
   return (
     <>
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden">
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6 text-white" />
             <h2 className="text-xl font-bold text-white">Danh sách kế hoạch công việc</h2>
@@ -321,9 +321,11 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
             <X className="w-5 h-5" />
           </button>
         </div>
-        {tableContent}
+        <div className="overflow-y-auto flex-1">
+          {tableContent}
+        </div>
       </div>
-    </div>
+    </Modal>
     {detailModal}
     </>
   );

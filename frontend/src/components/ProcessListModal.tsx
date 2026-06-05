@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Eye, ChevronLeft, ChevronRight, FileText, Printer, X } from 'lucide-react';
 import { processService, Process } from '../services/processService';
 import { ModalForm } from './ModalForm';
+import Modal from './Modal';
 import { SERVER_BASE_URL } from '../config/api';
 
 interface ProcessListModalProps {
@@ -322,10 +323,10 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
     </ModalForm>
 
     {/* File Preview Modal */}
-    {previewFileUrl && (
-      <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[10000] p-4" onClick={() => setPreviewFileUrl(null)}>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
+    <Modal isOpen={!!previewFileUrl} onClose={() => setPreviewFileUrl(null)} showBackdrop closeOnBackdrop={true}>
+      {previewFileUrl && (
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
             <h3 className="text-sm font-medium text-gray-700 truncate flex-1">{getFileName(previewFileUrl)}</h3>
             <div className="flex items-center gap-2">
               <button onClick={() => handlePrintFile(previewFileUrl)}
@@ -354,8 +355,8 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
             )}
           </div>
         </div>
-      </div>
-    )}
+      )}
+    </Modal>
     </>
   );
 };

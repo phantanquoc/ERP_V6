@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import FileUpload from './FileUpload';
+import Modal from './Modal';
 import acceptanceHandoverService, { CreateAcceptanceHandoverRequest } from '../services/acceptanceHandoverService';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/apiClient';
@@ -153,10 +154,10 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+    <Modal isOpen={true} onClose={onClose} showBackdrop>
+      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+        <div className="border-b px-6 py-4 flex justify-between items-center shrink-0">
           <h2 className="text-xl font-bold text-gray-800">Nghiệm thu bàn giao</h2>
           <button
             onClick={onClose}
@@ -167,7 +168,7 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6">
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
               {error}
@@ -322,7 +323,7 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t shrink-0">
             <button
               type="button"
               onClick={onClose}
@@ -341,7 +342,7 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 };
 

@@ -4,6 +4,7 @@ import finishedProductService, { FinishedProduct } from '../services/finishedPro
 import machineService, { Machine } from '../services/machineService';
 import FinishedProductModal from './FinishedProductModal';
 import FinishedProductViewModal from './FinishedProductViewModal';
+import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
 import TableFilter, { FilterField } from './TableFilter';
 
@@ -903,10 +904,10 @@ const FinishedProductManagement: React.FC = () => {
       />
 
       {/* Aggregated Product View Modal */}
-      {isAggregatedViewModalOpen && selectedAggregatedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-green-100">
+      <Modal isOpen={isAggregatedViewModalOpen && !!selectedAggregatedProduct} onClose={() => setIsAggregatedViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            {selectedAggregatedProduct && (<>
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-green-100 shrink-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-900">
                   Chi tiết tổng hợp - Mã chiên: {selectedAggregatedProduct.maChien}
@@ -919,7 +920,7 @@ const FinishedProductManagement: React.FC = () => {
                 </button>
               </div>
             </div>
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1">
               {/* Info Header */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-gray-50 p-3 rounded-lg">
@@ -1101,7 +1102,7 @@ const FinishedProductManagement: React.FC = () => {
                 </table>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end shrink-0">
               <button
                 onClick={() => setIsAggregatedViewModalOpen(false)}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
@@ -1109,9 +1110,9 @@ const FinishedProductManagement: React.FC = () => {
                 Đóng
               </button>
             </div>
-          </div>
+          </>)}
         </div>
-      )}
+      </Modal>
     </div>
   );
 };
