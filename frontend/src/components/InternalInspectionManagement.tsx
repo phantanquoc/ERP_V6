@@ -3,6 +3,7 @@ import { Plus, Edit2, Trash2, Eye, X, Download } from 'lucide-react';
 import internalInspectionService from '@services/internalInspectionService';
 import type { InternalInspection } from '@services/internalInspectionService';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 import apiClient from '../services/apiClient';
 
 const InternalInspectionManagement = () => {
@@ -356,9 +357,9 @@ const InternalInspectionManagement = () => {
       )}
 
       {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-y-auto">
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">
                 {editingId ? 'Chỉnh sửa kiểm tra' : 'Thêm kiểm tra mới'}
@@ -540,7 +541,7 @@ const InternalInspectionManagement = () => {
             </div>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

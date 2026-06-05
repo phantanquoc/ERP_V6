@@ -199,10 +199,10 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+        <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
           <h3 className="text-xl font-semibold text-gray-900">
             {viewMode ? 'Xem chi tiết báo cáo sản lượng' : report ? 'Chỉnh sửa báo cáo sản lượng' : 'Tạo báo cáo sản lượng'}
           </h3>
@@ -216,7 +216,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
         </div>
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
             {error}

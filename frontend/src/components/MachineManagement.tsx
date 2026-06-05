@@ -4,6 +4,7 @@ import machineService, { Machine, CreateMachineRequest, UpdateMachineRequest } f
 import { useMachines, machineKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 
 const MachineManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -292,22 +293,21 @@ const MachineManagement: React.FC = () => {
       })()}
 
       {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b sticky top-0 bg-white">
-              <h2 className="text-xl font-bold">
-                {isEditing ? 'Sửa thông tin máy' : 'Thêm máy mới'}
-              </h2>
-              <button
-                onClick={handleCloseModal}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
+        <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center p-6 border-b shrink-0">
+            <h2 className="text-xl font-bold">
+              {isEditing ? 'Sửa thông tin máy' : 'Thêm máy mới'}
+            </h2>
+            <button
+              onClick={handleCloseModal}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Mã máy
@@ -401,8 +401,7 @@ const MachineManagement: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
     </div>
   );
 };

@@ -5,6 +5,7 @@ import warehouseService, { Warehouse, Lot } from '../services/warehouseService';
 import { useAuth } from '../contexts/AuthContext';
 import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
+import Modal from './Modal';
 
 interface CreateWarehouseReceiptModalProps {
   isOpen: boolean;
@@ -232,9 +233,9 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const firstSelected = itemRows.find((r) => r.selected && r.warehouseId);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-[900px] max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-[900px] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <PackagePlus className="w-5 h-5 text-green-600" />
             Tạo phiếu nhập kho
@@ -244,6 +245,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           </button>
         </div>
 
+        <div className="overflow-y-auto flex-1 px-6 py-4">
         {/* Supply Request Info */}
         {supplyRequest && (
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
@@ -498,8 +500,9 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
             </div>
           </form>
         )}
+        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

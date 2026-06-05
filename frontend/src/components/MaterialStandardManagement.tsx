@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Edit, Eye, Trash2, X, ChevronDown } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 import materialStandardService, {
   MaterialStandard,
   MaterialStandardItem,
@@ -437,22 +438,21 @@ const MaterialStandardManagement: React.FC = () => {
       })()}
 
       {/* Form Modal */}
-      {isFormModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-xl font-bold">
-                {isEditMode ? 'Chỉnh sửa định mức' : 'Thêm định mức mới'}
-              </h2>
-              <button
-                onClick={() => setIsFormModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+      <Modal isOpen={isFormModalOpen} onClose={() => setIsFormModalOpen(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 shrink-0">
+            <h2 className="text-xl font-bold">
+              {isEditMode ? 'Chỉnh sửa định mức' : 'Thêm định mức mới'}
+            </h2>
+            <button
+              onClick={() => setIsFormModalOpen(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6 space-y-6">
               {/* Thông tin cơ bản */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Thông tin cơ bản</h3>
@@ -757,7 +757,7 @@ const MaterialStandardManagement: React.FC = () => {
               </div>
 
               {/* Form Actions */}
-              <div className="flex justify-end gap-4 pt-4 border-t">
+              <div className="flex justify-end gap-4 pt-4 border-t shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsFormModalOpen(false)}
@@ -772,26 +772,25 @@ const MaterialStandardManagement: React.FC = () => {
                   {isEditMode ? 'Cập nhật' : 'Tạo mới'}
                 </button>
               </div>
-            </form>
-          </div>
+          </form>
         </div>
-      )}
+      </Modal>
 
       {/* Detail Modal */}
-      {isDetailModalOpen && selectedStandard && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-xl font-bold">Chi tiết định mức</h2>
-              <button
-                onClick={closeDetailModal}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+      <Modal isOpen={isDetailModalOpen && !!selectedStandard} onClose={closeDetailModal} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 shrink-0">
+            <h2 className="text-xl font-bold">Chi tiết định mức</h2>
+            <button
+              onClick={closeDetailModal}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
-            <div className="p-6 space-y-6">
+          {selectedStandard && (
+            <div className="overflow-y-auto flex-1 p-6 space-y-6">
               {/* Thông tin cơ bản */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">Thông tin cơ bản</h3>
@@ -906,7 +905,7 @@ const MaterialStandardManagement: React.FC = () => {
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-4 pt-4 border-t">
+              <div className="flex justify-end gap-4 pt-4 border-t shrink-0">
                 <button
                   onClick={closeDetailModal}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
@@ -915,7 +914,7 @@ const MaterialStandardManagement: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    openEditModal(selectedStandard);
+                    if (selectedStandard) openEditModal(selectedStandard);
                     closeDetailModal();
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -924,9 +923,9 @@ const MaterialStandardManagement: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

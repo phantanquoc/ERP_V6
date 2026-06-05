@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, Edit, Trash2, Calendar, DollarSign, FileText, Upload, Download } from 'lucide-react';
 import taxReportService, { TaxReport, TaxReportStatus, TaxReportInput } from '../services/taxReportService';
+import Modal from './Modal';
 import { parseNumberInput } from '../utils/numberInput';
 
 const TaxReportTab: React.FC = () => {
@@ -250,10 +251,10 @@ const TaxReportTab: React.FC = () => {
       )}
 
       {/* Edit Modal */}
-      {showEditModal && selectedReport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+      <Modal isOpen={showEditModal && !!selectedReport} onClose={() => setShowEditModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
+              {selectedReport && (<>
               <h2 className="text-2xl font-bold text-gray-800 mb-6">Chỉnh sửa báo cáo thuế</h2>
 
               {/* Auto-filled fields (read-only) */}
@@ -348,10 +349,10 @@ const TaxReportTab: React.FC = () => {
                   Lưu thay đổi
                 </button>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

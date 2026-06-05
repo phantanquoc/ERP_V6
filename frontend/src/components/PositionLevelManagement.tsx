@@ -14,6 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Position } from '@services/positionService';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 
 interface FormData {
   level: string;
@@ -316,10 +317,9 @@ const PositionLevelManagement = () => {
       )}
 
       {/* Form Modal */}
-      {isFormModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
+      <Modal isOpen={isFormModalOpen} onClose={closeModals} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-gray-800">
                   {isEditMode ? 'Chỉnh sửa cấp độ' : 'Thêm cấp độ mới'}
@@ -381,14 +381,12 @@ const PositionLevelManagement = () => {
               </form>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Detail Modal */}
-      {isDetailModalOpen && selectedLevel && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
+      <Modal isOpen={isDetailModalOpen && !!selectedLevel} onClose={closeModals} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-gray-800">Chi tiết cấp độ</h3>
                 <button onClick={closeModals} className="text-gray-400 hover:text-gray-600">
@@ -396,6 +394,7 @@ const PositionLevelManagement = () => {
                 </button>
               </div>
 
+              {selectedLevel && (<>
               <div className="space-y-3">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Cấp độ</label>
@@ -447,10 +446,10 @@ const PositionLevelManagement = () => {
                   Chỉnh sửa
                 </button>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

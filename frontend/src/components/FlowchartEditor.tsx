@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
+import Modal from './Modal';
 import processService, { ProcessFlowchartSection, ProcessFlowchartCost } from '../services/processService';
 import FileUpload from './FileUpload';
 
@@ -146,19 +147,19 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
 
   if (loading && sections.length === 0) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-8">
+      <Modal isOpen={true} onClose={onClose} showBackdrop>
+        <div className="bg-white rounded-lg p-8" onClick={(e) => e.stopPropagation()}>
           <p className="text-gray-700">Đang tải...</p>
         </div>
-      </div>
+      </Modal>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+    <Modal isOpen={true} onClose={onClose} showBackdrop>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">
               {isEditMode ? 'Chỉnh sửa lưu đồ' : 'Tạo lưu đồ mới'}
@@ -174,7 +175,7 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="overflow-y-auto flex-1 p-6">
           {/* Header "Lưu đồ" */}
           <div className="bg-green-100 border border-green-300 p-3 mb-4">
             <h4 className="text-lg font-bold text-gray-800">Lưu đồ</h4>
@@ -344,7 +345,7 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 sticky bottom-0 bg-white">
+        <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 shrink-0">
           <button
             onClick={onClose}
             className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
@@ -361,7 +362,7 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

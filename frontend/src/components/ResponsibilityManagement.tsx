@@ -12,6 +12,7 @@ import positionService, { Position } from '@services/positionService';
 import positionResponsibilityService, { PositionResponsibility } from '@services/positionResponsibilityService';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 
 interface FormData {
   title: string;
@@ -348,10 +349,9 @@ const ResponsibilityManagement = () => {
           )}
 
           {/* Form Modal */}
-          {isFormModalOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-                <div className="p-6">
+          <Modal isOpen={isFormModalOpen} onClose={closeModals} showBackdrop>
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+                <div className="p-6 overflow-y-auto flex-1">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-bold text-gray-800">
                       {isEditMode ? 'Chỉnh sửa trách nhiệm' : 'Thêm trách nhiệm mới'}
@@ -415,14 +415,12 @@ const ResponsibilityManagement = () => {
                   </form>
                 </div>
               </div>
-            </div>
-          )}
+          </Modal>
 
           {/* Detail Modal */}
-          {isDetailModalOpen && selectedResponsibility && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-                <div className="p-6">
+          <Modal isOpen={isDetailModalOpen && !!selectedResponsibility} onClose={closeModals} showBackdrop closeOnBackdrop={true}>
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+                <div className="p-6 overflow-y-auto flex-1">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-bold text-gray-800">Chi tiết trách nhiệm</h3>
                     <button onClick={closeModals} className="text-gray-400 hover:text-gray-600">
@@ -430,6 +428,7 @@ const ResponsibilityManagement = () => {
                     </button>
                   </div>
 
+                  {selectedResponsibility && (<>
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-medium text-gray-700">Tên trách nhiệm</label>
@@ -462,10 +461,10 @@ const ResponsibilityManagement = () => {
                       Chỉnh sửa
                     </button>
                   </div>
+                  </>)}
                 </div>
               </div>
-            </div>
-          )}
+          </Modal>
         </>
       )}
     </div>

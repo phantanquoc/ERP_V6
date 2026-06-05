@@ -10,6 +10,7 @@ import {
   Clock,
   Download
 } from 'lucide-react';
+import Modal from './Modal';
 import TableFilter, { FilterField } from './TableFilter';
 import { useQueryClient } from '@tanstack/react-query';
 import customerFeedbackService, { CustomerFeedback } from '../services/customerFeedbackService';
@@ -337,10 +338,9 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
           </div>
         </div>
       )}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">
                 {selectedFeedback ? 'Cập nhật phản hồi' : 'Thêm phản hồi mới'}
               </h3>
@@ -349,7 +349,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Khách hàng <span className="text-red-500">*</span>
@@ -516,7 +516,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t">
+              <div className="flex justify-end gap-3 pt-4 border-t shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -533,21 +533,20 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
 
       {/* View Modal */}
-      {isViewModalOpen && selectedFeedback && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+      <Modal isOpen={isViewModalOpen && !!selectedFeedback} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">Chi tiết phản hồi</h3>
               <button onClick={() => setIsViewModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="overflow-y-auto flex-1 p-6 space-y-6">
+              {selectedFeedback && (<>
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Khách hàng</label>
@@ -629,7 +628,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-4 border-t">
+              <div className="flex justify-end gap-3 pt-4 border-t shrink-0">
                 <button
                   onClick={() => setIsViewModalOpen(false)}
                   className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
@@ -639,17 +638,17 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                 <button
                   onClick={() => {
                     setIsViewModalOpen(false);
-                    handleEdit(selectedFeedback);
+                    if (selectedFeedback) handleEdit(selectedFeedback);
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Chỉnh sửa
                 </button>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
     </div>
   );
 };

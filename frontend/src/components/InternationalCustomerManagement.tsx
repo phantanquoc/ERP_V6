@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import DatePicker from './DatePicker';
 import { Plus, Edit, Trash2, Eye, MapPin, X, Download } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 import { parseNumberInput } from '../utils/numberInput';
 import internationalCustomerService, {
   InternationalCustomer,
@@ -336,10 +337,9 @@ const InternationalCustomerManagement: React.FC = () => {
       })()}
 
       {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">
                   {editingCustomer ? 'Chỉnh sửa khách hàng' : 'Thêm khách hàng mới'}
@@ -579,14 +579,13 @@ const InternationalCustomerManagement: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Detail Modal */}
-      {showDetailModal && selectedCustomer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+      <Modal isOpen={showDetailModal && !!selectedCustomer} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
+              {selectedCustomer && (<>
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Chi tiết khách hàng</h2>
                 <button onClick={() => setShowDetailModal(false)} className="text-gray-500 hover:text-gray-700">
@@ -692,10 +691,10 @@ const InternationalCustomerManagement: React.FC = () => {
                   <p className="mt-1 text-sm text-gray-900">{selectedCustomer.ghiChu || '-'}</p>
                 </div>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

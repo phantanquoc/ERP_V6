@@ -5,6 +5,7 @@ import { useAuth } from '@contexts/AuthContext';
 import { useLeaveRequests, leaveRequestKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 
 const LeaveRequestManagement = () => {
   const { user } = useAuth();
@@ -350,10 +351,9 @@ const LeaveRequestManagement = () => {
       )}
 
       {/* Detail Modal */}
-      {isDetailModalOpen && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 flex justify-between items-center">
+      <Modal isOpen={isDetailModalOpen && !!selectedRequest} onClose={() => { setIsDetailModalOpen(false); setSelectedRequest(null); }} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-xl font-bold text-white">Chi tiết đơn nghỉ phép</h3>
               <button
                 onClick={() => {
@@ -365,7 +365,8 @@ const LeaveRequestManagement = () => {
                 ✕
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {selectedRequest && (<>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-semibold text-gray-700">Mã đơn</label>
@@ -450,16 +451,15 @@ const LeaveRequestManagement = () => {
                   )}
                 </>
               )}
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Reject Modal */}
-      {isRejectModalOpen && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4 flex justify-between items-center">
+      <Modal isOpen={isRejectModalOpen && !!selectedRequest} onClose={() => { setIsRejectModalOpen(false); setRejectionReason(''); setSelectedRequest(null); }} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-xl font-bold text-white">Từ chối đơn nghỉ phép</h3>
               <button
                 onClick={() => {
@@ -472,7 +472,8 @@ const LeaveRequestManagement = () => {
                 ✕
               </button>
             </div>
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1">
+              {selectedRequest && (<>
               <p className="text-gray-700 mb-4">
                 Bạn có chắc chắn muốn từ chối đơn nghỉ phép <strong>{selectedRequest.code}</strong>?
               </p>
@@ -506,10 +507,10 @@ const LeaveRequestManagement = () => {
                   Từ chối
                 </button>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

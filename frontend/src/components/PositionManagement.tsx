@@ -12,6 +12,7 @@ import { usePositions, positionKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import positionService, { Position } from '@services/positionService';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
 
@@ -268,10 +269,9 @@ const PositionManagement = () => {
       )}
 
       {/* Form Modal */}
-      {isFormModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
+      <Modal isOpen={isFormModalOpen} onClose={closeModals} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-gray-800">
                   {isEditMode ? 'Chỉnh sửa vị trí' : 'Thêm vị trí mới'}
@@ -332,14 +332,12 @@ const PositionManagement = () => {
               </form>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Detail Modal */}
-      {isDetailModalOpen && selectedPosition && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
+      <Modal isOpen={isDetailModalOpen && !!selectedPosition} onClose={closeModals} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-gray-800">Chi tiết vị trí</h3>
                 <button onClick={closeModals} className="text-gray-400 hover:text-gray-600">
@@ -347,6 +345,7 @@ const PositionManagement = () => {
                 </button>
               </div>
 
+              {selectedPosition && (<>
               <div className="space-y-3">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Mã vị trí</label>
@@ -379,10 +378,10 @@ const PositionManagement = () => {
                   Chỉnh sửa
                 </button>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

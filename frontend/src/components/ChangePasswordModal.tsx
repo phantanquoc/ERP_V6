@@ -126,9 +126,9 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full">
+      <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-yellow-600 to-orange-600 px-6 py-4 rounded-t-2xl">
+        <div className="bg-gradient-to-r from-yellow-600 to-orange-600 px-6 py-4 rounded-t-2xl shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
@@ -149,7 +149,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1">
           {submitSuccess ? (
             <div className="text-center py-8">
               <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />

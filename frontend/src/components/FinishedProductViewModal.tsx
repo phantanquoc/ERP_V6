@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { FinishedProduct } from '../services/finishedProductService';
+import Modal from './Modal';
 
 interface FinishedProductViewModalProps {
   isOpen: boolean;
@@ -79,10 +80,10 @@ const FinishedProductViewModal: React.FC<FinishedProductViewModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
           <h3 className="text-xl font-semibold text-gray-900">Chi tiết thành phẩm</h3>
           <button
             onClick={onClose}
@@ -93,7 +94,7 @@ const FinishedProductViewModal: React.FC<FinishedProductViewModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Thông tin cơ bản */}
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <h4 className="text-lg font-semibold text-gray-800 mb-4">Thông tin cơ bản</h4>
@@ -188,7 +189,7 @@ const FinishedProductViewModal: React.FC<FinishedProductViewModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t border-gray-200">
+        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 shrink-0">
           <button
             onClick={onClose}
             className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
@@ -197,7 +198,7 @@ const FinishedProductViewModal: React.FC<FinishedProductViewModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

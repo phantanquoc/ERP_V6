@@ -3,6 +3,7 @@ import { X, Target, Eye, Check, XCircle, FileText, ChevronLeft, Star } from 'luc
 import { taskService, Task, TaskPriority, TaskAcceptanceStatus } from '../services/taskService';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileUrl } from '../config/api';
+import Modal from './Modal';
 
 interface TaskListModalProps {
   isOpen: boolean;
@@ -149,7 +150,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
       : selectedTask.nguoiNhan?.some(n => n.id === user?._id);
 
     return (
-      <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+      <div className="p-6 overflow-y-auto flex-1">
         <button onClick={() => { setSelectedTask(null); setShowEvaluateForm(false); }} className="flex items-center gap-1 text-blue-600 hover:text-blue-800 mb-4 text-sm">
           <ChevronLeft className="w-4 h-4" /> Quay lại danh sách
         </button>
@@ -314,10 +315,10 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <Target className="w-6 h-6 text-white" />
             <h2 className="text-xl font-bold text-white">
@@ -332,7 +333,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
         {selectedTask ? renderDetailView() : (
           <>
             {/* Table Content */}
-            <div className="p-6 overflow-x-auto max-h-[calc(90vh-200px)]">
+            <div className="p-6 overflow-x-auto overflow-y-auto flex-1">
               {loading ? (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -500,7 +501,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
           </>
         )}
       </div>
-    </div>
+    </Modal>
   );
 };
 

@@ -5,6 +5,7 @@ import { API_BASE_URL, getFileUrl } from '../config/api';
 import apiClient from '../services/apiClient';
 import FileUpload from './FileUpload';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
+import Modal from './Modal';
 
 interface RepairRequestItem {
   id: string;
@@ -389,21 +390,20 @@ const RepairRequestList = () => {
       )}
 
       {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex justify-between items-center p-6 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-800">
-                {isViewMode ? 'Chi tiết yêu cầu' : editingRequest ? 'Chỉnh sửa yêu cầu' : 'Thêm yêu cầu mới'}
-              </h3>
-              <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          {/* Modal Header */}
+          <div className="flex justify-between items-center p-6 border-b border-gray-200 shrink-0">
+            <h3 className="text-xl font-semibold text-gray-800">
+              {isViewMode ? 'Chi tiết yêu cầu' : editingRequest ? 'Chỉnh sửa yêu cầu' : 'Thêm yêu cầu mới'}
+            </h3>
+            <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleSubmit} className="p-6">
+          {/* Modal Body */}
+          <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-6">
                 {/* Ngày tháng */}
                 <div>
@@ -663,8 +663,7 @@ const RepairRequestList = () => {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Acceptance Handover Form */}
       {isAcceptanceFormOpen && selectedRequestForAcceptance && (

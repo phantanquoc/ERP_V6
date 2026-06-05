@@ -2,6 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { useProductionEmployees } from '../hooks/useProductionEmployees';
 import { QualityEvaluation } from '../services/qualityEvaluationService';
+import Modal from './Modal';
 
 type QualityEvaluationFormData = Partial<QualityEvaluation> & {
   danhGiaTongQuan?: string;
@@ -29,9 +30,9 @@ const QualityEvaluationModal: React.FC<QualityEvaluationModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
           <h3 className="text-xl font-semibold text-gray-900">
             {isEditing ? 'Chỉnh sửa Đánh giá Chất lượng' : 'Tạo Đánh giá Chất lượng mới'}
           </h3>
@@ -40,7 +41,7 @@ const QualityEvaluationModal: React.FC<QualityEvaluationModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="p-6">
+        <form onSubmit={onSubmit} className="p-6 overflow-y-auto flex-1">
           {/* Basic Info */}
           <div className="mb-6">
             <h4 className="text-lg font-semibold text-gray-900 mb-4">Thông tin cơ bản</h4>
@@ -258,7 +259,7 @@ const QualityEvaluationModal: React.FC<QualityEvaluationModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 };
 

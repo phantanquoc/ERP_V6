@@ -3,6 +3,7 @@ import { Plus, Download, Edit, Eye, Trash2, FileText, Upload } from 'lucide-reac
 import debtService, { Debt, DebtSummary } from '../services/debtService';
 import apiClient from '../services/apiClient';
 import DatePicker from './DatePicker';
+import Modal from './Modal';
 import { parseNumberInputStr } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 
@@ -400,10 +401,9 @@ const DebtManagement: React.FC = () => {
       )}
 
       {/* Add Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Thêm công nợ mới</h2>
               <button
                 onClick={() => setIsAddModalOpen(false)}
@@ -413,7 +413,7 @@ const DebtManagement: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6">
+            <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Ngày phát sinh */}
                 <div>
@@ -659,14 +659,12 @@ const DebtManagement: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Edit Modal */}
-      {isEditModalOpen && selectedDebt && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+      <Modal isOpen={isEditModalOpen && !!selectedDebt} onClose={() => { setIsEditModalOpen(false); setSelectedDebt(null); }} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Chỉnh sửa công nợ</h2>
               <button
                 onClick={() => {
@@ -679,7 +677,7 @@ const DebtManagement: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleUpdate} className="p-6">
+            <form onSubmit={handleUpdate} className="p-6 overflow-y-auto flex-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Same form fields as Add Modal */}
                 <div>
@@ -912,14 +910,12 @@ const DebtManagement: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* View Modal */}
-      {isViewModalOpen && selectedDebt && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+      <Modal isOpen={isViewModalOpen && !!selectedDebt} onClose={() => { setIsViewModalOpen(false); setSelectedDebt(null); }} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Chi tiết công nợ</h2>
               <button
                 onClick={() => {
@@ -932,7 +928,8 @@ const DebtManagement: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1">
+              {selectedDebt && (<>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Ngày phát sinh</label>
@@ -1041,10 +1038,10 @@ const DebtManagement: React.FC = () => {
                   Chỉnh sửa
                 </button>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

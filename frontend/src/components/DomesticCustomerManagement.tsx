@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Download } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 import internationalCustomerService, {
   InternationalCustomer,
   CreateInternationalCustomerRequest,
@@ -345,11 +346,11 @@ const DomesticCustomerManagement: React.FC = () => {
       })()}
 
       {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            {/* Header — shrink-0, outside scroll */}
+            <div className="px-6 py-4 border-b border-gray-200 shrink-0">
+              <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold">
                   {editingCustomer ? 'Chỉnh sửa khách hàng' : 'Thêm khách hàng nội địa'}
                 </h2>
@@ -357,7 +358,9 @@ const DomesticCustomerManagement: React.FC = () => {
                   <X className="w-6 h-6" />
                 </button>
               </div>
-
+            </div>
+            {/* Body — scrollable */}
+            <div className="overflow-y-auto flex-1 px-6 py-5">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -549,14 +552,13 @@ const DomesticCustomerManagement: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Detail Modal */}
-      {showDetailModal && selectedCustomer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+      <Modal isOpen={showDetailModal && !!selectedCustomer} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto flex-1">
+              {selectedCustomer && (<>
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Chi tiết khách hàng</h2>
                 <button onClick={() => setShowDetailModal(false)} className="text-gray-500 hover:text-gray-700">
@@ -613,10 +615,10 @@ const DomesticCustomerManagement: React.FC = () => {
                   </button>
                 </div>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

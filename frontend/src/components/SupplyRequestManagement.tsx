@@ -8,6 +8,7 @@ import CreateWarehouseReceiptModal from './CreateWarehouseReceiptModal';
 import { parseNumberInput } from '../utils/numberInput';
 import warehouseService from '../services/warehouseService';
 import TableFilter, { FilterField } from './TableFilter';
+import Modal from './Modal';
 
 interface SupplyRequestManagementProps {
   onClose?: () => void;
@@ -447,18 +448,18 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       </div>
 
       {/* Modal Edit/View */}
-      {showModal && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  {modalMode === 'edit' ? 'Chỉnh sửa yêu cầu' : 'Chi tiết yêu cầu'}
-                </h2>
-                <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+      <Modal isOpen={showModal && !!selectedRequest} onClose={() => setShowModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="p-6 overflow-y-auto flex-1">
+            {selectedRequest && (<>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">
+                {modalMode === 'edit' ? 'Chỉnh sửa yêu cầu' : 'Chi tiết yêu cầu'}
+              </h2>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
               {/* Request header info (always shown) */}
               <div className="grid grid-cols-2 gap-3 mb-4 text-sm bg-gray-50 p-3 rounded-md">
@@ -707,10 +708,10 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                   </div>
                 </form>
               )}
-            </div>
+            </>)}
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Warehouse Issue Modal */}
       <CreateWarehouseIssueModal
@@ -743,28 +744,26 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       />
 
       {/* Popup kiểm tra tồn kho */}
-      {inventoryCheckResult.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-[700px] max-w-[90vw] max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                <Package className="w-5 h-5 text-teal-600" />
-                Kiểm tra tồn kho
-              </h3>
-              <button
-                onClick={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <Modal isOpen={inventoryCheckResult.show} onClose={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl w-[700px] max-w-[90vw] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-6 border-b shrink-0">
+            <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Package className="w-5 h-5 text-teal-600" />
+              Kiểm tra tồn kho
+            </h3>
+            <button
+              onClick={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
+          <div className="overflow-y-auto flex-1 p-6">
             {inventoryCheckResult.loading ? (
               <div className="text-center py-6 text-gray-500">Đang tải...</div>
-            ) : (
-              <div className="overflow-auto flex-1">
-                {inventoryCheckResult.allResults && inventoryCheckResult.allResults.length > 0 ? (
-                  inventoryCheckResult.allResults.map((result, rIdx) => (
+            ) : inventoryCheckResult.allResults && inventoryCheckResult.allResults.length > 0 ? (
+              inventoryCheckResult.allResults.map((result, rIdx) => (
                     <div key={rIdx} className="mb-4">
                       <div className="bg-gray-50 rounded-lg p-3 mb-2">
                         <span className="text-xs text-gray-500">Sản phẩm {rIdx + 1}</span>
@@ -811,21 +810,18 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                   ))
                 ) : (
                   <p className="text-sm text-orange-600 text-center py-4">Không tìm thấy tồn kho</p>
-                )}
-              </div>
             )}
-
-            <div className="mt-4 text-right">
-              <button
-                onClick={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))}
-                className="px-4 py-2 bg-teal-600 text-white text-sm rounded-md hover:bg-teal-700"
-              >
-                Đóng
-              </button>
-            </div>
+          </div>
+          <div className="p-4 border-t shrink-0 text-right">
+            <button
+              onClick={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))}
+              className="px-4 py-2 bg-teal-600 text-white text-sm rounded-md hover:bg-teal-700"
+            >
+              Đóng
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

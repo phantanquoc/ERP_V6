@@ -5,6 +5,7 @@ import internationalProductService, { InternationalProduct } from '../services/i
 import { useWarehouses, warehouseKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInputStr } from '../utils/numberInput';
+import Modal from './Modal';
 
 const WarehouseManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -485,10 +486,12 @@ const WarehouseManagement: React.FC = () => {
       )}
 
       {/* Create Warehouse Modal */}
-      {showWarehouseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h2 className="text-xl font-bold mb-4">Tạo kho mới</h2>
+      <Modal isOpen={showWarehouseModal} onClose={() => { setShowWarehouseModal(false); setNewWarehouseName(''); }} showBackdrop>
+          <div className="bg-white rounded-lg shadow-xl w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <h2 className="text-xl font-bold">Tạo kho mới</h2>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tên kho <span className="text-red-500">*</span>
@@ -518,15 +521,17 @@ const WarehouseManagement: React.FC = () => {
                 Tạo mới
               </button>
             </div>
+            </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Create Lot Modal */}
-      {showLotModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h2 className="text-xl font-bold mb-4">Tạo lô mới</h2>
+      <Modal isOpen={showLotModal} onClose={() => { setShowLotModal(false); setNewLotName(''); }} showBackdrop>
+          <div className="bg-white rounded-lg shadow-xl w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <h2 className="text-xl font-bold">Tạo lô mới</h2>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tên lô <span className="text-red-500">*</span>
@@ -556,15 +561,17 @@ const WarehouseManagement: React.FC = () => {
                 Tạo mới
               </button>
             </div>
+            </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Add Product to Lot Modal */}
-      {showProductModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h2 className="text-xl font-bold mb-4">Thêm sản phẩm vào lô</h2>
+      <Modal isOpen={showProductModal} onClose={() => { setShowProductModal(false); resetProductForm(); }} showBackdrop>
+          <div className="bg-white rounded-lg shadow-xl w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <h2 className="text-xl font-bold">Thêm sản phẩm vào lô</h2>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -644,35 +651,35 @@ const WarehouseManagement: React.FC = () => {
                   placeholder="VD: kg, thùng, cái"
                 />
               </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={() => {
-                  setShowProductModal(false);
-                  resetProductForm();
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleAddProductToLot}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Thêm
-              </button>
+              <div className="flex justify-end gap-2 pt-4">
+                <button
+                  onClick={() => { setShowProductModal(false); resetProductForm(); }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleAddProductToLot}
+                  disabled={!selectedProductId || !productQuantity || !productUnit}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Thêm
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Move Product Modal */}
-      {showMoveModal && movingProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h2 className="text-xl font-bold mb-4">Di chuyển sản phẩm</h2>
+      <Modal isOpen={showMoveModal && !!movingProduct} onClose={() => { setShowMoveModal(false); setMovingProduct(null); setTargetWarehouseId(''); setTargetLotId(''); }} showBackdrop>
+          <div className="bg-white rounded-lg shadow-xl w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <h2 className="text-xl font-bold">Di chuyển sản phẩm</h2>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
             <p className="text-sm text-gray-600 mb-4">
-              Sản phẩm: <strong>{movingProduct.internationalProduct?.tenSanPham}</strong>
+              Sản phẩm: <strong>{movingProduct?.internationalProduct?.tenSanPham}</strong>
             </p>
 
             {/* Select Warehouse */}
@@ -746,7 +753,7 @@ const WarehouseManagement: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

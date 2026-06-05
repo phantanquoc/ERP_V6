@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Eye, X, Settings } from 'lucide-react';
 import systemOperationService, { SystemOperation, GiaiDoan } from '../services/systemOperationService';
 import machineService, { Machine } from '../services/machineService';
 import materialEvaluationService, { MaterialEvaluation } from '../services/materialEvaluationService';
+import Modal from './Modal';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
@@ -573,10 +574,9 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       )}
 
       {/* Create/Edit Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-5xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
+        <div className="bg-white rounded-lg shadow-lg max-w-5xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b shrink-0">
               <h2 className="text-xl font-bold">
                 {isEditing ? 'Chỉnh sửa thông số' : 'Thêm thông số mới'}
               </h2>
@@ -588,7 +588,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6">
+            <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1">
               {/* Thông tin cơ bản */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div>
@@ -884,14 +884,12 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
               </div>
             </form>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* View Detail Modal */}
-      {isViewModalOpen && selectedOperation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
+      <Modal isOpen={isViewModalOpen && !!selectedOperation} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b shrink-0">
               <h2 className="text-xl font-bold">Chi tiết thông số vận hành</h2>
               <button
                 onClick={() => setIsViewModalOpen(false)}
@@ -901,7 +899,8 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              {selectedOperation && (<>
               {/* Thông tin cơ bản */}
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
@@ -1027,6 +1026,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                   <p className="mt-1 text-sm text-gray-900">{selectedOperation.ghiChu}</p>
                 </div>
               )}
+              </>)}
             </div>
 
             <div className="flex justify-end p-6 border-t">
@@ -1038,8 +1038,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

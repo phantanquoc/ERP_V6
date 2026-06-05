@@ -8,6 +8,7 @@ import WorkShiftSettingsModal from './WorkShiftSettingsModal';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
+import Modal from './Modal';
 
 interface AttendanceRecord {
   stt: number;
@@ -484,22 +485,21 @@ const AttendanceManagement: React.FC = () => {
           </div>
         </div>
       )}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className={`bg-white rounded-lg shadow-xl w-full mx-4 ${editingId && editEntries.length > 0 ? 'max-w-2xl' : 'max-w-md'}`}>
-            <div className="bg-blue-600 px-6 py-4 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-white">
-                {editingId ? 'Chỉnh sửa điểm danh' : 'Thêm điểm danh'}
-              </h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-white hover:text-gray-200"
-              >
-                ✕
-              </button>
-            </div>
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
+        <div className={`bg-white rounded-lg shadow-xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)] ${editingId && editEntries.length > 0 ? 'max-w-2xl' : 'max-w-md'}`} onClick={(e) => e.stopPropagation()}>
+          <div className="bg-blue-600 px-6 py-4 flex justify-between items-center shrink-0">
+            <h3 className="text-xl font-bold text-white">
+              {editingId ? 'Chỉnh sửa điểm danh' : 'Thêm điểm danh'}
+            </h3>
+            <button
+              onClick={() => setShowModal(false)}
+              className="text-white hover:text-gray-200"
+            >
+              ✕
+            </button>
+          </div>
 
-            <div className="p-6 space-y-4">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1">
               {editingId ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên</label>
@@ -715,8 +715,7 @@ const AttendanceManagement: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
       <WorkShiftSettingsModal
         isOpen={showShiftSettings}
         onClose={() => setShowShiftSettings(false)}

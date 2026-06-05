@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Edit, Eye, Trash2, Plus, X, Download, AlertCircle, CheckCircle, Upload, FileText } from 'lucide-react';
+import Modal from './Modal';
 import invoiceService, { Invoice } from '../services/invoiceService';
 import { supplierService, Supplier } from '../services/supplierService';
 import TableFilter, { FilterField } from './TableFilter';
@@ -538,16 +539,15 @@ const InvoiceManagement: React.FC = () => {
       )}
 
       {/* Add Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Thêm hóa đơn mới</h2>
               <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <form onSubmit={handleSubmitAdd} className="p-6">
+            <form onSubmit={handleSubmitAdd} className="overflow-y-auto flex-1 p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Số hóa đơn <span className="text-red-500">*</span></label>
@@ -703,27 +703,25 @@ const InvoiceManagement: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="flex justify-end gap-3 mt-6 shrink-0">
                 <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
                 <button type="submit" disabled={loading} className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50">{loading ? 'Đang xử lý...' : 'Thêm hóa đơn'}</button>
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
 
 
       {/* Edit Modal */}
-      {isEditModalOpen && selectedInvoice && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+      <Modal isOpen={isEditModalOpen && !!selectedInvoice} onClose={() => setIsEditModalOpen(false)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Chỉnh sửa hóa đơn</h2>
               <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <form onSubmit={handleSubmitEdit} className="p-6">
+            <form onSubmit={handleSubmitEdit} className="overflow-y-auto flex-1 p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Số hóa đơn <span className="text-red-500">*</span></label>
@@ -876,26 +874,25 @@ const InvoiceManagement: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="flex justify-end gap-3 mt-6 shrink-0">
                 <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
                 <button type="submit" disabled={loading} className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50">{loading ? 'Đang xử lý...' : 'Cập nhật'}</button>
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
 
       {/* View Modal */}
-      {isViewModalOpen && selectedInvoice && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+      <Modal isOpen={isViewModalOpen && !!selectedInvoice} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Chi tiết hóa đơn</h2>
               <button onClick={() => setIsViewModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="p-6">
+            <div className="overflow-y-auto flex-1 p-6">
+              {selectedInvoice && (<>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-500 mb-1">Số hóa đơn</label>
@@ -985,14 +982,14 @@ const InvoiceManagement: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="flex justify-end gap-3 mt-6 shrink-0">
                 <button onClick={() => setIsViewModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Đóng</button>
-                <button onClick={() => { setIsViewModalOpen(false); handleEditClick(selectedInvoice); }} className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700">Chỉnh sửa</button>
+                <button onClick={() => { setIsViewModalOpen(false); if (selectedInvoice) handleEditClick(selectedInvoice); }} className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700">Chỉnh sửa</button>
               </div>
+              </>)}
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
     </div>
   );
 };

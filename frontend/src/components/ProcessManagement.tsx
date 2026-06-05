@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit, Trash2, Eye, X, FileText, Download, Upload, Printer } from 'lucide-react';
+import Modal from './Modal';
 import FileUpload from './FileUpload';
 import processService, { Process, CreateProcessData, ProcessFlowchartSection, ProcessFlowchartCost } from '../services/processService';
 import { useAuth } from '../contexts/AuthContext';
@@ -749,10 +750,9 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
       </div>
 
       {/* Create/Edit Modal - TÍCH HỢP LƯU ĐỒ */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">
                 {editingProcess ? 'Chỉnh sửa quy trình' : 'Tạo quy trình mới'}
               </h3>
@@ -764,7 +764,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6">
+            <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6">
               <div className="space-y-4">
                 {/* Thông tin nhân viên (auto-filled từ user đang login) */}
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
@@ -1077,7 +1077,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 mt-6">
+              <div className="flex justify-end space-x-3 mt-6 shrink-0">
                 <button
                   type="button"
                   onClick={handleCloseModal}
@@ -1094,16 +1094,14 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
 
       {/* View Modal */}
-      {isViewModalOpen && viewingProcess && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+      <Modal isOpen={isViewModalOpen && !!viewingProcess} onClose={handleCloseViewModal} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">
-                Chi tiết quy trình - {viewingProcess.maQuyTrinh}
+                Chi tiết quy trình - {viewingProcess?.maQuyTrinh}
               </h3>
               <button
                 onClick={handleCloseViewModal}
@@ -1113,7 +1111,8 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="overflow-y-auto flex-1 p-6">
+              {viewingProcess && (<>
               {/* Process Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
@@ -1300,9 +1299,10 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                   })()}
                 </div>
               )}
+              </>)}
             </div>
 
-            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
+            <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 shrink-0">
               <button
                 onClick={handleCloseViewModal}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
@@ -1313,7 +1313,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                 <button
                   onClick={() => {
                     handleCloseViewModal();
-                    handleEditProcess(viewingProcess);
+                    if (viewingProcess) handleEditProcess(viewingProcess);
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >
@@ -1324,7 +1324,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                 <button
                   onClick={() => {
                     handleCloseViewModal();
-                    handleCreateStandard(viewingProcess);
+                    if (viewingProcess) handleCreateStandard(viewingProcess);
                   }}
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                 >
@@ -1335,7 +1335,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                 <button
                   onClick={() => {
                     handleCloseViewModal();
-                    handleCreateStandard(viewingProcess);
+                    if (viewingProcess) handleCreateStandard(viewingProcess);
                   }}
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                 >
@@ -1344,16 +1344,14 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
               )}
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Standard Modal - Tạo định mức */}
-      {isStandardModalOpen && standardProcess && standardProcess.flowchart && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
+      <Modal isOpen={isStandardModalOpen && !!standardProcess && !!standardProcess?.flowchart} onClose={handleCloseStandardModal} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
               <h2 className="text-xl font-bold text-gray-800">
-                {mode === 'production' ? 'Nhập dữ liệu sản xuất' : 'Tạo định mức lao động'} - {standardProcess.tenQuyTrinh}
+                {mode === 'production' ? 'Nhập dữ liệu sản xuất' : 'Tạo định mức lao động'} - {standardProcess?.tenQuyTrinh}
               </h2>
               <button
                 onClick={handleCloseStandardModal}
@@ -1363,7 +1361,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="overflow-y-auto flex-1 p-6">
               <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
                   <strong>Hướng dẫn:</strong> {mode === 'production'
@@ -1558,7 +1556,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
               </div>
             </div>
 
-            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
+            <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 shrink-0">
               <button
                 onClick={handleCloseStandardModal}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
@@ -1573,12 +1571,11 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
       {/* PDF Preview Modal */}
-      {previewFileUrl && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[10000] p-4" onClick={() => setPreviewFileUrl(null)}>
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <Modal isOpen={!!previewFileUrl} onClose={() => setPreviewFileUrl(null)} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          {previewFileUrl && (<>
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <h3 className="text-sm font-medium text-gray-700 truncate flex-1">
                 {getFileName(previewFileUrl)}
@@ -1619,9 +1616,9 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                 </div>
               )}
             </div>
+          </>)}
           </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 };

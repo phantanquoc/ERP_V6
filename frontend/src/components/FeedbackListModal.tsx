@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, MessageSquare, AlertTriangle, Clock, CheckCircle, XCircle, Eye } from 'lucide-react';
 import { privateFeedbackService, PrivateFeedback, FeedbackStatus } from '../services/privateFeedbackService';
+import Modal from './Modal';
 
 interface FeedbackListModalProps {
   isOpen: boolean;
@@ -74,10 +75,10 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 shrink-0">
           <h2 className="text-2xl font-bold text-gray-900">Danh sách Góp ý & Khó khăn</h2>
           <button
             onClick={onClose}
@@ -88,7 +89,7 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 px-6">
+        <div className="flex border-b border-gray-200 px-6 shrink-0">
           <button
             onClick={() => setActiveTab('all')}
             className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors ${
@@ -187,10 +188,10 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
       </div>
 
       {/* Detail Modal */}
-      {selectedFeedback && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+      <Modal isOpen={!!selectedFeedback} onClose={() => setSelectedFeedback(null)} showBackdrop closeOnBackdrop={true}>
+        {selectedFeedback && (
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 shrink-0">
               <h3 className="text-xl font-bold text-gray-900">Chi tiết</h3>
               <button
                 onClick={() => setSelectedFeedback(null)}
@@ -200,7 +201,7 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mã</label>
                 <p className="text-gray-900">{selectedFeedback.code}</p>
@@ -267,9 +268,9 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </Modal>
+    </Modal>
   );
 };
 

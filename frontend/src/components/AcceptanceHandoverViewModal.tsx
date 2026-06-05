@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import acceptanceHandoverService, { AcceptanceHandover } from '../services/acceptanceHandoverService';
 import { getFileUrl } from '../config/api';
+import Modal from './Modal';
 
 interface AcceptanceHandoverViewModalProps {
   isOpen: boolean;
@@ -58,10 +59,10 @@ const AcceptanceHandoverViewModal = ({ isOpen, onClose, acceptanceHandoverId, no
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
+      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+        <div className="border-b px-6 py-4 flex justify-between items-center shrink-0">
           <h2 className="text-xl font-bold text-gray-800">Chi tiết nghiệm thu bàn giao</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-6 h-6" />
@@ -69,7 +70,7 @@ const AcceptanceHandoverViewModal = ({ isOpen, onClose, acceptanceHandoverId, no
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1">
           {loading && (
             <div className="flex justify-center items-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -146,13 +147,13 @@ const AcceptanceHandoverViewModal = ({ isOpen, onClose, acceptanceHandoverId, no
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t flex justify-end">
+        <div className="bg-gray-50 px-6 py-4 border-t flex justify-end shrink-0">
           <button onClick={onClose} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
             Đóng
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

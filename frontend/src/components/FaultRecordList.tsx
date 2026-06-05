@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL, getFileUrl } from '../config/api';
 import apiClient from '../services/apiClient';
 import FileUpload from './FileUpload';
+import Modal from './Modal';
 
 interface FaultRecord {
   id: string;
@@ -343,19 +344,19 @@ const FaultRecordList = () => {
       </div>
 
       {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b">
-              <h3 className="font-semibold text-gray-800">
-                {isViewMode ? 'Chi tiết lỗi' : editingRecord ? 'Chỉnh sửa lỗi' : 'Thêm lỗi mới'}
-              </h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-1.5 hover:bg-gray-100 rounded">
-                <X size={18} />
-              </button>
-            </div>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} showBackdrop>
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-5 border-b shrink-0">
+            <h3 className="font-semibold text-gray-800">
+              {isViewMode ? 'Chi tiết lỗi' : editingRecord ? 'Chỉnh sửa lỗi' : 'Thêm lỗi mới'}
+            </h3>
+            <button onClick={() => setIsModalOpen(false)} className="p-1.5 hover:bg-gray-100 rounded">
+              <X size={18} />
+            </button>
+          </div>
 
-            {isViewMode && editingRecord ? (
+          <div className="overflow-y-auto flex-1">
+          {isViewMode && editingRecord ? (
               <div className="p-5 space-y-3">
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div><span className="text-gray-500">Mã lỗi:</span><p className="font-mono font-medium text-blue-700">{editingRecord.maLoi}</p></div>
@@ -475,7 +476,7 @@ const FaultRecordList = () => {
             )}
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KeyRound, Eye, EyeOff, RefreshCw, Copy, Check, X, Loader2 } from 'lucide-react';
 import apiClient from '@services/apiClient';
+import Modal from './Modal';
 
 interface Props {
   userId: string;       // may be '' for old notifications — resolved via employeeName/metadata
@@ -130,10 +131,10 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, metada
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-orange-100 rounded-lg">
               <KeyRound className="w-5 h-5 text-orange-600" />
@@ -152,7 +153,7 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, metada
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5">
+        <div className="px-6 py-5 overflow-y-auto flex-1">
           {/* Resolving userId from employee code */}
           {resolving && (
             <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
@@ -293,7 +294,7 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, metada
           )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

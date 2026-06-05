@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, RefreshCw, Download } from 'lucide-react';
+import Modal from './Modal';
 import productionProcessService, { ProductionProcess, CreateProductionProcessData, ProductionFlowchartCost, ProductionFlowchartSection } from '../services/productionProcessService';
 import processService, { Process } from '../services/processService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
@@ -580,10 +581,9 @@ const ProductionProcessManagement: React.FC = () => {
       })()}
 
       {/* Create/Edit Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-[95vw] w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl max-w-[95vw] w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-xl font-bold text-gray-800">
                 {editingProcess ? 'Chỉnh sửa quy trình sản xuất' : 'Tạo quy trình sản xuất mới'}
               </h3>
@@ -592,7 +592,7 @@ const ProductionProcessManagement: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="overflow-y-auto flex-1 p-6">
               {/* Template Selection */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -867,7 +867,7 @@ const ProductionProcessManagement: React.FC = () => {
               )}
             </div>
 
-            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
+            <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 shrink-0">
               <button
                 onClick={handleCloseModal}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
@@ -883,19 +883,17 @@ const ProductionProcessManagement: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
 
       {/* View Modal */}
-      {isViewModalOpen && viewingProcess && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-[95vw] w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+      <Modal isOpen={isViewModalOpen && !!viewingProcess} onClose={handleCloseViewModal} showBackdrop closeOnBackdrop={true}>
+        <div className="bg-white rounded-lg shadow-xl max-w-[95vw] w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
               <div>
                 <h3 className="text-xl font-bold text-gray-800">Chi tiết quy trình sản xuất</h3>
                 <p className="text-sm text-gray-600 mt-1">
-                  Mã: <span className="font-semibold text-blue-600">{viewingProcess.maQuyTrinhSanXuat}</span> |
-                  Tên: <span className="font-semibold">{viewingProcess.tenQuyTrinh}</span>
+                  Mã: <span className="font-semibold text-blue-600">{viewingProcess?.maQuyTrinhSanXuat}</span> |
+                  Tên: <span className="font-semibold">{viewingProcess?.tenQuyTrinh}</span>
                 </p>
               </div>
               <button onClick={handleCloseViewModal} className="text-gray-500 hover:text-gray-700">
@@ -903,9 +901,10 @@ const ProductionProcessManagement: React.FC = () => {
               </button>
             </div>
             {/* Nút xuất Excel */}
-            <div className="sticky top-[68px] bg-white border-b border-gray-200 px-6 py-2 flex justify-end">
+            <div className="bg-white border-b border-gray-200 px-6 py-2 flex justify-end shrink-0">
               <button
                 onClick={async () => {
+                  if (!viewingProcess) return;
                   try {
                     await productionProcessService.exportToExcel(viewingProcess.id);
                   } catch (error) {
@@ -920,7 +919,8 @@ const ProductionProcessManagement: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="overflow-y-auto flex-1 p-6">
+              {viewingProcess && (<>
               {/* Thông tin tổng quan */}
               <div className="mb-6 grid grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg">
                 <div>
@@ -1068,9 +1068,10 @@ const ProductionProcessManagement: React.FC = () => {
               ) : (
                 <p className="text-center text-gray-500 py-8">Không có dữ liệu flowchart</p>
               )}
+              </>)}
             </div>
 
-            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
+            <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 shrink-0">
               <button
                 onClick={handleCloseViewModal}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
@@ -1080,7 +1081,7 @@ const ProductionProcessManagement: React.FC = () => {
               <button
                 onClick={() => {
                   handleCloseViewModal();
-                  handleEditProcess(viewingProcess);
+                  if (viewingProcess) handleEditProcess(viewingProcess);
                 }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               >
@@ -1088,8 +1089,7 @@ const ProductionProcessManagement: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
     </div>
   );
 };

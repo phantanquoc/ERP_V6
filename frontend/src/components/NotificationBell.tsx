@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, X, BellOff, MoreVertical, Trash2, CheckCheck } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -31,6 +31,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const queryClient = useQueryClient();
   const userIsAdmin = user?.role === 'admin';
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [selectedEvaluationNotification, setSelectedEvaluationNotification] = useState<AppNotification | null>(null);
@@ -56,6 +57,18 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushDeniedMessage, setPushDeniedMessage] = useState('');
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
 
   // Initialise push enabled state on mount
   useEffect(() => {
@@ -199,7 +212,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 
   return (
     <>
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       {/* Bell Button */}
       <button
         onClick={() => { setIsOpen(!isOpen); }}
@@ -421,6 +434,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         evaluationId={selectedEvaluationNotification?.evaluationId || null}
         notificationId={selectedEvaluationNotification?.id}
         evaluationPeriod={selectedEvaluationNotification?.period}
+        employeeId={user?.employeeId || null}
+        month={new Date().getMonth() + 1}
+        year={new Date().getFullYear()}
       />
 
       {/* All Notifications Modal */}
