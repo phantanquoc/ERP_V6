@@ -1347,7 +1347,8 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
         </Modal>
 
       {/* Standard Modal - Tạo định mức */}
-      <Modal isOpen={isStandardModalOpen && !!standardProcess && !!standardProcess?.flowchart} onClose={handleCloseStandardModal} showBackdrop>
+      {isStandardModalOpen && standardProcess && standardProcess.flowchart && (
+      <Modal isOpen onClose={handleCloseStandardModal} showBackdrop>
         <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
           <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
               <h2 className="text-xl font-bold text-gray-800">
@@ -1572,6 +1573,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
             </div>
           </div>
         </Modal>
+      )}
       {/* PDF Preview Modal */}
       <Modal isOpen={!!previewFileUrl} onClose={() => setPreviewFileUrl(null)} showBackdrop closeOnBackdrop={true}>
         <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
