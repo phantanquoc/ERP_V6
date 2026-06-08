@@ -11,7 +11,7 @@ interface ModalFormProps {
   /** Icon nhỏ bên trái tiêu đề (optional) */
   titleIcon?: React.ReactNode;
   isLoading?: boolean;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | '7xl';
   children: React.ReactNode;
   /** Footer tùy chỉnh — nếu không truyền thì không render footer */
   footer?: React.ReactNode;
@@ -27,6 +27,7 @@ const maxWidthMap: Record<string, string> = {
   '4xl': 'max-w-4xl',
   '5xl': 'max-w-5xl',
   '6xl': 'max-w-6xl',
+  '7xl': 'max-w-7xl',
 };
 
 export const ModalForm: React.FC<ModalFormProps> = ({
