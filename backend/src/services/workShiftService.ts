@@ -1,5 +1,8 @@
 import prisma from '@config/database';
 import { NotFoundError } from '@utils/errors';
+import { nowInAppTz } from '@utils/dateUtils';
+
+const EARLY_BUFFER_MINUTES = 30;
 
 class WorkShiftService {
   async getAllShifts() {
@@ -43,16 +46,15 @@ class WorkShiftService {
     return await prisma.workShift.delete({ where: { id } });
   }
 
-  async determineShift(checkInTime: Date): Promise<string | null> {
+  async determineShift(_checkInTime: Date): Promise<string | null> {
     const shifts = await prisma.workShift.findMany({
       where: { isActive: true },
     });
 
     if (shifts.length === 0) return null;
 
-    const checkInHours = checkInTime.getHours();
-    const checkInMinutes = checkInTime.getMinutes();
-    const checkInTotal = checkInHours * 60 + checkInMinutes;
+    const { hour, minute } = nowInAppTz();
+    const checkInTotal = hour * 60 + minute;
 
     const matched: { name: string; startMinutes: number }[] = [];
 
@@ -61,15 +63,23 @@ class WorkShiftService {
       const [endH, endM] = shift.endTime.split(':').map(Number);
       const startMinutes = startH * 60 + startM;
       const endMinutes = endH * 60 + endM;
+      const bufferedStart = (startMinutes - EARLY_BUFFER_MINUTES + 1440) % 1440;
 
       if (endMinutes > startMinutes) {
-        // Normal shift (e.g. 06:00 - 14:00)
-        if (checkInTotal >= startMinutes && checkInTotal < endMinutes) {
-          matched.push({ name: shift.name, startMinutes });
+        // Normal shift (e.g. 06:00 - 14:00), buffered to [05:30, 14:00)
+        if (bufferedStart < endMinutes) {
+          if (checkInTotal >= bufferedStart && checkInTotal < endMinutes) {
+            matched.push({ name: shift.name, startMinutes });
+          }
+        } else {
+          // Buffer wraps past midnight (e.g. start 00:20, buffer → 23:50)
+          if (checkInTotal >= bufferedStart || checkInTotal < endMinutes) {
+            matched.push({ name: shift.name, startMinutes });
+          }
         }
       } else {
-        // Overnight shift (e.g. 22:00 - 06:00)
-        if (checkInTotal >= startMinutes || checkInTotal < endMinutes) {
+        // Overnight shift (e.g. 22:00 - 06:00), buffered to [21:30, 06:00)
+        if (checkInTotal >= bufferedStart || checkInTotal < endMinutes) {
           matched.push({ name: shift.name, startMinutes });
         }
       }
@@ -78,12 +88,12 @@ class WorkShiftService {
     if (matched.length === 0) return null;
     if (matched.length === 1) return matched[0].name;
 
-    // Pick the shift whose startTime is closest to checkInTime
+    // Pick the shift whose startTime is closest (forward) to checkInTime
     let closest = matched[0];
-    let minDiff = this.circularDiff(checkInTotal, closest.startMinutes);
+    let minDiff = this.forwardDiff(checkInTotal, closest.startMinutes);
 
     for (let i = 1; i < matched.length; i++) {
-      const diff = this.circularDiff(checkInTotal, matched[i].startMinutes);
+      const diff = this.forwardDiff(checkInTotal, matched[i].startMinutes);
       if (diff < minDiff) {
         minDiff = diff;
         closest = matched[i];
@@ -93,10 +103,16 @@ class WorkShiftService {
     return closest.name;
   }
 
-  private circularDiff(a: number, b: number): number {
-    const totalMinutesInDay = 24 * 60;
-    const diff = ((a - b) % totalMinutesInDay + totalMinutesInDay) % totalMinutesInDay;
-    return Math.min(diff, totalMinutesInDay - diff);
+  private forwardDiff(checkIn: number, shiftStart: number): number {
+    // How many minutes from shiftStart to checkIn (wrapping at midnight).
+    // Smaller = checkIn is closer AFTER shiftStart (just started).
+    // If checkIn is before shiftStart (early arrival), treat as large distance
+    // but still smaller than a shift that started many hours ago.
+    const diff = (checkIn - shiftStart + 1440) % 1440;
+    // If diff > 720 (12h), it means checkIn is BEFORE shiftStart (early arrival)
+    // Convert to "negative" distance so early arrival is preferred over a shift
+    // that started long ago.
+    return diff <= 720 ? diff : 1440 - diff;
   }
 }
 
