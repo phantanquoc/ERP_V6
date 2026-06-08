@@ -36,10 +36,10 @@ type SystemForm = CreateMachineSystemRequest;
 type DetailForm = CreateMachineSystemDetailRequest;
 
 const DETAIL_TYPES: { value: MachineSystemDetailType; label: string }[] = [
-  { value: 'Thiet bi', label: 'Thiết bị' },
-  { value: 'Cum', label: 'Cụm' },
-  { value: 'Linh kien', label: 'Linh kiện' },
-  { value: 'Diem kiem tra', label: 'Điểm kiểm tra' },
+  { value: 'THIET_BI', label: 'Thiết bị' },
+  { value: 'CUM', label: 'Cụm' },
+  { value: 'LINH_KIEN', label: 'Linh kiện' },
+  { value: 'DIEM_KIEM_TRA', label: 'Điểm kiểm tra' },
 ];
 
 const SYSTEM_SORTS: { value: NonNullable<MachineSystemFilters['sortBy']>; label: string }[] = [
@@ -239,7 +239,7 @@ const emptySystemForm = (): SystemForm => ({
 const emptyDetailForm = (machineSystemId = ''): DetailForm => ({
   machineSystemId,
   parentDetailId: '',
-  loaiChiTiet: 'Thiet bi',
+  loaiChiTiet: 'THIET_BI',
   maChiTiet: '',
   tenChiTiet: '',
   viTri: '',
@@ -459,10 +459,24 @@ const MachineSystemList = () => {
 
   const collapseAll = () => setExpandedIds(new Set());
 
-  const parentDetailOptions = useMemo(
-    () => allDetails.filter((detail) => detail.machineSystemId === detailForm.machineSystemId && detail.id !== detailModal?.record?.id),
-    [allDetails, detailForm.machineSystemId, detailModal?.record?.id]
-  );
+  const parentCandidatesQuery = useMachineSystemDetails({
+    page: 1,
+    limit: 500,
+    machineSystemId: detailForm.machineSystemId || undefined,
+    hoatDong: true,
+    sortBy: 'thuTu',
+    sortOrder: 'asc',
+  });
+  const parentDetailOptions = useMemo(() => {
+    if (!detailForm.machineSystemId) return [];
+    const type = detailForm.loaiChiTiet;
+    if (type === 'THIET_BI') return [];
+    const all = (parentCandidatesQuery.data?.data ?? []).filter(
+      (d) => d.id !== detailModal?.record?.id
+    );
+    if (type === 'CUM') return all.filter((d) => d.loaiChiTiet === 'THIET_BI');
+    return all.filter((d) => d.loaiChiTiet === 'THIET_BI' || d.loaiChiTiet === 'CUM');
+  }, [parentCandidatesQuery.data?.data, detailForm.machineSystemId, detailForm.loaiChiTiet, detailModal?.record?.id]);
 
   const openSystemModal = (mode: Mode, record?: MachineSystem) => {
     setError('');
