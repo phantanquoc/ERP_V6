@@ -1,6 +1,8 @@
 *
 !.dockerignore
 !requirements.txt
+!requirements.face.txt
+!Dockerfile.face
 !main.py
 !app.py
 !config.py
@@ -10,4 +12,3 @@
 !docs/
 !wheels/
 !docker-entrypoint.sh
-
