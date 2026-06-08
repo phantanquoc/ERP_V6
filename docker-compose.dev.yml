@@ -59,27 +59,19 @@ services:
   ai-service:
     build:
       context: ./ai-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.face
     container_name: erp_dev_ai
     restart: unless-stopped
     environment:
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-chat-v3-0324}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://127.0.0.1:5173}
     ports:
       - "8001:8001"
     volumes:
       - deepface_weights:/home/appuser/.deepface/weights
-      - hf_cache:/home/appuser/.cache/huggingface
-      - ./docs:/app/docs:ro
-      - ai_chroma_dev:/app/chroma_data
       - ./ai-service/main.py:/app/main.py:ro
       - ./ai-service/app.py:/app/app.py:ro
       - ./ai-service/config.py:/app/config.py:ro
       - ./ai-service/face:/app/face:ro
-      - ./ai-service/chat:/app/chat:ro
-      - ./ai-service/agent:/app/agent:ro
-      - ./ai-service/docs:/app/doc_processing:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 30s
@@ -134,10 +126,6 @@ volumes:
   backend_uploads_dev:
     driver: local
   deepface_weights:
-    driver: local  # persist ArcFace/FaceNet weights across rebuilds
-  hf_cache:
-    driver: local  # persist SentenceTransformer model across rebuilds
-  ai_chroma_dev:
     driver: local
 
 networks:
