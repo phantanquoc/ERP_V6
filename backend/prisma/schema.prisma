@@ -2569,6 +2569,7 @@ model ProjectPhase {
   nguoiPhuTrachId String?
   nguoiPhuTrach   String?
   tienDo          Int       @default(0)
+  nganSach        Float?
   trangThai       String    @default("Chưa bắt đầu")
   thuTu           Int       @default(0)
   ngayBatDau      DateTime?
@@ -2612,6 +2613,8 @@ model ProjectTask {
   ngayKetThuc    DateTime?
   deadline       DateTime?
   trangThai      String    @default("Chưa bắt đầu") // Chưa bắt đầu / Đang làm / Hoàn thành / Trễ
+  mucDoUuTien    TaskPriority?
+  laMilestone    Boolean   @default(false)
   thuTu          Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

@@ -36,6 +36,8 @@ interface CreateTaskData {
   deadline?: Date;
   trangThai?: string;
   thuTu?: number;
+  mucDoUuTien?: 'KHAN_CAP' | 'CAO' | 'TRUNG_BINH' | 'THAP' | null;
+  laMilestone?: boolean;
 }
 
 interface CreateProjectPhaseData {
@@ -50,6 +52,7 @@ interface CreateProjectPhaseData {
   thuTu?: number;
   ngayBatDau?: Date;
   ngayKetThuc?: Date;
+  nganSach?: number;
 }
 
 type UpdateProjectPhaseData = Partial<CreateProjectPhaseData>;
@@ -122,8 +125,22 @@ class ProjectService {
       include: projectInclude,
     });
     if (!project) throw new NotFoundError('Không tìm thấy dự án');
+
+    const phasesWithAutoProgress = project.phases.map((phase) => {
+      const tasks = phase.tasks ?? [];
+      if (tasks.length === 0) return phase;
+      const done = tasks.filter((t) => t.trangThai === 'Hoàn thành').length;
+      return { ...phase, tienDo: Math.round((done / tasks.length) * 100) };
+    });
+
+    const tienDoTongThe = phasesWithAutoProgress.length === 0
+      ? 0
+      : Math.round(phasesWithAutoProgress.reduce((sum, p) => sum + p.tienDo, 0) / phasesWithAutoProgress.length);
+
     return {
       ...project,
+      phases: phasesWithAutoProgress,
+      tienDoTongThe,
       unphasedTasks: project.tasks.filter((task) => !task.projectPhaseId),
     };
   }
@@ -258,6 +275,8 @@ class ProjectService {
         deadline: data.deadline,
         trangThai: data.trangThai ?? 'Chưa bắt đầu',
         thuTu: data.thuTu ?? 0,
+        mucDoUuTien: data.mucDoUuTien ?? null,
+        laMilestone: data.laMilestone ?? false,
       },
     });
   }
@@ -335,6 +354,7 @@ class ProjectService {
         thuTu: nextOrder,
         ngayBatDau: data.ngayBatDau,
         ngayKetThuc: data.ngayKetThuc,
+        nganSach: data.nganSach,
       },
       include: { tasks: { orderBy: { thuTu: 'asc' } } },
     });

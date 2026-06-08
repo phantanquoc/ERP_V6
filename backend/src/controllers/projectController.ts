@@ -126,6 +126,8 @@ class ProjectController {
         deadline: req.body.deadline ? new Date(req.body.deadline) : undefined,
         trangThai: req.body.trangThai,
         thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu) : undefined,
+        mucDoUuTien: req.body.mucDoUuTien || null,
+        laMilestone: req.body.laMilestone === true || req.body.laMilestone === 'true',
       };
       const task = await projectService.addTask(req.params.id, data);
       res.status(201).json({ success: true, data: task, message: 'Thêm công việc thành công' });
@@ -147,6 +149,8 @@ class ProjectController {
         trangThai: req.body.trangThai,
         deadline: req.body.deadline ? new Date(req.body.deadline) : undefined,
         thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu) : undefined,
+        mucDoUuTien: req.body.mucDoUuTien !== undefined ? (req.body.mucDoUuTien || null) : undefined,
+        laMilestone: req.body.laMilestone !== undefined ? (req.body.laMilestone === true || req.body.laMilestone === 'true') : undefined,
       };
       Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
 
@@ -178,6 +182,7 @@ class ProjectController {
         thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu, 10) : undefined,
         ngayBatDau: req.body.ngayBatDau ? new Date(req.body.ngayBatDau) : undefined,
         ngayKetThuc: req.body.ngayKetThuc ? new Date(req.body.ngayKetThuc) : undefined,
+        nganSach: req.body.nganSach ? parseFloat(req.body.nganSach) : undefined,
       });
       res.status(201).json({ success: true, data: phase, message: 'Thêm giai đoạn thành công' });
     } catch (error) {
@@ -199,6 +204,7 @@ class ProjectController {
         thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu, 10) : undefined,
         ngayBatDau: req.body.ngayBatDau ? new Date(req.body.ngayBatDau) : undefined,
         ngayKetThuc: req.body.ngayKetThuc ? new Date(req.body.ngayKetThuc) : undefined,
+        nganSach: req.body.nganSach !== undefined ? (req.body.nganSach ? parseFloat(req.body.nganSach) : null) : undefined,
       };
       Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
 

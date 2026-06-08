@@ -3,6 +3,8 @@ import apiClient, { ApiResponse } from './apiClient';
 export type ProjectPhaseStatus = 'Chưa bắt đầu' | 'Đang thực hiện' | 'Hoàn thành' | 'Tạm dừng' | string;
 export type ProjectTaskStatus = 'Chưa bắt đầu' | 'Đang làm' | 'Hoàn thành' | 'Trễ' | string;
 
+export type ProjectTaskPriority = 'KHAN_CAP' | 'CAO' | 'TRUNG_BINH' | 'THAP';
+
 export interface Project {
   id: string;
   maDuAn: string;
@@ -19,6 +21,7 @@ export interface Project {
   phases?: ProjectPhase[];
   tasks: ProjectTask[];
   unphasedTasks?: ProjectTask[];
+  tienDoTongThe?: number;
 }
 
 export interface ProjectMember {
@@ -41,6 +44,8 @@ export interface ProjectTask {
   ngayKetThuc?: string;
   deadline?: string;
   trangThai: ProjectTaskStatus;
+  mucDoUuTien?: ProjectTaskPriority | null;
+  laMilestone?: boolean;
   thuTu: number;
   createdAt: string;
   updatedAt: string;
@@ -56,6 +61,7 @@ export interface ProjectPhase {
   nguoiPhuTrachId?: string | null;
   nguoiPhuTrach?: string | null;
   tienDo: number;
+  nganSach?: number | null;
   trangThai: ProjectPhaseStatus;
   thuTu: number;
   ngayBatDau?: string | null;
@@ -95,6 +101,7 @@ export interface CreateProjectPhaseRequest {
   thuTu?: number;
   ngayBatDau?: string;
   ngayKetThuc?: string;
+  nganSach?: number | string;
 }
 
 export type UpdateProjectPhaseRequest = Partial<CreateProjectPhaseRequest>;
@@ -114,6 +121,8 @@ export interface CreateProjectTaskRequest {
   deadline?: string;
   trangThai?: ProjectTaskStatus;
   thuTu?: number;
+  mucDoUuTien?: ProjectTaskPriority | null;
+  laMilestone?: boolean;
 }
 
 export type UpdateProjectTaskRequest = Partial<CreateProjectTaskRequest>;
