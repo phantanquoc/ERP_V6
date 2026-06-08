@@ -1,6 +1,7 @@
+import { Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError, AuthorizationError } from '@utils/errors';
+import { NotFoundError, AuthorizationError, ConflictError, ValidationError } from '@utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
@@ -28,10 +29,42 @@ interface CreateTaskData {
   tieuDe: string;
   moTa?: string;
   nguoiPhuTrach?: string;
+  projectPhaseId?: string | null;
+  tienDo?: number;
+  ngayBatDau?: Date;
+  ngayKetThuc?: Date;
   deadline?: Date;
   trangThai?: string;
   thuTu?: number;
 }
+
+interface CreateProjectPhaseData {
+  tenGiaiDoan: string;
+  moTa?: string;
+  chuSoHuuId?: string;
+  chuSoHuu?: string;
+  nguoiPhuTrachId?: string;
+  nguoiPhuTrach?: string;
+  tienDo?: number;
+  trangThai?: string;
+  thuTu?: number;
+  ngayBatDau?: Date;
+  ngayKetThuc?: Date;
+}
+
+type UpdateProjectPhaseData = Partial<CreateProjectPhaseData>;
+
+const PROJECT_PHASE_STATUSES = new Set(['Chưa bắt đầu', 'Đang thực hiện', 'Hoàn thành', 'Tạm dừng']);
+const PROJECT_TASK_STATUSES = new Set(['Chưa bắt đầu', 'Đang làm', 'Hoàn thành', 'Trễ']);
+
+const projectInclude = {
+  members: true,
+  phases: {
+    orderBy: { thuTu: 'asc' as const },
+    include: { tasks: { orderBy: { thuTu: 'asc' as const } } },
+  },
+  tasks: { orderBy: { thuTu: 'asc' as const } },
+} satisfies Prisma.ProjectInclude;
 
 class ProjectService {
   async generateCode(): Promise<string> {
@@ -73,6 +106,7 @@ class ProjectService {
         orderBy: { createdAt: 'desc' },
         include: {
           members: true,
+          phases: { orderBy: { thuTu: 'asc' } },
           tasks: { orderBy: { thuTu: 'asc' } },
         },
       }),
@@ -85,10 +119,13 @@ class ProjectService {
   async getById(id: string) {
     const project = await prisma.project.findUnique({
       where: { id },
-      include: { members: true, tasks: { orderBy: { thuTu: 'asc' } } },
+      include: projectInclude,
     });
     if (!project) throw new NotFoundError('Không tìm thấy dự án');
-    return project;
+    return {
+      ...project,
+      unphasedTasks: project.tasks.filter((task) => !task.projectPhaseId),
+    };
   }
 
   async create(data: CreateProjectData) {
@@ -124,7 +161,7 @@ class ProjectService {
 
       return tx.project.findUnique({
         where: { id: project.id },
-        include: { members: true, tasks: { orderBy: { thuTu: 'asc' } } },
+        include: projectInclude,
       });
     });
   }
@@ -137,7 +174,7 @@ class ProjectService {
     return prisma.project.update({
       where: { id },
       data,
-      include: { members: true, tasks: { orderBy: { thuTu: 'asc' } } },
+      include: projectInclude,
     });
   }
 
@@ -176,14 +213,48 @@ class ProjectService {
   }
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
+  private validateProgress(value?: number): void {
+    if (value === undefined) return;
+    if (!Number.isInteger(value) || value < 0 || value > 100) {
+      throw new ValidationError('Tiến độ phải nằm trong khoảng 0 đến 100');
+    }
+  }
+
+  private validatePhaseStatus(value?: string): void {
+    if (value && !PROJECT_PHASE_STATUSES.has(value)) {
+      throw new ValidationError('Trạng thái giai đoạn không hợp lệ');
+    }
+  }
+
+  private validateTaskStatus(value?: string): void {
+    if (value && !PROJECT_TASK_STATUSES.has(value)) {
+      throw new ValidationError('Trạng thái công việc không hợp lệ');
+    }
+  }
+
+  private async validatePhaseBelongsToProject(projectId: string, projectPhaseId?: string | null) {
+    if (!projectPhaseId) return;
+    const phase = await prisma.projectPhase.findUnique({ where: { id: projectPhaseId } });
+    if (!phase || phase.projectId !== projectId) {
+      throw new ValidationError('Giai đoạn không thuộc dự án đã chọn');
+    }
+  }
+
   async addTask(projectId: string, data: CreateTaskData) {
     await this.getById(projectId);
+    this.validateProgress(data.tienDo);
+    this.validateTaskStatus(data.trangThai);
+    await this.validatePhaseBelongsToProject(projectId, data.projectPhaseId);
     return prisma.projectTask.create({
       data: {
         projectId,
+        projectPhaseId: data.projectPhaseId ?? null,
         tieuDe: data.tieuDe,
         moTa: data.moTa,
         nguoiPhuTrach: data.nguoiPhuTrach,
+        tienDo: data.tienDo ?? 0,
+        ngayBatDau: data.ngayBatDau,
+        ngayKetThuc: data.ngayKetThuc,
         deadline: data.deadline,
         trangThai: data.trangThai ?? 'Chưa bắt đầu',
         thuTu: data.thuTu ?? 0,
@@ -200,6 +271,11 @@ class ProjectService {
   ) {
     const oldTask = await prisma.projectTask.findUnique({ where: { id: taskId } });
     if (!oldTask || oldTask.projectId !== projectId) throw new NotFoundError('Không tìm thấy công việc');
+    this.validateProgress(data.tienDo);
+    this.validateTaskStatus(data.trangThai);
+    if (data.projectPhaseId !== undefined) {
+      await this.validatePhaseBelongsToProject(projectId, data.projectPhaseId);
+    }
 
     const task = await prisma.projectTask.update({ where: { id: taskId }, data });
 
@@ -235,6 +311,92 @@ class ProjectService {
     const task = await prisma.projectTask.findUnique({ where: { id: taskId } });
     if (!task || task.projectId !== projectId) throw new NotFoundError('Không tìm thấy công việc');
     return prisma.projectTask.delete({ where: { id: taskId } });
+  }
+
+  // ── Phases ────────────────────────────────────────────────────────────────
+  async addPhase(projectId: string, data: CreateProjectPhaseData) {
+    await this.getById(projectId);
+    this.validateProgress(data.tienDo);
+    this.validatePhaseStatus(data.trangThai);
+
+    const nextOrder = data.thuTu ?? await prisma.projectPhase.count({ where: { projectId } });
+
+    return prisma.projectPhase.create({
+      data: {
+        projectId,
+        tenGiaiDoan: data.tenGiaiDoan,
+        moTa: data.moTa,
+        chuSoHuuId: data.chuSoHuuId,
+        chuSoHuu: data.chuSoHuu,
+        nguoiPhuTrachId: data.nguoiPhuTrachId,
+        nguoiPhuTrach: data.nguoiPhuTrach,
+        tienDo: data.tienDo ?? 0,
+        trangThai: data.trangThai ?? 'Chưa bắt đầu',
+        thuTu: nextOrder,
+        ngayBatDau: data.ngayBatDau,
+        ngayKetThuc: data.ngayKetThuc,
+      },
+      include: { tasks: { orderBy: { thuTu: 'asc' } } },
+    });
+  }
+
+  async updatePhase(projectId: string, phaseId: string, data: UpdateProjectPhaseData) {
+    const phase = await prisma.projectPhase.findUnique({ where: { id: phaseId } });
+    if (!phase || phase.projectId !== projectId) throw new NotFoundError('Không tìm thấy giai đoạn');
+    this.validateProgress(data.tienDo);
+    this.validatePhaseStatus(data.trangThai);
+
+    return prisma.projectPhase.update({
+      where: { id: phaseId },
+      data,
+      include: { tasks: { orderBy: { thuTu: 'asc' } } },
+    });
+  }
+
+  async deletePhase(projectId: string, phaseId: string, moveTasksToUnphased = false) {
+    const phase = await prisma.projectPhase.findUnique({
+      where: { id: phaseId },
+      include: { _count: { select: { tasks: true } } },
+    });
+    if (!phase || phase.projectId !== projectId) throw new NotFoundError('Không tìm thấy giai đoạn');
+    if (phase._count.tasks > 0 && !moveTasksToUnphased) {
+      throw new ConflictError('Giai đoạn còn công việc, cần chuyển công việc ra ngoài giai đoạn trước khi xóa');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      if (moveTasksToUnphased) {
+        await tx.projectTask.updateMany({
+          where: { projectId, projectPhaseId: phaseId },
+          data: { projectPhaseId: null },
+        });
+      }
+      return tx.projectPhase.delete({ where: { id: phaseId } });
+    });
+  }
+
+  async reorderPhases(projectId: string, phaseIds: string[]) {
+    await this.getById(projectId);
+    const phases = await prisma.projectPhase.findMany({
+      where: { projectId },
+      select: { id: true },
+    });
+    const existingIds = new Set(phases.map((phase) => phase.id));
+    if (phaseIds.length !== phases.length || phaseIds.some((id) => !existingIds.has(id))) {
+      throw new ValidationError('Danh sách giai đoạn sắp xếp không hợp lệ');
+    }
+
+    await prisma.$transaction(
+      phaseIds.map((id, index) => prisma.projectPhase.update({
+        where: { id },
+        data: { thuTu: index },
+      })),
+    );
+
+    return prisma.projectPhase.findMany({
+      where: { projectId },
+      orderBy: { thuTu: 'asc' },
+      include: { tasks: { orderBy: { thuTu: 'asc' } } },
+    });
   }
 
   async exportToExcel(filters?: { search?: string; trangThai?: string }) {

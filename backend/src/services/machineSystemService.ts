@@ -1,6 +1,7 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError } from '@utils/errors';
+import { MachineSystemCategory } from '@prisma/client';
 import ExcelJS from 'exceljs';
 
 interface CreateMachineSystemData {
@@ -9,6 +10,7 @@ interface CreateMachineSystemData {
   maHeThong: string;
   tenHeThong: string;
   chucNang: string;
+  loaiHeThong: MachineSystemCategory;
   maThietBi?: string;
   tenThietBi?: string;
   nhiemVu?: string;
@@ -24,6 +26,7 @@ interface UpdateMachineSystemData {
   maHeThong?: string;
   tenHeThong?: string;
   chucNang?: string;
+  loaiHeThong?: MachineSystemCategory;
   maThietBi?: string;
   tenThietBi?: string;
   nhiemVu?: string;
@@ -33,7 +36,56 @@ interface UpdateMachineSystemData {
   hoatDong?: boolean;
 }
 
+const CATEGORY_PREFIX_MAP: Record<MachineSystemCategory, string> = {
+  SAN_XUAT: 'SX',
+  DONG_GOI: 'DG',
+  BAO_QUAN: 'BQ',
+  DIEN: 'DT',
+  NUOC: 'NU',
+  HOI: 'HI',
+  KHI_NEN: 'KN',
+  LAM_NONG: 'LM',
+  VAN_CHUYEN: 'VC',
+  PCCC: 'PC',
+  CHAT_THAI: 'CT',
+  KIEM_TRA_CL: 'KT',
+  AN_TOAN: 'AT',
+  KHAC: 'KH',
+};
+
 class MachineSystemService {
+  async generateCode(loaiHeThong: MachineSystemCategory): Promise<string> {
+    const prefix = CATEGORY_PREFIX_MAP[loaiHeThong];
+    const lastSystem = await prisma.machineSystem.findFirst({
+      where: { maHeThong: { startsWith: `${prefix}-` } },
+      orderBy: { maHeThong: 'desc' },
+      select: { maHeThong: true },
+    });
+
+    if (!lastSystem) {
+      return `${prefix}-001`;
+    }
+
+    const parts = lastSystem.maHeThong.split('-');
+    const lastNum = parseInt(parts[1] ?? '0', 10);
+    const nextNum = lastNum + 1;
+    return `${prefix}-${String(nextNum).padStart(3, '0')}`;
+  }
+
+  async getNextCode(loaiHeThong: MachineSystemCategory): Promise<string> {
+    return this.generateCode(loaiHeThong);
+  }
+
+  async getDistinctField(field: 'khuVuc' | 'viTri'): Promise<string[]> {
+    const results = await prisma.$queryRaw<{ value: string }[]>`
+      SELECT DISTINCT ${field} as value
+      FROM business.machine_systems
+      WHERE ${field} IS NOT NULL AND ${field} != ''
+      ORDER BY value ASC
+    `;
+    return results.map((r) => r.value).filter((v) => v.length > 0);
+  }
+
   async getAllMachineSystems(page: number = 1, limit: number = 10, search?: string) {
     const { skip, limit: limitNum } = getPaginationParams(page, limit);
 
@@ -84,6 +136,23 @@ class MachineSystemService {
     return prisma.machineSystem.delete({ where: { id } });
   }
 
+  async getMachinesForSystem(systemId: string) {
+    await this.getMachineSystemById(systemId);
+    const machines = await prisma.machine.findMany({
+      where: { machineSystemId: systemId },
+      orderBy: { maMay: 'asc' },
+      include: {
+        _count: {
+          select: {
+            faultRecords: { where: { trangThai: { not: 'Đã xử lý' } } },
+            repairRequestItems: true,
+          },
+        },
+      },
+    });
+    return machines;
+  }
+
   async exportToExcel() {
     const data = await prisma.machineSystem.findMany({ orderBy: { createdAt: 'desc' } });
 
@@ -96,6 +165,7 @@ class MachineSystemService {
       { header: 'Vị trí', key: 'viTri', width: 15 },
       { header: 'Mã hệ thống', key: 'maHeThong', width: 15 },
       { header: 'Tên hệ thống', key: 'tenHeThong', width: 25 },
+      { header: 'Loại hệ thống', key: 'loaiHeThong', width: 18 },
       { header: 'Chức năng', key: 'chucNang', width: 30 },
       { header: 'Mã thiết bị', key: 'maThietBi', width: 15 },
       { header: 'Tên thiết bị', key: 'tenThietBi', width: 25 },
@@ -113,6 +183,7 @@ class MachineSystemService {
         viTri: item.viTri,
         maHeThong: item.maHeThong,
         tenHeThong: item.tenHeThong,
+        loaiHeThong: item.loaiHeThong,
         chucNang: item.chucNang,
         maThietBi: item.maThietBi ?? '',
         tenThietBi: item.tenThietBi ?? '',

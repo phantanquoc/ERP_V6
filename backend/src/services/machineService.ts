@@ -4,16 +4,32 @@ import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
 export class MachineService {
-  async getAllMachines(page: number = 1, limit: number = 100) {
+  async getAllMachines(
+    page: number = 1,
+    limit: number = 100,
+    filters?: { search?: string; machineSystemId?: string; trangThai?: string },
+  ) {
     const skip = (page - 1) * limit;
+    const where: Record<string, unknown> = {};
+
+    if (filters?.machineSystemId) where.machineSystemId = filters.machineSystemId;
+    if (filters?.trangThai) where.trangThai = filters.trangThai;
+    if (filters?.search) {
+      where.OR = [
+        { maMay: { contains: filters.search, mode: 'insensitive' } },
+        { tenMay: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
 
     const [data, total] = await Promise.all([
       prisma.machine.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'asc' },
+        include: { machineSystem: true },
       }),
-      prisma.machine.count(),
+      prisma.machine.count({ where }),
     ]);
 
     return {
@@ -31,6 +47,7 @@ export class MachineService {
     const machine = await prisma.machine.findUnique({
       where: { id },
       include: {
+        machineSystem: true,
         systemOperations: {
           orderBy: { createdAt: 'desc' },
           take: 10,
@@ -40,6 +57,37 @@ export class MachineService {
 
     if (!machine) {
       throw new NotFoundError('Machine not found');
+    }
+
+    return machine;
+  }
+
+  async getMachineSummary(id: string) {
+    const machine = await prisma.machine.findUnique({
+      where: { id },
+      include: {
+        machineSystem: true,
+        faultRecords: {
+          orderBy: { ngayPhatHien: 'desc' },
+          take: 3,
+          include: { machineSystem: true },
+        },
+        repairRequestItems: {
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          include: {
+            repairRequest: { select: { id: true, maYeuCau: true, trangThai: true } },
+          },
+        },
+        systemOperations: {
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
+      },
+    });
+
+    if (!machine) {
+      throw new NotFoundError('Không tìm thấy máy');
     }
 
     return machine;
@@ -59,6 +107,7 @@ export class MachineService {
     moTa?: string;
     trangThai?: 'HOAT_DONG' | 'BẢO_TRÌ' | 'NGỪNG_HOẠT_ĐỘNG';
     ghiChu?: string;
+    machineSystemId?: string;
   }) {
     // Check if machine name already exists
     const existingMachine = await prisma.machine.findUnique({
@@ -67,6 +116,16 @@ export class MachineService {
 
     if (existingMachine) {
       throw new ValidationError('Tên máy đã tồn tại');
+    }
+
+    // Validate machineSystemId if provided
+    if (data.machineSystemId) {
+      const machineSystem = await prisma.machineSystem.findUnique({
+        where: { id: data.machineSystemId },
+      });
+      if (!machineSystem) {
+        throw new ValidationError('Không tìm thấy hệ thống máy');
+      }
     }
 
     // Generate machine code
@@ -79,6 +138,7 @@ export class MachineService {
         moTa: data.moTa,
         trangThai: data.trangThai || 'HOAT_DONG',
         ghiChu: data.ghiChu,
+        machineSystemId: data.machineSystemId || null,
       },
     });
 
@@ -92,6 +152,7 @@ export class MachineService {
       moTa?: string;
       trangThai?: 'HOAT_DONG' | 'BẢO_TRÌ' | 'NGỪNG_HOẠT_ĐỘNG';
       ghiChu?: string;
+      machineSystemId?: string | null;
     }
   ) {
     const existing = await prisma.machine.findUnique({
@@ -113,6 +174,16 @@ export class MachineService {
       }
     }
 
+    // Validate machineSystemId if provided
+    if (data.machineSystemId) {
+      const machineSystem = await prisma.machineSystem.findUnique({
+        where: { id: data.machineSystemId },
+      });
+      if (!machineSystem) {
+        throw new ValidationError('Không tìm thấy hệ thống máy');
+      }
+    }
+
     const machine = await prisma.machine.update({
       where: { id },
       data: {
@@ -120,6 +191,7 @@ export class MachineService {
         moTa: data.moTa,
         trangThai: data.trangThai,
         ghiChu: data.ghiChu,
+        machineSystemId: data.machineSystemId,
       },
     });
 

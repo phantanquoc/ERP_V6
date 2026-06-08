@@ -119,6 +119,10 @@ class ProjectController {
         tieuDe: req.body.tieuDe,
         moTa: req.body.moTa,
         nguoiPhuTrach: req.body.nguoiPhuTrach,
+        projectPhaseId: req.body.projectPhaseId === '' ? null : req.body.projectPhaseId,
+        tienDo: req.body.tienDo !== undefined ? parseInt(req.body.tienDo, 10) : undefined,
+        ngayBatDau: req.body.ngayBatDau ? new Date(req.body.ngayBatDau) : undefined,
+        ngayKetThuc: req.body.ngayKetThuc ? new Date(req.body.ngayKetThuc) : undefined,
         deadline: req.body.deadline ? new Date(req.body.deadline) : undefined,
         trangThai: req.body.trangThai,
         thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu) : undefined,
@@ -136,6 +140,10 @@ class ProjectController {
         tieuDe: req.body.tieuDe,
         moTa: req.body.moTa,
         nguoiPhuTrach: req.body.nguoiPhuTrach,
+        projectPhaseId: req.body.projectPhaseId === '' ? null : req.body.projectPhaseId,
+        tienDo: req.body.tienDo !== undefined ? parseInt(req.body.tienDo, 10) : undefined,
+        ngayBatDau: req.body.ngayBatDau ? new Date(req.body.ngayBatDau) : undefined,
+        ngayKetThuc: req.body.ngayKetThuc ? new Date(req.body.ngayKetThuc) : undefined,
         trangThai: req.body.trangThai,
         deadline: req.body.deadline ? new Date(req.body.deadline) : undefined,
         thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu) : undefined,
@@ -150,6 +158,72 @@ class ProjectController {
         req.user!.role,
       );
       res.json({ success: true, data: task, message: 'Cập nhật công việc thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Phases
+  async addPhase(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const phase = await projectService.addPhase(req.params.id, {
+        tenGiaiDoan: req.body.tenGiaiDoan,
+        moTa: req.body.moTa,
+        chuSoHuuId: req.body.chuSoHuuId,
+        chuSoHuu: req.body.chuSoHuu,
+        nguoiPhuTrachId: req.body.nguoiPhuTrachId,
+        nguoiPhuTrach: req.body.nguoiPhuTrach,
+        tienDo: req.body.tienDo !== undefined ? parseInt(req.body.tienDo, 10) : undefined,
+        trangThai: req.body.trangThai,
+        thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu, 10) : undefined,
+        ngayBatDau: req.body.ngayBatDau ? new Date(req.body.ngayBatDau) : undefined,
+        ngayKetThuc: req.body.ngayKetThuc ? new Date(req.body.ngayKetThuc) : undefined,
+      });
+      res.status(201).json({ success: true, data: phase, message: 'Thêm giai đoạn thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updatePhase(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data: Record<string, unknown> = {
+        tenGiaiDoan: req.body.tenGiaiDoan,
+        moTa: req.body.moTa,
+        chuSoHuuId: req.body.chuSoHuuId,
+        chuSoHuu: req.body.chuSoHuu,
+        nguoiPhuTrachId: req.body.nguoiPhuTrachId,
+        nguoiPhuTrach: req.body.nguoiPhuTrach,
+        tienDo: req.body.tienDo !== undefined ? parseInt(req.body.tienDo, 10) : undefined,
+        trangThai: req.body.trangThai,
+        thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu, 10) : undefined,
+        ngayBatDau: req.body.ngayBatDau ? new Date(req.body.ngayBatDau) : undefined,
+        ngayKetThuc: req.body.ngayKetThuc ? new Date(req.body.ngayKetThuc) : undefined,
+      };
+      Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+
+      const phase = await projectService.updatePhase(req.params.id, req.params.phaseId, data);
+      res.json({ success: true, data: phase, message: 'Cập nhật giai đoạn thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deletePhase(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const moveTasksToUnphased = req.query.moveTasksToUnphased === 'true' || req.body?.moveTasksToUnphased === true;
+      await projectService.deletePhase(req.params.id, req.params.phaseId, moveTasksToUnphased);
+      res.json({ success: true, message: 'Xóa giai đoạn thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async reorderPhases(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const phaseIds = Array.isArray(req.body.phaseIds) ? req.body.phaseIds : [];
+      const phases = await projectService.reorderPhases(req.params.id, phaseIds);
+      res.json({ success: true, data: phases, message: 'Sắp xếp giai đoạn thành công' });
     } catch (error) {
       next(error);
     }

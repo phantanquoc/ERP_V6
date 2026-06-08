@@ -8,6 +8,8 @@ export interface Machine {
   moTa?: string;
   trangThai: 'HOAT_DONG' | 'BẢO_TRÌ' | 'NGỪNG_HOẠT_ĐỘNG';
   ghiChu?: string;
+  machineSystemId?: string | null;
+  machineSystem?: any;
   createdAt: string;
   updatedAt: string;
 }
@@ -17,6 +19,7 @@ export interface CreateMachineRequest {
   moTa?: string;
   trangThai?: 'HOAT_DONG' | 'BẢO_TRÌ' | 'NGỪNG_HOẠT_ĐỘNG';
   ghiChu?: string;
+  machineSystemId?: string;
 }
 
 export interface UpdateMachineRequest {
@@ -24,6 +27,7 @@ export interface UpdateMachineRequest {
   moTa?: string;
   trangThai?: 'HOAT_DONG' | 'BẢO_TRÌ' | 'NGỪNG_HOẠT_ĐỘNG';
   ghiChu?: string;
+  machineSystemId?: string | null;
 }
 
 export interface PaginatedResponse<T> {
@@ -36,13 +40,51 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface MachineFilters {
+  page?: number;
+  limit?: number;
+  search?: string;
+  machineSystemId?: string;
+  trangThai?: string;
+}
+
+export interface MachineSummary extends Machine {
+  faultRecords: any[];
+  repairRequestItems: any[];
+  systemOperations: any[];
+}
+
+export interface MachineWithCount {
+  id: string;
+  maMay: string;
+  tenMay: string;
+  moTa?: string;
+  trangThai: 'HOAT_DONG' | 'BẢO_TRÌ' | 'NGỪNG_HOẠT_ĐỘNG';
+  ghiChu?: string;
+  machineSystemId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count: { faultRecords: number; repairRequestItems: number };
+}
+
 class MachineService {
-  async getAllMachines(page: number = 1, limit: number = 100): Promise<PaginatedResponse<Machine>> {
+  async getAllMachines(page: number = 1, limit: number = 100, filters?: Omit<MachineFilters, 'page' | 'limit'>): Promise<PaginatedResponse<Machine>> {
     try {
-      const response = await apiClient.get<PaginatedResponse<Machine>>('/machines', { params: { page, limit } });
+      const response = await apiClient.get<PaginatedResponse<Machine>>('/machines', {
+        params: { page, limit, ...filters },
+      });
       return response as unknown as PaginatedResponse<Machine>;
     } catch (error: any) {
       throw new Error(error.message || 'Lỗi tải danh sách máy');
+    }
+  }
+
+  async getMachineSummary(id: string): Promise<MachineSummary> {
+    try {
+      const response = await apiClient.get<MachineSummary>(`/machines/${id}/summary`);
+      return response.data as MachineSummary;
+    } catch (error: any) {
+      throw new Error(error.message || 'Lỗi tải tổng quan máy');
     }
   }
 

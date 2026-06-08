@@ -1,14 +1,19 @@
+import { Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError } from '@utils/errors';
+import { NotFoundError, ValidationError } from '@utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
 interface CreateFaultRecordData {
-  tenLoi: string;
-  moTa: string;
+  tenLoi?: string;
+  moTa?: string;
   maHeThong?: string;
-  mucDo: string;
+  machineSystemId?: string;
+  machineSystemDetailId?: string;
+  machineId?: string;
+  faultTemplateId?: string;
+  mucDo?: string;
   trangThai?: string;
   nguoiPhatHien: string;
   ngayPhatHien?: Date;
@@ -19,12 +24,23 @@ interface UpdateFaultRecordData {
   tenLoi?: string;
   moTa?: string;
   maHeThong?: string;
+  machineSystemId?: string | null;
+  machineSystemDetailId?: string | null;
+  machineId?: string | null;
+  faultTemplateId?: string | null;
   mucDo?: string;
   trangThai?: string;
   nguoiPhatHien?: string;
   ngayPhatHien?: Date;
   fileDinhKem?: string;
 }
+
+const faultRecordInclude = {
+  machineSystem: true,
+  machineSystemDetail: true,
+  machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
+  faultTemplate: true,
+} satisfies Prisma.FaultRecordInclude;
 
 class FaultRecordService {
   async generateFaultCode(): Promise<string> {
@@ -43,12 +59,20 @@ class FaultRecordService {
     search?: string,
     trangThai?: string,
     mucDo?: string,
+    machineSystemId?: string,
+    machineSystemDetailId?: string,
+    faultTemplateId?: string,
+    machineId?: string,
   ) {
     const { skip, limit: limitNum } = getPaginationParams(page, limit);
 
     const where: Record<string, unknown> = {};
     if (trangThai) where.trangThai = trangThai;
     if (mucDo) where.mucDo = mucDo;
+    if (machineSystemId) where.machineSystemId = machineSystemId;
+    if (machineSystemDetailId) where.machineSystemDetailId = machineSystemDetailId;
+    if (faultTemplateId) where.faultTemplateId = faultTemplateId;
+    if (machineId) where.machineId = machineId;
     if (search) {
       where.OR = [
         { maLoi: { contains: search, mode: 'insensitive' } },
@@ -59,7 +83,13 @@ class FaultRecordService {
     }
 
     const [data, total] = await Promise.all([
-      prisma.faultRecord.findMany({ where, skip, take: limitNum, orderBy: { createdAt: 'desc' } }),
+      prisma.faultRecord.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { createdAt: 'desc' },
+        include: faultRecordInclude,
+      }),
       prisma.faultRecord.count({ where }),
     ]);
 
@@ -70,31 +100,139 @@ class FaultRecordService {
   }
 
   async getFaultRecordById(id: string) {
-    const record = await prisma.faultRecord.findUnique({ where: { id } });
+    const record = await prisma.faultRecord.findUnique({ where: { id }, include: faultRecordInclude });
     if (!record) throw new NotFoundError('Không tìm thấy bản ghi lỗi');
     return record;
   }
 
+  private async resolveMachineContext(data: {
+    maHeThong?: string | null;
+    machineSystemId?: string | null;
+    machineSystemDetailId?: string | null;
+    faultTemplateId?: string | null;
+  }) {
+    if (data.faultTemplateId) {
+      const template = await prisma.faultTemplate.findUnique({
+        where: { id: data.faultTemplateId },
+        include: { machineSystem: true, machineSystemDetail: true },
+      });
+      if (!template) throw new ValidationError('Mẫu lỗi không hợp lệ');
+      if (!template.hoatDong) throw new ValidationError('Mẫu lỗi đã ngừng hoạt động');
+      return {
+        template,
+        machineSystem: template.machineSystem,
+        machineSystemDetail: template.machineSystemDetail,
+        maHeThong: template.machineSystem.maHeThong,
+      };
+    }
+
+    let machineSystem = data.machineSystemId
+      ? await prisma.machineSystem.findUnique({ where: { id: data.machineSystemId } })
+      : null;
+
+    if (!machineSystem && data.maHeThong) {
+      machineSystem = await prisma.machineSystem.findUnique({ where: { maHeThong: data.maHeThong } });
+    }
+
+    if (!machineSystem && data.machineSystemDetailId) {
+      const detail = await prisma.machineSystemDetail.findUnique({
+        where: { id: data.machineSystemDetailId },
+        include: { machineSystem: true },
+      });
+      if (!detail) throw new ValidationError('Chi tiết hệ thống máy không hợp lệ');
+      machineSystem = detail.machineSystem;
+    }
+
+    if (data.machineSystemId && !machineSystem) {
+      throw new ValidationError('Hệ thống máy không hợp lệ');
+    }
+
+    let machineSystemDetail = null;
+    if (data.machineSystemDetailId) {
+      machineSystemDetail = await prisma.machineSystemDetail.findUnique({
+        where: { id: data.machineSystemDetailId },
+      });
+      if (!machineSystemDetail) throw new ValidationError('Chi tiết hệ thống máy không hợp lệ');
+      if (machineSystem && machineSystemDetail.machineSystemId !== machineSystem.id) {
+        throw new ValidationError('Chi tiết máy không thuộc hệ thống máy đã chọn');
+      }
+    }
+
+    if (data.maHeThong && machineSystem && data.maHeThong !== machineSystem.maHeThong) {
+      throw new ValidationError('Mã hệ thống không khớp với hệ thống máy đã chọn');
+    }
+
+    return {
+      template: null,
+      machineSystem,
+      machineSystemDetail,
+      maHeThong: machineSystem?.maHeThong ?? data.maHeThong ?? null,
+    };
+  }
+
   async createFaultRecord(data: CreateFaultRecordData) {
     const maLoi = await this.generateFaultCode();
+    const context = await this.resolveMachineContext(data);
+    const tenLoi = data.tenLoi ?? context.template?.tenMauLoi;
+    const mucDo = data.mucDo ?? context.template?.mucDo;
+    if (!tenLoi) throw new ValidationError('Tên lỗi là bắt buộc');
+    if (!mucDo) throw new ValidationError('Mức độ lỗi là bắt buộc');
+
     return prisma.faultRecord.create({
       data: {
         maLoi,
-        tenLoi: data.tenLoi,
-        moTa: data.moTa,
-        maHeThong: data.maHeThong,
-        mucDo: data.mucDo,
+        tenLoi,
+        moTa: data.moTa ?? context.template?.moTa ?? '',
+        maHeThong: context.maHeThong,
+        machineSystemId: context.machineSystem?.id,
+        machineSystemDetailId: context.machineSystemDetail?.id,
+        machineId: data.machineId || null,
+        faultTemplateId: context.template?.id,
+        mucDo,
         trangThai: data.trangThai ?? 'Đang theo dõi',
         nguoiPhatHien: data.nguoiPhatHien,
         ngayPhatHien: data.ngayPhatHien ?? new Date(),
         fileDinhKem: data.fileDinhKem,
       },
+      include: faultRecordInclude,
     });
   }
 
   async updateFaultRecord(id: string, data: UpdateFaultRecordData) {
     await this.getFaultRecordById(id);
-    return prisma.faultRecord.update({ where: { id }, data });
+    const needsContext =
+      data.faultTemplateId !== undefined ||
+      data.machineSystemId !== undefined ||
+      data.machineSystemDetailId !== undefined ||
+      data.maHeThong !== undefined;
+
+    const context = needsContext
+      ? await this.resolveMachineContext({
+          faultTemplateId: data.faultTemplateId,
+          machineSystemId: data.machineSystemId,
+          machineSystemDetailId: data.machineSystemDetailId,
+          maHeThong: data.maHeThong,
+        })
+      : null;
+
+    return prisma.faultRecord.update({
+      where: { id },
+      data: {
+        tenLoi: data.tenLoi ?? (context?.template ? context.template.tenMauLoi : undefined),
+        moTa: data.moTa ?? (context?.template ? context.template.moTa : undefined),
+        maHeThong: context ? context.maHeThong : data.maHeThong,
+        machineSystemId: needsContext ? context?.machineSystem?.id ?? null : undefined,
+        machineSystemDetailId: needsContext ? context?.machineSystemDetail?.id ?? null : undefined,
+        machineId: data.machineId !== undefined ? (data.machineId || null) : undefined,
+        faultTemplateId: needsContext ? context?.template?.id ?? null : undefined,
+        mucDo: data.mucDo ?? (context?.template ? context.template.mucDo : undefined),
+        trangThai: data.trangThai,
+        nguoiPhatHien: data.nguoiPhatHien,
+        ngayPhatHien: data.ngayPhatHien,
+        fileDinhKem: data.fileDinhKem,
+      },
+      include: faultRecordInclude,
+    });
   }
 
   async deleteFaultRecord(id: string) {

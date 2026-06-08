@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import machineSystemService from '@services/machineSystemService';
 import { getFileUrl } from '@middlewares/upload';
+import { MachineSystemCategory } from '@prisma/client';
 
 class MachineSystemController {
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -34,6 +35,7 @@ class MachineSystemController {
         maHeThong: req.body.maHeThong,
         tenHeThong: req.body.tenHeThong,
         chucNang: req.body.chucNang ?? '',
+        loaiHeThong: (req.body.loaiHeThong as MachineSystemCategory) || MachineSystemCategory.KHAC,
         maThietBi: req.body.maThietBi,
         tenThietBi: req.body.tenThietBi,
         nhiemVu: req.body.nhiemVu,
@@ -58,6 +60,7 @@ class MachineSystemController {
         maHeThong: req.body.maHeThong,
         tenHeThong: req.body.tenHeThong,
         chucNang: req.body.chucNang,
+        loaiHeThong: req.body.loaiHeThong as MachineSystemCategory | undefined,
         maThietBi: req.body.maThietBi,
         tenThietBi: req.body.tenThietBi,
         nhiemVu: req.body.nhiemVu,
@@ -89,6 +92,32 @@ class MachineSystemController {
     }
   }
 
+  async getNextCode(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const loaiHeThong = req.query.loaiHeThong as MachineSystemCategory;
+      if (!loaiHeThong || !Object.values(MachineSystemCategory).includes(loaiHeThong)) {
+        res.status(400).json({ success: false, message: 'Loại hệ thống không hợp lệ' });
+        return;
+      }
+      const code = await machineSystemService.getNextCode(loaiHeThong);
+      res.json({ success: true, data: { code } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getDistinctFields(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const [khuVuc, viTri] = await Promise.all([
+        machineSystemService.getDistinctField('khuVuc'),
+        machineSystemService.getDistinctField('viTri'),
+      ]);
+      res.json({ success: true, data: { khuVuc, viTri } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async exportExcel(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const workbook = await machineSystemService.exportToExcel();
@@ -96,6 +125,15 @@ class MachineSystemController {
       res.setHeader('Content-Disposition', `attachment; filename=danh-sach-he-thong-may-${Date.now()}.xlsx`);
       await workbook.xlsx.write(res);
       res.end();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMachinesForSystem(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const machines = await machineSystemService.getMachinesForSystem(req.params.id);
+      res.json({ success: true, data: machines });
     } catch (error) {
       next(error);
     }

@@ -1,684 +1,437 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Eye, Trash2, X, CheckCircle, Download, Wrench } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { API_BASE_URL, getFileUrl } from '../config/api';
-import apiClient from '../services/apiClient';
-import FileUpload from './FileUpload';
+import { FormEvent, useMemo, useState } from 'react';
+import { CheckCircle, Edit, Eye, Plus, Search, Trash2, Wrench, X } from 'lucide-react';
+import { getFileUrl } from '../config/api';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
+import FileUpload from './FileUpload';
 import Modal from './Modal';
+import {
+  useCreateRepairRequest,
+  useDeleteRepairRequest,
+  useGeneratedRepairRequestCode,
+  useRepairRequests,
+  useUpdateRepairRequest,
+} from '../hooks/useRepairRequests';
+import { useMachineSystemDetails, useMachineSystems } from '../hooks/useMachineSystemDetails';
+import { useMachines } from '../hooks/useMachines';
+import repairRequestService, {
+  CreateRepairRequestRequest,
+  RepairRequest,
+  RepairRequestItemInput,
+} from '../services/repairRequestService';
 
-interface RepairRequestItem {
-  id: string;
-  tenHeThong: string;
-  tinhTrangThietBi: string;
-  loaiLoi: string;
-  noiDungLoi: string;
-}
+type ModalMode = 'create' | 'edit' | 'view';
+type ItemDraft = RepairRequestItemInput & { id?: string };
 
-interface RepairRequest {
-  id: number;
-  ngayThang: string;
-  maYeuCau: string;
-  tenHeThong: string | null;
-  tinhTrangThietBi: string | null;
-  loaiLoi: string | null;
-  mucDoUuTien: string;
-  noiDungLoi: string | null;
-  ghiChu: string;
-  trangThai: string;
-  fileDinhKem?: string;
-  ngayTao: string;
-  items?: RepairRequestItem[];
-}
+const PRIORITIES = ['Thấp', 'Trung bình', 'Cao', 'Khẩn cấp'];
+const STATUSES = ['Chờ xử lý', 'Đang sửa chữa', 'Hoàn thành'];
+const FAULT_TYPES = ['Lỗi mới', 'Lỗi lặp lại'];
 
-const LOAI_LOI_OPTIONS = ['Lỗi mới', 'Lỗi lặp lại'];
+const emptyItem = (): ItemDraft => ({
+  machineSystemId: '',
+  machineSystemDetailId: '',
+  machineId: '',
+  tenHeThong: '',
+  tinhTrangThietBi: '',
+  loaiLoi: '',
+  noiDungLoi: '',
+});
+
+const emptyForm = (code = ''): CreateRepairRequestRequest => ({
+  ngayThang: new Date().toISOString().split('T')[0],
+  maYeuCau: code,
+  mucDoUuTien: 'Thấp',
+  ghiChu: '',
+  trangThai: 'Chờ xử lý',
+  items: [emptyItem()],
+});
+
+const priorityBadge = (value: string) => {
+  if (value === 'Khẩn cấp') return 'bg-red-100 text-red-700 border-red-200';
+  if (value === 'Cao') return 'bg-orange-100 text-orange-700 border-orange-200';
+  if (value === 'Trung bình') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+  return 'bg-green-100 text-green-700 border-green-200';
+};
+
+const statusBadge = (value: string) => {
+  if (value === 'Hoàn thành') return 'bg-green-100 text-green-700 border-green-200';
+  if (value === 'Đang sửa chữa') return 'bg-blue-100 text-blue-700 border-blue-200';
+  return 'bg-gray-100 text-gray-700 border-gray-200';
+};
+
+const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
+
+const itemLabel = (item: ItemDraft) => {
+  const linked = item.machineSystemDetailId ? 'Liên kết' : item.machineSystemId ? 'Hệ thống' : 'Text';
+  return `${linked}: ${item.tenHeThong || '—'}`;
+};
 
 const RepairRequestList = () => {
-  const { user } = useAuth();
-  const [requests, setRequests] = useState<RepairRequest[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isViewMode, setIsViewMode] = useState(false);
-  const [editingRequest, setEditingRequest] = useState<RepairRequest | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  const [isAcceptanceFormOpen, setIsAcceptanceFormOpen] = useState(false);
-  const [selectedRequestForAcceptance, setSelectedRequestForAcceptance] = useState<RepairRequest | null>(null);
-  const [machineSystems, setMachineSystems] = useState<{ id: string; tenHeThong: string }[]>([]);
-  const [loadingMachineSystems, setLoadingMachineSystems] = useState(false);
-  const [editItems, setEditItems] = useState<RepairRequestItem[]>([]);
-
-  const [formData, setFormData] = useState({
-    ngayThang: new Date().toISOString().split('T')[0],
-    maYeuCau: '',
-    mucDoUuTien: 'Thấp',
-    ghiChu: '',
-    trangThai: 'Chờ xử lý',
+  const [filters, setFilters] = useState({ page: 1, limit: 10, search: '', trangThai: '' });
+  const requestsQuery = useRepairRequests({
+    page: filters.page,
+    limit: filters.limit,
+    search: filters.search || undefined,
+    trangThai: filters.trangThai || undefined,
   });
+  const generatedCode = useGeneratedRepairRequestCode();
+  const systemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
+  const detailsQuery = useMachineSystemDetails({ page: 1, limit: 400, hoatDong: true, sortBy: 'thuTu', sortOrder: 'asc' });
+  const machinesQuery = useMachines({ limit: 1000 });
 
-  // Load data from API
-  useEffect(() => {
-    fetchRequests();
-  }, []);
+  const createRequest = useCreateRepairRequest();
+  const updateRequest = useUpdateRepairRequest();
+  const deleteRequest = useDeleteRepairRequest();
 
-  const fetchRequests = async () => {
-    try {
-      const result = await apiClient.get<RepairRequest[]>('/repair-requests');
-      setRequests(Array.isArray(result.data) ? result.data : []);
-    } catch (error) {
-      console.error('Error fetching requests:', error);
-      setRequests([]);
-    }
-  };
+  const requests = requestsQuery.data?.data ?? [];
+  const pagination = requestsQuery.data?.pagination;
+  const systems = systemsQuery.data?.data ?? [];
+  const details = detailsQuery.data?.data ?? [];
+  const allMachines = machinesQuery.data?.data ?? [];
 
-  const fetchMachineSystems = async () => {
-    setLoadingMachineSystems(true);
-    try {
-      const result = await apiClient.get<{ id: string; tenHeThong: string }[]>('/machine-systems?limit=200');
-      const data = Array.isArray(result.data) ? result.data : [];
-      setMachineSystems(data);
-    } catch (error) {
-      console.error('Error fetching machine systems:', error);
-    } finally {
-      setLoadingMachineSystems(false);
-    }
-  };
+  const [modal, setModal] = useState<{ mode: ModalMode; record?: RepairRequest } | null>(null);
+  const [form, setForm] = useState<CreateRepairRequestRequest>(emptyForm());
+  const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [handoverRequest, setHandoverRequest] = useState<RepairRequest | null>(null);
+  const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const detailOptions = useMemo(() => details, [details]);
 
-    const formDataToSend = new FormData();
-    formDataToSend.append('ngayThang', formData.ngayThang);
-    formDataToSend.append('maYeuCau', formData.maYeuCau);
-    formDataToSend.append('mucDoUuTien', formData.mucDoUuTien);
-    formDataToSend.append('ghiChu', formData.ghiChu);
-    formDataToSend.append('trangThai', formData.trangThai);
-    formDataToSend.append('items', JSON.stringify(editItems.map(item => ({
+  const openModal = (mode: ModalMode, record?: RepairRequest) => {
+    setError('');
+    setSelectedFile(null);
+    setModal({ mode, record });
+    setForm(record ? {
+      ngayThang: record.ngayThang?.split('T')[0] ?? '',
+      maYeuCau: record.maYeuCau,
+      mucDoUuTien: record.mucDoUuTien,
+      ghiChu: record.ghiChu ?? '',
+      trangThai: record.trangThai,
+    } : emptyForm(generatedCode.data ?? ''));
+    setItems(record?.items?.length ? record.items.map((item) => ({
+      id: item.id,
+      machineSystemId: item.machineSystemId ?? '',
+      machineSystemDetailId: item.machineSystemDetailId ?? '',
+      machineId: item.machineId ?? '',
       tenHeThong: item.tenHeThong,
       tinhTrangThietBi: item.tinhTrangThietBi,
       loaiLoi: item.loaiLoi,
       noiDungLoi: item.noiDungLoi,
-    }))));
-
-    if (selectedFile) {
-      formDataToSend.append('file', selectedFile);
-    }
-
-    try {
-      const url = editingRequest
-        ? `/repair-requests/${editingRequest.id}`
-        : '/repair-requests';
-      const method = editingRequest ? 'put' : 'post';
-      await apiClient[method](url, formDataToSend);
-      fetchRequests();
-      handleCloseModal();
-    } catch (error) {
-      console.error('Error saving request:', error);
-    }
+    })) : [emptyItem()]);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa yêu cầu này?')) return;
-
-    try {
-      await apiClient.delete(`/repair-requests/${id}`);
-      fetchRequests();
-    } catch (error) {
-      console.error('Error deleting request:', error);
-    }
+  const patchItem = (index: number, patch: Partial<ItemDraft>) => {
+    setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
   };
 
-  const handleEdit = (request: RepairRequest) => {
-    setEditingRequest(request);
-    setFormData({
-      ngayThang: request.ngayThang.split('T')[0],
-      maYeuCau: request.maYeuCau,
-      mucDoUuTien: request.mucDoUuTien,
-      ghiChu: request.ghiChu,
-      trangThai: request.trangThai,
+  const selectSystem = (index: number, systemId: string) => {
+    const system = systems.find((item) => item.id === systemId);
+    patchItem(index, {
+      machineSystemId: systemId,
+      machineSystemDetailId: '',
+      machineId: '',
+      tenHeThong: system ? `${system.maHeThong} - ${system.tenHeThong}` : '',
     });
-    setEditItems(request.items && request.items.length > 0
-      ? request.items
-      : [{ id: '', tenHeThong: request.tenHeThong || '', tinhTrangThietBi: request.tinhTrangThietBi || '', loaiLoi: request.loaiLoi || '', noiDungLoi: request.noiDungLoi || '' }]
-    );
-    setIsViewMode(false);
-    fetchMachineSystems();
-    setIsModalOpen(true);
   };
 
-  const handleView = (request: RepairRequest) => {
-    setEditingRequest(request);
-    setFormData({
-      ngayThang: request.ngayThang.split('T')[0],
-      maYeuCau: request.maYeuCau,
-      mucDoUuTien: request.mucDoUuTien,
-      ghiChu: request.ghiChu,
-      trangThai: request.trangThai,
+  const selectDetail = (index: number, detailId: string) => {
+    const detail = details.find((item) => item.id === detailId);
+    const system = detail?.machineSystem ?? systems.find((item) => item.id === detail?.machineSystemId);
+    patchItem(index, {
+      machineSystemId: detail?.machineSystemId ?? '',
+      machineSystemDetailId: detailId,
+      tenHeThong: detail
+        ? `${system?.maHeThong ?? ''} ${system?.tenHeThong ?? ''} / ${detail.maChiTiet} - ${detail.tenChiTiet}`.trim()
+        : '',
     });
-    setEditItems(request.items && request.items.length > 0
-      ? request.items
-      : [{ id: '', tenHeThong: request.tenHeThong || '', tinhTrangThietBi: request.tinhTrangThietBi || '', loaiLoi: request.loaiLoi || '', noiDungLoi: request.noiDungLoi || '' }]
-    );
-    setIsViewMode(true);
-    fetchMachineSystems();
-    setIsModalOpen(true);
   };
 
-  const handleOpenCreateModal = async () => {
-    const emptyForm = {
-      ngayThang: new Date().toISOString().split('T')[0],
-      maYeuCau: '',
-      mucDoUuTien: 'Thấp',
-      ghiChu: '',
-      trangThai: 'Chờ xử lý',
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    const cleanedItems = items.map((item) => ({
+      machineSystemId: item.machineSystemId || undefined,
+      machineSystemDetailId: item.machineSystemDetailId || undefined,
+      machineId: item.machineId || undefined,
+      tenHeThong: item.tenHeThong.trim(),
+      tinhTrangThietBi: item.tinhTrangThietBi.trim(),
+      loaiLoi: item.loaiLoi,
+      noiDungLoi: item.noiDungLoi.trim(),
+    })).filter((item) => item.tenHeThong && item.tinhTrangThietBi && item.loaiLoi && item.noiDungLoi);
+
+    if (cleanedItems.length === 0) {
+      setError('Vui lòng nhập ít nhất một thiết bị lỗi hợp lệ');
+      return;
+    }
+
+    const payload: CreateRepairRequestRequest = {
+      ...form,
+      tenHeThong: cleanedItems[0]?.tenHeThong,
+      tinhTrangThietBi: cleanedItems[0]?.tinhTrangThietBi,
+      loaiLoi: cleanedItems[0]?.loaiLoi,
+      noiDungLoi: cleanedItems[0]?.noiDungLoi,
+      items: cleanedItems,
     };
 
     try {
-      const result = await apiClient.get<{ code: string }>('/repair-requests/generate-code');
-      setFormData({ ...emptyForm, maYeuCau: result?.data?.code ?? '' });
-    } catch (error) {
-      console.error('Error generating code:', error);
-      setFormData(emptyForm);
+      if (modal?.record) {
+        await updateRequest.mutateAsync({ id: modal.record.id, data: payload, file: selectedFile ?? undefined });
+      } else {
+        await createRequest.mutateAsync({ data: payload, file: selectedFile ?? undefined });
+      }
+      setModal(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không lưu được yêu cầu sửa chữa');
     }
-    setEditItems([{ id: '', tenHeThong: '', tinhTrangThietBi: '', loaiLoi: '', noiDungLoi: '' }]);
-    fetchMachineSystems();
-    setIsModalOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setIsViewMode(false);
-    setEditingRequest(null);
-    setSelectedFile(null);
-    setEditItems([{ id: '', tenHeThong: '', tinhTrangThietBi: '', loaiLoi: '', noiDungLoi: '' }]);
-    setFormData({
-      ngayThang: new Date().toISOString().split('T')[0],
-      maYeuCau: '',
-      mucDoUuTien: 'Thấp',
-      ghiChu: '',
-      trangThai: 'Chờ xử lý',
-    });
-  };
-
-  const handleAcceptance = (request: RepairRequest) => {
-    setSelectedRequestForAcceptance(request);
-    setIsAcceptanceFormOpen(true);
-  };
-
-  const handleAcceptanceSuccess = () => {
-    // Refresh the list or show success message
-    fetchRequests();
-  };
-
-  const handleExportExcel = async () => {
+  const remove = async (record: RepairRequest) => {
+    if (!confirm(`Xóa yêu cầu ${record.maYeuCau}?`)) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/repair-requests/export/excel`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error('Failed to export');
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `danh-sach-yeu-cau-sua-chua-${Date.now()}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-    } catch (error) {
-      console.error('Error exporting to Excel:', error);
+      await deleteRequest.mutateAsync(record.id);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không xóa được yêu cầu');
     }
   };
 
-  const handleAddNew = async () => {
-    setEditingRequest(null);
-    setIsViewMode(false);
-    await handleOpenCreateModal();
-  };
-
-  const totalItems = requests.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedRequests = requests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'Khẩn cấp': return 'bg-red-100 text-red-800';
-      case 'Cao': return 'bg-orange-100 text-orange-800';
-      case 'Trung bình': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-green-100 text-green-800';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Hoàn thành': return 'bg-green-100 text-green-800';
-      case 'Đang sửa chữa': return 'bg-blue-100 text-blue-800';
-      case 'Chờ xử lý': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const exportExcel = async () => {
+    try {
+      await repairRequestService.exportExcel({ search: filters.search || undefined });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không xuất được Excel');
     }
   };
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">Danh sách yêu cầu sửa chữa</h2>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Download size={18} />
-            Xuất Excel
-          </button>
-          <button
-            onClick={handleAddNew}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={18} />
-            Thêm mới
-          </button>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Yêu cầu sửa chữa</h2>
+          <p className="text-xs text-gray-500">Mỗi yêu cầu có thể gồm nhiều thiết bị lỗi, có hoặc không có liên kết máy.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={exportExcel} className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Xuất Excel</button>
+          <button type="button" onClick={() => openModal('create')} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><Plus className="h-4 w-4" /> Thêm mới</button>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">STT</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Ngày tháng</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Mã yêu cầu</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Tên hệ thống/thiết bị</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Mức độ ưu tiên</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Trạng thái</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Hoạt động</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {paginatedRequests.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-12 text-center">
-                  <Wrench className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500 text-lg">Chưa có yêu cầu sửa chữa</p>
-                </td>
-              </tr>
-            ) : (
-              paginatedRequests.map((request, index) => (
-              <tr key={request.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                  {new Date(request.ngayThang).toLocaleDateString('vi-VN')}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600">{request.maYeuCau}</td>
-                <td className="px-4 py-3 text-sm text-gray-900">
-                  {request.items && request.items.length > 0
-                    ? request.items.map(item => item.tenHeThong).join(', ')
-                    : request.tenHeThong || '—'}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(request.mucDoUuTien)}`}>
-                    {request.mucDoUuTien}
-                  </span>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.trangThai)}`}>
-                    {request.trangThai}
-                  </span>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm">
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => handleView(request)} className="text-blue-600 hover:text-blue-800" title="Xem">
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleEdit(request)} className="text-green-600 hover:text-green-800" title="Sửa">
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleAcceptance(request)} className="text-purple-600 hover:text-purple-800" title="Nghiệm thu bàn giao">
-                      <CheckCircle className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleDelete(request.id)} className="text-red-600 hover:text-red-800" title="Xóa">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))
-          )}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Trước
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-              .map((page, idx, arr) => (
-                <React.Fragment key={page}>
-                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                  <button
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 text-sm rounded-md ${
-                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                </React.Fragment>
-              ))}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sau
-            </button>
+      <section className="rounded-lg border border-gray-200 bg-white">
+        <div className="flex flex-wrap gap-2 border-b border-gray-200 p-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+            <input value={filters.search} onChange={(event) => setFilters((value) => ({ ...value, search: event.target.value, page: 1 }))} placeholder="Tìm yêu cầu" className="w-56 rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
           </div>
+          <select value={filters.trangThai} onChange={(event) => setFilters((value) => ({ ...value, trangThai: event.target.value, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+            <option value="">Tất cả trạng thái</option>
+            {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
         </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1000px] text-sm">
+            <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+              <tr>
+                <th className="border-b px-3 py-2 text-left">Ngày</th>
+                <th className="border-b px-3 py-2 text-left">Mã yêu cầu</th>
+                <th className="border-b px-3 py-2 text-left">Thiết bị lỗi</th>
+                <th className="border-b px-3 py-2 text-left">Bối cảnh</th>
+                <th className="border-b px-3 py-2 text-left">Ưu tiên</th>
+                <th className="border-b px-3 py-2 text-left">Trạng thái</th>
+                <th className="border-b px-3 py-2 text-left">File</th>
+                <th className="border-b px-3 py-2 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {requestsQuery.isLoading ? (
+                <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">Đang tải...</td></tr>
+              ) : requests.length === 0 ? (
+                <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">Chưa có yêu cầu sửa chữa.</td></tr>
+              ) : requests.map((request) => {
+                const requestItems = request.items?.length ? request.items : [{
+                  id: `${request.id}-legacy`,
+                  repairRequestId: request.id,
+                  tenHeThong: request.tenHeThong ?? '',
+                  tinhTrangThietBi: request.tinhTrangThietBi ?? '',
+                  loaiLoi: request.loaiLoi ?? '',
+                  noiDungLoi: request.noiDungLoi ?? '',
+                }];
+                return (
+                  <tr key={request.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-gray-700">{formatDate(request.ngayThang)}</td>
+                    <td className="px-3 py-2 font-medium text-blue-700">{request.maYeuCau}</td>
+                    <td className="px-3 py-2 text-gray-900">
+                      <div className="space-y-1">
+                        {requestItems.map((item) => <div key={item.id}>{item.tenHeThong || '—'}</div>)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-gray-700">
+                      <div className="space-y-1">
+                        {requestItems.map((item) => (
+                          <div key={item.id}>
+                            {item.machineSystemDetail ? `${item.machineSystemDetail.maChiTiet} - ${item.machineSystemDetail.tenChiTiet}` : item.machineSystem ? `${item.machineSystem.maHeThong} - ${item.machineSystem.tenHeThong}` : item.tinhTrangThietBi || 'Text'}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${priorityBadge(request.mucDoUuTien)}`}>{request.mucDoUuTien}</span></td>
+                    <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(request.trangThai)}`}>{request.trangThai}</span></td>
+                    <td className="px-3 py-2">{request.fileDinhKem ? <a href={getFileUrl(request.fileDinhKem)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Xem</a> : '—'}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex justify-end gap-1">
+                        <button title="Xem" onClick={() => openModal('view', request)} className="rounded p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600"><Eye className="h-4 w-4" /></button>
+                        <button title="Sửa" onClick={() => openModal('edit', request)} className="rounded p-1.5 text-gray-500 hover:bg-green-50 hover:text-green-600"><Edit className="h-4 w-4" /></button>
+                        <button title="Nghiệm thu" onClick={() => setHandoverRequest(request)} className="rounded p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-700"><CheckCircle className="h-4 w-4" /></button>
+                        <button title="Xóa" onClick={() => remove(request)} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {pagination && pagination.totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-gray-200 px-3 py-2 text-sm">
+            <span className="text-gray-600">Trang {pagination.page}/{pagination.totalPages} - {pagination.total} dòng</span>
+            <div className="flex gap-1">
+              <button disabled={filters.page <= 1} onClick={() => setFilters((value) => ({ ...value, page: value.page - 1 }))} className="rounded-md border border-gray-300 px-3 py-1 disabled:opacity-40">Trước</button>
+              <button disabled={filters.page >= pagination.totalPages} onClick={() => setFilters((value) => ({ ...value, page: value.page + 1 }))} className="rounded-md border border-gray-300 px-3 py-1 disabled:opacity-40">Sau</button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <Modal isOpen={!!modal} onClose={() => setModal(null)} showBackdrop>
+        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <h3 className="text-base font-semibold text-gray-900">{modal?.mode === 'view' ? 'Chi tiết yêu cầu' : modal?.record ? 'Sửa yêu cầu' : 'Thêm yêu cầu'}</h3>
+            <button title="Đóng" onClick={() => setModal(null)} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+          </div>
+          <form onSubmit={save} className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
+            {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{error}</div>}
+            <div className="grid gap-3 md:grid-cols-4">
+              <label className="space-y-1">
+                <span className="font-medium text-gray-700">Ngày</span>
+                <input required type="date" disabled={modal?.mode === 'view'} value={form.ngayThang} onChange={(event) => setForm((value) => ({ ...value, ngayThang: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
+              </label>
+              <label className="space-y-1">
+                <span className="font-medium text-gray-700">Mã yêu cầu</span>
+                <input required disabled={modal?.mode === 'view' || !!modal?.record} value={form.maYeuCau} onChange={(event) => setForm((value) => ({ ...value, maYeuCau: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
+              </label>
+              <label className="space-y-1">
+                <span className="font-medium text-gray-700">Ưu tiên</span>
+                <select disabled={modal?.mode === 'view'} value={form.mucDoUuTien} onChange={(event) => setForm((value) => ({ ...value, mucDoUuTien: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">{PRIORITIES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+              </label>
+              <label className="space-y-1">
+                <span className="font-medium text-gray-700">Trạng thái</span>
+                <select disabled={modal?.mode === 'view'} value={form.trangThai} onChange={(event) => setForm((value) => ({ ...value, trangThai: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">{STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+              </label>
+            </div>
+
+            <div className="rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
+                <div className="font-medium text-gray-800">Thiết bị lỗi</div>
+                {modal?.mode !== 'view' && <button type="button" onClick={() => setItems((value) => [...value, emptyItem()])} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"><Plus className="h-3.5 w-3.5" /> Thêm dòng</button>}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Hệ thống</th>
+                      <th className="px-3 py-2 text-left">Chi tiết máy</th>
+                      <th className="px-3 py-2 text-left">Máy cụ thể</th>
+                      <th className="px-3 py-2 text-left">Snapshot hệ thống/text</th>
+                      <th className="px-3 py-2 text-left">Tình trạng/khu vực</th>
+                      <th className="px-3 py-2 text-left">Loại lỗi</th>
+                      <th className="px-3 py-2 text-left">Nội dung lỗi</th>
+                      {modal?.mode !== 'view' && <th className="px-3 py-2 text-right">Xóa</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {items.map((item, index) => {
+                      const itemDetails = detailOptions.filter((detail) => !item.machineSystemId || detail.machineSystemId === item.machineSystemId);
+                      const itemMachines = allMachines.filter((m) => !item.machineSystemId || m.machineSystemId === item.machineSystemId);
+                      return (
+                        <tr key={item.id ?? index}>
+                          <td className="px-3 py-2">
+                            <select disabled={modal?.mode === 'view'} value={item.machineSystemId ?? ''} onChange={(event) => selectSystem(index, event.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50">
+                              <option value="">Text-only</option>
+                              {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <select disabled={modal?.mode === 'view'} value={item.machineSystemDetailId ?? ''} onChange={(event) => selectDetail(index, event.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50">
+                              <option value="">Không chọn</option>
+                              {itemDetails.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <select disabled={modal?.mode === 'view' || !item.machineSystemId} value={item.machineId ?? ''} onChange={(event) => patchItem(index, { machineId: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50">
+                              <option value="">Không chọn</option>
+                              {itemMachines.map((m) => <option key={m.id} value={m.id}>{m.maMay} - {m.tenMay}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <input required disabled={modal?.mode === 'view'} value={item.tenHeThong} onChange={(event) => patchItem(index, { tenHeThong: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50" />
+                            <div className="mt-1 text-xs text-gray-500">{itemLabel(item)}</div>
+                          </td>
+                          <td className="px-3 py-2"><input required disabled={modal?.mode === 'view'} value={item.tinhTrangThietBi} onChange={(event) => patchItem(index, { tinhTrangThietBi: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50" /></td>
+                          <td className="px-3 py-2">
+                            <select required disabled={modal?.mode === 'view'} value={item.loaiLoi} onChange={(event) => patchItem(index, { loaiLoi: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50">
+                              <option value="">Chọn</option>
+                              {FAULT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2"><input required disabled={modal?.mode === 'view'} value={item.noiDungLoi} onChange={(event) => patchItem(index, { noiDungLoi: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50" /></td>
+                          {modal?.mode !== 'view' && (
+                            <td className="px-3 py-2 text-right">
+                              {items.length > 1 && <button type="button" title="Xóa dòng" onClick={() => setItems((value) => value.filter((_, itemIndex) => itemIndex !== index))} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <label className="block space-y-1">
+              <span className="font-medium text-gray-700">Ghi chú</span>
+              <textarea disabled={modal?.mode === 'view'} rows={2} value={form.ghiChu ?? ''} onChange={(event) => setForm((value) => ({ ...value, ghiChu: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
+            </label>
+            {modal?.mode !== 'view' && <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] ?? null)} compact existingFileUrl={modal?.record?.fileDinhKem ? getFileUrl(modal.record.fileDinhKem) : undefined} existingFileName={modal?.record?.fileDinhKem ? 'File hiện tại' : undefined} />}
+            {modal?.mode === 'view' && modal.record?.fileDinhKem && <a href={getFileUrl(modal.record.fileDinhKem)} target="_blank" rel="noreferrer" className="inline-flex text-sm text-blue-600 hover:underline">Xem file đính kèm</a>}
+
+            <div className="flex justify-end gap-2 border-t border-gray-200 pt-3">
+              <button type="button" onClick={() => setModal(null)} className="rounded-md border border-gray-300 px-4 py-2">{modal?.mode === 'view' ? 'Đóng' : 'Hủy'}</button>
+              {modal?.mode !== 'view' && <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white">Lưu</button>}
+            </div>
+          </form>
+        </div>
+      </Modal>
+
+      {handoverRequest && (
+        <AcceptanceHandoverForm
+          repairRequest={handoverRequest}
+          onClose={() => setHandoverRequest(null)}
+          onSuccess={() => {
+            setHandoverRequest(null);
+            requestsQuery.refetch();
+          }}
+        />
       )}
 
-      {/* Modal */}
-      <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          {/* Modal Header */}
-          <div className="flex justify-between items-center p-6 border-b border-gray-200 shrink-0">
-            <h3 className="text-xl font-semibold text-gray-800">
-              {isViewMode ? 'Chi tiết yêu cầu' : editingRequest ? 'Chỉnh sửa yêu cầu' : 'Thêm yêu cầu mới'}
-            </h3>
-            <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600">
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-
-          {/* Modal Body */}
-          <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1">
-              <div className="grid grid-cols-2 gap-6">
-                {/* Ngày tháng */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ngày tháng <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.ngayThang}
-                    onChange={(e) => setFormData({ ...formData, ngayThang: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                    disabled={isViewMode}
-                  />
-                </div>
-
-                {/* Mã yêu cầu */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mã yêu cầu sửa chữa <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.maYeuCau}
-                    onChange={(e) => setFormData({ ...formData, maYeuCau: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                    disabled={isViewMode}
-                    placeholder="VD: YC-001"
-                  />
-                </div>
-
-                {/* Mức độ ưu tiên */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mức độ ưu tiên <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.mucDoUuTien}
-                    onChange={(e) => setFormData({ ...formData, mucDoUuTien: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                    disabled={isViewMode}
-                  >
-                    <option value="Thấp">Thấp</option>
-                    <option value="Trung bình">Trung bình</option>
-                    <option value="Cao">Cao</option>
-                    <option value="Khẩn cấp">Khẩn cấp</option>
-                  </select>
-                </div>
-
-                {/* Trạng thái */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Trạng thái <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.trangThai}
-                    onChange={(e) => setFormData({ ...formData, trangThai: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                    disabled={isViewMode}
-                  >
-                    <option value="Chờ xử lý">Chờ xử lý</option>
-                    <option value="Đang sửa chữa">Đang sửa chữa</option>
-                    <option value="Hoàn thành">Hoàn thành</option>
-                  </select>
-                </div>
-
-                {/* Danh sách thiết bị lỗi */}
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Danh sách thiết bị lỗi <span className="text-red-500">*</span>
-                  </label>
-                  <div className="border border-gray-200 rounded-md overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-medium text-gray-600">Hệ thống/Thiết bị</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-600">Khu vực sử dụng</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-600">Loại lỗi</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-600">Nội dung lỗi</th>
-                          {!isViewMode && <th className="px-3 py-2 w-10"></th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {editItems.map((item, idx) => (
-                          <tr key={idx} className="border-t border-gray-100">
-                            <td className="px-3 py-2">
-                              {isViewMode ? (
-                                <span>{item.tenHeThong}</span>
-                              ) : (
-                                <select
-                                  value={item.tenHeThong}
-                                  onChange={(e) => {
-                                    const updated = [...editItems];
-                                    updated[idx] = { ...updated[idx], tenHeThong: e.target.value };
-                                    setEditItems(updated);
-                                  }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
-                                  disabled={loadingMachineSystems}
-                                >
-                                  <option value="">-- Chọn --</option>
-                                  {machineSystems.map((ms) => (
-                                    <option key={ms.id} value={ms.tenHeThong}>{ms.tenHeThong}</option>
-                                  ))}
-                                </select>
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              {isViewMode ? (
-                                <span>{item.tinhTrangThietBi}</span>
-                              ) : (
-                                <input
-                                  type="text"
-                                  value={item.tinhTrangThietBi}
-                                  onChange={(e) => {
-                                    const updated = [...editItems];
-                                    updated[idx] = { ...updated[idx], tinhTrangThietBi: e.target.value };
-                                    setEditItems(updated);
-                                  }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
-                                  placeholder="Khu vực"
-                                />
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              {isViewMode ? (
-                                <span>{item.loaiLoi}</span>
-                              ) : (
-                                <select
-                                  value={item.loaiLoi}
-                                  onChange={(e) => {
-                                    const updated = [...editItems];
-                                    updated[idx] = { ...updated[idx], loaiLoi: e.target.value };
-                                    setEditItems(updated);
-                                  }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
-                                >
-                                  <option value="">-- Chọn --</option>
-                                  {LOAI_LOI_OPTIONS.map((opt) => (
-                                    <option key={opt} value={opt}>{opt}</option>
-                                  ))}
-                                </select>
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              {isViewMode ? (
-                                <span>{item.noiDungLoi}</span>
-                              ) : (
-                                <input
-                                  type="text"
-                                  value={item.noiDungLoi}
-                                  onChange={(e) => {
-                                    const updated = [...editItems];
-                                    updated[idx] = { ...updated[idx], noiDungLoi: e.target.value };
-                                    setEditItems(updated);
-                                  }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500"
-                                  placeholder="Mô tả lỗi"
-                                />
-                              )}
-                            </td>
-                            {!isViewMode && (
-                              <td className="px-3 py-2">
-                                {editItems.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditItems(editItems.filter((_, i) => i !== idx))}
-                                    className="text-red-500 hover:text-red-700"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                )}
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {!isViewMode && (
-                    <button
-                      type="button"
-                      onClick={() => setEditItems([...editItems, { id: '', tenHeThong: '', tinhTrangThietBi: '', loaiLoi: '', noiDungLoi: '' }])}
-                      className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      + Thêm thiết bị
-                    </button>
-                  )}
-                </div>
-
-                {/* Ghi chú */}
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ghi chú
-                  </label>
-                  <textarea
-                    value={formData.ghiChu}
-                    onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={isViewMode}
-                    rows={2}
-                    placeholder="Ghi chú thêm (nếu có)"
-                  />
-                </div>
-
-                {/* File đính kèm */}
-                {!isViewMode && (
-                  <div className="col-span-2">
-                    <FileUpload
-                      label="File đính kèm"
-                      files={selectedFile ? [selectedFile] : []}
-                      onChange={(files) => setSelectedFile(files[0] || null)}
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                      existingFileUrl={editingRequest?.fileDinhKem ? getFileUrl(editingRequest.fileDinhKem) : undefined}
-                      existingFileName={editingRequest?.fileDinhKem ? 'File hiện tại' : undefined}
-                    />
-                  </div>
-                )}
-
-                {/* View mode file */}
-                {isViewMode && editingRequest?.fileDinhKem && (
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      File đính kèm
-                    </label>
-                    <a
-                      href={getFileUrl(editingRequest.fileDinhKem)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      Xem file đính kèm
-                    </a>
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  {isViewMode ? 'Đóng' : 'Hủy'}
-                </button>
-                {!isViewMode && (
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    {editingRequest ? 'Cập nhật' : 'Thêm mới'}
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
-        </Modal>
-
-      {/* Acceptance Handover Form */}
-      {isAcceptanceFormOpen && selectedRequestForAcceptance && (
-        <AcceptanceHandoverForm
-          repairRequest={selectedRequestForAcceptance}
-          onClose={() => {
-            setIsAcceptanceFormOpen(false);
-            setSelectedRequestForAcceptance(null);
-          }}
-          onSuccess={handleAcceptanceSuccess}
-        />
+      {requestsQuery.isError && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          Không tải được danh sách yêu cầu sửa chữa.
+        </div>
+      )}
+      {requests.length === 0 && !requestsQuery.isLoading && (
+        <div className="hidden items-center gap-2 text-sm text-gray-500">
+          <Wrench className="h-4 w-4" /> Chưa có dữ liệu.
+        </div>
       )}
     </div>
   );
 };
 
 export default RepairRequestList;
-

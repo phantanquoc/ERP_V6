@@ -1,4 +1,7 @@
-import apiClient from './apiClient';
+import apiClient, { ApiResponse } from './apiClient';
+import { API_BASE_URL } from '../config/api';
+import type { FaultTemplate } from './faultTemplateService';
+import type { MachineSystem, MachineSystemDetail, SortOrder } from './machineSystemService';
 
 export interface FaultRecord {
   id: string;
@@ -6,6 +9,10 @@ export interface FaultRecord {
   tenLoi: string;
   moTa: string;
   maHeThong?: string;
+  machineSystemId?: string | null;
+  machineSystemDetailId?: string | null;
+  machineId?: string | null;
+  faultTemplateId?: string | null;
   mucDo: string;
   trangThai: string;
   nguoiPhatHien: string;
@@ -13,19 +20,37 @@ export interface FaultRecord {
   fileDinhKem?: string;
   createdAt: string;
   updatedAt: string;
+  machineSystem?: MachineSystem | null;
+  machineSystemDetail?: MachineSystemDetail | null;
+  machine?: { id: string; maMay: string; tenMay: string; trangThai: string } | null;
+  faultTemplate?: FaultTemplate | null;
 }
 
 export interface CreateFaultRecordRequest {
-  tenLoi: string;
-  moTa: string;
+  tenLoi?: string;
+  moTa?: string;
   maHeThong?: string;
-  mucDo: string;
+  machineSystemId?: string;
+  machineSystemDetailId?: string;
+  machineId?: string;
+  faultTemplateId?: string;
+  mucDo?: string;
   trangThai?: string;
   nguoiPhatHien: string;
   ngayPhatHien?: string;
 }
 
-export interface UpdateFaultRecordRequest extends Partial<CreateFaultRecordRequest> {}
+export type UpdateFaultRecordRequest = Partial<CreateFaultRecordRequest>;
+
+export interface CreateFaultRecordFromTemplateRequest {
+  faultTemplateId: string;
+  nguoiPhatHien: string;
+  ngayPhatHien?: string;
+  trangThai?: string;
+  tenLoi?: string;
+  moTa?: string;
+  mucDo?: string;
+}
 
 export interface FaultRecordFilters {
   page?: number;
@@ -33,10 +58,25 @@ export interface FaultRecordFilters {
   search?: string;
   trangThai?: string;
   mucDo?: string;
+  machineSystemId?: string;
+  machineSystemDetailId?: string;
+  faultTemplateId?: string;
+  sortBy?: 'maLoi' | 'tenLoi' | 'mucDo' | 'trangThai' | 'ngayPhatHien' | 'createdAt';
+  sortOrder?: SortOrder;
 }
 
+const appendFormFields = (formData: FormData, data: Record<string, unknown>) => {
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === undefined) return;
+    formData.append(key, value === null ? '' : String(value));
+  });
+};
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
 class FaultRecordService {
-  async getAll(filters: FaultRecordFilters = {}) {
+  async getAll(filters: FaultRecordFilters = {}): Promise<ApiResponse<FaultRecord[]>> {
     try {
       const params: Record<string, unknown> = {
         page: filters.page ?? 1,
@@ -45,58 +85,59 @@ class FaultRecordService {
       if (filters.search) params.search = filters.search;
       if (filters.trangThai) params.trangThai = filters.trangThai;
       if (filters.mucDo) params.mucDo = filters.mucDo;
+      if (filters.machineSystemId) params.machineSystemId = filters.machineSystemId;
+      if (filters.machineSystemDetailId) params.machineSystemDetailId = filters.machineSystemDetailId;
+      if (filters.faultTemplateId) params.faultTemplateId = filters.faultTemplateId;
+      if (filters.sortBy) params.sortBy = filters.sortBy;
+      if (filters.sortOrder) params.sortOrder = filters.sortOrder;
 
-      return await apiClient.get('/fault-records', { params });
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi lấy danh sách lỗi');
+      return await apiClient.get<FaultRecord[]>('/fault-records', { params });
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi lấy danh sách lỗi'));
     }
   }
 
-  async getById(id: string) {
+  async getById(id: string): Promise<ApiResponse<FaultRecord>> {
     try {
-      return await apiClient.get(`/fault-records/${id}`);
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Không tìm thấy bản ghi lỗi');
+      return await apiClient.get<FaultRecord>(`/fault-records/${id}`);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Không tìm thấy bản ghi lỗi'));
     }
   }
 
-  async create(data: CreateFaultRecordRequest, file?: File) {
-    try {
-      const formData = new FormData();
-      Object.entries(data).forEach(([key, value]) => {
-        if (value !== undefined) formData.append(key, String(value));
-      });
-      if (file) formData.append('file', file);
-
-      return await apiClient.post('/fault-records', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi tạo bản ghi lỗi');
-    }
-  }
-
-  async update(id: string, data: UpdateFaultRecordRequest, file?: File) {
+  async create(data: CreateFaultRecordRequest, file?: File): Promise<ApiResponse<FaultRecord>> {
     try {
       const formData = new FormData();
-      Object.entries(data).forEach(([key, value]) => {
-        if (value !== undefined) formData.append(key, String(value));
-      });
+      appendFormFields(formData, data as Record<string, unknown>);
       if (file) formData.append('file', file);
 
-      return await apiClient.put(`/fault-records/${id}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi cập nhật bản ghi lỗi');
+      return await apiClient.post<FaultRecord>('/fault-records', formData);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi tạo bản ghi lỗi'));
     }
   }
 
-  async delete(id: string) {
+  async createFromTemplate(data: CreateFaultRecordFromTemplateRequest, file?: File): Promise<ApiResponse<FaultRecord>> {
+    return this.create(data, file);
+  }
+
+  async update(id: string, data: UpdateFaultRecordRequest, file?: File): Promise<ApiResponse<FaultRecord>> {
     try {
-      return await apiClient.delete(`/fault-records/${id}`);
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi xóa bản ghi lỗi');
+      const formData = new FormData();
+      appendFormFields(formData, data as Record<string, unknown>);
+      if (file) formData.append('file', file);
+
+      return await apiClient.put<FaultRecord>(`/fault-records/${id}`, formData);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi cập nhật bản ghi lỗi'));
+    }
+  }
+
+  async delete(id: string): Promise<ApiResponse<void>> {
+    try {
+      return await apiClient.delete<void>(`/fault-records/${id}`);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi xóa bản ghi lỗi'));
     }
   }
 
@@ -107,12 +148,17 @@ class FaultRecordService {
       if (filters.trangThai) params.trangThai = filters.trangThai;
       if (filters.mucDo) params.mucDo = filters.mucDo;
 
-      const response = await apiClient.get('/fault-records/export/excel', {
-        params,
-        responseType: 'blob',
+      const token = localStorage.getItem('accessToken');
+      const queryString = new URLSearchParams(
+        Object.entries(params).map(([key, value]) => [key, String(value)])
+      ).toString();
+      const response = await fetch(`${API_BASE_URL}/fault-records/export/excel${queryString ? `?${queryString}` : ''}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
+      if (!response.ok) throw new Error('Lỗi khi xuất Excel');
 
-      const url = window.URL.createObjectURL(new Blob([response as unknown as BlobPart]));
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `danh-sach-loi-${Date.now()}.xlsx`;
@@ -120,8 +166,8 @@ class FaultRecordService {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi xuất Excel');
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi xuất Excel'));
     }
   }
 }

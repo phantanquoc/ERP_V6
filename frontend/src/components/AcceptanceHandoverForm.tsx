@@ -1,27 +1,12 @@
-import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Plus, Trash2, X } from 'lucide-react';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
-import acceptanceHandoverService, { CreateAcceptanceHandoverRequest } from '../services/acceptanceHandoverService';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/apiClient';
-
-interface RepairRequestItem {
-  id: string;
-  tenHeThong: string;
-  tinhTrangThietBi: string;
-  loaiLoi: string;
-  noiDungLoi: string;
-}
-
-interface RepairRequest {
-  id: number;
-  maYeuCau: string;
-  tenHeThong: string | null;
-  tinhTrangThietBi: string | null;
-  noiDungLoi: string | null;
-  items?: RepairRequestItem[];
-}
+import { useCreateAcceptanceHandover } from '../hooks/useAcceptanceHandovers';
+import type { CreateAcceptanceHandoverRequest, AcceptanceHandoverItemInput } from '../services/acceptanceHandoverService';
+import type { RepairRequest, RepairRequestItem } from '../services/repairRequestService';
 
 interface AcceptanceHandoverFormProps {
   repairRequest: RepairRequest;
@@ -37,307 +22,293 @@ interface Employee {
   department: string;
 }
 
+type HandoverDraft = AcceptanceHandoverItemInput & { rowId: string };
+
+const itemContext = (item: RepairRequestItem) => {
+  const system = item.machineSystem
+    ? `${item.machineSystem.maHeThong} - ${item.machineSystem.tenHeThong}`
+    : item.tenHeThong;
+  const detail = item.machineSystemDetail
+    ? ` / ${item.machineSystemDetail.maChiTiet} - ${item.machineSystemDetail.tenChiTiet}`
+    : '';
+  return `${system}${detail}`;
+};
+
+const emptyHandoverItem = (item?: RepairRequestItem): HandoverDraft => ({
+  rowId: `${Date.now()}-${Math.random()}`,
+  repairRequestItemId: item?.id ?? '',
+  tinhTrangTruocSuaChua: item ? `${item.tinhTrangThietBi} - ${item.noiDungLoi}` : '',
+  tinhTrangSauSuaChua: '',
+  ghiChu: '',
+});
+
 const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: AcceptanceHandoverFormProps) => {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const createHandover = useCreateAcceptanceHandover();
   const [error, setError] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
-  const [departments, setDepartments] = useState<string[]>([]);
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
   const [loadingEmployees, setLoadingEmployees] = useState(false);
 
-  const deviceNames = repairRequest.items && repairRequest.items.length > 0
-    ? repairRequest.items.map(i => i.tenHeThong).join(', ')
-    : (repairRequest.tenHeThong || '');
-
-  const preRepairCondition = repairRequest.items && repairRequest.items.length > 0
-    ? repairRequest.items.map(i => `${i.tenHeThong}: ${i.noiDungLoi}`).join('; ')
-    : (repairRequest.tinhTrangThietBi || repairRequest.noiDungLoi || '');
-
+  const requestItems = useMemo(() => repairRequest.items?.filter((item) => !!item.id) ?? [], [repairRequest.items]);
+  const allowedItemIds = useMemo(() => new Set(requestItems.map((item) => item.id)), [requestItems]);
+  const firstItem = requestItems[0];
+  const [handoverItems, setHandoverItems] = useState<HandoverDraft[]>(firstItem ? [emptyHandoverItem(firstItem)] : []);
+  const deviceNames = requestItems.length
+    ? requestItems.map(itemContext).join('; ')
+    : repairRequest.tenHeThong ?? '';
+  const beforeSummary = requestItems.length
+    ? requestItems.map((item) => `${itemContext(item)}: ${item.tinhTrangThietBi} - ${item.noiDungLoi}`).join('; ')
+    : repairRequest.tinhTrangThietBi ?? repairRequest.noiDungLoi ?? '';
+  const giver = user ? `${user.lastName} ${user.firstName}`.trim() || user.username : '';
   const [formData, setFormData] = useState<CreateAcceptanceHandoverRequest>({
     repairRequestId: repairRequest.id,
     maYeuCauSuaChua: repairRequest.maYeuCau,
     tenHeThongThietBi: deviceNames,
-    tinhTrangTruocSuaChua: preRepairCondition,
+    tinhTrangTruocSuaChua: beforeSummary,
     tinhTrangSauSuaChua: '',
-    nguoiBanGiao: user?.fullName || user?.username || '',
+    nguoiBanGiao: giver,
     nguoiNhan: '',
     nguoiNhanId: '',
     ghiChu: '',
+    items: [],
   });
 
   useEffect(() => {
+    const fetchEmployees = async () => {
+      setLoadingEmployees(true);
+      try {
+        const response = await apiClient.get<unknown>('/employees/for-assignment', { params: { limit: 1000 } });
+        const rawData = response.data as { data?: unknown[] } | unknown[] | undefined;
+        const employeeList = Array.isArray(rawData) ? rawData : Array.isArray(rawData?.data) ? rawData.data : [];
+        const transformed = employeeList.map((employee) => {
+          const emp = employee as Record<string, any>;
+          return {
+            _id: emp.id || emp._id,
+            firstName: emp.user?.firstName || emp.firstName || '',
+            lastName: emp.user?.lastName || emp.lastName || '',
+            employeeCode: emp.employeeCode || '',
+            department: emp.departmentName || emp.subDepartmentName || 'Chưa xác định',
+          };
+        });
+        setEmployees(transformed);
+      } catch {
+        setEmployees([]);
+      } finally {
+        setLoadingEmployees(false);
+      }
+    };
     fetchEmployees();
   }, []);
 
-  useEffect(() => {
-    if (selectedDepartment) {
-      setFilteredEmployees(employees.filter(emp => emp.department === selectedDepartment));
-    } else {
-      setFilteredEmployees(employees);
-    }
-  }, [selectedDepartment, employees]);
+  const departments = useMemo(
+    () => Array.from(new Set(employees.map((employee) => employee.department).filter(Boolean))),
+    [employees]
+  );
 
-  const fetchEmployees = async () => {
-    setLoadingEmployees(true);
-    try {
-      const response = await apiClient.get('/employees/for-assignment', { params: { limit: 1000 } });
-      let employeeList: any[] = [];
-      if (response.data) {
-        employeeList = Array.isArray(response.data) ? response.data : (response.data as any).data || [];
-      }
-      const transformedEmployees = employeeList.map((emp: any) => ({
-        _id: emp.id || emp._id,
-        firstName: emp.user?.firstName || emp.firstName || '',
-        lastName: emp.user?.lastName || emp.lastName || '',
-        employeeCode: emp.employeeCode || '',
-        department: emp.departmentName || emp.subDepartmentName || 'Chưa xác định',
-      }));
-      setEmployees(transformedEmployees);
-      setFilteredEmployees(transformedEmployees);
-      const uniqueDepts = Array.from(new Set(transformedEmployees.map((emp: Employee) => emp.department).filter(Boolean)));
-      setDepartments(uniqueDepts as string[]);
-    } catch (err: any) {
-      console.error('Error fetching employees:', err);
-    } finally {
-      setLoadingEmployees(false);
-    }
+  const filteredEmployees = selectedDepartment
+    ? employees.filter((employee) => employee.department === selectedDepartment)
+    : employees;
+
+  const patchItem = (rowId: string, patch: Partial<HandoverDraft>) => {
+    setHandoverItems((items) => items.map((item) => item.rowId === rowId ? { ...item, ...patch } : item));
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const selectRepairItem = (rowId: string, repairRequestItemId: string) => {
+    const repairItem = requestItems.find((item) => item.id === repairRequestItemId);
+    patchItem(rowId, {
+      repairRequestItemId,
+      tinhTrangTruocSuaChua: repairItem ? `${repairItem.tinhTrangThietBi} - ${repairItem.noiDungLoi}` : '',
+    });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.tinhTrangSauSuaChua.trim()) {
-      setError('Vui lòng nhập tình trạng sau khi sửa chữa');
-      return;
-    }
-    
-    if (!formData.nguoiBanGiao.trim()) {
-      setError('Vui lòng nhập người bàn giao');
-      return;
-    }
-    
+  const addItem = () => {
+    const unused = requestItems.find((item) => !handoverItems.some((draft) => draft.repairRequestItemId === item.id));
+    if (unused) setHandoverItems((items) => [...items, emptyHandoverItem(unused)]);
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError('');
+
     if (!formData.nguoiNhanId) {
       setError('Vui lòng chọn người nhận');
       return;
     }
 
+    const itemRows = handoverItems
+      .map((item) => ({
+        repairRequestItemId: item.repairRequestItemId,
+        tinhTrangTruocSuaChua: item.tinhTrangTruocSuaChua.trim(),
+        tinhTrangSauSuaChua: item.tinhTrangSauSuaChua.trim(),
+        ghiChu: item.ghiChu?.trim(),
+      }))
+      .filter((item) => item.repairRequestItemId && item.tinhTrangTruocSuaChua && item.tinhTrangSauSuaChua);
+
+    if (requestItems.length > 0 && itemRows.length === 0) {
+      setError('Vui lòng nhập ít nhất một dòng nghiệm thu theo thiết bị lỗi');
+      return;
+    }
+
+    const crossRequestItem = itemRows.find((item) => !allowedItemIds.has(item.repairRequestItemId));
+    if (crossRequestItem) {
+      setError('Dòng nghiệm thu không thuộc yêu cầu sửa chữa hiện tại');
+      return;
+    }
+
+    const payload: CreateAcceptanceHandoverRequest = {
+      ...formData,
+      tinhTrangSauSuaChua: itemRows.length
+        ? itemRows.map((item) => {
+          const repairItem = requestItems.find((candidate) => candidate.id === item.repairRequestItemId);
+          return `${repairItem ? itemContext(repairItem) : 'Thiết bị'}: ${item.tinhTrangSauSuaChua}`;
+        }).join('; ')
+        : formData.tinhTrangSauSuaChua,
+      items: itemRows,
+    };
+
+    if (!payload.tinhTrangSauSuaChua.trim()) {
+      setError('Vui lòng nhập tình trạng sau khi sửa chữa');
+      return;
+    }
+
     try {
-      setLoading(true);
-      setError('');
-
-      await acceptanceHandoverService.createAcceptanceHandover(formData, selectedFile || undefined);
-
-      // Call onSuccess and wait a bit before closing to ensure parent component updates
+      await createHandover.mutateAsync({ data: payload, file: selectedFile ?? undefined });
       onSuccess();
-
-      // Close form after a short delay to allow parent to refresh
-      setTimeout(() => {
-        onClose();
-      }, 100);
-    } catch (err: any) {
-      setError(err.message || 'Lỗi khi tạo nghiệm thu bàn giao');
-      console.error(err);
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lỗi khi tạo nghiệm thu bàn giao');
     }
   };
 
   return (
-    <Modal isOpen={true} onClose={onClose} showBackdrop>
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="border-b px-6 py-4 flex justify-between items-center shrink-0">
-          <h2 className="text-xl font-bold text-gray-800">Nghiệm thu bàn giao</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-6 h-6" />
+    <Modal isOpen onClose={onClose} showBackdrop>
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Nghiệm thu bàn giao</h2>
+            <p className="text-xs text-gray-500">Yêu cầu {repairRequest.maYeuCau}</p>
+          </div>
+          <button title="Đóng" onClick={onClose} className="rounded p-1.5 text-gray-500 hover:bg-gray-100">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6">
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-              {error}
-            </div>
-          )}
+        <form onSubmit={submit} className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
+          {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{error}</div>}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Mã yêu cầu sửa chữa */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mã yêu cầu sửa chữa <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.maYeuCauSuaChua}
-                disabled
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-              />
-            </div>
-
-            {/* Tên hệ thống/thiết bị */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tên hệ thống/thiết bị <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.tenHeThongThietBi}
-                disabled
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-              />
-            </div>
-
-            {/* Người bàn giao */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Người bàn giao <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="nguoiBanGiao"
-                value={formData.nguoiBanGiao}
-                disabled
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                placeholder="Tự động lấy từ người đăng nhập"
-              />
-            </div>
-
-            {/* Phòng ban */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phòng ban
-              </label>
-              <select
-                value={selectedDepartment}
-                onChange={(e) => setSelectedDepartment(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
+          <div className="grid gap-3 md:grid-cols-4">
+            <label className="space-y-1">
+              <span className="font-medium text-gray-700">Mã yêu cầu</span>
+              <input value={formData.maYeuCauSuaChua} disabled className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2" />
+            </label>
+            <label className="space-y-1">
+              <span className="font-medium text-gray-700">Người bàn giao</span>
+              <input value={formData.nguoiBanGiao} disabled className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2" />
+            </label>
+            <label className="space-y-1">
+              <span className="font-medium text-gray-700">Phòng ban nhận</span>
+              <select value={selectedDepartment} onChange={(event) => setSelectedDepartment(event.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2">
                 <option value="">Tất cả phòng ban</option>
-                {departments.map((dept) => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
+                {departments.map((department) => <option key={department} value={department}>{department}</option>)}
               </select>
-            </div>
-
-            {/* Người nhận */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Người nhận <span className="text-red-500">*</span>
-              </label>
+            </label>
+            <label className="space-y-1">
+              <span className="font-medium text-gray-700">Người nhận</span>
               <select
-                value={formData.nguoiNhanId || ''}
-                onChange={(e) => {
-                  const empId = e.target.value;
-                  const emp = employees.find(em => em._id === empId);
-                  setFormData(prev => ({
-                    ...prev,
-                    nguoiNhanId: empId,
-                    nguoiNhan: emp ? `${emp.lastName} ${emp.firstName}` : '',
+                required
+                value={formData.nguoiNhanId ?? ''}
+                onChange={(event) => {
+                  const employee = employees.find((item) => item._id === event.target.value);
+                  setFormData((current) => ({
+                    ...current,
+                    nguoiNhanId: event.target.value,
+                    nguoiNhan: employee ? `${employee.lastName} ${employee.firstName}`.trim() : '',
                   }));
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
+                className="w-full rounded-md border border-gray-300 px-3 py-2"
               >
-                <option value="">Chọn người nhận</option>
-                {filteredEmployees.map((emp) => (
-                  <option key={emp._id} value={emp._id}>
-                    {emp.lastName} {emp.firstName} ({emp.employeeCode})
+                <option value="">{loadingEmployees ? 'Đang tải...' : 'Chọn người nhận'}</option>
+                {filteredEmployees.map((employee) => (
+                  <option key={employee._id} value={employee._id}>
+                    {employee.lastName} {employee.firstName} ({employee.employeeCode})
                   </option>
                 ))}
               </select>
-              {loadingEmployees && <p className="text-xs text-gray-400 mt-1">Đang tải danh sách...</p>}
-            </div>
-
-            {/* Tình trạng trước khi sửa chữa */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tình trạng trước khi sửa chữa <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                name="tinhTrangTruocSuaChua"
-                value={formData.tinhTrangTruocSuaChua}
-                onChange={handleChange}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Mô tả tình trạng trước khi sửa chữa"
-                required
-              />
-            </div>
-
-            {/* Tình trạng sau khi sửa chữa */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tình trạng sau khi sửa chữa <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                name="tinhTrangSauSuaChua"
-                value={formData.tinhTrangSauSuaChua}
-                onChange={handleChange}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Mô tả tình trạng sau khi sửa chữa"
-                required
-              />
-            </div>
-
-            {/* Ghi chú */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Ghi chú
-              </label>
-              <textarea
-                name="ghiChu"
-                value={formData.ghiChu}
-                onChange={handleChange}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Nhập ghi chú (nếu có)"
-              />
-            </div>
-
-            {/* File đính kèm */}
-            <div className="md:col-span-2">
-              <FileUpload
-                label="File đính kèm"
-                files={selectedFile ? [selectedFile] : []}
-                onChange={(files) => setSelectedFile(files[0] || null)}
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar"
-                helpText="PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, ZIP, RAR (Tối đa 100MB)"
-              />
-            </div>
+            </label>
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-              disabled={loading}
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-              disabled={loading}
-            >
-              {loading ? 'Đang xử lý...' : 'Tạo nghiệm thu'}
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="space-y-1">
+              <span className="font-medium text-gray-700">Snapshot hệ thống/thiết bị</span>
+              <textarea value={formData.tenHeThongThietBi} disabled rows={2} className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2" />
+            </label>
+            <label className="space-y-1">
+              <span className="font-medium text-gray-700">Tình trạng trước sửa chữa</span>
+              <textarea value={formData.tinhTrangTruocSuaChua} disabled rows={2} className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2" />
+            </label>
+          </div>
+
+          {requestItems.length > 0 ? (
+            <div className="rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between border-b px-3 py-2">
+                <div className="font-medium text-gray-800">Nghiệm thu theo thiết bị lỗi</div>
+                <button type="button" onClick={addItem} disabled={handoverItems.length >= requestItems.length} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs disabled:opacity-40">
+                  <Plus className="h-3.5 w-3.5" /> Thêm dòng
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Thiết bị lỗi</th>
+                      <th className="px-3 py-2 text-left">Trước sửa</th>
+                      <th className="px-3 py-2 text-left">Sau sửa</th>
+                      <th className="px-3 py-2 text-left">Ghi chú</th>
+                      <th className="px-3 py-2 text-right">Xóa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {handoverItems.map((item) => (
+                      <tr key={item.rowId}>
+                        <td className="px-3 py-2">
+                          <select value={item.repairRequestItemId} onChange={(event) => selectRepairItem(item.rowId, event.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-1.5">
+                            <option value="">Chọn thiết bị lỗi</option>
+                            {requestItems.map((repairItem) => (
+                              <option key={repairItem.id} value={repairItem.id}>{itemContext(repairItem)}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2"><textarea required rows={2} value={item.tinhTrangTruocSuaChua} onChange={(event) => patchItem(item.rowId, { tinhTrangTruocSuaChua: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5" /></td>
+                        <td className="px-3 py-2"><textarea required rows={2} value={item.tinhTrangSauSuaChua} onChange={(event) => patchItem(item.rowId, { tinhTrangSauSuaChua: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5" /></td>
+                        <td className="px-3 py-2"><input value={item.ghiChu ?? ''} onChange={(event) => patchItem(item.rowId, { ghiChu: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5" /></td>
+                        <td className="px-3 py-2 text-right">
+                          {handoverItems.length > 1 && <button type="button" title="Xóa dòng" onClick={() => setHandoverItems((items) => items.filter((draft) => draft.rowId !== item.rowId))} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <label className="block space-y-1">
+              <span className="font-medium text-gray-700">Tình trạng sau sửa chữa</span>
+              <textarea required rows={3} value={formData.tinhTrangSauSuaChua} onChange={(event) => setFormData((current) => ({ ...current, tinhTrangSauSuaChua: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" />
+            </label>
+          )}
+
+          <label className="block space-y-1">
+            <span className="font-medium text-gray-700">Ghi chú</span>
+            <textarea rows={2} value={formData.ghiChu ?? ''} onChange={(event) => setFormData((current) => ({ ...current, ghiChu: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" />
+          </label>
+
+          <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] ?? null)} accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar" compact />
+
+          <div className="flex justify-end gap-2 border-t pt-3">
+            <button type="button" onClick={onClose} disabled={createHandover.isPending} className="rounded-md border border-gray-300 px-4 py-2 text-gray-700">Hủy</button>
+            <button type="submit" disabled={createHandover.isPending} className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white disabled:bg-gray-400">
+              {createHandover.isPending ? 'Đang xử lý...' : 'Tạo nghiệm thu'}
             </button>
           </div>
         </form>
@@ -347,4 +318,3 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
 };
 
 export default AcceptanceHandoverForm;
-

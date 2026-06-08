@@ -87,6 +87,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
     { path: '/technical', name: 'Bộ phận kỹ thuật', icon: <Wrench size={20} />, subItems: [
       { path: '/technical/quality', name: 'QLHTM', subModule: 'quality' },
       { path: '/technical/mechanical', name: 'Cơ điện', subModule: 'mechanical' },
+      { path: '/technical/projects', name: 'Dự án', subModule: 'projects' },
     ], module: 'technical' },
   ];
 

@@ -8,8 +8,13 @@ class MachineController {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 100;
+      const filters = {
+        search: req.query.search as string | undefined,
+        machineSystemId: req.query.machineSystemId as string | undefined,
+        trangThai: req.query.trangThai as string | undefined,
+      };
 
-      const result = await machineService.getAllMachines(page, limit);
+      const result = await machineService.getAllMachines(page, limit, filters);
 
       res.json({
         success: true,
@@ -99,6 +104,15 @@ class MachineController {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=danh-sach-may-moc-${Date.now()}.xlsx`);
       res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMachineSummary(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const machine = await machineService.getMachineSummary(req.params.id);
+      res.json({ success: true, data: machine });
     } catch (error) {
       next(error);
     }

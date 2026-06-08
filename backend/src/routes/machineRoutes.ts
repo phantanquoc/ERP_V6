@@ -101,6 +101,7 @@ router.get('/generate-code', machineController.generateMachineCode);
  *         description: Không tìm thấy máy
  */
 router.get('/:id', machineController.getMachineById);
+router.get('/:id/summary', machineController.getMachineSummary);
 
 /**
  * @swagger

@@ -1,12 +1,16 @@
+import { Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError } from '@utils/errors';
+import { NotFoundError, ValidationError } from '@utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 import ExcelJS from 'exceljs';
 
 interface RepairRequestItemData {
+  machineSystemId?: string;
+  machineSystemDetailId?: string;
+  machineId?: string;
   tenHeThong: string;
   tinhTrangThietBi: string;
   loaiLoi: string;
@@ -44,6 +48,35 @@ interface UpdateRepairRequestData {
   items?: RepairRequestItemData[];
 }
 
+const repairRequestInclude = {
+  acceptanceHandovers: {
+    include: {
+      items: {
+        include: {
+          repairRequestItem: true,
+          machineSystem: true,
+          machineSystemDetail: true,
+          machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
+        },
+      },
+    },
+  },
+  items: {
+    include: {
+      machineSystem: true,
+      machineSystemDetail: true,
+      machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
+    },
+    orderBy: { createdAt: 'asc' as const },
+  },
+} satisfies Prisma.RepairRequestInclude;
+
+type ResolvedRepairRequestItemData = Omit<RepairRequestItemData, 'machineSystemId' | 'machineSystemDetailId' | 'machineId'> & {
+  machineSystemId: string | null;
+  machineSystemDetailId: string | null;
+  machineId: string | null;
+};
+
 class RepairRequestService {
   async generateRepairRequestCode(): Promise<string> {
     const year = new Date().getFullYear();
@@ -69,7 +102,14 @@ class RepairRequestService {
           createdAt: 'desc',
         },
         include: {
-          items: true,
+          items: {
+            include: {
+              machineSystem: true,
+              machineSystemDetail: true,
+              machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
+            },
+            orderBy: { createdAt: 'asc' },
+          },
         },
       }),
       prisma.repairRequest.count(),
@@ -92,10 +132,7 @@ class RepairRequestService {
   async getRepairRequestById(id: number) {
     const request = await prisma.repairRequest.findUnique({
       where: { id },
-      include: {
-        acceptanceHandovers: true,
-        items: true,
-      },
+      include: repairRequestInclude,
     });
 
     if (!request) {
@@ -105,11 +142,53 @@ class RepairRequestService {
     return request;
   }
 
+  private async resolveRepairItems(items: RepairRequestItemData[] = []): Promise<ResolvedRepairRequestItemData[]> {
+    return Promise.all(items.map(async (item) => {
+      let machineSystem = item.machineSystemId
+        ? await prisma.machineSystem.findUnique({ where: { id: item.machineSystemId } })
+        : null;
+
+      let machineSystemDetail = item.machineSystemDetailId
+        ? await prisma.machineSystemDetail.findUnique({
+            where: { id: item.machineSystemDetailId },
+            include: { machineSystem: true },
+          })
+        : null;
+
+      if (item.machineSystemId && !machineSystem) {
+        throw new ValidationError('Hệ thống máy không hợp lệ');
+      }
+
+      if (item.machineSystemDetailId && !machineSystemDetail) {
+        throw new ValidationError('Chi tiết hệ thống máy không hợp lệ');
+      }
+
+      if (machineSystemDetail) {
+        if (machineSystem && machineSystem.id !== machineSystemDetail.machineSystemId) {
+          throw new ValidationError('Chi tiết máy không thuộc hệ thống máy đã chọn');
+        }
+        machineSystem = machineSystemDetail.machineSystem;
+      }
+
+      return {
+        ...item,
+        machineSystemId: machineSystem?.id ?? null,
+        machineSystemDetailId: machineSystemDetail?.id ?? null,
+        machineId: item.machineId || null,
+        tenHeThong: machineSystem ? machineSystem.tenHeThong : item.tenHeThong,
+        tinhTrangThietBi: machineSystemDetail && !item.tinhTrangThietBi
+          ? machineSystemDetail.tenChiTiet
+          : item.tinhTrangThietBi,
+      };
+    }));
+  }
+
   /**
    * Create new repair request
    */
   async createRepairRequest(data: CreateRepairRequestData) {
-    const firstItem = data.items && data.items.length > 0 ? data.items[0] : null;
+    const resolvedItems = await this.resolveRepairItems(data.items);
+    const firstItem = resolvedItems.length > 0 ? resolvedItems[0] : null;
 
     const request = await prisma.$transaction(async (tx) => {
       const created = await tx.repairRequest.create({
@@ -130,8 +209,11 @@ class RepairRequestService {
 
       if (data.items && data.items.length > 0) {
         await tx.repairRequestItem.createMany({
-          data: data.items.map((item) => ({
+          data: resolvedItems.map((item) => ({
             repairRequestId: created.id,
+            machineSystemId: item.machineSystemId,
+            machineSystemDetailId: item.machineSystemDetailId,
+            machineId: item.machineId,
             tenHeThong: item.tenHeThong,
             tinhTrangThietBi: item.tinhTrangThietBi,
             loaiLoi: item.loaiLoi,
@@ -142,7 +224,7 @@ class RepairRequestService {
 
       return tx.repairRequest.findUnique({
         where: { id: created.id },
-        include: { items: true },
+        include: repairRequestInclude,
       });
     });
 
@@ -165,16 +247,20 @@ class RepairRequestService {
     const existing = await this.getRepairRequestById(id);
 
     const { items, ...scalarData } = data;
+    const resolvedItems = items !== undefined ? await this.resolveRepairItems(items) : undefined;
 
     const updated = await prisma.$transaction(async (tx) => {
       // If items provided, delete-then-recreate
-      if (items !== undefined) {
+      if (resolvedItems !== undefined) {
         await tx.repairRequestItem.deleteMany({ where: { repairRequestId: id } });
 
-        if (items.length > 0) {
+        if (resolvedItems.length > 0) {
           await tx.repairRequestItem.createMany({
-            data: items.map((item) => ({
+            data: resolvedItems.map((item) => ({
               repairRequestId: id,
+              machineSystemId: item.machineSystemId,
+              machineSystemDetailId: item.machineSystemDetailId,
+              machineId: item.machineId,
               tenHeThong: item.tenHeThong,
               tinhTrangThietBi: item.tinhTrangThietBi,
               loaiLoi: item.loaiLoi,
@@ -183,7 +269,7 @@ class RepairRequestService {
           });
 
           // Update backward-compat scalar fields from first item
-          const firstItem = items[0];
+          const firstItem = resolvedItems[0];
           scalarData.tenHeThong = firstItem.tenHeThong;
           scalarData.tinhTrangThietBi = firstItem.tinhTrangThietBi;
           scalarData.loaiLoi = firstItem.loaiLoi;
@@ -194,7 +280,7 @@ class RepairRequestService {
       return tx.repairRequest.update({
         where: { id },
         data: scalarData,
-        include: { items: true },
+        include: repairRequestInclude,
       });
     });
 
@@ -311,4 +397,3 @@ class RepairRequestService {
 }
 
 export default new RepairRequestService();
-

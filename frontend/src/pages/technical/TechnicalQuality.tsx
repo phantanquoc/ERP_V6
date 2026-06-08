@@ -22,6 +22,29 @@ import acceptanceHandoverService, { AcceptanceHandover } from '../../services/ac
 
 type TabType = 'machineSystems' | 'machineActivity' | 'orders' | 'repairRequests' | 'acceptance';
 
+const handoverItemContext = (item: NonNullable<AcceptanceHandover['items']>[number]) => {
+  const system = item.machineSystem
+    ? `${item.machineSystem.maHeThong} - ${item.machineSystem.tenHeThong}`
+    : item.tenHeThong;
+  const detail = item.machineSystemDetail
+    ? ` / ${item.machineSystemDetail.maChiTiet} - ${item.machineSystemDetail.tenChiTiet}`
+    : item.tenChiTiet ? ` / ${item.tenChiTiet}` : '';
+  return `${system}${detail}`;
+};
+
+const handoverSystemsText = (item: AcceptanceHandover) =>
+  item.items?.length ? item.items.map(handoverItemContext).join('; ') : item.tenHeThongThietBi;
+
+const handoverBeforeText = (item: AcceptanceHandover) =>
+  item.items?.length
+    ? item.items.map((handoverItem) => `${handoverItemContext(handoverItem)}: ${handoverItem.tinhTrangTruocSuaChua}`).join('; ')
+    : item.tinhTrangTruocSuaChua;
+
+const handoverAfterText = (item: AcceptanceHandover) =>
+  item.items?.length
+    ? item.items.map((handoverItem) => `${handoverItemContext(handoverItem)}: ${handoverItem.tinhTrangSauSuaChua}`).join('; ')
+    : item.tinhTrangSauSuaChua;
+
 const TechnicalQuality = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = (searchParams.get('tab') as TabType) || 'machineSystems';
@@ -232,12 +255,12 @@ const TechnicalQuality = () => {
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{item.maNghiemThu}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.maYeuCauSuaChua}</td>
-                          <td className="px-4 py-4 text-sm text-gray-900">{item.tenHeThongThietBi}</td>
-                          <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate" title={item.tinhTrangTruocSuaChua}>
-                            {item.tinhTrangTruocSuaChua}
+                          <td className="px-4 py-4 text-sm text-gray-900 max-w-sm" title={handoverSystemsText(item)}>{handoverSystemsText(item)}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate" title={handoverBeforeText(item)}>
+                            {handoverBeforeText(item)}
                           </td>
-                          <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate" title={item.tinhTrangSauSuaChua}>
-                            {item.tinhTrangSauSuaChua}
+                          <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate" title={handoverAfterText(item)}>
+                            {handoverAfterText(item)}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.nguoiBanGiao}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.nguoiNhan}</td>
@@ -331,18 +354,18 @@ const TechnicalQuality = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tên hệ thống/thiết bị</label>
-                  <p className="text-gray-900">{selectedAcceptance.tenHeThongThietBi}</p>
+                  <p className="text-gray-900">{handoverSystemsText(selectedAcceptance)}</p>
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tình trạng trước khi sửa chữa</label>
-                <p className="text-gray-900 bg-gray-50 p-3 rounded-lg">{selectedAcceptance.tinhTrangTruocSuaChua}</p>
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-lg">{handoverBeforeText(selectedAcceptance)}</p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tình trạng sau khi sửa chữa</label>
-                <p className="text-gray-900 bg-gray-50 p-3 rounded-lg">{selectedAcceptance.tinhTrangSauSuaChua}</p>
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-lg">{handoverAfterText(selectedAcceptance)}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
