@@ -666,11 +666,11 @@ const UserManagement: React.FC = () => {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Họ</label>
-                  <p className="text-gray-900">{selectedUser.firstName}</p>
+                  <p className="text-gray-900">{selectedUser.lastName}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tên</label>
-                  <p className="text-gray-900">{selectedUser.lastName}</p>
+                  <p className="text-gray-900">{selectedUser.firstName}</p>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -792,8 +792,8 @@ const UserManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Họ *</label>
                     <input
                       type="text"
-                      name="firstName"
-                      value={formData.firstName}
+                      name="lastName"
+                      value={formData.lastName}
                       onChange={handleFormChange}
                       required
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -803,8 +803,8 @@ const UserManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tên *</label>
                     <input
                       type="text"
-                      name="lastName"
-                      value={formData.lastName}
+                      name="firstName"
+                      value={formData.firstName}
                       onChange={handleFormChange}
                       required
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
