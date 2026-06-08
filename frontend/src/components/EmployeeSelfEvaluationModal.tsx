@@ -224,7 +224,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
       setEditingScores({});
       await loadEvaluationData();
       if (notificationId) {
-        try { await notificationService.markAsRead(notificationId); } catch {}
+        try { await notificationService.markAsRead(notificationId); } catch { /* ignore */ }
       }
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {

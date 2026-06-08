@@ -5,6 +5,11 @@ import { NotificationService } from '@services/notificationService';
 
 const notificationService = new NotificationService();
 
+const parseItems = (value: unknown) => {
+  if (value === undefined) return undefined;
+  return typeof value === 'string' ? JSON.parse(value) : value;
+};
+
 class AcceptanceHandoverController {
   async getAllAcceptanceHandovers(req: Request, res: Response, next: NextFunction) {
     try {
@@ -45,6 +50,7 @@ class AcceptanceHandoverController {
       const data = {
         ...req.body,
         repairRequestId: parseInt(req.body.repairRequestId, 10),
+        items: parseItems(req.body.items),
         fileDinhKem: file ? getFileUrl('acceptance-handovers', file.filename) : undefined,
       };
 
@@ -95,9 +101,13 @@ class AcceptanceHandoverController {
       // Parse repairRequestId to number if it exists
       const data = {
         ...req.body,
+        items: parseItems(req.body.items),
       };
       if (req.body.repairRequestId) {
         data.repairRequestId = parseInt(req.body.repairRequestId, 10);
+      }
+      if (req.file) {
+        data.fileDinhKem = getFileUrl('acceptance-handovers', req.file.filename);
       }
 
       const handover = await acceptanceHandoverService.updateAcceptanceHandover(id, data);
@@ -141,4 +151,3 @@ class AcceptanceHandoverController {
 }
 
 export default new AcceptanceHandoverController();
-

@@ -26,6 +26,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/technical': 'Bộ phận kỹ thuật',
   '/technical/quality': 'QLHTM',
   '/technical/mechanical': 'Cơ điện',
+  '/technical/projects': 'Dự án kỹ thuật',
   '/huong-dan': 'Hướng dẫn',
   '/system-settings': 'Cài đặt hệ thống',
   '/diemdanh/admin': 'Chấm công khuôn mặt',

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import faultRecordService, {
+  CreateFaultRecordFromTemplateRequest,
   CreateFaultRecordRequest,
   UpdateFaultRecordRequest,
   FaultRecordFilters,
@@ -33,6 +34,17 @@ export const useCreateFaultRecord = () => {
   return useMutation({
     mutationFn: ({ data, file }: { data: CreateFaultRecordRequest; file?: File }) =>
       faultRecordService.create(data, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: faultRecordKeys.lists() });
+    },
+  });
+};
+
+export const useCreateFaultRecordFromTemplate = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ data, file }: { data: CreateFaultRecordFromTemplateRequest; file?: File }) =>
+      faultRecordService.createFromTemplate(data, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: faultRecordKeys.lists() });
     },

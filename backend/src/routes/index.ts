@@ -40,6 +40,7 @@ const ROUTE_MAP: Record<string, string> = {
   machineActivityReport: '/api/machine-activity-reports',
   repairRequest: '/api/repair-requests',
   machineSystem: '/api/machine-systems',
+  machineSystemDetail: '/api/machine-system-details',
   materialEvaluation: '/api/material-evaluations',
   materialEvaluationCriteria: '/api/material-evaluation-criteria',
   systemOperation: '/api/system-operations',
@@ -57,6 +58,7 @@ const ROUTE_MAP: Record<string, string> = {
   purchaseRequest: '/api/purchase-requests',
   supplier: '/api/suppliers',
   acceptanceHandover: '/api/acceptance-handovers',
+  faultTemplate: '/api/fault-templates',
   faultRecord: '/api/fault-records',
   sparePart: '/api/spare-parts',
   project: '/api/projects',
@@ -64,6 +66,7 @@ const ROUTE_MAP: Record<string, string> = {
   overtimePlan: '/api/overtime-plans',
   systemSettings: '/api/system-settings',
   faceAttendance: '/api/face-attendance',
+  technicalSummary: '/api/technical-summary',
   chat: '/api/chat',
   agent: '/api/agent',
   docs: '/api/docs',
@@ -95,4 +98,3 @@ export const registerRoutes = (app: Express): void => {
 
   logger.info(`Registered ${registered} API routes`);
 };
-

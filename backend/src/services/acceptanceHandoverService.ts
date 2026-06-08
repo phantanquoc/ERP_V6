@@ -1,7 +1,15 @@
+import { Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError } from '@utils/errors';
+import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
+
+interface AcceptanceHandoverItemRequest {
+  repairRequestItemId: string;
+  tinhTrangTruocSuaChua: string;
+  tinhTrangSauSuaChua: string;
+  ghiChu?: string;
+}
 
 interface CreateAcceptanceHandoverRequest {
   repairRequestId: number;
@@ -14,16 +22,45 @@ interface CreateAcceptanceHandoverRequest {
   nguoiNhanId?: string;
   fileDinhKem?: string;
   ghiChu?: string;
+  items?: AcceptanceHandoverItemRequest[];
 }
 
 interface UpdateAcceptanceHandoverRequest {
+  repairRequestId?: number;
+  maYeuCauSuaChua?: string;
+  tenHeThongThietBi?: string;
   tinhTrangTruocSuaChua?: string;
   tinhTrangSauSuaChua?: string;
   nguoiBanGiao?: string;
   nguoiNhan?: string;
+  nguoiNhanId?: string;
   fileDinhKem?: string;
   ghiChu?: string;
+  items?: AcceptanceHandoverItemRequest[];
 }
+
+const handoverInclude = {
+  repairRequest: {
+    include: {
+      items: {
+        include: {
+          machineSystem: true,
+          machineSystemDetail: true,
+          machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
+        },
+      },
+    },
+  },
+  items: {
+    include: {
+      repairRequestItem: true,
+      machineSystem: true,
+      machineSystemDetail: true,
+      machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
+    },
+    orderBy: { createdAt: 'asc' as const },
+  },
+} satisfies Prisma.AcceptanceHandoverInclude;
 
 class AcceptanceHandoverService {
   /**
@@ -76,6 +113,7 @@ class AcceptanceHandoverService {
         skip,
         take: limitNum,
         orderBy: { createdAt: 'desc' },
+        include: handoverInclude,
       }),
       prisma.acceptanceHandover.count({ where }),
     ]);
@@ -94,6 +132,7 @@ class AcceptanceHandoverService {
   async getAcceptanceHandoverById(id: string) {
     const handover = await prisma.acceptanceHandover.findUnique({
       where: { id },
+      include: handoverInclude,
     });
 
     if (!handover) {
@@ -103,23 +142,85 @@ class AcceptanceHandoverService {
     return handover;
   }
 
+  private async resolveHandoverItems(
+    repairRequestId: number,
+    items: AcceptanceHandoverItemRequest[] = [],
+    tx: Prisma.TransactionClient,
+  ) {
+    if (items.length === 0) return [];
+
+    const repairRequestItems = await tx.repairRequestItem.findMany({
+      where: { id: { in: items.map((item) => item.repairRequestItemId) } },
+      include: {
+        machineSystem: true,
+        machineSystemDetail: true,
+      },
+    });
+
+    const itemById = new Map(repairRequestItems.map((item) => [item.id, item]));
+
+    return items.map((item) => {
+      const repairItem = itemById.get(item.repairRequestItemId);
+      if (!repairItem) {
+        throw new ValidationError('Hạng mục yêu cầu sửa chữa không hợp lệ');
+      }
+      if (repairItem.repairRequestId !== repairRequestId) {
+        throw new ValidationError('Hạng mục nghiệm thu phải thuộc cùng yêu cầu sửa chữa');
+      }
+
+      return {
+        repairRequestItemId: repairItem.id,
+        machineSystemId: repairItem.machineSystemId,
+        machineSystemDetailId: repairItem.machineSystemDetailId,
+        machineId: repairItem.machineId,
+        tenHeThong: repairItem.tenHeThong,
+        tenChiTiet: repairItem.machineSystemDetail?.tenChiTiet ?? null,
+        tinhTrangTruocSuaChua: item.tinhTrangTruocSuaChua,
+        tinhTrangSauSuaChua: item.tinhTrangSauSuaChua,
+        ghiChu: item.ghiChu,
+      };
+    });
+  }
+
   async createAcceptanceHandover(data: CreateAcceptanceHandoverRequest) {
     const maNghiemThu = await this.generateAcceptanceHandoverCode();
 
-    const handover = await prisma.acceptanceHandover.create({
-      data: {
-        maNghiemThu,
-        repairRequestId: data.repairRequestId,
-        maYeuCauSuaChua: data.maYeuCauSuaChua,
-        tenHeThongThietBi: data.tenHeThongThietBi,
-        tinhTrangTruocSuaChua: data.tinhTrangTruocSuaChua,
-        tinhTrangSauSuaChua: data.tinhTrangSauSuaChua,
-        nguoiBanGiao: data.nguoiBanGiao,
-        nguoiNhan: data.nguoiNhan,
-        nguoiNhanId: data.nguoiNhanId,
-        fileDinhKem: data.fileDinhKem,
-        ghiChu: data.ghiChu,
-      },
+    const handover = await prisma.$transaction(async (tx) => {
+      const repairRequest = await tx.repairRequest.findUnique({
+        where: { id: data.repairRequestId },
+        select: { id: true, maYeuCau: true },
+      });
+      if (!repairRequest) throw new ValidationError('Yêu cầu sửa chữa không hợp lệ');
+
+      const resolvedItems = await this.resolveHandoverItems(data.repairRequestId, data.items, tx);
+      const created = await tx.acceptanceHandover.create({
+        data: {
+          maNghiemThu,
+          repairRequestId: repairRequest.id,
+          maYeuCauSuaChua: data.maYeuCauSuaChua || repairRequest.maYeuCau,
+          tenHeThongThietBi: data.tenHeThongThietBi,
+          tinhTrangTruocSuaChua: data.tinhTrangTruocSuaChua,
+          tinhTrangSauSuaChua: data.tinhTrangSauSuaChua,
+          nguoiBanGiao: data.nguoiBanGiao,
+          nguoiNhan: data.nguoiNhan,
+          nguoiNhanId: data.nguoiNhanId,
+          fileDinhKem: data.fileDinhKem,
+          ghiChu: data.ghiChu,
+        },
+      });
+
+      if (resolvedItems.length > 0) {
+        await tx.acceptanceHandoverItem.createMany({
+          data: resolvedItems.map((item) => ({
+            acceptanceHandoverId: created.id,
+            ...item,
+          })),
+        });
+      }
+
+      const handoverWithItems = await tx.acceptanceHandover.findUnique({ where: { id: created.id }, include: handoverInclude });
+      if (!handoverWithItems) throw new NotFoundError('Không tìm thấy nghiệm thu bàn giao');
+      return handoverWithItems;
     });
 
     return handover;
@@ -138,9 +239,36 @@ class AcceptanceHandoverService {
       throw new NotFoundError('Không tìm thấy nghiệm thu bàn giao');
     }
 
-    const handover = await prisma.acceptanceHandover.update({
-      where: { id },
-      data,
+    const { items, ...scalarData } = data;
+
+    const handover = await prisma.$transaction(async (tx) => {
+      const repairRequestId = scalarData.repairRequestId ?? existingHandover.repairRequestId;
+      if (scalarData.repairRequestId) {
+        const repairRequest = await tx.repairRequest.findUnique({
+          where: { id: scalarData.repairRequestId },
+          select: { id: true },
+        });
+        if (!repairRequest) throw new ValidationError('Yêu cầu sửa chữa không hợp lệ');
+      }
+
+      if (items !== undefined) {
+        const resolvedItems = await this.resolveHandoverItems(repairRequestId, items, tx);
+        await tx.acceptanceHandoverItem.deleteMany({ where: { acceptanceHandoverId: id } });
+        if (resolvedItems.length > 0) {
+          await tx.acceptanceHandoverItem.createMany({
+            data: resolvedItems.map((item) => ({
+              acceptanceHandoverId: id,
+              ...item,
+            })),
+          });
+        }
+      }
+
+      return tx.acceptanceHandover.update({
+        where: { id },
+        data: scalarData,
+        include: handoverInclude,
+      });
     });
 
     return handover;
@@ -223,4 +351,3 @@ class AcceptanceHandoverService {
 }
 
 export default new AcceptanceHandoverService();
-

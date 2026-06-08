@@ -9,9 +9,12 @@ const upload = createSingleUploadMiddleware('machine-systems');
 
 router.use(authenticate);
 
+router.get('/generate-code', machineSystemController.getNextCode.bind(machineSystemController));
+router.get('/distinct-fields', machineSystemController.getDistinctFields.bind(machineSystemController));
 router.get('/', machineSystemController.getAll.bind(machineSystemController));
 router.get('/export/excel', machineSystemController.exportExcel.bind(machineSystemController));
 router.get('/:id', machineSystemController.getById.bind(machineSystemController));
+router.get('/:id/machines', machineSystemController.getMachinesForSystem.bind(machineSystemController));
 router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), upload, machineSystemController.create.bind(machineSystemController));
 router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), upload, machineSystemController.update.bind(machineSystemController));
 router.delete('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), machineSystemController.remove.bind(machineSystemController));

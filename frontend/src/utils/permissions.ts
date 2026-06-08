@@ -39,6 +39,7 @@ export const SUB_DEPARTMENTS = {
   // Technical sub-departments
   TECHNICAL_QUALITY: 'quality',      // Phòng QLHTM
   TECHNICAL_MECHANICAL: 'mechanical', // Phòng cơ- điện
+  TECHNICAL_PROJECTS: 'projects',    // Phòng dự án kỹ thuật
 
   // General sub-departments
   GENERAL_PRICING: 'pricing',        // Phòng giá thành

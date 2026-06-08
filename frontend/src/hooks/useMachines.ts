@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import machineService, { Machine, CreateMachineRequest, UpdateMachineRequest } from '../services/machineService';
+import machineService, { Machine, CreateMachineRequest, UpdateMachineRequest, MachineFilters as ServiceMachineFilters } from '../services/machineService';
+import machineSystemService from '../services/machineSystemService';
 
 // Query keys for cache management
 export const machineKeys = {
@@ -8,20 +9,46 @@ export const machineKeys = {
   list: (filters: Record<string, any>) => [...machineKeys.lists(), filters] as const,
   details: () => [...machineKeys.all, 'detail'] as const,
   detail: (id: string) => [...machineKeys.details(), id] as const,
+  summary: (id: string) => [...machineKeys.all, 'summary', id] as const,
+  forSystem: (systemId: string) => [...machineKeys.all, 'forSystem', systemId] as const,
 };
 
 interface MachineFilters {
   page?: number;
   limit?: number;
+  search?: string;
+  machineSystemId?: string;
+  trangThai?: string;
 }
 
 // Hook to get all machines
 export const useMachines = (filters: MachineFilters = {}) => {
-  const { page = 1, limit = 1000 } = filters;
-  
+  const { page = 1, limit = 1000, search, machineSystemId, trangThai } = filters;
+
   return useQuery({
-    queryKey: machineKeys.list({ page, limit }),
-    queryFn: () => machineService.getAllMachines(page, limit),
+    queryKey: machineKeys.list({ page, limit, search, machineSystemId, trangThai }),
+    queryFn: () => machineService.getAllMachines(page, limit, { search, machineSystemId, trangThai }),
+  });
+};
+
+// Hook to get machines belonging to a specific system
+export const useMachinesForSystem = (systemId: string) => {
+  return useQuery({
+    queryKey: machineKeys.forSystem(systemId),
+    queryFn: async () => {
+      const response = await machineSystemService.getMachinesForSystem(systemId);
+      return response.data;
+    },
+    enabled: !!systemId,
+  });
+};
+
+// Hook to get machine summary (detail + faults + repairs + operations)
+export const useMachineSummary = (id: string) => {
+  return useQuery({
+    queryKey: machineKeys.summary(id),
+    queryFn: () => machineService.getMachineSummary(id),
+    enabled: !!id,
   });
 };
 

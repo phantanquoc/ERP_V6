@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, X } from 'lucide-react';
 import machineService, { Machine, CreateMachineRequest, UpdateMachineRequest } from '../services/machineService';
+import machineSystemService, { MachineSystem } from '../services/machineSystemService';
 import { useMachines, machineKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
+import MachineSummaryDrawer from './MachineSummaryDrawer';
 
 const MachineManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -20,7 +22,19 @@ const MachineManagement: React.FC = () => {
     maMay: '',
     tenMay: '',
     trangThai: '',
+    machineSystemId: '',
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const [nextMachineCode, setNextMachineCode] = useState<string>('');
+  const [formData, setFormData] = useState<CreateMachineRequest>({
+    tenMay: '',
+    moTa: '',
+    trangThai: 'HOAT_DONG',
+    ghiChu: '',
+    machineSystemId: '',
+  });
+  const [machineSystems, setMachineSystems] = useState<MachineSystem[]>([]);
 
   const machineFilterFields: FilterField[] = [
     { key: 'maMay', label: 'Mã máy', type: 'text' },
@@ -30,16 +44,24 @@ const MachineManagement: React.FC = () => {
       { value: 'BẢO_TRÌ', label: 'Bảo trì' },
       { value: 'NGỪNG_HOẠT_ĐỘNG', label: 'Ngừng hoạt động' },
     ]},
+    { key: 'machineSystemId', label: 'Hệ thống máy', type: 'select', options:
+      machineSystems.map(s => ({ value: s.id, label: `${s.maHeThong} - ${s.tenHeThong}` }))
+    },
   ];
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  const [nextMachineCode, setNextMachineCode] = useState<string>('');
-  const [formData, setFormData] = useState<CreateMachineRequest>({
-    tenMay: '',
-    moTa: '',
-    trangThai: 'HOAT_DONG',
-    ghiChu: '',
-  });
+  const [drawerMachineId, setDrawerMachineId] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadMachineSystems();
+  }, []);
+
+  const loadMachineSystems = async () => {
+    try {
+      const result = await machineSystemService.getMachineSystems({ page: 1, limit: 200, hoatDong: true });
+      setMachineSystems(result.data || []);
+    } catch (err) {
+      console.error('Error loading machine systems:', err);
+    }
+  };
 
   const handleOpenModal = async (machine?: Machine) => {
     if (machine) {
@@ -51,6 +73,7 @@ const MachineManagement: React.FC = () => {
         moTa: machine.moTa || '',
         trangThai: machine.trangThai,
         ghiChu: machine.ghiChu || '',
+        machineSystemId: machine.machineSystemId || '',
       });
     } else {
       setIsEditing(false);
@@ -68,6 +91,7 @@ const MachineManagement: React.FC = () => {
         moTa: '',
         trangThai: 'HOAT_DONG',
         ghiChu: '',
+        machineSystemId: '',
       });
     }
     setIsModalOpen(true);
@@ -130,7 +154,8 @@ const MachineManagement: React.FC = () => {
     const matchMaMay = !filterValues.maMay || machine.maMay.toLowerCase().includes(filterValues.maMay.toLowerCase());
     const matchTenMay = !filterValues.tenMay || machine.tenMay.toLowerCase().includes(filterValues.tenMay.toLowerCase());
     const matchTrangThai = !filterValues.trangThai || machine.trangThai === filterValues.trangThai;
-    return matchSearch && matchMaMay && matchTenMay && matchTrangThai;
+    const matchSystem = !filterValues.machineSystemId || machine.machineSystemId === filterValues.machineSystemId;
+    return matchSearch && matchMaMay && matchTenMay && matchTrangThai && matchSystem;
   });
 
   const getStatusBadge = (status: string) => {
@@ -184,6 +209,7 @@ const MachineManagement: React.FC = () => {
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã máy</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên máy</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Hệ thống máy</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mô tả</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
@@ -193,11 +219,11 @@ const MachineManagement: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
                 </tr>
               ) : filteredMachines.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     {(filterValues._search || filterValues.maMay || filterValues.tenMay || filterValues.trangThai) ? 'Không tìm thấy máy nào' : 'Chưa có máy nào'}
                   </td>
                 </tr>
@@ -210,10 +236,15 @@ const MachineManagement: React.FC = () => {
                     }`}
                   >
                     <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
-                      {machine.maMay}
+                      <button type="button" onClick={() => setDrawerMachineId(machine.id)} className="hover:underline">
+                        {machine.maMay}
+                      </button>
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                       {machine.tenMay}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                      {machine.machineSystem ? `${machine.machineSystem.maHeThong} - ${machine.machineSystem.tenHeThong}` : '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                       {machine.moTa || '-'}
@@ -342,6 +373,24 @@ const MachineManagement: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Hệ thống máy
+                </label>
+                <select
+                  value={formData.machineSystemId || ''}
+                  onChange={(e) => setFormData({ ...formData, machineSystemId: e.target.value || undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">-- Chọn hệ thống máy --</option>
+                  {machineSystems.map((system) => (
+                    <option key={system.id} value={system.id}>
+                      {system.maHeThong} - {system.tenHeThong}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Trạng thái <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -402,6 +451,8 @@ const MachineManagement: React.FC = () => {
             </form>
           </div>
         </Modal>
+
+      <MachineSummaryDrawer machineId={drawerMachineId} onClose={() => setDrawerMachineId(null)} />
     </div>
   );
 };
