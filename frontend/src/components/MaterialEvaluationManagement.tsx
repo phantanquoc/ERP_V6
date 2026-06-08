@@ -386,7 +386,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       setLoading(true);
       setError('');
 
-      // Tạo thông số vận hành cho tất cả 8 máy
+      // Tạo thông số vận hành cho tất cả máy đang hoạt động
       await systemOperationService.createBulkSystemOperations(
         evaluation.maChien,
         evaluation.thoiGianChien
@@ -398,7 +398,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       }
 
       // Hiển thị thông báo thành công
-      alert('Đã tạo thông số vận hành cho tất cả 8 máy thành công!');
+      alert('Đã tạo thông số vận hành cho tất cả máy đang hoạt động thành công!');
     } catch (err: any) {
       setError(err.message || 'Lỗi tạo thông số vận hành');
       console.error(err);

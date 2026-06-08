@@ -110,7 +110,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
     try {
       setLoading(true);
       setError('');
-      const result = await machineService.getAllMachines(1, 100);
+      const result = await machineService.getAllMachines(1, 100, { trangThai: 'HOAT_DONG' });
       setMachines(result.data);
 
       // Set first machine as selected if available
