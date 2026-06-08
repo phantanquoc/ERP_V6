@@ -280,6 +280,7 @@ const MachineSystemList = () => {
     sortBy: 'thuTu',
     sortOrder: 'asc',
   });
+  const [systemPageIndex, setSystemPageIndex] = useState(0);
 
   const systemsQuery = useMachineSystems(systemFilters);
   const allSystemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
@@ -397,15 +398,14 @@ const MachineSystemList = () => {
     }
   }, [nextDetailCodeQuery.data?.data?.code, detailModal?.mode]);
 
-  const detailTreeQuery = useDetailTree(detailFilters.machineSystemId);
+  const activeSystemId = detailFilters.machineSystemId ?? allSystems[systemPageIndex]?.id;
+  const detailTreeQuery = useDetailTree(activeSystemId);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   type TreeNode = MachineSystemDetail & { depth: number; children: string[] };
 
   const treeData = useMemo((): TreeNode[] | null => {
-    const items = detailFilters.machineSystemId
-      ? detailTreeQuery.data?.data
-      : details;
+    const items = detailTreeQuery.data?.data;
     if (!items || items.length === 0) return null;
 
     const map = new Map<string, TreeNode>();
@@ -436,9 +436,9 @@ const MachineSystemList = () => {
       return result;
     };
     return flatten(roots);
-  }, [detailTreeQuery.data?.data, details, detailFilters.machineSystemId, expandedIds]);
+  }, [detailTreeQuery.data?.data, expandedIds]);
 
-  const treeItemsSource = detailFilters.machineSystemId ? detailTreeQuery.data?.data : details;
+  const treeItemsSource = detailTreeQuery.data?.data;
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -735,7 +735,7 @@ const MachineSystemList = () => {
             </div>
             <select
               value={detailFilters.machineSystemId ?? ''}
-              onChange={(event) => setDetailFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, page: 1 }))}
+              onChange={(event) => { setDetailFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, page: 1 })); setSystemPageIndex(0); setExpandedIds(new Set()); }}
               className="min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm"
             >
               <option value="">Tất cả hệ thống</option>
@@ -784,6 +784,9 @@ const MachineSystemList = () => {
               <ChevronsDownUp className="h-3.5 w-3.5" /> Gọn
             </button>
             <span className="text-xs text-gray-400">({treeItemsSource?.length ?? 0} chi tiết)</span>
+            {!detailFilters.machineSystemId && allSystems[systemPageIndex] && (
+              <span className="ml-auto text-xs font-medium text-blue-600">{allSystems[systemPageIndex].maHeThong} — {allSystems[systemPageIndex].tenHeThong}</span>
+            )}
           </div>
           <table className="w-full min-w-[900px] border-collapse text-sm">
             <thead className="bg-gray-50 text-xs uppercase text-gray-600">
@@ -799,7 +802,7 @@ const MachineSystemList = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {(detailFilters.machineSystemId ? detailTreeQuery.isLoading : detailsQuery.isLoading) ? (
+              {detailTreeQuery.isLoading ? (
                 <tr><td colSpan={detailFilters.machineSystemId ? 7 : 8} className="px-3 py-6 text-center text-gray-500">Đang tải...</td></tr>
               ) : !treeData || treeData.length === 0 ? (
                 <tr><td colSpan={detailFilters.machineSystemId ? 7 : 8} className="px-3 py-6 text-center text-gray-500">Chưa có chi tiết nào.</td></tr>
@@ -838,7 +841,31 @@ const MachineSystemList = () => {
             </tbody>
           </table>
         </div>
-        {!detailFilters.machineSystemId && renderPager(detailPagination, detailFilters.page ?? 1, (page) => setDetailFilters((filters) => ({ ...filters, page })))}
+        {!detailFilters.machineSystemId && allSystems.length > 1 && (
+          <div className="flex items-center justify-between border-t border-gray-200 px-3 py-2 text-sm">
+            <span className="text-gray-600">
+              Hệ thống {systemPageIndex + 1}/{allSystems.length}: <span className="font-medium">{allSystems[systemPageIndex]?.tenHeThong}</span>
+            </span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                disabled={systemPageIndex <= 0}
+                onClick={() => { setSystemPageIndex((i) => i - 1); setExpandedIds(new Set()); }}
+                className="rounded-md border border-gray-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Trước
+              </button>
+              <button
+                type="button"
+                disabled={systemPageIndex >= allSystems.length - 1}
+                onClick={() => { setSystemPageIndex((i) => i + 1); setExpandedIds(new Set()); }}
+                className="rounded-md border border-gray-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       <Modal isOpen={!!systemModal} onClose={() => setSystemModal(null)} showBackdrop>
