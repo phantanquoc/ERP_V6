@@ -1,0 +1,13 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+deepface==0.0.93
+tensorflow>=2.13.0,<2.18.0
+tf-keras
+Pillow>=10.0.0
+numpy>=1.24.0,<2.0
+retina-face==0.0.17
+pydantic>=2.0.0
+uniface==3.5.0
+torch>=2.0.0
+httpx==0.27.0
+python-multipart>=0.0.9

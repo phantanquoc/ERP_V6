@@ -67,9 +67,6 @@ const ROUTE_MAP: Record<string, string> = {
   systemSettings: '/api/system-settings',
   faceAttendance: '/api/face-attendance',
   technicalSummary: '/api/technical-summary',
-  chat: '/api/chat',
-  agent: '/api/agent',
-  docs: '/api/docs',
 };
 
 export const registerRoutes = (app: Express): void => {

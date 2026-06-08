@@ -160,20 +160,16 @@ services:
           cpus: '0.25'
           memory: 128M
 
-  # AI Service — Face Recognition + RAG Chatbot
+  # AI Service — Face Recognition
   ai-service:
     build:
       context: ./ai-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.face
     container_name: erp_ai
     restart: unless-stopped
     environment:
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-chat-v3-0324}
       CORS_ORIGIN: ${CORS_ORIGIN:-https://anbinhfoods.net,https://www.anbinhfoods.net}
     volumes:
-      - ./docs/chatbot:/app/docs/chatbot:ro
-      - ai_chroma_data:/app/chroma_data
       - deepface_weights:/home/appuser/.deepface/weights
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -199,8 +195,6 @@ volumes:
   backend_logs:
     driver: local
   nginx_logs:
-    driver: local
-  ai_chroma_data:
     driver: local
   deepface_weights:
     driver: local

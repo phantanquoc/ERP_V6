@@ -4,7 +4,6 @@ import { useSystemSettings } from '../contexts/SystemSettingsContext';
 import Sidebar from './Sidebar';
 import UserProfileDropdown from './UserProfileDropdown';
 import NotificationBell from './NotificationBell';
-import ChatWidget from './ChatWidget';
 import { Menu, Loader2 } from 'lucide-react';
 
 interface LayoutProps {
@@ -75,9 +74,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </Suspense>
         </main>
       </div>
-
-      {/* Chat Widget — floating, only for authenticated users */}
-      {user && <ChatWidget />}
     </div>
   );
 };
