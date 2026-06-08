@@ -70,13 +70,20 @@ export class SystemOperationService {
       throw new ValidationError(`Mã chiên "${maChien}" đã tồn tại. Mỗi mã chiên chỉ được tạo thông số vận hành 1 lần duy nhất.`);
     }
 
-    // Get all machines from database (regardless of status)
+    // Get active machines that belong to production systems (SAN_XUAT, DONG_GOI, BAO_QUAN)
+    const productionCategories = ['SAN_XUAT', 'DONG_GOI', 'BAO_QUAN'];
     const machines = await prisma.machine.findMany({
+      where: { trangThai: 'HOAT_DONG' },
       orderBy: { createdAt: 'asc' },
-    });
+      include: { machineSystem: true },
+    }).then(allMachines =>
+      allMachines.filter(m =>
+        m.machineSystemId && m.machineSystem && productionCategories.includes(m.machineSystem.loaiHeThong)
+      )
+    );
 
     if (machines.length === 0) {
-      throw new NotFoundError('No machines found');
+      throw new NotFoundError('No production machines found');
     }
 
     // Get material evaluation to auto-fill finished product data
