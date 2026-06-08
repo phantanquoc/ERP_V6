@@ -203,10 +203,11 @@ const EmployeeDashboard: React.FC = () => {
   const activeTheme = settings?.activeTheme || 'DEFAULT';
 
   useEffect(() => {
+    if (!user) return;
     loadLatestEvaluationNotification();
     loadRecentReports();
     loadWorkPlansCount();
-  }, []);
+  }, [user?.id]);
 
   const loadLatestEvaluationNotification = async () => {
     try {

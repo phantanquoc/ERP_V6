@@ -164,6 +164,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       const authResponse = await AuthService.login(credentials);
+      queryClient.clear();
       setUser(authResponse.user);
     } catch (error) {
       console.error('Login error:', error);
@@ -192,6 +193,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       disconnectWs();
       await AuthService.logout();
       setUser(null);
+      queryClient.clear();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
