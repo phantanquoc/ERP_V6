@@ -969,7 +969,10 @@ export class EmployeeEvaluationService {
   async getSubordinatesForEvaluation(userId: string, month: number, year: number): Promise<any[]> {
     const period = `${year}-${String(month).padStart(2, '0')}`;
 
-    // Get all users where supervisor1Id or supervisor2Id equals the current user
+    // Get all users where supervisor1Id or supervisor2Id equals the current user.
+    // Intentionally omit the positionResponsibility nested include to avoid
+    // PrismaClientKnownRequestError when orphaned positionResponsibilityId values exist
+    // (referenced row was deleted but cascade did not propagate on production DB).
     const subordinates = await prisma.user.findMany({
       where: {
         OR: [
@@ -986,8 +989,12 @@ export class EmployeeEvaluationService {
               where: { period },
               include: {
                 details: {
-                  include: {
-                    positionResponsibility: true,
+                  select: {
+                    id: true,
+                    selfScore: true,
+                    supervisorScore1: true,
+                    supervisorScore2: true,
+                    positionResponsibilityId: true,
                   },
                 },
               },
@@ -997,6 +1004,31 @@ export class EmployeeEvaluationService {
       },
     });
 
+    // Collect all positionResponsibilityIds referenced by details across all records.
+    const allPosRespIds = new Set<string>();
+    for (const user of subordinates) {
+      for (const evaluation of user.employees?.evaluations ?? []) {
+        for (const detail of evaluation.details) {
+          if (detail.positionResponsibilityId) {
+            allPosRespIds.add(detail.positionResponsibilityId);
+          }
+        }
+      }
+    }
+
+    // Fetch only the positionResponsibility rows that actually exist in the DB.
+    // Orphaned IDs simply won't appear here — they get weight 0 in scoring.
+    const posRespMap = new Map<string, { weight: number }>();
+    if (allPosRespIds.size > 0) {
+      const posResps = await prisma.positionResponsibility.findMany({
+        where: { id: { in: Array.from(allPosRespIds) } },
+        select: { id: true, weight: true },
+      });
+      for (const pr of posResps) {
+        posRespMap.set(pr.id, { weight: pr.weight });
+      }
+    }
+
     // Map to response format
     return subordinates.flatMap(user => {
       if (!user.employees) return [];
@@ -1004,8 +1036,17 @@ export class EmployeeEvaluationService {
       const evaluation = employee.evaluations[0];
       const fullName = `${user.lastName} ${user.firstName}`.trim();
 
-      // Calculate scores using correct weighted formula
-      const detailsForScoring = evaluation?.details ?? [];
+      // Enrich details with positionResponsibility joined in-memory.
+      // Missing (orphaned) ids yield null — computeWeightedScoreForField handles null as weight 0.
+      const detailsForScoring = (evaluation?.details ?? []).map(d => ({
+        selfScore: d.selfScore,
+        supervisorScore1: d.supervisorScore1,
+        supervisorScore2: d.supervisorScore2,
+        positionResponsibility: d.positionResponsibilityId
+          ? (posRespMap.get(d.positionResponsibilityId) ?? null)
+          : null,
+      }));
+
       const selfScorePercentage = computeWeightedScoreForField(detailsForScoring, 'selfScore');
       const supervisorScore1Percentage = computeWeightedScoreForField(detailsForScoring, 'supervisorScore1');
       const supervisorScore2Percentage = computeWeightedScoreForField(detailsForScoring, 'supervisorScore2');
