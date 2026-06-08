@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Edit, Eye, Plus, Search, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Diamond, Edit, Plus, Search, Trash2, X } from 'lucide-react';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
+import ProjectGantt from './ProjectGantt';
+import EmployeePicker from './EmployeePicker';
 import { useAuth } from '../contexts/AuthContext';
 import {
   useCreateProject,
@@ -27,15 +29,23 @@ import type {
   Project,
   ProjectPhase,
   ProjectTask,
+  ProjectTaskPriority,
 } from '../services/projectService';
 
 type ModalMode = 'create' | 'edit';
 type PhaseMode = 'create' | 'edit';
 type TaskMode = 'create' | 'edit';
+type DetailTab = 'phases' | 'gantt';
 
 const PROJECT_STATUSES = ['Lên kế hoạch', 'Đang thực hiện', 'Hoàn thành', 'Tạm dừng'];
 const PHASE_STATUSES = ['Chưa bắt đầu', 'Đang thực hiện', 'Hoàn thành', 'Tạm dừng'];
 const TASK_STATUSES = ['Chưa bắt đầu', 'Đang làm', 'Hoàn thành', 'Trễ'];
+const PRIORITY_OPTIONS: { value: ProjectTaskPriority; label: string; color: string }[] = [
+  { value: 'KHAN_CAP', label: 'Khẩn cấp', color: 'bg-red-100 text-red-700 border-red-200' },
+  { value: 'CAO', label: 'Cao', color: 'bg-orange-100 text-orange-700 border-orange-200' },
+  { value: 'TRUNG_BINH', label: 'Trung bình', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  { value: 'THAP', label: 'Thấp', color: 'bg-gray-100 text-gray-600 border-gray-200' },
+];
 
 const emptyProject = (): CreateProjectRequest => ({
   tenDuAn: '',
@@ -55,6 +65,7 @@ const emptyPhase = (order = 0): CreateProjectPhaseRequest => ({
   thuTu: order,
   ngayBatDau: '',
   ngayKetThuc: '',
+  nganSach: '',
 });
 
 const emptyTask = (projectPhaseId?: string | null, order = 0): CreateProjectTaskRequest => ({
@@ -68,6 +79,8 @@ const emptyTask = (projectPhaseId?: string | null, order = 0): CreateProjectTask
   deadline: '',
   trangThai: 'Chưa bắt đầu',
   thuTu: order,
+  mucDoUuTien: null,
+  laMilestone: false,
 });
 
 const statusBadge = (status: string) => {
@@ -107,7 +120,9 @@ const ProjectList = () => {
   const [projectModal, setProjectModal] = useState<{ mode: ModalMode; project?: Project } | null>(null);
   const [projectForm, setProjectForm] = useState<CreateProjectRequest>(emptyProject());
   const [projectFile, setProjectFile] = useState<File | null>(null);
+  const [initialPhases, setInitialPhases] = useState<{ tenGiaiDoan: string; ngayBatDau: string; ngayKetThuc: string }[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [detailTab, setDetailTab] = useState<DetailTab>('phases');
   const [phaseModal, setPhaseModal] = useState<{ mode: PhaseMode; phase?: ProjectPhase } | null>(null);
   const [phaseForm, setPhaseForm] = useState<CreateProjectPhaseRequest>(emptyPhase());
   const [taskModal, setTaskModal] = useState<{ mode: TaskMode; task?: ProjectTask; projectPhaseId?: string | null } | null>(null);
@@ -137,6 +152,7 @@ const ProjectList = () => {
   const openProjectModal = (mode: ModalMode, project?: Project) => {
     setError('');
     setProjectFile(null);
+    setInitialPhases([]);
     setProjectModal({ mode, project });
     setProjectForm(project ? {
       tenDuAn: project.tenDuAn,
@@ -153,7 +169,19 @@ const ProjectList = () => {
       if (projectModal?.project) {
         await updateProject.mutateAsync({ id: projectModal.project.id, data: projectForm, file: projectFile ?? undefined });
       } else {
-        await createProject.mutateAsync({ data: projectForm, file: projectFile ?? undefined });
+        const result = await createProject.mutateAsync({ data: projectForm, file: projectFile ?? undefined });
+        if (result?.data?.id) {
+          const projectId = result.data.id;
+          const validPhases = initialPhases.filter((p) => p.tenGiaiDoan.trim());
+          for (let i = 0; i < validPhases.length; i++) {
+            await createPhase.mutateAsync({
+              projectId,
+              data: { tenGiaiDoan: validPhases[i].tenGiaiDoan, ngayBatDau: validPhases[i].ngayBatDau, ngayKetThuc: validPhases[i].ngayKetThuc, thuTu: i + 1, trangThai: 'Chưa bắt đầu' },
+            });
+          }
+          setSelectedProjectId(projectId);
+          setDetailTab('phases');
+        }
       }
       setProjectModal(null);
     } catch (err) {
@@ -187,6 +215,7 @@ const ProjectList = () => {
       thuTu: phase.thuTu,
       ngayBatDau: dateInput(phase.ngayBatDau),
       ngayKetThuc: dateInput(phase.ngayKetThuc),
+      nganSach: phase.nganSach ?? '',
     } : emptyPhase(phases.length + 1));
   };
 
@@ -244,6 +273,8 @@ const ProjectList = () => {
       deadline: dateInput(task.deadline),
       trangThai: task.trangThai,
       thuTu: task.thuTu,
+      mucDoUuTien: task.mucDoUuTien ?? null,
+      laMilestone: task.laMilestone ?? false,
     } : emptyTask(projectPhaseId ?? null, 1));
   };
 
@@ -314,17 +345,15 @@ const ProjectList = () => {
               ) : projects.length === 0 ? (
                 <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">Chưa có dự án phù hợp.</td></tr>
               ) : projects.map((project) => (
-                <tr key={project.id} className="hover:bg-gray-50">
+                <tr key={project.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => { setSelectedProjectId(project.id); setDetailTab('phases'); }}>
                   <td className="px-3 py-2 font-medium text-blue-700">{project.maDuAn}</td>
                   <td className="px-3 py-2 text-gray-900">{project.tenDuAn}</td>
                   <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(project.trangThai)}`}>{project.trangThai}</span></td>
                   <td className="px-3 py-2 text-gray-700">{project.phases?.length ?? 0}</td>
                   <td className="px-3 py-2 text-gray-700">{project.tasks?.length ?? 0}</td>
                   <td className="px-3 py-2 text-gray-700">{formatDate(project.ngayBatDau)} - {formatDate(project.ngayKetThuc)}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-1">
-                      <button title="Chi tiết" onClick={() => setSelectedProjectId(project.id)} className="rounded p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600"><Eye className="h-4 w-4" /></button>
-                      {canWrite(project) && <button title="Sửa" onClick={() => openProjectModal('edit', project)} className="rounded p-1.5 text-gray-500 hover:bg-green-50 hover:text-green-600"><Edit className="h-4 w-4" /></button>}
                       {canWrite(project) && <button title="Xóa" onClick={() => removeProject(project)} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
                     </div>
                   </td>
@@ -351,20 +380,35 @@ const ProjectList = () => {
               <p className="font-mono text-xs text-blue-600">{selectedProject?.maDuAn}</p>
               <h3 className="text-base font-semibold text-gray-900">{selectedProject?.tenDuAn ?? 'Chi tiết dự án'}</h3>
             </div>
-            <button title="Đóng" onClick={() => setSelectedProjectId('')} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+            <div className="flex items-center gap-1">
+              {selectedProject && canWrite(selectedProject) && (
+                <button title="Sửa thông tin" onClick={() => openProjectModal('edit', selectedProject)} className="rounded p-1.5 text-gray-500 hover:bg-green-50 hover:text-green-600"><Edit className="h-4 w-4" /></button>
+              )}
+              <button title="Đóng" onClick={() => setSelectedProjectId('')} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+            </div>
           </div>
           <div className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
             {selectedProjectQuery.isLoading ? (
               <div className="py-8 text-center text-gray-500">Đang tải...</div>
             ) : selectedProject ? (
               <>
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-5">
                   <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Trạng thái</p><span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(selectedProject.trangThai)}`}>{selectedProject.trangThai}</span></div>
+                  <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Tiến độ tổng</p><p className="mt-1 text-lg font-semibold text-blue-700">{selectedProject.tienDoTongThe ?? 0}%</p></div>
                   <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Thời gian</p><p className="mt-1 text-gray-800">{formatDate(selectedProject.ngayBatDau)} - {formatDate(selectedProject.ngayKetThuc)}</p></div>
                   <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Giai đoạn</p><p className="mt-1 text-lg font-semibold text-gray-900">{phases.length}</p></div>
-                  <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Chưa phân giai đoạn</p><p className="mt-1 text-lg font-semibold text-gray-900">{unphasedTasks.length}</p></div>
+                  <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Chưa phân GĐ</p><p className="mt-1 text-lg font-semibold text-gray-900">{unphasedTasks.length}</p></div>
                 </div>
 
+                <div className="flex items-center gap-1 border-b">
+                  <button onClick={() => setDetailTab('phases')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'phases' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Giai đoạn & Công việc</button>
+                  <button onClick={() => setDetailTab('gantt')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'gantt' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Timeline Gantt</button>
+                </div>
+
+                {detailTab === 'gantt' ? (
+                  <ProjectGantt ngayBatDau={selectedProject.ngayBatDau} ngayKetThuc={selectedProject.ngayKetThuc} phases={phases} />
+                ) : (
+                <>
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-gray-900">Giai đoạn và công việc</h4>
                   {canWrite(selectedProject) && <button onClick={() => openPhaseModal('create')} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"><Plus className="h-4 w-4" /> Thêm giai đoạn</button>}
@@ -376,10 +420,16 @@ const ProjectList = () => {
                   ) : phases.map((phase, phaseIndex) => (
                     <div key={phase.id} className="rounded-lg border border-gray-200">
                       <div className="flex flex-col gap-2 border-b bg-gray-50 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold text-gray-900">{phase.thuTu}. {phase.tenGiaiDoan}</span>
                             <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(phase.trangThai)}`}>{phase.trangThai}</span>
+                            {phase.nganSach ? <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">{Number(phase.nganSach).toLocaleString('vi-VN')}đ</span> : null}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            <div className="h-1.5 flex-1 max-w-[200px] rounded-full bg-gray-200 overflow-hidden">
+                              <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${phase.tienDo}%` }} />
+                            </div>
                             <span className="text-xs text-gray-600">{phase.tienDo}%</span>
                           </div>
                           <p className="mt-1 text-xs text-gray-500">Chủ sở hữu: {phase.chuSoHuu || '—'} | Phụ trách: {phase.nguoiPhuTrach || '—'} | {formatDate(phase.ngayBatDau)} - {formatDate(phase.ngayKetThuc)}</p>
@@ -406,6 +456,8 @@ const ProjectList = () => {
                   </div>
                   <TaskTable tasks={unphasedTasks} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask} />
                 </div>
+                </>
+                )}
               </>
             ) : (
               <div className="py-8 text-center text-gray-500">Không tải được dự án.</div>
@@ -427,6 +479,24 @@ const ProjectList = () => {
               <label className="space-y-1"><span className="font-medium text-gray-700">Trạng thái</span><select value={projectForm.trangThai} onChange={(event) => setProjectForm((form) => ({ ...form, trangThai: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2">{PROJECT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></label>
             </div>
             <FileUpload label="File đính kèm" files={projectFile ? [projectFile] : []} onChange={(files) => setProjectFile(files[0] ?? null)} compact />
+            {!projectModal?.project && (
+              <div className="space-y-2 border-t pt-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-700">Giai đoạn dự kiến</span>
+                  <button type="button" onClick={() => setInitialPhases((p) => [...p, { tenGiaiDoan: '', ngayBatDau: '', ngayKetThuc: '' }])} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"><Plus className="h-3.5 w-3.5" /> Thêm</button>
+                </div>
+                {initialPhases.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">Có thể thêm giai đoạn sau khi tạo dự án.</p>
+                ) : initialPhases.map((phase, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input placeholder="Tên giai đoạn" value={phase.tenGiaiDoan} onChange={(e) => setInitialPhases((p) => p.map((item, i) => i === idx ? { ...item, tenGiaiDoan: e.target.value } : item))} className="flex-1 min-w-0 rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+                    <input type="date" title="Bắt đầu" value={phase.ngayBatDau} onChange={(e) => setInitialPhases((p) => p.map((item, i) => i === idx ? { ...item, ngayBatDau: e.target.value } : item))} className="w-32 rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+                    <input type="date" title="Kết thúc" value={phase.ngayKetThuc} onChange={(e) => setInitialPhases((p) => p.map((item, i) => i === idx ? { ...item, ngayKetThuc: e.target.value } : item))} className="w-32 rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+                    <button type="button" onClick={() => setInitialPhases((p) => p.filter((_, i) => i !== idx))} className="text-gray-400 hover:text-red-500"><X className="h-4 w-4" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
             <FormActions onCancel={() => setProjectModal(null)} submitLabel="Lưu" />
           </form>
         </div>
@@ -439,9 +509,9 @@ const ProjectList = () => {
             {error && <ErrorBox message={error} />}
             <label className="block space-y-1"><span className="font-medium text-gray-700">Tên giai đoạn</span><input required value={phaseForm.tenGiaiDoan} onChange={(event) => setPhaseForm((form) => ({ ...form, tenGiaiDoan: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1"><span className="font-medium text-gray-700">Chủ sở hữu</span><input value={phaseForm.chuSoHuu ?? ''} onChange={(event) => setPhaseForm((form) => ({ ...form, chuSoHuu: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
-              <label className="space-y-1"><span className="font-medium text-gray-700">Người phụ trách</span><input value={phaseForm.nguoiPhuTrach ?? ''} onChange={(event) => setPhaseForm((form) => ({ ...form, nguoiPhuTrach: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
-              <label className="space-y-1"><span className="font-medium text-gray-700">Tiến độ (%)</span><input type="number" min={0} max={100} value={phaseForm.tienDo ?? 0} onChange={(event) => setPhaseForm((form) => ({ ...form, tienDo: clampProgress(event.target.value) }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
+              <div className="space-y-1"><span className="font-medium text-gray-700">Chủ sở hữu</span><EmployeePicker value={phaseForm.chuSoHuu ?? ''} onChange={(name) => setPhaseForm((form) => ({ ...form, chuSoHuu: name }))} multiple /></div>
+              <div className="space-y-1"><span className="font-medium text-gray-700">Người phụ trách</span><EmployeePicker value={phaseForm.nguoiPhuTrach ?? ''} onChange={(name) => setPhaseForm((form) => ({ ...form, nguoiPhuTrach: name }))} multiple /></div>
+              <label className="space-y-1"><span className="font-medium text-gray-700">Ngân sách (VND)</span><input type="number" min={0} value={phaseForm.nganSach ?? ''} onChange={(event) => setPhaseForm((form) => ({ ...form, nganSach: event.target.value }))} placeholder="Để trống nếu không có" className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <label className="space-y-1"><span className="font-medium text-gray-700">Trạng thái</span><select value={phaseForm.trangThai} onChange={(event) => setPhaseForm((form) => ({ ...form, trangThai: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2">{PHASE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></label>
               <label className="space-y-1"><span className="font-medium text-gray-700">Thứ tự</span><input type="number" value={phaseForm.thuTu ?? 0} onChange={(event) => setPhaseForm((form) => ({ ...form, thuTu: Number(event.target.value) }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <label className="space-y-1"><span className="font-medium text-gray-700">Ngày bắt đầu</span><input type="date" value={phaseForm.ngayBatDau ?? ''} onChange={(event) => setPhaseForm((form) => ({ ...form, ngayBatDau: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
@@ -461,13 +531,18 @@ const ProjectList = () => {
             <label className="block space-y-1"><span className="font-medium text-gray-700">Tiêu đề</span><input required value={taskForm.tieuDe} onChange={(event) => setTaskForm((form) => ({ ...form, tieuDe: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1"><span className="font-medium text-gray-700">Giai đoạn</span><select value={taskForm.projectPhaseId ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, projectPhaseId: event.target.value || null }))} className="w-full rounded-md border border-gray-300 px-3 py-2"><option value="">Chưa phân giai đoạn</option>{phases.map((phase) => <option key={phase.id} value={phase.id}>{phase.tenGiaiDoan}</option>)}</select></label>
-              <label className="space-y-1"><span className="font-medium text-gray-700">Người phụ trách</span><input value={taskForm.nguoiPhuTrach ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, nguoiPhuTrach: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
-              <label className="space-y-1"><span className="font-medium text-gray-700">Tiến độ (%)</span><input type="number" min={0} max={100} value={taskForm.tienDo ?? 0} onChange={(event) => setTaskForm((form) => ({ ...form, tienDo: clampProgress(event.target.value) }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
+              <div className="space-y-1"><span className="font-medium text-gray-700">Người phụ trách</span><EmployeePicker value={taskForm.nguoiPhuTrach ?? ''} onChange={(name) => setTaskForm((form) => ({ ...form, nguoiPhuTrach: name }))} multiple /></div>
+              <label className="space-y-1"><span className="font-medium text-gray-700">Mức ưu tiên</span><select value={taskForm.mucDoUuTien ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, mucDoUuTien: (event.target.value || null) as ProjectTaskPriority | null }))} className="w-full rounded-md border border-gray-300 px-3 py-2"><option value="">Không đặt</option>{PRIORITY_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}</select></label>
               <label className="space-y-1"><span className="font-medium text-gray-700">Trạng thái</span><select value={taskForm.trangThai} onChange={(event) => setTaskForm((form) => ({ ...form, trangThai: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2">{TASK_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></label>
+              <label className="space-y-1"><span className="font-medium text-gray-700">Tiến độ (%)</span><input type="number" min={0} max={100} value={taskForm.tienDo ?? 0} onChange={(event) => setTaskForm((form) => ({ ...form, tienDo: clampProgress(event.target.value) }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <label className="space-y-1"><span className="font-medium text-gray-700">Thứ tự</span><input type="number" value={taskForm.thuTu ?? 0} onChange={(event) => setTaskForm((form) => ({ ...form, thuTu: Number(event.target.value) }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <label className="space-y-1"><span className="font-medium text-gray-700">Deadline</span><input type="date" value={taskForm.deadline ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, deadline: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <label className="space-y-1"><span className="font-medium text-gray-700">Ngày bắt đầu</span><input type="date" value={taskForm.ngayBatDau ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, ngayBatDau: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <label className="space-y-1"><span className="font-medium text-gray-700">Ngày kết thúc</span><input type="date" value={taskForm.ngayKetThuc ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, ngayKetThuc: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
+              <div className="flex items-center gap-2 pt-6">
+                <input type="checkbox" id="laMilestone" checked={taskForm.laMilestone ?? false} onChange={(event) => setTaskForm((form) => ({ ...form, laMilestone: event.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                <label htmlFor="laMilestone" className="text-sm font-medium text-gray-700">Đánh dấu Milestone</label>
+              </div>
             </div>
             <label className="block space-y-1"><span className="font-medium text-gray-700">Mô tả</span><textarea rows={2} value={taskForm.moTa ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, moTa: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
             <FormActions onCancel={() => setTaskModal(null)} submitLabel="Lưu" />
@@ -476,6 +551,12 @@ const ProjectList = () => {
       </Modal>
     </div>
   );
+};
+
+const priorityBadge = (priority?: string | null) => {
+  const opt = PRIORITY_OPTIONS.find((o) => o.value === priority);
+  if (!opt) return null;
+  return <span className={`rounded-full border px-2 py-0.5 text-xs ${opt.color}`}>{opt.label}</span>;
 };
 
 const TaskTable = ({
@@ -490,12 +571,13 @@ const TaskTable = ({
   onDelete: (task: ProjectTask) => void;
 }) => (
   <div className="overflow-x-auto">
-    <table className="w-full min-w-[840px] text-sm">
+    <table className="w-full min-w-[900px] text-sm">
       <thead className="bg-white text-xs uppercase text-gray-600">
         <tr>
           <th className="border-b px-3 py-2 text-left">Thứ tự</th>
           <th className="border-b px-3 py-2 text-left">Công việc</th>
           <th className="border-b px-3 py-2 text-left">Phụ trách</th>
+          <th className="border-b px-3 py-2 text-left">Ưu tiên</th>
           <th className="border-b px-3 py-2 text-left">Tiến độ</th>
           <th className="border-b px-3 py-2 text-left">Trạng thái</th>
           <th className="border-b px-3 py-2 text-left">Ngày</th>
@@ -504,12 +586,18 @@ const TaskTable = ({
       </thead>
       <tbody className="divide-y divide-gray-100">
         {tasks.length === 0 ? (
-          <tr><td colSpan={canWrite ? 7 : 6} className="px-3 py-4 text-center text-gray-500">Chưa có công việc.</td></tr>
+          <tr><td colSpan={canWrite ? 8 : 7} className="px-3 py-4 text-center text-gray-500">Chưa có công việc.</td></tr>
         ) : tasks.map((task) => (
           <tr key={task.id} className="hover:bg-gray-50">
             <td className="px-3 py-2 text-gray-600">{task.thuTu}</td>
-            <td className="px-3 py-2 text-gray-900">{task.tieuDe}</td>
+            <td className="px-3 py-2 text-gray-900">
+              <span className="flex items-center gap-1.5">
+                {task.laMilestone && <Diamond className="h-3.5 w-3.5 text-orange-500 fill-orange-500 shrink-0" />}
+                {task.tieuDe}
+              </span>
+            </td>
             <td className="px-3 py-2 text-gray-700">{task.nguoiPhuTrach || '—'}</td>
+            <td className="px-3 py-2">{priorityBadge(task.mucDoUuTien)}</td>
             <td className="px-3 py-2 text-gray-700">{task.tienDo ?? 0}%</td>
             <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(task.trangThai)}`}>{task.trangThai}</span></td>
             <td className="px-3 py-2 text-gray-700">{formatDate(task.ngayBatDau || task.deadline)} - {formatDate(task.ngayKetThuc)}</td>
