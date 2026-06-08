@@ -66,8 +66,8 @@ const SparePartList = () => {
     ngayMua: '',
   });
 
-  const canWrite = user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD' || user?.role === 'TEAM_LEAD';
-  const canDelete = user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD';
+  const canWrite = user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead';
+  const canDelete = user?.role === 'admin' || user?.role === 'department_head';
 
   useEffect(() => { fetchParts(); }, [currentPage, filterLoai, filterTrangThai]);
 
@@ -363,7 +363,10 @@ const SparePartList = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">File đính kèm</label>
-                  <FileUpload onFileSelect={setSelectedFile} />
+                  <FileUpload
+                    files={selectedFile ? [selectedFile] : []}
+                    onChange={(files) => setSelectedFile(files[0] ?? null)}
+                  />
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Hủy</button>
