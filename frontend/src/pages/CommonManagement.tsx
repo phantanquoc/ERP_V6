@@ -19,12 +19,15 @@ import {
   RepairRequestFormData, GeneralRequestFormData,
 } from '../schemas/requestSchemas';
 import { FeedbackType } from '../services/privateFeedbackService';
+import { useMachineSystems, useMachineSystemDetails } from '../hooks/useMachineSystemDetails';
 
 type RequestType =
   | 'yeu_cau_sua_chua' | 'yeu_cau_bo_sung' | 'de_nghi_dieu_chinh'
   | 'ke_hoach_tang_ca' | 'nhiem_vu' | 'ke_hoach' | 'gop_y' | 'neu_kho_khan';
 
 interface RepairItemRow {
+  machineSystemId: string;
+  machineSystemDetailId: string;
   tenHeThong: string;
   tinhTrangThietBi: string;
   loaiLoi: string;
@@ -32,6 +35,8 @@ interface RepairItemRow {
 }
 
 const emptyRepairItem = (): RepairItemRow => ({
+  machineSystemId: '',
+  machineSystemDetailId: '',
   tenHeThong: '',
   tinhTrangThietBi: '',
   loaiLoi: '',
@@ -66,6 +71,11 @@ const CommonManagement = () => {
     resolver: zodResolver(generalRequestSchema),
     defaultValues: { title: '', description: '', priority: undefined, department: user?.department || '' },
   });
+
+  const systemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
+  const detailsQuery = useMachineSystemDetails({ page: 1, limit: 500, hoatDong: true, sortBy: 'thuTu', sortOrder: 'asc' });
+  const systems = systemsQuery.data?.data ?? [];
+  const allDetails = detailsQuery.data?.data ?? [];
 
   if (!user) return <div>Loading...</div>;
 
@@ -130,7 +140,24 @@ const CommonManagement = () => {
   };
 
   const updateRepairItem = (index: number, updates: Partial<RepairItemRow>) => {
-    setRepairItems(prev => prev.map((row, i) => i === index ? { ...row, ...updates } : row));
+    setRepairItems(prev => prev.map((row, i) => {
+      if (i !== index) return row;
+      const updated = { ...row, ...updates };
+      if (updates.machineSystemId !== undefined) {
+        const sys = systems.find(s => s.id === updates.machineSystemId);
+        updated.tenHeThong = sys ? `${sys.maHeThong} - ${sys.tenHeThong}` : '';
+        updated.tinhTrangThietBi = sys ? [sys.khuVuc, sys.viTri].filter(Boolean).join(' / ') : '';
+        updated.machineSystemDetailId = '';
+      }
+      if (updates.machineSystemDetailId !== undefined && updates.machineSystemDetailId) {
+        const detail = allDetails.find(d => d.id === updates.machineSystemDetailId);
+        if (detail) {
+          updated.tenHeThong = `${detail.maChiTiet} - ${detail.tenChiTiet}`;
+          updated.tinhTrangThietBi = detail.viTri || updated.tinhTrangThietBi;
+        }
+      }
+      return updated;
+    }));
   };
 
   const addRepairItem = () => {
@@ -145,7 +172,7 @@ const CommonManagement = () => {
   const validateRepairItems = (): boolean => {
     const errors: { [key: string]: string } = {};
     repairItems.forEach((item, i) => {
-      if (!item.tenHeThong.trim()) errors[`${i}_tenHeThong`] = 'Bắt buộc';
+      if (!item.machineSystemId) errors[`${i}_tenHeThong`] = 'Bắt buộc';
       if (!item.tinhTrangThietBi.trim()) errors[`${i}_tinhTrangThietBi`] = 'Bắt buộc';
       if (!item.loaiLoi) errors[`${i}_loaiLoi`] = 'Bắt buộc';
       if (!item.noiDungLoi.trim()) errors[`${i}_noiDungLoi`] = 'Bắt buộc';
@@ -253,7 +280,7 @@ const CommonManagement = () => {
         isOpen={isModalOpen && selectedCategory === 'yeu_cau_sua_chua'}
         onClose={handleCloseModal}
         title="Tạo phiếu yêu cầu sửa chữa kiểm tra"
-        maxWidth="4xl"
+        maxWidth="7xl"
         isLoading={isSubmitting}
         footer={<ModalFooter onClose={handleCloseModal} onSubmit={() => onSubmitRepair()} submitLabel="Tạo yêu cầu sửa chữa" isLoading={isSubmitting} />}
       >
@@ -284,8 +311,9 @@ const CommonManagement = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-8">#</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên hệ thống/thiết bị</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Khu vực sử dụng</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Hệ thống máy</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Chi tiết/Thiết bị</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Khu vực</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-32">Loại lỗi</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nội dung lỗi</th>
                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase w-10"></th>
@@ -296,28 +324,48 @@ const CommonManagement = () => {
                     <tr key={index} className="align-top">
                       <td className="px-3 py-2 text-gray-500 text-center pt-3">{index + 1}</td>
 
-                      {/* Tên hệ thống/thiết bị */}
+                      {/* Hệ thống máy */}
                       <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={row.tenHeThong}
-                          onChange={(e) => updateRepairItem(index, { tenHeThong: e.target.value })}
+                        <select
+                          value={row.machineSystemId}
+                          onChange={(e) => updateRepairItem(index, { machineSystemId: e.target.value })}
                           className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${repairItemErrors[`${index}_tenHeThong`] ? 'border-red-400' : 'border-gray-300'}`}
-                          placeholder="VD: Máy sấy MS-01"
-                        />
+                        >
+                          <option value="">Chọn hệ thống</option>
+                          {systems.map(sys => (
+                            <option key={sys.id} value={sys.id}>{sys.maHeThong} - {sys.tenHeThong}</option>
+                          ))}
+                        </select>
                         {repairItemErrors[`${index}_tenHeThong`] && (
                           <p className="text-xs text-red-500 mt-0.5">{repairItemErrors[`${index}_tenHeThong`]}</p>
                         )}
                       </td>
 
-                      {/* Khu vực sử dụng */}
+                      {/* Chi tiết/Thiết bị */}
+                      <td className="px-3 py-2">
+                        <select
+                          value={row.machineSystemDetailId}
+                          onChange={(e) => updateRepairItem(index, { machineSystemDetailId: e.target.value })}
+                          disabled={!row.machineSystemId}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                        >
+                          <option value="">Không chọn</option>
+                          {allDetails
+                            .filter(d => d.machineSystemId === row.machineSystemId)
+                            .map(d => (
+                              <option key={d.id} value={d.id}>{d.maChiTiet} - {d.tenChiTiet}</option>
+                            ))}
+                        </select>
+                      </td>
+
+                      {/* Khu vực */}
                       <td className="px-3 py-2">
                         <input
                           type="text"
                           value={row.tinhTrangThietBi}
                           onChange={(e) => updateRepairItem(index, { tinhTrangThietBi: e.target.value })}
                           className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${repairItemErrors[`${index}_tinhTrangThietBi`] ? 'border-red-400' : 'border-gray-300'}`}
-                          placeholder="VD: Xưởng sản xuất"
+                          placeholder="Tự điền hoặc nhập"
                         />
                         {repairItemErrors[`${index}_tinhTrangThietBi`] && (
                           <p className="text-xs text-red-500 mt-0.5">{repairItemErrors[`${index}_tinhTrangThietBi`]}</p>
