@@ -7,48 +7,46 @@ export interface ThemeHeaderProps {
 
 // DEFAULT THEME — Blue gradient, clean, professional
 export const DefaultThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentName }) => (
-  <div className="relative bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 rounded-2xl shadow-xl p-6 mb-8 overflow-hidden">
+  <div className="relative bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 rounded-2xl shadow-xl p-4 sm:p-6 mb-6 sm:mb-8 overflow-hidden">
     <div className="absolute inset-0 opacity-10">
       <div className="absolute inset-0" style={{
         backgroundImage: `repeating-linear-gradient(135deg, transparent, transparent 20px, rgba(255,255,255,0.05) 20px, rgba(255,255,255,0.05) 40px)`
       }}></div>
     </div>
-    <div className="flex items-center justify-between relative z-10">
-      <div className="flex-1">
-        <div>
-          <p className="text-blue-200 text-sm font-medium tracking-wider mb-1">ABF SYSTEM</p>
-           <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">
-             Chào mừng, {user.lastName} {user.firstName}!
-           </h1>
-          <p className="text-blue-100 text-lg mt-1">
-            {user.position} - {departmentName}
-          </p>
-        </div>
-        <div className="flex items-center mt-3 space-x-2 flex-wrap gap-y-2">
-          <span className="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-bold shadow-lg">
-            {user.employeeCode}
-          </span>
-          {user.subDepartment && (
-            <span className="px-3 py-1 bg-indigo-500 border border-blue-300 text-white rounded-full text-sm shadow-lg">
-              {user.subDepartment.toUpperCase()}
-            </span>
-          )}
-          <span className="px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium shadow-lg">
-            {user.employeeStatus || 'Đang làm việc'}
-          </span>
-        </div>
+    <div className="relative z-10">
+      <div>
+        <p className="text-blue-200 text-xs sm:text-sm font-medium tracking-wider mb-1">ABF SYSTEM</p>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white drop-shadow-lg">
+          Chào mừng, {user.lastName} {user.firstName}!
+        </h1>
+        <p className="text-blue-100 text-sm sm:text-lg mt-1">
+          {user.position} - {departmentName}
+        </p>
       </div>
-    </div>
-    <div className="absolute bottom-3 right-4 text-right text-white z-10">
-      <p className="text-2xl font-bold drop-shadow-lg">{new Date().toLocaleDateString('vi-VN')}</p>
-      <p className="text-sm text-blue-200">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p>
+      <div className="flex items-center mt-3 space-x-2 flex-wrap gap-y-2">
+        <span className="px-2 sm:px-3 py-1 bg-blue-500 text-white rounded-full text-xs sm:text-sm font-bold shadow-lg">
+          {user.employeeCode}
+        </span>
+        {user.subDepartment && (
+          <span className="px-2 sm:px-3 py-1 bg-indigo-500 border border-blue-300 text-white rounded-full text-xs sm:text-sm shadow-lg">
+            {user.subDepartment.toUpperCase()}
+          </span>
+        )}
+        <span className="px-2 sm:px-3 py-1 bg-green-500 text-white rounded-full text-xs sm:text-sm font-medium shadow-lg">
+          {user.employeeStatus || 'Đang làm việc'}
+        </span>
+      </div>
+      <div className="mt-3 sm:mt-0 sm:absolute sm:bottom-3 sm:right-4 text-left sm:text-right text-white">
+        <p className="text-lg sm:text-2xl font-bold drop-shadow-lg">{new Date().toLocaleDateString('vi-VN')}</p>
+        <p className="text-xs sm:text-sm text-blue-200">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p>
+      </div>
     </div>
   </div>
 );
 
 // TET THEME — Red + Mai flowers + animations
 export const TetThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentName }) => (
-  <div className="relative bg-gradient-to-r from-red-700 via-red-600 to-red-700 rounded-2xl shadow-xl p-6 mb-8 overflow-hidden">
+  <div className="relative bg-gradient-to-r from-red-700 via-red-600 to-red-700 rounded-2xl shadow-xl p-4 sm:p-6 mb-6 sm:mb-8 overflow-hidden">
     <div className="absolute inset-0 opacity-10">
       <div className="absolute inset-0" style={{
         backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,215,0,0.1) 10px, rgba(255,215,0,0.1) 20px)`
@@ -61,8 +59,11 @@ export const TetThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentNam
       .branch-sway { animation: sway 4s ease-in-out infinite; transform-origin: left center; }
       .flower-float { animation: float 3s ease-in-out infinite; }
       .petal-fall { animation: falling-petal 5s linear infinite; position: absolute; }
+      @media (prefers-reduced-motion: reduce) {
+        .branch-sway, .flower-float, .petal-fall { animation: none; }
+      }
     `}</style>
-    <div className="absolute right-0 top-0 bottom-0 w-2/5 overflow-hidden">
+    <div className="absolute right-0 top-0 bottom-0 w-2/5 overflow-hidden hidden sm:block">
       <svg className="absolute right-0 top-0 h-full w-full branch-sway" viewBox="0 0 250 150" preserveAspectRatio="xMaxYMid slice">
         <path d="M260 75 Q200 60 160 45 Q130 35 100 50 Q70 65 40 60" stroke="#5D4037" strokeWidth="6" fill="none" strokeLinecap="round"/>
         <path d="M160 45 Q145 25 120 20" stroke="#5D4037" strokeWidth="4" fill="none" strokeLinecap="round"/>
@@ -95,38 +96,36 @@ export const TetThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentNam
         <use href="#mai-bud" x="75" y="55" /><use href="#mai-bud" x="145" y="30" /><use href="#mai-bud" x="190" y="78" />
       </svg>
     </div>
-    <div className="petal-fall text-lg" style={{left: '60%', animationDelay: '0s'}}>🌸</div>
-    <div className="petal-fall text-xl" style={{left: '70%', animationDelay: '1s'}}>🌸</div>
-    <div className="petal-fall text-lg" style={{left: '80%', animationDelay: '2s'}}>🌸</div>
-    <div className="petal-fall text-xl" style={{left: '75%', animationDelay: '3s'}}>🌸</div>
-    <div className="petal-fall text-lg" style={{left: '65%', animationDelay: '4s'}}>🌸</div>
-    <div className="flex items-center justify-between relative z-10">
-      <div className="flex-1">
-        <div>
-          <p className="text-yellow-300 text-sm font-medium tracking-wider mb-1">🧧 CHÚC MỪNG NĂM MỚI 2026 ✨</p>
-           <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">Chào mừng, {user.lastName} {user.firstName}!</h1>
-          <p className="text-red-100 text-lg mt-1">{user.position} - {departmentName}</p>
-        </div>
-        <div className="flex items-center mt-3 space-x-2 flex-wrap gap-y-2">
-          <span className="px-3 py-1 bg-yellow-500 text-red-800 rounded-full text-sm font-bold shadow-lg">🏷️ {user.employeeCode}</span>
-          {user.subDepartment && (
-            <span className="px-3 py-1 bg-red-500 border border-yellow-400 text-white rounded-full text-sm shadow-lg">{user.subDepartment.toUpperCase()}</span>
-          )}
-          <span className="px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium shadow-lg">🌟 {user.employeeStatus || 'Đang làm việc'}</span>
-        </div>
+    <div className="petal-fall text-lg hidden sm:block" style={{left: '60%', animationDelay: '0s'}}>🌸</div>
+    <div className="petal-fall text-xl hidden sm:block" style={{left: '70%', animationDelay: '1s'}}>🌸</div>
+    <div className="petal-fall text-lg hidden sm:block" style={{left: '80%', animationDelay: '2s'}}>🌸</div>
+    <div className="petal-fall text-xl hidden sm:block" style={{left: '75%', animationDelay: '3s'}}>🌸</div>
+    <div className="petal-fall text-lg hidden sm:block" style={{left: '65%', animationDelay: '4s'}}>🌸</div>
+    <div className="relative z-10">
+      <div>
+        <p className="text-yellow-300 text-xs sm:text-sm font-medium tracking-wider mb-1">🧧 CHÚC MỪNG NĂM MỚI 2026 ✨</p>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white drop-shadow-lg">Chào mừng, {user.lastName} {user.firstName}!</h1>
+        <p className="text-red-100 text-sm sm:text-lg mt-1">{user.position} - {departmentName}</p>
+      </div>
+      <div className="flex items-center mt-3 space-x-2 flex-wrap gap-y-2">
+        <span className="px-2 sm:px-3 py-1 bg-yellow-500 text-red-800 rounded-full text-xs sm:text-sm font-bold shadow-lg">🏷️ {user.employeeCode}</span>
+        {user.subDepartment && (
+          <span className="px-2 sm:px-3 py-1 bg-red-500 border border-yellow-400 text-white rounded-full text-xs sm:text-sm shadow-lg">{user.subDepartment.toUpperCase()}</span>
+        )}
+        <span className="px-2 sm:px-3 py-1 bg-green-500 text-white rounded-full text-xs sm:text-sm font-medium shadow-lg">🌟 {user.employeeStatus || 'Đang làm việc'}</span>
+      </div>
+      <div className="mt-3 sm:mt-0 sm:absolute sm:bottom-3 sm:right-4 text-left sm:text-right text-white">
+        <p className="text-lg sm:text-2xl font-bold drop-shadow-lg">{new Date().toLocaleDateString('vi-VN')}</p>
+        <p className="text-xs sm:text-sm text-red-100">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p>
       </div>
     </div>
-    <div className="absolute bottom-3 right-4 text-right text-white z-10">
-      <p className="text-2xl font-bold drop-shadow-lg">{new Date().toLocaleDateString('vi-VN')}</p>
-      <p className="text-sm text-red-100">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p>
-    </div>
-    <div className="absolute top-2 left-2 text-2xl">🏮</div>
+    <div className="absolute top-2 left-2 text-xl sm:text-2xl">🏮</div>
   </div>
 );
 
 // APR30 THEME — Vietnam Liberation Day — animated star + refined skyline
 export const Apr30ThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentName }) => (
-  <div className="relative rounded-2xl shadow-xl p-6 mb-8 overflow-hidden" style={{background: 'linear-gradient(135deg, #8B0000 0%, #CC0000 40%, #DA251D 60%, #B71C1C 100%)'}}>
+  <div className="relative rounded-2xl shadow-xl p-4 sm:p-6 mb-6 sm:mb-8 overflow-hidden" style={{background: 'linear-gradient(135deg, #8B0000 0%, #CC0000 40%, #DA251D 60%, #B71C1C 100%)'}}>
     {/* Subtle vignette */}
     <div className="absolute inset-0" style={{background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 40%)'}}></div>
 
@@ -208,10 +207,17 @@ export const Apr30ThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentN
       .apr30-text-line { animation: apr30-text-appear 1.5s ease-out forwards, apr30-text-glow 3s ease-in-out 1.5s infinite; opacity: 0; }
       .apr30-text-line-2 { animation: apr30-text-appear 1.5s ease-out 0.4s forwards, apr30-text-glow 3s ease-in-out 1.9s infinite; opacity: 0; }
       .apr30-text-line-3 { animation: apr30-text-appear 1.5s ease-out 0.8s forwards, apr30-text-glow 3s ease-in-out 2.3s infinite; opacity: 0; }
+      @media (prefers-reduced-motion: reduce) {
+        .apr30-star-animate, .apr30-rays-spin, .apr30-sparkle, .apr30-window-blink,
+        .apr30-fw-burst, .apr30-fw-trail, .apr30-text-line, .apr30-text-line-2, .apr30-text-line-3 {
+          animation: none !important;
+          opacity: 1;
+        }
+      }
     `}</style>
 
-    {/* Background SVG — animated star + refined skyline */}
-    <div className="absolute inset-0">
+    {/* Background SVG — animated star + refined skyline (hidden on mobile for performance) */}
+    <div className="absolute inset-0 hidden sm:block">
       <svg className="w-full h-full" viewBox="0 0 1000 180" preserveAspectRatio="xMidYMid slice">
         <defs>
           <linearGradient id="apr30-hill1" x1="0" y1="0" x2="0" y2="1">
@@ -526,31 +532,29 @@ export const Apr30ThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentN
     </div>
 
     {/* Content overlay */}
-    <div className="flex items-center justify-between relative z-10">
-      <div className="flex-1">
-        <div>
-          <p className="text-yellow-300 text-sm font-bold tracking-widest mb-1" style={{textShadow: '0 1px 4px rgba(0,0,0,0.7)', letterSpacing: '1.5px'}}>
-            MỪNG NGÀY GIẢI PHÓNG 30/4 - QUỐC TẾ LAO ĐỘNG 1/5
-          </p>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white" style={{textShadow: '0 2px 8px rgba(0,0,0,0.5)'}}>
-            Chào mừng, {user.lastName} {user.firstName}!
-          </h1>
-          <p className="text-red-100 text-lg mt-1" style={{textShadow: '0 1px 3px rgba(0,0,0,0.4)'}}>
-            {user.position} - {departmentName}
-          </p>
-        </div>
-        <div className="flex items-center mt-3 space-x-2 flex-wrap gap-y-2">
-          <span className="px-3 py-1 bg-yellow-500 text-red-900 rounded-full text-sm font-bold shadow-lg border border-yellow-400">{user.employeeCode}</span>
-          {user.subDepartment && (
-            <span className="px-3 py-1 bg-red-600 border border-yellow-400 text-white rounded-full text-sm shadow-lg font-medium">{user.subDepartment.toUpperCase()}</span>
-          )}
-          <span className="px-3 py-1 bg-green-600 text-white rounded-full text-sm font-medium shadow-lg border border-green-400">{user.employeeStatus || 'Đang làm việc'}</span>
-        </div>
+    <div className="relative z-10">
+      <div>
+        <p className="text-yellow-300 text-xs sm:text-sm font-bold tracking-widest mb-1" style={{textShadow: '0 1px 4px rgba(0,0,0,0.7)', letterSpacing: '1.5px'}}>
+          MỪNG NGÀY GIẢI PHÓNG 30/4 - QUỐC TẾ LAO ĐỘNG 1/5
+        </p>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white" style={{textShadow: '0 2px 8px rgba(0,0,0,0.5)'}}>
+          Chào mừng, {user.lastName} {user.firstName}!
+        </h1>
+        <p className="text-red-100 text-sm sm:text-lg mt-1" style={{textShadow: '0 1px 3px rgba(0,0,0,0.4)'}}>
+          {user.position} - {departmentName}
+        </p>
       </div>
-    </div>
-    <div className="absolute bottom-3 right-4 text-right text-white z-10">
-      <p className="text-2xl font-bold" style={{textShadow: '0 2px 6px rgba(0,0,0,0.5)'}}>{new Date().toLocaleDateString('vi-VN')}</p>
-      <p className="text-sm text-red-200" style={{textShadow: '0 1px 3px rgba(0,0,0,0.4)'}}>{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p>
+      <div className="flex items-center mt-3 space-x-2 flex-wrap gap-y-2">
+        <span className="px-2 sm:px-3 py-1 bg-yellow-500 text-red-900 rounded-full text-xs sm:text-sm font-bold shadow-lg border border-yellow-400">{user.employeeCode}</span>
+        {user.subDepartment && (
+          <span className="px-2 sm:px-3 py-1 bg-red-600 border border-yellow-400 text-white rounded-full text-xs sm:text-sm shadow-lg font-medium">{user.subDepartment.toUpperCase()}</span>
+        )}
+        <span className="px-2 sm:px-3 py-1 bg-green-600 text-white rounded-full text-xs sm:text-sm font-medium shadow-lg border border-green-400">{user.employeeStatus || 'Đang làm việc'}</span>
+      </div>
+      <div className="mt-3 sm:mt-0 sm:absolute sm:bottom-3 sm:right-4 text-left sm:text-right text-white">
+        <p className="text-lg sm:text-2xl font-bold" style={{textShadow: '0 2px 6px rgba(0,0,0,0.5)'}}>{new Date().toLocaleDateString('vi-VN')}</p>
+        <p className="text-xs sm:text-sm text-red-200" style={{textShadow: '0 1px 3px rgba(0,0,0,0.4)'}}>{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p>
+      </div>
     </div>
   </div>
 );
