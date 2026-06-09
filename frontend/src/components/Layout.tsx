@@ -48,11 +48,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </button>
             </div>
 
-            {/* Centered text with marquee for long slogans */}
-            <div className="flex-1 px-4 overflow-hidden">
+            {/* Centered text - static on desktop */}
+            <div className="flex-1 px-4 overflow-hidden hidden md:block">
+              <p className="text-sm font-medium text-gray-900 italic text-center leading-snug whitespace-pre-line line-clamp-2">
+                {settings?.slogan || 'Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.'}
+              </p>
+            </div>
+
+            {/* Mobile: marquee scrolling (single line) */}
+            <div className="flex-1 px-2 overflow-hidden md:hidden">
               <div className="marquee-container">
-                <p className="marquee-text text-sm font-medium text-gray-900 italic whitespace-nowrap">
-                  {settings?.slogan || 'Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.'}
+                <p className="marquee-text text-sm font-medium text-gray-900 italic">
+                  {(settings?.slogan || 'Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.').replace(/\n/g, ' — ')}
                 </p>
               </div>
             </div>
