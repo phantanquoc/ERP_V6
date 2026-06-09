@@ -27,7 +27,7 @@ const DocumentationGuide = () => {
   const [editMode, setEditMode] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [saving, setSaving] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
 
   const isAdmin = user?.role === UserRole.ADMIN;
 
@@ -99,22 +99,52 @@ const DocumentationGuide = () => {
     );
   }
 
+  const handleSelectDoc = (slug: string) => {
+    setSelectedSlug(slug);
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  };
+
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-gray-50">
-      <aside className={`${sidebarOpen ? 'w-72' : 'w-0'} bg-white border-r border-gray-200 flex-shrink-0 transition-all duration-300 overflow-hidden`}>
+    <div className="flex h-[calc(100vh-4rem)] bg-gray-50 relative">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`
+        fixed md:relative inset-y-0 left-0 z-40 md:z-auto
+        w-72 bg-white border-r border-gray-200 flex-shrink-0
+        transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden'}
+        md:transition-all
+      `}>
         <div className="w-72 h-full flex flex-col">
-          <div className="p-5 border-b border-gray-100">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xl">📖</span>
-              <h2 className="text-base font-semibold text-gray-800">Hướng dẫn sử dụng</h2>
+          <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xl">📖</span>
+                <h2 className="text-base font-semibold text-gray-800">Hướng dẫn sử dụng</h2>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Chọn tài liệu để xem</p>
             </div>
-            <p className="text-xs text-gray-400 mt-1">Chọn tài liệu để xem</p>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="md:hidden p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
           <nav className="flex-1 overflow-y-auto p-3 space-y-1">
             {docs.map((doc) => (
               <button
                 key={doc.slug}
-                onClick={() => setSelectedSlug(doc.slug)}
+                onClick={() => handleSelectDoc(doc.slug)}
                 className={`w-full text-left px-4 py-2.5 rounded-xl text-sm transition-all duration-200 flex items-center gap-3 ${
                   selectedSlug === doc.slug
                     ? 'bg-blue-50 text-blue-700 font-medium shadow-sm border border-blue-100'
@@ -132,7 +162,7 @@ const DocumentationGuide = () => {
       <main className="flex-1 overflow-y-auto min-w-0 relative">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r-lg p-1.5 shadow-md hover:bg-gray-50 transition-all duration-200 group"
+          className="hidden md:block absolute top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r-lg p-1.5 shadow-md hover:bg-gray-50 transition-all duration-200 group"
           style={{ left: sidebarOpen ? '-12px' : '0' }}
         >
           <svg className={`w-4 h-4 text-gray-400 transition-transform duration-300 group-hover:text-gray-600 ${sidebarOpen ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -158,15 +188,23 @@ const DocumentationGuide = () => {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
           </div>
         ) : docContent ? (
-          <div className="max-w-4xl mx-auto p-6 lg:p-8">
+          <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8">
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-6 lg:px-10 pt-6 lg:pt-8 pb-4 border-b border-gray-100 bg-gradient-to-b from-gray-50 to-white">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{DOC_ICONS[docContent.slug] || '📄'}</span>
-                    <h1 className="text-xl lg:text-2xl font-bold text-gray-900">{docContent.title}</h1>
+              <div className="px-4 md:px-6 lg:px-10 pt-4 md:pt-6 lg:pt-8 pb-4 border-b border-gray-100 bg-gradient-to-b from-gray-50 to-white">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                    <button
+                      onClick={() => setSidebarOpen(true)}
+                      className="md:hidden flex-shrink-0 p-1.5 -ml-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                      </svg>
+                    </button>
+                    <span className="text-xl md:text-2xl flex-shrink-0">{DOC_ICONS[docContent.slug] || '📄'}</span>
+                    <h1 className="text-lg md:text-xl lg:text-2xl font-bold text-gray-900 truncate">{docContent.title}</h1>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     {isAdmin && (
                       <button
                         onClick={() => setEditMode(!editMode)}
@@ -201,11 +239,11 @@ const DocumentationGuide = () => {
               </div>
 
               {editMode ? (
-                <div className="p-6 lg:p-10">
+                <div className="p-4 md:p-6 lg:p-10">
                   <textarea
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full h-[calc(100vh-20rem)] p-4 border border-gray-200 rounded-xl font-mono text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                    className="w-full h-[calc(100vh-16rem)] md:h-[calc(100vh-20rem)] p-3 md:p-4 border border-gray-200 rounded-xl font-mono text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
                   />
                   <div className="flex gap-3 mt-4 justify-end">
                     <button
@@ -239,7 +277,7 @@ const DocumentationGuide = () => {
                   </div>
                 </div>
               ) : (
-                <div className="px-6 lg:px-10 py-6 lg:py-8 overflow-x-auto">
+                <div className="px-4 md:px-6 lg:px-10 py-4 md:py-6 lg:py-8 overflow-x-auto">
                   <div className="prose prose-sm lg:prose-base prose-gray max-w-none
                     prose-headings:font-semibold prose-headings:text-gray-900
                     prose-h1:text-2xl prose-h1:border-b prose-h1:border-gray-200 prose-h1:pb-3 prose-h1:mb-6
@@ -270,9 +308,15 @@ const DocumentationGuide = () => {
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400 px-4">
             <span className="text-5xl">📚</span>
-            <p className="text-base">Chọn một tài liệu từ danh sách bên trái</p>
+            <p className="text-base text-center">Chọn một tài liệu từ danh sách bên trái</p>
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden mt-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+            >
+              Mở danh sách tài liệu
+            </button>
           </div>
         )}
       </main>
