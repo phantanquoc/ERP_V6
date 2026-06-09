@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
   CalendarDays,
-  ChevronDown,
-  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   RefreshCcw,
   Timer,
@@ -86,7 +86,6 @@ const formatDisplayDate = (date: string): string => new Date(`${date}T00:00:00`)
   year: 'numeric',
 });
 
-const formatShortDate = (date: string): string => new Date(`${date}T00:00:00`).toLocaleDateString('vi-VN');
 
 const formatTime = (value: string | null): string => {
   if (!value) return '--:--';
@@ -190,7 +189,12 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
 }) => {
   const [preset, setPreset] = useState<QuickRangePreset>('thisMonth');
   const [range, setRange] = useState<DateRangeValue>(() => buildRangeFromPreset('thisMonth'));
-  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  // Calendar display month: use endDate for presets like "7 ngày" that may cross month boundary
+  const calendarRefDate = preset === 'last7Days' ? range.endDate : range.startDate;
+  const calendarYear = parseInt(calendarRefDate.slice(0, 4), 10);
+  const calendarMonth = parseInt(calendarRefDate.slice(5, 7), 10) - 1;
 
   useEffect(() => {
     if (!isOpen) {
@@ -200,7 +204,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
     const nextRange = buildRangeFromPreset('thisMonth');
     setPreset('thisMonth');
     setRange(nextRange);
-    setExpandedDays({});
+    setSelectedDay(null);
   }, [isOpen]);
 
   const {
@@ -231,7 +235,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
 
       return buildRangeFromPreset(nextPreset);
     });
-    setExpandedDays({});
+    setSelectedDay(null);
   };
 
   const handleCustomDateChange = (field: keyof DateRangeValue, value: string) => {
@@ -240,17 +244,79 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
       ...currentRange,
       [field]: value,
     }));
-    setExpandedDays({});
+    setSelectedDay(null);
   };
 
-  const toggleDay = (date: string) => {
-    setExpandedDays((current) => ({
-      ...current,
-      [date]: !current[date],
-    }));
+  const navigateMonth = (direction: -1 | 1) => {
+    const currentYear = parseInt(range.startDate.slice(0, 4), 10);
+    const currentMonth = parseInt(range.startDate.slice(5, 7), 10) - 1;
+    const targetDate = new Date(currentYear, currentMonth + direction, 1);
+    const firstDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    const lastDay = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+    setPreset('custom');
+    setRange({
+      startDate: formatDateInputValue(firstDay),
+      endDate: formatDateInputValue(lastDay),
+    });
+    setSelectedDay(null);
   };
 
   const errorMessage = error instanceof Error ? error.message : 'Không thể tải dữ liệu điểm danh';
+
+  // Build a Map<YYYY-MM-DD, GroupedAttendanceDay> for O(1) calendar lookup
+  const dayMap = new Map<string, GroupedAttendanceDay>();
+  groupedDays.forEach((g) => dayMap.set(g.date, g));
+
+  // Calendar grid cells (6 rows × 7 cols, Monday-first)
+  const firstOfMonth = new Date(calendarYear, calendarMonth, 1);
+  // getDay(): 0=Sun,1=Mon,...6=Sat → convert to Mon=0 offset
+  const rawDow = firstOfMonth.getDay();
+  const startOffset = rawDow === 0 ? 6 : rawDow - 1;
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const totalCells = 42; // 6 rows × 7
+
+  const calendarCells: Array<{ dateStr: string; inMonth: boolean }> = [];
+  for (let i = 0; i < totalCells; i++) {
+    const dayNumber = i - startOffset + 1;
+    const cellDate = new Date(calendarYear, calendarMonth, dayNumber);
+    calendarCells.push({
+      dateStr: formatDateInputValue(cellDate),
+      inMonth: dayNumber >= 1 && dayNumber <= daysInMonth,
+    });
+  }
+
+  const todayStr = formatDateInputValue(new Date());
+
+  // Unique statuses per day for dots
+  const getStatusDots = (dateStr: string): IndividualAttendanceRecord['status'][] => {
+    const group = dayMap.get(dateStr);
+    if (!group) return [];
+    const unique = new Set(group.records.map((r) => r.status));
+    return Array.from(unique);
+  };
+
+  const statusDotColor: Record<string, string> = {
+    PRESENT: 'bg-emerald-500',
+    LATE: 'bg-amber-500',
+    OVERTIME: 'bg-sky-500',
+    ON_LEAVE: 'bg-violet-500',
+    ABSENT: 'bg-rose-500',
+  };
+
+  const legend: Array<{ status: IndividualAttendanceRecord['status']; label: string; color: string }> = [
+    { status: 'PRESENT', label: 'Đúng giờ', color: 'bg-emerald-500' },
+    { status: 'LATE', label: 'Đi muộn', color: 'bg-amber-500' },
+    { status: 'OVERTIME', label: 'Tăng ca', color: 'bg-sky-500' },
+    { status: 'ON_LEAVE', label: 'Nghỉ phép', color: 'bg-violet-500' },
+    { status: 'ABSENT', label: 'Vắng mặt', color: 'bg-rose-500' },
+  ];
+
+  const selectedGroup = selectedDay ? dayMap.get(selectedDay) : null;
+
+  const monthLabel = new Date(calendarYear, calendarMonth, 1).toLocaleDateString('vi-VN', {
+    month: 'long',
+    year: 'numeric',
+  });
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true} className="max-w-none">
@@ -383,11 +449,25 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
           </div>
 
           <div className="mt-6 rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-6 py-4">
-              <h3 className="text-lg font-semibold text-slate-900">Lịch sử quẹt trong ngày</h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Nhóm theo ngày, nhấn mở rộng để xem từng lần quẹt vào và ra.
-              </p>
+            {/* Calendar header with month navigation */}
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => navigateMonth(-1)}
+                className="rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Tháng trước"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <h3 className="text-base font-semibold capitalize text-slate-900">{monthLabel}</h3>
+              <button
+                type="button"
+                onClick={() => navigateMonth(1)}
+                className="rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Tháng sau"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
 
             {isLoading ? (
@@ -415,121 +495,137 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                   </button>
                 </div>
               </div>
-            ) : groupedDays.length === 0 ? (
-              <div className="flex min-h-[320px] items-center justify-center px-6 py-12">
-                <div className="max-w-md text-center">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-                    <CalendarDays className="h-7 w-7" />
-                  </div>
-                  <h4 className="mt-4 text-lg font-semibold text-slate-900">Chưa có dữ liệu điểm danh</h4>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Không tìm thấy bản ghi nào trong khoảng {formatShortDate(range.startDate)} - {formatShortDate(range.endDate)}.
-                  </p>
+            ) : (
+              <div className="px-4 py-4 sm:px-6">
+                {/* Day-of-week headers */}
+                <div className="mb-2 grid grid-cols-7 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((d) => (
+                    <div key={d} className="py-2">{d}</div>
+                  ))}
+                </div>
+
+                {/* Calendar cells */}
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarCells.map(({ dateStr, inMonth }) => {
+                    const dots = inMonth ? getStatusDots(dateStr) : [];
+                    const isToday = dateStr === todayStr;
+                    const isSelected = dateStr === selectedDay;
+                    const hasData = dots.length > 0;
+                    const dayNum = parseInt(dateStr.slice(8, 10), 10);
+
+                    return (
+                      <button
+                        key={dateStr}
+                        type="button"
+                        disabled={!inMonth}
+                        onClick={() => {
+                          if (inMonth) {
+                            setSelectedDay(isSelected ? null : dateStr);
+                          }
+                        }}
+                        className={[
+                          'flex min-h-[48px] flex-col items-center justify-start rounded-xl p-1 transition sm:min-h-[64px]',
+                          !inMonth ? 'opacity-20' : '',
+                          inMonth ? 'cursor-pointer hover:bg-slate-100' : 'cursor-default',
+                          isSelected ? 'bg-blue-50 ring-2 ring-blue-500' : '',
+                          isToday && !isSelected ? 'ring-2 ring-blue-400 bg-blue-50/30' : '',
+                        ].filter(Boolean).join(' ')}
+                        aria-label={dateStr}
+                      >
+                        <span className={`mt-1 text-sm font-medium leading-none ${isToday ? 'text-blue-600 font-bold' : inMonth ? 'text-slate-700' : 'text-slate-400'}`}>
+                          {dayNum}
+                        </span>
+                        {isToday && !isSelected && (
+                          <span className="text-[9px] font-semibold text-blue-500 leading-none">nay</span>
+                        )}
+                        <div className="mt-1 flex flex-wrap justify-center gap-0.5">
+                          {dots.map((status) => (
+                            <span
+                              key={status}
+                              className={`h-2.5 w-2.5 rounded-full ${statusDotColor[status] ?? 'bg-slate-400'} sm:h-3 sm:w-3`}
+                              aria-hidden="true"
+                            />
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-100 pt-4">
+                  {legend.map(({ status, label, color }) => (
+                    <div key={status} className="flex items-center gap-2">
+                      <span className={`h-3 w-3 rounded-full ${color}`} aria-hidden="true" />
+                      <span className="text-xs font-medium text-slate-600">{label}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className="bg-slate-50 text-left text-sm text-slate-500">
-                    <tr>
-                      <th className="px-6 py-4 font-medium">Ngày</th>
-                      <th className="px-6 py-4 font-medium">Lần quẹt</th>
-                      <th className="px-6 py-4 font-medium">Giờ vào đầu</th>
-                      <th className="px-6 py-4 font-medium">Giờ ra cuối</th>
-                      <th className="px-6 py-4 font-medium">Tổng giờ</th>
-                      <th className="px-6 py-4 font-medium">Ghi chú</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {groupedDays.map((group) => {
-                      const isExpanded = !!expandedDays[group.date];
+            )}
 
-                      return (
-                        <React.Fragment key={group.date}>
-                          <tr className="bg-white align-top">
-                            <td className="px-6 py-4">
-                              <button
-                                type="button"
-                                onClick={() => toggleDay(group.date)}
-                                className="flex items-start gap-3 text-left"
-                              >
-                                <span className="mt-1 rounded-full bg-slate-100 p-1 text-slate-500">
-                                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                </span>
-                                <div>
-                                  <p className="font-semibold text-slate-900">{formatDisplayDate(group.date)}</p>
-                                  <p className="mt-1 text-xs text-slate-500">Nhấn để xem chi tiết từng lần quẹt</p>
-                                </div>
-                              </button>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-slate-700">{group.records.length} bản ghi</td>
-                            <td className="px-6 py-4 text-sm text-slate-700">{formatTime(group.firstCheckIn)}</td>
-                            <td className="px-6 py-4 text-sm text-slate-700">{formatTime(group.lastCheckOut)}</td>
-                            <td className="px-6 py-4 text-sm font-semibold text-slate-900">{formatHours(group.totalHours)}</td>
-                            <td className="px-6 py-4">
-                              <div className="flex flex-wrap gap-2">
-                                {group.lateCount > 0 && (
-                                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
-                                    {group.lateCount} lần đi muộn
-                                  </span>
-                                )}
-                                {group.overtimeHours > 0 && (
-                                  <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700">
-                                    Tăng ca {formatHours(group.overtimeHours)}
-                                  </span>
-                                )}
-                                {group.lateCount === 0 && group.overtimeHours === 0 && (
-                                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
-                                    Điểm danh bình thường
-                                  </span>
-                                )}
-                              </div>
-                            </td>
+            {/* Day detail panel */}
+            {selectedDay && (
+              <div className="border-t border-slate-200 px-4 py-4 sm:px-6">
+                <h4 className="mb-3 text-sm font-semibold text-slate-700">
+                  Chi tiết: {formatDisplayDate(selectedDay)}
+                </h4>
+                {selectedGroup ? (
+                  <>
+                    <div className="mb-3 flex flex-wrap gap-3 text-xs">
+                      <span className="rounded-lg bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700">
+                        Tổng giờ: {formatHours(selectedGroup.totalHours)}
+                      </span>
+                      {selectedGroup.overtimeHours > 0 && (
+                        <span className="rounded-lg bg-sky-50 px-3 py-1.5 font-medium text-sky-700">
+                          Tăng ca: {formatHours(selectedGroup.overtimeHours)}
+                        </span>
+                      )}
+                      {selectedGroup.lateCount > 0 && (
+                        <span className="rounded-lg bg-amber-50 px-3 py-1.5 font-medium text-amber-700">
+                          Đi muộn: {selectedGroup.lateCount} lần
+                        </span>
+                      )}
+                    </div>
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <th className="px-4 py-3 font-medium">Lần</th>
+                            <th className="px-4 py-3 font-medium">Giờ vào</th>
+                            <th className="px-4 py-3 font-medium">Giờ ra</th>
+                            <th className="px-4 py-3 font-medium">Số giờ</th>
+                            <th className="px-4 py-3 font-medium">Trạng thái</th>
+                            <th className="px-4 py-3 font-medium">Ghi chú</th>
                           </tr>
-
-                          {isExpanded && (
-                            <tr className="bg-slate-50">
-                              <td colSpan={6} className="px-6 py-4">
-                                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                                  <table className="min-w-full">
-                                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                                      <tr>
-                                        <th className="px-4 py-3 font-medium">Lần</th>
-                                        <th className="px-4 py-3 font-medium">Giờ vào</th>
-                                        <th className="px-4 py-3 font-medium">Giờ ra</th>
-                                        <th className="px-4 py-3 font-medium">Số giờ</th>
-                                        <th className="px-4 py-3 font-medium">Trạng thái</th>
-                                        <th className="px-4 py-3 font-medium">Ghi chú</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                      {group.records.map((record, index) => (
-                                        <tr key={record.id}>
-                                          <td className="px-4 py-3 text-sm text-slate-600">#{index + 1}</td>
-                                          <td className="px-4 py-3 text-sm text-slate-700">{formatTime(record.checkInTime)}</td>
-                                          <td className="px-4 py-3 text-sm text-slate-700">{formatTime(record.checkOutTime)}</td>
-                                          <td className="px-4 py-3 text-sm font-medium text-slate-900">{formatHours(record.workHours || 0)}</td>
-                                          <td className="px-4 py-3">
-                                            <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(record.status)}`}>
-                                              {getStatusLabel(record.status)}
-                                            </span>
-                                          </td>
-                                          <td className="px-4 py-3 text-sm text-slate-600">
-                                            {record.notes || (record.isOvertime ? 'Ca tăng ca' : 'Không có ghi chú')}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {selectedGroup.records.map((record, index) => (
+                            <tr key={record.id}>
+                              <td className="px-4 py-3 text-slate-600">#{index + 1}</td>
+                              <td className="px-4 py-3 text-slate-700">{formatTime(record.checkInTime)}</td>
+                              <td className="px-4 py-3 text-slate-700">{formatTime(record.checkOutTime)}</td>
+                              <td className="px-4 py-3 font-medium text-slate-900">{formatHours(record.workHours || 0)}</td>
+                              <td className="px-4 py-3">
+                                <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(record.status)}`}>
+                                  {getStatusLabel(record.status)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {record.notes || (record.isOvertime ? 'Ca tăng ca' : '')}
                               </td>
                             </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                    <CalendarDays className="mx-auto h-8 w-8 text-slate-300" />
+                    <p className="mt-2 text-sm text-slate-500">Chưa có dữ liệu điểm danh cho ngày này</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
