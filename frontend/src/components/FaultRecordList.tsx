@@ -73,8 +73,10 @@ const emptyTemplateForm = (): CreateFaultTemplateRequest => ({
 const FaultRecordList = () => {
   const { user } = useAuth();
   const reporter = user ? `${user.lastName} ${user.firstName}`.trim() : '';
-  const canWrite = user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead';
-  const canDelete = user?.role === 'admin' || user?.role === 'department_head';
+  const isTechnical = user?.department === 'DEPT_TECHNICAL' ||
+    user?.secondaryDepartments?.some(d => d.departmentCode === 'DEPT_TECHNICAL');
+  const canWrite = user?.role === 'admin' || isTechnical;
+  const canDelete = user?.role === 'admin' || isTechnical;
 
   const [view, setView] = useState<ViewMode>('records');
   const [recordFilters, setRecordFilters] = useState<FaultRecordFilters>({ page: 1, limit: 10, sortBy: 'ngayPhatHien', sortOrder: 'desc' });
