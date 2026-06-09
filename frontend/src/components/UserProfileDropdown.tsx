@@ -68,7 +68,7 @@ const UserProfileDropdown: React.FC = () => {
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-3 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className="flex items-center space-x-0 md:space-x-3 px-2 md:px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
       >
         {/* User Avatar */}
         <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold text-sm shadow-md">
@@ -76,7 +76,7 @@ const UserProfileDropdown: React.FC = () => {
         </div>
         
         {/* User Info */}
-        <div className="text-left">
+        <div className="text-left hidden md:block">
           <div className="text-sm font-medium text-gray-900">
             {user.lastName} {user.firstName}
           </div>
@@ -84,12 +84,12 @@ const UserProfileDropdown: React.FC = () => {
             {user.role === 'admin' ? 'Admin System' : user.position}
           </div>
         </div>
-        
+
         {/* Dropdown Arrow */}
-        <ChevronDown 
-          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+        <ChevronDown
+          className={`w-4 h-4 text-gray-400 transition-transform duration-200 hidden md:block ${
             isOpen ? 'transform rotate-180' : ''
-          }`} 
+          }`}
         />
       </button>
 
