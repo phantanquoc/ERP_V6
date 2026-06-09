@@ -120,7 +120,7 @@ const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; on
         onWorkPlanClick();
       }
     }}
-    className={`bg-white rounded-xl shadow-sm border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-100'} p-6 hover:shadow-md transition-shadow relative ${(stat.label === "Đánh giá" || stat.label === "Nhiệm vụ" || stat.label === "Kế hoạch") ? 'cursor-pointer' : ''}`}
+    className={`bg-white rounded-xl shadow-sm border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-100'} p-4 sm:p-6 hover:shadow-md transition-shadow relative ${(stat.label === "Đánh giá" || stat.label === "Nhiệm vụ" || stat.label === "Kế hoạch") ? 'cursor-pointer' : ''}`}
   >
     {stat.hasNotification && (
       <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
@@ -165,16 +165,16 @@ const QuickActionCard: React.FC<{
   return (
     <div
       onClick={handleClick}
-      className="relative h-full cursor-pointer rounded-xl border border-gray-100 bg-white p-8 shadow-sm transition-all hover:shadow-md group"
+      className="relative h-full cursor-pointer rounded-xl border border-gray-100 bg-white p-4 sm:p-8 shadow-sm transition-all hover:shadow-md group"
     >
-      <div className="flex items-center space-x-4">
-        <div className={`rounded-lg p-4 ${action.color} transition-transform group-hover:scale-110`}>
-          <div className="text-white w-8 h-8 flex items-center justify-center">
+      <div className="flex items-center space-x-3 sm:space-x-4">
+        <div className={`rounded-lg p-3 sm:p-4 ${action.color} transition-transform group-hover:scale-110`}>
+          <div className="text-white w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center">
             {action.icon}
           </div>
         </div>
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 transition-colors group-hover:text-blue-600">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 transition-colors group-hover:text-blue-600">
             {action.title}
           </h3>
           <p className="mt-1 text-sm text-gray-500">{action.description}</p>
@@ -257,7 +257,7 @@ const EmployeeDashboard: React.FC = () => {
         <ThemeHeader activeTheme={activeTheme} user={user} departmentName={departmentName} />
 
         {/* Personal Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {personalStats.map((stat, index) => (
             <PersonalStatCard
               key={index}
@@ -270,9 +270,9 @@ const EmployeeDashboard: React.FC = () => {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
           {/* Left Column - Quick Actions */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
               <Activity className="w-6 h-6 text-blue-600 mr-2" />
               Thao tác nhanh
@@ -292,7 +292,7 @@ const EmployeeDashboard: React.FC = () => {
           </div>
 
           {/* Right Column - Employee Info */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
                 <User className="w-6 h-6 text-blue-600 mr-2" />
                 Thông tin nhân viên
