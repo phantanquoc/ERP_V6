@@ -11,8 +11,6 @@ export const TECHNICAL_SUB_DEPARTMENT_CODES = {
   PROJECTS: 'SUBDEPT_TECHNICAL_PROJECTS',
 } as const;
 
-const elevatedRoles = new Set<string>([UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD]);
-
 async function getDepartmentCode(departmentId?: string | null): Promise<string | null> {
   if (!departmentId) return null;
   const department = await prisma.department.findUnique({
@@ -22,25 +20,12 @@ async function getDepartmentCode(departmentId?: string | null): Promise<string |
   return department?.code ?? null;
 }
 
-async function getSubDepartmentCode(subDepartmentId?: string | null): Promise<string | null> {
-  if (!subDepartmentId) return null;
-  const subDepartment = await prisma.subDepartment.findUnique({
-    where: { id: subDepartmentId },
-    select: { code: true },
-  });
-  return subDepartment?.code ?? null;
-}
-
 async function canAccessViaEntry(
   entry: SecondaryDepartmentEntry | { departmentId?: string | null; subDepartmentId?: string | null; role: string },
-  allowedSubDepartmentCodes: string[],
+  _allowedSubDepartmentCodes: string[],
 ): Promise<boolean> {
   const departmentCode = await getDepartmentCode(entry.departmentId);
-  if (departmentCode !== TECHNICAL_DEPARTMENT_CODE) return false;
-  if (elevatedRoles.has(entry.role)) return true;
-
-  const subDepartmentCode = await getSubDepartmentCode(entry.subDepartmentId);
-  return !!subDepartmentCode && allowedSubDepartmentCodes.includes(subDepartmentCode);
+  return departmentCode === TECHNICAL_DEPARTMENT_CODE;
 }
 
 export const requireTechnicalAccess = (...allowedSubDepartmentCodes: string[]) => {
