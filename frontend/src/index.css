@@ -1,3 +1,39 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Marquee scrolling text for slogan bar */
+@layer components {
+  .marquee-container {
+    overflow: hidden;
+    position: relative;
+  }
+
+  .marquee-text {
+    display: inline-block;
+    animation: marquee-scroll 20s linear infinite;
+    padding-left: 100%;
+  }
+
+  .marquee-container:hover .marquee-text {
+    animation-play-state: paused;
+  }
+
+  @keyframes marquee-scroll {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-100%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-text {
+      animation: none;
+      padding-left: 0;
+      white-space: normal;
+      text-align: center;
+    }
+  }
+}

@@ -48,11 +48,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </button>
             </div>
 
-            {/* Centered text with padding to avoid overlap */}
+            {/* Centered text with marquee for long slogans */}
             <div className="flex-1 px-4 overflow-hidden">
-              <p className="text-sm font-medium text-gray-900 text-center italic whitespace-pre-line">
-                {settings?.slogan || 'Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.'}
-              </p>
+              <div className="marquee-container">
+                <p className="marquee-text text-sm font-medium text-gray-900 italic whitespace-nowrap">
+                  {settings?.slogan || 'Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.'}
+                </p>
+              </div>
             </div>
 
             {/* Notification Bell and User dropdown - positioned to the right */}
