@@ -324,45 +324,43 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
         className="relative flex h-[calc(100vh-2rem)] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-slate-200 bg-white px-6 py-5 sm:px-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-blue-100 p-3 text-blue-700">
-                  <CalendarDays className="h-6 w-6" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900">Dữ liệu điểm danh</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {employeeName ? `Theo dõi lịch sử quẹt thẻ của ${employeeName}` : 'Theo dõi lịch sử quẹt thẻ của bạn'}
-                  </p>
-                </div>
+        <div className="border-b border-slate-200 bg-white px-4 py-3 sm:px-8 sm:py-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="rounded-xl sm:rounded-2xl bg-blue-100 p-2 sm:p-3 text-blue-700">
+                <CalendarDays className="h-5 w-5 sm:h-6 sm:w-6" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-2xl font-bold text-slate-900">Dữ liệu điểm danh</h2>
+                <p className="hidden sm:block mt-1 text-sm text-slate-500">
+                  {employeeName ? `Theo dõi lịch sử quẹt thẻ của ${employeeName}` : 'Theo dõi lịch sử quẹt thẻ của bạn'}
+                </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 self-start">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => refetch()}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 sm:px-4 sm:py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
               >
                 <RefreshCcw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-                Làm mới
+                <span className="hidden sm:inline">Làm mới</span>
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-xl border border-slate-200 p-1.5 sm:p-2 text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col gap-4">
-            <div className="flex flex-wrap gap-2">
+          <div className="mt-3 sm:mt-6 flex flex-col gap-2 sm:gap-4">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
               {[
-                { key: 'last7Days', label: '7 ngày gần đây' },
+                { key: 'last7Days', label: '7 ngày' },
                 { key: 'thisMonth', label: 'Tháng này' },
                 { key: 'lastMonth', label: 'Tháng trước' },
                 { key: 'custom', label: 'Tùy chọn' },
@@ -371,7 +369,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                   key={item.key}
                   type="button"
                   onClick={() => applyPreset(item.key as QuickRangePreset)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  className={`rounded-full px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium transition ${
                     preset === item.key
                       ? 'bg-slate-900 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -382,65 +380,73 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
               ))}
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <label className="flex flex-1 flex-col gap-2 text-sm font-medium text-slate-600">
-                Từ ngày
-                <input
-                  type="date"
-                  value={range.startDate}
-                  onChange={(event) => handleCustomDateChange('startDate', event.target.value)}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-700 outline-none transition focus:border-blue-400"
-                />
-              </label>
-              <label className="flex flex-1 flex-col gap-2 text-sm font-medium text-slate-600">
-                Đến ngày
-                <input
-                  type="date"
-                  value={range.endDate}
-                  min={range.startDate}
-                  onChange={(event) => handleCustomDateChange('endDate', event.target.value)}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-700 outline-none transition focus:border-blue-400"
-                />
-              </label>
-            </div>
+            {preset === 'custom' && (
+              <div className="flex gap-2 sm:gap-3 sm:flex-row">
+                <label className="flex flex-1 flex-col gap-1 text-xs sm:text-sm font-medium text-slate-600">
+                  Từ
+                  <input
+                    type="date"
+                    value={range.startDate}
+                    onChange={(event) => handleCustomDateChange('startDate', event.target.value)}
+                    className="rounded-lg sm:rounded-xl border border-slate-200 bg-white px-3 py-2 sm:px-4 sm:py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400"
+                  />
+                </label>
+                <label className="flex flex-1 flex-col gap-1 text-xs sm:text-sm font-medium text-slate-600">
+                  Đến
+                  <input
+                    type="date"
+                    value={range.endDate}
+                    min={range.startDate}
+                    onChange={(event) => handleCustomDateChange('endDate', event.target.value)}
+                    className="rounded-lg sm:rounded-xl border border-slate-200 bg-white px-3 py-2 sm:px-4 sm:py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400"
+                  />
+                </label>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-8">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-8 sm:py-6">
+          <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-4">
             {[
               {
                 label: 'Ngày công',
-                value: `${workedDays} ngày`,
-                icon: <CalendarDays className="h-5 w-5" />,
+                value: `${workedDays}`,
+                unit: 'ngày',
+                icon: <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />,
                 tone: 'bg-emerald-100 text-emerald-700',
               },
               {
                 label: 'Tổng giờ',
-                value: formatHours(totalHours),
-                icon: <Clock3 className="h-5 w-5" />,
+                value: `${totalHours.toFixed(1)}`,
+                unit: 'giờ',
+                icon: <Clock3 className="h-4 w-4 sm:h-5 sm:w-5" />,
                 tone: 'bg-blue-100 text-blue-700',
               },
               {
                 label: 'Đi muộn',
-                value: `${lateDays} ngày`,
-                icon: <Timer className="h-5 w-5" />,
+                value: `${lateDays}`,
+                unit: 'ngày',
+                icon: <Timer className="h-4 w-4 sm:h-5 sm:w-5" />,
                 tone: 'bg-amber-100 text-amber-700',
               },
               {
                 label: 'Tăng ca',
-                value: formatHours(overtimeHours),
-                icon: <TrendingUp className="h-5 w-5" />,
+                value: `${overtimeHours.toFixed(1)}`,
+                unit: 'giờ',
+                icon: <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />,
                 tone: 'bg-sky-100 text-sky-700',
               },
             ].map((card) => (
-              <div key={card.label} className="rounded-2xl border border-white/70 bg-white p-5 shadow-sm">
+              <div key={card.label} className="rounded-xl sm:rounded-2xl border border-white/70 bg-white p-3 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-500">{card.label}</p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">{card.value}</p>
+                    <p className="text-xs sm:text-sm font-medium text-slate-500">{card.label}</p>
+                    <p className="mt-1 sm:mt-2 text-lg sm:text-2xl font-bold text-slate-900">
+                      {card.value} <span className="text-xs sm:text-sm font-normal text-slate-500">{card.unit}</span>
+                    </p>
                   </div>
-                  <div className={`rounded-2xl p-3 ${card.tone}`}>
+                  <div className={`rounded-xl sm:rounded-2xl p-2 sm:p-3 ${card.tone}`}>
                     {card.icon}
                   </div>
                 </div>
@@ -448,9 +454,9 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
             ))}
           </div>
 
-          <div className="mt-6 rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="mt-4 sm:mt-6 rounded-2xl sm:rounded-3xl border border-slate-200 bg-white shadow-sm">
             {/* Calendar header with month navigation */}
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4">
               <button
                 type="button"
                 onClick={() => navigateMonth(-1)}
@@ -524,19 +530,19 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                           }
                         }}
                         className={[
-                          'flex min-h-[48px] flex-col items-center justify-start rounded-xl p-1 transition sm:min-h-[64px]',
+                          'flex min-h-[40px] flex-col items-center justify-start rounded-lg sm:rounded-xl p-1 transition sm:min-h-[64px]',
                           !inMonth ? 'opacity-20' : '',
                           inMonth ? 'cursor-pointer hover:bg-slate-100' : 'cursor-default',
                           isSelected ? 'bg-blue-50 ring-2 ring-blue-500' : '',
-                          isToday && !isSelected ? 'ring-2 ring-blue-400 bg-blue-50/30' : '',
+                          isToday && !isSelected ? 'ring-2 ring-emerald-400 bg-emerald-50/40' : '',
                         ].filter(Boolean).join(' ')}
                         aria-label={dateStr}
                       >
-                        <span className={`mt-1 text-sm font-medium leading-none ${isToday ? 'text-blue-600 font-bold' : inMonth ? 'text-slate-700' : 'text-slate-400'}`}>
+                        <span className={`mt-1 text-sm font-medium leading-none ${isToday ? 'text-emerald-600 font-bold' : inMonth ? 'text-slate-700' : 'text-slate-400'}`}>
                           {dayNum}
                         </span>
                         {isToday && !isSelected && (
-                          <span className="text-[9px] font-semibold text-blue-500 leading-none">nay</span>
+                          <span className="text-[9px] font-semibold text-emerald-500 leading-none">nay</span>
                         )}
                         <div className="mt-1 flex flex-wrap justify-center gap-0.5">
                           {dots.map((status) => (
