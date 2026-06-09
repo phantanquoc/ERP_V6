@@ -325,7 +325,7 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
     {/* File Preview Modal */}
     <Modal isOpen={!!previewFileUrl} onClose={() => setPreviewFileUrl(null)} showBackdrop closeOnBackdrop={true}>
       {previewFileUrl && (
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl flex flex-col h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
             <h3 className="text-sm font-medium text-gray-700 truncate flex-1">{getFileName(previewFileUrl)}</h3>
             <div className="flex items-center gap-2">
@@ -338,7 +338,7 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0">
             {previewFileUrl.toLowerCase().endsWith('.pdf') ? (
               <iframe src={`${getFullFileUrl(previewFileUrl)}#toolbar=0`} className="w-full h-full border-0" title="PDF Preview" />
             ) : previewFileUrl.match(/\.(jpg|jpeg|png|gif)$/i) ? (
