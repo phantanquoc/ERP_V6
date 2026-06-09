@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import machineSystemController from '@controllers/machineSystemController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
-import { UserRole } from '@types';
+import { requireTechnicalAccess, TECHNICAL_SUB_DEPARTMENT_CODES } from './technicalAccess';
 
 const router = Router();
 const upload = createSingleUploadMiddleware('machine-systems');
+const technicalAccess = requireTechnicalAccess(TECHNICAL_SUB_DEPARTMENT_CODES.QLHTM);
 
 router.use(authenticate);
 
@@ -15,8 +16,8 @@ router.get('/', machineSystemController.getAll.bind(machineSystemController));
 router.get('/export/excel', machineSystemController.exportExcel.bind(machineSystemController));
 router.get('/:id', machineSystemController.getById.bind(machineSystemController));
 router.get('/:id/machines', machineSystemController.getMachinesForSystem.bind(machineSystemController));
-router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), upload, machineSystemController.create.bind(machineSystemController));
-router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), upload, machineSystemController.update.bind(machineSystemController));
-router.delete('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), machineSystemController.remove.bind(machineSystemController));
+router.post('/', technicalAccess, upload, machineSystemController.create.bind(machineSystemController));
+router.put('/:id', technicalAccess, upload, machineSystemController.update.bind(machineSystemController));
+router.delete('/:id', technicalAccess, machineSystemController.remove.bind(machineSystemController));
 
 export default router;
