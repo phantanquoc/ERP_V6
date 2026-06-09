@@ -6,15 +6,15 @@ import { requireTechnicalAccess, TECHNICAL_SUB_DEPARTMENT_CODES } from './techni
 
 const router = Router();
 const upload = createSingleUploadMiddleware('fault-templates');
-const mechanicalAccess = requireTechnicalAccess(TECHNICAL_SUB_DEPARTMENT_CODES.MECHANICAL);
+const technicalAccess = requireTechnicalAccess(TECHNICAL_SUB_DEPARTMENT_CODES.MECHANICAL);
 
 router.use(authenticate);
 
-router.get('/', mechanicalAccess, faultTemplateController.list.bind(faultTemplateController));
-router.get('/:id', mechanicalAccess, faultTemplateController.getById.bind(faultTemplateController));
-router.post('/', mechanicalAccess, upload, faultTemplateController.create.bind(faultTemplateController));
-router.put('/:id', mechanicalAccess, upload, faultTemplateController.update.bind(faultTemplateController));
-router.patch('/:id/deactivate', mechanicalAccess, faultTemplateController.deactivate.bind(faultTemplateController));
-router.delete('/:id', mechanicalAccess, faultTemplateController.remove.bind(faultTemplateController));
+router.get('/', technicalAccess, faultTemplateController.list.bind(faultTemplateController));
+router.get('/:id', technicalAccess, faultTemplateController.getById.bind(faultTemplateController));
+router.post('/', technicalAccess, upload, faultTemplateController.create.bind(faultTemplateController));
+router.put('/:id', technicalAccess, upload, faultTemplateController.update.bind(faultTemplateController));
+router.patch('/:id/deactivate', technicalAccess, faultTemplateController.deactivate.bind(faultTemplateController));
+router.delete('/:id', technicalAccess, faultTemplateController.remove.bind(faultTemplateController));
 
 export default router;
