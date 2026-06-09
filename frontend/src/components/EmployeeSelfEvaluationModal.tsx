@@ -305,30 +305,30 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header — shrink-0, outside scroll */}
-        <div className="px-6 pt-6 pb-4 border-b border-gray-200 shrink-0">
+        <div className="px-4 pt-4 pb-3 sm:px-6 sm:pt-6 sm:pb-4 border-b border-gray-200 shrink-0">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-lg font-bold text-gray-800">Đánh giá nhân viên</h3>
-              <p className="text-sm text-gray-600 mt-1">Xem và cập nhật đánh giá của bạn</p>
+              <h3 className="text-base sm:text-lg font-bold text-gray-800">Đánh giá nhân viên</h3>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1 hidden sm:block">Xem và cập nhật đánh giá của bạn</p>
             </div>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
         </div>
         {/* Body — scrollable */}
-        <div className="overflow-y-auto flex-1 px-6 py-5">
+        <div className="overflow-y-auto flex-1 min-h-0 px-4 py-4 sm:px-6 sm:py-5">
           {/* Tabs */}
-          <div className="flex gap-4 mb-6 border-b border-gray-200">
+          <div className="flex gap-1 sm:gap-4 mb-4 sm:mb-6 border-b border-gray-200">
             {!isAdmin && (
               <button
                 onClick={() => setActiveTab('self')}
-                className={`px-4 py-2 font-medium text-sm transition-colors ${
+                className={`px-3 py-2 sm:px-4 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap ${
                   activeTab === 'self'
                     ? 'text-blue-600 border-b-2 border-blue-600'
                     : 'text-gray-600 hover:text-gray-800'
@@ -345,39 +345,39 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                   setSubordinateEvaluation(null);
                   setSubordinateEditingScores({});
                 }}
-                className={`px-4 py-2 font-medium text-sm transition-colors ${
+                className={`px-3 py-2 sm:px-4 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap ${
                   activeTab === 'subordinate'
                     ? 'text-blue-600 border-b-2 border-blue-600'
                     : 'text-gray-600 hover:text-gray-800'
                 }`}
               >
-                Đánh giá cấp dưới
+                Cấp dưới
               </button>
             )}
             <button
               onClick={() => setActiveTab('history')}
-              className={`px-4 py-2 font-medium text-sm transition-colors ${
+              className={`px-3 py-2 sm:px-4 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'history'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:text-gray-800'
               }`}
             >
-              Lịch sử đánh giá
+              Lịch sử
             </button>
           </div>
 
           {/* Error Message */}
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{error}</p>
+            <div className="mb-3 sm:mb-4 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 sm:gap-3">
+              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs sm:text-sm text-red-700">{error}</p>
             </div>
           )}
 
           {/* Success Message */}
           {success && (
-            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm text-green-700">{success}</p>
+            <div className="mb-3 sm:mb-4 p-3 sm:p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-xs sm:text-sm text-green-700">{success}</p>
             </div>
           )}
 
@@ -394,54 +394,54 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                 <>
                   {/* SUGGESTION fix: show locked message when status is past SELF_PENDING */}
                   {selfEvalLocked && (
-                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-blue-700">Bạn đã hoàn thành tự đánh giá. Điểm tự đánh giá không thể thay đổi.</p>
+                    <div className="mb-3 sm:mb-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2 sm:gap-3">
+                      <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs sm:text-sm text-blue-700">Bạn đã hoàn thành tự đánh giá. Điểm không thể thay đổi.</p>
                     </div>
                   )}
 
                   {/* Acknowledge button when status is COMPLETED */}
                   {evaluationStatus === 'COMPLETED' && (
-                    <div className="mb-4 flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <p className="text-sm text-green-800">Đánh giá đã hoàn thành. Bấm xác nhận để ghi nhận bạn đã xem kết quả.</p>
+                    <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 p-3 sm:p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-xs sm:text-sm text-green-800">Đánh giá đã hoàn thành. Bấm xác nhận để ghi nhận.</p>
                       <button
                         onClick={handleAcknowledge}
                         disabled={acknowledging}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-sm font-medium shadow-sm"
+                        className="inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 text-xs sm:text-sm font-medium shadow-sm whitespace-nowrap"
                       >
-                        <CheckCircle className="w-4 h-4" />
-                        {acknowledging ? 'Đang xác nhận...' : 'Xác nhận đã xem'}
+                        <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        {acknowledging ? 'Đang xác nhận...' : 'Xác nhận'}
                       </button>
                     </div>
                   )}
 
                   {/* Acknowledged badge */}
                   {evaluationStatus === 'ACKNOWLEDGED' && (
-                    <div className="mb-4 flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                      <span className="text-sm font-medium text-green-700">Đã xác nhận — Bạn đã xem kết quả đánh giá này</span>
+                    <div className="mb-3 sm:mb-4 flex items-center gap-2 p-2.5 sm:p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
+                      <span className="text-xs sm:text-sm font-medium text-green-700">Đã xác nhận xem kết quả</span>
                     </div>
                   )}
 
                   {/* Rubric guide — collapsible */}
                   {!selfEvalLocked && (
-                    <div className="mb-4">
+                    <div className="mb-3 sm:mb-4">
                       <button
                         onClick={() => setShowRubric(r => !r)}
-                        className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                        className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium"
                       >
-                        <Info className="w-4 h-4" />
-                        {showRubric ? 'Ẩn hướng dẫn thang điểm' : 'Xem hướng dẫn thang điểm'}
+                        <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        {showRubric ? 'Ẩn hướng dẫn' : 'Hướng dẫn thang điểm'}
                       </button>
                       {showRubric && (
-                        <div className="mt-2 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                          <p className="font-semibold text-blue-800 mb-2">Hướng dẫn chấm điểm (0-100):</p>
-                          <ul className="space-y-1 text-blue-700">
-                            <li><strong>1-20 — Không đạt:</strong> Chưa hoàn thành nhiệm vụ</li>
-                            <li><strong>21-40 — Cần cải thiện:</strong> Hoàn thành dưới 50%</li>
-                            <li><strong>41-60 — Đạt yêu cầu:</strong> Hoàn thành 50-75%</li>
-                            <li><strong>61-80 — Tốt:</strong> Hoàn thành 75-95%</li>
-                            <li><strong>81-100 — Xuất sắc:</strong> Hoàn thành trên 95%, có sáng kiến</li>
+                        <div className="mt-2 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg text-xs sm:text-sm">
+                          <p className="font-semibold text-blue-800 mb-1.5 sm:mb-2">Chấm điểm (0-100):</p>
+                          <ul className="space-y-0.5 sm:space-y-1 text-blue-700">
+                            <li><strong>1-20:</strong> Không đạt</li>
+                            <li><strong>21-40:</strong> Cần cải thiện</li>
+                            <li><strong>41-60:</strong> Đạt yêu cầu</li>
+                            <li><strong>61-80:</strong> Tốt</li>
+                            <li><strong>81-100:</strong> Xuất sắc</li>
                           </ul>
                         </div>
                       )}
@@ -458,20 +458,20 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                     }).length;
                     const pct = total > 0 ? Math.round((scored / total) * 100) : 0;
                     return (
-                      <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-gray-50 border border-gray-200 rounded-lg">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm text-gray-700">
-                            Đã chấm <strong>{scored}/{total}</strong> tiêu chí
+                          <span className="text-xs sm:text-sm text-gray-700">
+                            Đã chấm <strong>{scored}/{total}</strong>
                           </span>
                           {previousPeriodScore !== null && (
                             <span className="text-xs text-gray-500">
-                              Tham khảo — Kỳ trước: <strong>{previousPeriodScore.toFixed(1)}%</strong>
+                              Kỳ trước: <strong>{previousPeriodScore.toFixed(1)}%</strong>
                             </span>
                           )}
                         </div>
-                        <div className="w-full bg-blue-200 rounded-full h-2">
+                        <div className="w-full bg-blue-200 rounded-full h-1.5 sm:h-2">
                           <div
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            className="bg-blue-600 h-1.5 sm:h-2 rounded-full transition-all duration-300"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -479,44 +479,27 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                     );
                   })()}
 
-                   {/* Evaluation Details Table */}
-                   <div className="overflow-x-auto mb-6">
+                   {/* Evaluation Details */}
+                   <div className="mb-4 sm:mb-6">
                      {details.length === 0 ? (
-                       <div className="text-center py-8 text-gray-500">
-                         <p className="text-sm">Chưa có tiêu chí đánh giá. Vui lòng liên hệ quản lý để cập nhật vị trí và trách nhiệm.</p>
+                       <div className="text-center py-6 sm:py-8 text-gray-500">
+                         <p className="text-xs sm:text-sm">Chưa có tiêu chí đánh giá. Vui lòng liên hệ quản lý.</p>
                        </div>
                      ) : (
-                     <table className="w-full text-sm">
-                       <thead>
-                         <tr className="bg-gray-50 border-b border-gray-200">
-                           <th className="px-4 py-3 text-left font-semibold text-gray-700">STT</th>
-                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Tiêu chí đánh giá</th>
-                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Trọng số (%)</th>
-                           <th className="px-4 py-3 text-left font-semibold text-gray-700">Tự đánh giá (0-100)</th>
-                           {details.some(d => d.supervisorScore1 != null) && (
-                             <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                               {supervisor1Name || 'Cấp trên 1'}
-                             </th>
-                           )}
-                           {details.some(d => d.supervisorScore2 != null) && (
-                             <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                               {supervisor2Name || 'Cấp trên 2'}
-                             </th>
-                           )}
-                         </tr>
-                       </thead>
-                      <tbody>
+                     <>
+                       {/* Mobile: Card layout */}
+                       <div className="sm:hidden space-y-3">
                          {details.map((detail, index) => (
-                           <tr key={detail.detailId ?? detail.responsibilityId ?? `detail-${index}`} className="border-b border-gray-200 hover:bg-gray-50">
-                            <td className="px-4 py-3 text-gray-700">{index + 1}</td>
-                            <td className="px-4 py-3">
-                              <div>
-                                <p className="font-medium text-gray-900">{detail.title}</p>
-                                <p className="text-xs text-gray-600 mt-1">{detail.description}</p>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-gray-700">{detail.weight}%</td>
-                             <td className="px-4 py-3">
+                           <div key={detail.detailId ?? detail.responsibilityId ?? `detail-${index}`} className="border border-gray-200 rounded-lg p-3 bg-white">
+                             <div className="flex items-start justify-between gap-2 mb-2">
+                               <div className="flex-1 min-w-0">
+                                 <p className="text-sm font-medium text-gray-900">{index + 1}. {detail.title}</p>
+                                 {detail.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{detail.description}</p>}
+                               </div>
+                               <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">{detail.weight}%</span>
+                             </div>
+                             <div className="flex items-center gap-3">
+                               <label className="text-xs text-gray-600 shrink-0">Điểm:</label>
                                <input
                                  type="number"
                                  min="0"
@@ -524,43 +507,103 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                                  disabled={selfEvalLocked}
                                  value={editingScores[getDetailKey(detail)] ?? detail.selfScore ?? ''}
                                  onChange={(e) => handleScoreChange(getDetailKey(detail), parseNumberInput(e.target.value))}
-                                className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                  selfEvalLocked
-                                    ? 'border-gray-200 bg-gray-100 cursor-not-allowed text-gray-500'
-                                    : 'border-gray-300'
-                                }`}
-                                placeholder="0-100"
+                                 className={`w-16 px-2 py-1 border rounded text-sm text-center ${
+                                   selfEvalLocked
+                                     ? 'border-gray-200 bg-gray-100 cursor-not-allowed text-gray-500'
+                                     : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500'
+                                 }`}
+                                 placeholder="0-100"
                                />
-                            </td>
-                            {details.some(d => d.supervisorScore1 != null) && (
-                              <td className="px-4 py-3 text-center text-gray-700">
-                                {detail.supervisorScore1 != null ? detail.supervisorScore1 : '-'}
-                              </td>
-                            )}
-                            {details.some(d => d.supervisorScore2 != null) && (
-                              <td className="px-4 py-3 text-center text-gray-700">
-                                {detail.supervisorScore2 != null ? detail.supervisorScore2 : '-'}
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                       </tbody>
-                     </table>
+                               {details.some(d => d.supervisorScore1 != null) && (
+                                 <span className="text-xs text-gray-500">CT1: {detail.supervisorScore1 ?? '-'}</span>
+                               )}
+                               {details.some(d => d.supervisorScore2 != null) && (
+                                 <span className="text-xs text-gray-500">CT2: {detail.supervisorScore2 ?? '-'}</span>
+                               )}
+                             </div>
+                           </div>
+                         ))}
+                       </div>
+
+                       {/* Desktop: Table layout */}
+                       <div className="hidden sm:block overflow-x-auto">
+                         <table className="w-full text-sm">
+                           <thead>
+                             <tr className="bg-gray-50 border-b border-gray-200">
+                               <th className="px-4 py-3 text-left font-semibold text-gray-700">STT</th>
+                               <th className="px-4 py-3 text-left font-semibold text-gray-700">Tiêu chí đánh giá</th>
+                               <th className="px-4 py-3 text-left font-semibold text-gray-700">Trọng số</th>
+                               <th className="px-4 py-3 text-left font-semibold text-gray-700">Tự đánh giá</th>
+                               {details.some(d => d.supervisorScore1 != null) && (
+                                 <th className="px-4 py-3 text-center font-semibold text-gray-700">
+                                   {supervisor1Name || 'Cấp trên 1'}
+                                 </th>
+                               )}
+                               {details.some(d => d.supervisorScore2 != null) && (
+                                 <th className="px-4 py-3 text-center font-semibold text-gray-700">
+                                   {supervisor2Name || 'Cấp trên 2'}
+                                 </th>
+                               )}
+                             </tr>
+                           </thead>
+                           <tbody>
+                             {details.map((detail, index) => (
+                               <tr key={detail.detailId ?? detail.responsibilityId ?? `detail-${index}`} className="border-b border-gray-200 hover:bg-gray-50">
+                                 <td className="px-4 py-3 text-gray-700">{index + 1}</td>
+                                 <td className="px-4 py-3">
+                                   <div>
+                                     <p className="font-medium text-gray-900">{detail.title}</p>
+                                     <p className="text-xs text-gray-600 mt-1">{detail.description}</p>
+                                   </div>
+                                 </td>
+                                 <td className="px-4 py-3 text-gray-700">{detail.weight}%</td>
+                                 <td className="px-4 py-3">
+                                   <input
+                                     type="number"
+                                     min="0"
+                                     max="100"
+                                     disabled={selfEvalLocked}
+                                     value={editingScores[getDetailKey(detail)] ?? detail.selfScore ?? ''}
+                                     onChange={(e) => handleScoreChange(getDetailKey(detail), parseNumberInput(e.target.value))}
+                                     className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                       selfEvalLocked
+                                         ? 'border-gray-200 bg-gray-100 cursor-not-allowed text-gray-500'
+                                         : 'border-gray-300'
+                                     }`}
+                                     placeholder="0-100"
+                                   />
+                                 </td>
+                                 {details.some(d => d.supervisorScore1 != null) && (
+                                   <td className="px-4 py-3 text-center text-gray-700">
+                                     {detail.supervisorScore1 != null ? detail.supervisorScore1 : '-'}
+                                   </td>
+                                 )}
+                                 {details.some(d => d.supervisorScore2 != null) && (
+                                   <td className="px-4 py-3 text-center text-gray-700">
+                                     {detail.supervisorScore2 != null ? detail.supervisorScore2 : '-'}
+                                   </td>
+                                 )}
+                               </tr>
+                             ))}
+                           </tbody>
+                         </table>
+                       </div>
+                     </>
                      )}
                    </div>
 
                    {/* Summary + Save All */}
                    {!selfEvalLocked && (
-                     <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                       <p className="text-sm text-blue-800">
-                         <strong>Hướng dẫn:</strong> Nhập điểm 0-100 cho mỗi tiêu chí, sau đó bấm <strong>Lưu tất cả</strong>.
+                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+                       <p className="text-xs sm:text-sm text-blue-800">
+                         Nhập điểm 0-100 cho mỗi tiêu chí, sau đó bấm <strong>Lưu tất cả</strong>.
                        </p>
                        <button
                          onClick={() => setConfirmDialog({ open: true, type: 'self' })}
                          disabled={saving || Object.keys(editingScores).length === 0}
-                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium shadow-sm"
+                         className="inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-xs sm:text-sm font-medium shadow-sm whitespace-nowrap"
                        >
-                         <Save className="w-4 h-4" />
+                         <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                          Lưu tất cả
                        </button>
                      </div>
@@ -585,13 +628,13 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                   )}
 
                   {selectedSubordinate && subordinateEvaluation && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between mb-2">
+                    <div className="space-y-3 sm:space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                         <div>
-                          <p className="font-semibold text-gray-900">
+                          <p className="text-sm sm:text-base font-semibold text-gray-900">
                             {subordinateEvaluation.employeeCode} - {subordinateEvaluation.employeeName}
                           </p>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-xs sm:text-sm text-gray-600">
                             {subordinateEvaluation.positionName} · {formatPeriod(subordinateEvaluation.period)}
                           </p>
                         </div>
@@ -601,9 +644,9 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                             setSubordinateEvaluation(null);
                             setSubordinateEditingScores({});
                           }}
-                          className="text-sm text-blue-600 hover:text-blue-800"
+                          className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 self-start sm:self-auto"
                         >
-                          ← Quay lại danh sách
+                          ← Quay lại
                         </button>
                       </div>
 
@@ -616,8 +659,8 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                         return (
                           <>
                             {isReadOnly && (
-                              <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
-                                <CheckCircle className="w-4 h-4 text-green-500" />
+                              <div className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs sm:text-sm text-gray-600">
+                                <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500 shrink-0" />
                                 {evalStatus === 'COMPLETED'
                                   ? 'Đánh giá đã hoàn thành. Không thể chỉnh sửa.'
                                   : evalStatus === 'SELF_PENDING'
@@ -630,7 +673,67 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                               </div>
                             )}
 
-                            <div className="overflow-x-auto">
+                            {/* Mobile: Card layout for subordinate eval */}
+                            <div className="sm:hidden space-y-3">
+                              {subordinateEvaluation.details.map(detail => {
+                                const detailId = detail.detailId || '';
+                                return (
+                                  <div key={detail.detailId || detail.responsibilityId} className="border border-gray-200 rounded-lg p-3 bg-white">
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-900">{detail.stt}. {detail.title}</p>
+                                        {detail.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{detail.description}</p>}
+                                      </div>
+                                      <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">{detail.weight}%</span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2 text-xs">
+                                      <div>
+                                        <span className="text-gray-500">Tự ĐG:</span>
+                                        <span className="ml-1 font-medium">{detail.selfScore ?? '-'}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500">CT1:</span>
+                                        {canEditSup1 ? (
+                                          <input
+                                            type="number" min="0" max="100"
+                                            value={subordinateEditingScores[detailId]?.supervisorScore1 ?? detail.supervisorScore1 ?? ''}
+                                            onChange={(e) => detail.detailId && handleSubordinateScoreChange(detail.detailId, 'supervisorScore1', parseNumberInput(e.target.value))}
+                                            className="w-12 ml-1 px-1 py-0.5 border border-gray-300 rounded text-xs text-center"
+                                          />
+                                        ) : (
+                                          <span className="ml-1 font-medium">{detail.supervisorScore1 ?? '-'}</span>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500">CT2:</span>
+                                        {canEditSup2 ? (
+                                          <input
+                                            type="number" min="0" max="100"
+                                            value={subordinateEditingScores[detailId]?.supervisorScore2 ?? detail.supervisorScore2 ?? ''}
+                                            onChange={(e) => detail.detailId && handleSubordinateScoreChange(detail.detailId, 'supervisorScore2', parseNumberInput(e.target.value))}
+                                            className="w-12 ml-1 px-1 py-0.5 border border-gray-300 rounded text-xs text-center"
+                                          />
+                                        ) : (
+                                          <span className="ml-1 font-medium">{detail.supervisorScore2 ?? '-'}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {(canEditSup1 || canEditSup2) && (
+                                      <textarea
+                                        rows={1}
+                                        value={detail.detailId ? (subordinateComments[detail.detailId] ?? '') : ''}
+                                        onChange={(e) => detail.detailId && handleSubordinateCommentChange(detail.detailId, e.target.value)}
+                                        placeholder="Nhận xét"
+                                        className="mt-2 w-full px-2 py-1 border border-gray-300 rounded text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Desktop: Table layout for subordinate eval */}
+                            <div className="hidden sm:block overflow-x-auto">
                               <table className="w-full text-sm border-collapse">
                                 <thead>
                                   <tr className="bg-gray-50 border-b border-gray-200">
@@ -784,8 +887,54 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
               {activeTab === 'history' && (
                 <>
                   {/* History Tab */}
-                  <div className="overflow-x-auto">
+                  <div>
                     {history.length > 0 ? (
+                    <>
+                      {/* Mobile: Card layout */}
+                      <div className="sm:hidden space-y-3">
+                        {history.map((item) => (
+                          <div key={item.evaluationId} className="border border-gray-200 rounded-lg p-3 bg-white">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{formatPeriod(item.period)}</p>
+                                <p className="text-xs text-gray-500">{new Date(item.updatedAt).toLocaleDateString('vi-VN')}</p>
+                              </div>
+                              {item.status === 'COMPLETED' ? (
+                                <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">Hoàn thành</span>
+                              ) : item.status === 'ACKNOWLEDGED' ? (
+                                <span className="px-2 py-0.5 text-xs font-medium bg-teal-100 text-teal-700 rounded">Đã xác nhận</span>
+                              ) : (
+                                <span className="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded">Đang ĐG</span>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Tự ĐG:</span>
+                                <span className="font-bold text-blue-600">{item.selfScore.toFixed(1)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Tổng:</span>
+                                <span className="font-bold text-green-600">{item.score > 0 ? item.score.toFixed(1) : '-'}</span>
+                              </div>
+                              {item.supervisorScore1 != null && (
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">CT1:</span>
+                                  <span className="font-semibold text-orange-600">{item.supervisorScore1.toFixed(1)}</span>
+                                </div>
+                              )}
+                              {item.supervisorScore2 != null && (
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">CT2:</span>
+                                  <span className="font-semibold text-purple-600">{item.supervisorScore2.toFixed(1)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Desktop: Table layout */}
+                      <div className="hidden sm:block overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-gray-50 border-b border-gray-200">
@@ -855,9 +1004,11 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                           ))}
                         </tbody>
                       </table>
+                      </div>
+                    </>
                     ) : (
-                      <div className="text-center py-8">
-                        <p className="text-gray-600">Chưa có lịch sử đánh giá</p>
+                      <div className="text-center py-6 sm:py-8">
+                        <p className="text-sm text-gray-600">Chưa có lịch sử đánh giá</p>
                       </div>
                     )}
                   </div>
@@ -865,10 +1016,10 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
               )}
 
               {/* Close Button */}
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="flex justify-end gap-3 mt-4 sm:mt-6">
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  className="px-3 py-1.5 sm:px-4 sm:py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
                 >
                   Đóng
                 </button>
