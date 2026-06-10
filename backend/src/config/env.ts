@@ -24,7 +24,7 @@ export const env = {
   API_URL: process.env.API_URL || 'http://localhost:5000',
   DATABASE_URL: getRequiredEnv('DATABASE_URL'),
   JWT_SECRET: getRequiredEnv('JWT_SECRET', DEV_JWT_SECRET),
-  JWT_EXPIRE: process.env.JWT_EXPIRE || '7d',
+  JWT_EXPIRE: process.env.JWT_EXPIRE || '30m',
   JWT_REFRESH_SECRET: getRequiredEnv('JWT_REFRESH_SECRET', DEV_JWT_REFRESH_SECRET),
   JWT_REFRESH_EXPIRE: process.env.JWT_REFRESH_EXPIRE || '30d',
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5173',
