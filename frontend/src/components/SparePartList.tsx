@@ -66,8 +66,10 @@ const SparePartList = () => {
     ngayMua: '',
   });
 
-  const canWrite = user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead';
-  const canDelete = user?.role === 'admin' || user?.role === 'department_head';
+  const isTechnical = user?.department === 'technical' ||
+    user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
+  const canWrite = user?.role === 'admin' || isTechnical;
+  const canDelete = user?.role === 'admin' || isTechnical;
 
   useEffect(() => { fetchParts(); }, [currentPage, filterLoai, filterTrangThai]);
 
