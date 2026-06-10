@@ -84,13 +84,15 @@ class PurchaseRequestService {
         },
         include: {
           employee: {
-            include: {
-              user: true,
-              position: true,
+            select: {
+              id: true,
+              employeeCode: true,
+              user: { select: { firstName: true, lastName: true, email: true } },
+              position: { select: { name: true } },
             },
           },
-          supplyRequest: true,
-          supplier: true,
+          supplyRequest: { select: { id: true, maYeuCau: true, trangThai: true } },
+          supplier: { select: { id: true, tenNhaCungCap: true, maNhaCungCap: true } },
           items: { include: { supplier: true } },
         },
       }),

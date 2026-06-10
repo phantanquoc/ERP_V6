@@ -74,14 +74,18 @@ class SupplyRequestService {
         },
         include: {
           employee: {
-            include: {
-              user: true,
-              position: true,
+            select: {
+              id: true,
+              employeeCode: true,
+              user: {
+                select: { firstName: true, lastName: true, email: true },
+              },
+              position: { select: { name: true } },
             },
           },
           items: true,
-          purchaseRequests: true,
-          warehouseReceipts: true,
+          purchaseRequests: { select: { id: true, maYeuCau: true, trangThai: true } },
+          warehouseReceipts: { select: { id: true, maPhieuNhap: true } },
         },
       }),
       prisma.supplyRequest.count({ where }),
