@@ -45,6 +45,11 @@ import invoiceService from "../services/invoiceService";
 import debtService from "../services/debtService";
 import generalCostService from "../services/generalCostService";
 import machineService from "../services/machineService";
+import machineSystemService from "../services/machineSystemService";
+import repairRequestService from "../services/repairRequestService";
+import faultRecordService from "../services/faultRecordService";
+import sparePartService from "../services/sparePartService";
+import projectService from "../services/projectService";
 import finishedProductService from "../services/finishedProductService";
 import { supplierService } from "../services/supplierService";
 import supplyRequestService from "../services/supplyRequestService";
@@ -128,7 +133,7 @@ const DepartmentCard: React.FC<{
     className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer border border-gray-100 hover:border-gray-200"
   >
     {/* Header with accent bar */}
-    <div className="p-4 rounded-t-xl relative overflow-hidden">
+    <div className="p-3 rounded-t-xl relative overflow-hidden">
       <div className={`absolute top-0 left-0 w-full h-1 ${department.color}`}></div>
       <div className="flex items-center justify-between text-gray-700 pt-1">
         <div className="flex items-center space-x-3">
@@ -147,18 +152,18 @@ const DepartmentCard: React.FC<{
     </div>
 
     {/* Stats Grid */}
-    <div className="p-4 pt-2">
-      <div className={`grid gap-3 ${isFullWidth ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2'}`}>
+    <div className="p-3 pt-1">
+      <div className={`grid gap-3 ${isFullWidth ? 'grid-cols-2' : 'grid-cols-2'}`}>
         {department.stats.map((stat: any, index: number) => (
           <div
             key={index}
-            className={`text-center p-3 rounded-xl bg-gray-50 ${stat.link ? 'cursor-pointer hover:bg-blue-50 hover:shadow-sm transition-all duration-200' : ''}`}
+            className={`text-center p-2 rounded-lg bg-gray-50 ${stat.link ? 'cursor-pointer hover:bg-blue-50 hover:shadow-sm transition-all duration-200' : ''}`}
             onClick={stat.link ? (e: React.MouseEvent) => {
               e.stopPropagation();
               onStatClick(stat.link);
             } : undefined}
           >
-            <div className="text-2xl font-bold text-gray-800 tabular-nums leading-none">{stat.value}</div>
+            <div className="text-lg font-bold text-gray-800 tabular-nums leading-none">{stat.value}</div>
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mt-1.5">{stat.label}</div>
           </div>
         ))}
@@ -173,11 +178,11 @@ const QuickStatCard: React.FC<{
   onClick?: () => void;
 }> = ({ stat, onClick }) => (
   <div
-    className={`bg-white rounded-xl shadow-sm px-4 py-3.5 border border-gray-100 ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 hover:scale-[1.02] transition-all duration-200' : ''} relative`}
+    className={`bg-white rounded-lg shadow-sm px-3 py-2.5 border border-gray-100 ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 hover:scale-[1.02] transition-all duration-200' : ''} relative`}
     onClick={stat.clickable ? onClick : undefined}
   >
     <div className="flex items-center gap-3">
-      <div className={`p-2.5 rounded-xl ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0`}>
+      <div className={`p-2 rounded-lg ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0`}>
         {stat.icon}
       </div>
       <div className="min-w-0 flex-1">
@@ -185,7 +190,7 @@ const QuickStatCard: React.FC<{
           <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">{stat.label}</span>
         </div>
         <div className="flex items-baseline gap-2 mt-0.5">
-          <span className={`text-2xl font-bold leading-none tabular-nums ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</span>
+          <span className={`text-xl font-bold leading-none tabular-nums ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</span>
         </div>
         <p className={`text-[11px] font-medium ${stat.color} truncate mt-1`}>{stat.change}</p>
       </div>
@@ -325,6 +330,36 @@ const Dashboard1: React.FC = () => {
     enabled: canSeeStats,
   });
 
+  const { data: machineSystemsData } = useQuery({
+    queryKey: ['dashboard', 'machineSystems'],
+    queryFn: () => machineSystemService.getMachineSystems({ page: 1, limit: 10000 }),
+    enabled: canSeeStats,
+  });
+
+  const { data: repairRequestsData } = useQuery({
+    queryKey: ['dashboard', 'repairRequests'],
+    queryFn: () => repairRequestService.getAll({ page: 1, limit: 10000 }),
+    enabled: canSeeStats,
+  });
+
+  const { data: faultRecordsData } = useQuery({
+    queryKey: ['dashboard', 'faultRecords'],
+    queryFn: () => faultRecordService.getAll({ page: 1, limit: 10000 }),
+    enabled: canSeeStats,
+  });
+
+  const { data: sparePartsData } = useQuery({
+    queryKey: ['dashboard', 'spareParts'],
+    queryFn: () => sparePartService.getAll({ page: 1, limit: 10000 }),
+    enabled: canSeeStats,
+  });
+
+  const { data: projectsData } = useQuery({
+    queryKey: ['dashboard', 'projects'],
+    queryFn: () => projectService.getAll({ page: 1, limit: 10000 }),
+    enabled: canSeeStats,
+  });
+
   const { data: finishedProductsData } = useQuery({
     queryKey: ['dashboard', 'finishedProducts'],
     queryFn: () => finishedProductService.getAllFinishedProducts(1, 10000),
@@ -389,6 +424,11 @@ const Dashboard1: React.FC = () => {
   const debtSummary = debtSummaryData?.data?.data || debtSummaryData?.data || {};
   const taxReports = taxReportsData?.data || [];
   const machines = machinesData?.data || [];
+  const machineSystems = machineSystemsData?.data || [];
+  const repairRequests = repairRequestsData?.data || [];
+  const faultRecords = faultRecordsData?.data || [];
+  const spareParts = sparePartsData?.data || [];
+  const projects = projectsData?.data || [];
   const finishedProducts = finishedProductsData?.data || [];
   const suppliers = suppliersData?.data || [];
   const supplyRequests = supplyRequestsData?.data || [];
@@ -547,10 +587,12 @@ const Dashboard1: React.FC = () => {
       icon: <Wrench className="h-6 w-6" />,
       color: "bg-rose-400",
       stats: [
-        { label: "Máy móc", value: machines.length.toString(), link: "/production/management?tab=machines" },
-        { label: "Bảo trì", value: machines.filter((m: any) => m.trangThai === 'BẢO_TRÌ').length.toString(), link: "/production/management?tab=machines" },
-        { label: "Hoạt động", value: machines.filter((m: any) => m.trangThai === 'HOAT_DONG').length.toString(), link: "/production/management?tab=machines" },
-        { label: "Ngừng", value: machines.filter((m: any) => m.trangThai === 'NGỪNG_HOẠT_ĐỘNG').length.toString(), link: "/production/management?tab=machines" }
+        { label: "Hệ thống máy", value: machineSystems.length.toString(), link: "/technical/quality?tab=machineSystems" },
+        { label: "Yêu cầu sửa chữa", value: repairRequests.length.toString(), link: "/technical/quality?tab=repairRequests" },
+        { label: "Mẫu lỗi", value: faultRecords.length.toString(), link: "/technical/mechanical?tab=faultRecords" },
+        { label: "Linh kiện", value: spareParts.length.toString(), link: "/technical/mechanical?tab=spareParts" },
+        { label: "Dự án", value: projects.length.toString(), link: "/technical/projects" },
+        { label: "Máy móc", value: machines.length.toString(), link: "/production/management?tab=machines" }
       ]
     }
   };
@@ -564,15 +606,15 @@ const Dashboard1: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen ${getThemePageBackground(activeTheme)}`}>
-      <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className={`-m-6 min-h-full ${getThemePageBackground(activeTheme)}`}>
+      <div className="w-full px-4 lg:px-6 py-4">
         {/* Header Section — same theme as employee dashboard */}
         <ThemeHeader activeTheme={activeTheme} user={user} departmentName={departmentName} />
 
         {/* Period Filter */}
-        <div className="mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="mb-4 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           {/* Main row: label + segmented control */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
             {/* Left: icon + label + date range */}
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="p-2 bg-blue-50 rounded-lg shrink-0">
@@ -669,7 +711,7 @@ const Dashboard1: React.FC = () => {
         </div>
 
         {/* Quick Stats Overview */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-8">
+        <div className="grid grid-cols-3 md:grid-cols-3 xl:grid-cols-6 gap-2 mb-4">
           {quickStats.map((stat, index) => (
             <QuickStatCard
               key={index}
@@ -696,13 +738,12 @@ const Dashboard1: React.FC = () => {
         {/* Admin Dashboard - Full Department Overview */}
         {userIsAdmin ? (
           <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">Tổng quan các phòng ban</h2>
-              <p className="text-gray-600">Quản lý và theo dõi hoạt động của tất cả các bộ phận</p>
+            <div className="mb-3">
+              <h2 className="text-xl font-bold text-gray-800">Tổng quan các phòng ban</h2>
             </div>
 
             {/* All Departments - Full Width Format */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               {Object.entries(departmentStats).map(([key, department]) => (
                 <div key={key}>
                   <DepartmentCard
@@ -718,12 +759,11 @@ const Dashboard1: React.FC = () => {
         ) : isDepartmentHead ? (
           /* Department Head — only their own department card */
           <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">Dashboard phòng ban</h2>
-              <p className="text-gray-600">Thống kê hoạt động của {departmentName}</p>
+            <div className="mb-3">
+              <h2 className="text-xl font-bold text-gray-800">Dashboard phòng ban</h2>
             </div>
 
-            <div className="max-w-3xl mx-auto">
+            <div>
               {departmentStats[user.department as keyof typeof departmentStats] && (
                 <DepartmentCard
                   department={departmentStats[user.department as keyof typeof departmentStats]}
