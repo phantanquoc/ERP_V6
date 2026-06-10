@@ -2,6 +2,7 @@ import { Router } from 'express';
 import authController from '@controllers/authController';
 import { validate } from '@middlewares/validation';
 import { authenticate } from '@middlewares/auth';
+import { authLimiter } from '@middlewares/rateLimiter';
 
 const router = Router();
 
@@ -37,6 +38,7 @@ const router = Router();
  */
 router.post(
   '/register',
+  authLimiter,
   validate([
     { field: 'email', required: true, type: 'email' },
     { field: 'password', required: true, type: 'string', minLength: 6 },
@@ -73,6 +75,7 @@ router.post(
  */
 router.post(
   '/login',
+  authLimiter,
   validate([
     { field: 'identifier', required: true, type: 'string' },
     { field: 'password', required: true, type: 'string' },
@@ -124,6 +127,7 @@ router.get('/me', authenticate, (req, res, next) => authController.getMe(req, re
 
 router.post(
   '/forgot-password',
+  authLimiter,
   validate([
     { field: 'identifier', required: true, type: 'string' },
   ]),

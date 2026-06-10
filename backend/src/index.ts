@@ -8,6 +8,7 @@ import { env, isProduction } from '@config/env';
 import logger from '@config/logger';
 import { swaggerSpec } from '@config/swagger';
 import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
+import { globalLimiter } from '@middlewares/rateLimiter';
 import { registerRoutes } from '@routes/index';
 import { startSnapshotCleanup } from '@utils/snapshotCleanup';
 import { setPgNotifier, resetLocalEmbeddingCache } from '@services/faceAttendanceService';
@@ -28,14 +29,17 @@ app.use(helmet({
   },
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ limit: '1mb', extended: true }));
 app.use(
   cors({
     origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
   })
 );
+
+// Global rate limiter — 300 requests / 15 min per IP
+app.use('/api', globalLimiter);
 
 // Request logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
