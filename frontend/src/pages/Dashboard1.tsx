@@ -178,21 +178,19 @@ const QuickStatCard: React.FC<{
   onClick?: () => void;
 }> = ({ stat, onClick }) => (
   <div
-    className={`bg-white rounded-lg shadow-sm px-3 py-2.5 border border-gray-100 ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 hover:scale-[1.02] transition-all duration-200' : ''} relative`}
+    className={`bg-white rounded-lg shadow-sm px-2 py-2 sm:px-3 sm:py-2.5 border border-gray-100 ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 active:scale-95 sm:hover:scale-[1.02] transition-all duration-200' : ''} relative`}
     onClick={stat.clickable ? onClick : undefined}
   >
-    <div className="flex items-center gap-3">
-      <div className={`p-2 rounded-lg ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0`}>
+    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+      <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0 self-start`}>
         {stat.icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">{stat.label}</span>
+        <span className="text-[10px] sm:text-[11px] font-medium text-gray-400 uppercase tracking-wide leading-none">{stat.label}</span>
+        <div className="flex items-baseline gap-1 mt-0.5">
+          <span className={`text-base sm:text-xl font-bold leading-none tabular-nums ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</span>
         </div>
-        <div className="flex items-baseline gap-2 mt-0.5">
-          <span className={`text-xl font-bold leading-none tabular-nums ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</span>
-        </div>
-        <p className={`text-[11px] font-medium ${stat.color} truncate mt-1`}>{stat.change}</p>
+        <p className={`text-[10px] sm:text-[11px] font-medium ${stat.color} truncate mt-0.5`}>{stat.change}</p>
       </div>
     </div>
   </div>
@@ -614,15 +612,15 @@ const Dashboard1: React.FC = () => {
         {/* Period Filter */}
         <div className="mb-4 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           {/* Main row: label + segmented control */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5">
             {/* Left: icon + label + date range */}
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-2 bg-blue-50 rounded-lg shrink-0">
-                <Calendar className="h-4 w-4 text-blue-600" />
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-1.5 sm:p-2 bg-blue-50 rounded-lg shrink-0">
+                <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-gray-400 leading-none mb-0.5">Kỳ thống kê</p>
-                <p className="text-sm font-semibold text-gray-700 leading-none">
+                <p className="text-[10px] sm:text-xs font-medium text-gray-400 leading-none mb-0.5">Kỳ thống kê</p>
+                <p className="text-xs sm:text-sm font-semibold text-gray-700 leading-none truncate">
                   {selectedPeriod === 'all'
                     ? 'Toàn bộ dữ liệu'
                     : selectedPeriod === 'custom'
@@ -642,14 +640,14 @@ const Dashboard1: React.FC = () => {
             </div>
 
             {/* Right: segmented control */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 -mx-1 px-1">
               {/* Preset periods */}
-              <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
+              <div className="flex items-center bg-gray-100 rounded-lg sm:rounded-xl p-0.5 sm:p-1 gap-0.5">
                 {PRESET_PERIODS.map(p => (
                   <button
                     key={p}
                     onClick={() => setSelectedPeriod(p)}
-                    className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    className={`px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
                       selectedPeriod === p
                         ? 'bg-white text-blue-600 shadow-sm font-semibold'
                         : 'text-gray-500 hover:text-gray-700'
@@ -660,17 +658,17 @@ const Dashboard1: React.FC = () => {
                 ))}
               </div>
               {/* Divider */}
-              <div className="w-px h-6 bg-gray-200 mx-1" />
+              <div className="w-px h-5 sm:h-6 bg-gray-200 mx-0.5 sm:mx-1 shrink-0" />
               {/* Custom button */}
               <button
                 onClick={() => setSelectedPeriod('custom')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm font-medium transition-all duration-200 border ${
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 border whitespace-nowrap ${
                   selectedPeriod === 'custom'
                     ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
                 }`}
               >
-                <Calendar className="h-3.5 w-3.5" />
+                <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 Tùy chọn
               </button>
             </div>
@@ -678,8 +676,8 @@ const Dashboard1: React.FC = () => {
 
           {/* Expanded date range row — only when 'custom' selected */}
           {selectedPeriod === 'custom' && (
-            <div className="px-5 py-3 border-t border-gray-100 bg-blue-50/40 flex flex-wrap items-center gap-3">
-              <span className="text-sm font-medium text-gray-600 shrink-0">Từ ngày</span>
+            <div className="px-3 sm:px-5 py-2 sm:py-3 border-t border-gray-100 bg-blue-50/40 flex flex-wrap items-center gap-2 sm:gap-3">
+              <span className="text-xs sm:text-sm font-medium text-gray-600 shrink-0">Từ ngày</span>
               <DatePicker
                 value={customStart}
                 onChange={setCustomStart}
@@ -711,7 +709,7 @@ const Dashboard1: React.FC = () => {
         </div>
 
         {/* Quick Stats Overview */}
-        <div className="grid grid-cols-3 md:grid-cols-3 xl:grid-cols-6 gap-2 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 mb-4">
           {quickStats.map((stat, index) => (
             <QuickStatCard
               key={index}
@@ -816,22 +814,22 @@ const Dashboard1: React.FC = () => {
 
       {/* Purchase Request Modal */}
       {isPurchaseRequestModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-                <ShoppingCart className="h-6 w-6 text-blue-600 mr-2" />
-                Danh sách yêu cầu mua hàng
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50">
+          <div className="bg-white rounded-t-xl sm:rounded-lg shadow-xl w-full sm:max-w-6xl sm:mx-4 h-[92vh] sm:h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-3 sm:p-6 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-base sm:text-2xl font-bold text-gray-800 flex items-center">
+                <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 mr-2" />
+                Yêu cầu mua hàng
               </h2>
               <button
                 onClick={() => setIsPurchaseRequestModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 p-1"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            <div className="p-6 overflow-x-auto flex-1">
+            <div className="p-3 sm:p-6 overflow-x-auto flex-1">
               {purchaseRequests.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   Không có yêu cầu mua hàng nào
@@ -938,10 +936,10 @@ const Dashboard1: React.FC = () => {
               )}
             </div>
 
-            <div className="p-4 border-t border-gray-200 flex justify-end">
+            <div className="p-3 sm:p-4 border-t border-gray-200 flex justify-end">
               <button
                 onClick={() => setIsPurchaseRequestModalOpen(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
               >
                 Đóng
               </button>
@@ -952,22 +950,22 @@ const Dashboard1: React.FC = () => {
 
       {/* Purchase Request Detail Modal */}
       {selectedPurchaseRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center">
-                <Eye className="h-5 w-5 text-blue-600 mr-2" />
-                Chi tiết yêu cầu: {selectedPurchaseRequest.maYeuCau}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-[60]">
+          <div className="bg-white rounded-t-xl sm:rounded-lg shadow-xl w-full sm:max-w-3xl sm:mx-4 h-[92vh] sm:h-auto sm:max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="p-3 sm:p-6 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-base sm:text-xl font-bold text-gray-800 flex items-center">
+                <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 mr-2" />
+                Chi tiết: {selectedPurchaseRequest.maYeuCau}
               </h2>
               <button
                 onClick={() => setSelectedPurchaseRequest(null)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 p-1"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+            <div className="p-3 sm:p-6 overflow-y-auto flex-1 space-y-4 sm:space-y-6">
               {/* General Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1095,10 +1093,10 @@ const Dashboard1: React.FC = () => {
               )}
             </div>
 
-            <div className="p-4 border-t border-gray-200 flex justify-end">
+            <div className="p-3 sm:p-4 border-t border-gray-200 flex justify-end">
               <button
                 onClick={() => setSelectedPurchaseRequest(null)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
               >
                 Đóng
               </button>
