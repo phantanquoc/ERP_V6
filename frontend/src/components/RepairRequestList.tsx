@@ -226,24 +226,24 @@ const RepairRequestList = () => {
           </select>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+          <table className="w-full min-w-[850px] text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
               <tr>
-                <th className="border-b px-3 py-2 text-left">Ngày</th>
-                <th className="border-b px-3 py-2 text-left">Mã yêu cầu</th>
-                <th className="border-b px-3 py-2 text-left">Thiết bị lỗi</th>
-                <th className="border-b px-3 py-2 text-left">Bối cảnh</th>
-                <th className="border-b px-3 py-2 text-left">Ưu tiên</th>
-                <th className="border-b px-3 py-2 text-left">Trạng thái</th>
-                <th className="border-b px-3 py-2 text-left">File</th>
-                <th className="border-b px-3 py-2 text-right">Thao tác</th>
+                <th className="border-b px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[90px]">Mã yêu cầu</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[80px]">Ngày</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[140px]">Thiết bị lỗi</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[140px]">Bối cảnh</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[80px]">Ưu tiên</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[90px]">Trạng thái</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[50px]">File</th>
+                <th className="border-b px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[120px]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {requestsQuery.isLoading ? (
-                <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">Đang tải...</td></tr>
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
               ) : requests.length === 0 ? (
-                <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">Chưa có yêu cầu sửa chữa.</td></tr>
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Chưa có yêu cầu sửa chữa.</td></tr>
               ) : requests.map((request) => {
                 const requestItems = request.items?.length ? request.items : [{
                   id: `${request.id}-legacy`,
@@ -254,32 +254,32 @@ const RepairRequestList = () => {
                   noiDungLoi: request.noiDungLoi ?? '',
                 }];
                 return (
-                  <tr key={request.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-gray-700">{formatDate(request.ngayThang)}</td>
-                    <td className="px-3 py-2 font-medium text-blue-700">{request.maYeuCau}</td>
-                    <td className="px-3 py-2 text-gray-900">
-                      <div className="space-y-1">
-                        {requestItems.map((item) => <div key={item.id}>{item.tenHeThong || '—'}</div>)}
+                  <tr key={request.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{request.maYeuCau}</td>
+                    <td className="px-3 py-2.5 text-gray-600 text-xs">{formatDate(request.ngayThang)}</td>
+                    <td className="px-3 py-2.5 text-gray-900">
+                      <div className="space-y-0.5">
+                        {requestItems.map((item) => <div key={item.id} className="text-xs leading-tight">{item.tenHeThong || '—'}</div>)}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-gray-700">
-                      <div className="space-y-1">
+                    <td className="px-3 py-2.5 text-gray-600">
+                      <div className="space-y-0.5">
                         {requestItems.map((item) => (
-                          <div key={item.id}>
+                          <div key={item.id} className="text-xs leading-tight">
                             {item.machineSystemDetail ? `${item.machineSystemDetail.maChiTiet} - ${item.machineSystemDetail.tenChiTiet}` : item.machineSystem ? `${item.machineSystem.maHeThong} - ${item.machineSystem.tenHeThong}` : item.tinhTrangThietBi || 'Text'}
                           </div>
                         ))}
                       </div>
                     </td>
-                    <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${priorityBadge(request.mucDoUuTien)}`}>{request.mucDoUuTien}</span></td>
-                    <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(request.trangThai)}`}>{request.trangThai}</span></td>
-                    <td className="px-3 py-2">{request.fileDinhKem ? <a href={getFileUrl(request.fileDinhKem)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Xem</a> : '—'}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-1">
-                        <button title="Xem" onClick={() => openModal('view', request)} className="rounded p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600"><Eye className="h-4 w-4" /></button>
-                        <button title="Sửa" onClick={() => openModal('edit', request)} className="rounded p-1.5 text-gray-500 hover:bg-green-50 hover:text-green-600"><Edit className="h-4 w-4" /></button>
-                        <button title="Nghiệm thu" onClick={() => setHandoverRequest(request)} className="rounded p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-700"><CheckCircle className="h-4 w-4" /></button>
-                        <button title="Xóa" onClick={() => remove(request)} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                    <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${priorityBadge(request.mucDoUuTien)}`}>{request.mucDoUuTien}</span></td>
+                    <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(request.trangThai)}`}>{request.trangThai}</span></td>
+                    <td className="px-3 py-2.5">{request.fileDinhKem ? <a href={getFileUrl(request.fileDinhKem)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-xs">Xem</a> : '—'}</td>
+                    <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                      <div className="flex justify-end gap-0.5">
+                        <button title="Xem" onClick={() => openModal('view', request)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
+                        <button title="Sửa" onClick={() => openModal('edit', request)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>
+                        <button title="Nghiệm thu" onClick={() => setHandoverRequest(request)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-700 transition-colors"><CheckCircle className="h-4 w-4" /></button>
+                        <button title="Xóa" onClick={() => remove(request)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>
                       </div>
                     </td>
                   </tr>

@@ -329,34 +329,34 @@ const ProjectList = () => {
           </select>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+          <table className="w-full min-w-[750px] text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
               <tr>
-                <th className="border-b px-3 py-2 text-left">Mã</th>
-                <th className="border-b px-3 py-2 text-left">Tên dự án</th>
-                <th className="border-b px-3 py-2 text-left">Trạng thái</th>
-                <th className="border-b px-3 py-2 text-left">Giai đoạn</th>
-                <th className="border-b px-3 py-2 text-left">Công việc</th>
-                <th className="border-b px-3 py-2 text-left">Thời gian</th>
-                <th className="border-b px-3 py-2 text-right">Thao tác</th>
+                <th className="border-b px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[80px]">Mã</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[160px]">Tên dự án</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[100px]">Trạng thái</th>
+                <th className="border-b px-3 py-2.5 text-center min-w-[70px]">Giai đoạn</th>
+                <th className="border-b px-3 py-2.5 text-center min-w-[70px]">Công việc</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[160px]">Thời gian</th>
+                <th className="border-b px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[70px]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {projectsQuery.isLoading ? (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">Đang tải...</td></tr>
+                <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
               ) : projects.length === 0 ? (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">Chưa có dự án phù hợp.</td></tr>
+                <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có dự án phù hợp.</td></tr>
               ) : projects.map((project) => (
-                <tr key={project.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => { setSelectedProjectId(project.id); setDetailTab('phases'); }}>
-                  <td className="px-3 py-2 font-medium text-blue-700">{project.maDuAn}</td>
-                  <td className="px-3 py-2 text-gray-900">{project.tenDuAn}</td>
-                  <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(project.trangThai)}`}>{project.trangThai}</span></td>
-                  <td className="px-3 py-2 text-gray-700">{project.phases?.length ?? 0}</td>
-                  <td className="px-3 py-2 text-gray-700">{project.tasks?.length ?? 0}</td>
-                  <td className="px-3 py-2 text-gray-700">{formatDate(project.ngayBatDau)} - {formatDate(project.ngayKetThuc)}</td>
-                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-end gap-1">
-                      {canWrite(project) && <button title="Xóa" onClick={() => removeProject(project)} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+                <tr key={project.id} className="hover:bg-gray-50/50 cursor-pointer transition-colors" onClick={() => { setSelectedProjectId(project.id); setDetailTab('phases'); }}>
+                  <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{project.maDuAn}</td>
+                  <td className="px-3 py-2.5 font-medium text-gray-900">{project.tenDuAn}</td>
+                  <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(project.trangThai)}`}>{project.trangThai}</span></td>
+                  <td className="px-3 py-2.5 text-center"><span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-gray-100 text-xs font-medium text-gray-600">{project.phases?.length ?? 0}</span></td>
+                  <td className="px-3 py-2.5 text-center"><span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-gray-100 text-xs font-medium text-gray-600">{project.tasks?.length ?? 0}</span></td>
+                  <td className="px-3 py-2.5 text-xs text-gray-600">{formatDate(project.ngayBatDau)} - {formatDate(project.ngayKetThuc)}</td>
+                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-end gap-0.5">
+                      {canWrite(project) && <button title="Xóa" onClick={() => removeProject(project)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>}
                     </div>
                   </td>
                 </tr>

@@ -662,42 +662,42 @@ const MachineSystemList = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] border-collapse text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+          <table className="w-full min-w-[800px] border-collapse text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
               <tr>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Mã</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Tên hệ thống</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Loại hệ thống</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Khu vực</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Vị trí</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Người TH</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Trạng thái</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-right">Thao tác</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[80px]">Mã</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[140px]">Tên hệ thống</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Loại</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Khu vực</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Vị trí</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Người TH</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Trạng thái</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[100px]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {systemsQuery.isLoading ? (
-                <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">Đang tải...</td></tr>
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
               ) : systems.length === 0 ? (
-                <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">Chưa có hệ thống phù hợp.</td></tr>
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Chưa có hệ thống phù hợp.</td></tr>
               ) : systems.map((system) => (
-                <tr key={system.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-medium text-blue-700">{system.maHeThong}</td>
-                  <td className="px-3 py-2 text-gray-900">{system.tenHeThong}</td>
-                  <td className="px-3 py-2 text-gray-700">{MACHINE_SYSTEM_CATEGORIES.find(c => c.value === system.loaiHeThong)?.label ?? system.loaiHeThong}</td>
-                  <td className="px-3 py-2 text-gray-700">{system.khuVuc || '—'}</td>
-                  <td className="px-3 py-2 text-gray-700">{system.viTri || '—'}</td>
-                  <td className="px-3 py-2 text-gray-700">{system.nguoiThucHien || '—'}</td>
-                  <td className="px-3 py-2">
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(system.hoatDong)}`}>
+                <tr key={system.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{system.maHeThong}</td>
+                  <td className="px-3 py-2.5 font-medium text-gray-900">{system.tenHeThong}</td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{MACHINE_SYSTEM_CATEGORIES.find(c => c.value === system.loaiHeThong)?.label ?? system.loaiHeThong}</td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{system.khuVuc || '—'}</td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{system.viTri || '—'}</td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{system.nguoiThucHien || '—'}</td>
+                  <td className="px-3 py-2.5">
+                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(system.hoatDong)}`}>
                       {system.hoatDong ? 'Đang hoạt động' : 'Dừng'}
                     </span>
                   </td>
-                  <td className="px-3 py-2">
-                    <div className="flex justify-end gap-1">
-                      <button type="button" title="Xem" onClick={() => openSystemModal('view', system)} className="rounded p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600"><Eye className="h-4 w-4" /></button>
-                      <button type="button" title="Sửa" onClick={() => openSystemModal('edit', system)} className="rounded p-1.5 text-gray-500 hover:bg-green-50 hover:text-green-600"><Edit className="h-4 w-4" /></button>
-                      <button type="button" title="Xóa" onClick={() => removeSystem(system)} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                    <div className="flex justify-end gap-0.5">
+                      <button type="button" title="Xem" onClick={() => openSystemModal('view', system)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
+                      <button type="button" title="Sửa" onClick={() => openSystemModal('edit', system)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>
+                      <button type="button" title="Xóa" onClick={() => removeSystem(system)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -788,52 +788,52 @@ const MachineSystemList = () => {
               <span className="ml-auto text-xs font-medium text-blue-600">{allSystems[systemPageIndex].maHeThong} — {allSystems[systemPageIndex].tenHeThong}</span>
             )}
           </div>
-          <table className="w-full min-w-[900px] border-collapse text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+          <table className="w-full min-w-[800px] border-collapse text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
               <tr>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Tên chi tiết</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Mã</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Loại</th>
-                {!detailFilters.machineSystemId && <th className="border-b border-gray-200 px-3 py-2 text-left">Hệ thống</th>}
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Vị trí</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Phụ trách</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-left">Trạng thái</th>
-                <th className="border-b border-gray-200 px-3 py-2 text-right">Thao tác</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[160px]">Tên chi tiết</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[80px]">Mã</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Loại</th>
+                {!detailFilters.machineSystemId && <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[120px]">Hệ thống</th>}
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[80px]">Vị trí</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Phụ trách</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Trạng thái</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[110px]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {detailTreeQuery.isLoading ? (
-                <tr><td colSpan={detailFilters.machineSystemId ? 7 : 8} className="px-3 py-6 text-center text-gray-500">Đang tải...</td></tr>
+                <tr><td colSpan={detailFilters.machineSystemId ? 7 : 8} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
               ) : !treeData || treeData.length === 0 ? (
-                <tr><td colSpan={detailFilters.machineSystemId ? 7 : 8} className="px-3 py-6 text-center text-gray-500">Chưa có chi tiết nào.</td></tr>
+                <tr><td colSpan={detailFilters.machineSystemId ? 7 : 8} className="px-3 py-8 text-center text-gray-400">Chưa có chi tiết nào.</td></tr>
               ) : treeData.map((node) => (
-                <tr key={node.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2">
+                <tr key={node.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-3 py-2.5 sticky left-0 bg-white z-10">
                     <div className="flex items-center" style={{ paddingLeft: `${node.depth * 24}px` }}>
                       {node.children.length > 0 ? (
                         <button type="button" onClick={() => toggleExpand(node.id)} className="mr-1 rounded p-0.5 text-gray-400 hover:text-gray-700">
                           {expandedIds.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </button>
                       ) : <span className="mr-1 inline-block w-5" />}
-                      <span className="text-gray-900">{node.tenChiTiet}</span>
+                      <span className="text-gray-900 font-medium">{node.tenChiTiet}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 font-medium text-blue-700">{node.maChiTiet}</td>
-                  <td className="px-3 py-2 text-gray-700">{detailTypeLabel(node.loaiChiTiet)}</td>
-                  {!detailFilters.machineSystemId && <td className="px-3 py-2 text-gray-700">{getSystemName(node.machineSystem)}</td>}
-                  <td className="px-3 py-2 text-gray-700">{node.viTri || '—'}</td>
-                  <td className="px-3 py-2 text-gray-700">{node.nguoiPhuTrach || '—'}</td>
-                  <td className="px-3 py-2">
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(node.hoatDong)}`}>
+                  <td className="px-3 py-2.5 font-mono text-xs text-blue-700 font-medium">{node.maChiTiet}</td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{detailTypeLabel(node.loaiChiTiet)}</td>
+                  {!detailFilters.machineSystemId && <td className="px-3 py-2.5 text-gray-600 text-xs">{getSystemName(node.machineSystem)}</td>}
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{node.viTri || '—'}</td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{node.nguoiPhuTrach || '—'}</td>
+                  <td className="px-3 py-2.5">
+                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(node.hoatDong)}`}>
                       {node.hoatDong ? node.trangThai : 'Dừng'}
                     </span>
                   </td>
-                  <td className="px-3 py-2">
-                    <div className="flex justify-end gap-1">
-                      <button type="button" title="Xem" onClick={() => openDetailModal('view', node)} className="rounded p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600"><Eye className="h-4 w-4" /></button>
-                      <button type="button" title="Sửa" onClick={() => openDetailModal('edit', node)} className="rounded p-1.5 text-gray-500 hover:bg-green-50 hover:text-green-600"><Edit className="h-4 w-4" /></button>
-                      {node.hoatDong && <button type="button" title="Dừng hoạt động" onClick={() => deactivate(node)} className="rounded p-1.5 text-gray-500 hover:bg-yellow-50 hover:text-yellow-700"><Power className="h-4 w-4" /></button>}
-                      <button type="button" title="Xóa" onClick={() => removeDetail(node)} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                    <div className="flex justify-end gap-0.5">
+                      <button type="button" title="Xem" onClick={() => openDetailModal('view', node)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
+                      <button type="button" title="Sửa" onClick={() => openDetailModal('edit', node)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>
+                      {node.hoatDong && <button type="button" title="Dừng hoạt động" onClick={() => deactivate(node)} className="rounded-md p-1.5 text-gray-400 hover:bg-yellow-50 hover:text-yellow-700 transition-colors"><Power className="h-4 w-4" /></button>}
+                      <button type="button" title="Xóa" onClick={() => removeDetail(node)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </td>
                 </tr>

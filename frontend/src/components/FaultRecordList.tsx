@@ -79,8 +79,8 @@ const FaultRecordList = () => {
   const canDelete = user?.role === 'admin' || isTechnical;
 
   const [view, setView] = useState<ViewMode>('records');
-  const [recordFilters, setRecordFilters] = useState<FaultRecordFilters>({ page: 1, limit: 10, sortBy: 'ngayPhatHien', sortOrder: 'desc' });
-  const [templateFilters, setTemplateFilters] = useState<FaultTemplateFilters>({ page: 1, limit: 10, sortBy: 'maMauLoi', sortOrder: 'asc' });
+  const [recordFilters, setRecordFilters] = useState<FaultRecordFilters>({ page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc' });
+  const [templateFilters, setTemplateFilters] = useState<FaultTemplateFilters>({ page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc' });
 
   const recordsQuery = useFaultRecords(recordFilters);
   const templatesQuery = useFaultTemplates(templateFilters);
@@ -272,70 +272,75 @@ const FaultRecordList = () => {
       {view === 'records' ? (
         <section className="rounded-lg border border-gray-200 bg-white">
           <div className="flex flex-col gap-3 border-b border-gray-200 p-3">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-gray-600">Tổng: {recordsQuery.data?.pagination?.total ?? 0} bản ghi</div>
               {canWrite && <button onClick={() => openRecordModal('create')} className="inline-flex w-fit items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"><Plus className="h-4 w-4" /> Thêm bản ghi</button>}
             </div>
             <div className="flex flex-wrap gap-2">
-              <div className="relative">
+              <div className="relative flex-1 min-w-[160px]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                <input value={recordFilters.search ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))} placeholder="Tìm lỗi" className="w-52 rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
+                <input value={recordFilters.search ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))} placeholder="Tìm mã, tên lỗi..." className="w-full rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
               </div>
-              <select value={recordFilters.machineSystemId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <select value={recordFilters.machineSystemId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
                 <option value="">Tất cả hệ thống</option>
                 {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
               </select>
-              <select value={recordFilters.machineSystemDetailId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemDetailId: event.target.value || undefined, page: 1 }))} className="min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <select value={recordFilters.machineSystemDetailId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemDetailId: event.target.value || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
                 <option value="">Tất cả chi tiết</option>
                 {details.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
               </select>
               <select value={recordFilters.mucDo ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, mucDo: event.target.value || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">Tất cả mức độ</option>
+                <option value="">Mức độ</option>
                 {SEVERITIES.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
               <select value={recordFilters.trangThai ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, trangThai: event.target.value || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">Tất cả trạng thái</option>
+                <option value="">Trạng thái</option>
                 {RECORD_STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
             </div>
           </div>
+
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px] text-sm">
-              <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+            <table className="w-full text-sm min-w-[800px]">
+              <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
                 <tr>
-                  <th className="border-b px-3 py-2 text-left">Mã lỗi</th>
-                  <th className="border-b px-3 py-2 text-left">Tên lỗi</th>
-                  <th className="border-b px-3 py-2 text-left">Hệ thống</th>
-                  <th className="border-b px-3 py-2 text-left">Máy</th>
-                  <th className="border-b px-3 py-2 text-left">Chi tiết</th>
-                  <th className="border-b px-3 py-2 text-left">Mẫu</th>
-                  <th className="border-b px-3 py-2 text-left">Mức độ</th>
-                  <th className="border-b px-3 py-2 text-left">Trạng thái</th>
-                  <th className="border-b px-3 py-2 text-left">Phát hiện</th>
-                  <th className="border-b px-3 py-2 text-right">Thao tác</th>
+                  <th className="border-b px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[90px]">Mã lỗi</th>
+                  <th className="border-b px-3 py-2.5 text-left min-w-[160px]">Tên lỗi</th>
+                  <th className="border-b px-3 py-2.5 text-left min-w-[150px]">Vị trí</th>
+                  <th className="border-b px-3 py-2.5 text-left min-w-[90px]">Mức độ</th>
+                  <th className="border-b px-3 py-2.5 text-left min-w-[100px]">Trạng thái</th>
+                  <th className="border-b px-3 py-2.5 text-left min-w-[110px]">Phát hiện</th>
+                  <th className="border-b px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[100px]">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {recordsQuery.isLoading ? (
-                  <tr><td colSpan={10} className="px-3 py-6 text-center text-gray-500">Đang tải...</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
                 ) : records.length === 0 ? (
-                  <tr><td colSpan={10} className="px-3 py-6 text-center text-gray-500">Chưa có bản ghi lỗi phù hợp.</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có bản ghi lỗi phù hợp.</td></tr>
                 ) : records.map((record) => (
-                  <tr key={record.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-medium text-blue-700">{record.maLoi}</td>
-                    <td className="px-3 py-2 text-gray-900">{record.tenLoi}</td>
-                    <td className="px-3 py-2 text-gray-700">{record.machineSystem ? `${record.machineSystem.maHeThong} - ${record.machineSystem.tenHeThong}` : record.maHeThong ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-700">{record.machine ? `${record.machine.maMay} - ${record.machine.tenMay}` : '—'}</td>
-                    <td className="px-3 py-2 text-gray-700">{record.machineSystemDetail ? `${record.machineSystemDetail.maChiTiet} - ${record.machineSystemDetail.tenChiTiet}` : '—'}</td>
-                    <td className="px-3 py-2 text-gray-700">{record.faultTemplate?.tenMauLoi ?? '—'}</td>
-                    <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${severityBadge(record.mucDo)}`}>{record.mucDo}</span></td>
-                    <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(record.trangThai)}`}>{record.trangThai}</span></td>
-                    <td className="px-3 py-2 text-gray-700">{record.nguoiPhatHien} - {formatDate(record.ngayPhatHien)}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-1">
-                        <button title="Xem" onClick={() => openRecordModal('view', record)} className="rounded p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600"><Eye className="h-4 w-4" /></button>
-                        {canWrite && <button title="Sửa" onClick={() => openRecordModal('edit', record)} className="rounded p-1.5 text-gray-500 hover:bg-green-50 hover:text-green-600"><Edit className="h-4 w-4" /></button>}
-                        {canDelete && <button title="Xóa" onClick={() => deleteRecord.mutate(record.id)} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+                  <tr key={record.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{record.maLoi}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="font-medium text-gray-900 leading-tight">{record.tenLoi}</div>
+                      {record.faultTemplate && <div className="text-xs text-gray-400 mt-0.5">Mẫu: {record.faultTemplate.tenMauLoi}</div>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="text-gray-800 leading-tight text-xs">{record.machineSystem ? record.machineSystem.tenHeThong : record.maHeThong ?? '—'}</div>
+                      {record.machineSystemDetail && <div className="text-[11px] text-gray-400 mt-0.5">{record.machineSystemDetail.tenChiTiet}</div>}
+                      {record.machine && <div className="text-[11px] text-gray-400">{record.machine.tenMay}</div>}
+                    </td>
+                    <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${severityBadge(record.mucDo)}`}>{record.mucDo}</span></td>
+                    <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(record.trangThai)}`}>{record.trangThai}</span></td>
+                    <td className="px-3 py-2.5">
+                      <div className="text-gray-700 text-xs">{formatDate(record.ngayPhatHien)}</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">{record.nguoiPhatHien}</div>
+                    </td>
+                    <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                      <div className="flex justify-end gap-0.5">
+                        <button title="Xem" onClick={() => openRecordModal('view', record)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
+                        {canWrite && <button title="Sửa" onClick={() => openRecordModal('edit', record)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>}
+                        {canDelete && <button title="Xóa" onClick={() => deleteRecord.mutate(record.id)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>}
                       </div>
                     </td>
                   </tr>
@@ -343,73 +348,79 @@ const FaultRecordList = () => {
               </tbody>
             </table>
           </div>
+
           {pager(recordsQuery.data?.pagination, recordFilters.page ?? 1, (page) => setRecordFilters((filters) => ({ ...filters, page })))}
         </section>
       ) : (
         <section className="rounded-lg border border-gray-200 bg-white">
           <div className="flex flex-col gap-3 border-b border-gray-200 p-3">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-gray-600">Tổng: {templatesQuery.data?.pagination?.total ?? 0} mẫu</div>
               {canWrite && <button onClick={() => openTemplateModal('create')} className="inline-flex w-fit items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"><Plus className="h-4 w-4" /> Thêm mẫu lỗi</button>}
             </div>
             <div className="flex flex-wrap gap-2">
-              <div className="relative">
+              <div className="relative flex-1 min-w-[160px]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                <input value={templateFilters.search ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))} placeholder="Tìm mẫu" className="w-52 rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
+                <input value={templateFilters.search ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))} placeholder="Tìm mã, tên mẫu..." className="w-full rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
               </div>
-              <select value={templateFilters.machineSystemId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <select value={templateFilters.machineSystemId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
                 <option value="">Tất cả hệ thống</option>
                 {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
               </select>
-              <select value={templateFilters.machineSystemDetailId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemDetailId: event.target.value || undefined, page: 1 }))} className="min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <select value={templateFilters.machineSystemDetailId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemDetailId: event.target.value || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
                 <option value="">Tất cả chi tiết</option>
                 {details.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
               </select>
               <select value={templateFilters.mucDo ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, mucDo: event.target.value || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">Tất cả mức độ</option>
+                <option value="">Mức độ</option>
                 {SEVERITIES.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
               <select value={templateFilters.hoatDong === undefined ? '' : String(templateFilters.hoatDong)} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, hoatDong: event.target.value === '' ? undefined : event.target.value === 'true', page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">Tất cả hoạt động</option>
+                <option value="">Hoạt động</option>
                 <option value="true">Đang hoạt động</option>
                 <option value="false">Dừng</option>
               </select>
             </div>
           </div>
+
+          {/* Desktop table */}
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-sm">
-              <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+            <table className="w-full text-sm min-w-[750px]">
+              <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
                 <tr>
-                  <th className="border-b px-3 py-2 text-left">Mã mẫu</th>
-                  <th className="border-b px-3 py-2 text-left">Tên mẫu</th>
-                  <th className="border-b px-3 py-2 text-left">Hệ thống</th>
-                  <th className="border-b px-3 py-2 text-left">Chi tiết</th>
-                  <th className="border-b px-3 py-2 text-left">Mức độ</th>
-                  <th className="border-b px-3 py-2 text-left">Trạng thái</th>
-                  <th className="border-b px-3 py-2 text-left">Bản ghi</th>
-                  <th className="border-b px-3 py-2 text-right">Thao tác</th>
+                  <th className="border-b px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[90px]">Mã mẫu</th>
+                  <th className="border-b px-3 py-2.5 text-left min-w-[150px]">Tên mẫu</th>
+                  <th className="border-b px-3 py-2.5 text-left min-w-[140px]">Vị trí</th>
+                  <th className="border-b px-3 py-2.5 text-left min-w-[90px]">Mức độ</th>
+                  <th className="border-b px-3 py-2.5 text-left min-w-[100px]">Trạng thái</th>
+                  <th className="border-b px-3 py-2.5 text-center min-w-[70px]">Bản ghi</th>
+                  <th className="border-b px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[110px]">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {templatesQuery.isLoading ? (
-                  <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">Đang tải...</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
                 ) : templates.length === 0 ? (
-                  <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">Chưa có mẫu lỗi phù hợp.</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có mẫu lỗi phù hợp.</td></tr>
                 ) : templates.map((template) => (
-                  <tr key={template.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-medium text-blue-700">{template.maMauLoi}</td>
-                    <td className="px-3 py-2 text-gray-900">{template.tenMauLoi}</td>
-                    <td className="px-3 py-2 text-gray-700">{template.machineSystem ? `${template.machineSystem.maHeThong} - ${template.machineSystem.tenHeThong}` : '—'}</td>
-                    <td className="px-3 py-2 text-gray-700">{template.machineSystemDetail ? `${template.machineSystemDetail.maChiTiet} - ${template.machineSystemDetail.tenChiTiet}` : '—'}</td>
-                    <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${severityBadge(template.mucDo)}`}>{template.mucDo}</span></td>
-                    <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(template.hoatDong ? template.trangThai : 'Dừng')}`}>{template.hoatDong ? template.trangThai : 'Dừng'}</span></td>
-                    <td className="px-3 py-2 text-gray-700">{template._count?.faultRecords ?? 0}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-1">
-                        <button title="Xem" onClick={() => openTemplateModal('view', template)} className="rounded p-1.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600"><Eye className="h-4 w-4" /></button>
-                        {canWrite && <button title="Sửa" onClick={() => openTemplateModal('edit', template)} className="rounded p-1.5 text-gray-500 hover:bg-green-50 hover:text-green-600"><Edit className="h-4 w-4" /></button>}
-                        {canWrite && template.hoatDong && <button title="Dừng hoạt động" onClick={() => deactivateTemplate.mutate(template.id)} className="rounded p-1.5 text-gray-500 hover:bg-yellow-50 hover:text-yellow-700"><Power className="h-4 w-4" /></button>}
-                        {canDelete && <button title="Xóa" onClick={() => deleteTemplate.mutate(template.id)} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+                  <tr key={template.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{template.maMauLoi}</td>
+                    <td className="px-3 py-2.5 font-medium text-gray-900">{template.tenMauLoi}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="text-gray-800 leading-tight text-xs">{template.machineSystem ? template.machineSystem.tenHeThong : '—'}</div>
+                      {template.machineSystemDetail && <div className="text-[11px] text-gray-400 mt-0.5">{template.machineSystemDetail.tenChiTiet}</div>}
+                    </td>
+                    <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${severityBadge(template.mucDo)}`}>{template.mucDo}</span></td>
+                    <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(template.hoatDong ? template.trangThai : 'Dừng')}`}>{template.hoatDong ? template.trangThai : 'Dừng'}</span></td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-gray-100 text-xs font-medium text-gray-600">{template._count?.faultRecords ?? 0}</span>
+                    </td>
+                    <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                      <div className="flex justify-end gap-0.5">
+                        <button title="Xem" onClick={() => openTemplateModal('view', template)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
+                        {canWrite && <button title="Sửa" onClick={() => openTemplateModal('edit', template)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>}
+                        {canWrite && template.hoatDong && <button title="Dừng hoạt động" onClick={() => deactivateTemplate.mutate(template.id)} className="rounded-md p-1.5 text-gray-400 hover:bg-yellow-50 hover:text-yellow-700 transition-colors"><Power className="h-4 w-4" /></button>}
+                        {canDelete && <button title="Xóa" onClick={() => deleteTemplate.mutate(template.id)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>}
                       </div>
                     </td>
                   </tr>
@@ -417,6 +428,7 @@ const FaultRecordList = () => {
               </tbody>
             </table>
           </div>
+
           {pager(templatesQuery.data?.pagination, templateFilters.page ?? 1, (page) => setTemplateFilters((filters) => ({ ...filters, page })))}
         </section>
       )}
