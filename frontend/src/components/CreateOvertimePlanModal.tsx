@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DatePicker from './DatePicker';
 import { overtimePlanService, CreateOvertimePlanData } from '../services/overtimePlanService';
 import { TaskPriority } from '../services/taskService';
 import { Calendar, Users, FileText, AlertCircle, Clock } from 'lucide-react';
-import apiClient from '../services/apiClient';
 import FileUpload from './FileUpload';
 import { ModalForm, ModalFooter } from './ModalForm';
+import { useAllEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 
 interface CreateOvertimePlanModalProps {
   isOpen: boolean;
@@ -29,17 +29,23 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({ isOpe
   const defaultForm: CreateOvertimePlanData = { nguoiThamGia: [], noiDung: '', ngayTangCa: '', gioBatDau: '', gioKetThuc: '', ghiChu: '', mucDoUuTien: TaskPriority.TRUNG_BINH, files: [] };
 
   const [formData, setFormData] = useState<CreateOvertimePlanData>(defaultForm);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
+  const { data: employeeData, isLoading: loadingEmployees } = useAllEmployeesForAssignment();
+  const employees = (employeeData?.employees ?? []) as Employee[];
+  const departments = employeeData?.departments ?? [];
+
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
-  const [departments, setDepartments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [error, setError] = useState('');
+
+  const filteredEmployees = useMemo(() => {
+    if (selectedDepartment) {
+      return employees.filter(emp => emp.department === selectedDepartment);
+    }
+    return employees;
+  }, [selectedDepartment, employees]);
 
   useEffect(() => {
     if (isOpen) {
-      fetchEmployees();
       if (!initialData) { setFormData(defaultForm); }
       setSelectedDepartment('');
       setError('');
@@ -67,38 +73,6 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({ isOpe
       }));
     }
   }, [employees, isOpen, planId]);
-
-  useEffect(() => {
-    if (selectedDepartment) {
-      setFilteredEmployees(employees.filter(emp => emp.department === selectedDepartment));
-    } else { setFilteredEmployees(employees); }
-  }, [selectedDepartment, employees]);
-
-  const fetchEmployees = async () => {
-    setLoadingEmployees(true);
-    setError('');
-    try {
-      const response = await apiClient.get('/employees/for-assignment', { params: { limit: 1000 } });
-      let employeeList: any[] = [];
-      if (response.data) {
-        employeeList = Array.isArray(response.data) ? response.data : (response.data as any).data || [];
-      } else if (Array.isArray(response)) { employeeList = response as any; }
-      const transformed = employeeList.map((emp: any) => ({
-        _id: emp.id || emp._id,
-        userId: emp.userId || '',
-        firstName: emp.user?.firstName || emp.firstName || '',
-        lastName: emp.user?.lastName || emp.lastName || '',
-        employeeCode: emp.employeeCode || '',
-        department: emp.departmentName || emp.subDepartmentName || 'Chưa xác định',
-      }));
-      setEmployees(transformed);
-      setFilteredEmployees(transformed);
-      const uniqueDepts = Array.from(new Set(transformed.map((emp: Employee) => emp.department).filter(Boolean)));
-      setDepartments(uniqueDepts as string[]);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Không thể tải danh sách nhân viên');
-    } finally { setLoadingEmployees(false); }
-  };
 
   const handleEmployeeToggle = (employeeId: string) => {
     const current = formData.nguoiThamGia;
