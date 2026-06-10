@@ -135,11 +135,11 @@ const ProductionDepartment = () => {
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
-            <Factory className="w-8 h-8 text-blue-600 mr-3" />
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-800 mb-2 flex items-center">
+            <Factory className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 mr-3" />
             Phòng QLSX
           </h1>
-          <p className="text-gray-600">Quản lý quy trình, đơn hàng và định mức nguyên vật liệu</p>
+          <p className="text-gray-600 text-sm sm:text-base">Quản lý quy trình, đơn hàng và định mức nguyên vật liệu</p>
         </div>
 
         {/* Overview Cards */}
@@ -159,17 +159,17 @@ const ProductionDepartment = () => {
                   <span className="text-2xl font-bold text-blue-600">{machineStats.total}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
-                  <div className="text-xl font-bold text-green-600">{machineStats.hoatDong}</div>
+                  <div className="text-lg sm:text-xl font-bold text-green-600">{machineStats.hoatDong}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đang hoạt động</div>
                 </div>
                 <div className="bg-yellow-50 rounded-lg p-2 text-center hover:bg-yellow-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-yellow-300 cursor-pointer">
-                  <div className="text-xl font-bold text-yellow-600">{machineStats.baoTri}</div>
+                  <div className="text-lg sm:text-xl font-bold text-yellow-600">{machineStats.baoTri}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đang bảo trì</div>
                 </div>
-                <div className="bg-red-50 rounded-lg p-2 text-center hover:bg-red-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-red-300 cursor-pointer">
-                  <div className="text-xl font-bold text-red-600">{machineStats.ngungHoatDong}</div>
+                <div className="bg-red-50 rounded-lg p-2 text-center hover:bg-red-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-red-300 cursor-pointer col-span-2 sm:col-span-1">
+                  <div className="text-lg sm:text-xl font-bold text-red-600">{machineStats.ngungHoatDong}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Ngừng hoạt động</div>
                 </div>
               </div>
@@ -191,21 +191,21 @@ const ProductionDepartment = () => {
                   <span className="text-2xl font-bold text-purple-600">{orderStats.total}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-600">{orderStats.choSanXuat}</div>
+                  <div className="text-lg sm:text-xl font-bold text-gray-600">{orderStats.choSanXuat}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Chờ SX</div>
                 </div>
                 <div className="bg-blue-50 rounded-lg p-2 text-center hover:bg-blue-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
-                  <div className="text-xl font-bold text-blue-600">{orderStats.dangSanXuat}</div>
+                  <div className="text-lg sm:text-xl font-bold text-blue-600">{orderStats.dangSanXuat}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đang SX</div>
                 </div>
                 <div className="bg-orange-50 rounded-lg p-2 text-center hover:bg-orange-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-orange-300 cursor-pointer">
-                  <div className="text-xl font-bold text-orange-600">{orderStats.vanChuyen}</div>
+                  <div className="text-lg sm:text-xl font-bold text-orange-600">{orderStats.vanChuyen}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Vận chuyển</div>
                 </div>
                 <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
-                  <div className="text-xl font-bold text-green-600">{orderStats.daGiao}</div>
+                  <div className="text-lg sm:text-xl font-bold text-green-600">{orderStats.daGiao}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đã giao</div>
                 </div>
               </div>
@@ -215,20 +215,24 @@ const ProductionDepartment = () => {
 
         {/* Tabs */}
         <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 overflow-x-auto">
+          <div className="border-b border-gray-200 relative">
+            {/* Fade gradient hints for scroll */}
+            <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-gray-50 to-transparent pointer-events-none z-10 sm:hidden" />
+            <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none z-10 sm:hidden" />
+            <nav className="-mb-px flex space-x-2 sm:space-x-4 lg:space-x-8 overflow-x-auto scrollbar-hide">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                  className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-1.5 shrink-0 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
                   {tab.icon}
-                  {tab.name}
+                  <span className="hidden sm:inline">{tab.name}</span>
+                  <span className="sm:hidden text-xs">{tab.name.length > 10 ? tab.name.slice(0, 10) + '…' : tab.name}</span>
                 </button>
               ))}
             </nav>

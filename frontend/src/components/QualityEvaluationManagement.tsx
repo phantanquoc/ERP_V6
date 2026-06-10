@@ -283,8 +283,8 @@ const QualityEvaluationManagement: React.FC = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Đánh giá chất lượng</h2>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Đánh giá chất lượng</h2>
         <button
           onClick={handleExportExcel}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -300,9 +300,24 @@ const QualityEvaluationManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Machine Tabs */}
+      {/* Machine Selector */}
       <div className="mb-6 bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200">
+        {/* Mobile: dropdown */}
+        <div className="sm:hidden px-4 py-3">
+          <select
+            value={selectedMachine}
+            onChange={(e) => setSelectedMachine(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
+          >
+            {machines.map((machine) => (
+              <option key={machine.id} value={machine.tenMay}>
+                {machine.tenMay}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* Desktop: tabs */}
+        <div className="hidden sm:block border-b border-gray-200">
           <nav className="flex space-x-4 px-4 overflow-x-auto" aria-label="Tabs">
             {machines.map((machine) => (
               <button
@@ -332,17 +347,17 @@ const QualityEvaluationManagement: React.FC = () => {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Màu sắc</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Mùi hương</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Vị</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Độ ngọt</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Độ giòn</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+                <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
+                <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
+                <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
+                <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Màu sắc</th>
+                <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Mùi hương</th>
+                <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Vị</th>
+                <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Độ ngọt</th>
+                <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Độ giòn</th>
+                <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
+                <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
             </thead>
             <tbody>
