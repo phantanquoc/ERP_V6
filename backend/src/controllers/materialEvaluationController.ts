@@ -109,14 +109,29 @@ export class MaterialEvaluationController {
     }
   }
 
-  async deleteMaterialEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async getDeleteInfo(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
-      await materialEvaluationService.deleteMaterialEvaluation(id);
+      const info = await materialEvaluationService.getMaterialEvaluationDeleteInfo(id);
 
       res.json({
         success: true,
-        message: 'Material evaluation deleted successfully',
+        data: info,
+      } as ApiResponse<any>);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteMaterialEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const counts = await materialEvaluationService.deleteMaterialEvaluation(id);
+
+      res.json({
+        success: true,
+        message: 'Xóa đánh giá vật liệu thành công',
+        data: counts,
       } as ApiResponse<any>);
     } catch (error) {
       next(error);

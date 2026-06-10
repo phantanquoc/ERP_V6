@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Upload, Settings, Save } from 'lucide-react';
 import Modal from './Modal';
-import materialEvaluationService, { MaterialEvaluation } from '../services/materialEvaluationService';
+import ConfirmDeleteModal from './common/ConfirmDeleteModal';
+import materialEvaluationService, { MaterialEvaluation, MaterialEvaluationDeleteInfo } from '../services/materialEvaluationService';
 import materialEvaluationCriteriaService, { MaterialEvaluationCriteria } from '../services/materialEvaluationCriteriaService';
 import systemOperationService from '../services/systemOperationService';
 import DateTimePicker from './DateTimePicker';
@@ -37,6 +38,12 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
+
+  // Delete modal state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteInfo, setDeleteInfo] = useState<MaterialEvaluationDeleteInfo | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
 
   const evaluationFilterFields: FilterField[] = [
@@ -366,19 +373,41 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa đánh giá này?')) {
-      try {
-        setLoading(true);
-        setError('');
-        await materialEvaluationService.deleteMaterialEvaluation(id);
-        await loadEvaluations();
-      } catch (err: any) {
-        setError(err.message || 'Lỗi xóa dữ liệu');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+    try {
+      setError('');
+      const info = await materialEvaluationService.getDeleteInfo(id);
+      setDeleteInfo(info);
+      setDeleteTargetId(id);
+      setIsDeleteModalOpen(true);
+    } catch (err: any) {
+      setError(err.message || 'Lỗi lấy thông tin xóa');
+      console.error(err);
     }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
+    try {
+      setDeleteLoading(true);
+      setError('');
+      await materialEvaluationService.deleteMaterialEvaluation(deleteTargetId);
+      setIsDeleteModalOpen(false);
+      setDeleteTargetId(null);
+      setDeleteInfo(null);
+      await loadEvaluations();
+    } catch (err: any) {
+      setError(err.message || 'Lỗi xóa dữ liệu');
+      console.error(err);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (deleteLoading) return;
+    setIsDeleteModalOpen(false);
+    setDeleteTargetId(null);
+    setDeleteInfo(null);
   };
 
   const handleCreateSystemOperation = async (evaluation: MaterialEvaluation) => {
@@ -1131,6 +1160,31 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
             </div>
           </div>
         </Modal>
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Xác nhận xóa đánh giá vật liệu"
+        message="Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa đánh giá này?"
+        details={
+          deleteInfo
+            ? [
+                ...(deleteInfo.systemOperationCount > 0
+                  ? [`${deleteInfo.systemOperationCount} thông số vận hành hệ thống`]
+                  : []),
+                ...(deleteInfo.finishedProductCount > 0
+                  ? [`${deleteInfo.finishedProductCount} thành phẩm đầu ra`]
+                  : []),
+                ...(deleteInfo.qualityEvaluationCount > 0
+                  ? [`${deleteInfo.qualityEvaluationCount} đánh giá chất lượng`]
+                  : []),
+              ]
+            : []
+        }
+        loading={deleteLoading}
+      />
     </div>
   );
 };
