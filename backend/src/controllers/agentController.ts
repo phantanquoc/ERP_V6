@@ -1,30 +1,10 @@
 import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import { ValidationError } from '@utils/errors';
-import prisma from '@config/database';
+import { getDepartmentCode, getDepartmentCodes } from '@services/userLookupService';
 import { env } from '@config/env';
 
 export class AgentController {
-  private async _getDepartment(req: AuthenticatedRequest): Promise<string> {
-    if (!req.user?.departmentId) return '';
-    const dept = await prisma.department.findUnique({
-      where: { id: req.user.departmentId },
-      select: { code: true },
-    });
-    return dept?.code ?? '';
-  }
-
-  private async _getSecondaryDepartments(req: AuthenticatedRequest): Promise<string[]> {
-    const entries = req.user?.secondaryDepartments;
-    if (!entries || entries.length === 0) return [];
-    const deptIds = entries.map(e => e.departmentId);
-    const depts = await prisma.department.findMany({
-      where: { id: { in: deptIds } },
-      select: { code: true },
-    });
-    return depts.map(d => d.code);
-  }
-
   async stream(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { message, history, confirm_tool, confirm_params, confirm_context, uploaded_files } = req.body as {
@@ -41,8 +21,11 @@ export class AgentController {
       }
 
       const role = req.user?.role ?? '';
-      const department = await this._getDepartment(req);
-      const secondaryDepartments = await this._getSecondaryDepartments(req);
+      const department = await getDepartmentCode(req.user?.departmentId);
+      const entries = req.user?.secondaryDepartments;
+      const secondaryDepartments = entries?.length
+        ? await getDepartmentCodes(entries.map(e => e.departmentId))
+        : [];
       const jwtToken = req.headers.authorization?.replace('Bearer ', '') ?? '';
 
       const controller = new AbortController();
@@ -100,11 +83,7 @@ export class AgentController {
         }
         res.end();
       } catch (streamErr) {
-        if (!res.headersSent) {
-          next(streamErr);
-        } else {
-          res.end();
-        }
+        if (!res.headersSent) { next(streamErr); } else { res.end(); }
       } finally {
         clearTimeout(timeoutId);
       }

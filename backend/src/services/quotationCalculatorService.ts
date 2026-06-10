@@ -1,5 +1,5 @@
 import prisma from '@config/database';
-import { Prisma } from '@prisma/client';
+import { Prisma, QuotationStatus } from '@prisma/client';
 
 // Interface for creating/updating quotation calculator
 export interface QuotationCalculatorData {
@@ -335,6 +335,58 @@ class QuotationCalculatorService {
   async deleteCalculator(quotationRequestId: string) {
     await prisma.quotationCalculator.delete({
       where: { quotationRequestId },
+    });
+  }
+
+  async createQuotationFromCalculator(
+    quotationRequestId: string,
+    opts: { hieuLucBaoGia?: string; tinhTrang?: string; ghiChu?: string; employeeId?: string; tenNhanVien?: string }
+  ) {
+    const calculator = await this.getByQuotationRequestId(quotationRequestId);
+    if (!calculator) throw Object.assign(new Error('Không tìm thấy bảng tính chi phí'), { status: 404 });
+
+    const quotationRequest = await prisma.quotationRequest.findUnique({
+      where: { id: quotationRequestId },
+      include: { items: true },
+    });
+    if (!quotationRequest) throw Object.assign(new Error('Không tìm thấy yêu cầu báo giá'), { status: 404 });
+
+    const firstProduct = calculator.products[0];
+    if (!firstProduct) throw Object.assign(new Error('Không tìm thấy sản phẩm trong bảng tính'), { status: 400 });
+
+    const giaBaoKhach = (firstProduct.giaHoaVon || 0) + (firstProduct.loiNhuanCongThem || 0);
+    const maBaoGia = `BG-${quotationRequest.maYeuCauBaoGia}`;
+
+    return prisma.quotation.create({
+      data: {
+        maBaoGia,
+        quotationRequestId: quotationRequest.id,
+        maYeuCauBaoGia: quotationRequest.maYeuCauBaoGia,
+        customerId: quotationRequest.customerId,
+        maKhachHang: quotationRequest.maKhachHang,
+        tenKhachHang: quotationRequest.tenKhachHang,
+        productId: firstProduct.productId,
+        tenSanPham: firstProduct.tenSanPham,
+        khoiLuong: firstProduct.soLuong,
+        donViTinh: firstProduct.donViTinh,
+        materialStandardId: firstProduct.materialStandardId || null,
+        maDinhMuc: firstProduct.maDinhMuc || null,
+        tenDinhMuc: firstProduct.tenDinhMuc || null,
+        tiLeThuHoi: firstProduct.tiLeThuHoi || null,
+        sanPhamDauRa: firstProduct.sanPhamDauRa || null,
+        thanhPhamTonKho: firstProduct.thanhPhamTonKho || null,
+        tongThanhPhamCanSxThem: firstProduct.tongThanhPhamCanSxThem || null,
+        tongNguyenLieuCanSanXuat: firstProduct.tongNguyenLieuCanSanXuat || null,
+        nguyenLieuTonKho: firstProduct.nguyenLieuTonKho || null,
+        nguyenLieuCanNhapThem: firstProduct.nguyenLieuCanNhapThem || null,
+        giaBaoKhach,
+        thoiGianGiaoHang: firstProduct.thoiGianChoPhepToiDa || null,
+        hieuLucBaoGia: opts.hieuLucBaoGia ? parseInt(opts.hieuLucBaoGia) : null,
+        employeeId: opts.employeeId || null,
+        tenNhanVien: opts.tenNhanVien || null,
+        tinhTrang: (opts.tinhTrang || 'DANG_CHO_PHAN_HOI') as QuotationStatus,
+        ghiChu: opts.ghiChu || null,
+      },
     });
   }
 }

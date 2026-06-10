@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest, ApiResponse } from '@types';
 import workPlanService from '@services/workPlanService';
 import { getFileUrl } from '@middlewares/upload';
-import prisma from '@config/database';
+import { getEmployeeByUserId } from '@services/userLookupService';
 
 class WorkPlanController {
   async createWorkPlan(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -68,9 +68,7 @@ class WorkPlanController {
         return;
       }
 
-      const employee = await prisma.employee.findUnique({
-        where: { userId },
-      });
+      const employee = await getEmployeeByUserId(userId);
 
       if (!employee) {
         res.status(404).json({

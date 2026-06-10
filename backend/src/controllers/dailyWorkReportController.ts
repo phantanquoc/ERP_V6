@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import dailyWorkReportService from '@services/dailyWorkReportService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
-import prisma from '@config/database';
+import { getEmployeeByUserId } from '@services/userLookupService';
 import { getFileUrl } from '@middlewares/upload';
 
 export class DailyWorkReportController {
@@ -96,10 +96,7 @@ export class DailyWorkReportController {
         return;
       }
 
-      // Get employee by userId
-      const employee = await prisma.employee.findUnique({
-        where: { userId },
-      });
+      const employee = await getEmployeeByUserId(userId);
 
       if (!employee) {
         res.status(404).json({
@@ -143,10 +140,7 @@ export class DailyWorkReportController {
         return;
       }
 
-      // Get employee by userId
-      const employee = await prisma.employee.findUnique({
-        where: { userId },
-      });
+      const employee = await getEmployeeByUserId(userId);
 
       if (!employee) {
         res.status(404).json({
@@ -293,10 +287,7 @@ export class DailyWorkReportController {
         return;
       }
 
-      // Get employee by userId
-      const employee = await prisma.employee.findUnique({
-        where: { userId },
-      });
+      const employee = await getEmployeeByUserId(userId);
 
       if (!employee) {
         res.status(404).json({
