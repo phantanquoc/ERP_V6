@@ -131,18 +131,17 @@ const ProductionDepartment = () => {
   ];
 
   return (
-    <div className="max-w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-4">
-        {/* Header */}
-        <div className="mb-4 sm:mb-8">
-          <h1 className="text-xl sm:text-3xl font-bold text-gray-800 mb-2 flex items-center">
-            <Factory className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 mr-3" />
-            Phòng QLSX
-          </h1>
-          <p className="text-gray-600 text-sm sm:text-base">Quản lý quy trình, đơn hàng và định mức nguyên vật liệu</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Factory className="w-6 h-6 text-blue-600" />
+          Phòng QLSX
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">Quản lý quy trình, đơn hàng và định mức nguyên vật liệu</p>
+      </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Tổng quan máy móc */}
           <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
             <div className="flex items-center justify-between mb-4">
@@ -212,110 +211,43 @@ const ProductionDepartment = () => {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mb-3 sm:mb-6">
-          <div className="border-b border-gray-200 relative">
-            {/* Fade gradient hints for scroll */}
-            <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-gray-50 to-transparent pointer-events-none z-10 sm:hidden" />
-            <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none z-10 sm:hidden" />
-            <nav className="-mb-px flex space-x-2 sm:space-x-4 lg:space-x-8 overflow-x-auto scrollbar-hide">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-1.5 shrink-0 ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {tab.icon}
-                  <span className="hidden sm:inline">{tab.name}</span>
-                  <span className="sm:hidden text-xs">{tab.name.length > 10 ? tab.name.slice(0, 10) + '…' : tab.name}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
-
-
-
-        {/* Content */}
-        <div className="bg-white rounded-lg shadow-sm">
-          {/* QUẢN LÝ MÁY MÓC */}
-          {activeTab === 'machines' && (
-            <div className="p-2 sm:p-6">
-              <MachineManagement />
-            </div>
-          )}
-
-          {/* DANH SÁCH QUY TRÌNH */}
-          {activeTab === 'processList' && (
-            <div className="p-2 sm:p-6">
-              <ProcessManagement mode="standard-only" />
-            </div>
-          )}
-
-          {/* KẾ HOẠCH SẢN XUẤT - MOVED TO STANDARDS TAB */}
-          {activeTab === 'standards' && (
-            <div className="p-2 sm:p-6">
-              <MaterialStandardManagement />
-            </div>
-          )}
-
-          {/* DANH SÁCH QUY TRÌNH SẢN XUẤT */}
-          {activeTab === 'productionOrders' && (
-            <div className="p-2 sm:p-6">
-              <ProductionProcessManagement />
-            </div>
-          )}
-
-          {/* DANH SÁCH ĐƠN HÀNG */}
-          {activeTab === 'orderList' && (
-            <div className="p-2 sm:p-6">
-              <OrderManagement hideHeader={true} />
-            </div>
-          )}
-
-          {/* ĐÁNH GIÁ NGUYÊN LIỆU */}
-          {activeTab === 'materialEvaluation' && (
-            <div className="p-2 sm:p-6">
-              <MaterialEvaluationManagement onCreateSystemOperation={handleCreateSystemOperation} />
-            </div>
-          )}
-
-          {/* THÔNG SỐ VẬN HÀNH HỆ THỐNG */}
-          {activeTab === 'systemOperation' && (
-            <div className="p-2 sm:p-6">
-              <SystemOperationManagement
-                initialMaChien={selectedMaChien}
-                initialThoiGianChien={selectedThoiGianChien}
-              />
-            </div>
-          )}
-
-          {/* THÀNH PHẨM ĐẦU RA */}
-          {activeTab === 'finishedProduct' && (
-            <div className="p-2 sm:p-6">
-              <FinishedProductManagement />
-            </div>
-          )}
-
-          {/* ĐÁNH GIÁ CHẤT LƯỢNG */}
-          {activeTab === 'qualityEvaluation' && (
-            <div className="p-2 sm:p-6">
-              <QualityEvaluationManagement />
-            </div>
-          )}
-
-          {/* BÁO CÁO SẢN LƯỢNG */}
-          {activeTab === 'productionReport' && (
-            <div className="p-2 sm:p-6">
-              <ProductionReportList />
-            </div>
-          )}
-        </div>
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-1 -mb-px overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {tab.icon}
+              {tab.name}
+            </button>
+          ))}
+        </nav>
       </div>
+
+      {/* Content */}
+      {activeTab === 'machines' && <MachineManagement />}
+      {activeTab === 'processList' && <ProcessManagement mode="standard-only" />}
+      {activeTab === 'standards' && <MaterialStandardManagement />}
+      {activeTab === 'productionOrders' && <ProductionProcessManagement />}
+      {activeTab === 'orderList' && <OrderManagement hideHeader={true} />}
+      {activeTab === 'materialEvaluation' && <MaterialEvaluationManagement onCreateSystemOperation={handleCreateSystemOperation} />}
+      {activeTab === 'systemOperation' && (
+        <SystemOperationManagement
+          initialMaChien={selectedMaChien}
+          initialThoiGianChien={selectedThoiGianChien}
+        />
+      )}
+      {activeTab === 'finishedProduct' && <FinishedProductManagement />}
+      {activeTab === 'qualityEvaluation' && <QualityEvaluationManagement />}
+      {activeTab === 'productionReport' && <ProductionReportList />}
+    </div>
   );
 };
 

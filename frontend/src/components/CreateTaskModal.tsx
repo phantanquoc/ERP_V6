@@ -1,24 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DatePicker from './DatePicker';
 import { taskService, TaskPriority, CreateTaskData } from '../services/taskService';
 import { Calendar, Users, FileText, AlertCircle } from 'lucide-react';
-import apiClient from '../services/apiClient';
 import FileUpload from './FileUpload';
 import { getTaskPriorityLabel } from '../utils/taskHelpers';
 import { ModalForm, ModalFooter } from './ModalForm';
+import { useAllEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-}
-
-interface Employee {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  employeeCode: string;
-  department: string;
 }
 
 const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSuccess }) => {
@@ -31,69 +23,20 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSu
     files: [],
   });
 
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
+  const { data: employeeData, isLoading: loadingEmployees } = useAllEmployeesForAssignment();
+  const employees = employeeData?.employees ?? [];
+  const departments = employeeData?.departments ?? [];
+
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
-  const [departments, setDepartments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchEmployees();
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
+  const filteredEmployees = useMemo(() => {
     if (selectedDepartment) {
-      setFilteredEmployees(employees.filter(emp => emp.department === selectedDepartment));
-    } else {
-      setFilteredEmployees(employees);
+      return employees.filter(emp => emp.department === selectedDepartment);
     }
+    return employees;
   }, [selectedDepartment, employees]);
-
-  const fetchEmployees = async () => {
-    setLoadingEmployees(true);
-    setError('');
-    try {
-      const response = await apiClient.get('/employees/for-assignment', { params: { limit: 1000 } });
-
-      console.log('Employee API response:', response);
-
-      // Handle different response structures
-      let employeeList: any[] = [];
-      if (response.data) {
-        employeeList = Array.isArray(response.data) ? response.data : (response.data as any).data || [];
-      } else if (Array.isArray(response)) {
-        employeeList = response as any;
-      }
-
-      // Transform employee data to match our interface
-      const transformedEmployees = employeeList.map((emp: any) => ({
-        _id: emp.id || emp._id,
-        firstName: emp.user?.firstName || emp.firstName || '',
-        lastName: emp.user?.lastName || emp.lastName || '',
-        employeeCode: emp.employeeCode || '',
-        department: emp.departmentName || emp.subDepartmentName || 'Chưa xác định',
-      }));
-
-      console.log('Transformed employees:', transformedEmployees);
-
-      setEmployees(transformedEmployees);
-      setFilteredEmployees(transformedEmployees);
-
-      // Extract unique departments
-      const uniqueDepts = Array.from(new Set(transformedEmployees.map((emp: Employee) => emp.department).filter(Boolean)));
-      setDepartments(uniqueDepts as string[]);
-    } catch (err: any) {
-      console.error('Error fetching employees:', err);
-      const errorMsg = err.response?.data?.message || 'Không thể tải danh sách nhân viên';
-      setError(errorMsg);
-    } finally {
-      setLoadingEmployees(false);
-    }
-  };
 
   const handleEmployeeToggle = (employeeId: string) => {
     const currentSelection = formData.nguoiNhan;

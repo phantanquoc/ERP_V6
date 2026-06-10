@@ -3,7 +3,7 @@ import { Plus, Trash2, X } from 'lucide-react';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
-import apiClient from '../services/apiClient';
+import { useAllEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { useCreateAcceptanceHandover } from '../hooks/useAcceptanceHandovers';
 import type { CreateAcceptanceHandoverRequest, AcceptanceHandoverItemInput } from '../services/acceptanceHandoverService';
 import type { RepairRequest, RepairRequestItem } from '../services/repairRequestService';
@@ -47,9 +47,9 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
   const createHandover = useCreateAcceptanceHandover();
   const [error, setError] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const { data: employeeData, isLoading: loadingEmployees } = useAllEmployeesForAssignment();
+  const employees = (employeeData?.employees ?? []) as Employee[];
   const [selectedDepartment, setSelectedDepartment] = useState('');
-  const [loadingEmployees, setLoadingEmployees] = useState(false);
 
   const requestItems = useMemo(() => repairRequest.items?.filter((item) => !!item.id) ?? [], [repairRequest.items]);
   const allowedItemIds = useMemo(() => new Set(requestItems.map((item) => item.id)), [requestItems]);
@@ -74,33 +74,6 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
     ghiChu: '',
     items: [],
   });
-
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      setLoadingEmployees(true);
-      try {
-        const response = await apiClient.get<unknown>('/employees/for-assignment', { params: { limit: 1000 } });
-        const rawData = response.data as { data?: unknown[] } | unknown[] | undefined;
-        const employeeList = Array.isArray(rawData) ? rawData : Array.isArray(rawData?.data) ? rawData.data : [];
-        const transformed = employeeList.map((employee) => {
-          const emp = employee as Record<string, any>;
-          return {
-            _id: emp.id || emp._id,
-            firstName: emp.user?.firstName || emp.firstName || '',
-            lastName: emp.user?.lastName || emp.lastName || '',
-            employeeCode: emp.employeeCode || '',
-            department: emp.departmentName || emp.subDepartmentName || 'Chưa xác định',
-          };
-        });
-        setEmployees(transformed);
-      } catch {
-        setEmployees([]);
-      } finally {
-        setLoadingEmployees(false);
-      }
-    };
-    fetchEmployees();
-  }, []);
 
   const departments = useMemo(
     () => Array.from(new Set(employees.map((employee) => employee.department).filter(Boolean))),

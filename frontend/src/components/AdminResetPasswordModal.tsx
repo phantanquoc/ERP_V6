@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KeyRound, Eye, EyeOff, RefreshCw, Copy, Check, X, Loader2 } from 'lucide-react';
-import apiClient from '@services/apiClient';
+import employeeService from '../services/employeeService';
+import userService from '../services/userService';
 import Modal from './Modal';
 
 interface Props {
@@ -61,9 +62,9 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, metada
     }
 
     setResolving(true);
-    apiClient.get<{ userId: string }>(`/employees/code/${code}`)
+    employeeService.getEmployeeByCode(code)
       .then(res => {
-        const uid = res.data?.userId;
+        const uid = (res as any).userId;
         if (uid) {
           setResolvedUserId(uid);
         } else {
@@ -84,8 +85,8 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, metada
     setManualLooking(true);
     setManualError('');
     try {
-      const res = await apiClient.get<{ userId: string }>(`/employees/code/${code}`);
-      const uid = res.data?.userId;
+      const res = await employeeService.getEmployeeByCode(code);
+      const uid = (res as any).userId;
       if (uid) {
         setResolveError('');
         setResolvedUserId(uid);
@@ -112,8 +113,8 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, metada
     setError('');
     setIsLoading(true);
     try {
-      const response = await apiClient.post<{ newPassword: string }>(`/users/${resolvedUserId}/reset-password`, { newPassword: trimmed });
-      setResultPassword(response.data.newPassword);
+      const response = await userService.adminResetPassword(resolvedUserId, trimmed);
+      setResultPassword(response.newPassword);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Đặt lại mật khẩu thất bại';
       setError(msg);

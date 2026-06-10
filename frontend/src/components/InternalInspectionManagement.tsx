@@ -4,12 +4,18 @@ import internalInspectionService from '@services/internalInspectionService';
 import type { InternalInspection } from '@services/internalInspectionService';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
-import apiClient from '../services/apiClient';
+import { useAllEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 
 const InternalInspectionManagement = () => {
   const [inspections, setInspections] = useState<InternalInspection[]>([]);
   const [loading, setLoading] = useState(false);
-  const [employees, setEmployees] = useState<{id: string, firstName: string, lastName: string, employeeCode: string}[]>([]);
+  const { data: employeeData } = useAllEmployeesForAssignment();
+  const employees = (employeeData?.employees ?? []).map(emp => ({
+    id: emp._id,
+    firstName: emp.firstName,
+    lastName: emp.lastName,
+    employeeCode: emp.employeeCode,
+  }));
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
     _search: '',
     violationLevel: '',
@@ -56,17 +62,7 @@ const InternalInspectionManagement = () => {
 
   useEffect(() => {
     loadInspections();
-    loadEmployees();
   }, [selectedMonth, selectedYear]);
-
-  const loadEmployees = async () => {
-    try {
-      const res = await apiClient.get('/employees', { params: { limit: 200 } });
-      setEmployees(res.data?.data || []);
-    } catch (error) {
-      console.error('Error loading employees:', error);
-    }
-  };
 
   const loadInspections = async () => {
     try {
