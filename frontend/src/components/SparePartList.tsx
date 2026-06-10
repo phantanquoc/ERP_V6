@@ -225,44 +225,42 @@ const SparePartList = () => {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[700px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">STT</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Mã linh kiện</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Tên linh kiện</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Loại</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Đơn vị</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">SL tồn</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Nhà cung cấp</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Trạng thái</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Thao tác</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs sticky left-0 bg-gray-50 z-10 min-w-[100px]">Mã linh kiện</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[150px]">Tên linh kiện</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[80px]">Loại</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[60px]">Đơn vị</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[60px]">SL tồn</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[120px]">Nhà cung cấp</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[100px]">Trạng thái</th>
+                <th className="px-3 py-2.5 text-right font-medium text-gray-500 text-xs sticky right-0 bg-gray-50 z-10 min-w-[90px]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Đang tải...</td></tr>
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
               ) : parts.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Không có dữ liệu</td></tr>
-              ) : parts.map((part, idx) => (
-                <tr key={part.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-4 py-3 font-mono text-blue-700 font-medium">{part.maLinhKien}</td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{part.tenLinhKien}</td>
-                  <td className="px-4 py-3 text-gray-600">{loaiLabel(part.loai)}</td>
-                  <td className="px-4 py-3 text-gray-600">{part.donVi}</td>
-                  <td className="px-4 py-3 font-medium">{part.soLuongTon}</td>
-                  <td className="px-4 py-3 text-gray-600">{part.nhaCungCap ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${trangThaiBadge(part.trangThai)}`}>
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Không có dữ liệu</td></tr>
+              ) : parts.map((part) => (
+                <tr key={part.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{part.maLinhKien}</td>
+                  <td className="px-3 py-2.5 font-medium text-gray-800">{part.tenLinhKien}</td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{loaiLabel(part.loai)}</td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{part.donVi}</td>
+                  <td className="px-3 py-2.5 font-medium">{part.soLuongTon}</td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{part.nhaCungCap ?? '—'}</td>
+                  <td className="px-3 py-2.5">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${trangThaiBadge(part.trangThai)}`}>
                       {part.trangThai}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openViewModal(part)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"><Eye size={14} /></button>
-                      {canWrite && <button onClick={() => openEditModal(part)} className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded"><Edit size={14} /></button>}
-                      {canDelete && <button onClick={() => handleDelete(part.id)} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14} /></button>}
+                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                    <div className="flex justify-end gap-0.5">
+                      <button title="Xem" onClick={() => openViewModal(part)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><Eye size={14} /></button>
+                      {canWrite && <button title="Sửa" onClick={() => openEditModal(part)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"><Edit size={14} /></button>}
+                      {canDelete && <button title="Xóa" onClick={() => handleDelete(part.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={14} /></button>}
                     </div>
                   </td>
                 </tr>
