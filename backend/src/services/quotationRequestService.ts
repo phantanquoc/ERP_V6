@@ -62,10 +62,10 @@ export class QuotationRequestService {
               },
             },
           },
-          customer: true,
+          customer: { select: { id: true, maKhachHang: true, tenCongTy: true, quocGia: true } },
           items: {
             include: {
-              product: true,
+              product: { select: { id: true, maSanPham: true, tenSanPham: true } },
             },
           },
         },

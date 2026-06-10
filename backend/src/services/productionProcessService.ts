@@ -48,11 +48,9 @@ class ProductionProcessService {
         skip,
         take: limit,
         include: {
-          process: true, // Include template process info
+          process: { select: { id: true, maQuyTrinh: true, tenQuyTrinh: true, loaiQuyTrinh: true } },
           materialStandard: {
-            include: {
-              items: true, // Include material standard items
-            },
+            select: { id: true, maDinhMuc: true, tenDinhMuc: true },
           },
         },
         orderBy: {

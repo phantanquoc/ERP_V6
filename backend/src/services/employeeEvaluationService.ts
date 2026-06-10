@@ -97,8 +97,8 @@ export class EmployeeEvaluationService {
     const employees = await prisma.employee.findMany({
       where: conditions.length > 0 ? { OR: conditions } : {},
       include: {
-        user: true,
-        position: true,
+        user: { select: { firstName: true, lastName: true, email: true, role: true } },
+        position: { select: { id: true, name: true } },
         evaluations: {
           where: {
             period: `${year}-${String(month).padStart(2, '0')}`,
