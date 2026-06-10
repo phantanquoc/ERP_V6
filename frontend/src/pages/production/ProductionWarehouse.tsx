@@ -110,12 +110,11 @@ const ProductionWarehouse = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-4">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
-            <Package className="w-8 h-8 text-indigo-600 mr-3" />
+        <div className="mb-4 sm:mb-8">
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-800 mb-2 flex items-center">
+            <Package className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-600 mr-3" />
             Quản lý kho
           </h1>
           <p className="text-gray-600">Quản lý kho, nhập xuất kho và yêu cầu cung cấp</p>
@@ -467,7 +466,6 @@ const ProductionWarehouse = () => {
           </div>
         )}
       </div>
-    </div>
   );
 };
 

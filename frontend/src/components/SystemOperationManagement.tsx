@@ -381,7 +381,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Thông số vận hành hệ thống</h2>
@@ -488,11 +488,11 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
+                  <td colSpan={10} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Đang tải...</td>
                 </tr>
               ) : paginatedOperations.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">Chưa có dữ liệu</td>
+                  <td colSpan={10} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chưa có dữ liệu</td>
                 </tr>
               ) : (
               paginatedOperations.map((operation, index) => (

@@ -363,13 +363,13 @@ const QualityEvaluationManagement: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={11} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">
                     Đang tải...
                   </td>
                 </tr>
               ) : filteredEvaluations.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={11} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">
                     Không có dữ liệu
                   </td>
                 </tr>
@@ -381,37 +381,37 @@ const QualityEvaluationManagement: React.FC = () => {
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     }`}
                   >
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                       {evaluation.maChien}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">
                       {formatDateTime(evaluation.thoiGianChien)}
                     </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                       {evaluation.tenHangHoa}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {evaluation.mauSac || '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {evaluation.muiHuong || '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {evaluation.huongVi || '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {evaluation.doNgot || '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                       {evaluation.doGion || '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                       {evaluation.nguoiThucHien}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4">
                       <div className="flex items-center justify-center gap-3">
                         <button
                           onClick={() => handleView(evaluation)}

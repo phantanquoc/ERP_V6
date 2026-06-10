@@ -23,7 +23,7 @@ const CHART_COLORS = ['#6B7280', '#F59E0B', '#3B82F6', '#8B5CF6', '#14B8A6', '#6
 
 // ── Skeleton ──
 const DashboardSkeleton = () => (
-  <div className="min-h-screen bg-gray-50 p-6">
+  <div className="px-2 sm:px-4 lg:px-6 py-2 sm:py-4">
     <div className="flex items-center justify-between mb-5">
       <div>
         <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2" />
@@ -293,7 +293,7 @@ const ProductionManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="px-2 sm:px-4 lg:px-6 py-2 sm:py-4">
       {/* ── HEADER ── */}
       <div className="flex items-center justify-between mb-5">
         <div>

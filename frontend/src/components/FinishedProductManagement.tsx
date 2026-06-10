@@ -577,7 +577,7 @@ const FinishedProductManagement: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center space-x-3">
@@ -665,21 +665,21 @@ const FinishedProductManagement: React.FC = () => {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng KL (kg)</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Số máy</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Đánh giá</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng KL (kg)</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Số máy</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Đánh giá</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                         <span className="ml-2">Đang tải...</span>
@@ -688,7 +688,7 @@ const FinishedProductManagement: React.FC = () => {
                   </tr>
                 ) : filteredAggregated.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">
                       Chưa có dữ liệu
                     </td>
                   </tr>
@@ -700,25 +700,25 @@ const FinishedProductManagement: React.FC = () => {
                         index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                       }`}
                     >
-                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                         {index + 1}
                       </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-green-600 border-r border-gray-200">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-green-600 border-r border-gray-200">
                         {product.maChien}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">
                         {formatDateTime(product.thoiGianChien)}
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                         {product.tenHangHoa}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center font-semibold">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center font-semibold">
                         {product.tongKhoiLuong.toFixed(2)}
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                         {product.nguoiThucHien}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                           {product.machineCount} máy
                         </span>
@@ -745,7 +745,7 @@ const FinishedProductManagement: React.FC = () => {
                           <span className="text-gray-400 italic">Chỉ có 1 máy</span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4">
                         <div className="flex items-center justify-center gap-3">
                           <button
                             onClick={() => handleViewAggregated(product)}
@@ -785,7 +785,7 @@ const FinishedProductManagement: React.FC = () => {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={8} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                         <span className="ml-2">Đang tải...</span>
@@ -794,7 +794,7 @@ const FinishedProductManagement: React.FC = () => {
                   </tr>
                 ) : filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={8} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">
                       Chưa có dữ liệu
                     </td>
                   </tr>
@@ -923,7 +923,7 @@ const FinishedProductManagement: React.FC = () => {
       <Modal isOpen={isAggregatedViewModalOpen && !!selectedAggregatedProduct} onClose={() => setIsAggregatedViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
         <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             {selectedAggregatedProduct && (<>
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-green-100 shrink-0">
+            <div className="px-3 py-2 sm:px-6 sm:py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-green-100 shrink-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-900">
                   Chi tiết tổng hợp - Mã chiên: {selectedAggregatedProduct.maChien}
@@ -1118,7 +1118,7 @@ const FinishedProductManagement: React.FC = () => {
                 </table>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end shrink-0">
+            <div className="px-3 py-2 sm:px-6 sm:py-4 border-t border-gray-200 bg-gray-50 flex justify-end shrink-0">
               <button
                 onClick={() => setIsAggregatedViewModalOpen(false)}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"

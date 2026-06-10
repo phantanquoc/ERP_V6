@@ -131,10 +131,9 @@ const ProductionDepartment = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-4">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-4 sm:mb-8">
           <h1 className="text-xl sm:text-3xl font-bold text-gray-800 mb-2 flex items-center">
             <Factory className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 mr-3" />
             Phòng QLSX
@@ -143,7 +142,7 @@ const ProductionDepartment = () => {
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-8">
           {/* Tổng quan máy móc */}
           <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
             <div className="flex items-center justify-between mb-4">
@@ -214,7 +213,7 @@ const ProductionDepartment = () => {
         </div>
 
         {/* Tabs */}
-        <div className="mb-6">
+        <div className="mb-3 sm:mb-6">
           <div className="border-b border-gray-200 relative">
             {/* Fade gradient hints for scroll */}
             <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-gray-50 to-transparent pointer-events-none z-10 sm:hidden" />
@@ -245,49 +244,49 @@ const ProductionDepartment = () => {
         <div className="bg-white rounded-lg shadow-sm">
           {/* QUẢN LÝ MÁY MÓC */}
           {activeTab === 'machines' && (
-            <div className="p-6">
+            <div className="p-2 sm:p-6">
               <MachineManagement />
             </div>
           )}
 
           {/* DANH SÁCH QUY TRÌNH */}
           {activeTab === 'processList' && (
-            <div className="p-6">
+            <div className="p-2 sm:p-6">
               <ProcessManagement mode="standard-only" />
             </div>
           )}
 
           {/* KẾ HOẠCH SẢN XUẤT - MOVED TO STANDARDS TAB */}
           {activeTab === 'standards' && (
-            <div className="p-6">
+            <div className="p-2 sm:p-6">
               <MaterialStandardManagement />
             </div>
           )}
 
           {/* DANH SÁCH QUY TRÌNH SẢN XUẤT */}
           {activeTab === 'productionOrders' && (
-            <div className="p-6">
+            <div className="p-2 sm:p-6">
               <ProductionProcessManagement />
             </div>
           )}
 
           {/* DANH SÁCH ĐƠN HÀNG */}
           {activeTab === 'orderList' && (
-            <div className="p-6">
+            <div className="p-2 sm:p-6">
               <OrderManagement hideHeader={true} />
             </div>
           )}
 
           {/* ĐÁNH GIÁ NGUYÊN LIỆU */}
           {activeTab === 'materialEvaluation' && (
-            <div className="p-6">
+            <div className="p-2 sm:p-6">
               <MaterialEvaluationManagement onCreateSystemOperation={handleCreateSystemOperation} />
             </div>
           )}
 
           {/* THÔNG SỐ VẬN HÀNH HỆ THỐNG */}
           {activeTab === 'systemOperation' && (
-            <div className="p-6">
+            <div className="p-2 sm:p-6">
               <SystemOperationManagement
                 initialMaChien={selectedMaChien}
                 initialThoiGianChien={selectedThoiGianChien}
@@ -297,27 +296,26 @@ const ProductionDepartment = () => {
 
           {/* THÀNH PHẨM ĐẦU RA */}
           {activeTab === 'finishedProduct' && (
-            <div className="p-6">
+            <div className="p-2 sm:p-6">
               <FinishedProductManagement />
             </div>
           )}
 
           {/* ĐÁNH GIÁ CHẤT LƯỢNG */}
           {activeTab === 'qualityEvaluation' && (
-            <div className="p-6">
+            <div className="p-2 sm:p-6">
               <QualityEvaluationManagement />
             </div>
           )}
 
           {/* BÁO CÁO SẢN LƯỢNG */}
           {activeTab === 'productionReport' && (
-            <div className="p-6">
+            <div className="p-2 sm:p-6">
               <ProductionReportList />
             </div>
           )}
         </div>
       </div>
-    </div>
   );
 };
 

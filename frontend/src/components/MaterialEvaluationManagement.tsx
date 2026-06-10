@@ -438,7 +438,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Đánh giá nguyên liệu</h2>
@@ -504,12 +504,12 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   });
                   if (loading) return (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
+                    <td colSpan={7} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Đang tải...</td>
                   </tr>
                 );
                   if (filteredEvaluations.length === 0) return (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">Chưa có dữ liệu</td>
+                    <td colSpan={7} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chưa có dữ liệu</td>
                   </tr>
                 );
                   return filteredEvaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
@@ -621,7 +621,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       {/* Create/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
         <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-between items-center px-6 py-4 border-b shrink-0">
+          <div className="flex justify-between items-center px-3 py-2 sm:px-6 sm:py-4 border-b shrink-0">
               <h2 className="text-xl font-bold">
                 {isEditing ? 'Chỉnh sửa đánh giá' : 'Thêm đánh giá mới'}
               </h2>
@@ -905,7 +905,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       {/* View Detail Modal */}
       <Modal isOpen={isViewModalOpen && !!selectedEvaluation} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
         <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-between items-center px-6 py-4 border-b shrink-0">
+          <div className="flex justify-between items-center px-3 py-2 sm:px-6 sm:py-4 border-b shrink-0">
               <h2 className="text-xl font-bold">Chi tiết đánh giá nguyên liệu</h2>
               <button
                 onClick={() => setIsViewModalOpen(false)}
@@ -1014,7 +1014,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       {/* Settings Modal */}
       <Modal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} showBackdrop>
         <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-between items-center px-6 py-4 border-b shrink-0">
+          <div className="flex justify-between items-center px-3 py-2 sm:px-6 sm:py-4 border-b shrink-0">
               <h2 className="text-xl font-bold">Cài đặt tiêu chí đánh giá nguyên liệu</h2>
               <button
                 onClick={() => setIsSettingsModalOpen(false)}

@@ -37,11 +37,11 @@ const ProductionData = () => {
   ];
 
   return (
-    <div className="p-6">
+    <div className="px-2 sm:px-4 py-2 sm:py-4">
       {/* Tabs */}
-      <div className="mb-6">
+      <div className="mb-3 sm:mb-6">
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8 overflow-x-auto">
+          <nav className="-mb-px flex space-x-2 sm:space-x-8 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -63,12 +63,12 @@ const ProductionData = () => {
       {/* Content */}
       <div className="bg-white rounded-lg shadow-sm">
         {activeTab === 'materialEvaluation' && (
-          <div className="p-6">
+          <div className="p-2 sm:p-6">
             <MaterialEvaluationManagement onCreateSystemOperation={handleCreateSystemOperation} />
           </div>
         )}
         {activeTab === 'systemOperation' && (
-          <div className="p-6">
+          <div className="p-2 sm:p-6">
             <SystemOperationManagement
               initialMaChien={selectedMaChien}
               initialThoiGianChien={selectedThoiGianChien}
@@ -76,7 +76,7 @@ const ProductionData = () => {
           </div>
         )}
         {activeTab === 'finishedProduct' && (
-          <div className="p-6">
+          <div className="p-2 sm:p-6">
             <FinishedProductManagement />
           </div>
         )}
