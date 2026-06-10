@@ -106,7 +106,7 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} closeOnBackdrop={true}>
-        <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-6xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="relative bg-white sm:rounded-2xl rounded-t-xl shadow-xl w-full sm:max-w-6xl flex flex-col h-[92vh] sm:h-auto sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="bg-gradient-to-r from-green-600 to-teal-600 px-6 py-4 rounded-t-2xl shrink-0">
             <div className="flex items-center justify-between">
@@ -302,7 +302,7 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
       {/* View Report Modal */}
       {viewReport && (
         <Modal isOpen={true} onClose={() => setViewReport(null)} closeOnBackdrop={true}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white sm:rounded-2xl rounded-t-xl shadow-xl sm:max-w-3xl w-full flex flex-col h-[92vh] sm:h-auto sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-green-600 to-teal-600 px-6 py-4 shrink-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white">Chi tiết báo cáo</h3>

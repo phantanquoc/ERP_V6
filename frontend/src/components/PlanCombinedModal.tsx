@@ -30,7 +30,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} showBackdrop>
-      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white sm:rounded-xl rounded-t-xl shadow-2xl sm:max-w-6xl w-full flex flex-col h-[92vh] sm:h-auto sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-600 to-orange-500 px-6 py-4 flex items-center justify-between shrink-0">

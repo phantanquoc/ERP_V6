@@ -76,7 +76,7 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white sm:rounded-lg rounded-t-xl shadow-xl w-full sm:max-w-6xl flex flex-col h-[92vh] sm:h-auto sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 shrink-0">
           <h2 className="text-2xl font-bold text-gray-900">Danh sách Góp ý & Khó khăn</h2>
@@ -190,7 +190,7 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
       {/* Detail Modal */}
       <Modal isOpen={!!selectedFeedback} onClose={() => setSelectedFeedback(null)} showBackdrop closeOnBackdrop={true}>
         {selectedFeedback && (
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white sm:rounded-lg rounded-t-xl shadow-xl w-full sm:max-w-2xl flex flex-col h-[92vh] sm:h-auto sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-200 shrink-0">
               <h3 className="text-xl font-bold text-gray-900">Chi tiết</h3>
               <button

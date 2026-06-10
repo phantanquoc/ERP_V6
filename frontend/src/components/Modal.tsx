@@ -45,7 +45,7 @@ const Modal: React.FC<ModalProps> = ({
         stopPropagation đặt trực tiếp trên children (modal box) để ngăn click bên trong bubble lên.
       */}
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4"
         style={{ width: '100vw', height: '100vh' }}
         onClick={closeOnBackdrop ? onClose : undefined}
       >
