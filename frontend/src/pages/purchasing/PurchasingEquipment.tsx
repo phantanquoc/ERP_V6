@@ -293,44 +293,39 @@ const PurchasingEquipment = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
-            <Settings className="w-8 h-8 text-purple-600 mr-3" />
-            Phòng mua Thiết bị
-          </h1>
-          <p className="text-gray-600">Quản lý nhà cung cấp, đơn hàng mua, hợp đồng và đầu tư thiết bị máy móc</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Settings className="w-6 h-6 text-blue-600" />
+          Phòng mua Thiết bị
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">Quản lý nhà cung cấp, đơn hàng mua, hợp đồng và đầu tư thiết bị máy móc</p>
+      </div>
 
-        {/* Tabs */}
-        <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 overflow-x-auto">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-                    activeTab === tab.id
-                      ? 'border-purple-500 text-purple-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.name}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-1 -mb-px">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {tab.icon}
+              {tab.name}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-        {/* Content */}
-        <div className="bg-white rounded-lg shadow-sm">
+      {/* Content */}
           {/* NHÀ CUNG CẤP THIẾT BỊ */}
           {activeTab === 'suppliers' && (
-            <div className="p-6">
+            <div>
               <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="relative">
@@ -443,15 +438,11 @@ const PurchasingEquipment = () => {
           )}
 
           {/* DANH SÁCH ĐƠN HÀNG */}
-          {activeTab === 'orderList' && (
-            <div className="p-6">
-              <OrderManagement hideHeader={true} />
-            </div>
-          )}
+          {activeTab === 'orderList' && <OrderManagement hideHeader={true} />}
 
           {/* DANH SÁCH MUA HÀNG */}
           {activeTab === 'purchaseRequestList' && (
-            <div className="p-6">
+            <div>
               <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="relative">
@@ -578,7 +569,6 @@ const PurchasingEquipment = () => {
               )}
             </div>
           )}
-        </div>
 
         {/* Supplier Detail Modal */}
         {isDetailModalOpen && selectedItem && (
@@ -845,7 +835,6 @@ const PurchasingEquipment = () => {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 };

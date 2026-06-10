@@ -5,7 +5,8 @@ import {
   ArrowUp,
   ArrowDown,
   FileText,
-  ClipboardList
+  ClipboardList,
+  Warehouse
 } from 'lucide-react';
 import SupplyRequestManagement from '../../components/SupplyRequestManagement';
 import WarehouseManagement from '../../components/WarehouseManagement';
@@ -110,18 +111,17 @@ const ProductionWarehouse = () => {
   ];
 
   return (
-    <div className="max-w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-4">
-        {/* Header */}
-        <div className="mb-4 sm:mb-8">
-          <h1 className="text-xl sm:text-3xl font-bold text-gray-800 mb-2 flex items-center">
-            <Package className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-600 mr-3" />
-            Quản lý kho
-          </h1>
-          <p className="text-gray-600">Quản lý kho, nhập xuất kho và yêu cầu cung cấp</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Warehouse className="w-6 h-6 text-blue-600" />
+          Quản lý kho
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">Quản lý kho, nhập xuất kho và yêu cầu cung cấp</p>
+      </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Card 1: Tổng quan tồn kho */}
           <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
             <div className="flex items-center justify-between mb-4">
@@ -207,223 +207,40 @@ const ProductionWarehouse = () => {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 overflow-x-auto">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.name}
-                  {tab.badge && (
-                    <span className="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white min-w-[18px]">
-                      {tab.badge}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-1 -mb-px">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {tab.icon}
+              {tab.name}
+              {tab.badge && (
+                <span className="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white min-w-[18px]">
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-        {/* Content */}
-        <div className="bg-white rounded-lg shadow-sm">
-          {/* QUẢN LÝ KHO */}
-          {activeTab === 'warehouseManagement' && (
-            <div className="p-6">
-              <WarehouseManagement />
-            </div>
-          )}
+      {/* Content */}
+      {activeTab === 'warehouseManagement' && <WarehouseManagement />}
+      {activeTab === 'products' && <InternationalProductManagement />}
+      {activeTab === 'inbound' && <WarehouseReceiptTab />}
+      {activeTab === 'outbound' && <WarehouseIssueTab />}
+      {activeTab === 'supplyRequest' && <SupplyRequestManagement />}
 
-          {/* DANH SÁCH HÀNG HÓA */}
-          {activeTab === 'products' && (
-            <div className="p-6">
-              <InternationalProductManagement />
-            </div>
-          )}
-
-          {/* NHẬP KHO */}
-          {activeTab === 'inbound' && (
-            <div className="p-6">
-              <WarehouseReceiptTab />
-            </div>
-          )}
-
-          {/* NHẬP KHO - OLD MOCKDATA (COMMENTED OUT) */}
-          {false && activeTab === 'inbound' && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã phiếu nhập</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày nhập</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhà cung cấp</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sản phẩm</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thành tiền</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vị trí</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {inboundData.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{item.maPhieuNhap}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center">
-                          <Calendar className="w-4 h-4 text-gray-400 mr-1" />
-                          {item.ngayNhap}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">{item.nhaCungCap}</td>
-                      <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">{item.sanPham}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="font-medium">{item.soLuong.toLocaleString()} {item.donVi}</span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="font-bold text-green-600">
-                          {(item.thanhTien / 1000000).toFixed(0)}M VNĐ
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.viTriLuuTru}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          item.trangThai === 'Đã nhập' ? 'bg-green-100 text-green-800' :
-                          item.trangThai === 'Đang xử lý' ? 'bg-blue-100 text-blue-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {item.trangThai}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openDetailModal(item)}
-                            className="text-blue-600 hover:text-blue-800"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button className="text-green-600 hover:text-green-800" title="Chỉnh sửa">
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button className="text-purple-600 hover:text-purple-800" title="In phiếu">
-                            <Download className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* XUẤT KHO */}
-          {activeTab === 'outbound' && (
-            <div className="p-6">
-              <WarehouseIssueTab />
-            </div>
-          )}
-
-          {/* XUẤT KHO - OLD MOCKDATA (COMMENTED OUT) */}
-          {false && activeTab === 'outbound' && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã phiếu xuất</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày xuất</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khách hàng</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sản phẩm</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thành tiền</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vận chuyển</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hoạt động</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {outboundData.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{item.maPhieuXuat}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center">
-                          <Calendar className="w-4 h-4 text-gray-400 mr-1" />
-                          {item.ngayXuat}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">{item.khachHang}</td>
-                      <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">{item.sanPham}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="font-medium">{item.soLuong.toLocaleString()} {item.donVi}</span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="font-bold text-green-600">
-                          {(item.thanhTien / 1000000000).toFixed(1)}B VNĐ
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div>
-                          <div className="font-medium flex items-center">
-                            <Truck className="w-4 h-4 text-gray-400 mr-1" />
-                            {item.phuongThucVanChuyen}
-                          </div>
-                          <div className="text-xs text-gray-500">{item.soXe}</div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          item.trangThai === 'Đã xuất' ? 'bg-green-100 text-green-800' :
-                          item.trangThai === 'Đang chuẩn bị' ? 'bg-blue-100 text-blue-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {item.trangThai}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openDetailModal(item)}
-                            className="text-blue-600 hover:text-blue-800"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button className="text-green-600 hover:text-green-800" title="Chỉnh sửa">
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button className="text-purple-600 hover:text-purple-800" title="In phiếu">
-                            <Download className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* YÊU CẦU CUNG CẤP */}
-          {activeTab === 'supplyRequest' && (
-            <div className="p-6">
-              <SupplyRequestManagement />
-            </div>
-          )}
-        </div>
-
-        {/* Detail Modal */}
-        {isDetailModalOpen && selectedItem && (
+      {/* Detail Modal */}
+      {isDetailModalOpen && selectedItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="p-6">
@@ -465,7 +282,7 @@ const ProductionWarehouse = () => {
             </div>
           </div>
         )}
-      </div>
+    </div>
   );
 };
 

@@ -8,9 +8,19 @@ export interface EmployeeOption {
   department?: string;
 }
 
+export interface EmployeeAssignmentFull {
+  _id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  employeeCode: string;
+  department: string;
+}
+
 export const employeeAssignmentKeys = {
   all: ['employees-for-assignment'] as const,
   list: (search?: string) => [...employeeAssignmentKeys.all, { search }] as const,
+  full: () => [...employeeAssignmentKeys.all, 'full'] as const,
 };
 
 const toFullName = (employee: Employee): string => {
@@ -41,3 +51,29 @@ export const useEmployeesForAssignment = (search?: string) => {
     staleTime: 5 * 60 * 1000,
   });
 };
+
+export const useAllEmployeesForAssignment = () => {
+  return useQuery({
+    queryKey: employeeAssignmentKeys.full(),
+    queryFn: async (): Promise<{ employees: EmployeeAssignmentFull[]; departments: string[] }> => {
+      const result = await employeeService.getEmployeesForAssignment({ limit: 1000 });
+
+      const employees = result.data
+        .filter((emp) => emp.user)
+        .map((emp) => ({
+          _id: emp.id,
+          userId: emp.userId,
+          firstName: emp.user?.firstName || '',
+          lastName: emp.user?.lastName || '',
+          employeeCode: emp.employeeCode,
+          department: (emp as any).departmentName || (emp as any).subDepartmentName || emp.subDepartment?.name || 'Chưa xác định',
+        }));
+
+      const departments = Array.from(new Set(employees.map((e) => e.department).filter(Boolean)));
+
+      return { employees, departments };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+};
+

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Zap } from 'lucide-react';
 import FaultRecordList from '../../components/FaultRecordList';
 import SparePartList from '../../components/SparePartList';
 
@@ -32,7 +33,10 @@ const TechnicalMechanical = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Phòng cơ - điện</h1>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Zap className="w-6 h-6 text-blue-600" />
+          Phòng cơ - điện
+        </h1>
         <p className="text-sm text-gray-500 mt-1">Quản lý danh sách lỗi và linh kiện</p>
       </div>
 

@@ -120,6 +120,15 @@ class UserService {
     }
   }
 
+  async adminResetPassword(userId: string, newPassword: string): Promise<{ newPassword: string }> {
+    try {
+      const response = await apiClient.post(`/users/${userId}/reset-password`, { newPassword });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   private handleError(error: any): Error {
      if (error instanceof Error) {
        const message = error.message;

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Download, Search } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileUrl } from '../config/api';
-import apiClient from '../services/apiClient';
+import { useSpareParts, useCreateSparePart, useUpdateSparePart, useDeleteSparePart } from '../hooks/useSpareParts';
+import sparePartService from '../services/sparePartService';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
 
@@ -39,14 +40,11 @@ const trangThaiBadge = (tt: string) => {
 
 const SparePartList = () => {
   const { user } = useAuth();
-  const [parts, setParts] = useState<SparePart[]>([]);
-  const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
   const itemsPerPage = 10;
 
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [filterLoai, setFilterLoai] = useState('');
   const [filterTrangThai, setFilterTrangThai] = useState('');
 
@@ -71,29 +69,25 @@ const SparePartList = () => {
   const canWrite = user?.role === 'admin' || isTechnical;
   const canDelete = user?.role === 'admin' || isTechnical;
 
-  useEffect(() => { fetchParts(); }, [currentPage, filterLoai, filterTrangThai]);
+  const filters = useMemo(() => ({
+    page: currentPage,
+    limit: itemsPerPage,
+    search: appliedSearch || undefined,
+    loai: filterLoai || undefined,
+    trangThai: filterTrangThai || undefined,
+  }), [currentPage, appliedSearch, filterLoai, filterTrangThai]);
 
-  const fetchParts = async () => {
-    try {
-      setLoading(true);
-      const params: Record<string, string | number> = { page: currentPage, limit: itemsPerPage };
-      if (search) params.search = search;
-      if (filterLoai) params.loai = filterLoai;
-      if (filterTrangThai) params.trangThai = filterTrangThai;
+  const { data: queryResult, isLoading: loading } = useSpareParts(filters);
+  const parts: SparePart[] = useMemo(() => {
+    const result = queryResult as any;
+    return Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : [];
+  }, [queryResult]);
+  const totalPages = (queryResult as any)?.pagination?.totalPages ?? 1;
+  const total = (queryResult as any)?.pagination?.total ?? parts.length;
 
-      const response = await apiClient.get('/spare-parts', { params }) as any;
-      const result = response?.data ?? response;
-      setParts(Array.isArray(result) ? result : []);
-      if (response?.pagination) {
-        setTotalPages(response.pagination.totalPages);
-        setTotal(response.pagination.total);
-      }
-    } catch (error) {
-      console.error('Error fetching spare parts:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const createMutation = useCreateSparePart();
+  const updateMutation = useUpdateSparePart();
+  const deleteMutation = useDeleteSparePart();
 
   const resetForm = () => setFormData({ tenLinhKien: '', loai: 'CK', donVi: 'Cái', soLuongTon: '0', giaNhap: '', nhaCungCap: '', trangThai: 'Chưa sử dụng', ngayMua: '' });
 
@@ -131,40 +125,44 @@ const SparePartList = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const fd = new FormData();
-      Object.entries(formData).forEach(([k, v]) => { if (v !== '') fd.append(k, v); });
-      if (selectedFile) fd.append('file', selectedFile);
+      const data = {
+        tenLinhKien: formData.tenLinhKien,
+        loai: formData.loai,
+        donVi: formData.donVi,
+        soLuongTon: formData.soLuongTon ? Number(formData.soLuongTon) : undefined,
+        giaNhap: formData.giaNhap ? Number(formData.giaNhap) : undefined,
+        nhaCungCap: formData.nhaCungCap || undefined,
+        trangThai: formData.trangThai,
+        ngayMua: formData.ngayMua || undefined,
+      };
 
       if (editingPart) {
-        await apiClient.put(`/spare-parts/${editingPart.id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await updateMutation.mutateAsync({ id: editingPart.id, data, file: selectedFile ?? undefined });
       } else {
-        await apiClient.post('/spare-parts', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await createMutation.mutateAsync({ data, file: selectedFile ?? undefined });
       }
       setIsModalOpen(false);
-      fetchParts();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Có lỗi xảy ra');
+      alert(error.message || 'Có lỗi xảy ra');
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Bạn có chắc chắn muốn xóa linh kiện này?')) return;
     try {
-      await apiClient.delete(`/spare-parts/${id}`);
-      fetchParts();
+      await deleteMutation.mutateAsync(id);
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi xóa');
+      alert(error.message || 'Lỗi khi xóa');
     }
   };
 
   const handleExport = async () => {
     try {
-      const params: Record<string, string> = {};
-      if (search) params.search = search;
-      if (filterLoai) params.loai = filterLoai;
-      if (filterTrangThai) params.trangThai = filterTrangThai;
-
-      const response = await apiClient.get('/spare-parts/export/excel', { params, responseType: 'blob' }) as any;
+      const response = await sparePartService.exportExcel({
+        search: appliedSearch || undefined,
+        loai: filterLoai || undefined,
+        trangThai: filterTrangThai || undefined,
+      }) as any;
       const url = window.URL.createObjectURL(new Blob([response]));
       const link = document.createElement('a');
       link.href = url;
@@ -206,10 +204,10 @@ const SparePartList = () => {
             placeholder="Tìm mã, tên linh kiện..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && (setCurrentPage(1), fetchParts())}
+            onKeyDown={e => e.key === 'Enter' && (setCurrentPage(1), setAppliedSearch(search))}
             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button onClick={() => { setCurrentPage(1); fetchParts(); }} className="px-3 py-2 text-sm bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200">
+          <button onClick={() => { setCurrentPage(1); setAppliedSearch(search); }} className="px-3 py-2 text-sm bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200">
             <Search size={16} />
           </button>
         </div>

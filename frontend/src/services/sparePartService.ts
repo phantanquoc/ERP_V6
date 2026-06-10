@@ -100,6 +100,14 @@ class SparePartService {
       throw new Error(error.response?.data?.message || 'Lỗi khi xóa linh kiện');
     }
   }
+
+  async exportExcel(filters: Omit<SparePartFilters, 'page' | 'limit'> = {}) {
+    const params: Record<string, string> = {};
+    if (filters.search) params.search = filters.search;
+    if (filters.trangThai) params.trangThai = filters.trangThai;
+    if (filters.loai) params.loai = filters.loai;
+    return await apiClient.get('/spare-parts/export/excel', { params, responseType: 'blob' });
+  }
 }
 
 export default new SparePartService();

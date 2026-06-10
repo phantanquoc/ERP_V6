@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Download, Edit, Eye, Trash2, FileText, Upload } from 'lucide-react';
 import debtService, { Debt, DebtSummary } from '../services/debtService';
-import apiClient from '../services/apiClient';
+import { useSupplierOptions } from '../hooks/useSuppliers';
 import DatePicker from './DatePicker';
 import Modal from './Modal';
 import { parseNumberInputStr } from '../utils/numberInput';
@@ -48,7 +48,7 @@ const DebtManagement: React.FC = () => {
     ghiChu: '',
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
+  const { data: suppliers = [] } = useSupplierOptions();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -59,17 +59,7 @@ const DebtManagement: React.FC = () => {
   useEffect(() => {
     fetchDebts();
     fetchSummary();
-    fetchSuppliers();
   }, []);
-
-  const fetchSuppliers = async () => {
-    try {
-      const res = await apiClient.get('/suppliers', { params: { limit: 200 } });
-      setSuppliers(res.data?.data || res.data || []);
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
-    }
-  };
 
   const fetchDebts = async () => {
     try {
