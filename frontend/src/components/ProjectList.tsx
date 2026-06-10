@@ -97,7 +97,9 @@ const clampProgress = (value: string | number | undefined) => Math.max(0, Math.m
 
 const ProjectList = () => {
   const { user } = useAuth();
-  const canWriteAll = user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead';
+  const isTechnical = user?.department === 'technical' ||
+    user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
+  const canWriteAll = user?.role === 'admin' || isTechnical;
   const [filters, setFilters] = useState({ page: 1, limit: 10, search: '', trangThai: '' });
   const projectsQuery = useProjects({
     page: filters.page,
