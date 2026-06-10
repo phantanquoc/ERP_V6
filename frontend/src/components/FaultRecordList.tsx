@@ -73,8 +73,8 @@ const emptyTemplateForm = (): CreateFaultTemplateRequest => ({
 const FaultRecordList = () => {
   const { user } = useAuth();
   const reporter = user ? `${user.lastName} ${user.firstName}`.trim() : '';
-  const isTechnical = user?.department === 'DEPT_TECHNICAL' ||
-    user?.secondaryDepartments?.some(d => d.departmentCode === 'DEPT_TECHNICAL');
+  const isTechnical = user?.department === 'technical' ||
+    user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
   const canWrite = user?.role === 'admin' || isTechnical;
   const canDelete = user?.role === 'admin' || isTechnical;
 
