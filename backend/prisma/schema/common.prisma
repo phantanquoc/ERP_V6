@@ -1,0 +1,1078 @@
+model Department {
+  id             String          @id @default(cuid())
+  code           String          @unique
+  name           String          @unique
+  description    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  subDepartments SubDepartment[]
+
+  @@map("departments")
+  @@schema("common")
+}
+
+model SubDepartment {
+  id           String     @id @default(cuid())
+  code         String     @unique
+  name         String
+  description  String?
+  departmentId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  employees    Employee[]
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@map("sub_departments")
+  @@schema("common")
+}
+
+model Position {
+  id               String                   @id @default(cuid())
+  code             String                   @unique
+  name             String                   @unique
+  description      String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  employees        Employee[]
+  levels           PositionLevel[]
+  responsibilities PositionResponsibility[]
+
+  @@map("positions")
+  @@schema("common")
+}
+
+model PositionLevel {
+  id         String     @id @default(cuid())
+  positionId String
+  level      String
+  baseSalary Float
+  kpiSalary  Float
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  employees  Employee[]
+  position   Position   @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@unique([positionId, level])
+  @@map("position_levels")
+  @@schema("common")
+}
+
+model PositionResponsibility {
+  id                String             @id @default(cuid())
+  positionId        String
+  title             String
+  description       String
+  weight            Float
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  evaluationDetails EvaluationDetail[]
+  position          Position           @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@map("position_responsibilities")
+  @@schema("common")
+}
+
+model Employee {
+  id                       String                  @id @default(cuid())
+  userId                   String                  @unique
+  employeeCode             String                  @unique
+  gender                   Gender?
+  dateOfBirth              DateTime?
+  phoneNumber              String?
+  address                  String?
+  positionId               String?
+  positionLevelId          String?
+  subDepartmentId          String?
+  secondarySubDepartmentId String?
+  status                   EmployeeStatus          @default(ACTIVE)
+  hireDate                 DateTime
+  contractType             ContractType            @default(PERMANENT)
+  educationLevel           EmployeeEducationLevel?
+  specialization           String?
+  specialSkills            String?
+  baseSalary               Float
+  kpiLevel                 Float?
+  responsibilityCode       String?
+  weight                   Float?
+  height                   Float?
+  shirtSize                String?
+  pantSize                 String?
+  shoeSize                 String?
+  bankAccount              String?
+  lockerNumber             String?
+  notes                    String?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  orders                   Order[]
+  quotationRequests        QuotationRequest[]
+  supplyRequests           SupplyRequest[]
+  attendances              Attendance[]
+  profile                  EmployeeProfile?
+  position                 Position?               @relation(fields: [positionId], references: [id])
+  positionLevel            PositionLevel?          @relation(fields: [positionLevelId], references: [id])
+  subDepartment            SubDepartment?          @relation(fields: [subDepartmentId], references: [id])
+  user                     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  evaluations              Evaluation[]
+  inspections              Inspection[]
+  notifications            Notification[]
+  payrolls                 Payroll[]
+  responsibilities         Responsibility[]
+  dailyWorkReports         DailyWorkReport[]
+  leaveRequests            LeaveRequest[]
+  purchaseRequests         PurchaseRequest[]
+  suppliers                Supplier[]              @relation("SupplierCreatedBy")
+  faceProfile              FaceProfile?
+  lastFaceScanAt           DateTime?
+
+  @@map("employees")
+  @@schema("common")
+}
+
+model EmployeeProfile {
+  id               String   @id @default(cuid())
+  employeeId       String   @unique
+  profileDocuments String?
+  activities       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  employee         Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_profiles")
+  @@schema("common")
+}
+
+model Responsibility {
+  id          String   @id @default(cuid())
+  employeeId  String
+  title       String
+  description String
+  weight      Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("responsibilities")
+  @@schema("common")
+}
+
+model Evaluation {
+  id             String             @id @default(cuid())
+  employeeId     String
+  period         String
+  score          Float
+  comment        String?
+  status         String             @default("SELF_PENDING")
+  evaluatedBy1Id String?            @db.VarChar(30)
+  evaluatedBy2Id String?            @db.VarChar(30)
+  acknowledgedAt DateTime?
+  acknowledgedBy String?            @db.VarChar(30)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  details        EvaluationDetail[]
+  employee       Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, period])
+  @@map("evaluations")
+  @@schema("common")
+}
+
+model EvaluationDetail {
+  id                       String                 @id @default(cuid())
+  evaluationId             String
+  positionResponsibilityId String
+  selfScore                Float?
+  supervisorScore1         Float?
+  supervisorScore2         Float?
+  comment                  String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  evaluation               Evaluation             @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  positionResponsibility   PositionResponsibility @relation(fields: [positionResponsibilityId], references: [id], onDelete: Cascade)
+
+  @@unique([evaluationId, positionResponsibilityId])
+  @@map("evaluation_details")
+  @@schema("common")
+}
+
+model Notification {
+  id                   String   @id @default(cuid())
+  employeeId           String
+  type                 String
+  title                String
+  message              String
+  metadata             Json?    @db.JsonB
+  period               String?
+  evaluationId         String?
+  taskId               String?
+  acceptanceHandoverId String?
+  leaveRequestId       String?
+  supplyRequestId      String?
+  isRead               Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  employee             Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, createdAt(sort: Desc)])
+  @@index([employeeId, isRead])
+  @@map("notifications")
+  @@schema("common")
+}
+
+model Product {
+  id            String         @id @default(cuid())
+  productCode   String         @unique
+  productName   String
+  description   String?
+  productType   String
+  status        ProductStatus  @default(ACTIVE)
+  createdBy     String
+  reviewedBy    String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  qualityChecks QualityCheck[]
+
+  @@map("products")
+  @@schema("common")
+}
+
+model QualityCheck {
+  id            String   @id @default(cuid())
+  productId     String
+  checkCode     String   @unique
+  checkDate     DateTime
+  checkType     String
+  content       String
+  qualityScore  Float
+  reviewOpinion String
+  checkedBy     String
+  checkedByCode String
+  status        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("quality_checks")
+  @@schema("common")
+}
+
+model Process {
+  id                  String              @id @default(cuid())
+  maQuyTrinh          String              @unique
+  msnv                String
+  tenNhanVien         String
+  tenQuyTrinh         String
+  loaiQuyTrinh        String
+  hienThiTrongChung   Boolean             @default(false)
+  files               String[]            @default([])
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  flowchart           ProcessFlowchart?
+  productionProcesses ProductionProcess[]
+
+  @@map("processes")
+  @@schema("common")
+}
+
+model ProcessFlowchart {
+  id        String                    @id @default(cuid())
+  processId String                    @unique
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+  sections  ProcessFlowchartSection[]
+  process   Process                   @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@map("process_flowcharts")
+  @@schema("common")
+}
+
+model ProcessFlowchartSection {
+  id              String                 @id @default(cuid())
+  flowchartId     String
+  phanDoan        String
+  tenPhanDoan     String?
+  noiDungCongViec String?
+  fileUrl         String?
+  stt             Int
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  costs           ProcessFlowchartCost[]
+  flowchart       ProcessFlowchart       @relation(fields: [flowchartId], references: [id], onDelete: Cascade)
+
+  @@map("process_flowchart_sections")
+  @@schema("common")
+}
+
+model ProcessFlowchartCost {
+  id                  String                  @id @default(cuid())
+  sectionId           String
+  loaiChiPhi          String
+  tenChiPhi           String?
+  donVi               String?
+  dinhMucLaoDong      Float?
+  donViDinhMucLaoDong String?
+  soLuongNguyenLieu   Float?
+  soPhutThucHien      Float?
+  soLuongKeHoach      Float?
+  soLuongThucTe       Float?
+  giaKeHoach          Float?
+  thanhTienKeHoach    Float?
+  giaThucTe           Float?
+  thanhTienThucTe     Float?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  section             ProcessFlowchartSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@map("process_flowchart_costs")
+  @@schema("common")
+}
+
+model ProductionProcess {
+  id                       String               @id @default(cuid())
+  maQuyTrinhSanXuat        String               @unique
+  processId                String
+  msnv                     String
+  tenNhanVien              String
+  tenQuyTrinh              String
+  loaiQuyTrinh             String
+  tenQuyTrinhSanXuat       String?
+  maNVSanXuat              String?
+  tenNVSanXuat             String?
+  khoiLuong                Float?
+  thoiGian                 Float?
+  materialStandardId       String?
+  sanPhamDauRa             String?
+  tongNguyenLieuCanSanXuat Float?
+  soGioLamTrong1Ngay       Float?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  flowchart                ProductionFlowchart?
+  materialStandard         MaterialStandard?    @relation(fields: [materialStandardId], references: [id])
+  process                  Process              @relation(fields: [processId], references: [id])
+
+  @@map("production_processes")
+  @@schema("common")
+}
+
+model ProductionFlowchart {
+  id                  String                       @id @default(cuid())
+  productionProcessId String                       @unique
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  sections            ProductionFlowchartSection[]
+  productionProcess   ProductionProcess            @relation(fields: [productionProcessId], references: [id], onDelete: Cascade)
+
+  @@map("production_flowcharts")
+  @@schema("common")
+}
+
+model ProductionFlowchartSection {
+  id              String                    @id @default(cuid())
+  flowchartId     String
+  phanDoan        String
+  tenPhanDoan     String?
+  noiDungCongViec String?
+  fileUrl         String?
+  stt             Int
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  costs           ProductionFlowchartCost[]
+  flowchart       ProductionFlowchart       @relation(fields: [flowchartId], references: [id], onDelete: Cascade)
+
+  @@map("production_flowchart_sections")
+  @@schema("common")
+}
+
+model ProductionFlowchartCost {
+  id                  String                     @id @default(cuid())
+  sectionId           String
+  loaiChiPhi          String
+  tenChiPhi           String?
+  donVi               String?
+  dinhMucLaoDong      Float?
+  donViDinhMucLaoDong String?
+  soLuongNguyenLieu   Float?
+  soPhutThucHien      Float?
+  soLuongKeHoach      Float?
+  soLuongThucTe       Float?
+  giaKeHoach          Float?
+  thanhTienKeHoach    Float?
+  giaThucTe           Float?
+  thanhTienThucTe     Float?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  section             ProductionFlowchartSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@map("production_flowchart_costs")
+  @@schema("common")
+}
+
+model InternalInspection {
+  id                   String   @id @default(cuid())
+  inspectionCode       String   @unique
+  inspectionDate       DateTime
+  inspectionPlanCode   String
+  inspectionPlanId     String
+  violationCode        String
+  violationContent     String
+  violationLevel       String
+  violationCategory    String
+  violationDescription String
+  inspectedBy          String
+  inspectedByCode      String
+  verifiedBy1          String
+  verifiedBy1Code      String
+  verifiedBy2          String
+  verifiedBy2Code      String
+  status               String   @default("PENDING")
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("internal_inspections")
+  @@schema("common")
+}
+
+model Inspection {
+  id               String         @id @default(cuid())
+  employeeId       String
+  violationCode    String         @unique
+  inspectionDate   DateTime
+  planCode         String
+  violationType    String
+  violationContent String
+  level            ViolationLevel
+  violationCount   Int
+  inspectedBy      String
+  verifiedBy       String
+  verifiedByCode   String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  employee         Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("inspections")
+  @@schema("common")
+}
+
+model Payroll {
+  id                    String   @id @default(cuid())
+  employeeId            String
+  month                 Int
+  year                  Int
+  baseSalary            Float
+  positionAllowance     Float    @default(0)
+  otherAllowances       Float    @default(0)
+  kpiBonus              Float    @default(0)
+  projectBonus          Float    @default(0)
+  totalIncome           Float
+  socialInsurance       Float    @default(0)
+  healthInsurance       Float    @default(0)
+  unemploymentInsurance Float    @default(0)
+  personalIncomeTax     Float    @default(0)
+  kpiDeduction          Float    @default(0)
+  leaveDeduction        Float    @default(0)
+  totalDeductions       Float
+  netSalary             Float
+  workDays              Int      @default(0)
+  leaveDays             Int      @default(0)
+  overtimeHours         Float    @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month, year])
+  @@map("payrolls")
+  @@schema("common")
+}
+
+model Attendance {
+  id             String           @id @default(cuid())
+  employeeId     String
+  attendanceDate DateTime
+  checkInTime    DateTime?
+  checkOutTime   DateTime?
+  workHours      Float            @default(0)
+  status         AttendanceStatus @default(PRESENT)
+  isOvertime     Boolean          @default(false)
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, attendanceDate, isOvertime])
+  @@map("attendances")
+  @@schema("common")
+}
+
+model WorkShift {
+  id        String   @id @default(cuid())
+  name      String // e.g. "Ca 1", "Ca 2", "Ca 3"
+  startTime String // format "HH:mm" e.g. "06:00"
+  endTime   String // format "HH:mm" e.g. "14:00"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("work_shifts")
+  @@schema("common")
+}
+
+model MaterialStandard {
+  id                  String                      @id @default(cuid())
+  maDinhMuc           String                      @unique
+  tenDinhMuc          String
+  loaiDinhMuc         MaterialStandardType
+  tiLeThuHoi          Float?
+  ghiChu              String?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  items               MaterialStandardItem[]
+  inputItems          MaterialStandardInputItem[] @relation("MaterialStandardInputItems")
+  productionProcesses ProductionProcess[]
+
+  @@map("material_standards")
+  @@schema("common")
+}
+
+model MaterialStandardItem {
+  id                 String           @id @default(cuid())
+  materialStandardId String
+  tenThanhPham       String
+  tiLe               Float
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  materialStandard   MaterialStandard @relation(fields: [materialStandardId], references: [id], onDelete: Cascade)
+
+  @@map("material_standard_items")
+  @@schema("common")
+}
+
+model MaterialStandardInputItem {
+  id                 String           @id @default(cuid())
+  materialStandardId String
+  tenNguyenLieu      String
+  tiLe               Float            @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  materialStandard   MaterialStandard @relation("MaterialStandardInputItems", fields: [materialStandardId], references: [id], onDelete: Cascade)
+
+  @@map("material_standard_input_items")
+  @@schema("common")
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+  TERMINATED
+
+  @@schema("common")
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  DISCONTINUED
+
+  @@schema("common")
+}
+
+enum ViolationLevel {
+  LIGHT
+  MEDIUM
+  SERIOUS
+  CRITICAL
+
+  @@schema("common")
+}
+
+enum AttendanceStatus {
+  PRESENT // Đúng giờ
+  LATE // Muộn
+  ABSENT // Vắng mặt
+  ON_LEAVE // Nghỉ phép
+  OVERTIME // Tăng ca
+
+  @@schema("common")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+
+  @@schema("common")
+}
+
+enum ContractType {
+  PERMANENT
+  TEMPORARY
+  PROBATION
+  PART_TIME
+
+  @@schema("common")
+}
+
+enum EmployeeEducationLevel {
+  HIGH_SCHOOL
+  ASSOCIATE
+  BACHELOR
+  MASTER
+  DOCTORATE
+
+  @@schema("common")
+}
+
+enum ResourceType {
+  EMPLOYEE
+  DEPARTMENT
+  POSITION
+  PAYROLL
+  EVALUATION
+  QUALITY_CHECK
+  INSPECTION
+  RESPONSIBILITY
+  PRODUCT
+  REPORT
+
+  @@schema("common")
+}
+
+enum MaterialStandardType {
+  RAW_MATERIAL
+  EQUIPMENT
+
+  @@schema("common")
+}
+
+model DailyWorkReport {
+  id                String                @id @default(cuid())
+  employeeId        String
+  reportDate        DateTime // Ngày báo cáo
+  workDescription   String                @db.Text // Mô tả công việc đã làm
+  achievements      String?               @db.Text // Thành tựu/kết quả đạt được
+  challenges        String?               @db.Text // Khó khăn/vấn đề gặp phải
+  planForNextDay    String?               @db.Text // Kế hoạch cho ngày hôm sau
+  workHours         Float? // Số giờ làm việc
+  status            DailyWorkReportStatus @default(SUBMITTED) // Trạng thái báo cáo
+  supervisorComment String?               @db.Text // Nhận xét của quản lý
+  supervisorId      String? // ID của người quản lý đã xem/nhận xét
+  reviewedAt        DateTime? // Thời gian quản lý xem/nhận xét
+  attachments       String? // File đính kèm (JSON array of file URLs)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, reportDate])
+  @@map("daily_work_reports")
+  @@schema("common")
+}
+
+enum DailyWorkReportStatus {
+  DRAFT // Bản nháp
+  SUBMITTED // Đã gửi
+  REVIEWED // Đã xem
+  APPROVED // Đã phê duyệt
+  REJECTED // Từ chối
+
+  @@schema("common")
+}
+
+model Task {
+  id                String       @id @default(cuid())
+  ngayGiao          DateTime     @default(now())
+  nguoiGiaoId       String
+  nguoiNhanIds      String[] // Array of user IDs
+  noiDung           String
+  thoiHanHoanThanh  DateTime
+  ghiChu            String?
+  files             String[]     @default([])
+  mucDoUuTien       TaskPriority
+  trangThaiTiepNhan Json         @default("{}") // Map of userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
+  diemDanhGia       Int? // Điểm đánh giá 0-100
+  noiDungDanhGia    String? // Nội dung đánh giá từ người giao
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@map("tasks")
+  @@schema("common")
+}
+
+enum TaskPriority {
+  KHAN_CAP
+  CAO
+  TRUNG_BINH
+  THAP
+
+  @@schema("common")
+}
+
+model WorkPlan {
+  id               String         @id @default(cuid())
+  tieuDe           String // Tiêu đề kế hoạch
+  noiDung          String         @db.Text // Nội dung chi tiết
+  nguoiTaoId       String // User ID người tạo
+  nguoiThucHienIds String[] // Array of employee IDs
+  ngayBatDau       DateTime // Ngày bắt đầu
+  ngayKetThuc      DateTime // Ngày kết thúc
+  mucDoUuTien      TaskPriority // Reuse TaskPriority enum
+  trangThai        WorkPlanStatus @default(CHUA_BAT_DAU)
+  ghiChu           String?        @db.Text
+  files            String[]       @default([])
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@map("work_plans")
+  @@schema("common")
+}
+
+enum WorkPlanStatus {
+  CHUA_BAT_DAU
+  DANG_THUC_HIEN
+  HOAN_THANH
+  HUY
+
+  @@schema("common")
+}
+
+model PrivateFeedback {
+  id   String       @id @default(cuid())
+  code String       @unique // Mã tự động: GY-001, KK-001
+  type FeedbackType // "GOP_Y" hoặc "NEU_KHO_KHAN"
+
+  // Thông tin người gửi
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Nội dung chung
+  date    DateTime @default(now()) // Ngày tháng
+  content String   @db.Text // Nội dung góp ý / Nội dung khó khăn
+  notes   String?  @db.Text // Ghi chú
+
+  // Trường riêng cho "Góp ý"
+  purpose String? @db.Text // Mục đích góp ý (chỉ cho GOP_Y)
+
+  // Trường riêng cho "Nêu khó khăn"
+  solution String? @db.Text // Giải pháp đề xuất (chỉ cho NEU_KHO_KHAN)
+
+  // File đính kèm
+  attachments String[] // Mảng đường dẫn file
+
+  // Trạng thái xử lý
+  status      FeedbackStatus @default(PENDING)
+  response    String?        @db.Text // Phản hồi từ quản lý
+  respondedBy String? // ID người phản hồi
+  respondedAt DateTime? // Thời gian phản hồi
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("private_feedbacks")
+  @@schema("common")
+}
+
+enum FeedbackType {
+  GOP_Y // Góp ý riêng
+  NEU_KHO_KHAN // Nêu khó khăn
+
+  @@schema("common")
+}
+
+enum FeedbackStatus {
+  PENDING // Chờ xử lý
+  IN_PROGRESS // Đang xử lý
+  RESOLVED // Đã xử lý
+  REJECTED // Từ chối
+
+  @@schema("common")
+}
+
+model LeaveRequest {
+  id   String @id @default(cuid())
+  code String @unique // Mã đơn tự động: NP-001, NP-002
+
+  // Thông tin người nghỉ phép
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // Loại nghỉ phép
+  leaveType LeaveType
+
+  // Thời gian nghỉ
+  startDate DateTime // Ngày bắt đầu
+  endDate   DateTime // Ngày kết thúc
+  startTime String? // Giờ bắt đầu (cho nghỉ nửa ngày)
+  endTime   String? // Giờ kết thúc (cho nghỉ nửa ngày)
+
+  // Nghỉ nửa ngày
+  isHalfDay     Boolean        @default(false)
+  halfDayPeriod HalfDayPeriod? // morning hoặc afternoon
+
+  // Lý do nghỉ phép
+  reason String @db.Text
+
+  // File đính kèm
+  attachments String[] @default([]) // Mảng đường dẫn file
+
+  // Trạng thái phê duyệt
+  status LeaveRequestStatus @default(PENDING)
+
+  // Người phê duyệt
+  approvedBy      String? // ID người phê duyệt
+  approvedAt      DateTime? // Thời gian phê duyệt
+  rejectionReason String?   @db.Text // Lý do từ chối (nếu có)
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("leave_requests")
+  @@schema("common")
+}
+
+enum LeaveType {
+  ANNUAL // Nghỉ phép năm
+  SICK // Nghỉ ốm
+  PERSONAL // Nghỉ việc riêng
+  MATERNITY // Nghỉ thai sản
+  EMERGENCY // Nghỉ khẩn cấp
+  COMPENSATORY // Nghỉ bù
+
+  @@schema("common")
+}
+
+enum LeaveRequestStatus {
+  PENDING // Chờ phê duyệt
+  APPROVED // Đã phê duyệt
+  REJECTED // Từ chối
+
+  @@schema("common")
+}
+
+enum HalfDayPeriod {
+  MORNING // Buổi sáng
+  AFTERNOON // Buổi chiều
+
+  @@schema("common")
+}
+
+model RepairRequest {
+  id               Int      @id @default(autoincrement())
+  ngayThang        DateTime @default(now())
+  maYeuCau         String   @unique
+  // @deprecated — kept for backward compatibility, use items relation instead
+  tenHeThong       String? // Tên hệ thống/thiết bị
+  // @deprecated — kept for backward compatibility, use items relation instead
+  tinhTrangThietBi String? // Tình trạng thiết bị
+  // @deprecated — kept for backward compatibility, use items relation instead
+  loaiLoi          String? // Loại lỗi
+  mucDoUuTien      String // Mức độ ưu tiên
+  // @deprecated — kept for backward compatibility, use items relation instead
+  noiDungLoi       String?  @db.Text // Nội dung lỗi
+  ghiChu           String?  @db.Text
+  trangThai        String   @default("Chờ xử lý") // Trạng thái
+  fileDinhKem      String? // File đính kèm
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  items               RepairRequestItem[]
+  acceptanceHandovers AcceptanceHandover[]
+
+  @@map("repair_requests")
+  @@schema("common")
+}
+
+model RepairRequestItem {
+  id                    String                   @id @default(cuid())
+  repairRequestId       Int
+  machineSystemId       String?
+  machineSystemDetailId String?
+  machineId             String?
+  tenHeThong            String // Tên hệ thống/thiết bị
+  tinhTrangThietBi      String // Khu vực sử dụng / tình trạng
+  loaiLoi               String // Loại lỗi (Lỗi mới / Lỗi lặp lại)
+  noiDungLoi            String                   @db.Text // Nội dung lỗi
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  repairRequest         RepairRequest            @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+  machineSystem         MachineSystem?           @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
+  machineSystemDetail   MachineSystemDetail?     @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
+  machine               Machine?                 @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  handoverItems         AcceptanceHandoverItem[]
+
+  @@index([repairRequestId])
+  @@index([machineSystemId])
+  @@index([machineSystemDetailId])
+  @@index([machineId])
+  @@map("repair_request_items")
+  @@schema("common")
+}
+
+model AcceptanceHandover {
+  id                    String   @id @default(cuid())
+  maNghiemThu           String   @unique
+  ngayNghiemThu         DateTime @default(now())
+  repairRequestId       Int // ID của yêu cầu sửa chữa
+  maYeuCauSuaChua       String // Mã yêu cầu sửa chữa
+  tenHeThongThietBi     String // Tên hệ thống/thiết bị
+  tinhTrangTruocSuaChua String   @db.Text // Tình trạng trước khi sửa chữa
+  tinhTrangSauSuaChua   String   @db.Text // Tình trạng sau khi sửa chữa
+  nguoiBanGiao          String // Người bàn giao (người sửa chữa)
+  nguoiNhan             String // Người nhận (người yêu cầu)
+  nguoiNhanId           String? // ID nhân viên người nhận (cho thông báo)
+  fileDinhKem           String? // File đính kèm
+  ghiChu                String?  @db.Text
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  repairRequest RepairRequest            @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+  items         AcceptanceHandoverItem[]
+
+  @@map("acceptance_handovers")
+  @@schema("common")
+}
+
+model AcceptanceHandoverItem {
+  id                    String   @id @default(cuid())
+  acceptanceHandoverId  String
+  repairRequestItemId   String
+  machineSystemId       String?
+  machineSystemDetailId String?
+  machineId             String?
+  tenHeThong            String
+  tenChiTiet            String?
+  tinhTrangTruocSuaChua String   @db.Text
+  tinhTrangSauSuaChua   String   @db.Text
+  ghiChu                String?  @db.Text
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  acceptanceHandover  AcceptanceHandover   @relation(fields: [acceptanceHandoverId], references: [id], onDelete: Cascade)
+  repairRequestItem   RepairRequestItem    @relation(fields: [repairRequestItemId], references: [id], onDelete: Restrict)
+  machineSystem       MachineSystem?       @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
+  machineSystemDetail MachineSystemDetail? @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
+  machine             Machine?             @relation(fields: [machineId], references: [id], onDelete: SetNull)
+
+  @@unique([acceptanceHandoverId, repairRequestItemId])
+  @@index([acceptanceHandoverId])
+  @@index([repairRequestItemId])
+  @@index([machineSystemId])
+  @@index([machineSystemDetailId])
+  @@index([machineId])
+  @@map("acceptance_handover_items")
+  @@schema("common")
+}
+
+model OvertimePlan {
+  id                String             @id @default(cuid())
+  ngayTao           DateTime           @default(now())
+  nguoiTaoId        String // User ID người tạo
+  nguoiThamGiaIds   String[] // Array of employee IDs tham gia tăng ca
+  noiDung           String // Nội dung công việc tăng ca
+  ngayTangCa        DateTime // Ngày thực hiện tăng ca
+  gioBatDau         String // Giờ bắt đầu (format "HH:mm")
+  gioKetThuc        String // Giờ kết thúc (format "HH:mm")
+  ghiChu            String?
+  files             String[]           @default([])
+  mucDoUuTien       TaskPriority // Reuse TaskPriority enum
+  trangThai         OvertimePlanStatus @default(CHO_DUYET)
+  trangThaiTiepNhan Json               @default("{}") // Map of userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
+  gioThucTe         Json               @default("{}") // Map of userId -> { gioVao, gioRa }
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@map("overtime_plans")
+  @@schema("common")
+}
+
+enum OvertimePlanStatus {
+  CHO_DUYET
+  DA_DUYET
+  TU_CHOI
+  HOAN_THANH
+  HUY
+
+  @@schema("common")
+}
+
+model PayrollSettings {
+  id               String   @id @default(cuid())
+  standardWorkDays Int      @default(26)
+  overtimeRate     Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("payroll_settings")
+  @@schema("common")
+}
+
+model SystemSettings {
+  id                   String   @id @default(cuid())
+  activeTheme          String   @default("DEFAULT")
+  slogan               String   @default("Nếu có ngôi nhà thứ 2 đó chính là nơi làm việc của mình, nơi có những người đồng nghiệp tuyệt vời, sẻ chia và tri kỷ.")
+  notificationSettings Json?    @db.JsonB
+  updatedAt            DateTime @updatedAt
+  updatedBy            String?
+
+  @@map("system_settings")
+  @@schema("common")
+}
+
+model FaceProfile {
+  id         String              @id @default(cuid())
+  employeeId String              @unique
+  isActive   Boolean             @default(true)
+  enrolledAt DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  employee   Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  images     FaceImage[]
+  logs       FaceAttendanceLog[]
+
+  @@map("face_profiles")
+  @@schema("common")
+}
+
+model FaceImage {
+  id            String      @id @default(cuid())
+  faceProfileId String
+  imagePath     String // relative path under uploads/faces/
+  embedding     String? // JSON array from AI service
+  createdAt     DateTime    @default(now())
+  faceProfile   FaceProfile @relation(fields: [faceProfileId], references: [id], onDelete: Cascade)
+
+  @@index([faceProfileId])
+  @@map("face_images")
+  @@schema("common")
+}
+
+model FaceAttendanceLog {
+  id            String       @id @default(cuid())
+  faceProfileId String?
+  employeeId    String?
+  action        String // "CHECK_IN" | "CHECK_OUT" | "UNRECOGNIZED"
+  confidence    Float? // similarity score 0-1
+  snapshotPath  String? // snapshot image path
+  deviceId      String?
+  ipAddress     String?
+  attendanceId  String? // linked Attendance record if success
+  createdAt     DateTime     @default(now())
+  faceProfile   FaceProfile? @relation(fields: [faceProfileId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, createdAt])
+  @@map("face_attendance_logs")
+  @@schema("common")
+}
+
+model AttendanceDevice {
+  id        String   @id @default(cuid())
+  name      String
+  apiKey    String   @unique @default(cuid())
+  location  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("attendance_devices")
+  @@schema("common")
+}
