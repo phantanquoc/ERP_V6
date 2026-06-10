@@ -316,7 +316,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white sm:rounded-xl rounded-t-xl shadow-2xl sm:max-w-6xl w-full flex flex-col h-[92vh] sm:h-auto sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
