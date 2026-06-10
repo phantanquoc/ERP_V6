@@ -101,16 +101,7 @@ class RepairRequestService {
         orderBy: {
           createdAt: 'desc',
         },
-        include: {
-          items: {
-            include: {
-              machineSystem: true,
-              machineSystemDetail: true,
-              machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
-            },
-            orderBy: { createdAt: 'asc' },
-          },
-        },
+        include: repairRequestInclude,
       }),
       prisma.repairRequest.count(),
     ]);

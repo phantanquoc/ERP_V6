@@ -236,14 +236,15 @@ const RepairRequestList = () => {
                 <th className="border-b px-3 py-2.5 text-left min-w-[80px]">Ưu tiên</th>
                 <th className="border-b px-3 py-2.5 text-left min-w-[90px]">Trạng thái</th>
                 <th className="border-b px-3 py-2.5 text-left min-w-[50px]">File</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[80px]">Nghiệm thu</th>
                 <th className="border-b px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[120px]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {requestsQuery.isLoading ? (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
+                <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
               ) : requests.length === 0 ? (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Chưa có yêu cầu sửa chữa.</td></tr>
+                <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Chưa có yêu cầu sửa chữa.</td></tr>
               ) : requests.map((request) => {
                 const requestItems = request.items?.length ? request.items : [{
                   id: `${request.id}-legacy`,
@@ -274,6 +275,17 @@ const RepairRequestList = () => {
                     <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${priorityBadge(request.mucDoUuTien)}`}>{request.mucDoUuTien}</span></td>
                     <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(request.trangThai)}`}>{request.trangThai}</span></td>
                     <td className="px-3 py-2.5">{request.fileDinhKem ? <a href={getFileUrl(request.fileDinhKem)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-xs">Xem</a> : '—'}</td>
+                    <td className="px-3 py-2.5">
+                      {(request.acceptanceHandovers?.length ?? 0) > 0 ? (
+                        <span className="inline-flex items-center rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          {request.acceptanceHandovers!.length} NT
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                          Chưa có
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
                       <div className="flex justify-end gap-0.5">
                         <button title="Xem" onClick={() => openModal('view', request)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
@@ -400,6 +412,47 @@ const RepairRequestList = () => {
             </label>
             {modal?.mode !== 'view' && <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] ?? null)} compact existingFileUrl={modal?.record?.fileDinhKem ? getFileUrl(modal.record.fileDinhKem) : undefined} existingFileName={modal?.record?.fileDinhKem ? 'File hiện tại' : undefined} />}
             {modal?.mode === 'view' && modal.record?.fileDinhKem && <a href={getFileUrl(modal.record.fileDinhKem)} target="_blank" rel="noreferrer" className="inline-flex text-sm text-blue-600 hover:underline">Xem file đính kèm</a>}
+
+            {modal?.mode === 'view' && (
+              <div className="rounded-lg border border-gray-200">
+                <div className="border-b border-gray-200 px-3 py-2">
+                  <span className="font-medium text-gray-800">Lịch sử nghiệm thu</span>
+                </div>
+                {(modal.record?.acceptanceHandovers?.length ?? 0) === 0 ? (
+                  <p className="px-3 py-4 text-sm text-gray-400">Chưa có nghiệm thu cho yêu cầu này.</p>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {modal.record!.acceptanceHandovers!.map((nt) => (
+                      <div key={nt.id} className="px-3 py-3 text-sm">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="font-mono text-xs font-medium text-blue-700">{nt.maNghiemThu}</span>
+                          <span className="text-xs text-gray-500">{new Date(nt.ngayNghiemThu).toLocaleDateString('vi-VN')}</span>
+                        </div>
+                        {nt.tenHeThongThietBi && (
+                          <div className="text-gray-700 mb-1">
+                            <span className="text-xs font-medium text-gray-500">Hệ thống/thiết bị: </span>{nt.tenHeThongThietBi}
+                          </div>
+                        )}
+                        {nt.tinhTrangTruocSuaChua && (
+                          <div className="text-gray-700 mb-1">
+                            <span className="text-xs font-medium text-gray-500">Trước sửa: </span>{nt.tinhTrangTruocSuaChua}
+                          </div>
+                        )}
+                        {nt.tinhTrangSauSuaChua && (
+                          <div className="text-gray-700 mb-1">
+                            <span className="text-xs font-medium text-gray-500">Sau sửa: </span>{nt.tinhTrangSauSuaChua}
+                          </div>
+                        )}
+                        <div className="flex gap-4 text-xs text-gray-500">
+                          {nt.nguoiBanGiao && <span>Người bàn giao: <span className="text-gray-700">{nt.nguoiBanGiao}</span></span>}
+                          {nt.nguoiNhan && <span>Người nhận: <span className="text-gray-700">{nt.nguoiNhan}</span></span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 border-t border-gray-200 pt-3">
               <button type="button" onClick={() => setModal(null)} className="rounded-md border border-gray-300 px-4 py-2">{modal?.mode === 'view' ? 'Đóng' : 'Hủy'}</button>

@@ -19,6 +19,17 @@ export interface RepairRequestItem {
   machine?: { id: string; maMay: string; tenMay: string; trangThai: string } | null;
 }
 
+export interface AcceptanceHandoverSummary {
+  id: string;
+  maNghiemThu: string;
+  ngayNghiemThu: string;
+  tenHeThongThietBi?: string | null;
+  tinhTrangTruocSuaChua?: string | null;
+  tinhTrangSauSuaChua?: string | null;
+  nguoiBanGiao?: string | null;
+  nguoiNhan?: string | null;
+}
+
 export interface RepairRequest {
   id: number;
   ngayThang: string;
@@ -34,7 +45,7 @@ export interface RepairRequest {
   createdAt: string;
   updatedAt: string;
   items?: RepairRequestItem[];
-  acceptanceHandovers?: unknown[];
+  acceptanceHandovers?: AcceptanceHandoverSummary[];
 }
 
 export interface RepairRequestItemInput {
