@@ -579,10 +579,10 @@ const FinishedProductManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center space-x-3">
-          <FileText className="w-8 h-8 text-blue-600" />
-          <h2 className="text-2xl font-bold text-gray-800">Quản lý Thành phẩm đầu ra</h2>
+          <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Quản lý Thành phẩm đầu ra</h2>
         </div>
         <button
           onClick={handleExportExcel}
@@ -600,9 +600,25 @@ const FinishedProductManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Machine Tabs */}
+      {/* Machine Selector */}
       <div className="bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200">
+        {/* Mobile: dropdown */}
+        <div className="sm:hidden px-4 py-3">
+          <select
+            value={selectedMachine}
+            onChange={(e) => setSelectedMachine(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
+          >
+            {machines.map((machine) => (
+              <option key={machine.id} value={machine.tenMay}>
+                {machine.tenMay}
+              </option>
+            ))}
+            <option value={TOTAL_ALL_MACHINES}>Tổng các máy</option>
+          </select>
+        </div>
+        {/* Desktop: tabs */}
+        <div className="hidden sm:block border-b border-gray-200">
           <nav className="-mb-px flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
             {machines.map((machine) => (
               <button
@@ -749,21 +765,21 @@ const FinishedProductManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Table for individual machines */}
+              {/* Table for individual machines */}
       {selectedMachine !== TOTAL_ALL_MACHINES && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">KL đầu vào (kg)</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
+                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
+                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">KL đầu vào (kg)</th>
+                  <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
+                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
               </thead>
               <tbody>
@@ -790,28 +806,28 @@ const FinishedProductManagement: React.FC = () => {
                         index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                       }`}
                     >
-                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                         {(currentPage - 1) * itemsPerPage + index + 1}
                       </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                         {product.maChien}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                      <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">
                         {formatDateTime(product.thoiGianChien)}
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                         {product.tenHangHoa}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
+                      <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                         {product.khoiLuong}
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                      <td className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                         {product.nguoiThucHien}
                       </td>
-                      <td className="px-6 py-4 border-r border-gray-200 text-center">
+                      <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 border-r border-gray-200 text-center">
                         {getMachineStatusBadge(product.trangThai)}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-2 sm:px-6 sm:py-4">
                         <div className="flex items-center justify-center gap-3">
                           <button
                             onClick={() => handleView(product)}

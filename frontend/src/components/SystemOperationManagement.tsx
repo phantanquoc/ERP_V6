@@ -383,8 +383,8 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Thông số vận hành hệ thống</h2>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Thông số vận hành hệ thống</h2>
         <button onClick={() => handleOpenModal()} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <Plus className="w-4 h-4" />
           Thêm thông số
@@ -416,9 +416,25 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
         </div>
       )}
 
-      {/* Machine Tabs */}
+      {/* Machine Selector */}
       <div className="bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200">
+        {/* Mobile: dropdown */}
+        <div className="sm:hidden px-4 py-3">
+          <select
+            value={selectedMachine}
+            onChange={(e) => setSelectedMachine(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
+          >
+            {machines.map((machine) => (
+              <option key={machine.id} value={machine.tenMay}>
+                {machine.tenMay}
+                {machine.trangThai !== 'HOAT_DONG' && ` (${machine.trangThai === 'BẢO_TRÌ' ? 'Bảo trì' : 'Ngừng'})`}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* Desktop: tabs */}
+        <div className="hidden sm:block border-b border-gray-200">
           <nav className="-mb-px flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
             {machines.map((machine) => (
               <button
@@ -457,16 +473,16 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên máy</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng đầu vào (kg)</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng thời gian sấy</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+                <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
+                <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên máy</th>
+                <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
+                <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng đầu vào (kg)</th>
+                <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng thời gian sấy</th>
+                <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
+                <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
+                <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
             </thead>
             <tbody>
@@ -486,20 +502,20 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                     index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                   }`}
                 >
-                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{operation.maChien}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-purple-600 border-r border-gray-200">{operation.tenMay}</td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{formatDateTime(operation.thoiGianChien)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{operation.khoiLuongDauVao || 0} kg</td>
-                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{operation.tongThoiGianSay} phút</td>
-                  <td className="px-6 py-4 border-r border-gray-200 text-center">
+                  <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                  <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{operation.maChien}</td>
+                  <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-purple-600 border-r border-gray-200">{operation.tenMay}</td>
+                  <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">{formatDateTime(operation.thoiGianChien)}</td>
+                  <td className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{operation.khoiLuongDauVao || 0} kg</td>
+                  <td className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{operation.tongThoiGianSay} phút</td>
+                  <td className="px-3 py-2 sm:px-6 sm:py-4 border-r border-gray-200 text-center">
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${getTrangThaiColor(operation.trangThai)}`}>
                       {getTrangThaiLabel(operation.trangThai)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{operation.ghiChu}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{operation.nguoiThucHien}</td>
-                  <td className="px-6 py-4">
+                  <td className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">{operation.ghiChu}</td>
+                  <td className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{operation.nguoiThucHien}</td>
+                  <td className="px-3 py-2 sm:px-6 sm:py-4">
                     <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => handleViewDetail(operation)}

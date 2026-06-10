@@ -440,8 +440,8 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Đánh giá nguyên liệu</h2>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Đánh giá nguyên liệu</h2>
         <div className="flex gap-2">
           <button
             onClick={() => handleOpenModal()}
@@ -482,13 +482,13 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (Kg)</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian ngâm (Phút)</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
+                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
+                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (Kg)</th>
+                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian ngâm (Phút)</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
               </thead>
               <tbody>
@@ -519,13 +519,13 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     }`}
                   >
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{evaluation.maChien}</td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{formatDateTime(evaluation.thoiGianChien)}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{evaluation.tenHangHoa}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.khoiLuong}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.thoiGianNgam}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{evaluation.maChien}</td>
+                    <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">{formatDateTime(evaluation.thoiGianChien)}</td>
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{evaluation.tenHangHoa}</td>
+                    <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.khoiLuong}</td>
+                    <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.thoiGianNgam}</td>
+                    <td className="px-3 py-2 sm:px-6 sm:py-4">
                       <div className="flex items-center justify-center gap-3">
                         <button
                           onClick={() => handleViewDetail(evaluation)}
