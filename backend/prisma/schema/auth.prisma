@@ -1,0 +1,161 @@
+model User {
+  id                   String                    @id @default(cuid())
+  email                String                    @unique
+  password             String
+  firstName            String
+  lastName             String
+  role                 UserRole                  @default(EMPLOYEE)
+  isActive             Boolean                   @default(true)
+  departmentId         String?
+  subDepartmentId      String?
+  supervisor1Id        String?
+  supervisor2Id        String?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  loginHistory         LoginHistory[]
+  refreshTokens        RefreshToken[]
+  userRoles            UserRoleAssignment[]
+  employees            Employee?
+  privateFeedbacks     PrivateFeedback[]
+  pushSubscriptions    PushSubscription[]
+  secondaryDepartments UserSecondaryDepartment[]
+
+  @@map("users")
+  @@schema("auth")
+}
+
+model UserSecondaryDepartment {
+  id              String   @id @default(cuid())
+  userId          String
+  departmentId    String
+  subDepartmentId String?
+  role            UserRole @default(EMPLOYEE)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, departmentId, subDepartmentId])
+  @@map("user_secondary_departments")
+  @@schema("auth")
+}
+
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  ipAddress String?
+  userAgent String?
+  device    String?
+  browser   String?
+  location  String?
+  status    String
+  loginAt   DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("login_history")
+  @@schema("auth")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+  @@schema("auth")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@map("push_subscriptions")
+  @@schema("auth")
+}
+
+model Role {
+  id          String               @id @default(cuid())
+  name        String               @unique
+  description String?
+  level       Int
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  permissions RolePermission[]
+  userRoles   UserRoleAssignment[]
+
+  @@map("roles")
+  @@schema("auth")
+}
+
+model Permission {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  description     String?
+  action          PermissionAction
+  resource        ResourceType
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+
+  @@unique([action, resource])
+  @@map("permissions")
+  @@schema("auth")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+  @@schema("auth")
+}
+
+model UserRoleAssignment {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+  @@schema("auth")
+}
+
+enum UserRole {
+  ADMIN
+  DEPARTMENT_HEAD
+  TEAM_LEAD
+  EMPLOYEE
+
+  @@schema("auth")
+}
+
+enum PermissionAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  EXPORT
+  IMPORT
+
+  @@schema("auth")
+}
