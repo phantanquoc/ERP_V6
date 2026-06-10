@@ -1,50 +1,29 @@
 import { Request, Response, NextFunction } from 'express';
+import prisma from '@config/database';
 import notificationService from '@services/notificationService';
 import pushNotificationService from '@services/pushNotificationService';
+
+async function getEmployeeId(userId: string): Promise<string | null> {
+  const employee = await prisma.employee.findUnique({ where: { userId }, select: { id: true } });
+  return employee?.id ?? null;
+}
 
 export class NotificationController {
   async getEmployeeNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({
-          success: false,
-          message: 'Unauthorized',
-        });
-        return;
-      }
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      // Get employee by userId
-      const prisma = require('@config/database').default;
-      const employee = await prisma.employee.findUnique({
-        where: { userId },
-      });
-
-      // If no employee record, return empty notifications
-      if (!employee) {
-        res.json({
-          success: true,
-          data: [],
-        });
-        return;
-      }
+      const employeeId = await getEmployeeId(userId);
+      if (!employeeId) { res.json({ success: true, data: [] }); return; }
 
       const rawLimit = Number(req.query.limit) || 10;
       const limit = Math.min(Math.max(1, rawLimit), 200);
-
       const sinceParam = req.query.since as string | undefined;
       const since = sinceParam ? new Date(sinceParam) : undefined;
 
-      const notifications = await notificationService.getEmployeeNotifications(
-        employee.id,
-        limit,
-        since,
-      );
-
-      res.json({
-        success: true,
-        data: notifications,
-      });
+      const notifications = await notificationService.getEmployeeNotifications(employeeId, limit, since);
+      res.json({ success: true, data: notifications });
     } catch (error) {
       next(error);
     }
@@ -53,20 +32,12 @@ export class NotificationController {
   async getUnreadCount(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      const prisma = require('@config/database').default;
-      const employee = await prisma.employee.findUnique({ where: { userId } });
+      const employeeId = await getEmployeeId(userId);
+      if (!employeeId) { res.json({ success: true, data: { count: 0 } }); return; }
 
-      if (!employee) {
-        res.json({ success: true, data: { count: 0 } });
-        return;
-      }
-
-      const count = await notificationService.getUnreadCount(employee.id);
+      const count = await notificationService.getUnreadCount(employeeId);
       res.json({ success: true, data: { count } });
     } catch (error) {
       next(error);
@@ -76,35 +47,13 @@ export class NotificationController {
   async getUnreadNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({
-          success: false,
-          message: 'Unauthorized',
-        });
-        return;
-      }
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      // Get employee by userId
-      const prisma = require('@config/database').default;
-      const employee = await prisma.employee.findUnique({
-        where: { userId },
-      });
+      const employeeId = await getEmployeeId(userId);
+      if (!employeeId) { res.json({ success: true, data: [] }); return; }
 
-      // If no employee record, return empty notifications
-      if (!employee) {
-        res.json({
-          success: true,
-          data: [],
-        });
-        return;
-      }
-
-      const notifications = await notificationService.getUnreadNotifications(employee.id);
-
-      res.json({
-        success: true,
-        data: notifications,
-      });
+      const notifications = await notificationService.getUnreadNotifications(employeeId);
+      res.json({ success: true, data: notifications });
     } catch (error) {
       next(error);
     }
@@ -113,26 +62,13 @@ export class NotificationController {
   async markAsRead(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      const prisma = require('@config/database').default;
-      const employee = await prisma.employee.findUnique({ where: { userId } });
+      const employeeId = await getEmployeeId(userId);
+      if (!employeeId) { res.status(404).json({ success: false, message: 'Không tìm thấy thông báo' }); return; }
 
-      if (!employee) {
-        res.status(404).json({ success: false, message: 'Không tìm thấy thông báo' });
-        return;
-      }
-
-      const notificationId = req.params.notificationId as string;
-      const notification = await notificationService.markAsRead(notificationId, employee.id);
-
-      res.json({
-        success: true,
-        data: notification,
-      });
+      const notification = await notificationService.markAsRead(req.params.notificationId, employeeId);
+      res.json({ success: true, data: notification });
     } catch (error) {
       next(error);
     }
@@ -141,35 +77,13 @@ export class NotificationController {
   async markAllAsRead(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({
-          success: false,
-          message: 'Unauthorized',
-        });
-        return;
-      }
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      // Get employee by userId
-      const prisma = require('@config/database').default;
-      const employee = await prisma.employee.findUnique({
-        where: { userId },
-      });
+      const employeeId = await getEmployeeId(userId);
+      if (!employeeId) { res.json({ success: true, data: { count: 0 } }); return; }
 
-      // If no employee record, return success with count 0
-      if (!employee) {
-        res.json({
-          success: true,
-          data: { count: 0 },
-        });
-        return;
-      }
-
-      const result = await notificationService.markAllAsRead(employee.id);
-
-      res.json({
-        success: true,
-        data: result,
-      });
+      const result = await notificationService.markAllAsRead(employeeId);
+      res.json({ success: true, data: result });
     } catch (error) {
       next(error);
     }
@@ -178,27 +92,13 @@ export class NotificationController {
   async deleteNotification(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      const prisma = require('@config/database').default;
-      const employee = await prisma.employee.findUnique({ where: { userId } });
+      const employeeId = await getEmployeeId(userId);
+      if (!employeeId) { res.status(404).json({ success: false, message: 'Không tìm thấy thông báo' }); return; }
 
-      if (!employee) {
-        res.status(404).json({ success: false, message: 'Không tìm thấy thông báo' });
-        return;
-      }
-
-      const notificationId = req.params.notificationId as string;
-
-      await notificationService.deleteNotification(notificationId, employee.id);
-
-      res.json({
-        success: true,
-        message: 'Xóa thông báo thành công',
-      });
+      await notificationService.deleteNotification(req.params.notificationId, employeeId);
+      res.json({ success: true, message: 'Xóa thông báo thành công' });
     } catch (error) {
       next(error);
     }
@@ -207,20 +107,12 @@ export class NotificationController {
   async getUnreadCountByType(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      const prisma = require('@config/database').default;
-      const employee = await prisma.employee.findUnique({ where: { userId } });
+      const employeeId = await getEmployeeId(userId);
+      if (!employeeId) { res.json({ success: true, data: {} }); return; }
 
-      if (!employee) {
-        res.json({ success: true, data: {} });
-        return;
-      }
-
-      const counts = await notificationService.getUnreadCountByType(employee.id);
+      const counts = await notificationService.getUnreadCountByType(employeeId);
       res.json({ success: true, data: counts });
     } catch (error) {
       next(error);
@@ -230,122 +122,55 @@ export class NotificationController {
   async getLatestEvaluationNotification(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({
-          success: false,
-          message: 'Unauthorized',
-        });
-        return;
-      }
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
-      // Get employee by userId
-      const prisma = require('@config/database').default;
-      const employee = await prisma.employee.findUnique({
-        where: { userId },
-      });
+      const employeeId = await getEmployeeId(userId);
+      if (!employeeId) { res.json({ success: true, data: null }); return; }
 
-      // If no employee record, return null
-      if (!employee) {
-        res.json({
-          success: true,
-          data: null,
-        });
-        return;
-      }
-
-      const notification = await notificationService.getLatestEvaluationNotification(employee.id);
-
-      res.json({
-        success: true,
-        data: notification,
-      });
+      const notification = await notificationService.getLatestEvaluationNotification(employeeId);
+      res.json({ success: true, data: notification });
     } catch (error) {
       next(error);
     }
   }
 
-  // ---- Web Push endpoints ----
-
-  /**
-   * GET /api/notifications/push/vapid-public-key
-   * Returns the VAPID public key so the frontend can subscribe.
-   * No authentication required.
-   */
   async getVapidPublicKey(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const key = process.env.VAPID_PUBLIC_KEY;
-      if (!key) {
-        res.status(503).json({
-          success: false,
-          message: 'Push notification chưa được cấu hình',
-        });
-        return;
-      }
-      res.json({
-        success: true,
-        data: { publicKey: key },
-      });
+      if (!key) { res.status(503).json({ success: false, message: 'Push notification chưa được cấu hình' }); return; }
+      res.json({ success: true, data: { publicKey: key } });
     } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * POST /api/notifications/push/subscribe
-   * Saves a push subscription for the authenticated user.
-   * Body: { endpoint, keys: { p256dh, auth } }
-   */
   async subscribePush(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
       const { endpoint, keys } = req.body ?? {};
-
       if (!endpoint || !keys?.p256dh || !keys?.auth) {
-        res.status(400).json({
-          success: false,
-          message: 'Invalid subscription: endpoint, keys.p256dh, and keys.auth are required',
-        });
+        res.status(400).json({ success: false, message: 'Invalid subscription: endpoint, keys.p256dh, and keys.auth are required' });
         return;
       }
 
       await pushNotificationService.saveSubscription(userId, endpoint, keys.p256dh, keys.auth);
-
       res.json({ success: true, message: 'Subscribed to push notifications' });
     } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * DELETE /api/notifications/push/unsubscribe
-   * Removes a push subscription for the authenticated user.
-   * Body: { endpoint }
-   */
   async unsubscribePush(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
 
       const { endpoint } = req.body ?? {};
-
-      if (!endpoint) {
-        res.status(400).json({
-          success: false,
-          message: 'Invalid request: endpoint is required',
-        });
-        return;
-      }
+      if (!endpoint) { res.status(400).json({ success: false, message: 'Invalid request: endpoint is required' }); return; }
 
       await pushNotificationService.removeSubscription(userId, endpoint);
-
       res.json({ success: true, message: 'Unsubscribed from push notifications' });
     } catch (error) {
       next(error);
