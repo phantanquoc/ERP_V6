@@ -102,6 +102,36 @@ router.get(
 
 /**
  * @swagger
+ * /api/material-evaluations/{id}/delete-info:
+ *   get:
+ *     tags: [Material Evaluations]
+ *     summary: "Thông tin liên quan trước khi xóa"
+ *     description: "Roles cho phép: ADMIN, DEPARTMENT_HEAD"
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: "ID của đánh giá vật liệu"
+ *     responses:
+ *       200:
+ *         description: "Lấy thông tin liên quan thành công"
+ *       401:
+ *         description: "Không có quyền truy cập"
+ *       404:
+ *         description: "Không tìm thấy đánh giá vật liệu"
+ */
+router.get(
+  '/:id/delete-info',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  materialEvaluationController.getDeleteInfo
+);
+
+/**
+ * @swagger
  * /api/material-evaluations/{id}:
  *   get:
  *     tags: [Material Evaluations]

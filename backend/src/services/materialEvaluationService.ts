@@ -174,7 +174,11 @@ export class MaterialEvaluationService {
     return evaluation;
   }
 
-  async deleteMaterialEvaluation(id: string) {
+  async getMaterialEvaluationDeleteInfo(id: string): Promise<{
+    qualityEvaluationCount: number;
+    finishedProductCount: number;
+    systemOperationCount: number;
+  }> {
     const existing = await prisma.materialEvaluation.findUnique({
       where: { id },
     });
@@ -183,9 +187,45 @@ export class MaterialEvaluationService {
       throw new NotFoundError('Material evaluation not found');
     }
 
-    await prisma.materialEvaluation.delete({
+    const [qualityEvaluationCount, finishedProductCount, systemOperationCount] = await Promise.all([
+      prisma.qualityEvaluation.count({ where: { materialEvaluationId: id } }),
+      prisma.finishedProduct.count({ where: { materialEvaluationId: id } }),
+      prisma.systemOperation.count({ where: { materialEvaluationId: id } }),
+    ]);
+
+    return { qualityEvaluationCount, finishedProductCount, systemOperationCount };
+  }
+
+  async deleteMaterialEvaluation(id: string): Promise<{
+    deletedQualityEvaluations: number;
+    deletedFinishedProducts: number;
+    deletedSystemOperations: number;
+  }> {
+    const existing = await prisma.materialEvaluation.findUnique({
       where: { id },
     });
+
+    if (!existing) {
+      throw new NotFoundError('Material evaluation not found');
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const [deletedQualityEvaluations, deletedFinishedProducts, deletedSystemOperations] = await Promise.all([
+        tx.qualityEvaluation.deleteMany({ where: { materialEvaluationId: id } }),
+        tx.finishedProduct.deleteMany({ where: { materialEvaluationId: id } }),
+        tx.systemOperation.deleteMany({ where: { materialEvaluationId: id } }),
+      ]);
+
+      await tx.materialEvaluation.delete({ where: { id } });
+
+      return {
+        deletedQualityEvaluations: deletedQualityEvaluations.count,
+        deletedFinishedProducts: deletedFinishedProducts.count,
+        deletedSystemOperations: deletedSystemOperations.count,
+      };
+    });
+
+    return result;
   }
 }
 

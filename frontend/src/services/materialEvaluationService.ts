@@ -20,6 +20,12 @@ export interface MaterialEvaluation {
   updatedAt?: string;
 }
 
+export interface MaterialEvaluationDeleteInfo {
+  qualityEvaluationCount: number;
+  finishedProductCount: number;
+  systemOperationCount: number;
+}
+
 class MaterialEvaluationService {
   private buildFormData(data: Record<string, any>, file?: File): FormData {
     const formData = new FormData();
@@ -96,6 +102,15 @@ class MaterialEvaluationService {
       }
       const response = await apiClient.patch<MaterialEvaluation>(`/material-evaluations/${id}`, data as Record<string, any>);
       return response.data as MaterialEvaluation;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async getDeleteInfo(id: string): Promise<MaterialEvaluationDeleteInfo> {
+    try {
+      const response = await apiClient.get<MaterialEvaluationDeleteInfo>(`/material-evaluations/${id}/delete-info`);
+      return response.data as MaterialEvaluationDeleteInfo;
     } catch (error) {
       throw this.handleError(error);
     }
