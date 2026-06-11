@@ -8,6 +8,8 @@ import path from 'path';
 import { EmployeeStatus } from '@prisma/client';
 import attendanceService from './attendanceService';
 import { getTodayInAppTz, nowInAppTz } from '@utils/dateUtils';
+import { getCursorPaginationParams, encodeCursor } from '@utils/helpers';
+import type { CursorPaginatedResponse } from '@types';
 
 const AI_URL = env.AI_SERVICE_URL;
 
@@ -801,6 +803,37 @@ export class FaceAttendanceService {
       prisma.faceAttendanceLog.count(),
     ]);
     return { logs, total, page, limit };
+  }
+
+  async getLogsCursor(cursor?: string, limit?: number): Promise<CursorPaginatedResponse<any>> {
+    const { cursorPayload, take } = getCursorPaginationParams(cursor, limit ?? 50);
+
+    const where: any = {};
+
+    if (cursorPayload) {
+      where.OR = [
+        { createdAt: { lt: new Date(cursorPayload.createdAt) } },
+        { createdAt: new Date(cursorPayload.createdAt), id: { lt: cursorPayload.id } },
+      ];
+    }
+
+    const rows = await prisma.faceAttendanceLog.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: take + 1,
+      include: {
+        faceProfile: {
+          include: { employee: { include: { user: { select: { firstName: true, lastName: true } } } } },
+        },
+      },
+    });
+
+    const hasMore = rows.length > take;
+    const data = hasMore ? rows.slice(0, take) : rows;
+    const last = data[data.length - 1];
+    const nextCursor = hasMore && last ? encodeCursor(last.createdAt, last.id) : null;
+
+    return { data, nextCursor, hasMore };
   }
 
   // ─── Device Management ──────────────────────────────────────────────────

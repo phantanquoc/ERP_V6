@@ -1,10 +1,12 @@
 import prisma from '@config/database';
 import { NotificationType, NotificationEvent, NotificationContext } from '@types';
+import type { CursorPaginatedResponse } from '@types';
 import logger from '@config/logger';
 import pushNotificationService from './pushNotificationService';
 import { pushNotification } from './wsManager';
 import { notificationRegistry } from './notificationRegistry';
 import { NotFoundError } from '@utils/errors';
+import { getCursorPaginationParams, encodeCursor } from '@utils/helpers';
 
 export class NotificationService {
 
@@ -159,6 +161,36 @@ export class NotificationService {
     });
 
     return notifications;
+  }
+
+  async getEmployeeNotificationsCursor(
+    employeeId: string,
+    cursor?: string,
+    limit?: number
+  ): Promise<CursorPaginatedResponse<any>> {
+    const { cursorPayload, take } = getCursorPaginationParams(cursor, limit);
+
+    const where: any = { employeeId };
+
+    if (cursorPayload) {
+      where.OR = [
+        { createdAt: { lt: new Date(cursorPayload.createdAt) } },
+        { createdAt: new Date(cursorPayload.createdAt), id: { lt: cursorPayload.id } },
+      ];
+    }
+
+    const rows = await prisma.notification.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: take + 1,
+    });
+
+    const hasMore = rows.length > take;
+    const data = hasMore ? rows.slice(0, take) : rows;
+    const last = data[data.length - 1];
+    const nextCursor = hasMore && last ? encodeCursor(last.createdAt, last.id) : null;
+
+    return { data, nextCursor, hasMore };
   }
 
   async getUnreadCount(employeeId: string): Promise<number> {

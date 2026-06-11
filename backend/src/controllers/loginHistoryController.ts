@@ -9,8 +9,6 @@ export class LoginHistoryController {
   async getMyLoginHistory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.id;
-      const limit = parseInt(req.query.limit as string) || 10;
-      const offset = parseInt(req.query.offset as string) || 0;
 
       if (!userId) {
         res.status(401).json({
@@ -19,6 +17,18 @@ export class LoginHistoryController {
         });
         return;
       }
+
+      const cursor = req.query.cursor as string | undefined;
+
+      if (cursor !== undefined) {
+        const limit = parseInt(req.query.limit as string) || 10;
+        const result = await loginHistoryService.getUserLoginHistoryCursor(userId, cursor || undefined, limit);
+        res.status(200).json({ success: true, data: result.data, nextCursor: result.nextCursor, hasMore: result.hasMore });
+        return;
+      }
+
+      const limit = parseInt(req.query.limit as string) || 10;
+      const offset = parseInt(req.query.offset as string) || 0;
 
       const result = await loginHistoryService.getUserLoginHistory(userId, {
         limit,
@@ -41,10 +51,19 @@ export class LoginHistoryController {
    */
   async getAllLoginHistory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
+      const cursor = req.query.cursor as string | undefined;
       const userId = req.query.userId as string;
       const status = req.query.status as 'success' | 'failed' | undefined;
+
+      if (cursor !== undefined) {
+        const limit = parseInt(req.query.limit as string) || 50;
+        const result = await loginHistoryService.getAllLoginHistoryCursor({ cursor: cursor || undefined, limit, userId, status });
+        res.status(200).json({ success: true, data: result.data, nextCursor: result.nextCursor, hasMore: result.hasMore });
+        return;
+      }
+
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
 
       const result = await loginHistoryService.getAllLoginHistory({
         limit,

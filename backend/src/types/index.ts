@@ -104,6 +104,12 @@ export interface PaginatedResponse<T> {
   totalPages: number;
 }
 
+export interface CursorPaginatedResponse<T> {
+  data: T[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 export const UserRole = {
   ADMIN: 'ADMIN',
   DEPARTMENT_HEAD: 'DEPARTMENT_HEAD',
