@@ -1,0 +1,322 @@
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum MachineStatus {
+  HOAT_DONG
+  BẢO_TRÌ
+  NGỪNG_HOẠT_ĐỘNG
+
+  @@schema("business")
+}
+
+enum MachineSystemCategory {
+  SAN_XUAT
+  DONG_GOI
+  BAO_QUAN
+  DIEN
+  NUOC
+  HOI
+  KHI_NEN
+  LAM_NONG
+  VAN_CHUYEN
+  PCCC
+  CHAT_THAI
+  KIEM_TRA_CL
+  AN_TOAN
+  KHAC
+
+  @@schema("business")
+}
+
+enum MachineSystemDetailType {
+  THIET_BI      @map("Thiet bi")
+  CUM           @map("Cum")
+  LINH_KIEN     @map("Linh kien")
+  DIEM_KIEM_TRA @map("Diem kiem tra")
+
+  @@schema("business")
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model Machine {
+  id              String        @id @default(cuid())
+  maMay           String        @unique @default("")
+  tenMay          String        @unique
+  moTa            String?
+  trangThai       MachineStatus @default(HOAT_DONG)
+  ghiChu          String?
+  machineSystemId String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  machineSystem      MachineSystem?          @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
+  systemOperations   SystemOperation[]
+  finishedProducts   FinishedProduct[]
+  qualityEvaluations QualityEvaluation[]
+  faultRecords       FaultRecord[]
+  repairRequestItems RepairRequestItem[]
+  handoverItems      AcceptanceHandoverItem[]
+
+  @@index([machineSystemId])
+  @@map("machines")
+  @@schema("business")
+}
+
+model MachineSystem {
+  id              String                @id @default(cuid())
+  khuVuc          String
+  viTri           String
+  maHeThong       String                @unique
+  tenHeThong      String
+  chucNang        String                @db.Text
+  loaiHeThong     MachineSystemCategory
+  maThietBi       String?
+  tenThietBi      String?
+  nhiemVu         String?               @db.Text
+  maNguoiThucHien String?
+  nguoiThucHien   String?
+  fileDinhKem     String?
+  hoatDong        Boolean               @default(true)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  details            MachineSystemDetail[]
+  faultTemplates     FaultTemplate[]
+  faultRecords       FaultRecord[]
+  repairRequestItems RepairRequestItem[]
+  handoverItems      AcceptanceHandoverItem[]
+  machines           Machine[]
+
+  @@index([maHeThong])
+  @@map("machine_systems")
+  @@schema("business")
+}
+
+model MachineSystemDetail {
+  id              String                  @id @default(cuid())
+  machineSystemId String
+  parentDetailId  String?
+  loaiChiTiet     MachineSystemDetailType
+  maChiTiet       String                  @unique
+  tenChiTiet      String
+  viTri           String?
+  moTa            String?                 @db.Text
+  maNguoiPhuTrach String?
+  nguoiPhuTrach   String?
+  fileDinhKem     String?
+  thuTu           Int                     @default(0)
+  hoatDong        Boolean                 @default(true)
+  trangThai       String                  @default("Hoạt động")
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  machineSystem      MachineSystem            @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
+  parentDetail       MachineSystemDetail?     @relation("MachineSystemDetailHierarchy", fields: [parentDetailId], references: [id], onDelete: SetNull)
+  childDetails       MachineSystemDetail[]    @relation("MachineSystemDetailHierarchy")
+  faultTemplates     FaultTemplate[]
+  faultRecords       FaultRecord[]
+  repairRequestItems RepairRequestItem[]
+  handoverItems      AcceptanceHandoverItem[]
+
+  @@index([machineSystemId])
+  @@index([parentDetailId])
+  @@index([loaiChiTiet])
+  @@index([hoatDong])
+  @@index([trangThai])
+  @@index([machineSystemId, thuTu])
+  @@map("machine_system_details")
+  @@schema("business")
+}
+
+model MachineActivityReport {
+  id              String   @id @default(cuid())
+  viTri           String
+  tenHeThong      String
+  tongSoLuong     Int
+  soLuongHoatDong Int
+  soLuongNgung    Int
+  nguyenNhan      String   @db.Text
+  nguoiBaoCao     String
+  fileDinhKem     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([createdAt])
+  @@map("machine_activity_reports")
+  @@schema("business")
+}
+
+model FaultTemplate {
+  id                    String   @id @default(cuid())
+  maMauLoi              String   @unique
+  tenMauLoi             String
+  moTa                  String   @db.Text
+  mucDo                 String
+  machineSystemId       String
+  machineSystemDetailId String
+  hoatDong              Boolean  @default(true)
+  trangThai             String   @default("Hoạt động")
+  ghiChu                String?  @db.Text
+  fileDinhKem           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  machineSystem       MachineSystem       @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
+  machineSystemDetail MachineSystemDetail @relation(fields: [machineSystemDetailId], references: [id], onDelete: Cascade)
+  faultRecords        FaultRecord[]
+
+  @@index([machineSystemId])
+  @@index([machineSystemDetailId])
+  @@index([hoatDong])
+  @@index([trangThai])
+  @@map("fault_templates")
+  @@schema("business")
+}
+
+model FaultRecord {
+  id                    String   @id @default(cuid())
+  maLoi                 String   @unique // VD: LI-2026-001
+  tenLoi                String
+  moTa                  String   @db.Text
+  maHeThong             String? // soft ref tới MachineSystem.maHeThong
+  machineSystemId       String?
+  machineSystemDetailId String?
+  machineId             String?
+  faultTemplateId       String?
+  mucDo                 String // Nghiêm trọng / Trung bình / Nhẹ
+  trangThai             String   @default("Đang theo dõi") // Đang theo dõi / Đã xử lý / Tái phát
+  nguoiPhatHien         String
+  ngayPhatHien          DateTime @default(now())
+  fileDinhKem           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  machineSystem       MachineSystem?       @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
+  machineSystemDetail MachineSystemDetail? @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
+  machine             Machine?             @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  faultTemplate       FaultTemplate?       @relation(fields: [faultTemplateId], references: [id], onDelete: SetNull)
+
+  @@index([maLoi])
+  @@index([machineSystemId])
+  @@index([machineSystemDetailId])
+  @@index([machineId])
+  @@index([faultTemplateId])
+  @@index([trangThai])
+  @@map("fault_records")
+  @@schema("business")
+}
+
+model SparePart {
+  id          String    @id @default(cuid())
+  maLinhKien  String    @unique // VD: LK-CK-2026-001
+  tenLinhKien String
+  loai        String // CK=Cơ khí, DT=Điện tử, D=Điện, TH=Tổng hợp
+  donVi       String // Cái / Bộ / Mét / Kg
+  soLuongTon  Int       @default(0)
+  giaNhap     Float?
+  nhaCungCap  String?
+  trangThai   String    @default("Chưa sử dụng") // Đang sử dụng / Chưa sử dụng / Hết hàng
+  ngayMua     DateTime?
+  fileDinhKem String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([maLinhKien])
+  @@index([loai])
+  @@index([trangThai])
+  @@map("spare_parts")
+  @@schema("business")
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  maDuAn      String    @unique // VD: DA-2026-001
+  tenDuAn     String
+  moTa        String?   @db.Text
+  ngayBatDau  DateTime
+  ngayKetThuc DateTime?
+  trangThai   String    @default("Lên kế hoạch") // Lên kế hoạch / Đang thực hiện / Hoàn thành / Tạm dừng
+  nguoiTaoId  String // userId người tạo
+  fileDinhKem String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  members ProjectMember[]
+  phases  ProjectPhase[]
+  tasks   ProjectTask[]
+
+  @@index([nguoiTaoId])
+  @@index([trangThai])
+  @@map("projects")
+  @@schema("business")
+}
+
+model ProjectPhase {
+  id              String    @id @default(cuid())
+  projectId       String
+  tenGiaiDoan     String
+  moTa            String?   @db.Text
+  chuSoHuuId      String?
+  chuSoHuu        String?
+  nguoiPhuTrachId String?
+  nguoiPhuTrach   String?
+  tienDo          Int       @default(0)
+  nganSach        Float?
+  trangThai       String    @default("Chưa bắt đầu")
+  thuTu           Int       @default(0)
+  ngayBatDau      DateTime?
+  ngayKetThuc     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   ProjectTask[]
+
+  @@index([projectId])
+  @@index([trangThai])
+  @@index([projectId, thuTu])
+  @@map("project_phases")
+  @@schema("business")
+}
+
+model ProjectMember {
+  id          String   @id @default(cuid())
+  projectId   String
+  userId      String
+  vaiTro      String   @default("Thành viên") // Quản lý / Thành viên / Cố vấn
+  ngayThamGia DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+  @@schema("business")
+}
+
+model ProjectTask {
+  id             String    @id @default(cuid())
+  projectId      String
+  projectPhaseId String?
+  tieuDe         String
+  moTa           String?   @db.Text
+  nguoiPhuTrach  String?
+  tienDo         Int       @default(0)
+  ngayBatDau     DateTime?
+  ngayKetThuc    DateTime?
+  deadline       DateTime?
+  trangThai      String    @default("Chưa bắt đầu") // Chưa bắt đầu / Đang làm / Hoàn thành / Trễ
+  mucDoUuTien    TaskPriority?
+  laMilestone    Boolean   @default(false)
+  thuTu          Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectPhase ProjectPhase? @relation(fields: [projectPhaseId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectPhaseId])
+  @@index([projectId, projectPhaseId, thuTu])
+  @@map("project_tasks")
+  @@schema("business")
+}

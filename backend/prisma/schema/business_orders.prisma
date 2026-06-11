@@ -1,0 +1,548 @@
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+
+  @@schema("business")
+}
+
+enum QuotationStatus {
+  DRAFT
+  DANG_CHO_PHAN_HOI
+  DANG_CHO_GUI_DON_HANG
+  DA_DAT_HANG
+  KHONG_DAT_HANG
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+
+  @@schema("business")
+}
+
+enum OrderProductionStatus {
+  CHO_LEN_KE_HOACH
+  CHO_SAN_XUAT
+  DANG_SAN_XUAT
+  CHO_GIAO_HANG
+  DA_LEN_CONTAINER
+  DANG_VAN_CHUYEN
+  DA_GIAO_CHO_KHACH_HANG
+
+  @@schema("business")
+}
+
+enum OrderPaymentStatus {
+  DA_THANH_TOAN_DOT_1
+  CHO_THANH_TOAN_DOT_2
+  DA_THANH_TOAN_DU
+
+  @@schema("business")
+}
+
+enum TaxReportStatus {
+  CHUA_BAO_CAO
+  DANG_CAP_NHAT_HO_SO
+  DA_DAY_DU_HO_SO
+  DA_BAO_CAO
+  DA_QUYET_TOAN
+
+  @@schema("business")
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model ProductCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("product_categories")
+  @@schema("business")
+}
+
+model InternationalProduct {
+  id                    String                 @id @default(cuid())
+  maSanPham             String                 @unique
+  tenSanPham            String
+  moTaSanPham           String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  loaiSanPham           String?
+  donViTinh             String?
+  lotProducts           LotProduct[]
+  orderItems            OrderItem[]
+  product_batches       product_batches[]
+  quotationRequestItems QuotationRequestItem[]
+
+  @@index([tenSanPham])
+  @@index([loaiSanPham])
+  @@index([createdAt])
+  @@map("international_products")
+  @@schema("business")
+}
+
+model InternationalCustomer {
+  id            String @id @default(cuid())
+  maKhachHang   String @unique
+  tenCongTy     String
+  nguoiLienHe   String
+  loaiKhachHang String // "Nhà phân phối", "Nhà nhập khẩu", "Nhà bán lẻ", "Đại lý"
+
+  diaChi         String?
+  soDienThoai    String?
+  email          String?
+  website        String?
+  trangThai      String    @default("Hoạt động")
+  ngayHopTac     DateTime?
+  doanhThuNam    Float     @default(0)
+  soLuongDonHang Int       @default(0)
+  sanPhamChinh   String?
+  ghiChu         String?
+
+  // Nếu có quocGia → Khách hàng quốc tế
+  quocGia  String?
+  thanhPho String?
+
+  // Nếu có tinhThanh → Khách hàng nội địa
+  tinhThanh String?
+  quanHuyen String?
+  maSoThue  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customerFeedbacks CustomerFeedback[]
+  orders            Order[]
+  quotationRequests QuotationRequest[]
+  quotations        Quotation[]
+
+  @@map("customers")
+  @@schema("business")
+}
+
+model CustomerFeedback {
+  id               String                @id @default(cuid())
+  customerId       String
+  ngayPhanHoi      DateTime              @default(now())
+  loaiPhanHoi      String
+  mucDoNghiemTrong String
+  noiDungPhanHoi   String
+  sanPhamLienQuan  String?
+  donHangLienQuan  String?
+  nguoiTiepNhan    String?
+  trangThaiXuLy    String                @default("Chưa xử lý")
+  bienPhapXuLy     String?
+  ketQuaXuLy       String?
+  ngayXuLyXong     DateTime?
+  mucDoHaiLong     String?
+  ghiChu           String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  customer         InternationalCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_feedbacks")
+  @@schema("business")
+}
+
+model QuotationRequest {
+  id                String                 @id @default(cuid())
+  maYeuCauBaoGia    String                 @unique
+  ngayYeuCau        DateTime               @default(now())
+  employeeId        String
+  maNhanVien        String
+  tenNhanVien       String
+  customerId        String?
+  maKhachHang       String
+  tenKhachHang      String
+  hinhThucVanChuyen String?
+  hinhThucThanhToan String?
+  quocGia           String?
+  cangDen           String?
+  tiGiaUSD          Float?
+  ghiChu            String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  orders            Order[]
+  calculator        QuotationCalculator?
+  items             QuotationRequestItem[]
+  customer          InternationalCustomer? @relation(fields: [customerId], references: [id])
+  employee          Employee               @relation(fields: [employeeId], references: [id])
+  quotations        Quotation[]
+
+  @@map("quotation_requests")
+  @@schema("business")
+}
+
+model QuotationRequestItem {
+  id                 String               @id @default(cuid())
+  quotationRequestId String
+  productId          String
+  maSanPham          String
+  tenSanPham         String
+  moTaSanPham        String?
+  yeuCauSanPham      String?
+  quyDongGoi         String?
+  soLuong            Float
+  donViTinh          String
+  giaDoiThuBan       Float?
+  giaBanGanNhat      Float?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  product            InternationalProduct @relation(fields: [productId], references: [id])
+  quotationRequest   QuotationRequest     @relation(fields: [quotationRequestId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_request_items")
+  @@schema("business")
+}
+
+model Quotation {
+  id                       String                 @id @default(cuid())
+  maBaoGia                 String                 @unique
+  ngayBaoGia               DateTime               @default(now())
+  quotationRequestId       String
+  maYeuCauBaoGia           String
+  customerId               String?
+  maKhachHang              String
+  tenKhachHang             String
+  productId                String
+  tenSanPham               String
+  khoiLuong                Float
+  donViTinh                String
+  materialStandardId       String?
+  maDinhMuc                String?
+  tenDinhMuc               String?
+  tiLeThuHoi               Float?
+  sanPhamDauRa             String?
+  thanhPhamTonKho          Float?
+  tongThanhPhamCanSxThem   Float?
+  tongNguyenLieuCanSanXuat Float?
+  nguyenLieuTonKho         Float?
+  nguyenLieuCanNhapThem    Float?
+  giaBaoKhach              Float?
+  thoiGianGiaoHang         Int?
+  hieuLucBaoGia            Int?
+  employeeId               String?
+  tenNhanVien              String?
+  tinhTrang                QuotationStatus        @default(DRAFT)
+  ghiChu                   String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  order                    Order?
+  items                    QuotationItem[]
+  customer                 InternationalCustomer? @relation(fields: [customerId], references: [id])
+  quotationRequest         QuotationRequest       @relation(fields: [quotationRequestId], references: [id], onDelete: Cascade)
+
+  @@map("quotations")
+  @@schema("business")
+}
+
+model QuotationItem {
+  id                String    @id @default(cuid())
+  quotationId       String
+  tenThanhPham      String
+  tiLe              Float
+  khoiLuongTuongUng Float?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  quotation         Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_items")
+  @@schema("business")
+}
+
+model GeneralCost {
+  id           String   @id @default(cuid())
+  maChiPhi     String   @unique
+  tenChiPhi    String
+  loaiChiPhi   String
+  noiDung      String?
+  donViTinh    String?
+  giaThanhNgay Float?
+  donViTien    String?  @default("VND")
+  msnv         String?
+  tenNhanVien  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("general_costs")
+  @@schema("business")
+}
+
+model ExportCost {
+  id           String   @id @default(cuid())
+  maChiPhi     String   @unique
+  tenChiPhi    String
+  loaiChiPhi   String
+  noiDung      String?
+  donViTinh    String?
+  giaThanhNgay Float?
+  donViTien    String?  @default("VND")
+  msnv         String?
+  tenNhanVien  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("export_costs")
+  @@schema("business")
+}
+
+model QuotationCalculator {
+  id                    String                           @id @default(cuid())
+  quotationRequestId    String                           @unique
+  maYeuCauBaoGia        String
+  phanTramThue          Float?
+  phanTramQuy           Float?
+  generalCostGroupsData Json? // Lưu thông tin các bảng chi phí chung (Chi phí chung 1, Chi phí chung 2, ...)
+  createdAt             DateTime                         @default(now())
+  updatedAt             DateTime                         @updatedAt
+  exportCosts           QuotationCalculatorExportCost[]
+  generalCosts          QuotationCalculatorGeneralCost[]
+  products              QuotationCalculatorProduct[]
+  quotationRequest      QuotationRequest                 @relation(fields: [quotationRequestId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_calculators")
+  @@schema("business")
+}
+
+model QuotationCalculatorProduct {
+  id                             String                         @id @default(cuid())
+  calculatorId                   String
+  quotationRequestItemId         String
+  productId                      String
+  tenSanPham                     String
+  soLuong                        Float
+  donViTinh                      String
+  maBaoGia                       String
+  materialStandardId             String?
+  maDinhMuc                      String?
+  tenDinhMuc                     String?
+  tiLeThuHoi                     Float?
+  sanPhamDauRa                   String?
+  thanhPhamTonKho                Float?
+  tongThanhPhamCanSxThem         Float?
+  tongNguyenLieuCanSanXuat       Float?
+  nguyenLieuTonKho               Float?
+  nguyenLieuCanNhapThem          Float?
+  productionProcessId            String?
+  maQuyTrinhSanXuat              String?
+  tenQuyTrinhSanXuat             String?
+  flowchartData                  Json?
+  thoiGianChoPhepToiDa           Float?
+  ngayBatDauSanXuat              DateTime?
+  ngayBatDauSanXuatThucTe        DateTime?
+  ngayHoanThanhThucTe            Float?
+  chiPhiSanXuatKeHoach           Float?
+  chiPhiSanXuatThucTe            Float?
+  chiPhiChungKeHoach             Float?
+  chiPhiChungThucTe              Float?
+  chiPhiXuatKhauKeHoach          Float?
+  chiPhiXuatKhauThucTe           Float?
+  giaHoaVon                      Float?
+  loiNhuanCongThem               Float?
+  ghiChu                         String?
+  isAdditionalCost               Boolean                        @default(false)
+  tenChiPhiBoSung                String?
+  originalTabId                  String? // ID gốc của tab để sử dụng khi load lại
+  // Các trường thực tế mới
+  tongKhoiLuongThanhPhamThucTe   Float? // Tổng khối lượng thành phẩm đầu ra thực tế (kg)
+  thanhPhamTonKhoThucTe          Float? // Thành phẩm tồn kho thực tế
+  tongThanhPhamCanSxThemThucTe   Float? // Tổng thành phẩm cần sx thêm thực tế (auto-calculated)
+  tongNguyenLieuCanSanXuatThucTe Float? // Tổng nguyên liệu cần sản xuất thực tế
+  loiNhuanCongThemThucTe         Float? // Lợi nhuận cộng thêm thực tế
+  tiGiaUSD                       Float? // Tỉ giá USD cho giá báo khách USD/KG
+  createdAt                      DateTime                       @default(now())
+  updatedAt                      DateTime                       @updatedAt
+  byProducts                     QuotationCalculatorByProduct[]
+  calculator                     QuotationCalculator            @relation(fields: [calculatorId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_calculator_products")
+  @@schema("business")
+}
+
+model QuotationCalculatorByProduct {
+  id               String                     @id @default(cuid())
+  productId        String
+  tenSanPham       String
+  tiLe             Float? // Tỉ lệ thu hồi kế hoạch
+  tiLeThuHoiThucTe Float? // Tỉ lệ thu hồi thực tế
+  giaHoaVon        Float
+  giaHoaVonThucTe  Float? // Giá hòa vốn thực tế
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  product          QuotationCalculatorProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_calculator_by_products")
+  @@schema("business")
+}
+
+model QuotationCalculatorGeneralCost {
+  id            String              @id @default(cuid())
+  calculatorId  String
+  generalCostId String
+  maChiPhi      String
+  tenChiPhi     String
+  donViTinh     String?
+  keHoach       Float
+  thucTe        Float
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  calculator    QuotationCalculator @relation(fields: [calculatorId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_calculator_general_costs")
+  @@schema("business")
+}
+
+model QuotationCalculatorExportCost {
+  id           String              @id @default(cuid())
+  calculatorId String
+  exportCostId String
+  maChiPhi     String
+  tenChiPhi    String
+  donViTinh    String?
+  keHoach      Float
+  thucTe       Float
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  calculator   QuotationCalculator @relation(fields: [calculatorId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_calculator_export_costs")
+  @@schema("business")
+}
+
+model Order {
+  id                          String                 @id @default(cuid())
+  maDonHang                   String                 @unique
+  ngayDatHang                 DateTime               @default(now())
+  quotationId                 String                 @unique
+  maBaoGia                    String
+  quotationRequestId          String
+  maYeuCauBaoGia              String
+  customerId                  String?
+  maKhachHang                 String
+  tenKhachHang                String
+  employeeId                  String?
+  tenNhanVien                 String?
+  giaTriDonHangUSD            Float?
+  giaTriDonHangVND            Float?
+  xuatKhauDot1USD             Float?
+  noiDiaDot1VND               Float?
+  ngayThanhToanDot1           DateTime?
+  xuatKhauDot2USD             Float?
+  noiDiaDot2VND               Float?
+  ngayThanhToanDot2           DateTime?
+  ngayBatDauSanXuatKeHoach    DateTime?
+  ngayHoanThanhSanXuatKeHoach DateTime?
+  ngayHoanThanhThucTe         DateTime?
+  ngayGiaoHang                DateTime?
+  trangThaiSanXuat            OrderProductionStatus?
+  trangThaiThanhToan          OrderPaymentStatus?
+  ghiChu                      String?
+  fileDinhKem                 String?
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @updatedAt
+  items                       OrderItem[]
+  customer                    InternationalCustomer? @relation(fields: [customerId], references: [id])
+  employee                    Employee?              @relation(fields: [employeeId], references: [id])
+  quotation                   Quotation              @relation(fields: [quotationId], references: [id])
+  quotationRequest            QuotationRequest       @relation(fields: [quotationRequestId], references: [id])
+  taxReport                   TaxReport?
+
+  @@map("orders")
+  @@schema("business")
+}
+
+model OrderItem {
+  id            String               @id @default(cuid())
+  orderId       String
+  productId     String
+  maSanPham     String
+  tenHangHoa    String
+  yeuCauHangHoa String?
+  loaiHangHoa   String?
+  dongGoi       String?
+  soLuong       Float
+  donVi         String
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  order         Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       InternationalProduct @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+  @@schema("business")
+}
+
+model TaxReport {
+  id             String          @id @default(cuid())
+  orderId        String          @unique
+  ngayDatHang    DateTime
+  maDonHang      String
+  tenHangHoa     String
+  soLuong        Float
+  donVi          String
+  giaTriDonHang  Float
+  soTienDongThue Float?
+  trangThai      TaxReportStatus @default(CHUA_BAO_CAO)
+  ghiChi         String?
+  fileDinhKem    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("tax_reports")
+  @@schema("business")
+}
+
+model Invoice {
+  id                  String    @id @default(cuid())
+  soHoaDon            String    @unique
+  ngayLap             DateTime
+  khachHang           String
+  maSoThue            String?
+  loaiHoaDon          String? // "Bán hàng", "Mua hàng", "Dịch vụ"
+  tongTien            Float     @default(0)
+  thue                Float     @default(0)
+  thanhTien           Float     @default(0)
+  trangThai           String    @default("Chưa thanh toán") // "Chưa thanh toán", "Đã thanh toán", "Quá hạn"
+  nhanVienLap         String?
+  phuongThucThanhToan String? // "Tiền mặt", "Chuyển khoản", "Thẻ tín dụng"
+  ngayThanhToan       DateTime?
+  ghiChu              String?
+
+  createdAt     DateTime @default(now())
+  boPhanSuDung  String? // Bộ phận sử dụng
+  mucDichSuDung String? // Mục đích sử dụng dành cho hạng mục nào
+  nhaCungCap    String? // Nhà cung cấp (for loaiHoaDon = 'Mua hàng')
+  files         String[] @default([])
+  updatedAt     DateTime @updatedAt
+
+  @@map("invoices")
+  @@schema("business")
+}
+
+model Debt {
+  id                String    @id @default(cuid())
+  ngayPhatSinh      DateTime
+  loaiChiPhi        String?
+  maNhaCungCap      String
+  tenNhaCungCap     String
+  loaiCungCap       String?
+  cungCap           String?
+  noiDungChiCho     String?
+  loaiHinh          String?
+  soTienPhaiTra     Float     @default(0)
+  soTienDaThanhToan Float     @default(0)
+  ngayHoachToan     DateTime?
+  ngayDenHan        DateTime?
+  soTaiKhoan        String?
+  ghiChu            String?
+  fileDinhKem       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("debts")
+  @@schema("business")
+}
