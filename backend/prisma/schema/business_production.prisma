@@ -1,0 +1,498 @@
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum SystemOperationStatus {
+  DANG_HOAT_DONG
+  BAO_TRI
+  NGUNG_HOAT_DONG
+
+  @@schema("business")
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model SupplyRequest {
+  id                String              @id @default(cuid())
+  stt               Int                 @default(autoincrement())
+  ngayYeuCau        DateTime            @default(now())
+  maYeuCau          String              @unique
+  employeeId        String
+  maNhanVien        String
+  tenNhanVien       String
+  boPhan            String
+  // @deprecated — kept for backward compatibility, use items relation instead
+  phanLoai          String?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  tenGoi            String?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  soLuong           Float?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  donViTinh         String?
+  mucDichYeuCau     String
+  mucDoUuTien       String
+  ghiChu            String?
+  trangThai         String              @default("Chưa cung cấp")
+  fileKemTheo       String?
+  loaiYeuCau        String?             @default("Thường") // "Thường" | "Mua nhanh"
+  soTien            Float? // Số tiền thực tế (dùng cho Mua nhanh)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  employee          Employee            @relation(fields: [employeeId], references: [id])
+  items             SupplyRequestItem[]
+  purchaseRequests  PurchaseRequest[]
+  warehouseReceipts WarehouseReceipt[]
+  warehouseIssues   WarehouseIssue[]
+
+  @@map("supply_requests")
+  @@schema("business")
+}
+
+model SupplyRequestItem {
+  id              String        @id @default(cuid())
+  supplyRequestId String
+  phanLoai        String
+  tenGoi          String
+  soLuong         Float
+  donViTinh       String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  supplyRequest   SupplyRequest @relation(fields: [supplyRequestId], references: [id], onDelete: Cascade)
+
+  @@map("supply_request_items")
+  @@schema("business")
+}
+
+model PurchaseRequest {
+  id              String                @id @default(cuid())
+  stt             Int                   @default(autoincrement())
+  ngayYeuCau      DateTime              @default(now())
+  maYeuCau        String                @unique
+  employeeId      String
+  maNhanVien      String
+  tenNhanVien     String
+  // @deprecated — kept for backward compatibility, use items relation instead
+  phanLoai        String?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  tenHangHoa      String?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  soLuong         Float?
+  // @deprecated — kept for backward compatibility, use items relation instead
+  donViTinh       String?
+  mucDichYeuCau   String
+  mucDoUuTien     String
+  ghiChu          String?
+  fileKemTheo     String?
+  trangThai       String                @default("Chờ duyệt")
+  nguoiDuyet      String?
+  ngayDuyet       DateTime?
+  supplyRequestId String?
+  nhaCungCapId    String?
+  giaDuKien       Float?
+  ghiChuMuaHang   String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  employee        Employee              @relation(fields: [employeeId], references: [id])
+  supplyRequest   SupplyRequest?        @relation(fields: [supplyRequestId], references: [id])
+  supplier        Supplier?             @relation(fields: [nhaCungCapId], references: [id])
+  items           PurchaseRequestItem[]
+
+  @@map("purchase_requests")
+  @@schema("business")
+}
+
+model PurchaseRequestItem {
+  id                String          @id @default(cuid())
+  purchaseRequestId String
+  phanLoai          String
+  tenHangHoa        String
+  soLuong           Float
+  donViTinh         String
+  nhaCungCapId      String?
+  giaDuKien         Float?
+  supplier          Supplier?       @relation("PurchaseRequestItemSupplier", fields: [nhaCungCapId], references: [id])
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_request_items")
+  @@schema("business")
+}
+
+model Supplier {
+  id                   String                @id @default(cuid())
+  maNhaCungCap         String                @unique
+  tenNhaCungCap        String
+  loaiCungCap          String // Loại cung cấp (VD: Thủy sản, Rau củ, Gia vị...)
+  quocGia              String
+  website              String?
+  nguoiLienHe          String
+  soDienThoai          String
+  emailLienHe          String
+  diaChi               String
+  khaNang              String? // Khả năng cung cấp
+  loaiHinh             String // Sản xuất, Thương mại
+  trangThai            String                @default("Đang cung cấp") // Đang cung cấp, Ngừng cung cấp
+  phanLoaiNCC          String                @default("NVL") // NVL, Thiết bị
+  doanhChi             Float? // Doanh chi
+  employeeId           String
+  employee             Employee              @relation("SupplierCreatedBy", fields: [employeeId], references: [id])
+  purchaseRequests     PurchaseRequest[]
+  purchaseRequestItems PurchaseRequestItem[] @relation("PurchaseRequestItemSupplier")
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@map("suppliers")
+  @@schema("business")
+}
+
+model product_batches {
+  id                     String               @id
+  productId              String
+  warehouseId            String
+  soLo                   String
+  soLuong                Float                @default(0)
+  soLuongNhap            Float
+  donViTinh              String?
+  ngayNhap               DateTime             @default(now())
+  ngaySanXuat            DateTime?
+  hanSuDung              DateTime?
+  giaNhap                Float?
+  nhaCungCap             String?
+  trangThai              String               @default("active")
+  ghiChu                 String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime
+  international_products InternationalProduct @relation(fields: [productId], references: [id])
+  warehouses             warehouses           @relation(fields: [warehouseId], references: [id])
+
+  @@unique([productId, warehouseId, soLo])
+  @@schema("business")
+}
+
+model warehouses {
+  id              String            @id
+  maKho           String            @unique
+  tenKho          String
+  loaiKho         String?
+  diaChi          String?
+  dienTich        Float?
+  sucChua         Float?
+  nguoiQuanLy     String?
+  soDienThoai     String?
+  trangThai       String            @default("active")
+  ghiChu          String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  lots            Lot[]
+  product_batches product_batches[]
+
+  @@schema("business")
+}
+
+model Lot {
+  id          String       @id @default(cuid())
+  tenLo       String
+  warehouseId String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  lotProducts LotProduct[]
+  warehouse   warehouses   @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@map("lots")
+  @@schema("business")
+}
+
+model LotProduct {
+  id                     String               @id @default(cuid())
+  lotId                  String
+  internationalProductId String
+  soLuong                Float
+  donViTinh              String
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  giaThanh               Float?               @default(100000)
+  internationalProduct   InternationalProduct @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
+  lot                    Lot                  @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@map("lot_products")
+  @@schema("business")
+}
+
+model WarehouseReceipt {
+  id              String         @id @default(cuid())
+  maPhieuNhap     String         @unique
+  ngayNhap        DateTime       @default(now())
+  employeeId      String
+  maNhanVien      String
+  tenNhanVien     String
+  warehouseId     String
+  tenKho          String
+  lotId           String
+  tenLo           String
+  lotProductId    String
+  tenSanPham      String
+  soLuongTruoc    Float          @default(0) // Số lượng tồn kho trước khi nhập
+  soLuongNhap     Float
+  soLuongSau      Float          @default(0) // Số lượng tồn kho sau khi nhập
+  donViTinh       String
+  ghiChu          String?
+  supplyRequestId String?
+  supplyRequest   SupplyRequest? @relation(fields: [supplyRequestId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("warehouse_receipts")
+  @@schema("business")
+}
+
+model WarehouseIssue {
+  id              String         @id @default(cuid())
+  maPhieuXuat     String         @unique
+  ngayXuat        DateTime       @default(now())
+  employeeId      String
+  maNhanVien      String
+  tenNhanVien     String
+  warehouseId     String
+  tenKho          String
+  lotId           String
+  tenLo           String
+  lotProductId    String
+  tenSanPham      String
+  soLuongTruoc    Float          @default(0) // Số lượng tồn kho trước khi xuất
+  soLuongXuat     Float
+  soLuongSau      Float          @default(0) // Số lượng tồn kho sau khi xuất
+  donViTinh       String
+  ghiChu          String?
+  supplyRequestId String?
+  supplyRequest   SupplyRequest? @relation(fields: [supplyRequestId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("warehouse_issues")
+  @@schema("business")
+}
+
+model MaterialEvaluation {
+  id                   String   @id @default(cuid())
+  maChien              String   @unique
+  thoiGianChien        DateTime
+  tenHangHoa           String
+  soLoKien             String
+  khoiLuong            Float
+  soLanNgam            Int
+  nhietDoNuocTruocNgam Float
+  nhietDoNuocSauVot    Float
+  thoiGianNgam         Int
+  brixNuocNgam         Float
+  danhGiaTruocNgam     String
+  danhGiaSauNgam       String
+  fileDinhKem          String?
+  nguoiThucHien        String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  systemOperations   SystemOperation[]
+  finishedProducts   FinishedProduct[]
+  qualityEvaluations QualityEvaluation[]
+
+  @@map("material_evaluations")
+  @@schema("business")
+}
+
+model MaterialEvaluationCriteria {
+  id          String   @id @default(cuid())
+  code        Int      @unique
+  description String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("material_evaluation_criteria")
+  @@schema("business")
+}
+
+model SystemOperation {
+  id              String   @id @default(cuid())
+  maChien         String
+  machineId       String?
+  tenMay          String
+  thoiGianChien   DateTime
+  khoiLuongDauVao Float?   @default(0)
+
+  // Giai đoạn 1
+  giaiDoan1ThoiGian Int   @default(0)
+  giaiDoan1NhietDo  Float @default(0)
+  giaiDoan1ApSuat   Float @default(0)
+
+  // Giai đoạn 2
+  giaiDoan2ThoiGian Int   @default(0)
+  giaiDoan2NhietDo  Float @default(0)
+  giaiDoan2ApSuat   Float @default(0)
+
+  // Giai đoạn 3
+  giaiDoan3ThoiGian Int   @default(0)
+  giaiDoan3NhietDo  Float @default(0)
+  giaiDoan3ApSuat   Float @default(0)
+
+  // Giai đoạn 4
+  giaiDoan4ThoiGian Int   @default(0)
+  giaiDoan4NhietDo  Float @default(0)
+  giaiDoan4ApSuat   Float @default(0)
+
+  tongThoiGianSay Int                   @default(0)
+  trangThai       SystemOperationStatus @default(DANG_HOAT_DONG)
+  ghiChu          String?
+  nguoiThucHien   String
+
+  materialEvaluationId String?
+  materialEvaluation   MaterialEvaluation? @relation(fields: [materialEvaluationId], references: [id], onDelete: SetNull)
+
+  machine Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_operations")
+  @@schema("business")
+}
+
+model FinishedProduct {
+  id            String   @id @default(cuid())
+  maChien       String
+  thoiGianChien DateTime
+  tenHangHoa    String
+  khoiLuong     Float
+
+  // Relation to Machine
+  machineId String?
+  tenMay    String?
+  trangThai SystemOperationStatus @default(DANG_HOAT_DONG)
+  machine   Machine?              @relation(fields: [machineId], references: [id], onDelete: SetNull)
+
+  // Relation to MaterialEvaluation
+  materialEvaluationId String?
+  materialEvaluation   MaterialEvaluation? @relation(fields: [materialEvaluationId], references: [id], onDelete: SetNull)
+
+  // Thành phẩm A
+  aKhoiLuong Float @default(0)
+  aTiLe      Float @default(0)
+
+  // Thành phẩm B
+  bKhoiLuong Float @default(0)
+  bTiLe      Float @default(0)
+
+  // Thành phẩm B Dầu
+  bDauKhoiLuong Float @default(0)
+  bDauTiLe      Float @default(0)
+
+  // Thành phẩm C
+  cKhoiLuong Float @default(0)
+  cTiLe      Float @default(0)
+
+  // Vụn lớn
+  vunLonKhoiLuong Float @default(0)
+  vunLonTiLe      Float @default(0)
+
+  // Vụn nhỏ
+  vunNhoKhoiLuong Float @default(0)
+  vunNhoTiLe      Float @default(0)
+
+  // Phế phẩm
+  phePhamKhoiLuong Float @default(0)
+  phePhamTiLe      Float @default(0)
+
+  // Ướt
+  uotKhoiLuong Float @default(0)
+  uotTiLe      Float @default(0)
+
+  // Tổng khối lượng thành phẩm đầu ra
+  tongKhoiLuong Float @default(0)
+
+  fileDinhKem   String?
+  nguoiThucHien String
+
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  qualityEvaluations QualityEvaluation[]
+
+  @@unique([maChien, machineId])
+  @@map("finished_products")
+  @@schema("business")
+}
+
+model QualityEvaluation {
+  id            String @id @default(uuid())
+  maChien       String
+  thoiGianChien String
+  tenHangHoa    String
+  mauSac        String @default("")
+
+  // Relation to Machine
+  machineId String?
+  tenMay    String?
+  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+
+  // Relation to FinishedProduct
+  finishedProductId String?
+  finishedProduct   FinishedProduct? @relation(fields: [finishedProductId], references: [id], onDelete: SetNull)
+
+  // Relation to MaterialEvaluation
+  materialEvaluationId String?
+  materialEvaluation   MaterialEvaluation? @relation(fields: [materialEvaluationId], references: [id], onDelete: SetNull)
+
+  // Tỉ lệ thành phẩm đầu ra (%) - Auto-filled from finished_product
+  aTiLe       Float @default(0)
+  bTiLe       Float @default(0)
+  bDauTiLe    Float @default(0)
+  cTiLe       Float @default(0)
+  vunLonTiLe  Float @default(0)
+  vunNhoTiLe  Float @default(0)
+  phePhamTiLe Float @default(0)
+  uotTiLe     Float @default(0)
+
+  // Đánh giá chất lượng thành phẩm đầu ra
+  muiHuong String @default("")
+  huongVi  String @default("")
+  doNgot   String @default("")
+  doGion   String @default("")
+
+  // Đánh giá tổng quan
+  danhGiaTongQuan String @default("")
+
+  // Đề xuất điều chỉnh cải tiến
+  deXuatDieuChinh String @default("")
+
+  fileDinhKem   String?
+  nguoiThucHien String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([maChien, machineId])
+  @@map("quality_evaluations")
+  @@schema("business")
+}
+
+model ProductionReport {
+  id                            String  @id @default(uuid())
+  ngayThang                     String // Ngày tháng
+  tongSoTuaSanXuat              Int     @default(0) // Tổng số tua sản xuất/ngày
+  soMeTua                       Int     @default(0) // Số mẻ/tua
+  tongSoMeKeHoach               Int     @default(0) // Tổng số mẻ sản xuất kế hoạch
+  soMeThucTe                    Int     @default(0) // Số mẻ sản xuất thực tế
+  maDinhMuc                     String  @default("") // Mã định mức
+  tongKhoiLuongNguyenLieu       Float   @default(0) // Tổng khối lượng nguyên liệu đã sử dụng (kg)
+  tongKhoiLuongThanhPhamDinhMuc Float   @default(0) // Tổng khối lượng thành phẩm định mức (kg)
+  khoiLuongThanhPhamThucTe      Float   @default(0) // Khối lượng thành phẩm thu được thực tế (kg)
+  chenhLechKhoiLuong            Float   @default(0) // Chênh lệch khối lượng (kg)
+  danhGiaChenhLech              String  @default("") // Đánh giá chênh lệch
+  nguyenNhanChenhLech           String  @default("") // Nguyên nhân chênh lệch
+  deXuatDieuChinh               String  @default("") // Đề xuất điều chỉnh, cải tiến
+  fileDinhKem                   String? // File đính kèm
+  nguoiThucHien                 String  @default("") // Người thực hiện
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("production_reports")
+  @@schema("business")
+}
