@@ -42,11 +42,16 @@ export interface ProjectTask {
   tienDo?: number;
   ngayBatDau?: string;
   ngayKetThuc?: string;
+  ngayBatDauThucTe?: string | null;
+  ngayHoanThanhThucTe?: string | null;
   deadline?: string;
   trangThai: ProjectTaskStatus;
   mucDoUuTien?: ProjectTaskPriority | null;
   laMilestone?: boolean;
+  laPhatSinh?: boolean;
+  ghiChu?: string | null;
   thuTu: number;
+  costs?: ProjectCost[];
   createdAt: string;
   updatedAt: string;
 }
@@ -118,14 +123,91 @@ export interface CreateProjectTaskRequest {
   tienDo?: number;
   ngayBatDau?: string;
   ngayKetThuc?: string;
+  ngayBatDauThucTe?: string;
+  ngayHoanThanhThucTe?: string;
   deadline?: string;
   trangThai?: ProjectTaskStatus;
   thuTu?: number;
   mucDoUuTien?: ProjectTaskPriority | null;
   laMilestone?: boolean;
+  laPhatSinh?: boolean;
+  ghiChu?: string;
 }
 
 export type UpdateProjectTaskRequest = Partial<CreateProjectTaskRequest>;
+
+export interface ProjectUpdate {
+  id: string;
+  projectId: string;
+  projectPhaseId?: string | null;
+  ngay: string;
+  tieuDe: string;
+  noiDung: string;
+  tienDoHienTai: number;
+  fileDinhKem?: string | null;
+  nguoiCapNhat: string;
+  nguoiCapNhatId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectApproval {
+  id: string;
+  projectId: string;
+  nguoiGuiId: string;
+  nguoiDuyetId?: string | null;
+  trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI';
+  lyDoTuChoi?: string | null;
+  ghiChu?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProjectUpdateRequest {
+  ngay: string;
+  tieuDe: string;
+  noiDung: string;
+  tienDoHienTai: number;
+  fileDinhKem?: string;
+  nguoiCapNhat: string;
+  projectPhaseId?: string | null;
+}
+
+export type UpdateProjectUpdateRequest = Partial<CreateProjectUpdateRequest>;
+
+export interface ProjectCost {
+  id: string;
+  projectId: string;
+  projectPhaseId?: string | null;
+  projectTaskId?: string | null;
+  loaiChiPhi: string;
+  tenChiPhi?: string | null;
+  donVi?: string | null;
+  soLuongKeHoach?: number | null;
+  giaKeHoach?: number | null;
+  thanhTienKeHoach?: number | null;
+  soLuongThucTe?: number | null;
+  giaThucTe?: number | null;
+  thanhTienThucTe?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProjectCostRequest {
+  projectPhaseId?: string | null;
+  projectTaskId?: string | null;
+  loaiChiPhi: string;
+  tenChiPhi?: string;
+  donVi?: string;
+  soLuongKeHoach?: number | string;
+  giaKeHoach?: number | string;
+  thanhTienKeHoach?: number | string;
+  soLuongThucTe?: number | string;
+  giaThucTe?: number | string;
+  thanhTienThucTe?: number | string;
+}
+
+export type UpdateProjectCostRequest = Partial<CreateProjectCostRequest>;
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
@@ -269,6 +351,108 @@ class ProjectService {
       return await apiClient.delete<void>(`/projects/${projectId}/tasks/${taskId}`);
     } catch (error: unknown) {
       throw new Error(getErrorMessage(error, 'Lỗi khi xóa công việc'));
+    }
+  }
+
+  // Updates
+  async getUpdates(projectId: string): Promise<ApiResponse<ProjectUpdate[]>> {
+    try {
+      return await apiClient.get<ProjectUpdate[]>(`/projects/${projectId}/updates`);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi lấy danh sách cập nhật'));
+    }
+  }
+
+  async addUpdate(projectId: string, data: CreateProjectUpdateRequest): Promise<ApiResponse<ProjectUpdate>> {
+    try {
+      return await apiClient.post<ProjectUpdate>(`/projects/${projectId}/updates`, data);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi thêm cập nhật'));
+    }
+  }
+
+  async updateUpdate(projectId: string, updateId: string, data: UpdateProjectUpdateRequest): Promise<ApiResponse<ProjectUpdate>> {
+    try {
+      return await apiClient.put<ProjectUpdate>(`/projects/${projectId}/updates/${updateId}`, data);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi cập nhật'));
+    }
+  }
+
+  async deleteUpdate(projectId: string, updateId: string): Promise<ApiResponse<void>> {
+    try {
+      return await apiClient.delete<void>(`/projects/${projectId}/updates/${updateId}`);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi xóa cập nhật'));
+    }
+  }
+
+  // Costs
+  async getCosts(projectId: string, projectPhaseId?: string | null, projectTaskId?: string | null): Promise<ApiResponse<ProjectCost[]>> {
+    try {
+      const params: Record<string, unknown> = {};
+      if (projectPhaseId !== undefined) params.projectPhaseId = projectPhaseId ?? '';
+      if (projectTaskId !== undefined) params.projectTaskId = projectTaskId ?? '';
+      return await apiClient.get<ProjectCost[]>(`/projects/${projectId}/costs`, { params });
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi lấy danh sách chi phí'));
+    }
+  }
+
+  async addCost(projectId: string, data: CreateProjectCostRequest): Promise<ApiResponse<ProjectCost>> {
+    try {
+      return await apiClient.post<ProjectCost>(`/projects/${projectId}/costs`, data);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi thêm chi phí'));
+    }
+  }
+
+  async updateCost(projectId: string, costId: string, data: UpdateProjectCostRequest): Promise<ApiResponse<ProjectCost>> {
+    try {
+      return await apiClient.put<ProjectCost>(`/projects/${projectId}/costs/${costId}`, data);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi cập nhật chi phí'));
+    }
+  }
+
+  async deleteCost(projectId: string, costId: string): Promise<ApiResponse<void>> {
+    try {
+      return await apiClient.delete<void>(`/projects/${projectId}/costs/${costId}`);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi xóa chi phí'));
+    }
+  }
+
+  // Approval workflow
+  async getApprovals(projectId: string): Promise<ApiResponse<ProjectApproval[]>> {
+    try {
+      return await apiClient.get<ProjectApproval[]>(`/projects/${projectId}/approvals`);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi lấy lịch sử duyệt'));
+    }
+  }
+
+  async submitForApproval(projectId: string, ghiChu?: string, nguoiDuyetId?: string): Promise<ApiResponse<ProjectApproval>> {
+    try {
+      return await apiClient.post<ProjectApproval>(`/projects/${projectId}/submit-approval`, { ghiChu, nguoiDuyetId });
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi gửi duyệt'));
+    }
+  }
+
+  async approve(projectId: string): Promise<ApiResponse<void>> {
+    try {
+      return await apiClient.post<void>(`/projects/${projectId}/approve`, {});
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi duyệt dự án'));
+    }
+  }
+
+  async reject(projectId: string, lyDoTuChoi: string): Promise<ApiResponse<void>> {
+    try {
+      return await apiClient.post<void>(`/projects/${projectId}/reject`, { lyDoTuChoi });
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi từ chối dự án'));
     }
   }
 }
