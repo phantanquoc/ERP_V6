@@ -24,6 +24,22 @@ services:
     networks:
       - erp_dev_network
 
+  redis:
+    image: redis:7-alpine
+    container_name: erp_dev_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - erp_dev_network
+
   backend:
     build:
       context: ./backend
@@ -43,6 +59,7 @@ services:
       LOG_LEVEL: debug
       AI_SERVICE_URL: http://ai-service:8001
       FACE_DATA_SECRET: dev_face_data_secret_key_localhost
+      REDIS_URL: redis://redis:6379
     ports:
       - "5003:5000"
     volumes:
@@ -52,6 +69,8 @@ services:
       - ./docs:/app/docs:ro
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - erp_dev_network
@@ -126,6 +145,8 @@ volumes:
   backend_uploads_dev:
     driver: local
   deepface_weights:
+    driver: local
+  redis_dev_data:
     driver: local
 
 networks:
