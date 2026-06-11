@@ -1,10 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import projectService, {
+  CreateProjectCostRequest,
   CreateProjectPhaseRequest,
   CreateProjectTaskRequest,
+  CreateProjectUpdateRequest,
   ReorderProjectPhasesRequest,
+  UpdateProjectCostRequest,
   UpdateProjectPhaseRequest,
   UpdateProjectTaskRequest,
+  UpdateProjectUpdateRequest,
+  ProjectApproval,
 } from '../services/projectService';
 import { projectKeys } from './useProjects';
 
@@ -126,6 +131,155 @@ export const useDeleteProjectTask = () => {
     onSuccess: (_, variables) => {
       invalidateProjectContext(queryClient, variables.projectId);
       queryClient.invalidateQueries({ queryKey: projectTaskKeys.unphased(variables.projectId) });
+    },
+  });
+};
+
+// ── Updates ────────────────────────────────────────────────────────────────
+export const projectUpdateKeys = {
+  all: ['projectUpdates'] as const,
+  lists: () => [...projectUpdateKeys.all, 'list'] as const,
+  list: (projectId: string) => [...projectUpdateKeys.lists(), projectId] as const,
+};
+
+export const useProjectUpdates = (projectId: string) =>
+  useQuery({
+    queryKey: projectUpdateKeys.list(projectId),
+    queryFn: () => projectService.getUpdates(projectId),
+    enabled: !!projectId,
+  });
+
+export const useAddProjectUpdate = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, data }: { projectId: string; data: CreateProjectUpdateRequest }) =>
+      projectService.addUpdate(projectId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: projectUpdateKeys.list(variables.projectId) });
+      invalidateProjectContext(queryClient, variables.projectId);
+    },
+  });
+};
+
+export const useUpdateProjectUpdate = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, updateId, data }: { projectId: string; updateId: string; data: UpdateProjectUpdateRequest }) =>
+      projectService.updateUpdate(projectId, updateId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: projectUpdateKeys.list(variables.projectId) });
+    },
+  });
+};
+
+export const useDeleteProjectUpdate = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, updateId }: { projectId: string; updateId: string }) =>
+      projectService.deleteUpdate(projectId, updateId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: projectUpdateKeys.list(variables.projectId) });
+    },
+  });
+};
+
+// ── Costs ──────────────────────────────────────────────────────────────────
+export const projectCostKeys = {
+  all: ['projectCosts'] as const,
+  lists: () => [...projectCostKeys.all, 'list'] as const,
+  list: (projectId: string, projectPhaseId?: string | null, projectTaskId?: string | null) =>
+    [...projectCostKeys.lists(), projectId, projectPhaseId ?? 'all', projectTaskId ?? 'all'] as const,
+};
+
+export const useProjectCosts = (projectId: string, projectPhaseId?: string | null, projectTaskId?: string | null) =>
+  useQuery({
+    queryKey: projectCostKeys.list(projectId, projectPhaseId, projectTaskId),
+    queryFn: () => projectService.getCosts(projectId, projectPhaseId, projectTaskId),
+    enabled: !!projectId,
+  });
+
+export const useAddProjectCost = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, data }: { projectId: string; data: CreateProjectCostRequest }) =>
+      projectService.addCost(projectId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: projectCostKeys.lists() });
+      invalidateProjectContext(queryClient, variables.projectId);
+    },
+  });
+};
+
+export const useUpdateProjectCost = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, costId, data }: { projectId: string; costId: string; data: UpdateProjectCostRequest }) =>
+      projectService.updateCost(projectId, costId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: projectCostKeys.lists() });
+      invalidateProjectContext(queryClient, variables.projectId);
+    },
+  });
+};
+
+export const useDeleteProjectCost = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, costId }: { projectId: string; costId: string }) =>
+      projectService.deleteCost(projectId, costId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: projectCostKeys.lists() });
+      invalidateProjectContext(queryClient, variables.projectId);
+    },
+  });
+};
+
+// ── Approval Workflow ─────────────────────────────────────────────────────
+export const projectApprovalKeys = {
+  all: ['projectApprovals'] as const,
+  lists: () => [...projectApprovalKeys.all, 'list'] as const,
+  list: (projectId: string) => [...projectApprovalKeys.lists(), projectId] as const,
+};
+
+export const useProjectApprovals = (projectId: string) =>
+  useQuery({
+    queryKey: projectApprovalKeys.list(projectId),
+    queryFn: () => projectService.getApprovals(projectId),
+    enabled: !!projectId,
+  });
+
+export const useSubmitApproval = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, ghiChu, nguoiDuyetId }: { projectId: string; ghiChu?: string; nguoiDuyetId?: string }) =>
+      projectService.submitForApproval(projectId, ghiChu, nguoiDuyetId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: projectApprovalKeys.list(variables.projectId) });
+      invalidateProjectContext(queryClient, variables.projectId);
+    },
+  });
+};
+
+export const useApproveProject = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId }: { projectId: string }) =>
+      projectService.approve(projectId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: projectApprovalKeys.list(variables.projectId) });
+      invalidateProjectContext(queryClient, variables.projectId);
+    },
+  });
+};
+
+export const useRejectProject = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, lyDoTuChoi }: { projectId: string; lyDoTuChoi: string }) =>
+      projectService.reject(projectId, lyDoTuChoi),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: projectApprovalKeys.list(variables.projectId) });
+      invalidateProjectContext(queryClient, variables.projectId);
     },
   });
 };
