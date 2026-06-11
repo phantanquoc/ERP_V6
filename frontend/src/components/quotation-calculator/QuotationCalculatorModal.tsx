@@ -49,7 +49,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     setShowProductSelectionModal, setEditingGeneralCostGroupId,
     selectedGeneralCosts,
     items, isOrderSummaryTab, isRevenueTab, isAdditionalCostTab,
-    currentAdditionalTab, currentTab,
+    currentAdditionalTab, currentTab, currentItem,
     calculateGiaHoaVonChinhPham, calculateGiaHoaVonChinhPhamThucTe,
     calculateSoKgChinhPham, calculateSoKgChinhPhamThucTe,
     getTotalGeneralCosts, getTotalExportCosts,
