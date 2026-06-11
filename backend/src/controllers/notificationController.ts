@@ -17,6 +17,15 @@ export class NotificationController {
       const employeeId = await getEmployeeId(userId);
       if (!employeeId) { res.json({ success: true, data: [] }); return; }
 
+      const cursor = req.query.cursor as string | undefined;
+
+      if (cursor !== undefined || req.query.limit !== undefined) {
+        const rawLimit = Number(req.query.limit) || 20;
+        const result = await notificationService.getEmployeeNotificationsCursor(employeeId, cursor || undefined, rawLimit);
+        res.json({ success: true, data: result.data, nextCursor: result.nextCursor, hasMore: result.hasMore });
+        return;
+      }
+
       const rawLimit = Number(req.query.limit) || 10;
       const limit = Math.min(Math.max(1, rawLimit), 200);
       const sinceParam = req.query.since as string | undefined;

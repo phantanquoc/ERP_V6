@@ -74,6 +74,15 @@ export class FaceAttendanceController {
 
   async getLogs(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const cursor = req.query.cursor as string | undefined;
+
+      if (cursor !== undefined) {
+        const limit = parseInt(req.query.limit as string) || 50;
+        const result = await faceAttendanceService.getLogsCursor(cursor || undefined, limit);
+        res.json({ success: true, data: result.data, nextCursor: result.nextCursor, hasMore: result.hasMore });
+        return;
+      }
+
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
       const data = await faceAttendanceService.getLogs(page, limit);

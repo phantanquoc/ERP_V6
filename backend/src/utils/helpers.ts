@@ -47,3 +47,36 @@ export const calculateTotalPages = (total: number, limit: number): number => {
   return Math.ceil(total / limit);
 };
 
+export interface CursorPayload {
+  createdAt: string;
+  id: string;
+}
+
+export const encodeCursor = (createdAt: Date, id: string): string => {
+  const payload: CursorPayload = { createdAt: createdAt.toISOString(), id };
+  return Buffer.from(JSON.stringify(payload)).toString('base64url');
+};
+
+export const decodeCursor = (cursor: string): CursorPayload => {
+  const json = Buffer.from(cursor, 'base64url').toString('utf8');
+  return JSON.parse(json) as CursorPayload;
+};
+
+export const getCursorPaginationParams = (
+  cursor?: string,
+  limit?: number | string
+): { cursorPayload: CursorPayload | null; take: number } => {
+  const take = Math.max(1, Math.min(200, parseInt(String(limit ?? 20), 10) || 20));
+
+  if (!cursor) {
+    return { cursorPayload: null, take };
+  }
+
+  try {
+    const cursorPayload = decodeCursor(cursor);
+    return { cursorPayload, take };
+  } catch {
+    return { cursorPayload: null, take };
+  }
+};
+
