@@ -1,7 +1,11 @@
 import prisma from '@config/database';
+import { cacheGet, cacheSet, cacheDel, CACHE_KEYS } from '@utils/cache';
 
 class SystemSettingsService {
   async getSettings() {
+    const cached = await cacheGet<any>(CACHE_KEYS.SYSTEM_SETTINGS);
+    if (cached) return cached;
+
     let settings = await prisma.systemSettings.findFirst();
     if (!settings) {
       settings = await prisma.systemSettings.create({
@@ -11,6 +15,8 @@ class SystemSettingsService {
         },
       });
     }
+
+    await cacheSet(CACHE_KEYS.SYSTEM_SETTINGS, settings);
     return settings;
   }
 
@@ -24,10 +30,11 @@ class SystemSettingsService {
           updatedBy,
         },
       });
+      await cacheDel(CACHE_KEYS.SYSTEM_SETTINGS);
       return settings;
     }
 
-    return await prisma.systemSettings.update({
+    const updated = await prisma.systemSettings.update({
       where: { id: settings.id },
       data: {
         ...(data.activeTheme !== undefined && { activeTheme: data.activeTheme }),
@@ -35,6 +42,8 @@ class SystemSettingsService {
         updatedBy,
       },
     });
+    await cacheDel(CACHE_KEYS.SYSTEM_SETTINGS);
+    return updated;
   }
 }
 
