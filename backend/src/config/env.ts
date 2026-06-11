@@ -34,6 +34,7 @@ export const env = {
   AI_SERVICE_URL: process.env.AI_SERVICE_URL || 'http://localhost:8001',
   FACE_DATA_SECRET: getRequiredEnv('FACE_DATA_SECRET', 'dev_face_data_secret_change_me'),
   APP_TIMEZONE: process.env.APP_TIMEZONE || 'Asia/Ho_Chi_Minh',
+  REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
 };
 
 // Defense-in-depth: refuse to start if production-grade secrets were never set,
