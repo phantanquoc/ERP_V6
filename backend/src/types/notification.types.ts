@@ -31,6 +31,7 @@ export const NotificationType = {
   INVOICE: 'INVOICE',
   DEBT: 'DEBT',
   PRODUCTION_REPORT: 'PRODUCTION_REPORT',
+  PROJECT_APPROVAL: 'PROJECT_APPROVAL',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
@@ -88,6 +89,10 @@ export const NotificationEvent = {
   DEBT_CREATED: 'DEBT_CREATED',
   PRODUCTION_REPORT_CREATED: 'PRODUCTION_REPORT_CREATED',
   MACHINE_ACTIVITY_REPORTED: 'MACHINE_ACTIVITY_REPORTED',
+  // Project approval
+  PROJECT_APPROVAL_SUBMITTED: 'PROJECT_APPROVAL_SUBMITTED',
+  PROJECT_APPROVAL_APPROVED: 'PROJECT_APPROVAL_APPROVED',
+  PROJECT_APPROVAL_REJECTED: 'PROJECT_APPROVAL_REJECTED',
 } as const;
 
 export type NotificationEvent = typeof NotificationEvent[keyof typeof NotificationEvent];

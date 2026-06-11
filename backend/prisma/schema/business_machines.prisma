@@ -235,15 +235,18 @@ model Project {
   moTa        String?   @db.Text
   ngayBatDau  DateTime
   ngayKetThuc DateTime?
-  trangThai   String    @default("Lên kế hoạch") // Lên kế hoạch / Đang thực hiện / Hoàn thành / Tạm dừng
+  trangThai   String    @default("Lên kế hoạch") // Lên kế hoạch / Chờ duyệt / Đang thực hiện / Hoàn thành / Tạm dừng
   nguoiTaoId  String // userId người tạo
   fileDinhKem String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  members ProjectMember[]
-  phases  ProjectPhase[]
-  tasks   ProjectTask[]
+  members   ProjectMember[]
+  phases    ProjectPhase[]
+  tasks     ProjectTask[]
+  updates   ProjectUpdate[]
+  costs     ProjectCost[]
+  approvals ProjectApproval[]
 
   @@index([nguoiTaoId])
   @@index([trangThai])
@@ -271,6 +274,8 @@ model ProjectPhase {
 
   project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   ProjectTask[]
+  updates ProjectUpdate[]
+  costs   ProjectCost[]
 
   @@index([projectId])
   @@index([trangThai])
@@ -303,20 +308,95 @@ model ProjectTask {
   tienDo         Int       @default(0)
   ngayBatDau     DateTime?
   ngayKetThuc    DateTime?
+  ngayBatDauThucTe    DateTime?
+  ngayHoanThanhThucTe DateTime?
   deadline       DateTime?
   trangThai      String    @default("Chưa bắt đầu") // Chưa bắt đầu / Đang làm / Hoàn thành / Trễ
   mucDoUuTien    TaskPriority?
   laMilestone    Boolean   @default(false)
+  laPhatSinh     Boolean   @default(false)
+  ghiChu         String?   @db.Text
   thuTu          Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectPhase ProjectPhase? @relation(fields: [projectPhaseId], references: [id], onDelete: Cascade)
+  costs        ProjectCost[]
 
   @@index([projectId])
   @@index([projectPhaseId])
   @@index([projectId, projectPhaseId, thuTu])
   @@map("project_tasks")
+  @@schema("business")
+}
+
+model ProjectUpdate {
+  id              String    @id @default(cuid())
+  projectId       String
+  projectPhaseId  String?
+  ngay            DateTime
+  tieuDe          String
+  noiDung         String    @db.Text
+  tienDoHienTai   Int       @default(0)
+  fileDinhKem     String?
+  nguoiCapNhat    String
+  nguoiCapNhatId  String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectPhase ProjectPhase? @relation(fields: [projectPhaseId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([projectPhaseId])
+  @@index([projectId, ngay])
+  @@map("project_updates")
+  @@schema("business")
+}
+
+model ProjectCost {
+  id                  String   @id @default(cuid())
+  projectId           String
+  projectPhaseId      String?
+  projectTaskId       String?
+  loaiChiPhi          String   // Nhân công / Vật tư / Phụ liệu / Khác
+  tenChiPhi           String?
+  donVi               String?
+  soLuongKeHoach      Float?
+  giaKeHoach          Float?
+  thanhTienKeHoach    Float?
+  soLuongThucTe       Float?
+  giaThucTe           Float?
+  thanhTienThucTe     Float?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectPhase ProjectPhase? @relation(fields: [projectPhaseId], references: [id], onDelete: SetNull)
+  projectTask  ProjectTask?  @relation(fields: [projectTaskId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectPhaseId])
+  @@index([projectTaskId])
+  @@map("project_costs")
+  @@schema("business")
+}
+
+model ProjectApproval {
+  id           String   @id @default(cuid())
+  projectId    String
+  nguoiGuiId   String
+  nguoiDuyetId String?
+  trangThai    String   @default("CHO_DUYET") // CHO_DUYET | DA_DUYET | TU_CHOI
+  lyDoTuChoi   String?  @db.Text
+  ghiChu       String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_approvals")
   @@schema("business")
 }
