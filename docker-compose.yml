@@ -60,6 +60,28 @@ services:
           cpus: '1'
           memory: 2G
 
+  # Redis — rate limiting & caching
+  redis:
+    image: redis:7-alpine
+    container_name: erp_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - erp_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 192M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
   # Backend API
   backend:
     build:
@@ -80,6 +102,7 @@ services:
       LOG_LEVEL: warn
       FACE_DATA_SECRET: ${FACE_DATA_SECRET:-change_me_face_data_secret}
       AI_SERVICE_URL: http://erp_ai:8001
+      REDIS_URL: redis://redis:6379
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@anbinhfoods.net}
@@ -89,6 +112,8 @@ services:
       - ./docs:/app/docs:ro
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
