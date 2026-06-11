@@ -32,4 +32,22 @@ router.post('/:id/tasks', projectAccess, projectController.addTask.bind(projectC
 router.put('/:id/tasks/:taskId', projectAccess, projectController.updateTask.bind(projectController));
 router.delete('/:id/tasks/:taskId', projectAccess, projectController.deleteTask.bind(projectController));
 
+// Updates
+router.get('/:id/updates', projectAccess, projectController.getUpdates.bind(projectController));
+router.post('/:id/updates', projectAccess, projectController.addUpdate.bind(projectController));
+router.put('/:id/updates/:updateId', projectAccess, projectController.updateUpdate.bind(projectController));
+router.delete('/:id/updates/:updateId', projectAccess, projectController.deleteUpdate.bind(projectController));
+
+// Costs
+router.get('/:id/costs', projectAccess, projectController.getCosts.bind(projectController));
+router.post('/:id/costs', projectAccess, projectController.addCost.bind(projectController));
+router.put('/:id/costs/:costId', projectAccess, projectController.updateCost.bind(projectController));
+router.delete('/:id/costs/:costId', projectAccess, projectController.deleteCost.bind(projectController));
+
+// Approval workflow
+router.get('/:id/approvals', projectAccess, projectController.getApprovals.bind(projectController));
+router.post('/:id/submit-approval', projectAccess, projectController.submitForApproval.bind(projectController));
+router.post('/:id/approve', projectAccess, projectController.approveProject.bind(projectController));
+router.post('/:id/reject', projectAccess, projectController.rejectProject.bind(projectController));
+
 export default router;

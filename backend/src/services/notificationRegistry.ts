@@ -480,6 +480,35 @@ const entries: NotificationEventDef[] = [
       return [...new Set([...technical, ...admins])];
     },
   },
+
+  // ── Project Approval ──
+  {
+    event: NotificationEvent.PROJECT_APPROVAL_SUBMITTED,
+    notificationType: NotificationType.PROJECT_APPROVAL,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu duyệt kế hoạch dự án',
+      message: `Dự án "${ctx.metadata?.tenDuAn ?? ''}" đã được gửi duyệt`,
+    }),
+    resolveRecipients: async (ctx) => ctx.targetEmployeeIds?.length ? ctx.targetEmployeeIds : getAdminEmployeeIds(ctx.actorUserId),
+  },
+  {
+    event: NotificationEvent.PROJECT_APPROVAL_APPROVED,
+    notificationType: NotificationType.PROJECT_APPROVAL,
+    buildMessage: (ctx) => ({
+      title: 'Kế hoạch dự án đã được duyệt',
+      message: `Dự án "${ctx.metadata?.tenDuAn ?? ''}" đã được phê duyệt và chuyển sang thực hiện`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.PROJECT_APPROVAL_REJECTED,
+    notificationType: NotificationType.PROJECT_APPROVAL,
+    buildMessage: (ctx) => ({
+      title: 'Kế hoạch dự án bị từ chối',
+      message: `Dự án "${ctx.metadata?.tenDuAn ?? ''}" bị từ chối: ${ctx.metadata?.lyDoTuChoi ?? ''}`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
 ];
 
 /* ─── Build Registry Map ───────────────────────────────────────────────────── */
