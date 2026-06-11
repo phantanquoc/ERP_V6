@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Settings,
@@ -223,12 +223,12 @@ const PurchasingEquipment = () => {
   const [editLoading, setEditLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const openDetailModal = (item: any) => { setSelectedItem(item); setIsDetailModalOpen(true); };
-  const closeDetailModal = () => { setIsDetailModalOpen(false); setSelectedItem(null); };
-  const openPurchaseRequestDetail = (item: PurchaseRequest) => { setSelectedPurchaseRequest(item); };
-  const closePurchaseRequestDetail = () => { setSelectedPurchaseRequest(null); };
+  const openDetailModal = useCallback((item: any) => { setSelectedItem(item); setIsDetailModalOpen(true); }, []);
+  const closeDetailModal = useCallback(() => { setIsDetailModalOpen(false); setSelectedItem(null); }, []);
+  const openPurchaseRequestDetail = useCallback((item: PurchaseRequest) => { setSelectedPurchaseRequest(item); }, []);
+  const closePurchaseRequestDetail = useCallback(() => { setSelectedPurchaseRequest(null); }, []);
 
-  const openEditPurchaseRequest = (item: PurchaseRequest) => {
+  const openEditPurchaseRequest = useCallback((item: PurchaseRequest) => {
     setEditingPurchaseRequest(item);
     setSelectedFile(null);
     setEditFormData({
@@ -237,9 +237,9 @@ const PurchasingEquipment = () => {
       ghiChu: item.ghiChu || '', trangThai: item.trangThai, nguoiDuyet: item.nguoiDuyet || '',
       ngayDuyet: item.ngayDuyet || '', fileKemTheo: item.fileKemTheo || '',
     });
-  };
+  }, []);
 
-  const closeEditPurchaseRequest = () => { setEditingPurchaseRequest(null); setEditFormData({}); setSelectedFile(null); };
+  const closeEditPurchaseRequest = useCallback(() => { setEditingPurchaseRequest(null); setEditFormData({}); setSelectedFile(null); }, []);
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -257,7 +257,7 @@ const PurchasingEquipment = () => {
     }
   };
 
-  const handleDeletePurchaseRequest = async (id: string) => {
+  const handleDeletePurchaseRequest = useCallback(async (id: string) => {
     if (!confirm('Bạn có chắc muốn xóa yêu cầu mua hàng này?')) return;
     try {
       await purchaseRequestService.deletePurchaseRequest(id);
@@ -266,9 +266,9 @@ const PurchasingEquipment = () => {
     } catch (error: any) {
       alert(error.message || 'Lỗi khi xóa');
     }
-  };
+  }, [purchaseRequestPage, purchaseRequestSearch]);
 
-  const handleCompletePurchaseRequest = async (item: any) => {
+  const handleCompletePurchaseRequest = useCallback(async (item: any) => {
     if (item.trangThai === 'Hoàn thành') {
       alert('Yêu cầu mua hàng này đã hoàn thành');
       return;
@@ -283,13 +283,13 @@ const PurchasingEquipment = () => {
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi cập nhật trạng thái');
     }
-  };
+  }, [purchaseRequestPage, purchaseRequestSearch]);
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { id: 'suppliers', name: 'Nhà cung cấp Thiết bị', icon: <Users className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> }
-  ];
+  ], []);
 
 
   return (

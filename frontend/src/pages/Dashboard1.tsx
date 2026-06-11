@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ShoppingCart,
@@ -127,7 +127,7 @@ const DepartmentCard: React.FC<{
   onClick: () => void;
   onStatClick: (link: string) => void;
   isFullWidth?: boolean;
-}> = ({ department, onClick, onStatClick, isFullWidth = false }) => (
+}> = React.memo(({ department, onClick, onStatClick, isFullWidth = false }) => (
   <div
     onClick={onClick}
     className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer border border-gray-100 hover:border-gray-200"
@@ -170,13 +170,14 @@ const DepartmentCard: React.FC<{
       </div>
     </div>
   </div>
-);
+));
+DepartmentCard.displayName = 'DepartmentCard';
 
 // Component for Quick Stat Card
 const QuickStatCard: React.FC<{
   stat: any;
   onClick?: () => void;
-}> = ({ stat, onClick }) => (
+}> = React.memo(({ stat, onClick }) => (
   <div
     className={`bg-white rounded-lg shadow-sm px-2 py-2 sm:px-3 sm:py-2.5 border border-gray-100 ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 active:scale-95 sm:hover:scale-[1.02] transition-all duration-200' : ''} relative`}
     onClick={stat.clickable ? onClick : undefined}
@@ -194,7 +195,8 @@ const QuickStatCard: React.FC<{
       </div>
     </div>
   </div>
-);
+));
+QuickStatCard.displayName = 'QuickStatCard';
 
 interface PurchaseRequest {
   id: string;
@@ -435,37 +437,41 @@ const Dashboard1: React.FC = () => {
   const overtimePendingCount = overtimePlansPendingData?.total ?? 0;
 
   // ── Resolve active date window ─────────────────────────────────────────────
-  const filterStart: Date | null =
+  const filterStart: Date | null = useMemo(() =>
     selectedPeriod === 'custom'
       ? (customStart ? new Date(customStart + 'T00:00:00') : null)
-      : getPresetStart(selectedPeriod as Exclude<PeriodFilter, 'custom'>);
+      : getPresetStart(selectedPeriod as Exclude<PeriodFilter, 'custom'>),
+    [selectedPeriod, customStart]
+  );
 
-  const filterEnd: Date | null =
+  const filterEnd: Date | null = useMemo(() =>
     selectedPeriod === 'custom'
       ? (customEnd ? new Date(customEnd + 'T23:59:59') : null)
-      : null; // preset periods: no upper bound (up to now)
+      : null, // preset periods: no upper bound (up to now)
+    [selectedPeriod, customEnd]
+  );
 
   // ── Apply filter to transactional data ─────────────────────────────────────
   // Static metrics (employees, machines, processes, suppliers, customers, debt)
   // are intentionally NOT filtered — they represent current totals.
-  const filteredOrders           = filterByDateRange(orders,           filterStart, filterEnd);
-  const filteredQuotations       = filterByDateRange(quotations,       filterStart, filterEnd);
-  const filteredFeedbacks        = filterByDateRange(feedbacks,        filterStart, filterEnd, 'createdAt', 'ngayPhanHoi');
-  const filteredInspections      = filterByDateRange(inspections,      filterStart, filterEnd, 'inspectionDate');
-  const filteredQualityEvals     = filterByDateRange(qualityEvals,     filterStart, filterEnd);
-  const filteredInvoices         = filterByDateRange(invoices,         filterStart, filterEnd);
-  const filteredCosts            = filterByDateRange(costs,            filterStart, filterEnd);
-  const filteredTaxReports       = filterByDateRange(taxReports,       filterStart, filterEnd);
-  const filteredFinishedProducts = filterByDateRange(finishedProducts, filterStart, filterEnd);
-  const filteredSupplyRequests   = filterByDateRange(supplyRequests,   filterStart, filterEnd, 'ngayYeuCau', 'createdAt');
-  const filteredWorkPlans        = filterByDateRange(workPlans,        filterStart, filterEnd, 'ngayBatDau');
-  const filteredPurchaseRequests = filterByDateRange(purchaseRequests, filterStart, filterEnd, 'ngayYeuCau', 'createdAt');
+  const filteredOrders           = useMemo(() => filterByDateRange(orders,           filterStart, filterEnd), [orders, filterStart, filterEnd]);
+  const filteredQuotations       = useMemo(() => filterByDateRange(quotations,       filterStart, filterEnd), [quotations, filterStart, filterEnd]);
+  const filteredFeedbacks        = useMemo(() => filterByDateRange(feedbacks,        filterStart, filterEnd, 'createdAt', 'ngayPhanHoi'), [feedbacks, filterStart, filterEnd]);
+  const filteredInspections      = useMemo(() => filterByDateRange(inspections,      filterStart, filterEnd, 'inspectionDate'), [inspections, filterStart, filterEnd]);
+  const filteredQualityEvals     = useMemo(() => filterByDateRange(qualityEvals,     filterStart, filterEnd), [qualityEvals, filterStart, filterEnd]);
+  const filteredInvoices         = useMemo(() => filterByDateRange(invoices,         filterStart, filterEnd), [invoices, filterStart, filterEnd]);
+  const filteredCosts            = useMemo(() => filterByDateRange(costs,            filterStart, filterEnd), [costs, filterStart, filterEnd]);
+  const filteredTaxReports       = useMemo(() => filterByDateRange(taxReports,       filterStart, filterEnd), [taxReports, filterStart, filterEnd]);
+  const filteredFinishedProducts = useMemo(() => filterByDateRange(finishedProducts, filterStart, filterEnd), [finishedProducts, filterStart, filterEnd]);
+  const filteredSupplyRequests   = useMemo(() => filterByDateRange(supplyRequests,   filterStart, filterEnd, 'ngayYeuCau', 'createdAt'), [supplyRequests, filterStart, filterEnd]);
+  const filteredWorkPlans        = useMemo(() => filterByDateRange(workPlans,        filterStart, filterEnd, 'ngayBatDau'), [workPlans, filterStart, filterEnd]);
+  const filteredPurchaseRequests = useMemo(() => filterByDateRange(purchaseRequests, filterStart, filterEnd, 'ngayYeuCau', 'createdAt'), [purchaseRequests, filterStart, filterEnd]);
   // Derived counts — always reflect the active period filter
   const workPlanCount             = filteredWorkPlans.length;
   const purchaseRequestCount      = filteredPurchaseRequests.length;
-  const purchaseRequestPendingCount = filteredPurchaseRequests.filter(
+  const purchaseRequestPendingCount = useMemo(() => filteredPurchaseRequests.filter(
     (r: PurchaseRequest) => r.trangThai === 'Chờ duyệt'
-  ).length;
+  ).length, [filteredPurchaseRequests]);
   // ──────────────────────────────────────────────────────────────────────────
 
   // Mutation for approving/rejecting purchase requests
@@ -511,9 +517,12 @@ const Dashboard1: React.FC = () => {
 
   // Nếu là admin, hiển thị Admin Dashboard
   const departmentName = getDepartmentDisplayName(user.department);
-  const quickStats = getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, overtimeCount, overtimePendingCount, evaluationPendingCount, reportUnreadCount);
+  const quickStats = useMemo(
+    () => getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, overtimeCount, overtimePendingCount, evaluationPendingCount, reportUnreadCount),
+    [tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, overtimeCount, overtimePendingCount, evaluationPendingCount, reportUnreadCount]
+  );
 
-  const departmentStats = {
+  const departmentStats = useMemo(() => ({
     general: {
       name: "Bộ phận tổng hợp",
       icon: <Building2 className="h-6 w-6" />,
@@ -593,15 +602,38 @@ const Dashboard1: React.FC = () => {
         { label: "Máy móc", value: machines.length.toString(), link: "/production/management?tab=machines" }
       ]
     }
-  };
+  }), [
+    filteredOrders, filteredQuotations, customers, filteredFeedbacks,
+    processes, filteredInspections, filteredQualityEvals, employees,
+    filteredInvoices, filteredCosts, debtSummary, filteredTaxReports,
+    machines, filteredFinishedProducts, purchaseRequestCount, suppliers,
+    filteredSupplyRequests, purchaseRequestPendingCount,
+    machineSystems, repairRequests, faultRecords, spareParts, projects,
+  ]);
 
-  const handleDepartmentClick = (deptKey: string) => {
+  const handleDepartmentClick = useCallback((deptKey: string) => {
     navigate(`/${deptKey}`);
-  };
+  }, [navigate]);
 
-  const handleStatClick = (link: string) => {
+  const handleStatClick = useCallback((link: string) => {
     navigate(link);
-  };
+  }, [navigate]);
+
+  const handleQuickStatClick = useCallback((type: string) => {
+    if (type === 'tasks') {
+      setIsTaskListModalOpen(true);
+    } else if (type === 'feedbacks') {
+      setIsFeedbackListModalOpen(true);
+    } else if (type === 'purchaseRequests') {
+      setIsPurchaseRequestModalOpen(true);
+    } else if (type === 'plans') {
+      setIsPlanModalOpen(true);
+    } else if (type === 'evaluation') {
+      setIsEvaluationModalOpen(true);
+    } else if (type === 'dailyReports') {
+      setIsDailyReportModalOpen(true);
+    }
+  }, []);
 
   return (
     <div className={`-m-6 min-h-full ${getThemePageBackground(activeTheme)}`}>
@@ -714,21 +746,7 @@ const Dashboard1: React.FC = () => {
             <QuickStatCard
               key={index}
               stat={stat}
-              onClick={stat.clickable ? () => {
-                if (stat.type === 'tasks') {
-                  setIsTaskListModalOpen(true);
-                } else if (stat.type === 'feedbacks') {
-                  setIsFeedbackListModalOpen(true);
-                } else if (stat.type === 'purchaseRequests') {
-                  setIsPurchaseRequestModalOpen(true);
-                } else if (stat.type === 'plans') {
-                  setIsPlanModalOpen(true);
-                } else if (stat.type === 'evaluation') {
-                  setIsEvaluationModalOpen(true);
-                } else if (stat.type === 'dailyReports') {
-                  setIsDailyReportModalOpen(true);
-                }
-              } : undefined}
+              onClick={stat.clickable ? () => handleQuickStatClick(stat.type) : undefined}
             />
           ))}
         </div>

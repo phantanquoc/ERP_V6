@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShoppingCart,
   Users,
@@ -252,25 +252,25 @@ const PurchasingMaterials = () => {
   const [editFormErrors, setEditFormErrors] = useState<{ nguoiDuyet?: string; ngayDuyet?: string; api?: string }>({});
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const openDetailModal = (item: any) => {
+  const openDetailModal = useCallback((item: any) => {
     setSelectedItem(item);
     setIsDetailModalOpen(true);
-  };
+  }, []);
 
-  const closeDetailModal = () => {
+  const closeDetailModal = useCallback(() => {
     setIsDetailModalOpen(false);
     setSelectedItem(null);
-  };
+  }, []);
 
-  const openPurchaseRequestDetail = (item: PurchaseRequest) => {
+  const openPurchaseRequestDetail = useCallback((item: PurchaseRequest) => {
     setSelectedPurchaseRequest(item);
-  };
+  }, []);
 
-  const closePurchaseRequestDetail = () => {
+  const closePurchaseRequestDetail = useCallback(() => {
     setSelectedPurchaseRequest(null);
-  };
+  }, []);
 
-  const openEditPurchaseRequest = (item: PurchaseRequest) => {
+  const openEditPurchaseRequest = useCallback((item: PurchaseRequest) => {
     const currentUserName = user ? `${user.lastName} ${user.firstName}`.trim() : '';
     const today = new Date().toISOString();
     setEditingPurchaseRequest(item);
@@ -285,14 +285,14 @@ const PurchasingMaterials = () => {
       nguoiDuyet: item.nguoiDuyet || currentUserName,
       ngayDuyet: item.ngayDuyet || today,
     });
-  };
+  }, [user]);
 
-  const closeEditPurchaseRequest = () => {
+  const closeEditPurchaseRequest = useCallback(() => {
     setEditingPurchaseRequest(null);
     setEditFormData({});
     setSelectedFile(null);
     setEditFormErrors({});
-  };
+  }, []);
 
 
 
@@ -318,7 +318,7 @@ const PurchasingMaterials = () => {
     }
   };
 
-  const handleDeletePurchaseRequest = async (id: string) => {
+  const handleDeletePurchaseRequest = useCallback(async (id: string) => {
     if (!confirm('Bạn có chắc muốn xóa yêu cầu mua hàng này?')) return;
 
     try {
@@ -328,9 +328,9 @@ const PurchasingMaterials = () => {
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi xóa');
     }
-  };
+  }, [purchaseRequestPage, purchaseRequestSearch]);
 
-  const handleCompletePurchaseRequest = async (item: any) => {
+  const handleCompletePurchaseRequest = useCallback(async (item: any) => {
     if (item.trangThai === 'Hoàn thành') {
       alert('Yêu cầu mua hàng này đã hoàn thành');
       return;
@@ -345,13 +345,13 @@ const PurchasingMaterials = () => {
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi cập nhật trạng thái');
     }
-  };
+  }, [purchaseRequestPage, purchaseRequestSearch]);
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { id: 'suppliers', name: 'Nhà cung cấp NVL', icon: <Users className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> }
-  ];
+  ], []);
 
   return (
     <div className="space-y-6">
