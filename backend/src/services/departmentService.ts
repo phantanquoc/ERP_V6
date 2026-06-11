@@ -1,14 +1,21 @@
 import prisma from '@config/database';
 import { NotFoundError } from '@utils/errors';
+import { cacheGet, cacheSet, cacheDel, CACHE_KEYS } from '@utils/cache';
 
 export class DepartmentService {
   async getAllDepartments(): Promise<any[]> {
-    return await prisma.department.findMany({
+    const cached = await cacheGet<any[]>(CACHE_KEYS.DEPARTMENTS);
+    if (cached) return cached;
+
+    const departments = await prisma.department.findMany({
       include: {
         subDepartments: true,
       },
       orderBy: { createdAt: 'asc' },
     });
+
+    await cacheSet(CACHE_KEYS.DEPARTMENTS, departments);
+    return departments;
   }
 
   async getDepartmentById(id: string): Promise<any> {
@@ -27,7 +34,7 @@ export class DepartmentService {
   }
 
   async createDepartment(data: any): Promise<any> {
-    return await prisma.department.create({
+    const result = await prisma.department.create({
       data: {
         code: data.code,
         name: data.name,
@@ -37,6 +44,8 @@ export class DepartmentService {
         subDepartments: true,
       },
     });
+    await cacheDel(CACHE_KEYS.DEPARTMENTS);
+    return result;
   }
 
   async updateDepartment(id: string, data: any): Promise<any> {
@@ -46,7 +55,7 @@ export class DepartmentService {
       throw new NotFoundError('Department not found');
     }
 
-    return await prisma.department.update({
+    const result = await prisma.department.update({
       where: { id },
       data: {
         ...(data.name && { name: data.name }),
@@ -56,6 +65,8 @@ export class DepartmentService {
         subDepartments: true,
       },
     });
+    await cacheDel(CACHE_KEYS.DEPARTMENTS);
+    return result;
   }
 
   async deleteDepartment(id: string): Promise<void> {
@@ -66,6 +77,7 @@ export class DepartmentService {
     }
 
     await prisma.department.delete({ where: { id } });
+    await cacheDel(CACHE_KEYS.DEPARTMENTS);
   }
 }
 
