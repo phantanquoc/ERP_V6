@@ -3,7 +3,7 @@ import { privateFeedbackService } from '../services/privateFeedbackService';
 import { FeedbackType, FeedbackStatus } from '@prisma/client';
 import { getFileUrl } from '@middlewares/upload';
 
-export const privateFeedbackController = {
+export class PrivateFeedbackController {
   // GET /api/private-feedbacks - Lấy tất cả feedback
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
@@ -34,7 +34,7 @@ export const privateFeedbackController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // GET /api/private-feedbacks/:id - Lấy feedback theo ID
   async getById(req: Request, res: Response, next: NextFunction) {
@@ -50,7 +50,7 @@ export const privateFeedbackController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // GET /api/private-feedbacks/code/:code - Lấy feedback theo code
   async getByCode(req: Request, res: Response, next: NextFunction) {
@@ -66,7 +66,7 @@ export const privateFeedbackController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // POST /api/private-feedbacks/generate-code - Tạo mã tự động
   async generateCode(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -91,7 +91,7 @@ export const privateFeedbackController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // POST /api/private-feedbacks - Tạo feedback mới
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -138,7 +138,7 @@ export const privateFeedbackController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // PATCH /api/private-feedbacks/:id - Cập nhật feedback
   async update(req: Request, res: Response, next: NextFunction) {
@@ -172,7 +172,7 @@ export const privateFeedbackController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // DELETE /api/private-feedbacks/:id - Xóa feedback
   async delete(req: Request, res: Response, next: NextFunction) {
@@ -187,7 +187,7 @@ export const privateFeedbackController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // GET /api/private-feedbacks/stats - Thống kê
   async getStats(req: Request, res: Response, next: NextFunction) {
@@ -204,5 +204,6 @@ export const privateFeedbackController = {
       next(error);
     }
   }
-};
+}
 
+export default new PrivateFeedbackController();

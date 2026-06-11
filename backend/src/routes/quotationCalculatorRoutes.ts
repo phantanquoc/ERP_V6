@@ -1,10 +1,12 @@
 import express from 'express';
-import {
+import quotationCalculatorController from '../controllers/quotationCalculatorController';
+
+const {
   getCalculatorByQuotationRequestId,
   upsertCalculator,
   deleteCalculator,
   createQuotationFromCalculator,
-} from '../controllers/quotationCalculatorController';
+} = quotationCalculatorController;
 import { authenticate } from '../middlewares/auth';
 
 const router = express.Router();

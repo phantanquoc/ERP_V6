@@ -1,11 +1,13 @@
 import { Router } from 'express';
-import {
+import lotProductController from '@controllers/lotProductController';
+
+const {
   getAllLotProducts,
   addProductToLot,
   removeProductFromLot,
   moveProductBetweenLots,
   updateProductQuantity,
-} from '@controllers/lotProductController';
+} = lotProductController;
 import { authenticate } from '@middlewares/auth';
 
 const router = Router();

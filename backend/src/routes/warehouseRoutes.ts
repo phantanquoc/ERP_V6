@@ -5,7 +5,9 @@ import {
   createWarehouse,
   deleteWarehouse,
 } from '@controllers/warehouseController';
-import { getLotsByWarehouse } from '@controllers/lotController';
+import lotController from '@controllers/lotController';
+
+const { getLotsByWarehouse } = lotController;
 import { authenticate } from '@middlewares/auth';
 
 const router = Router();
