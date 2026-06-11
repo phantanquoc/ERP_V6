@@ -1,21 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus } from 'lucide-react';
-import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
-import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
-import { useWarehouses, warehouseKeys } from '../hooks';
-import { useQueryClient } from '@tanstack/react-query';
+import { Warehouse, Lot, LotProduct } from '../services/warehouseService';
+import {
+  useWarehouses,
+  useCreateWarehouse, useDeleteWarehouse,
+  useCreateLot, useDeleteLot,
+  useAddProductToLot, useRemoveProductFromLot, useMoveProductBetweenLots,
+} from '../hooks';
+import { useProducts } from '../hooks';
 import { parseNumberInputStr } from '../utils/numberInput';
 import Modal from './Modal';
 
 const WarehouseManagement: React.FC = () => {
-  const queryClient = useQueryClient();
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
-  const [products, setProducts] = useState<InternationalProduct[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // React Query hook for warehouses
+  // React Query hooks for warehouses
   const { data: warehousesData, isLoading: loading } = useWarehouses();
+  const createWarehouse = useCreateWarehouse();
+  const deleteWarehouse = useDeleteWarehouse();
+  const createLot = useCreateLot();
+  const deleteLot = useDeleteLot();
+  const addProductToLot = useAddProductToLot();
+  const removeProductFromLot = useRemoveProductFromLot();
+  const moveProductBetweenLots = useMoveProductBetweenLots();
+
+  // Fetch all international products via TanStack Query
+  const { data: productsData } = useProducts({ page: 1, limit: 1000 });
+  const products = productsData?.data || [];
 
   // Sort warehouses by name (extract number and sort)
   const sortWarehouses = (warehousesList: Warehouse[]) => {
@@ -53,10 +66,6 @@ const WarehouseManagement: React.FC = () => {
   const [targetWarehouseId, setTargetWarehouseId] = useState('');
   const [targetLotId, setTargetLotId] = useState('');
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
   // Update selectedWarehouse when warehouses change
   useEffect(() => {
     if (warehouses.length > 0 && selectedWarehouse) {
@@ -67,17 +76,6 @@ const WarehouseManagement: React.FC = () => {
     }
   }, [warehouses]);
 
-  const fetchProducts = async () => {
-    try {
-      const response = await internationalProductService.getAllProducts(1, 1000); // Get all products
-      console.log('Products response:', response);
-      setProducts(response.data || []);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      setProducts([]);
-    }
-  };
-
   const handleCreateWarehouse = async () => {
     if (!newWarehouseName.trim()) {
       alert('Vui lòng nhập tên kho');
@@ -85,11 +83,10 @@ const WarehouseManagement: React.FC = () => {
     }
 
     try {
-      await warehouseService.createWarehouse({ tenKho: newWarehouseName });
+      await createWarehouse.mutateAsync({ tenKho: newWarehouseName });
       alert('Tạo kho thành công!');
       setShowWarehouseModal(false);
       setNewWarehouseName('');
-      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
     } catch (error: any) {
       console.error('Error creating warehouse:', error);
       alert(error.response?.data?.message || 'Lỗi khi tạo kho');
@@ -100,9 +97,8 @@ const WarehouseManagement: React.FC = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa kho này?')) return;
 
     try {
-      await warehouseService.deleteWarehouse(id);
+      await deleteWarehouse.mutateAsync(id);
       alert('Xóa kho thành công!');
-      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
       if (selectedWarehouse?.id === id) {
         setSelectedWarehouse(null);
       }
@@ -119,14 +115,13 @@ const WarehouseManagement: React.FC = () => {
     }
 
     try {
-      await warehouseService.createLot({
+      await createLot.mutateAsync({
         tenLo: newLotName,
         warehouseId: selectedWarehouse.id,
       });
       alert('Tạo lô thành công!');
       setShowLotModal(false);
       setNewLotName('');
-      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
     } catch (error: any) {
       console.error('Error creating lot:', error);
       alert(error.response?.data?.message || 'Lỗi khi tạo lô');
@@ -137,9 +132,8 @@ const WarehouseManagement: React.FC = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa lô này?')) return;
 
     try {
-      await warehouseService.deleteLot(lotId);
+      await deleteLot.mutateAsync(lotId);
       alert('Xóa lô thành công!');
-      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
     } catch (error: any) {
       console.error('Error deleting lot:', error);
       alert(error.response?.data?.message || 'Lỗi khi xóa lô');
@@ -160,7 +154,7 @@ const WarehouseManagement: React.FC = () => {
         donViTinh: productUnit,
       });
 
-      const response = await warehouseService.addProductToLot({
+      const response = await addProductToLot.mutateAsync({
         lotId: selectedLotId,
         internationalProductId: selectedProductId,
         soLuong: parseFloat(productQuantity),
@@ -171,7 +165,6 @@ const WarehouseManagement: React.FC = () => {
       alert('Thêm sản phẩm vào lô thành công!');
       setShowProductModal(false);
       resetProductForm();
-      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
     } catch (error: any) {
       console.error('Error adding product to lot:', error);
       console.error('Error response:', error.response?.data);
@@ -205,9 +198,8 @@ const WarehouseManagement: React.FC = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa sản phẩm này khỏi lô?')) return;
 
     try {
-      await warehouseService.removeProductFromLot(productId);
+      await removeProductFromLot.mutateAsync(productId);
       alert('Xóa sản phẩm thành công!');
-      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
     } catch (error: any) {
       console.error('Error removing product:', error);
       alert(error.response?.data?.message || 'Lỗi khi xóa sản phẩm');
@@ -221,7 +213,7 @@ const WarehouseManagement: React.FC = () => {
     }
 
     try {
-      await warehouseService.moveProductBetweenLots({
+      await moveProductBetweenLots.mutateAsync({
         lotProductId: movingProduct.id,
         targetLotId,
       });
@@ -230,7 +222,6 @@ const WarehouseManagement: React.FC = () => {
       setMovingProduct(null);
       setTargetWarehouseId('');
       setTargetLotId('');
-      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
     } catch (error: any) {
       console.error('Error moving product:', error);
       alert(error.response?.data?.message || 'Lỗi khi di chuyển sản phẩm');

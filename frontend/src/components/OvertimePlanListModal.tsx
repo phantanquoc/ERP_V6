@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Download, Plus } from 'lucide-react';
-import { overtimePlanService, OvertimePlan, OvertimePlanStatus } from '../services/overtimePlanService';
+import React, { useState } from 'react';
+import { Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Plus } from 'lucide-react';
+import { OvertimePlan, OvertimePlanStatus } from '../services/overtimePlanService';
+import { useOvertimePlans, useMyOvertimePlans, useApprovePlan } from '../hooks/useOvertimePlans';
 import { ModalForm } from './ModalForm';
 import CreateOvertimePlanModal from './CreateOvertimePlanModal';
 import { getFileUrl } from '../config/api';
-import { useAuth } from '../contexts/AuthContext';
 interface OvertimePlanListModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -17,47 +17,39 @@ interface OvertimePlanListModalProps {
 }
 
 const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, onClose, isAdmin = false, canViewAll = false, canCreate = false, embedded = false, highlightPlanId }) => {
-  const { user } = useAuth();
-  const [plans, setPlans] = useState<OvertimePlan[]>([]);
-  const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
   const [viewPlan, setViewPlan] = useState<OvertimePlan | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    if (isOpen) loadPlans();
-  }, [isOpen, currentPage]);
+  // TanStack Query hooks
+  const allPlansQuery = useOvertimePlans(
+    { page: currentPage, limit: itemsPerPage },
+    isOpen && (isAdmin || canViewAll)
+  );
+  const myPlansQuery = useMyOvertimePlans(
+    { page: currentPage, limit: itemsPerPage },
+    isOpen && !(isAdmin || canViewAll)
+  );
 
-  // Auto-open chi tiết khi có highlightPlanId từ notification
-  useEffect(() => {
+  const activeQuery = (isAdmin || canViewAll) ? allPlansQuery : myPlansQuery;
+  const plans: OvertimePlan[] = activeQuery.data?.data || [];
+  const totalPages = activeQuery.data?.totalPages || 1;
+  const totalItems = activeQuery.data?.total || activeQuery.data?.data?.length || 0;
+  const loading = activeQuery.isLoading;
+
+  const approvePlan = useApprovePlan();
+  const actionLoading = approvePlan.isPending ? approvePlan.variables?.id ?? null : null;
+
+  // Auto-open detail when highlightPlanId is provided from notification
+  React.useEffect(() => {
     if (isOpen && highlightPlanId && plans.length > 0) {
       const target = plans.find(p => p.id === highlightPlanId);
       if (target) setViewPlan(target);
     }
   }, [isOpen, highlightPlanId, plans]);
-
-  const loadPlans = async () => {
-    try {
-      setLoading(true);
-      const params = { page: currentPage, limit: itemsPerPage };
-      const response = (isAdmin || canViewAll)
-        ? await overtimePlanService.getAll(params)
-        : await overtimePlanService.getMyPlans(params);
-      setPlans(response.data || []);
-      setTotalPages(response.totalPages || 1);
-      setTotalItems(response.total || response.data?.length || 0);
-    } catch (error) {
-      console.error('Error loading overtime plans:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getStatusBadge = (status: OvertimePlanStatus) => {
     const badges: Record<string, { label: string; class: string }> = {
@@ -82,14 +74,10 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
 
   const handleApprove = async (planId: string) => {
     try {
-      setActionLoading(planId);
-      await overtimePlanService.approvePlan(planId, OvertimePlanStatus.DA_DUYET);
-      await loadPlans();
+      await approvePlan.mutateAsync({ id: planId, trangThai: OvertimePlanStatus.DA_DUYET });
     } catch (error) {
       console.error('Error approving plan:', error);
       alert('Có lỗi xảy ra khi duyệt kế hoạch');
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -99,16 +87,12 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
       return;
     }
     try {
-      setActionLoading(planId);
-      await overtimePlanService.approvePlan(planId, OvertimePlanStatus.TU_CHOI, rejectReason);
+      await approvePlan.mutateAsync({ id: planId, trangThai: OvertimePlanStatus.TU_CHOI, lyDoTuChoi: rejectReason });
       setShowRejectModal(null);
       setRejectReason('');
-      await loadPlans();
     } catch (error) {
       console.error('Error rejecting plan:', error);
       alert('Có lỗi xảy ra khi từ chối kế hoạch');
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -378,7 +362,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
       <CreateOvertimePlanModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={() => loadPlans()}
+        onSuccess={() => activeQuery.refetch()}
       />
     </>
   );
