@@ -42,6 +42,35 @@ const faultRecordInclude = {
   faultTemplate: true,
 } satisfies Prisma.FaultRecordInclude;
 
+const faultRecordListSelect = {
+  id: true,
+  maLoi: true,
+  tenLoi: true,
+  moTa: true,
+  maHeThong: true,
+  machineSystemId: true,
+  machineSystemDetailId: true,
+  machineId: true,
+  faultTemplateId: true,
+  mucDo: true,
+  trangThai: true,
+  nguoiPhatHien: true,
+  ngayPhatHien: true,
+  fileDinhKem: true,
+  createdAt: true,
+  updatedAt: true,
+  machineSystem: {
+    select: { id: true, maHeThong: true, tenHeThong: true, khuVuc: true, viTri: true },
+  },
+  machineSystemDetail: {
+    select: { id: true, maChiTiet: true, tenChiTiet: true, loaiChiTiet: true },
+  },
+  machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
+  faultTemplate: {
+    select: { id: true, maMauLoi: true, tenMauLoi: true, mucDo: true },
+  },
+} satisfies Prisma.FaultRecordSelect;
+
 class FaultRecordService {
   async generateFaultCode(): Promise<string> {
     const year = new Date().getFullYear();
@@ -88,7 +117,7 @@ class FaultRecordService {
         skip,
         take: limitNum,
         orderBy: { createdAt: 'desc' },
-        include: faultRecordInclude,
+        select: faultRecordListSelect,
       }),
       prisma.faultRecord.count({ where }),
     ]);
