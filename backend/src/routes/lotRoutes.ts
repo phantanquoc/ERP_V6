@@ -1,5 +1,7 @@
 import { Router } from 'express';
-import { createLot, deleteLot } from '@controllers/lotController';
+import lotController from '@controllers/lotController';
+
+const { createLot, deleteLot } = lotController;
 import { authenticate } from '@middlewares/auth';
 
 const router = Router();

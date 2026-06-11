@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { supplierService } from '../services/supplierService';
 
-export const supplierController = {
+export class SupplierController {
   // Get all suppliers
   async getAllSuppliers(req: Request, res: Response, next: NextFunction) {
     try {
@@ -15,7 +15,7 @@ export const supplierController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // Get supplier by ID
   async getSupplierById(req: Request, res: Response, next: NextFunction) {
@@ -26,7 +26,7 @@ export const supplierController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // Create supplier
   async createSupplier(req: Request, res: Response, next: NextFunction) {
@@ -37,7 +37,7 @@ export const supplierController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // Update supplier
   async updateSupplier(req: Request, res: Response, next: NextFunction) {
@@ -49,7 +49,7 @@ export const supplierController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // Delete supplier
   async deleteSupplier(req: Request, res: Response, next: NextFunction) {
@@ -60,7 +60,7 @@ export const supplierController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // Generate next supplier code
   async generateCode(req: Request, res: Response, next: NextFunction) {
@@ -71,7 +71,7 @@ export const supplierController = {
     } catch (error) {
       next(error);
     }
-  },
+  }
 
   // Export suppliers to Excel
   async exportToExcel(req: Request, res: Response, next: NextFunction) {
@@ -92,6 +92,7 @@ export const supplierController = {
     } catch (error) {
       next(error);
     }
-  },
-};
+  }
+}
 
+export default new SupplierController();

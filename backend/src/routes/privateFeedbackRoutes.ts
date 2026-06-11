@@ -1,5 +1,5 @@
 import express from 'express';
-import { privateFeedbackController } from '../controllers/privateFeedbackController';
+import privateFeedbackController from '../controllers/privateFeedbackController';
 import { authenticate } from '@middlewares/auth';
 import { createUploadMiddleware } from '@middlewares/upload';
 

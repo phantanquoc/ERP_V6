@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supplierController } from '../controllers/supplierController';
+import supplierController from '../controllers/supplierController';
 import { authenticate, authorize } from '../middlewares/auth';
 import { UserRole } from '../types';
 

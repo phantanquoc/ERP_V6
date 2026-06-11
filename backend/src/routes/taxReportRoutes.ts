@@ -1,5 +1,7 @@
 import express from 'express';
-import {
+import taxReportController from '../controllers/taxReportController';
+
+const {
   getAllTaxReports,
   getTaxReportById,
   getTaxReportByOrderId,
@@ -7,7 +9,7 @@ import {
   updateTaxReport,
   deleteTaxReport,
   exportTaxReportsToExcel,
-} from '../controllers/taxReportController';
+} = taxReportController;
 import { authenticate } from '../middlewares/auth';
 import { createSingleUploadMiddleware } from '../middlewares/upload';
 

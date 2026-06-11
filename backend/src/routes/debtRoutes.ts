@@ -1,5 +1,7 @@
 import express from 'express';
-import {
+import debtController from '../controllers/debtController';
+
+const {
   getAllDebts,
   getDebtById,
   createDebt,
@@ -7,7 +9,7 @@ import {
   deleteDebt,
   getDebtSummary,
   exportDebtsToExcel,
-} from '../controllers/debtController';
+} = debtController;
 import { authenticate, authorize } from '../middlewares/auth';
 import { createSingleUploadMiddleware } from '../middlewares/upload';
 import { UserRole } from '../types';
