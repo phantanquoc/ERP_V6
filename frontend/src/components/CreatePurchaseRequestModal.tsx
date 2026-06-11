@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import FileUpload from './FileUpload';
 import purchaseRequestService from '../services/purchaseRequestService';
-import supplierService, { Supplier } from '../services/supplierService';
 import { useAuth } from '../contexts/AuthContext';
 import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import Modal from './Modal';
+import { useSupplierOptions } from '../hooks/useSuppliers';
 
 interface CreatePurchaseRequestModalProps {
   isOpen: boolean;
@@ -41,7 +41,10 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
+  // Fetch active suppliers via TanStack Query
+  const { data: suppliersData } = useSupplierOptions();
+  const suppliers = ((suppliersData as any[]) || []).filter((s: any) => s.trangThai === 'Đang cung cấp');
 
   const [maYeuCau, setMaYeuCau] = useState('');
   const [ngayYeuCau] = useState(new Date().toISOString().split('T')[0]);
@@ -55,7 +58,6 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       generateCode();
-      fetchSuppliers();
 
       // Pre-fill items from supply request if available
       if (supplyRequest) {
@@ -84,16 +86,6 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
       setMaYeuCau(response.data.code);
     } catch (error) {
       console.error('Error generating code:', error);
-    }
-  };
-
-  const fetchSuppliers = async () => {
-    try {
-      const response = await supplierService.getAllSuppliers(1, 1000);
-      const allSuppliers: Supplier[] = response.data?.data || response.data || [];
-      setSuppliers(allSuppliers.filter(s => s.trangThai === 'Đang cung cấp'));
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
     }
   };
 

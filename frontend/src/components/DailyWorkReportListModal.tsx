@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   X,
   FileText,
@@ -14,10 +14,14 @@ import {
   Download,
 } from 'lucide-react';
 import Modal from './Modal';
-import dailyWorkReportService, { DailyWorkReport } from '../services/dailyWorkReportService';
+import { DailyWorkReport } from '../services/dailyWorkReportService';
+import {
+  useAllDailyWorkReports,
+  useMyDailyWorkReports,
+  useUpdateDailyWorkReport,
+} from '../hooks/useDailyWorkReports';
 import DailyWorkReportModal from './DailyWorkReportModal';
 import { getFileUrl } from '../config/api';
-import { useQueryClient } from '@tanstack/react-query';
 
 interface DailyWorkReportListModalProps {
   isOpen: boolean;
@@ -30,40 +34,23 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
   onClose,
   isAdmin = false,
 }) => {
-  const queryClient = useQueryClient();
-  const [reports, setReports] = useState<DailyWorkReport[]>([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<DailyWorkReport | null>(null);
   const [viewReport, setViewReport] = useState<DailyWorkReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
-  useEffect(() => {
-    if (isOpen) {
-      loadReports();
-    }
-  }, [isOpen, page, filterStatus]);
+  // TanStack Query hooks
+  const allReportsQuery = useAllDailyWorkReports({ page, limit: 5, status: filterStatus }, isOpen && isAdmin);
+  const myReportsQuery = useMyDailyWorkReports({ page, limit: 5 }, isOpen && !isAdmin);
 
-  const loadReports = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const statusParam = filterStatus === 'ALL' ? undefined : filterStatus;
-      const response = isAdmin
-        ? await dailyWorkReportService.getAllReports(page, 5, statusParam)
-        : await dailyWorkReportService.getMyReports(page, 5);
-      setReports(response.data);
-      setTotalPages(response.pagination.totalPages);
-    } catch (error: any) {
-      console.error('Error loading reports:', error);
-      setError(error.message || 'Không thể tải danh sách báo cáo');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const activeQuery = isAdmin ? allReportsQuery : myReportsQuery;
+  const reports: DailyWorkReport[] = activeQuery.data?.data || [];
+  const totalPages = activeQuery.data?.pagination?.totalPages || 1;
+  const loading = activeQuery.isLoading;
+  const error = activeQuery.error ? (activeQuery.error as Error).message || 'Không thể tải danh sách báo cáo' : null;
+
+  const updateReport = useUpdateDailyWorkReport();
 
   const handleCreate = () => {
     setSelectedReport(null);
@@ -75,11 +62,9 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
     // Auto-mark as REVIEWED when admin views a SUBMITTED report
     if (isAdmin && report.status === 'SUBMITTED') {
       try {
-        await dailyWorkReportService.updateReport(report.id, { status: 'REVIEWED' });
-        loadReports();
-        queryClient.invalidateQueries({ queryKey: ['dashboard', 'reportSubmittedCount'] });
-      } catch (error) {
-        console.error('Error marking report as reviewed:', error);
+        await updateReport.mutateAsync({ id: report.id, data: { status: 'REVIEWED' } });
+      } catch (err) {
+        console.error('Error marking report as reviewed:', err);
       }
     }
   };
@@ -294,7 +279,7 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
         onClose={() => setIsCreateModalOpen(false)}
         report={selectedReport}
         onSuccess={() => {
-          loadReports();
+          activeQuery.refetch();
           setIsCreateModalOpen(false);
         }}
       />

@@ -7,7 +7,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { getDepartmentDisplayName } from '../utils/permissions';
 import Modal from './Modal';
-import userService from '../services/userService';
+import { useUpdateProfile } from '../hooks/useUsers';
 import { parseNumberInputStr } from '../utils/numberInput';
 
 interface PersonalInfoModalProps {
@@ -37,6 +37,7 @@ const EDUCATION_MAP: Record<string, string> = {
 
 const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }) => {
   const { user, updateUser } = useAuth();
+  const updateProfile = useUpdateProfile();
   const [activeTab, setActiveTab] = useState('basic');
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -160,7 +161,7 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
       if (formData.pantSize)  updateData.pantSize  = formData.pantSize;
       if (formData.shoeSize)  updateData.shoeSize  = formData.shoeSize;
 
-      await userService.updateProfile(updateData);
+      await updateProfile.mutateAsync(updateData);
 
       updateUser({
         firstName:   formData.firstName,

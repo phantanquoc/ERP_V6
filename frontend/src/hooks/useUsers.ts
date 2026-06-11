@@ -78,12 +78,20 @@ export const useDeleteUser = () => {
 // Hook to toggle user status
 export const useToggleUserStatus = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (id: string) => userService.toggleUserStatus(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() });
     },
+  });
+};
+
+// Hook to update user profile (current authenticated user)
+export const useUpdateProfile = () => {
+  return useMutation({
+    mutationFn: (data: Parameters<typeof userService.updateProfile>[0]) =>
+      userService.updateProfile(data),
   });
 };
 

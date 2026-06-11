@@ -1,17 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus, Edit, Trash2, X } from 'lucide-react';
 import machineService, { Machine, CreateMachineRequest, UpdateMachineRequest } from '../services/machineService';
-import machineSystemService, { MachineSystem } from '../services/machineSystemService';
-import { useMachines, machineKeys } from '../hooks';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMachines, useCreateMachine, useUpdateMachine, useDeleteMachine } from '../hooks';
+import { useMachineSystems } from '../hooks';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
 import MachineSummaryDrawer from './MachineSummaryDrawer';
 
 const MachineManagement: React.FC = () => {
-  const queryClient = useQueryClient();
   const { data: machinesData, isLoading: loading } = useMachines();
   const machines = machinesData?.data || [];
+  const createMachine = useCreateMachine();
+  const updateMachine = useUpdateMachine();
+  const deleteMachine = useDeleteMachine();
+
+  // Fetch active machine systems via TanStack Query
+  const { data: machineSystemsData } = useMachineSystems({ page: 1, limit: 200, hoatDong: true });
+  const machineSystems = machineSystemsData?.data || [];
 
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,7 +39,6 @@ const MachineManagement: React.FC = () => {
     ghiChu: '',
     machineSystemId: '',
   });
-  const [machineSystems, setMachineSystems] = useState<MachineSystem[]>([]);
 
   const machineFilterFields: FilterField[] = [
     { key: 'maMay', label: 'Mã máy', type: 'text' },
@@ -49,20 +53,6 @@ const MachineManagement: React.FC = () => {
     },
   ];
   const [drawerMachineId, setDrawerMachineId] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadMachineSystems();
-  }, []);
-
-  const loadMachineSystems = async () => {
-    try {
-      const result = await machineSystemService.getMachineSystems({ page: 1, limit: 200, hoatDong: true });
-      setMachineSystems(result.data || []);
-    } catch (err) {
-      console.error('Error loading machine systems:', err);
-    }
-  };
-
   const handleOpenModal = async (machine?: Machine) => {
     if (machine) {
       setIsEditing(true);
@@ -116,12 +106,11 @@ const MachineManagement: React.FC = () => {
       setError('');
 
       if (isEditing && selectedMachine) {
-        await machineService.updateMachine(selectedMachine.id, formData as UpdateMachineRequest);
+        await updateMachine.mutateAsync({ id: selectedMachine.id, data: formData as UpdateMachineRequest });
       } else {
-        await machineService.createMachine(formData);
+        await createMachine.mutateAsync(formData);
       }
 
-      queryClient.invalidateQueries({ queryKey: machineKeys.lists() });
       handleCloseModal();
     } catch (err: any) {
       setError(err.message || 'Lỗi lưu dữ liệu');
@@ -136,8 +125,7 @@ const MachineManagement: React.FC = () => {
 
     try {
       setError('');
-      await machineService.deleteMachine(machine.id);
-      queryClient.invalidateQueries({ queryKey: machineKeys.lists() });
+      await deleteMachine.mutateAsync(machine.id);
     } catch (err: any) {
       setError(err.message || 'Lỗi xóa máy');
       console.error(err);
@@ -436,16 +424,16 @@ const MachineManagement: React.FC = () => {
                   type="button"
                   onClick={handleCloseModal}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                  disabled={loading}
+                  disabled={createMachine.isPending || updateMachine.isPending}
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-                  disabled={loading}
+                  disabled={createMachine.isPending || updateMachine.isPending}
                 >
-                  {loading ? 'Đang lưu...' : isEditing ? 'Cập nhật' : 'Thêm mới'}
+                  {(createMachine.isPending || updateMachine.isPending) ? 'Đang lưu...' : isEditing ? 'Cập nhật' : 'Thêm mới'}
                 </button>
               </div>
             </form>
