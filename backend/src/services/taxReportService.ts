@@ -39,9 +39,20 @@ class TaxReportService {
         orderBy: { createdAt: 'desc' },
         include: {
           order: {
-            include: {
-              items: true,
-              customer: true,
+            select: {
+              id: true,
+              maDonHang: true,
+              tenKhachHang: true,
+              ngayDatHang: true,
+              trangThaiSanXuat: true,
+              trangThaiThanhToan: true,
+              customer: {
+                select: {
+                  id: true,
+                  tenCongTy: true,
+                  quocGia: true,
+                },
+              },
             },
           },
         },

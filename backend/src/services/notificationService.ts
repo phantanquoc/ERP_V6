@@ -515,7 +515,14 @@ export class NotificationService {
         role: 'ADMIN',
         ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
       },
-      include: { employees: true },
+      select: {
+        id: true,
+        employees: {
+          select: {
+            id: true,
+          },
+        },
+      },
     });
     return adminUsers
       .filter(u => u.employees)
