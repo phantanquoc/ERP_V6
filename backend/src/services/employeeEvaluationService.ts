@@ -51,7 +51,7 @@ function computeWeightedScore(details: Array<{
  * Returns 0 if any detail has null for that field (not fully filled yet).
  * Correct formula: sum(score × weight) / totalWeight
  */
-function computeWeightedScoreForField(
+export function computeWeightedScoreForField(
   details: Array<{
     selfScore: number | null;
     supervisorScore1: number | null;

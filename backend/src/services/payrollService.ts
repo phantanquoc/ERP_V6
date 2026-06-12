@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
+import { computeWeightedScoreForField } from '@services/employeeEvaluationService';
 
 export class PayrollService {
   async getPayrollByMonthYear(month: number, year: number, userDepartmentId?: string, userSubDepartmentId?: string): Promise<any[]> {
@@ -67,6 +68,22 @@ export class PayrollService {
     const settings = await prisma.payrollSettings.findFirst();
     const globalOvertimeRate = settings?.overtimeRate ?? 0;
 
+    // Query evaluations for this period to compute kpiDeduction server-side
+    const periodStr = `${year}-${String(month).padStart(2, '0')}`;
+    const evaluations = await prisma.evaluation.findMany({
+      where: {
+        period: periodStr,
+        status: { in: ['COMPLETED', 'ACKNOWLEDGED'] },
+      },
+      include: {
+        details: {
+          include: { positionResponsibility: true },
+        },
+      },
+    });
+    // Build a map of employeeId -> evaluation for quick lookup
+    const evaluationMap = new Map(evaluations.map(ev => [ev.employeeId, ev]));
+
     return employees.map((employee, index) => {
       const payroll = employee.payrolls[0];
 
@@ -94,7 +111,22 @@ export class PayrollService {
       const unemploymentInsurance = payroll?.unemploymentInsurance ?? 0;
       const personalIncomeTax = payroll?.personalIncomeTax ?? 0;
       const leaveDays = attendanceLeaveDays;
-      const kpiDeduction = payroll?.kpiDeduction ?? 0;
+
+      // Compute kpiDeduction from evaluation (server-side)
+      let kpiDeduction = 0;
+      let evaluationPending = true;
+      const evaluation = evaluationMap.get(employee.id);
+      if (evaluation && evaluation.details.length > 0) {
+        const supervisorScore2Percentage = computeWeightedScoreForField(
+          evaluation.details as any,
+          'supervisorScore2'
+        );
+        kpiDeduction = kpiBonus > 0
+          ? Math.round((kpiBonus * (100 - supervisorScore2Percentage)) / 100)
+          : 0;
+        evaluationPending = false;
+      }
+
       // Luôn tính lại leaveDeduction từ attendance mới thay vì dùng giá trị cũ từ DB
       const standardWorkDays = settings?.standardWorkDays ?? 26;
       const leaveDeduction =
@@ -143,6 +175,7 @@ export class PayrollService {
         leaveDays,
         overtimeHours: employeeOvertimeHours,
         payrollId: payroll?.id || null,
+        evaluationPending,
       };
     });
   }
@@ -258,8 +291,32 @@ export class PayrollService {
     const healthInsurance = data.healthInsurance ?? 0;
     const unemploymentInsurance = data.unemploymentInsurance ?? 0;
     const personalIncomeTax = data.personalIncomeTax ?? 0;
-    const kpiDeduction = data.kpiDeduction ?? 0;
     const leaveDeduction = data.leaveDeduction ?? 0;
+
+    // Compute kpiDeduction server-side from evaluation (ignore client value)
+    let kpiDeduction = 0;
+    const periodStr = `${year}-${String(month).padStart(2, '0')}`;
+    const evaluation = await prisma.evaluation.findFirst({
+      where: {
+        employeeId,
+        period: periodStr,
+        status: { in: ['COMPLETED', 'ACKNOWLEDGED'] },
+      },
+      include: {
+        details: {
+          include: { positionResponsibility: true },
+        },
+      },
+    });
+    if (evaluation && evaluation.details.length > 0) {
+      const supervisorScore2Percentage = computeWeightedScoreForField(
+        evaluation.details as any,
+        'supervisorScore2'
+      );
+      kpiDeduction = kpiBonus > 0
+        ? Math.round((kpiBonus * (100 - supervisorScore2Percentage)) / 100)
+        : 0;
+    }
 
     // Calculate total deductions
     const totalDeductions =
@@ -366,10 +423,33 @@ export class PayrollService {
         : payroll.unemploymentInsurance;
     const personalIncomeTax =
       data.personalIncomeTax !== undefined ? data.personalIncomeTax : payroll.personalIncomeTax;
-    const kpiDeduction =
-      data.kpiDeduction !== undefined ? data.kpiDeduction : payroll.kpiDeduction;
     const leaveDeduction =
       data.leaveDeduction !== undefined ? data.leaveDeduction : payroll.leaveDeduction;
+
+    // Compute kpiDeduction server-side from evaluation (ignore client value)
+    let kpiDeduction = 0;
+    const updatePeriodStr = `${payroll.year}-${String(payroll.month).padStart(2, '0')}`;
+    const updateEvaluation = await prisma.evaluation.findFirst({
+      where: {
+        employeeId: payroll.employeeId,
+        period: updatePeriodStr,
+        status: { in: ['COMPLETED', 'ACKNOWLEDGED'] },
+      },
+      include: {
+        details: {
+          include: { positionResponsibility: true },
+        },
+      },
+    });
+    if (updateEvaluation && updateEvaluation.details.length > 0) {
+      const supervisorScore2Percentage = computeWeightedScoreForField(
+        updateEvaluation.details as any,
+        'supervisorScore2'
+      );
+      kpiDeduction = kpiBonus > 0
+        ? Math.round((kpiBonus * (100 - supervisorScore2Percentage)) / 100)
+        : 0;
+    }
 
     const totalDeductions =
       socialInsurance +
@@ -640,6 +720,17 @@ export class PayrollService {
     const overtimeRate = payrollSettings?.overtimeRate ?? 0;
     const overtimePay = Math.round(overtimeHours * overtimeRate);
 
+    // Determine evaluationPending flag
+    const myPeriodStr = `${year}-${String(month).padStart(2, '0')}`;
+    const myEvaluation = await prisma.evaluation.findFirst({
+      where: {
+        employeeId: employee.id,
+        period: myPeriodStr,
+        status: { in: ['COMPLETED', 'ACKNOWLEDGED'] },
+      },
+    });
+    const evaluationPending = !myEvaluation;
+
     // Get employee with user and position info
     const employeeWithDetails = await prisma.employee.findUnique({
       where: { id: employee.id },
@@ -676,6 +767,7 @@ export class PayrollService {
       leaveDays,
       overtimeHours,
       overtimePay,
+      evaluationPending,
     };
   }
 }

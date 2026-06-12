@@ -27,6 +27,7 @@ export interface PayrollItem {
   leaveDays: number;
   overtimeHours: number;
   payrollId: string | null;
+  evaluationPending?: boolean;
 }
 
 export interface PayrollDetail {
