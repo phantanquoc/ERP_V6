@@ -547,7 +547,12 @@ const ProjectList = () => {
           <div className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
             {selectedProjectQuery.isLoading ? (
               <div className="py-8 text-center text-gray-500">Đang tải...</div>
-            ) : selectedProject ? (
+            ) : !selectedProject ? (
+              <div className="py-12 text-center">
+                <p className="text-gray-500">Dự án không còn tồn tại hoặc đã bị xóa.</p>
+                <button onClick={() => setSelectedProjectId('')} className="mt-3 text-sm text-blue-600 hover:text-blue-800">Đóng</button>
+              </div>
+            ) : (
               <>
                 <div className="grid gap-3 md:grid-cols-5">
                   <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Trạng thái</p><span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(selectedProject.trangThai)}`}>{selectedProject.trangThai}</span></div>
