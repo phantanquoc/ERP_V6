@@ -124,20 +124,25 @@ class ProjectService {
     const where: Record<string, unknown> = {};
 
     if (trangThai) where.trangThai = trangThai;
-    if (search) {
+
+    // Access control: non-admins only see projects they created or are a member of
+    if (role !== 'ADMIN' && userId) {
       where.OR = [
-        { maDuAn: { contains: search, mode: 'insensitive' } },
-        { tenDuAn: { contains: search, mode: 'insensitive' } },
+        { nguoiTaoId: userId },
+        { members: { some: { userId } } },
       ];
     }
 
-    // Non-admins only see projects they created or are a member of
-    if (role !== 'ADMIN' && userId) {
-      where.OR = [
-        ...(Array.isArray(where.OR) ? where.OR : []),
-        { nguoiTaoId: userId },
-        { members: { some: { userId } } },
-      ] as unknown[];
+    // Search filter: use AND to combine with access control
+    if (search) {
+      where.AND = [
+        {
+          OR: [
+            { maDuAn: { contains: search, mode: 'insensitive' } },
+            { tenDuAn: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+      ];
     }
 
     const [data, total] = await Promise.all([
@@ -172,9 +177,16 @@ class ProjectService {
       return { ...phase, tienDo: Math.round((done / tasks.length) * 100) };
     });
 
-    const tienDoTongThe = phasesWithAutoProgress.length === 0
+    // Weighted progress: phases with more tasks count proportionally more
+    const totalTaskCount = project.phases.reduce((sum, p) => sum + (p.tasks?.length ?? 0), 0);
+    const tienDoTongThe = totalTaskCount === 0
       ? 0
-      : Math.round(phasesWithAutoProgress.reduce((sum, p) => sum + p.tienDo, 0) / phasesWithAutoProgress.length);
+      : Math.round(
+          phasesWithAutoProgress.reduce((sum, p, i) => {
+            const taskCount = project.phases[i].tasks?.length ?? 0;
+            return sum + p.tienDo * taskCount;
+          }, 0) / totalTaskCount
+        );
 
     return {
       ...project,
@@ -309,6 +321,18 @@ class ProjectService {
     this.validateProgress(data.tienDo);
     this.validateTaskStatus(data.trangThai);
     await this.validatePhaseBelongsToProject(projectId, data.projectPhaseId);
+
+    if (data.ngayBatDau && data.ngayKetThuc) {
+      if (new Date(data.ngayKetThuc) < new Date(data.ngayBatDau)) {
+        throw new ValidationError('Ngày kết thúc phải sau ngày bắt đầu');
+      }
+    }
+    if (data.ngayBatDau && data.deadline) {
+      if (new Date(data.deadline) < new Date(data.ngayBatDau)) {
+        throw new ValidationError('Deadline phải sau ngày bắt đầu');
+      }
+    }
+
     return prisma.projectTask.create({
       data: {
         projectId,
@@ -345,6 +369,20 @@ class ProjectService {
     this.validateTaskStatus(data.trangThai);
     if (data.projectPhaseId !== undefined) {
       await this.validatePhaseBelongsToProject(projectId, data.projectPhaseId);
+    }
+
+    const effectiveStart = data.ngayBatDau ?? oldTask.ngayBatDau;
+    const effectiveEnd = data.ngayKetThuc ?? oldTask.ngayKetThuc;
+    const effectiveDeadline = data.deadline ?? oldTask.deadline;
+    if (effectiveStart && effectiveEnd) {
+      if (new Date(effectiveEnd) < new Date(effectiveStart)) {
+        throw new ValidationError('Ngày kết thúc phải sau ngày bắt đầu');
+      }
+    }
+    if (effectiveStart && effectiveDeadline) {
+      if (new Date(effectiveDeadline) < new Date(effectiveStart)) {
+        throw new ValidationError('Deadline phải sau ngày bắt đầu');
+      }
     }
 
     const task = await prisma.projectTask.update({ where: { id: taskId }, data });
@@ -413,6 +451,12 @@ class ProjectService {
     this.validateProgress(data.tienDo);
     this.validatePhaseStatus(data.trangThai);
 
+    if (data.ngayBatDau && data.ngayKetThuc) {
+      if (new Date(data.ngayKetThuc) < new Date(data.ngayBatDau)) {
+        throw new ValidationError('Ngày kết thúc phải sau ngày bắt đầu');
+      }
+    }
+
     const nextOrder = data.thuTu ?? await prisma.projectPhase.count({ where: { projectId } });
 
     return prisma.projectPhase.create({
@@ -440,6 +484,14 @@ class ProjectService {
     if (!phase || phase.projectId !== projectId) throw new NotFoundError('Không tìm thấy giai đoạn');
     this.validateProgress(data.tienDo);
     this.validatePhaseStatus(data.trangThai);
+
+    const effectiveStart = data.ngayBatDau ?? phase.ngayBatDau;
+    const effectiveEnd = data.ngayKetThuc ?? phase.ngayKetThuc;
+    if (effectiveStart && effectiveEnd) {
+      if (new Date(effectiveEnd) < new Date(effectiveStart)) {
+        throw new ValidationError('Ngày kết thúc phải sau ngày bắt đầu');
+      }
+    }
 
     return prisma.projectPhase.update({
       where: { id: phaseId },
@@ -842,6 +894,12 @@ class ProjectService {
         data: { trangThai: 'TU_CHOI', nguoiDuyetId: adminUserId, lyDoTuChoi },
       });
     }
+
+    // Revert project status so creator can fix and resubmit
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { trangThai: 'Lên kế hoạch' },
+    });
 
     try {
       const creatorUser = await prisma.user.findUnique({

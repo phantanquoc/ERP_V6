@@ -39,6 +39,7 @@ const ProjectUpdates = ({ projectId, phases, canWrite }: ProjectUpdatesProps) =>
   const [modal, setModal] = useState<{ mode: 'create' | 'edit'; update?: ProjectUpdate } | null>(null);
   const [form, setForm] = useState<CreateProjectUpdateRequest>(emptyForm(userName));
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<ProjectUpdate | null>(null);
 
   const updates = updatesQuery.data?.data ?? [];
 
@@ -75,13 +76,18 @@ const ProjectUpdates = ({ projectId, phases, canWrite }: ProjectUpdatesProps) =>
     }
   };
 
-  const remove = async (update: ProjectUpdate) => {
-    if (!confirm(`Xóa cập nhật "${update.tieuDe}"?`)) return;
+  const remove = (update: ProjectUpdate) => {
+    setConfirmDelete(update);
+  };
+
+  const confirmRemove = async () => {
+    if (!confirmDelete) return;
     try {
-      await removeUpdate.mutateAsync({ projectId, updateId: update.id });
+      await removeUpdate.mutateAsync({ projectId, updateId: confirmDelete.id });
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Không xóa được cập nhật');
     }
+    setConfirmDelete(null);
   };
 
   return (
@@ -146,6 +152,18 @@ const ProjectUpdates = ({ projectId, phases, canWrite }: ProjectUpdatesProps) =>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full mx-4">
+            <p className="text-sm text-gray-800 mb-4">Xóa cập nhật &ldquo;<strong>{confirmDelete.tieuDe}</strong>&rdquo;?</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmDelete(null)} className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100">Hủy</button>
+              <button onClick={confirmRemove} className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700">Xóa</button>
+            </div>
+          </div>
         </div>
       )}
 
