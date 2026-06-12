@@ -222,6 +222,14 @@ const TechnicalManagement = () => {
 
   if (isLoading) return <DashboardSkeleton />;
 
+  if (isError) return (
+    <div className="min-h-screen bg-gray-50 p-6 flex flex-col items-center justify-center">
+      <AlertTriangle className="w-10 h-10 text-red-400 mb-3" />
+      <p className="text-gray-600 mb-2">Không thể tải dữ liệu tổng quan</p>
+      <button onClick={() => refetch()} className="text-sm text-blue-600 hover:text-blue-800">Thử lại</button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* ── HEADER ── */}
@@ -268,11 +276,10 @@ const TechnicalManagement = () => {
           sub={`${repairTotal} tổng`}
         />
         <KpiCard
-          label="Tỷ lệ nghiệm thu"
-          value={`${acceptanceRate}%`}
+          label="Nghiệm thu"
+          value={summary.repairHandovers.acceptanceHandovers}
           icon={<ShieldCheck className="w-4 h-4" />}
-          dot={acceptanceRate >= 80 ? 'bg-emerald-500' : acceptanceRate >= 50 ? 'bg-amber-400' : 'bg-red-500'}
-          sub={`${summary.repairHandovers.acceptanceHandovers} đã nghiệm thu`}
+          sub={`trên ${repairTotal} yêu cầu`}
         />
         <KpiCard
           label="Mẫu lỗi"
@@ -295,8 +302,13 @@ const TechnicalManagement = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <Cog className="w-4 h-4 text-cyan-500" />
-            <h3 className="text-sm font-semibold text-gray-700">Trạng thái hệ thống</h3>
+            <h3 className="text-sm font-semibold text-gray-700">
+              {canOpen('quality') ? <Link to="/technical/quality" className="hover:text-cyan-600 transition-colors">Trạng thái hệ thống</Link> : 'Trạng thái hệ thống'}
+            </h3>
           </div>
+          {summary.qlhtm.machineSystems.total === 0 ? (
+            <div className="flex items-center justify-center h-[200px] text-xs text-gray-400">Chưa có dữ liệu hệ thống máy</div>
+          ) : (
           <div className="relative">
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
@@ -324,6 +336,7 @@ const TechnicalManagement = () => {
               <span className="text-xs text-gray-400">vận hành</span>
             </div>
           </div>
+          )}
           <div className="mt-2 text-center">
             <p className="text-xs text-gray-400">
               {summary.qlhtm.machineDetails.active} chi tiết máy hoạt động
@@ -336,7 +349,9 @@ const TechnicalManagement = () => {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <ClipboardCheck className="w-4 h-4 text-cyan-500" />
-              <h3 className="text-sm font-semibold text-gray-700">Yêu cầu sửa chữa</h3>
+              <h3 className="text-sm font-semibold text-gray-700">
+                {canOpen('quality') ? <Link to="/technical/quality?tab=repairRequests" className="hover:text-cyan-600 transition-colors">Yêu cầu sửa chữa</Link> : 'Yêu cầu sửa chữa'}
+              </h3>
             </div>
             <span className="text-xs text-gray-400">Tổng: {repairTotal}</span>
           </div>
@@ -371,7 +386,9 @@ const TechnicalManagement = () => {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-cyan-500" />
-              <h3 className="text-sm font-semibold text-gray-700">Bản ghi lỗi</h3>
+              <h3 className="text-sm font-semibold text-gray-700">
+              {canOpen('mechanical') ? <Link to="/technical/mechanical" className="hover:text-cyan-600 transition-colors">Bản ghi lỗi</Link> : 'Bản ghi lỗi'}
+            </h3>
             </div>
             <span className="text-xs text-gray-400">Tổng: {faultRecordTotal}</span>
           </div>
@@ -432,7 +449,9 @@ const TechnicalManagement = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <Layers3 className="w-4 h-4 text-cyan-500" />
-            <h3 className="text-sm font-semibold text-gray-700">Dự án kỹ thuật</h3>
+            <h3 className="text-sm font-semibold text-gray-700">
+              {canOpen('projects') ? <Link to="/technical/projects" className="hover:text-cyan-600 transition-colors">Dự án kỹ thuật</Link> : 'Dự án kỹ thuật'}
+            </h3>
           </div>
 
           <div className="flex flex-col items-center">
@@ -444,7 +463,7 @@ const TechnicalManagement = () => {
               size={110}
               strokeWidth={10}
               color="#10B981"
-              label={`${activeProjects} dự án đang thực hiện`}
+              label={`${summary.projects.projectsByStatus.reduce((s, p) => s + p.total, 0)} dự án tổng`}
             />
 
             <div className="grid grid-cols-2 gap-2 mt-4 w-full">

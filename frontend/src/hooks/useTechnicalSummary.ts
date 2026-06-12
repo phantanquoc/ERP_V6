@@ -13,4 +13,5 @@ export const useTechnicalSummary = () =>
   useQuery({
     queryKey: technicalSummaryKeys.detail(),
     queryFn: () => technicalSummaryService.getSummary(),
+    staleTime: 60_000,
   });
