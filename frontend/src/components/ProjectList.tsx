@@ -1,5 +1,8 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Diamond, Edit, Plus, Search, Trash2, X } from 'lucide-react';
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowUp, Diamond, Edit, GripVertical, Plus, Search, Trash2, X } from 'lucide-react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
 import ProjectGantt from './ProjectGantt';
@@ -22,6 +25,7 @@ import {
   useDeleteProjectTask,
   useProjectUnphasedTasks,
   useReorderProjectPhases,
+  useReorderProjectTasks,
   useUpdateProjectPhase,
   useUpdateProjectTask,
   useAddProjectCost,
@@ -132,6 +136,7 @@ const ProjectList = () => {
   const updatePhase = useUpdateProjectPhase();
   const deletePhase = useDeleteProjectPhase();
   const reorderPhases = useReorderProjectPhases();
+  const reorderTasks = useReorderProjectTasks();
   const createTask = useCreateProjectTask();
   const updateTask = useUpdateProjectTask();
   const deleteTask = useDeleteProjectTask();
@@ -157,6 +162,25 @@ const ProjectList = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [selectedAdminId, setSelectedAdminId] = useState('');
   const [error, setError] = useState('');
+  const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
+  const [taskFilter, setTaskFilter] = useState({ search: '', status: '', person: '' });
+
+  const togglePhaseCollapse = (phaseId: string) => {
+    setCollapsedPhases((prev) => { const next = new Set(prev); next.has(phaseId) ? next.delete(phaseId) : next.add(phaseId); return next; });
+  };
+  const collapseAll = () => setCollapsedPhases(new Set(phases.map(p => p.id)));
+  const expandAll = () => setCollapsedPhases(new Set());
+
+  const filterTasks = (tasks: ProjectTask[]) => {
+    let result = tasks;
+    if (taskFilter.search) {
+      const q = taskFilter.search.toLowerCase();
+      result = result.filter(t => t.tieuDe.toLowerCase().includes(q) || t.nguoiPhuTrach?.toLowerCase().includes(q));
+    }
+    if (taskFilter.status) result = result.filter(t => t.trangThai === taskFilter.status);
+    if (taskFilter.person) result = result.filter(t => t.nguoiPhuTrach === taskFilter.person);
+    return result;
+  };
 
   const selectedProjectQuery = useProject(selectedProjectId);
   const unphasedTasksQuery = useProjectUnphasedTasks(selectedProjectId);
@@ -286,6 +310,58 @@ const ProjectList = () => {
     }
   };
 
+  const moveTask = async (taskId: string, direction: -1 | 1, phaseTasks: ProjectTask[], phaseId?: string | null) => {
+    if (!selectedProject) return;
+    const index = phaseTasks.findIndex((t) => t.id === taskId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= phaseTasks.length) return;
+    const taskIds = phaseTasks.map((t) => t.id);
+    [taskIds[index], taskIds[target]] = [taskIds[target], taskIds[index]];
+    try {
+      await reorderTasks.mutateAsync({ projectId: selectedProject.id, data: { taskIds, phaseId: phaseId ?? null } });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không sắp xếp được công việc');
+    }
+  };
+
+  const handleTaskDragEnd = async (event: DragEndEvent, phaseTasks: ProjectTask[], phaseId?: string | null) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !selectedProject) return;
+    const oldIndex = phaseTasks.findIndex((t) => t.id === active.id);
+    const newIndex = phaseTasks.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newOrder = arrayMove(phaseTasks, oldIndex, newIndex);
+    try {
+      await reorderTasks.mutateAsync({ projectId: selectedProject.id, data: { taskIds: newOrder.map((t) => t.id), phaseId: phaseId ?? null } });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không sắp xếp được công việc');
+    }
+  };
+
+  const handlePhaseDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !selectedProject) return;
+    const oldIndex = phases.findIndex((p) => p.id === active.id);
+    const newIndex = phases.findIndex((p) => p.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newOrder = arrayMove(phases, oldIndex, newIndex);
+    try {
+      await reorderPhases.mutateAsync({ projectId: selectedProject.id, data: { phaseIds: newOrder.map((p) => p.id) } });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không sắp xếp được giai đoạn');
+    }
+  };
+
+  const quickStatusChange = (taskId: string, newStatus: string) => {
+    if (!selectedProject) return;
+    updateTask.mutate({ projectId: selectedProject.id, taskId, data: { trangThai: newStatus } });
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
   const removePhase = async (phase: ProjectPhase) => {
     if (!selectedProject) return;
     if (!confirm(`Xóa giai đoạn ${phase.tenGiaiDoan}? Công việc sẽ chuyển về chưa phân giai đoạn.`)) return;
@@ -321,7 +397,14 @@ const ProjectList = () => {
   const saveTask = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedProject) return;
-    const payload = { ...taskForm, tienDo: clampProgress(taskForm.tienDo), thuTu: Number(taskForm.thuTu) || 0 };
+    const payload = { ...taskForm, tienDo: clampProgress(taskForm.tienDo) };
+    if (!taskModal?.task) {
+      // Auto-set thuTu for new tasks
+      const currentTasks = taskForm.projectPhaseId
+        ? (phases.find((p) => p.id === taskForm.projectPhaseId)?.tasks ?? [])
+        : unphasedTasks;
+      payload.thuTu = currentTasks.length;
+    }
     try {
       if (taskModal?.task) {
         await updateTask.mutateAsync({ projectId: selectedProject.id, taskId: taskModal.task.id, data: payload });
@@ -507,7 +590,10 @@ const ProjectList = () => {
                 <div className="flex items-center gap-1 border-b">
                   <button onClick={() => setDetailTab('overview')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Tổng quan</button>
                   <button onClick={() => setDetailTab('phases')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'phases' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Kế hoạch</button>
-                  <button onClick={() => setDetailTab('updates')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'updates' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Thực tế</button>
+                  <button onClick={() => setDetailTab('updates')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'updates' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                    Thực tế
+                    {(() => { const late = [...phases.flatMap(p => p.tasks ?? []), ...unphasedTasks].filter(t => t.trangThai === 'Trễ').length; return late > 0 ? <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-100 px-1.5 text-[10px] font-bold text-red-700">{late}</span> : null; })()}
+                  </button>
                   <button onClick={() => setDetailTab('gantt')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'gantt' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Timeline Gantt</button>
                 </div>
 
@@ -515,7 +601,7 @@ const ProjectList = () => {
                   <ProjectGantt ngayBatDau={selectedProject.ngayBatDau} ngayKetThuc={selectedProject.ngayKetThuc} phases={phases} />
                 ) : detailTab === 'overview' ? (
                   <>
-                    <ProjectOverview project={selectedProject} phases={phases} />
+                    <ProjectOverview project={selectedProject} phases={phases} users={usersQuery.data?.data ?? []} />
                     <ProjectCosts projectId={selectedProject.id} phases={phases} canWrite={canWrite(selectedProject)} />
                   </>
                 ) : detailTab === 'updates' ? (
@@ -528,8 +614,21 @@ const ProjectList = () => {
                   const fmt = (v: number) => v.toLocaleString('vi-VN');
                   return (
                 <>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="font-semibold text-gray-900">Tiến độ thực tế</h4>
+                  <div className="flex items-center gap-2">
+                    <button onClick={expandAll} className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100">Mở tất cả</button>
+                    <button onClick={collapseAll} className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100">Thu gọn</button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <input value={taskFilter.search} onChange={(e) => setTaskFilter(f => ({ ...f, search: e.target.value }))} placeholder="Tìm công việc..." className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs w-44" />
+                  <select value={taskFilter.status} onChange={(e) => setTaskFilter(f => ({ ...f, status: e.target.value }))} className="rounded-md border border-gray-300 px-2 py-1.5 text-xs">
+                    <option value="">Tất cả trạng thái</option>
+                    {TASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  {(taskFilter.search || taskFilter.status) && <button onClick={() => setTaskFilter({ search: '', status: '', person: '' })} className="text-xs text-blue-600 hover:underline">Xóa bộ lọc</button>}
                 </div>
 
                 {(tongKH > 0 || tongTT > 0) && (
@@ -547,14 +646,18 @@ const ProjectList = () => {
                     const phaseCosts = (phase.tasks ?? []).flatMap((t) => t.costs ?? []);
                     const phaseKH = phaseCosts.reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0);
                     const phaseTT = phaseCosts.reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0);
+                    const isCollapsed = collapsedPhases.has(phase.id);
+                    const filteredTasks = filterTasks(phase.tasks ?? []);
                     return (
                     <div key={phase.id} className="rounded-lg border border-gray-200">
-                      <div className="flex flex-col gap-2 border-b bg-gray-50 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
+                      <div onClick={() => togglePhaseCollapse(phase.id)} className="flex flex-col gap-2 border-b bg-gray-50 px-3 py-2 cursor-pointer select-none lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
+                            <span className={`text-gray-500 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>&#9654;</span>
                             <span className="font-semibold text-gray-900">{phase.thuTu}. {phase.tenGiaiDoan}</span>
                             <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(phase.trangThai)}`}>{phase.trangThai}</span>
                             {(phaseKH > 0 || phaseTT > 0) && <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">KH: {fmt(phaseKH)}đ | TT: <span className={phaseTT > phaseKH ? 'text-red-600' : 'text-green-600'}>{fmt(phaseTT)}đ</span></span>}
+                            <span className="text-xs text-gray-400">{(phase.tasks ?? []).length} cv</span>
                           </div>
                           <div className="mt-1 flex items-center gap-2">
                             <div className="h-1.5 flex-1 max-w-[200px] rounded-full bg-gray-200 overflow-hidden">
@@ -564,11 +667,11 @@ const ProjectList = () => {
                           </div>
                           <p className="mt-1 text-xs text-gray-500">Phụ trách: {phase.nguoiPhuTrach || '—'}</p>
                         </div>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                           {canWrite(selectedProject) && <button title="Thêm phát sinh" onClick={() => { setError(''); setPhatSinhForm({ tieuDe: '', nguoiPhuTrach: '', mucDoUuTien: '', ghiChu: '' }); setPhatSinhModal({ projectPhaseId: phase.id }); }} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-blue-600"><Plus className="h-4 w-4" /></button>}
                         </div>
                       </div>
-                      <TaskTable tasks={phase.tasks ?? []} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', phase.id, task)} onDelete={removeTask} viewMode="actual" projectId={selectedProject.id} />
+                      {!isCollapsed && <TaskTable tasks={filteredTasks} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', phase.id, task)} onDelete={removeTask} viewMode="actual" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} phaseId={phase.id} onStatusChange={quickStatusChange} />}
                     </div>
                   );})}
                 </div>
@@ -578,7 +681,7 @@ const ProjectList = () => {
                     <h4 className="font-semibold text-gray-900">Công việc chưa phân giai đoạn</h4>
                     {canWrite(selectedProject) && <button onClick={() => { setError(''); setPhatSinhForm({ tieuDe: '', nguoiPhuTrach: '', mucDoUuTien: '', ghiChu: '' }); setPhatSinhModal({ projectPhaseId: null }); }} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs"><Plus className="h-3.5 w-3.5" /> Thêm phát sinh</button>}
                   </div>
-                  <TaskTable tasks={unphasedTasks} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask} viewMode="actual" projectId={selectedProject.id} />
+                  <TaskTable tasks={filterTasks(unphasedTasks)} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask} viewMode="actual" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, unphasedTasks, null)} onDragEnd={(event) => handleTaskDragEnd(event, unphasedTasks, null)} phaseId={null} onStatusChange={quickStatusChange} />
                 </div>
                 </>
                 );
@@ -594,29 +697,17 @@ const ProjectList = () => {
                 <div className="space-y-3">
                   {phases.length === 0 ? (
                     <div className="rounded-md border border-gray-200 px-3 py-6 text-center text-gray-500">Chưa có giai đoạn.</div>
-                  ) : phases.map((phase, phaseIndex) => (
-                    <div key={phase.id} className="rounded-lg border border-gray-200">
-                      <div className="flex flex-col gap-2 border-b bg-gray-50 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-gray-900">{phase.thuTu}. {phase.tenGiaiDoan}</span>
-                            {(() => { const total = (phase.tasks ?? []).reduce((sum, t) => sum + (t.costs ?? []).reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0), 0); return total > 0 ? <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">{total.toLocaleString('vi-VN')}đ</span> : null; })()}
-                          </div>
-                          <p className="mt-1 text-xs text-gray-500">Chủ sở hữu: {phase.chuSoHuu || '—'} | Phụ trách: {phase.nguoiPhuTrach || '—'} | {formatDate(phase.ngayBatDau)} - {formatDate(phase.ngayKetThuc)}</p>
-                        </div>
-                        {!isPlanLocked && canWrite(selectedProject) && (
-                          <div className="flex gap-1">
-                            <button title="Lên" disabled={phaseIndex === 0} onClick={() => movePhase(phase.id, -1)} className="rounded p-1.5 text-gray-500 hover:bg-white disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button>
-                            <button title="Xuống" disabled={phaseIndex === phases.length - 1} onClick={() => movePhase(phase.id, 1)} className="rounded p-1.5 text-gray-500 hover:bg-white disabled:opacity-40"><ArrowDown className="h-4 w-4" /></button>
-                            <button title="Sửa" onClick={() => openPhaseModal('edit', phase)} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-green-600"><Edit className="h-4 w-4" /></button>
-                            <button title="Thêm công việc" onClick={() => openTaskModal('create', phase.id)} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-blue-600"><Plus className="h-4 w-4" /></button>
-                            <button title="Xóa" onClick={() => removePhase(phase)} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
-                          </div>
-                        )}
-                      </div>
-                      <TaskTable tasks={phase.tasks ?? []} canWrite={!isPlanLocked && canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', phase.id, task)} onDelete={removeTask} viewMode="plan" projectId={selectedProject.id} />
-                    </div>
-                  ))}
+                  ) : (
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handlePhaseDragEnd}>
+                    <SortableContext items={phases.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                      {phases.map((phase, phaseIndex) => (
+                      <SortablePhaseItem key={phase.id} phase={phase} phaseIndex={phaseIndex} phasesLength={phases.length} canWrite={!isPlanLocked && canWrite(selectedProject)} onMovePhase={movePhase} onEditPhase={openPhaseModal} onAddTask={openTaskModal} onRemovePhase={removePhase}>
+                        <TaskTable tasks={phase.tasks ?? []} canWrite={!isPlanLocked && canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', phase.id, task)} onDelete={removeTask} viewMode="plan" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} />
+                      </SortablePhaseItem>
+                      ))}
+                    </SortableContext>
+                  </DndContext>
+                  )}
                 </div>
 
                 <div className="rounded-lg border border-gray-200">
@@ -624,7 +715,7 @@ const ProjectList = () => {
                     <h4 className="font-semibold text-gray-900">Công việc chưa phân giai đoạn</h4>
                     {!isPlanLocked && canWrite(selectedProject) && <button onClick={() => openTaskModal('create', null)} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs"><Plus className="h-3.5 w-3.5" /> Thêm</button>}
                   </div>
-                  <TaskTable tasks={unphasedTasks} canWrite={!isPlanLocked && canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask} viewMode="plan" projectId={selectedProject.id} />
+                  <TaskTable tasks={unphasedTasks} canWrite={!isPlanLocked && canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask} viewMode="plan" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, unphasedTasks, null)} onDragEnd={(event) => handleTaskDragEnd(event, unphasedTasks, null)} />
                 </div>
                 </>
                 )}
@@ -723,7 +814,6 @@ const ProjectList = () => {
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1"><span className="font-medium text-gray-700">Giai đoạn</span><select value={taskForm.projectPhaseId ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, projectPhaseId: event.target.value || null }))} className="w-full rounded-md border border-gray-300 px-3 py-2"><option value="">Chưa phân giai đoạn</option>{phases.map((phase) => <option key={phase.id} value={phase.id}>{phase.tenGiaiDoan}</option>)}</select></label>
               <div className="space-y-1"><span className="font-medium text-gray-700">Người phụ trách</span><EmployeePicker value={taskForm.nguoiPhuTrach ?? ''} onChange={(name) => setTaskForm((form) => ({ ...form, nguoiPhuTrach: name }))} multiple /></div>
-              <label className="space-y-1"><span className="font-medium text-gray-700">Thứ tự</span><input type="number" value={taskForm.thuTu ?? 0} onChange={(event) => setTaskForm((form) => ({ ...form, thuTu: Number(event.target.value) }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <div className="flex items-center gap-2 pt-6">
                 <input type="checkbox" id="laMilestone" checked={taskForm.laMilestone ?? false} onChange={(event) => setTaskForm((form) => ({ ...form, laMilestone: event.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
                 <label htmlFor="laMilestone" className="text-sm font-medium text-gray-700">Đánh dấu Milestone</label>
@@ -786,11 +876,17 @@ const priorityBadge = (priority?: string | null) => {
 
 const COST_CATEGORIES = ['Nhân công', 'Vật tư', 'Phụ liệu', 'Khác'];
 
-const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId }: {
+const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId, onMoveTask, taskIndex, tasksLength, onStatusChange }: {
   task: ProjectTask; isPlan: boolean; colCount: number; canWrite: boolean;
   onEdit: (t: ProjectTask) => void; onDelete: (t: ProjectTask) => void; projectId?: string;
+  onMoveTask?: (taskId: string, direction: -1 | 1) => void; taskIndex: number; tasksLength: number;
+  onStatusChange?: (taskId: string, newStatus: string) => void;
 }) => {
-  const [showCosts, setShowCosts] = useState(false);
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  const costs = task.costs ?? [];
+  const [showCosts, setShowCosts] = useState(costs.length > 0);
+  const [showDetail, setShowDetail] = useState(false);
   const addCost = useAddProjectCost();
   const editCost = useUpdateProjectCost();
   const removeCost = useDeleteProjectCost();
@@ -798,7 +894,6 @@ const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId
   const [costDetailOpen, setCostDetailOpen] = useState(false);
   const [costForm, setCostForm] = useState<CreateProjectCostRequest>({ loaiChiPhi: 'Nhân công', projectTaskId: task.id });
 
-  const costs = task.costs ?? [];
   const costTotal = costs.reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0);
   const fmtNum = (v?: number | string | null) => v != null && v !== '' ? Number(v).toLocaleString('vi-VN') : '—';
 
@@ -844,21 +939,44 @@ const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId
     if (confirm('Xóa chi phí này?')) removeCost.mutate({ projectId, costId });
   };
 
+  const isLate = task.trangThai === 'Trễ';
+  const isNearDeadline = !isLate && task.deadline && task.trangThai !== 'Hoàn thành' && (() => {
+    const diff = new Date(task.deadline!).getTime() - Date.now();
+    return diff > 0 && diff < 3 * 24 * 60 * 60 * 1000;
+  })();
+  const rowBg = isLate ? 'bg-red-50 hover:bg-red-100' : isNearDeadline ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
+
   return (
     <>
-      <tr className="hover:bg-gray-50">
-        <td className="px-3 py-2 text-gray-600">{task.thuTu}</td>
-        <td className="px-3 py-2 text-gray-900">
-          <span className="flex items-center gap-1.5">
-            {task.laMilestone && <Diamond className="h-3.5 w-3.5 text-orange-500 fill-orange-500 shrink-0" />}
-            {task.tieuDe}
-            {task.laPhatSinh && <span className="rounded-full border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] text-purple-600 font-medium">Phát sinh</span>}
+      <tr ref={setNodeRef} style={style} className={rowBg}>
+        <td className="px-3 py-2 text-gray-600">
+          <span className="flex items-center gap-1">
+            {canWrite && onMoveTask && <span {...attributes} {...listeners} className="cursor-grab text-gray-400 hover:text-gray-600"><GripVertical className="h-3.5 w-3.5" /></span>}
+            {task.thuTu}
           </span>
+        </td>
+        <td className="px-3 py-2 text-gray-900">
+          <button type="button" onClick={() => setShowDetail(!showDetail)} className="flex items-center gap-1.5 text-left hover:text-blue-700">
+            {task.laMilestone && <Diamond className="h-3.5 w-3.5 text-orange-500 fill-orange-500 shrink-0" />}
+            <span className="hover:underline">{task.tieuDe}</span>
+            {task.laPhatSinh && <span className="rounded-full border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] text-purple-600 font-medium">Phát sinh</span>}
+          </button>
         </td>
         <td className="px-3 py-2 text-gray-700">{task.nguoiPhuTrach || '—'}</td>
         {!isPlan && <td className="px-3 py-2">{priorityBadge(task.mucDoUuTien)}</td>}
         {!isPlan && <td className="px-3 py-2 text-gray-700">{task.tienDo ?? 0}%</td>}
-        {!isPlan && <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(task.trangThai)}`}>{task.trangThai}</span></td>}
+        {!isPlan && <td className="px-3 py-2">
+          {canWrite && onStatusChange ? (
+            <button onClick={() => {
+              const order = ['Chưa bắt đầu', 'Đang làm', 'Hoàn thành'];
+              const idx = order.indexOf(task.trangThai);
+              const next = order[(idx + 1) % order.length];
+              onStatusChange(task.id, next);
+            }} title="Click để đổi trạng thái" className={`rounded-full border px-2 py-0.5 text-xs cursor-pointer hover:opacity-80 ${statusBadge(task.trangThai)}`}>{task.trangThai}</button>
+          ) : (
+            <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(task.trangThai)}`}>{task.trangThai}</span>
+          )}
+        </td>}
         <td className="px-3 py-2 text-gray-700">
           {isPlan
             ? <>{formatDate(task.ngayBatDau)} - {formatDate(task.ngayKetThuc)}</>
@@ -866,13 +984,21 @@ const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId
           }
         </td>
         <td className="px-3 py-2 text-gray-600">
-          <button onClick={() => setShowCosts(!showCosts)} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
-            {costs.length > 0 ? `${costs.length} CP (${fmtNum(costTotal)}đ)` : 'Chi phí'}
-          </button>
+          {costs.length > 0 ? (
+            <button onClick={() => setShowCosts(!showCosts)} className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900">
+              <span className="font-medium">{fmtNum(costTotal)}đ</span>
+              <span className="text-gray-400">({costs.length})</span>
+              <span className="text-[10px]">{showCosts ? '▲' : '▼'}</span>
+            </button>
+          ) : (
+            <span className="text-xs text-gray-400">—</span>
+          )}
         </td>
         {canWrite && (
           <td className="px-3 py-2">
             <div className="flex justify-end gap-1">
+              {onMoveTask && <button title="Lên" disabled={taskIndex === 0} onClick={() => onMoveTask(task.id, -1)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40"><ArrowUp className="h-3.5 w-3.5" /></button>}
+              {onMoveTask && <button title="Xuống" disabled={taskIndex === tasksLength - 1} onClick={() => onMoveTask(task.id, 1)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40"><ArrowDown className="h-3.5 w-3.5" /></button>}
               {isPlan && <button title="Thêm chi phí" onClick={startAddCost} className="rounded p-1.5 text-gray-500 hover:bg-amber-50 hover:text-amber-600"><Plus className="h-4 w-4" /></button>}
               {!isPlan && <button title="Thêm chi phí thực tế" onClick={startAddCost} className="rounded p-1.5 text-gray-500 hover:bg-amber-50 hover:text-amber-600"><Plus className="h-4 w-4" /></button>}
               <button title="Sửa" onClick={() => onEdit(task)} className="rounded p-1.5 text-gray-500 hover:bg-green-50 hover:text-green-600"><Edit className="h-4 w-4" /></button>
@@ -881,6 +1007,23 @@ const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId
           </td>
         )}
       </tr>
+      {showDetail && (
+        <tr>
+          <td colSpan={colCount} className="bg-blue-50/50 border-b border-blue-100 px-3 py-2">
+            <div className="pl-6 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-xs text-gray-700">
+              {task.moTa && <div className="sm:col-span-2"><span className="font-medium text-gray-500">Mô tả:</span> {task.moTa}</div>}
+              {task.ghiChu && <div className="sm:col-span-2"><span className="font-medium text-gray-500">Ghi chú:</span> {task.ghiChu}</div>}
+              {task.deadline && <div><span className="font-medium text-gray-500">Deadline:</span> {formatDate(task.deadline)}</div>}
+              {task.mucDoUuTien && isPlan && <div><span className="font-medium text-gray-500">Ưu tiên:</span> {priorityBadge(task.mucDoUuTien)}</div>}
+              {task.ngayBatDau && <div><span className="font-medium text-gray-500">Bắt đầu KH:</span> {formatDate(task.ngayBatDau)}</div>}
+              {task.ngayKetThuc && <div><span className="font-medium text-gray-500">Kết thúc KH:</span> {formatDate(task.ngayKetThuc)}</div>}
+              {task.ngayBatDauThucTe && <div><span className="font-medium text-gray-500">Bắt đầu TT:</span> {formatDate(task.ngayBatDauThucTe)}</div>}
+              {task.ngayHoanThanhThucTe && <div><span className="font-medium text-gray-500">Hoàn thành TT:</span> {formatDate(task.ngayHoanThanhThucTe)}</div>}
+              {task.laMilestone && <div><span className="inline-flex items-center gap-1 text-orange-600"><Diamond className="h-3 w-3 fill-orange-500" /> Milestone</span></div>}
+            </div>
+          </td>
+        </tr>
+      )}
       {showCosts && (
         <tr>
           <td colSpan={colCount} className="bg-amber-50/50 px-3 py-2">
@@ -987,6 +1130,43 @@ const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId
   );
 };
 
+const SortablePhaseItem = ({ phase, phaseIndex, phasesLength, canWrite, onMovePhase, onEditPhase, onAddTask, onRemovePhase, children }: {
+  phase: ProjectPhase; phaseIndex: number; phasesLength: number; canWrite: boolean;
+  onMovePhase: (phaseId: string, direction: -1 | 1) => void;
+  onEditPhase: (mode: 'edit', phase: ProjectPhase) => void;
+  onAddTask: (mode: 'create', phaseId: string) => void;
+  onRemovePhase: (phase: ProjectPhase) => void;
+  children: ReactNode;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: phase.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  return (
+    <div ref={setNodeRef} style={style} className="rounded-lg border border-gray-200">
+      <div className="flex flex-col gap-2 border-b bg-gray-50 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            {canWrite && <span {...attributes} {...listeners} className="cursor-grab text-gray-400 hover:text-gray-600"><GripVertical className="h-4 w-4" /></span>}
+            <span className="font-semibold text-gray-900">{phase.thuTu}. {phase.tenGiaiDoan}</span>
+            {(() => { const total = (phase.tasks ?? []).reduce((sum, t) => sum + (t.costs ?? []).reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0), 0); return total > 0 ? <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">{total.toLocaleString('vi-VN')}đ</span> : null; })()}
+          </div>
+          <p className="mt-1 text-xs text-gray-500">Chủ sở hữu: {phase.chuSoHuu || '—'} | Phụ trách: {phase.nguoiPhuTrach || '—'} | {formatDate(phase.ngayBatDau)} - {formatDate(phase.ngayKetThuc)}</p>
+        </div>
+        {canWrite && (
+          <div className="flex gap-1">
+            <button title="Lên" disabled={phaseIndex === 0} onClick={() => onMovePhase(phase.id, -1)} className="rounded p-1.5 text-gray-500 hover:bg-white disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button>
+            <button title="Xuống" disabled={phaseIndex === phasesLength - 1} onClick={() => onMovePhase(phase.id, 1)} className="rounded p-1.5 text-gray-500 hover:bg-white disabled:opacity-40"><ArrowDown className="h-4 w-4" /></button>
+            <button title="Sửa" onClick={() => onEditPhase('edit', phase)} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-green-600"><Edit className="h-4 w-4" /></button>
+            <button title="Thêm công việc" onClick={() => onAddTask('create', phase.id)} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-blue-600"><Plus className="h-4 w-4" /></button>
+            <button title="Xóa" onClick={() => onRemovePhase(phase)} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+          </div>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+};
+
 const TaskTable = ({
   tasks,
   canWrite,
@@ -994,6 +1174,9 @@ const TaskTable = ({
   onDelete,
   viewMode = 'actual',
   projectId,
+  onMoveTask,
+  onDragEnd,
+  onStatusChange,
 }: {
   tasks: ProjectTask[];
   canWrite: boolean;
@@ -1001,32 +1184,50 @@ const TaskTable = ({
   onDelete: (task: ProjectTask) => void;
   viewMode?: 'plan' | 'actual';
   projectId?: string;
+  onMoveTask?: (taskId: string, direction: -1 | 1) => void;
+  onDragEnd?: (event: DragEndEvent) => void;
+  onStatusChange?: (taskId: string, newStatus: string) => void;
 }) => {
   const isPlan = viewMode === 'plan';
   const colCount = isPlan ? (canWrite ? 6 : 5) : (canWrite ? 9 : 8);
+  const tableSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const tableBody = (
+    <tbody className="divide-y divide-gray-100">
+      {tasks.length === 0 ? (
+        <tr><td colSpan={colCount} className="px-3 py-4 text-center text-gray-500">Chưa có công việc.</td></tr>
+      ) : tasks.map((task, idx) => (
+        <TaskRow key={task.id} task={task} isPlan={isPlan} colCount={colCount} canWrite={canWrite} onEdit={onEdit} onDelete={onDelete} projectId={projectId} onMoveTask={onMoveTask} taskIndex={idx} tasksLength={tasks.length} onStatusChange={onStatusChange} />
+      ))}
+    </tbody>
+  );
+
   return (
   <div className="overflow-x-auto">
-    <table className="w-full min-w-[700px] table-fixed text-sm">
+    <table className="w-full min-w-[700px] text-sm">
       <thead className="bg-white text-xs uppercase text-gray-600">
         <tr>
-          <th className="w-[50px] border-b px-3 py-2 text-left">TT</th>
-          <th className="w-[22%] border-b px-3 py-2 text-left">Công việc</th>
-          <th className="w-[12%] border-b px-3 py-2 text-left">Phụ trách</th>
-          {!isPlan && <th className="w-[8%] border-b px-3 py-2 text-left">Ưu tiên</th>}
-          {!isPlan && <th className="w-[10%] border-b px-3 py-2 text-left">Tiến độ</th>}
-          {!isPlan && <th className="w-[10%] border-b px-3 py-2 text-left">Trạng thái</th>}
-          <th className="w-[13%] border-b px-3 py-2 text-left">{isPlan ? 'Ngày KH' : 'Ngày TT'}</th>
-          <th className="w-[10%] border-b px-3 py-2 text-left">Chi phí</th>
-          {canWrite && <th className="w-[70px] border-b px-3 py-2 text-right">Thao tác</th>}
+          <th className="w-10 border-b px-3 py-2 text-left">TT</th>
+          <th className="border-b px-3 py-2 text-left">Công việc</th>
+          <th className="w-[120px] border-b px-3 py-2 text-left">Phụ trách</th>
+          {!isPlan && <th className="w-[80px] border-b px-3 py-2 text-left">Ưu tiên</th>}
+          {!isPlan && <th className="w-[70px] border-b px-3 py-2 text-left">Tiến độ</th>}
+          {!isPlan && <th className="w-[90px] border-b px-3 py-2 text-left">Trạng thái</th>}
+          <th className="w-[150px] border-b px-3 py-2 text-left">{isPlan ? 'Ngày KH' : 'Ngày TT'}</th>
+          <th className="w-[100px] border-b px-3 py-2 text-left">Chi phí</th>
+          {canWrite && <th className="w-[100px] border-b px-3 py-2 text-right">Thao tác</th>}
         </tr>
       </thead>
-      <tbody className="divide-y divide-gray-100">
-        {tasks.length === 0 ? (
-          <tr><td colSpan={colCount} className="px-3 py-4 text-center text-gray-500">Chưa có công việc.</td></tr>
-        ) : tasks.map((task) => (
-          <TaskRow key={task.id} task={task} isPlan={isPlan} colCount={colCount} canWrite={canWrite} onEdit={onEdit} onDelete={onDelete} projectId={projectId} />
-        ))}
-      </tbody>
+      {canWrite && onDragEnd ? (
+        <DndContext sensors={tableSensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+            {tableBody}
+          </SortableContext>
+        </DndContext>
+      ) : tableBody}
     </table>
   </div>
   );

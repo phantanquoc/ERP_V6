@@ -242,6 +242,17 @@ class ProjectController {
     }
   }
 
+  async reorderTasks(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const taskIds = Array.isArray(req.body.taskIds) ? req.body.taskIds : [];
+      const phaseId = req.body.phaseId !== undefined ? req.body.phaseId : null;
+      const result = await projectService.reorderTasks(req.params.id, taskIds, phaseId);
+      res.json({ success: true, data: result, message: 'Sắp xếp công việc thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async deleteTask(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       await projectService.deleteTask(req.params.id, req.params.taskId);

@@ -5,6 +5,7 @@ import projectService, {
   CreateProjectTaskRequest,
   CreateProjectUpdateRequest,
   ReorderProjectPhasesRequest,
+  ReorderProjectTasksRequest,
   UpdateProjectCostRequest,
   UpdateProjectPhaseRequest,
   UpdateProjectTaskRequest,
@@ -93,6 +94,18 @@ export const useReorderProjectPhases = () => {
       projectService.reorderPhases(projectId, data),
     onSuccess: (_, variables) => {
       invalidateProjectContext(queryClient, variables.projectId);
+    },
+  });
+};
+
+export const useReorderProjectTasks = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, data }: { projectId: string; data: ReorderProjectTasksRequest }) =>
+      projectService.reorderTasks(projectId, data),
+    onSuccess: (_, variables) => {
+      invalidateProjectContext(queryClient, variables.projectId);
+      queryClient.invalidateQueries({ queryKey: projectTaskKeys.unphased(variables.projectId) });
     },
   });
 };
