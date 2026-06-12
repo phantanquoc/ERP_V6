@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, Diamond, Edit, GripVertical, Plus, Search, Trash2, 
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useSearchParams } from 'react-router-dom';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
 import ProjectGantt from './ProjectGantt';
@@ -118,6 +119,7 @@ const clampProgress = (value: string | number | undefined) => Math.max(0, Math.m
 
 const ProjectList = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isTechnical = user?.department === 'technical' ||
     user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
   const canWriteAll = user?.role === 'admin' || isTechnical;
@@ -164,6 +166,15 @@ const ProjectList = () => {
   const [error, setError] = useState('');
   const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
   const [taskFilter, setTaskFilter] = useState({ search: '', status: '', person: '' });
+
+  useEffect(() => {
+    const pid = searchParams.get('projectId');
+    if (pid) {
+      setSelectedProjectId(pid);
+      searchParams.delete('projectId');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, []);
 
   const togglePhaseCollapse = (phaseId: string) => {
     setCollapsedPhases((prev) => { const next = new Set(prev); next.has(phaseId) ? next.delete(phaseId) : next.add(phaseId); return next; });
@@ -852,7 +863,7 @@ const ProjectList = () => {
       </Modal>
 
       {rejectModal && (
-        <Modal open onClose={() => setRejectModal(false)}>
+        <Modal isOpen onClose={() => setRejectModal(false)}>
           <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-semibold text-gray-900 mb-3">Từ chối kế hoạch</h3>
             <p className="text-sm text-gray-600 mb-3">Nhập lý do từ chối để người tạo biết cần cập nhật gì.</p>

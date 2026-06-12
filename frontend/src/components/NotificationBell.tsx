@@ -203,6 +203,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       navigate('/accounting/admin?tab=debts');
     } else if (notification.type === 'PRODUCTION_REPORT') {
       navigate('/production/management?tab=productionReport');
+    } else if (notification.type === 'PROJECT_APPROVAL') {
+      const projectId = (notification.metadata as any)?.entityId;
+      navigate(projectId ? `/technical/projects?projectId=${projectId}` : '/technical/projects');
     }
     if (onNotificationClick) {
       onNotificationClick(notification);
