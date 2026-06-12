@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Eye, Edit2, Save, X, Download, Settings, Send } from 'lucide-react';
+import React, { useState } from 'react';
+import { Eye, Save, X, Download, Settings, Send } from 'lucide-react';
 import payrollService, { PayrollItem, PayrollDetail } from '@services/payrollService';
-import evaluationService from '@services/employeeEvaluationService';
 import { usePayrollByMonthYear, usePayrollSettings, useUpdatePayrollSettings, payrollKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInput } from '../utils/numberInput';
@@ -28,9 +27,7 @@ const PayrollManagement: React.FC = () => {
     },
   ];
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [selectedPayroll, setSelectedPayroll] = useState<PayrollDetail | null>(null);
   const [editingPayroll, setEditingPayroll] = useState<PayrollDetail | null>(null);
-  const [evaluations, setEvaluations] = useState<any[]>([]);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsForm, setSettingsForm] = useState({ standardWorkDays: 26, overtimeRate: 0 });
   const [sendingNotifications, setSendingNotifications] = useState(false);
@@ -43,67 +40,10 @@ const PayrollManagement: React.FC = () => {
   const standardWorkDays = payrollSettings?.standardWorkDays ?? 26;
   const overtimeRate = payrollSettings?.overtimeRate ?? 0;
 
-  useEffect(() => {
-    if (canManage) fetchEvaluations();
-  }, [selectedMonth, selectedYear, canManage]);
-
-  const fetchEvaluations = async () => {
-    try {
-      const data = await evaluationService.getEmployeeEvaluations(selectedMonth, selectedYear);
-      setEvaluations(data);
-    } catch (error) {
-      console.error('Error fetching evaluations:', error);
-    }
-  };
-
-  // Helper function to get supervisor2 percentage for an employee
-  const getSupervisor2Percentage = (employeeCode: string): number => {
-    const evaluation = evaluations.find(e => e.employeeCode === employeeCode);
-    return evaluation?.supervisorScore2 ?? 0;
-  };
-
-  // Recalculate payroll data client-side using evaluation-based kpiDeduction
-  // so the table matches the modal's calculation exactly
-  const recalculatedPayrolls = useMemo(() => {
-    return payrolls.map(p => {
-      const supervisor2Percentage = getSupervisor2Percentage(p.employeeCode);
-      const kpiDeduction =
-        p.kpiBonus > 0
-          ? Math.round((p.kpiBonus * (100 - supervisor2Percentage)) / 100)
-          : 0;
-      const leaveDeduction =
-        p.baseSalary > 0 && p.leaveDays > 0
-          ? Math.round((p.baseSalary / standardWorkDays) * p.leaveDays)
-          : 0;
-      const totalIncome =
-        p.baseSalary + p.kpiBonus + p.positionAllowance + p.otherAllowances;
-      const totalDeductions =
-        p.socialInsurance +
-        p.healthInsurance +
-        p.unemploymentInsurance +
-        p.personalIncomeTax +
-        kpiDeduction +
-        leaveDeduction;
-      const overtimePay = Math.round(p.overtimeHours * overtimeRate);
-      const netSalary = totalIncome - totalDeductions + overtimePay;
-      return { ...p, kpiDeduction, leaveDeduction, totalIncome, totalDeductions, netSalary };
-    });
-  }, [payrolls, evaluations, standardWorkDays, overtimeRate]);
-
   const handleViewDetail = async (payroll: PayrollItem) => {
     try {
-      // Luôn dùng dữ liệu đã tính lại từ getPayrollByMonthYear (payroll param)
-      // thay vì gọi getPayrollDetail đọc giá trị cũ từ DB
-      const evaluation = evaluations.find(e => e.employeeCode === payroll.employeeCode);
-      const supervisor2Percentage = evaluation?.supervisorScore2 ?? 0;
-
-      // Khấu trừ KPI = Lương KPI * (100% - % Cấp trên 2)
-      const kpiDeduction =
-        payroll.kpiBonus > 0
-          ? Math.round((payroll.kpiBonus * (100 - supervisor2Percentage)) / 100)
-          : 0;
-
-      // Khấu trừ ngày nghỉ = (Lương cơ bản / ngày công chuẩn) * Số ngày nghỉ
+      // Use server-calculated values directly
+      const kpiDeduction = payroll.kpiDeduction;
       const leaveDeduction =
         payroll.baseSalary > 0 && payroll.leaveDays > 0
           ? Math.round((payroll.baseSalary / standardWorkDays) * payroll.leaveDays)
@@ -153,7 +93,6 @@ const PayrollManagement: React.FC = () => {
         overtimePay,
       };
 
-      setSelectedPayroll(detail);
       setEditingPayroll({ ...detail });
       setShowDetailModal(true);
     } catch (error) {
@@ -202,18 +141,7 @@ const PayrollManagement: React.FC = () => {
     }
   };
 
-  const getEvaluationScore = (employeeCode: string) => {
-    const evaluation = evaluations.find(e => e.employeeCode === employeeCode);
-    if (!evaluation) return 0;
-    return (
-      ((evaluation.selfScoreAvg || 0) +
-        (evaluation.supervisorScore1Avg || 0) +
-        (evaluation.supervisorScore2Avg || 0)) /
-      3
-    );
-  };
-
-  const filteredPayrolls = recalculatedPayrolls.filter(item => {
+  const filteredPayrolls = payrolls.filter(item => {
     const matchesSearch =
       item.employeeCode.toLowerCase().includes(filterValues._search.toLowerCase()) ||
       item.employeeName.toLowerCase().includes(filterValues._search.toLowerCase());
@@ -376,6 +304,11 @@ const PayrollManagement: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
                     {payroll.totalDeductions.toLocaleString('vi-VN')} ₫
+                    {payroll.evaluationPending && (
+                      <span className="ml-1 inline-block px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded">
+                        Chờ đánh giá
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right border-r border-gray-200">
                     {payroll.netSalary.toLocaleString('vi-VN')} ₫
@@ -529,17 +462,9 @@ const PayrollManagement: React.FC = () => {
                         value={editingPayroll.kpiBonus}
                         onChange={e => {
                           const newKpiBonus = parseNumberInput(e.target.value);
-                          const supervisor2Percentage = getSupervisor2Percentage(
-                            editingPayroll.employeeCode
-                          );
-                          const newKpiDeduction =
-                            newKpiBonus > 0
-                              ? Math.round((newKpiBonus * (100 - supervisor2Percentage)) / 100)
-                              : 0;
                           setEditingPayroll({
                             ...editingPayroll,
                             kpiBonus: newKpiBonus,
-                            kpiDeduction: newKpiDeduction,
                           });
                         }}
                         className="w-32 px-2 py-1 border border-gray-300 rounded text-right"
@@ -652,13 +577,9 @@ const PayrollManagement: React.FC = () => {
                       <input
                         type="number"
                         value={editingPayroll.kpiDeduction}
-                        onChange={e =>
-                          setEditingPayroll({
-                            ...editingPayroll,
-                            kpiDeduction: parseNumberInput(e.target.value),
-                          })
-                        }
-                        className="w-32 px-2 py-1 border border-gray-300 rounded text-right"
+                        readOnly
+                        className="w-32 px-2 py-1 border border-gray-200 rounded text-right bg-gray-100 cursor-not-allowed"
+                        title="Tự động tính từ đánh giá KPI"
                       />
                     </div>
                     <div className="flex justify-between">
