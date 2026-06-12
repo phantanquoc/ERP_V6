@@ -383,6 +383,30 @@ class ProjectService {
     return prisma.projectTask.delete({ where: { id: taskId } });
   }
 
+  async reorderTasks(projectId: string, taskIds: string[], phaseId?: string | null) {
+    await this.getById(projectId);
+    const tasks = await prisma.projectTask.findMany({
+      where: { projectId, projectPhaseId: phaseId ?? null },
+      select: { id: true },
+    });
+    const existingIds = new Set(tasks.map((t) => t.id));
+    if (taskIds.length !== tasks.length || taskIds.some((id) => !existingIds.has(id))) {
+      throw new ValidationError('Danh sách công việc sắp xếp không hợp lệ');
+    }
+
+    await prisma.$transaction(
+      taskIds.map((id, index) => prisma.projectTask.update({
+        where: { id },
+        data: { thuTu: index },
+      })),
+    );
+
+    return prisma.projectTask.findMany({
+      where: { projectId, projectPhaseId: phaseId ?? null },
+      orderBy: { thuTu: 'asc' },
+    });
+  }
+
   // ── Phases ────────────────────────────────────────────────────────────────
   async addPhase(projectId: string, data: CreateProjectPhaseData) {
     await this.getById(projectId);

@@ -31,6 +31,7 @@ router.post('/:id/phases/reorder', projectAccess, projectController.reorderPhase
 router.post('/:id/tasks', projectAccess, projectController.addTask.bind(projectController));
 router.put('/:id/tasks/:taskId', projectAccess, projectController.updateTask.bind(projectController));
 router.delete('/:id/tasks/:taskId', projectAccess, projectController.deleteTask.bind(projectController));
+router.post('/:id/tasks/reorder', projectAccess, projectController.reorderTasks.bind(projectController));
 
 // Updates
 router.get('/:id/updates', projectAccess, projectController.getUpdates.bind(projectController));

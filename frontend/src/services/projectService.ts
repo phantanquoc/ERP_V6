@@ -115,6 +115,11 @@ export interface ReorderProjectPhasesRequest {
   phaseIds: string[];
 }
 
+export interface ReorderProjectTasksRequest {
+  taskIds: string[];
+  phaseId?: string | null;
+}
+
 export interface CreateProjectTaskRequest {
   tieuDe: string;
   moTa?: string;
@@ -327,6 +332,14 @@ class ProjectService {
       return await apiClient.post<ProjectPhase[]>(`/projects/${projectId}/phases/reorder`, data);
     } catch (error: unknown) {
       throw new Error(getErrorMessage(error, 'Lỗi khi sắp xếp giai đoạn'));
+    }
+  }
+
+  async reorderTasks(projectId: string, data: ReorderProjectTasksRequest): Promise<ApiResponse<ProjectTask[]>> {
+    try {
+      return await apiClient.post<ProjectTask[]>(`/projects/${projectId}/tasks/reorder`, data);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi sắp xếp công việc'));
     }
   }
 
