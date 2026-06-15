@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { EmployeeStatus } from '@prisma/client';
 import attendanceService from './attendanceService';
-import { getTodayInAppTz, nowInAppTz } from '@utils/dateUtils';
+import { getTodayInAppTz } from '@utils/dateUtils';
 import { getCursorPaginationParams, encodeCursor } from '@utils/helpers';
 import type { CursorPaginatedResponse } from '@types';
 
@@ -85,16 +85,18 @@ const LATE_GRACE_MINUTES = 5; // cho phép trễ 5 phút trước khi tính mu�
 
 /**
  * Tính số phút đi muộn so với ca làm gần nhất.
+ * Dùng checkInTime thực tế (thời điểm record được tạo) thay vì wall-clock hiện tại,
+ * để tránh false-positive do processing delay.
  * Trả về số phút dương nếu muộn, 0 nếu đúng giờ hoặc không tìm thấy ca.
  */
-async function getLateMinutes(_checkInTime: Date): Promise<{ lateMinutes: number; shiftName: string | null }> {
+async function getLateMinutes(checkInTime: Date): Promise<{ lateMinutes: number; shiftName: string | null }> {
   const shifts = await prisma.workShift.findMany({ where: { isActive: true } });
   if (shifts.length === 0) return { lateMinutes: 0, shiftName: null };
 
-  const { hour, minute } = nowInAppTz();
-  const nowMinutes = hour * 60 + minute;
+  // Dùng giờ từ checkInTime thực tế, convert sang timezone app
+  const vnTime = new Date(checkInTime.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+  const checkInMinutes = vnTime.getHours() * 60 + vnTime.getMinutes();
 
-  // Tìm ca phù hợp (giống logic determineShift)
   let bestShift: { name: string; startMinutes: number } | null = null;
   let bestDiff = Infinity;
 
@@ -104,19 +106,32 @@ async function getLateMinutes(_checkInTime: Date): Promise<{ lateMinutes: number
     const startMin = sh * 60 + sm;
     const endMin   = eh * 60 + em;
 
-    const inShift = endMin > startMin
-      ? nowMinutes >= startMin && nowMinutes < endMin
-      : nowMinutes >= startMin || nowMinutes < endMin;
+    // Dùng buffer giống determineShift — cho phép check-in sớm 30 phút vẫn match ca
+    const bufferedStart = (startMin - 30 + 1440) % 1440;
+
+    let inShift: boolean;
+    if (endMin > startMin) {
+      if (bufferedStart < endMin) {
+        inShift = checkInMinutes >= bufferedStart && checkInMinutes < endMin;
+      } else {
+        inShift = checkInMinutes >= bufferedStart || checkInMinutes < endMin;
+      }
+    } else {
+      inShift = checkInMinutes >= bufferedStart || checkInMinutes < endMin;
+    }
 
     if (inShift) {
-      const diff = (nowMinutes - startMin + 1440) % 1440;
+      const diff = (checkInMinutes - startMin + 1440) % 1440;
       if (diff < bestDiff) { bestDiff = diff; bestShift = { name: shift.name, startMinutes: startMin }; }
     }
   }
 
   if (!bestShift) return { lateMinutes: 0, shiftName: null };
 
-  const rawLate = (nowMinutes - bestShift.startMinutes + 1440) % 1440;
+  // Chỉ tính muộn nếu checkIn SAU giờ bắt đầu ca + grace
+  const rawLate = (checkInMinutes - bestShift.startMinutes + 1440) % 1440;
+  // Nếu rawLate > 720 → check-in TRƯỚC ca (sớm), không phải muộn
+  if (rawLate > 720) return { lateMinutes: 0, shiftName: bestShift.name };
   const lateMinutes = rawLate > LATE_GRACE_MINUTES ? rawLate : 0;
   return { lateMinutes, shiftName: bestShift.name };
 }

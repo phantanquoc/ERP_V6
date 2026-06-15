@@ -286,3 +286,114 @@ describe('pairwiseCohesiveSubsetIndices', () => {
     expect(result).toEqual([0, 1]);
   });
 });
+
+// ─── getLateMinutes — refactored logic (buffer + >720 guard) ─────────────────
+describe('getLateMinutes — refactored (buffer + checkInTime)', () => {
+  const GRACE = 5;
+  const BUFFER = 30;
+
+  // Helper: simulate the refactored getLateMinutes logic
+  function simulateGetLateMinutes(
+    checkInMinutes: number, // minutes-since-midnight in VN timezone
+    shifts: { startTime: string; endTime: string; name: string }[]
+  ): { lateMinutes: number; shiftName: string | null } {
+    if (shifts.length === 0) return { lateMinutes: 0, shiftName: null };
+
+    let bestShift: { name: string; startMinutes: number } | null = null;
+    let bestDiff = Infinity;
+
+    for (const shift of shifts) {
+      const [sh, sm] = shift.startTime.split(':').map(Number);
+      const [eh, em] = shift.endTime.split(':').map(Number);
+      const startMin = sh * 60 + sm;
+      const endMin = eh * 60 + em;
+      const bufferedStart = (startMin - BUFFER + 1440) % 1440;
+
+      let inShift: boolean;
+      if (endMin > startMin) {
+        if (bufferedStart < endMin) {
+          inShift = checkInMinutes >= bufferedStart && checkInMinutes < endMin;
+        } else {
+          inShift = checkInMinutes >= bufferedStart || checkInMinutes < endMin;
+        }
+      } else {
+        inShift = checkInMinutes >= bufferedStart || checkInMinutes < endMin;
+      }
+
+      if (inShift) {
+        const diff = (checkInMinutes - startMin + 1440) % 1440;
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestShift = { name: shift.name, startMinutes: startMin };
+        }
+      }
+    }
+
+    if (!bestShift) return { lateMinutes: 0, shiftName: null };
+
+    const rawLate = (checkInMinutes - bestShift.startMinutes + 1440) % 1440;
+    if (rawLate > 720) return { lateMinutes: 0, shiftName: bestShift.name };
+    const lateMinutes = rawLate > GRACE ? rawLate : 0;
+    return { lateMinutes, shiftName: bestShift.name };
+  }
+
+  const defaultShifts = [
+    { name: 'Ca sáng', startTime: '08:00', endTime: '16:00' },
+  ];
+
+  it('returns 0 when no shifts configured', () => {
+    const result = simulateGetLateMinutes(480, []);
+    expect(result).toEqual({ lateMinutes: 0, shiftName: null });
+  });
+
+  it('returns 0 for early check-in (20 min before shift)', () => {
+    // 07:40 = 460 min, shift starts 08:00 = 480 min
+    // bufferedStart = 480 - 30 = 450, so 460 is in [450, 960) -> matches
+    // rawLate = (460 - 480 + 1440) % 1440 = 1420, which is > 720 -> return 0
+    const result = simulateGetLateMinutes(460, defaultShifts);
+    expect(result).toEqual({ lateMinutes: 0, shiftName: 'Ca sáng' });
+  });
+
+  it('returns 0 for check-in within buffer (25 min early)', () => {
+    // 07:35 = 455 min, bufferedStart = 450 -> matches
+    // rawLate = (455 - 480 + 1440) % 1440 = 1415 > 720 -> return 0
+    const result = simulateGetLateMinutes(455, defaultShifts);
+    expect(result).toEqual({ lateMinutes: 0, shiftName: 'Ca sáng' });
+  });
+
+  it('returns 0 for exactly on time', () => {
+    // 08:00 = 480 min, rawLate = 0, 0 <= GRACE -> return 0
+    const result = simulateGetLateMinutes(480, defaultShifts);
+    expect(result).toEqual({ lateMinutes: 0, shiftName: 'Ca sáng' });
+  });
+
+  it('returns 0 within grace period (4 min late)', () => {
+    // 08:04 = 484 min, rawLate = 4, 4 <= GRACE -> return 0
+    const result = simulateGetLateMinutes(484, defaultShifts);
+    expect(result).toEqual({ lateMinutes: 0, shiftName: 'Ca sáng' });
+  });
+
+  it('returns actual late minutes when late (15 min)', () => {
+    // 08:15 = 495 min, rawLate = 15 > GRACE -> return 15
+    const result = simulateGetLateMinutes(495, defaultShifts);
+    expect(result).toEqual({ lateMinutes: 15, shiftName: 'Ca sáng' });
+  });
+
+  it('handles overnight shift — early check-in', () => {
+    const overnightShifts = [
+      { name: 'Ca đêm', startTime: '22:00', endTime: '06:00' },
+    ];
+    // 21:40 = 1300 min, bufferedStart = (1320 - 30 + 1440) % 1440 = 1290
+    // endMin = 360, overnight: inShift = 1300 >= 1290 || 1300 < 360 -> true
+    // rawLate = (1300 - 1320 + 1440) % 1440 = 1420 > 720 -> return 0
+    const result = simulateGetLateMinutes(1300, overnightShifts);
+    expect(result).toEqual({ lateMinutes: 0, shiftName: 'Ca đêm' });
+  });
+
+  it('returns 0 when check-in outside all shifts (no match)', () => {
+    // 03:00 = 180 min, shift is 08:00-16:00, bufferedStart = 450
+    // bufferedStart(450) < endMin(960), so condition: 180 >= 450 && 180 < 960 -> false
+    const result = simulateGetLateMinutes(180, defaultShifts);
+    expect(result).toEqual({ lateMinutes: 0, shiftName: null });
+  });
+});
