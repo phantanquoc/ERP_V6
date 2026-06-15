@@ -65,7 +65,10 @@ export interface Employee {
     id: string;
     name: string;
     code: string;
+    departmentId?: string;
   };
+  departmentName?: string;
+  subDepartmentName?: string;
 }
 
 interface CreateEmployeeRequest {

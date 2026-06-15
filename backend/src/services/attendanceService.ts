@@ -43,6 +43,11 @@ export class AttendanceService {
           include: {
             user: true,
             position: true,
+            subDepartment: {
+              include: {
+                department: true,
+              },
+            },
           },
         },
       },
@@ -74,6 +79,8 @@ export class AttendanceService {
           employeeCode: attendance.employee.employeeCode,
           employeeName: `${attendance.employee.user.lastName} ${attendance.employee.user.firstName}`.trim(),
           positionName: attendance.employee.position?.name || '',
+          departmentId: attendance.employee.subDepartment?.department?.id || attendance.employee.user.departmentId || null,
+          departmentName: attendance.employee.subDepartment?.department?.name || null,
           attendanceDate: attendance.attendanceDate,
           checkInTimes: attendance.checkInTime ? [attendance.checkInTime] : [],
           checkOutTimes: attendance.checkOutTime ? [attendance.checkOutTime] : [],
@@ -109,6 +116,8 @@ export class AttendanceService {
       employeeCode: group.employeeCode,
       employeeName: group.employeeName,
       positionName: group.positionName,
+      departmentId: group.departmentId,
+      departmentName: group.departmentName,
       attendanceDate: group.attendanceDate,
       checkInTimes: group.checkInTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime()),
       checkOutTimes: group.checkOutTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime()),
