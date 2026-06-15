@@ -124,12 +124,7 @@ Copy `.env.production.example` → `.env` ở root. Dev local chỉ cần `DATAB
 
 Spawn subagents để cô lập context, song song hóa công việc độc lập, hoặc offload các task cơ học số lượng lớn. Không spawn khi parent cần reasoning, khi synthesis cần giữ mọi thứ lại với nhau, hoặc khi overhead spawn lớn hơn lợi ích.
 
-Chọn model rẻ nhất có thể làm tốt subtask:
-- **Haiku**: công việc cơ học số lượng lớn, không cần judgment
-- **Sonnet**: research có phạm vi, khám phá code, synthesis trong phạm vi
-- **Opus**: subtask cần planning thực sự hoặc đánh đổi
-
-Nếu subagent nhận ra cần tier cao hơn, trả về parent. Parent sở hữu output cuối và cross-spawn synthesis. User instructions override.
+**Model & effort**: Luôn dùng **Opus** (`model: "opus"`) cho tất cả subagents. Parent sở hữu output cuối và cross-spawn synthesis.
 
 ---
 
