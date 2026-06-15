@@ -5,14 +5,16 @@ import OrderManagement from '../../components/OrderManagement';
 import MachineActivityReport from '../../components/MachineActivityReport';
 import RepairRequestList from '../../components/RepairRequestList';
 import MachineSystemList from '../../components/MachineSystemList';
+import MaintenanceTab from '../../components/MaintenanceTab';
 
-type TabType = 'machineSystems' | 'machineActivity' | 'orders' | 'repairRequests';
+type TabType = 'machineSystems' | 'machineActivity' | 'orders' | 'repairRequests' | 'maintenance';
 
 const tabs: { key: TabType; label: string }[] = [
   { key: 'machineSystems', label: 'Hệ thống máy' },
   { key: 'machineActivity', label: 'Báo cáo hoạt động' },
   { key: 'orders', label: 'Đơn hàng' },
   { key: 'repairRequests', label: 'Sửa chữa & Nghiệm thu' },
+  { key: 'maintenance', label: 'Bảo dưỡng & Sửa chữa' },
 ];
 
 const TechnicalQuality = () => {
@@ -68,6 +70,7 @@ const TechnicalQuality = () => {
       {activeTab === 'machineActivity' && <MachineActivityReport />}
       {activeTab === 'orders' && <OrderManagement hideHeader={true} />}
       {activeTab === 'repairRequests' && <RepairRequestList />}
+      {activeTab === 'maintenance' && <MaintenanceTab />}
     </div>
   );
 };
