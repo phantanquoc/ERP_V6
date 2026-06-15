@@ -68,6 +68,9 @@ const ROUTE_MAP: Record<string, string> = {
   faceAttendance: '/api/face-attendance',
   technicalSummary: '/api/technical-summary',
   docs: '/api/docs',
+  maintenanceTemplate: '/api/maintenance-templates',
+  maintenancePlan: '/api/maintenance-plans',
+  maintenanceRecord: '/api/maintenance-records',
 };
 
 export const registerRoutes = (app: Express): void => {

@@ -36,6 +36,27 @@ enum MachineSystemDetailType {
   @@schema("business")
 }
 
+enum MaintenanceFrequency {
+  HANG_NGAY
+  HANG_TUAN
+  HANG_THANG
+  HAI_THANG
+  BA_THANG
+  SAU_THANG
+  HANG_NAM
+
+  @@schema("business")
+}
+
+enum MaintenanceTeam {
+  CO_KHI
+  CO_DIEN
+  DIEN
+  TONG_HOP
+
+  @@schema("business")
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model Machine {
@@ -49,7 +70,7 @@ model Machine {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  machineSystem      MachineSystem?          @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
+  machineSystem      MachineSystem?           @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
   systemOperations   SystemOperation[]
   finishedProducts   FinishedProduct[]
   qualityEvaluations QualityEvaluation[]
@@ -86,6 +107,8 @@ model MachineSystem {
   repairRequestItems RepairRequestItem[]
   handoverItems      AcceptanceHandoverItem[]
   machines           Machine[]
+  maintenancePlans   MaintenancePlan[]
+  maintenanceRecords MaintenanceRecord[]
 
   @@index([maHeThong])
   @@map("machine_systems")
@@ -110,13 +133,16 @@ model MachineSystemDetail {
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
 
-  machineSystem      MachineSystem            @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
-  parentDetail       MachineSystemDetail?     @relation("MachineSystemDetailHierarchy", fields: [parentDetailId], references: [id], onDelete: SetNull)
-  childDetails       MachineSystemDetail[]    @relation("MachineSystemDetailHierarchy")
-  faultTemplates     FaultTemplate[]
-  faultRecords       FaultRecord[]
-  repairRequestItems RepairRequestItem[]
-  handoverItems      AcceptanceHandoverItem[]
+  machineSystem        MachineSystem            @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
+  parentDetail         MachineSystemDetail?     @relation("MachineSystemDetailHierarchy", fields: [parentDetailId], references: [id], onDelete: SetNull)
+  childDetails         MachineSystemDetail[]    @relation("MachineSystemDetailHierarchy")
+  faultTemplates       FaultTemplate[]
+  faultRecords         FaultRecord[]
+  repairRequestItems   RepairRequestItem[]
+  handoverItems        AcceptanceHandoverItem[]
+  maintenanceTemplates MaintenanceTemplate[]
+  maintenancePlanItems MaintenancePlanItem[]
+  maintenanceRecords   MaintenanceRecord[]
 
   @@index([machineSystemId])
   @@index([parentDetailId])
@@ -228,6 +254,123 @@ model SparePart {
   @@schema("business")
 }
 
+model MaintenanceTemplate {
+  id                    String               @id @default(cuid())
+  machineSystemDetailId String?
+  noiDung               String               @db.Text
+  tanSuat               MaintenanceFrequency @default(BA_THANG)
+  toThucHien            MaintenanceTeam      @default(CO_KHI)
+  hoatDong              Boolean              @default(true)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  machineSystemDetail MachineSystemDetail?  @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
+  planItems           MaintenancePlanItem[]
+
+  @@index([machineSystemDetailId])
+  @@index([hoatDong])
+  @@map("maintenance_templates")
+  @@schema("business")
+}
+
+model MaintenancePlan {
+  id              String   @id @default(cuid())
+  maKeHoach       String   @unique
+  machineSystemId String
+  nam             Int
+  nguoiLap        String
+  ngayLap         DateTime @default(now())
+  ghiChu          String?  @db.Text
+  trangThai       String   @default("Đang thực hiện")
+  fileDinhKem     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  machineSystem MachineSystem         @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
+  items         MaintenancePlanItem[]
+  records       MaintenanceRecord[]
+
+  @@unique([machineSystemId, nam])
+  @@index([machineSystemId])
+  @@index([nam])
+  @@map("maintenance_plans")
+  @@schema("business")
+}
+
+model MaintenancePlanItem {
+  id                    String               @id @default(cuid())
+  maintenancePlanId     String
+  machineSystemDetailId String
+  maintenanceTemplateId String?
+  noiDung               String               @db.Text
+  tanSuat               MaintenanceFrequency @default(BA_THANG)
+  toThucHien            MaintenanceTeam      @default(CO_KHI)
+  soLuong               Int                  @default(1)
+  thangBatDau           Int                  @default(1)  // Tháng bắt đầu chu kỳ (1-12)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  maintenancePlan     MaintenancePlan          @relation(fields: [maintenancePlanId], references: [id], onDelete: Cascade)
+  machineSystemDetail MachineSystemDetail      @relation(fields: [machineSystemDetailId], references: [id], onDelete: Cascade)
+  maintenanceTemplate MaintenanceTemplate?     @relation(fields: [maintenanceTemplateId], references: [id], onDelete: SetNull)
+  logs                MaintenancePlanItemLog[]
+
+  @@index([maintenancePlanId])
+  @@index([machineSystemDetailId])
+  @@map("maintenance_plan_items")
+  @@schema("business")
+}
+
+model MaintenancePlanItemLog {
+  id                      String    @id @default(cuid())
+  maintenancePlanItemId   String
+  thang                   Int       // 1-12
+  lanThu                  Int       // which occurrence in that month, starting from 1
+  hoanThanh               Boolean   @default(false)
+  ghiChu                  String?   @db.Text
+  ngayThucHien            DateTime?
+  nguoiThucHien           String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  maintenancePlanItem MaintenancePlanItem @relation(fields: [maintenancePlanItemId], references: [id], onDelete: Cascade)
+
+  @@unique([maintenancePlanItemId, thang, lanThu])
+  @@index([maintenancePlanItemId])
+  @@map("maintenance_plan_item_logs")
+  @@schema("business")
+}
+
+model MaintenanceRecord {
+  id                    String   @id @default(cuid())
+  maBienBan             String   @unique
+  maintenancePlanId     String?
+  machineSystemId       String
+  machineSystemDetailId String
+  loai                  String
+  noiDung               String   @db.Text
+  tinhTrangTruoc        String   @db.Text
+  tinhTrangSau          String   @db.Text
+  deXuat                String?  @db.Text
+  thoiGianThucHien      String?
+  ngayThucHien          DateTime
+  nguoiThucHien         String
+  fileDinhKem           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  maintenancePlan     MaintenancePlan?    @relation(fields: [maintenancePlanId], references: [id], onDelete: SetNull)
+  machineSystem       MachineSystem       @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
+  machineSystemDetail MachineSystemDetail @relation(fields: [machineSystemDetailId], references: [id], onDelete: Cascade)
+
+  @@index([maintenancePlanId])
+  @@index([machineSystemId])
+  @@index([machineSystemDetailId])
+  @@index([ngayThucHien])
+  @@map("maintenance_records")
+  @@schema("business")
+}
+
 model Project {
   id          String    @id @default(cuid())
   maDuAn      String    @unique // VD: DA-2026-001
@@ -272,7 +415,7 @@ model ProjectPhase {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   ProjectTask[]
   updates ProjectUpdate[]
   costs   ProjectCost[]
@@ -299,26 +442,26 @@ model ProjectMember {
 }
 
 model ProjectTask {
-  id             String    @id @default(cuid())
-  projectId      String
-  projectPhaseId String?
-  tieuDe         String
-  moTa           String?   @db.Text
-  nguoiPhuTrach  String?
-  tienDo         Int       @default(0)
-  ngayBatDau     DateTime?
-  ngayKetThuc    DateTime?
+  id                  String        @id @default(cuid())
+  projectId           String
+  projectPhaseId      String?
+  tieuDe              String
+  moTa                String?       @db.Text
+  nguoiPhuTrach       String?
+  tienDo              Int           @default(0)
+  ngayBatDau          DateTime?
+  ngayKetThuc         DateTime?
   ngayBatDauThucTe    DateTime?
   ngayHoanThanhThucTe DateTime?
-  deadline       DateTime?
-  trangThai      String    @default("Chưa bắt đầu") // Chưa bắt đầu / Đang làm / Hoàn thành / Trễ
-  mucDoUuTien    TaskPriority?
-  laMilestone    Boolean   @default(false)
-  laPhatSinh     Boolean   @default(false)
-  ghiChu         String?   @db.Text
-  thuTu          Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  deadline            DateTime?
+  trangThai           String        @default("Chưa bắt đầu") // Chưa bắt đầu / Đang làm / Hoàn thành / Trễ
+  mucDoUuTien         TaskPriority?
+  laMilestone         Boolean       @default(false)
+  laPhatSinh          Boolean       @default(false)
+  ghiChu              String?       @db.Text
+  thuTu               Int           @default(0)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectPhase ProjectPhase? @relation(fields: [projectPhaseId], references: [id], onDelete: Cascade)
@@ -332,18 +475,18 @@ model ProjectTask {
 }
 
 model ProjectUpdate {
-  id              String    @id @default(cuid())
-  projectId       String
-  projectPhaseId  String?
-  ngay            DateTime
-  tieuDe          String
-  noiDung         String    @db.Text
-  tienDoHienTai   Int       @default(0)
-  fileDinhKem     String?
-  nguoiCapNhat    String
-  nguoiCapNhatId  String
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String   @id @default(cuid())
+  projectId      String
+  projectPhaseId String?
+  ngay           DateTime
+  tieuDe         String
+  noiDung        String   @db.Text
+  tienDoHienTai  Int      @default(0)
+  fileDinhKem    String?
+  nguoiCapNhat   String
+  nguoiCapNhatId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectPhase ProjectPhase? @relation(fields: [projectPhaseId], references: [id], onDelete: SetNull)
@@ -356,21 +499,21 @@ model ProjectUpdate {
 }
 
 model ProjectCost {
-  id                  String   @id @default(cuid())
-  projectId           String
-  projectPhaseId      String?
-  projectTaskId       String?
-  loaiChiPhi          String   // Nhân công / Vật tư / Phụ liệu / Khác
-  tenChiPhi           String?
-  donVi               String?
-  soLuongKeHoach      Float?
-  giaKeHoach          Float?
-  thanhTienKeHoach    Float?
-  soLuongThucTe       Float?
-  giaThucTe           Float?
-  thanhTienThucTe     Float?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id               String   @id @default(cuid())
+  projectId        String
+  projectPhaseId   String?
+  projectTaskId    String?
+  loaiChiPhi       String // Nhân công / Vật tư / Phụ liệu / Khác
+  tenChiPhi        String?
+  donVi            String?
+  soLuongKeHoach   Float?
+  giaKeHoach       Float?
+  thanhTienKeHoach Float?
+  soLuongThucTe    Float?
+  giaThucTe        Float?
+  thanhTienThucTe  Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectPhase ProjectPhase? @relation(fields: [projectPhaseId], references: [id], onDelete: SetNull)
