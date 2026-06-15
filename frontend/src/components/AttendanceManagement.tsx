@@ -104,14 +104,14 @@ const AttendanceManagement: React.FC = () => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
-  const startDate = useMemo(() =>
-    new Date(selectedMonth.year, selectedMonth.month, 1).toISOString().split('T')[0],
-    [selectedMonth]
-  );
-  const endDate = useMemo(() =>
-    new Date(selectedMonth.year, selectedMonth.month + 1, 0).toISOString().split('T')[0],
-    [selectedMonth]
-  );
+  const startDate = useMemo(() => {
+    const d = new Date(selectedMonth.year, selectedMonth.month, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  }, [selectedMonth]);
+  const endDate = useMemo(() => {
+    const d = new Date(selectedMonth.year, selectedMonth.month + 1, 0);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, [selectedMonth]);
   const handlePrevMonth = () => {
     setSelectedMonth(prev => {
       const d = new Date(prev.year, prev.month - 1, 1);
