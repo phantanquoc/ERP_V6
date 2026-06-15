@@ -18,7 +18,7 @@ const CENTER_ZONE       = 0.30;
 const MAX_YAW           = 0.25;
 const MAX_PITCH         = 0.28;
 const MIN_FACE_AREA     = 0.04;
-const QUALITY_GATE      = 6;
+const QUALITY_GATE      = 3;
 
 const CHALLENGE_EAR_THRESHOLD   = 0.18;
 const CHALLENGE_EAR_FRAMES      = 2;
@@ -453,17 +453,27 @@ const FaceKioskPage: React.FC = () => {
         } else if (challengePassed) {
           challengePhaseRef.current = 'done';
           setActiveChallenge(null);
+          // If buffer already full → scan immediately without waiting next frame
+          if (qualityBuffer.current.length >= QUALITY_GATE) {
+            const buf  = qualityBuffer.current;
+            const best = buf.reduce((a, b) => b.score > a.score ? b : a);
+            const frames = buf.map(f => f.frame);
+            qualityBuffer.current = [];
+            setQualityCount(0);
+            challengeRef.current = null;
+            challengePhaseRef.current = 'active';
+            spoofDetector.current.reset();
+            doScan(best.frame, frames);
+          }
         }
       }
 
-      // ── Quality gate (only when challenge is done or not yet started) ──
+      // ── Quality gate (collect frames before, during, and after blink) ──
       const isGoodFrame = isCentered && isFacingStraight
         && detScore >= 0.3
         && faceAreaRatio >= MIN_FACE_AREA;
 
-      const canCollectFrames = !processing.current && (
-        challengePhaseRef.current === 'done' || !challengeRef.current
-      );
+      const canCollectFrames = !processing.current;
 
       if (isGoodFrame && canCollectFrames) {
         const frame = captureFrame();
@@ -477,26 +487,22 @@ const FaceKioskPage: React.FC = () => {
           const count = qualityBuffer.current.length;
           setQualityCount(count);
 
-          if (count >= QUALITY_GATE) {
-            if (challengePhaseRef.current === 'done') {
-              // Challenge passed (blink) — scan with existing buffer
-              const buf  = qualityBuffer.current;
-              const best = buf.reduce((a, b) => b.score > a.score ? b : a);
-              const frames = buf.map(f => f.frame);
-              qualityBuffer.current = [];
-              setQualityCount(0);
-              challengeRef.current = null;
-              challengePhaseRef.current = 'active';
-              spoofDetector.current.reset();
-              doScan(best.frame, frames);
-            } else if (!challengeRef.current) {
-              // No challenge yet — start one
-              startChallenge();
-            }
-          } else {
-            if (!challengeRef.current) {
-              setStatusHint(`Giữ nguyên... (${count}/${QUALITY_GATE})`);
-            }
+          if (challengePhaseRef.current === 'done' && count >= QUALITY_GATE) {
+            // Blink passed + enough frames → scan immediately
+            const buf  = qualityBuffer.current;
+            const best = buf.reduce((a, b) => b.score > a.score ? b : a);
+            const frames = buf.map(f => f.frame);
+            qualityBuffer.current = [];
+            setQualityCount(0);
+            challengeRef.current = null;
+            challengePhaseRef.current = 'active';
+            spoofDetector.current.reset();
+            doScan(best.frame, frames);
+          } else if (!challengeRef.current && count >= QUALITY_GATE) {
+            // Enough frames collected, no challenge yet → start blink
+            startChallenge();
+          } else if (!challengeRef.current) {
+            setStatusHint(`Giữ nguyên... (${count}/${QUALITY_GATE})`);
           }
         }
       } else if (!processing.current && !challengeRef.current) {
