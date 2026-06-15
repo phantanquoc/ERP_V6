@@ -18,7 +18,7 @@ ENV VITE_FACE_DEVICE_ID=$VITE_FACE_DEVICE_ID
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
