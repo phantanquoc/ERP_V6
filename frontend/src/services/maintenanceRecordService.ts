@@ -6,6 +6,7 @@ export interface MaintenanceRecord {
   maintenancePlanId: string | null;
   machineSystemId: string;
   machineSystemDetailId: string;
+  sourceLogId: string | null;
   loai: string;
   noiDung: string;
   tinhTrangTruoc: string;

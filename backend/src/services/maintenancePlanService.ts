@@ -180,27 +180,36 @@ class MaintenancePlanService {
 
     const item = await prisma.maintenancePlanItem.findFirst({
       where: { id: itemId, maintenancePlanId: planId },
+      include: { maintenancePlan: { select: { machineSystemId: true } } },
     });
     if (!item) throw new NotFoundError('Không tìm thấy mục bảo dưỡng');
 
-    // Upsert the log entry — toggle hoanThanh
     const existing = await prisma.maintenancePlanItemLog.findUnique({
       where: { maintenancePlanItemId_thang_lanThu: { maintenancePlanItemId: itemId, thang: month, lanThu } },
     });
 
     if (existing) {
-      return prisma.maintenancePlanItemLog.update({
+      const newHoanThanh = !existing.hoanThanh;
+      const log = await prisma.maintenancePlanItemLog.update({
         where: { id: existing.id },
         data: {
-          hoanThanh: !existing.hoanThanh,
+          hoanThanh: newHoanThanh,
           ghiChu: ghiChu !== undefined ? ghiChu : existing.ghiChu,
           nguoiThucHien: nguoiThucHien !== undefined ? nguoiThucHien : existing.nguoiThucHien,
-          ngayThucHien: !existing.hoanThanh ? new Date() : null,
+          ngayThucHien: newHoanThanh ? new Date() : null,
         },
       });
+
+      if (newHoanThanh) {
+        await this.createAutoRecord(item, log);
+      } else {
+        await this.deleteAutoRecord(log.id);
+      }
+
+      return log;
     }
 
-    return prisma.maintenancePlanItemLog.create({
+    const log = await prisma.maintenancePlanItemLog.create({
       data: {
         maintenancePlanItemId: itemId,
         thang: month,
@@ -211,6 +220,51 @@ class MaintenancePlanService {
         ngayThucHien: new Date(),
       },
     });
+
+    await this.createAutoRecord(item, log);
+
+    return log;
+  }
+
+  private async createAutoRecord(
+    item: { id: string; maintenancePlanId: string; machineSystemDetailId: string; noiDung: string; maintenancePlan: { machineSystemId: string } },
+    log: { id: string; nguoiThucHien: string | null; ngayThucHien: Date | null },
+  ) {
+    try {
+      const year = new Date().getFullYear();
+      const last = await prisma.maintenanceRecord.findFirst({
+        where: { maBienBan: yearlyCodeWhere('BBBD', year) },
+        orderBy: { maBienBan: 'desc' },
+        select: { maBienBan: true },
+      });
+      const maBienBan = nextYearlyCode(last?.maBienBan ?? null, 'BBBD', year);
+
+      await prisma.maintenanceRecord.create({
+        data: {
+          maBienBan,
+          maintenancePlanId: item.maintenancePlanId,
+          machineSystemId: item.maintenancePlan.machineSystemId,
+          machineSystemDetailId: item.machineSystemDetailId,
+          loai: 'Bảo dưỡng',
+          noiDung: item.noiDung,
+          tinhTrangTruoc: '(Chưa cập nhật)',
+          tinhTrangSau: '(Chưa cập nhật)',
+          nguoiThucHien: log.nguoiThucHien || 'Chưa xác định',
+          ngayThucHien: log.ngayThucHien || new Date(),
+          sourceLogId: log.id,
+        },
+      });
+    } catch (_) {
+      // Auto-record creation must not fail the toggle operation
+    }
+  }
+
+  private async deleteAutoRecord(logId: string) {
+    try {
+      await prisma.maintenanceRecord.deleteMany({ where: { sourceLogId: logId } });
+    } catch (_) {
+      // Cleanup failure must not fail the toggle operation
+    }
   }
 
   async updateLogNote(logId: string, data: { ghiChu?: string; nguoiThucHien?: string }) {

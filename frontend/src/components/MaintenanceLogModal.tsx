@@ -112,20 +112,26 @@ const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, onToggle
   };
 
   const handleToggle = () => {
+    if (!checked && !nguoiTH) return;
     onToggle(planId, itemId, month, lanThu, nguoiTH || undefined);
   };
 
   const hasDirty = dirtyNote || dirtyNguoi;
+
+  const canToggle = checked || !!nguoiTH;
 
   return (
     <div className="border border-gray-200 rounded-lg p-3 space-y-2">
       <div className="flex items-center gap-3">
         <button
           onClick={handleToggle}
+          disabled={!canToggle}
           className={`w-6 h-6 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
             checked
               ? 'bg-green-500 border-green-500 text-white'
-              : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+              : canToggle
+              ? 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+              : 'border-gray-200 bg-gray-100 cursor-not-allowed'
           }`}
         >
           {checked && <Check className="w-3.5 h-3.5" />}

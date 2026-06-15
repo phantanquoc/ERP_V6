@@ -110,7 +110,12 @@ const MaintenanceRecordList = () => {
             ) : (
               records.map((r: MaintenanceRecord) => (
                 <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-3 py-2 text-gray-900 font-medium">{r.maBienBan}</td>
+                  <td className="px-3 py-2 text-gray-900 font-medium">
+                    {r.maBienBan}
+                    {r.sourceLogId && (
+                      <span className="ml-1.5 px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-600 rounded">Tự sinh</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     <span className={`px-2 py-0.5 text-xs rounded-full ${
                       r.loai === 'Bảo dưỡng' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
