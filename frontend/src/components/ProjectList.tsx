@@ -208,7 +208,16 @@ const ProjectList = () => {
   const latestApproval = approvals[0];
   const hasRejection = latestApproval?.trangThai === 'TU_CHOI';
   const isPlanLocked = !!selectedProject && selectedProject.trangThai !== 'Lên kế hoạch' && !(selectedProject.trangThai === 'Chờ duyệt' && hasRejection);
+
+  const allProjectTasks = useMemo(() => [...phases.flatMap((p) => p.tasks ?? []), ...unphasedTasks], [phases, unphasedTasks]);
+  const lateCount = useMemo(() => allProjectTasks.filter((t) => t.trangThai === 'Trễ').length, [allProjectTasks]);
+  const allProjectCosts = useMemo(() => allProjectTasks.flatMap((t) => t.costs ?? []), [allProjectTasks]);
+  const tongKH = useMemo(() => allProjectCosts.reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0), [allProjectCosts]);
+  const tongTT = useMemo(() => allProjectCosts.reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0), [allProjectCosts]);
+  const chenhLech = tongTT - tongKH;
+  const fmtCurrency = (v: number) => v.toLocaleString('vi-VN');
   const isCreator = !!selectedProject && (selectedProject.nguoiTaoId === user?._id || selectedProject.nguoiTaoId === user?.employeeId);
+  const isActualEditPlanTask = taskModal?.fromTab === 'updates' && !!taskModal?.task && !taskModal.task.laPhatSinh;
   const canChangeStatus = (project?: Project) =>
     user?.role === 'admin' || (!!project && (project.nguoiTaoId === user?._id || project.nguoiTaoId === user?.employeeId));
 
@@ -545,14 +554,16 @@ const ProjectList = () => {
             </div>
           </div>
           <div className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
-            {selectedProjectQuery.isLoading ? (
+            {selectedProjectQuery.isLoading && (
               <div className="py-8 text-center text-gray-500">Đang tải...</div>
-            ) : !selectedProject ? (
+            )}
+            {!selectedProjectQuery.isLoading && !selectedProject && (
               <div className="py-12 text-center">
                 <p className="text-gray-500">Dự án không còn tồn tại hoặc đã bị xóa.</p>
                 <button onClick={() => setSelectedProjectId('')} className="mt-3 text-sm text-blue-600 hover:text-blue-800">Đóng</button>
               </div>
-            ) : (
+            )}
+            {!selectedProjectQuery.isLoading && selectedProject && (
               <>
                 <div className="grid gap-3 md:grid-cols-5">
                   <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Trạng thái</p><span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(selectedProject.trangThai)}`}>{selectedProject.trangThai}</span></div>
@@ -608,27 +619,22 @@ const ProjectList = () => {
                   <button onClick={() => setDetailTab('phases')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'phases' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Kế hoạch</button>
                   <button onClick={() => setDetailTab('updates')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'updates' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                     Thực tế
-                    {(() => { const late = [...phases.flatMap(p => p.tasks ?? []), ...unphasedTasks].filter(t => t.trangThai === 'Trễ').length; return late > 0 ? <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-100 px-1.5 text-[10px] font-bold text-red-700">{late}</span> : null; })()}
+                    {lateCount > 0 && <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-100 px-1.5 text-[10px] font-bold text-red-700">{lateCount}</span>}
                   </button>
                   <button onClick={() => setDetailTab('costs')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'costs' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Chi phi</button>
                   <button onClick={() => setDetailTab('gantt')} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailTab === 'gantt' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Timeline Gantt</button>
                 </div>
 
-                {detailTab === 'gantt' ? (
+                {detailTab === 'gantt' && (
                   <ProjectGantt ngayBatDau={selectedProject.ngayBatDau} ngayKetThuc={selectedProject.ngayKetThuc} phases={phases} />
-                ) : detailTab === 'costs' ? (
+                )}
+                {detailTab === 'costs' && (
                   <ProjectCosts projectId={selectedProject.id} phases={phases} canWrite={canWrite(selectedProject)} />
-                ) : detailTab === 'overview' ? (
+                )}
+                {detailTab === 'overview' && (
                   <ProjectOverview project={selectedProject} phases={phases} users={usersQuery.data?.data ?? []} />
-                ) : detailTab === 'updates' ? (
-                (() => {
-                  const allTasks = [...phases.flatMap((p) => p.tasks ?? []), ...unphasedTasks];
-                  const allCosts = allTasks.flatMap((t) => t.costs ?? []);
-                  const tongKH = allCosts.reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0);
-                  const tongTT = allCosts.reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0);
-                  const chenhLech = tongTT - tongKH;
-                  const fmt = (v: number) => v.toLocaleString('vi-VN');
-                  return (
+                )}
+                {detailTab === 'updates' && (
                 <>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="font-semibold text-gray-900">Tiến độ thực tế</h4>
@@ -649,30 +655,24 @@ const ProjectList = () => {
 
                 {(tongKH > 0 || tongTT > 0) && (
                   <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Tổng kế hoạch</p><p className="mt-1 text-lg font-semibold text-gray-900">{fmt(tongKH)}đ</p></div>
-                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Tổng thực tế</p><p className="mt-1 text-lg font-semibold text-blue-700">{fmt(tongTT)}đ</p></div>
-                    <div className={`rounded-md border p-3 ${chenhLech > 0 ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}><p className="text-xs text-gray-500">Chênh lệch</p><p className={`mt-1 text-lg font-semibold ${chenhLech > 0 ? 'text-red-700' : 'text-green-700'}`}>{chenhLech >= 0 ? '+' : ''}{fmt(chenhLech)}đ</p></div>
+                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Tổng kế hoạch</p><p className="mt-1 text-lg font-semibold text-gray-900">{fmtCurrency(tongKH)}đ</p></div>
+                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3"><p className="text-xs text-gray-500">Tổng thực tế</p><p className="mt-1 text-lg font-semibold text-blue-700">{fmtCurrency(tongTT)}đ</p></div>
+                    <div className={`rounded-md border p-3 ${chenhLech > 0 ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}><p className="text-xs text-gray-500">Chênh lệch</p><p className={`mt-1 text-lg font-semibold ${chenhLech > 0 ? 'text-red-700' : 'text-green-700'}`}>{chenhLech >= 0 ? '+' : ''}{fmtCurrency(chenhLech)}đ</p></div>
                   </div>
                 )}
 
                 <div className="space-y-3">
                   {phases.length === 0 ? (
                     <div className="rounded-md border border-gray-200 px-3 py-6 text-center text-gray-500">Chưa có giai đoạn.</div>
-                  ) : phases.map((phase) => {
-                    const phaseCosts = (phase.tasks ?? []).flatMap((t) => t.costs ?? []);
-                    const phaseKH = phaseCosts.reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0);
-                    const phaseTT = phaseCosts.reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0);
-                    const isCollapsed = collapsedPhases.has(phase.id);
-                    const filteredTasks = filterTasks(phase.tasks ?? []);
-                    return (
+                  ) : phases.map((phase) => (
                     <div key={phase.id} className="rounded-lg border border-gray-200">
                       <div onClick={() => togglePhaseCollapse(phase.id)} className="flex flex-col gap-2 border-b bg-gray-50 px-3 py-2 cursor-pointer select-none lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className={`text-gray-500 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>&#9654;</span>
+                            <span className={`text-gray-500 transition-transform ${collapsedPhases.has(phase.id) ? '' : 'rotate-90'}`}>&#9654;</span>
                             <span className="font-semibold text-gray-900">{phase.thuTu}. {phase.tenGiaiDoan}</span>
                             <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(phase.trangThai)}`}>{phase.trangThai}</span>
-                            {(phaseKH > 0 || phaseTT > 0) && <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">KH: {fmt(phaseKH)}đ | TT: <span className={phaseTT > phaseKH ? 'text-red-600' : 'text-green-600'}>{fmt(phaseTT)}đ</span></span>}
+                            {((phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0) > 0 || (phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0) > 0) && <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">KH: {fmtCurrency((phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0))}đ | TT: <span className={(phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0) > (phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0) ? 'text-red-600' : 'text-green-600'}>{fmtCurrency((phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0))}đ</span></span>}
                             <span className="text-xs text-gray-400">{(phase.tasks ?? []).length} cv</span>
                           </div>
                           <div className="mt-1 flex items-center gap-2">
@@ -687,10 +687,9 @@ const ProjectList = () => {
                           {canWrite(selectedProject) && <button title="Thêm phát sinh" onClick={() => { setError(''); setPhatSinhForm({ tieuDe: '', nguoiPhuTrach: '', mucDoUuTien: '', ghiChu: '' }); setPhatSinhModal({ projectPhaseId: phase.id }); }} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-blue-600"><Plus className="h-4 w-4" /></button>}
                         </div>
                       </div>
-                      {!isCollapsed && <TaskTable tasks={filteredTasks} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', phase.id, task)} onDelete={removeTask} viewMode="actual" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} phaseId={phase.id} onStatusChange={quickStatusChange} />}
+                      {!collapsedPhases.has(phase.id) && <TaskTable tasks={filterTasks(phase.tasks ?? [])} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', phase.id, task)} onDelete={removeTask} viewMode="actual" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} phaseId={phase.id} onStatusChange={quickStatusChange} />}
                     </div>
-                  );})}
-                </div>
+                  ))}</div>
 
                 <div className="rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between border-b bg-gray-50 px-3 py-2">
@@ -700,9 +699,8 @@ const ProjectList = () => {
                   <TaskTable tasks={filterTasks(unphasedTasks)} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask} viewMode="actual" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, unphasedTasks, null)} onDragEnd={(event) => handleTaskDragEnd(event, unphasedTasks, null)} phaseId={null} onStatusChange={quickStatusChange} />
                 </div>
                 </>
-                );
-                })()
-                ) : (
+                )}
+                {detailTab === 'phases' && (
                 <>
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-gray-900">Kế hoạch dự án</h4>
@@ -736,8 +734,6 @@ const ProjectList = () => {
                 </>
                 )}
               </>
-            ) : (
-              <div className="py-8 text-center text-gray-500">Không tải được dự án.</div>
             )}
           </div>
         </div>
@@ -753,7 +749,7 @@ const ProjectList = () => {
             <div className="grid gap-3 md:grid-cols-3">
               <label className="space-y-1"><span className="font-medium text-gray-700">Bắt đầu</span><input required type="date" value={projectForm.ngayBatDau} onChange={(event) => setProjectForm((form) => ({ ...form, ngayBatDau: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <label className="space-y-1"><span className="font-medium text-gray-700">Kết thúc</span><input type="date" value={projectForm.ngayKetThuc ?? ''} onChange={(event) => setProjectForm((form) => ({ ...form, ngayKetThuc: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
-              <label className="space-y-1"><span className="font-medium text-gray-700">Trạng thái</span>{canChangeStatus(projectModal?.project) ? <select value={projectForm.trangThai} onChange={(event) => setProjectForm((form) => ({ ...form, trangThai: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2">{PROJECT_STATUSES.filter((s) => { const cur = projectModal?.project?.trangThai; if ((cur === 'Lên kế hoạch' || cur === 'Chờ duyệt') && s === 'Đang thực hiện') return false; if (s === 'Chờ duyệt') return false; return true; }).map((status) => <option key={status} value={status}>{status}</option>)}</select> : <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(projectForm.trangThai ?? '')}`}>{projectForm.trangThai}</span>}</label>
+              <label className="space-y-1"><span className="font-medium text-gray-700">Trạng thái</span>{canChangeStatus(projectModal?.project) ? <select value={projectForm.trangThai} onChange={(event) => setProjectForm((form) => ({ ...form, trangThai: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2">{PROJECT_STATUSES.filter((s) => s !== 'Chờ duyệt' && !((projectModal?.project?.trangThai === 'Lên kế hoạch' || projectModal?.project?.trangThai === 'Chờ duyệt') && s === 'Đang thực hiện')).map((status) => <option key={status} value={status}>{status}</option>)}</select> : <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(projectForm.trangThai ?? '')}`}>{projectForm.trangThai}</span>}</label>
             </div>
             <FileUpload label="File đính kèm" files={projectFile ? [projectFile] : []} onChange={(files) => setProjectFile(files[0] ?? null)} compact />
             {!projectModal?.project && (
@@ -819,9 +815,6 @@ const ProjectList = () => {
       <Modal isOpen={!!taskModal} onClose={() => setTaskModal(null)} showBackdrop>
         <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <ModalHeader title={taskModal?.task ? 'Sửa công việc' : 'Thêm công việc'} onClose={() => setTaskModal(null)} />
-          {(() => {
-            const isActualEditPlanTask = taskModal?.fromTab === 'updates' && taskModal?.task && !taskModal.task.laPhatSinh;
-            return (
           <form onSubmit={saveTask} className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
             {error && <ErrorBox message={error} />}
             {isActualEditPlanTask && <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">Đang cập nhật tiến độ thực tế. Thông tin kế hoạch không thể sửa từ tab này.</p>}
@@ -862,8 +855,6 @@ const ProjectList = () => {
             <label className="block space-y-1"><span className="font-medium text-gray-700">Ghi chú</span><textarea rows={2} value={taskForm.ghiChu ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, ghiChu: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" placeholder="Ghi chú nội bộ..." /></label>
             <FormActions onCancel={() => setTaskModal(null)} submitLabel="Lưu" />
           </form>
-            );
-          })()}
         </div>
       </Modal>
 
