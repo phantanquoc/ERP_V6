@@ -37,6 +37,9 @@ export class AttendanceService {
           gte: startDate,
           lte: endDate,
         },
+        employee: {
+          status: 'ACTIVE',
+        },
       },
       include: {
         employee: {
