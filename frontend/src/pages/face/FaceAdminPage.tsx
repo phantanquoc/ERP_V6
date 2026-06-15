@@ -167,6 +167,7 @@ const FaceAdminPage: React.FC = () => {
   const [ovalState,      setOvalState]      = useState<OvalState>('waiting');
   const [stableProgress,  setStableProgress] = useState(0);
   const [poseFeedback,    setPoseFeedback]    = useState('');
+  const [showKioskMenu,   setShowKioskMenu]   = useState(false);
 
   const capturedImagesRef = useRef<string[]>([]);
   const currentPoseRef  = useRef(0);
@@ -802,23 +803,58 @@ const FaceAdminPage: React.FC = () => {
 
       {/* Floating button — Tiến hành chấm công (admin only) */}
       {user && isAdmin(user.department) && (
-        <button
-          onClick={async () => {
-            try {
-              const res = await faceAttendanceService.createKioskSession();
-              const key = res.data?.key;
-              if (key) {
-                window.open(`/diemdanh/nhanvien?key=${key}`, '_blank');
-              }
-            } catch (e) {
-              alert('Không thể tạo phiên chấm công: ' + (e as Error).message);
-            }
-          }}
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-full shadow-lg shadow-blue-600/30 transition-all hover:scale-105 font-medium"
-        >
-          <ScanFace className="w-5 h-5" />
-          Tiến hành chấm công
-        </button>
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+          {showKioskMenu && (
+            <div className="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <button
+                onClick={async () => {
+                  setShowKioskMenu(false);
+                  try {
+                    const res = await faceAttendanceService.createKioskSession();
+                    const key = res.data?.key;
+                    if (key) window.open(`/diemdanh/nhanvien?key=${key}`, '_blank');
+                  } catch (e) {
+                    alert('Không thể tạo phiên chấm công: ' + (e as Error).message);
+                  }
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left text-sm font-medium text-gray-700 transition-colors"
+              >
+                <ScanFace className="w-4 h-4 text-blue-600" />
+                <div>
+                  <p>Chấm công V1</p>
+                  <p className="text-xs text-gray-400 font-normal">Có xác minh chớp mắt</p>
+                </div>
+              </button>
+              <div className="border-t border-gray-100" />
+              <button
+                onClick={async () => {
+                  setShowKioskMenu(false);
+                  try {
+                    const res = await faceAttendanceService.createKioskSession();
+                    const key = res.data?.key;
+                    if (key) window.open(`/diemdanh/nhanvien-v2?key=${key}`, '_blank');
+                  } catch (e) {
+                    alert('Không thể tạo phiên chấm công: ' + (e as Error).message);
+                  }
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left text-sm font-medium text-gray-700 transition-colors"
+              >
+                <ScanFace className="w-4 h-4 text-green-600" />
+                <div>
+                  <p>Chấm công V2</p>
+                  <p className="text-xs text-gray-400 font-normal">Nhận diện nhanh, không cần chớp mắt</p>
+                </div>
+              </button>
+            </div>
+          )}
+          <button
+            onClick={() => setShowKioskMenu(prev => !prev)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-full shadow-lg shadow-blue-600/30 transition-all hover:scale-105 font-medium"
+          >
+            <ScanFace className="w-5 h-5" />
+            Tiến hành chấm công
+          </button>
+        </div>
       )}
     </div>
   );
