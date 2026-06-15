@@ -32,6 +32,13 @@ interface ResultDisplay {
 }
 
 const RESULT_DISPLAY_MS = 4000;
+
+const PROCESSING_STEPS = [
+  'Đang phân tích khuôn mặt...',
+  'Đang đối chiếu danh tính...',
+  'Đang ghi nhận chấm công...',
+];
+const PROCESSING_STEP_MS = 1200;
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
 const IDLE_SLOW_MS   = 30_000;
@@ -100,6 +107,7 @@ const FaceKioskPageV2: React.FC = () => {
   const [qualityCount, setQualityCount] = useState(0);
   const [statusHint, setStatusHint]     = useState('');
   const [spoofDetected, setSpoofDetected] = useState(false);
+  const [processingStep, setProcessingStep] = useState(0);
 
   const [accessGranted, setAccessGranted] = useState<boolean | null>(null);
 
@@ -160,6 +168,14 @@ const FaceKioskPageV2: React.FC = () => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    if (kioskState !== 'processing') { setProcessingStep(0); return; }
+    const t = setInterval(() => {
+      setProcessingStep(s => (s + 1) % PROCESSING_STEPS.length);
+    }, PROCESSING_STEP_MS);
+    return () => clearInterval(t);
+  }, [kioskState]);
 
   const enterSleep = useCallback(() => {
     clearTimeout(rafRef.current);
@@ -653,8 +669,15 @@ const FaceKioskPageV2: React.FC = () => {
       {/* Processing */}
       {kioskState === 'processing' && (
         <div className="absolute inset-0 bg-black/30 flex flex-col items-center justify-center z-20">
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-white text-xl font-semibold drop-shadow">Đang xác minh...</p>
+          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-6" />
+          <p className="text-white text-xl font-semibold drop-shadow transition-opacity duration-300">
+            {PROCESSING_STEPS[processingStep]}
+          </p>
+          <div className="flex gap-1.5 mt-4">
+            {PROCESSING_STEPS.map((_, i) => (
+              <span key={i} className={`w-2 h-2 rounded-full transition-colors duration-300 ${i <= processingStep ? 'bg-white' : 'bg-white/30'}`} />
+            ))}
+          </div>
         </div>
       )}
 
