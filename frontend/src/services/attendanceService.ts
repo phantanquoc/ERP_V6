@@ -9,6 +9,8 @@ export interface AttendanceRecord {
   employeeCode: string;
   employeeName: string;
   positionName: string;
+  departmentId: string | null;
+  departmentName: string | null;
   attendanceDate: string;
   checkInTimes: string[];
   checkOutTimes: string[];
