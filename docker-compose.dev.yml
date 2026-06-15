@@ -58,7 +58,7 @@ services:
       API_URL: http://localhost:5003
       LOG_LEVEL: debug
       AI_SERVICE_URL: http://ai-service:8001
-      FACE_DATA_SECRET: dev_face_data_secret_key_localhost
+      FACE_DATA_SECRET: change_me_face_data_secret
       REDIS_URL: redis://redis:6379
     ports:
       - "5003:5000"
