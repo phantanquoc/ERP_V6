@@ -347,6 +347,7 @@ model MaintenanceRecord {
   maintenancePlanId     String?
   machineSystemId       String
   machineSystemDetailId String
+  sourceLogId           String?  @unique
   loai                  String
   noiDung               String   @db.Text
   tinhTrangTruoc        String   @db.Text
@@ -367,6 +368,7 @@ model MaintenanceRecord {
   @@index([machineSystemId])
   @@index([machineSystemDetailId])
   @@index([ngayThucHien])
+  @@index([sourceLogId])
   @@map("maintenance_records")
   @@schema("business")
 }

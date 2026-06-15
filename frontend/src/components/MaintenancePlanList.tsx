@@ -366,7 +366,7 @@ const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThi
     return (
       <div className="flex flex-col items-center gap-0.5 relative">
         <button
-          onClick={() => onToggle(planId, itemId, month, 1)}
+          onClick={openModal}
           className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${
             checked
               ? 'bg-green-500 border-green-500 text-white'
@@ -377,14 +377,6 @@ const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThi
         </button>
         {hasNote && (
           <span className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full" title={log?.ghiChu ?? ''} />
-        )}
-        {log && (
-          <button
-            onClick={openModal}
-            className="text-[10px] text-gray-400 hover:text-blue-500 hover:underline"
-          >
-            ghi chú
-          </button>
         )}
       </div>
     );
