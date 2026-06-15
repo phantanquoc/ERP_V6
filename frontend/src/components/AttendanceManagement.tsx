@@ -150,7 +150,7 @@ const AttendanceManagement: React.FC = () => {
 
   // Use React Query for employees — only fetch if the user's role permits it
   const { data: employeesData } = useEmployees(1, 1000, canViewEmployees);
-  const employees = employeesData?.data || [];
+  const employees = (employeesData?.data || []).filter((emp) => emp.status === 'ACTIVE');
   const employeeSearchKeyword = employeeSearch.trim().toLowerCase();
   const filteredEmployees = employees
     .filter((employee) => {
