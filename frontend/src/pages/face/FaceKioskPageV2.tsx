@@ -31,7 +31,8 @@ interface ResultDisplay {
   time?: string;
 }
 
-const RESULT_DISPLAY_MS = 4000;
+const RESULT_DISPLAY_MS       = 4000;
+const RESULT_DISPLAY_ERROR_MS = 1500;
 
 const PROCESSING_STEPS = [
   'Đang phân tích khuôn mặt...',
@@ -283,7 +284,7 @@ const FaceKioskPageV2: React.FC = () => {
       setResult(null);
       setKioskState('waiting');
       processing.current = false;
-    }, RESULT_DISPLAY_MS);
+    }, cfg.type === 'error' ? RESULT_DISPLAY_ERROR_MS : RESULT_DISPLAY_MS);
   }, [playBeep, speak]);
 
   const doScan = useCallback(async (bestImage: string, frames: string[]) => {
