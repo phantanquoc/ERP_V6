@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Eye, Trash2, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Eye, Trash2, Check, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useMaintenancePlans, useToggleMonth, useDeleteMaintenancePlan, useUpdateLogNote } from '../hooks/useMaintenancePlans';
 import { useMachineSystems } from '../hooks/useMachineSystemDetails';
 import MaintenancePlanForm from './MaintenancePlanForm';
@@ -62,6 +62,59 @@ function getTimesPerMonth(frequency: string): number {
   return FREQUENCY_TIMES[frequency] ?? 1;
 }
 
+/** Calculate plan progress: completed / total applicable occurrences */
+function calculatePlanProgress(items: MaintenancePlanItem[]): { completed: number; total: number } {
+  let total = 0;
+  let completed = 0;
+  for (const item of items) {
+    const applicableMonths = getApplicableMonths(item.tanSuat, item.thangBatDau ?? 1);
+    const timesPerMonth = getTimesPerMonth(item.tanSuat);
+    total += applicableMonths.length * timesPerMonth;
+    completed += (item.logs ?? []).filter((l) => l.hoanThanh).length;
+  }
+  return { completed, total };
+}
+
+/** Export plan as CSV download */
+function exportPlanCSV(plan: MaintenancePlan) {
+  const items = plan.items ?? [];
+  const headers = ['Thiết bị', 'Nội dung BD', 'Tần suất', 'Tổ TH', ...MONTHS.map((m) => `T${m}`)];
+  const rows = items.map((item) => {
+    const applicableMonths = getApplicableMonths(item.tanSuat, item.thangBatDau ?? 1);
+    const timesPerMonth = getTimesPerMonth(item.tanSuat);
+    const logs = item.logs ?? [];
+    const monthCells = MONTHS.map((m) => {
+      if (!applicableMonths.includes(m)) return '';
+      const monthLogs = logs.filter((l) => l.thang === m);
+      const doneCount = monthLogs.filter((l) => l.hoanThanh).length;
+      if (doneCount === timesPerMonth) return '✓';
+      if (doneCount > 0) return `${doneCount}/${timesPerMonth}`;
+      return '0/' + timesPerMonth;
+    });
+    return [
+      item.machineSystemDetail?.tenChiTiet ?? '',
+      item.noiDung,
+      FREQUENCY_LABELS[item.tanSuat] ?? item.tanSuat,
+      TEAM_LABELS[item.toThucHien] ?? item.toThucHien,
+      ...monthCells,
+    ];
+  });
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const bom = '﻿';
+  const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${plan.maKeHoach}_bao-duong.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+const CURRENT_MONTH = new Date().getMonth() + 1;
+
 type ModalMode = 'create' | 'view' | null;
 
 interface LogModalState {
@@ -69,7 +122,6 @@ interface LogModalState {
   itemId: string;
   month: number;
   timesPerMonth: number;
-  logs: MaintenancePlanItemLog[];
   noiDung: string;
   tenThietBi: string;
   nguoiLap: string;
@@ -79,6 +131,7 @@ const MaintenancePlanList = () => {
   const [page, setPage] = useState(1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedSystemId, setSelectedSystemId] = useState('');
+  const [selectedTrangThai, setSelectedTrangThai] = useState('');
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [viewingPlan, setViewingPlan] = useState<MaintenancePlan | null>(null);
   const [logModal, setLogModal] = useState<LogModalState | null>(null);
@@ -88,7 +141,8 @@ const MaintenancePlanList = () => {
     limit: 5,
     nam: selectedYear,
     ...(selectedSystemId && { machineSystemId: selectedSystemId }),
-  }), [page, selectedYear, selectedSystemId]);
+    ...(selectedTrangThai && { trangThai: selectedTrangThai }),
+  }), [page, selectedYear, selectedSystemId, selectedTrangThai]);
 
   const { data: plansResponse, isLoading } = useMaintenancePlans(filters);
   const { data: systemsResponse } = useMachineSystems({ page: 1, limit: 200, hoatDong: true });
@@ -141,6 +195,15 @@ const MaintenancePlanList = () => {
             {systems.map((s: any) => (
               <option key={s.id} value={s.id}>{s.tenHeThong}</option>
             ))}
+          </select>
+          <select
+            value={selectedTrangThai}
+            onChange={(e) => { setSelectedTrangThai(e.target.value); setPage(1); }}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="Đang thực hiện">Đang thực hiện</option>
+            <option value="Hoàn thành">Hoàn thành</option>
           </select>
         </div>
         <button
@@ -208,7 +271,12 @@ const MaintenancePlanList = () => {
           itemId={logModal.itemId}
           month={logModal.month}
           timesPerMonth={logModal.timesPerMonth}
-          logs={logModal.logs}
+          logs={
+            plans
+              .find((p) => p.id === logModal.planId)
+              ?.items?.find((i) => i.id === logModal.itemId)
+              ?.logs?.filter((l) => l.thang === logModal.month) ?? []
+          }
           noiDung={logModal.noiDung}
           tenThietBi={logModal.tenThietBi}
           nguoiLap={logModal.nguoiLap}
@@ -228,70 +296,88 @@ interface PlanCardProps {
   onDelete: () => void;
 }
 
-const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onDelete }: PlanCardProps) => (
-  <div className="border border-gray-200 rounded-lg overflow-hidden">
-    {/* Header */}
-    <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
-      <div>
-        <span className="text-sm font-semibold text-gray-900">{plan.maKeHoach}</span>
-        <span className="mx-2 text-gray-300">|</span>
-        <span className="text-sm text-gray-600">{plan.machineSystem?.tenHeThong}</span>
-        <span className="mx-2 text-gray-300">|</span>
-        <span className="text-xs text-gray-500">{plan.machineSystem?.khuVuc} - {plan.machineSystem?.viTri}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-          plan.trangThai === 'Đang thực hiện' ? 'bg-green-100 text-green-700' :
-          plan.trangThai === 'Hoàn thành' ? 'bg-blue-100 text-blue-700' :
-          'bg-yellow-100 text-yellow-700'
-        }`}>
-          {plan.trangThai}
-        </span>
-        <button onClick={onView} className="p-1.5 text-gray-400 hover:text-blue-600 rounded">
-          <Eye className="w-4 h-4" />
-        </button>
-        <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-red-600 rounded">
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
+const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onDelete }: PlanCardProps) => {
+  const { completed, total } = calculatePlanProgress(plan.items ?? []);
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-    {/* Items table with month columns */}
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="bg-gray-50 border-b">
-            <th className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Thiết bị</th>
-            <th className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Nội dung BD</th>
-            <th className="px-2 py-2 text-center font-medium text-gray-600 whitespace-nowrap">Tần suất</th>
-            <th className="px-2 py-2 text-center font-medium text-gray-600 whitespace-nowrap">Tổ TH</th>
-            {MONTHS.map((m) => (
-              <th key={m} className="px-1 py-2 text-center font-medium text-gray-600 min-w-[2rem]">T{m}</th>
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+        <div>
+          <span className="text-sm font-semibold text-gray-900">{plan.maKeHoach}</span>
+          <span className="mx-2 text-gray-300">|</span>
+          <span className="text-sm text-gray-600">{plan.machineSystem?.tenHeThong}</span>
+          <span className="mx-2 text-gray-300">|</span>
+          <span className="text-xs text-gray-500">{plan.machineSystem?.khuVuc} - {plan.machineSystem?.viTri}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+            plan.trangThai === 'Đang thực hiện' ? 'bg-green-100 text-green-700' :
+            plan.trangThai === 'Hoàn thành' ? 'bg-blue-100 text-blue-700' :
+            'bg-yellow-100 text-yellow-700'
+          }`}>
+            {plan.trangThai}
+          </span>
+          <button onClick={() => exportPlanCSV(plan)} className="p-1.5 text-gray-400 hover:text-green-600 rounded" title="Export CSV">
+            <Download className="w-4 h-4" />
+          </button>
+          <button onClick={onView} className="p-1.5 text-gray-400 hover:text-blue-600 rounded">
+            <Eye className="w-4 h-4" />
+          </button>
+          <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-red-600 rounded">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Items table with month columns */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-gray-50 border-b">
+              <th className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Thiết bị</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Nội dung BD</th>
+              <th className="px-2 py-2 text-center font-medium text-gray-600 whitespace-nowrap">Tần suất</th>
+              <th className="px-2 py-2 text-center font-medium text-gray-600 whitespace-nowrap">Tổ TH</th>
+              {MONTHS.map((m) => (
+                <th key={m} className={`px-1 py-2 text-center font-medium text-gray-600 min-w-[2rem] ${m === CURRENT_MONTH ? 'bg-blue-50 border-b-2 border-blue-400' : ''}`}>T{m}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(plan.items ?? []).map((item) => (
+              <PlanItemRow
+                key={item.id}
+                planId={plan.id}
+                item={item}
+                nguoiLap={plan.nguoiLap}
+                onToggle={onToggle}
+                onOpenLogModal={onOpenLogModal}
+              />
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {(plan.items ?? []).map((item) => (
-            <PlanItemRow
-              key={item.id}
-              planId={plan.id}
-              item={item}
-              nguoiLap={plan.nguoiLap}
-              onToggle={onToggle}
-              onOpenLogModal={onOpenLogModal}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </tbody>
+        </table>
+      </div>
 
-    {/* Footer */}
-    <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">
-      Người lập: {plan.nguoiLap} | Ngày: {new Date(plan.ngayLap).toLocaleDateString('vi-VN')}
-      {plan._count?.records ? ` | ${plan._count.records} biên bản` : ''}
+      {/* Footer with progress bar */}
+      <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <span>Người lập: {plan.nguoiLap} | Ngày: {new Date(plan.ngayLap).toLocaleDateString('vi-VN')}
+            {plan._count?.records ? ` | ${plan._count.records} biên bản` : ''}
+          </span>
+          <span className="text-gray-600 font-medium">{completed}/{total} hoàn thành ({percent}%)</span>
+        </div>
+        <div className="mt-1.5 w-full bg-gray-200 rounded-full h-1.5">
+          <div
+            className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 interface PlanItemRowProps {
   planId: string;
@@ -316,12 +402,13 @@ const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal }: PlanI
       <td className="px-2 py-2 text-center text-gray-600">{TEAM_LABELS[item.toThucHien] ?? item.toThucHien}</td>
       {MONTHS.map((m) => {
         const isApplicable = applicableMonths.includes(m);
+        const isCurrentMonth = m === CURRENT_MONTH;
         if (!isApplicable) {
-          return <td key={m} className="px-1 py-2 text-center"><span className="text-gray-300">&mdash;</span></td>;
+          return <td key={m} className={`px-1 py-2 text-center ${isCurrentMonth ? 'bg-blue-50/30' : ''}`}><span className="text-gray-300">&mdash;</span></td>;
         }
         const monthLogs = logs.filter((l) => l.thang === m);
         return (
-          <td key={m} className="px-1 py-2">
+          <td key={m} className={`px-1 py-2 ${isCurrentMonth ? 'bg-blue-50/30' : ''}`}>
             <MonthCell
               planId={planId}
               itemId={item.id}
@@ -356,7 +443,7 @@ interface MonthCellProps {
 
 const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThietBi, nguoiLap, onToggle, onOpenLogModal }: MonthCellProps) => {
   const openModal = () => {
-    onOpenLogModal({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThietBi, nguoiLap });
+    onOpenLogModal({ planId, itemId, month, timesPerMonth, noiDung, tenThietBi, nguoiLap });
   };
 
   if (timesPerMonth === 1) {

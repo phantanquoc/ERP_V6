@@ -113,6 +113,9 @@ const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, onToggle
 
   const handleToggle = () => {
     if (!checked && !nguoiTH) return;
+    if (checked) {
+      if (!confirm('Bạn muốn hủy hoàn thành lần này?')) return;
+    }
     onToggle(planId, itemId, month, lanThu, nguoiTH || undefined);
   };
 
