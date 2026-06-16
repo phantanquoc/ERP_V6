@@ -27,6 +27,12 @@ router.put('/:id/phases/:phaseId', projectAccess, projectController.updatePhase.
 router.delete('/:id/phases/:phaseId', projectAccess, projectController.deletePhase.bind(projectController));
 router.post('/:id/phases/reorder', projectAccess, projectController.reorderPhases.bind(projectController));
 
+// Task Groups
+router.post('/:id/phases/:phaseId/task-groups', projectAccess, projectController.addTaskGroup.bind(projectController));
+router.put('/:id/task-groups/:groupId', projectAccess, projectController.updateTaskGroup.bind(projectController));
+router.delete('/:id/task-groups/:groupId', projectAccess, projectController.deleteTaskGroup.bind(projectController));
+router.post('/:id/task-groups/reorder', projectAccess, projectController.reorderTaskGroups.bind(projectController));
+
 // Tasks
 router.post('/:id/tasks', projectAccess, projectController.addTask.bind(projectController));
 router.put('/:id/tasks/:taskId', projectAccess, projectController.updateTask.bind(projectController));
