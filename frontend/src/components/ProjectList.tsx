@@ -1373,53 +1373,55 @@ const GroupedTasksRenderer = ({
   return (
     <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleGroupedDragEnd}>
       <SortableContext items={allTaskIds} strategy={verticalListSortingStrategy}>
-        {groupedSections.map((section, sectionIdx) => {
-          const group = section.groupId ? groups.find(g => g.id === section.groupId) : null;
-          const dropId = section.groupId ?? '__ungrouped';
-          return (
-            <DroppableGroupSection key={dropId} groupId={dropId}>
-              <div className={`${section.groupId ? 'bg-gray-100' : 'bg-gray-50 border-t border-gray-200'}`}>
-                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-200">
-                  {group ? (
-                    <>
-                      <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{group.tenMuc}</span>
-                      {group.moTa && <span className="text-xs text-gray-500">— {group.moTa}</span>}
-                      <span className="text-xs text-gray-400">({section.tasks.length})</span>
-                      {canWrite && (
-                        <span className="ml-auto flex gap-1">
-                          {onMoveGroup && <button title="Di chuyển lên" onClick={() => onMoveGroup(group.id, -1)} className="rounded p-1 text-gray-400 hover:text-blue-600"><ArrowUp className="h-3.5 w-3.5" /></button>}
-                          {onMoveGroup && <button title="Di chuyển xuống" onClick={() => onMoveGroup(group.id, 1)} className="rounded p-1 text-gray-400 hover:text-blue-600"><ArrowDown className="h-3.5 w-3.5" /></button>}
-                          <button title="Thêm CV vào mục" onClick={() => onAddTaskToGroup(group.id)} className="rounded p-1 text-gray-400 hover:text-blue-600"><Plus className="h-3.5 w-3.5" /></button>
-                          <button title="Sửa mục" onClick={() => onEditGroup(group)} className="rounded p-1 text-gray-400 hover:text-green-600"><Edit className="h-3.5 w-3.5" /></button>
-                          <button title="Xóa mục" onClick={() => onDeleteGroup(group.id)} className="rounded p-1 text-gray-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-xs font-medium text-gray-500 italic">Chưa phân mục</span>
-                      <span className="text-xs text-gray-400">({section.tasks.length})</span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] text-sm">
-                  {theadRow}
-                  {section.tasks.length === 0 ? (
-                    <tbody><tr><td colSpan={colCount} className="px-3 py-3 text-center text-gray-400 text-xs">Kéo công việc vào đây</td></tr></tbody>
-                  ) : (
-                    <tbody className="divide-y divide-gray-100">
-                      {section.tasks.map((task, idx) => (
-                        <TaskRow key={task.id} task={task} isPlan={isPlan} colCount={colCount} canWrite={canWrite} onEdit={onEditTask} onDelete={onDeleteTask} projectId={projectId} onMoveTask={onMoveTask} taskIndex={idx} tasksLength={section.tasks.length} onStatusChange={onStatusChange} />
-                      ))}
-                    </tbody>
-                  )}
-                </table>
-              </div>
-            </DroppableGroupSection>
-          );
-        })}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px] text-sm">
+            {theadRow}
+            <tbody className="divide-y divide-gray-100">
+              {groupedSections.map((section) => {
+                const group = section.groupId ? groups.find(g => g.id === section.groupId) : null;
+                const dropId = section.groupId ?? '__ungrouped';
+                return (
+                  <React.Fragment key={dropId}>
+                    <tr className={section.groupId ? 'bg-gray-100' : 'bg-gray-50'}>
+                      <td colSpan={colCount} className="px-3 py-1.5 border-b border-gray-200">
+                        <DroppableGroupSection groupId={dropId}>
+                          <div className="flex items-center gap-2">
+                            {group ? (
+                              <>
+                                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{group.tenMuc}</span>
+                                {group.moTa && <span className="text-xs text-gray-500">— {group.moTa}</span>}
+                                <span className="text-xs text-gray-400">({section.tasks.length})</span>
+                                {canWrite && (
+                                  <span className="ml-auto flex gap-1">
+                                    {onMoveGroup && <button title="Di chuyển lên" onClick={() => onMoveGroup(group.id, -1)} className="rounded p-1 text-gray-400 hover:text-blue-600"><ArrowUp className="h-3.5 w-3.5" /></button>}
+                                    {onMoveGroup && <button title="Di chuyển xuống" onClick={() => onMoveGroup(group.id, 1)} className="rounded p-1 text-gray-400 hover:text-blue-600"><ArrowDown className="h-3.5 w-3.5" /></button>}
+                                    <button title="Thêm CV vào mục" onClick={() => onAddTaskToGroup(group.id)} className="rounded p-1 text-gray-400 hover:text-blue-600"><Plus className="h-3.5 w-3.5" /></button>
+                                    <button title="Sửa mục" onClick={() => onEditGroup(group)} className="rounded p-1 text-gray-400 hover:text-green-600"><Edit className="h-3.5 w-3.5" /></button>
+                                    <button title="Xóa mục" onClick={() => onDeleteGroup(group.id)} className="rounded p-1 text-gray-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-xs font-medium text-gray-500 italic">Chưa phân mục</span>
+                                <span className="text-xs text-gray-400">({section.tasks.length})</span>
+                              </>
+                            )}
+                          </div>
+                        </DroppableGroupSection>
+                      </td>
+                    </tr>
+                    {section.tasks.length === 0 ? (
+                      <tr><td colSpan={colCount} className="px-3 py-3 text-center text-gray-400 text-xs">Kéo công việc vào đây</td></tr>
+                    ) : section.tasks.map((task, idx) => (
+                      <TaskRow key={task.id} task={task} isPlan={isPlan} colCount={colCount} canWrite={canWrite} onEdit={onEditTask} onDelete={onDeleteTask} projectId={projectId} onMoveTask={onMoveTask} taskIndex={idx} tasksLength={section.tasks.length} onStatusChange={onStatusChange} />
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </SortableContext>
     </DndContext>
   );
