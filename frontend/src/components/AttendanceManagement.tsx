@@ -339,6 +339,10 @@ const AttendanceManagement: React.FC = () => {
     return `${weekday}, ${formatted}`;
   };
 
+  const toLocalDateKey = (date: Date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
   const formatDateObj = (date: Date) => {
     const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     const weekday = weekdays[date.getDay()];
@@ -765,7 +769,7 @@ const AttendanceManagement: React.FC = () => {
                             {emp.name}
                           </td>
                           {calendarData.days.map((day) => {
-                            const dateKey = day.toISOString().split('T')[0];
+                            const dateKey = toLocalDateKey(day);
                             const record = calendarData.records.get(`${emp.code}_${dateKey}`);
                             let letter = '';
                             let cellClass = '';
@@ -786,10 +790,25 @@ const AttendanceManagement: React.FC = () => {
                             return (
                               <td
                                 key={day.toISOString()}
-                                className={`px-1 py-1 text-center border-r border-gray-100 ${record ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                                className={`px-1 py-1 text-center border-r border-gray-100 cursor-pointer ${record ? 'hover:bg-gray-100' : 'hover:bg-gray-50'}`}
                                 onClick={() => {
                                   if (record) {
                                     setCalendarModal({ type: 'cell', employee: emp, day, record });
+                                  } else {
+                                    setEditingId(null);
+                                    setEditEntries([]);
+                                    setSelectedEmployeeName(emp.name);
+                                    setEmployeeSearch(emp.name);
+                                    setIsEmployeeDropdownOpen(false);
+                                    setFormData({
+                                      employeeCode: emp.code,
+                                      attendanceDate: toLocalDateKey(day),
+                                      checkInTime: '',
+                                      checkOutTime: '',
+                                      status: 'PRESENT',
+                                      notes: '',
+                                    });
+                                    setShowModal(true);
                                   }
                                 }}
                               >
@@ -1096,7 +1115,7 @@ const AttendanceManagement: React.FC = () => {
         const emp = calendarModal.employee;
         const empRecords = calendarData.days
           .map((day) => {
-            const dateKey = day.toISOString().split('T')[0];
+            const dateKey = toLocalDateKey(day);
             return { day, record: calendarData.records.get(`${emp.code}_${dateKey}`) || null };
           })
           .filter((item): item is { day: Date; record: AttendanceRecord } => item.record !== null);
@@ -1165,7 +1184,7 @@ const AttendanceManagement: React.FC = () => {
       {/* Calendar Column Summary Modal */}
       {calendarModal?.type === 'column' && (() => {
         const day = calendarModal.day;
-        const dateKey = day.toISOString().split('T')[0];
+        const dateKey = toLocalDateKey(day);
         const dayEmployees = calendarData.employees
           .map((emp) => ({
             emp,
