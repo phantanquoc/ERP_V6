@@ -36,6 +36,7 @@ export interface ProjectTask {
   id: string;
   projectId: string;
   projectPhaseId?: string | null;
+  projectTaskGroupId?: string | null;
   tieuDe: string;
   moTa?: string;
   nguoiPhuTrach?: string;
@@ -56,6 +57,17 @@ export interface ProjectTask {
   updatedAt: string;
 }
 
+export interface ProjectTaskGroup {
+  id: string;
+  projectPhaseId: string;
+  tenMuc: string;
+  moTa?: string | null;
+  thuTu: number;
+  createdAt: string;
+  updatedAt: string;
+  tasks?: ProjectTask[];
+}
+
 export interface ProjectPhase {
   id: string;
   projectId: string;
@@ -74,6 +86,7 @@ export interface ProjectPhase {
   createdAt: string;
   updatedAt: string;
   tasks?: ProjectTask[];
+  taskGroups?: ProjectTaskGroup[];
 }
 
 export interface CreateProjectRequest {
@@ -125,6 +138,7 @@ export interface CreateProjectTaskRequest {
   moTa?: string;
   nguoiPhuTrach?: string;
   projectPhaseId?: string | null;
+  projectTaskGroupId?: string | null;
   tienDo?: number;
   ngayBatDau?: string;
   ngayKetThuc?: string;
@@ -140,6 +154,18 @@ export interface CreateProjectTaskRequest {
 }
 
 export type UpdateProjectTaskRequest = Partial<CreateProjectTaskRequest>;
+
+export interface CreateTaskGroupRequest {
+  tenMuc: string;
+  moTa?: string;
+  thuTu?: number;
+}
+
+export type UpdateTaskGroupRequest = Partial<CreateTaskGroupRequest>;
+
+export interface ReorderTaskGroupsRequest {
+  items: { id: string; thuTu: number }[];
+}
 
 export interface ProjectUpdate {
   id: string;
@@ -364,6 +390,39 @@ class ProjectService {
       return await apiClient.delete<void>(`/projects/${projectId}/tasks/${taskId}`);
     } catch (error: unknown) {
       throw new Error(getErrorMessage(error, 'Lỗi khi xóa công việc'));
+    }
+  }
+
+  // Task Groups
+  async addTaskGroup(projectId: string, phaseId: string, data: CreateTaskGroupRequest): Promise<ApiResponse<ProjectTaskGroup>> {
+    try {
+      return await apiClient.post<ProjectTaskGroup>(`/projects/${projectId}/phases/${phaseId}/task-groups`, data);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi thêm mục công việc'));
+    }
+  }
+
+  async updateTaskGroup(projectId: string, groupId: string, data: UpdateTaskGroupRequest): Promise<ApiResponse<ProjectTaskGroup>> {
+    try {
+      return await apiClient.put<ProjectTaskGroup>(`/projects/${projectId}/task-groups/${groupId}`, data);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi cập nhật mục công việc'));
+    }
+  }
+
+  async deleteTaskGroup(projectId: string, groupId: string): Promise<ApiResponse<void>> {
+    try {
+      return await apiClient.delete<void>(`/projects/${projectId}/task-groups/${groupId}`);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi xóa mục công việc'));
+    }
+  }
+
+  async reorderTaskGroups(projectId: string, data: ReorderTaskGroupsRequest): Promise<ApiResponse<ProjectTaskGroup[]>> {
+    try {
+      return await apiClient.post<ProjectTaskGroup[]>(`/projects/${projectId}/task-groups/reorder`, data);
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi sắp xếp mục công việc'));
     }
   }
 
