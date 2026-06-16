@@ -1405,7 +1405,7 @@ const GroupedTasksRenderer = ({
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[700px] text-sm">
-                  {sectionIdx === 0 && theadRow}
+                  {theadRow}
                   {section.tasks.length === 0 ? (
                     <tbody><tr><td colSpan={colCount} className="px-3 py-3 text-center text-gray-400 text-xs">Kéo công việc vào đây</td></tr></tbody>
                   ) : (
