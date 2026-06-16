@@ -4,6 +4,16 @@ import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 
+const FREQUENCY_TIMES: Record<string, number> = {
+  HANG_NGAY: 22,
+  HANG_TUAN: 4,
+  HANG_THANG: 1,
+  HAI_THANG: 1,
+  BA_THANG: 1,
+  SAU_THANG: 1,
+  HANG_NAM: 1,
+};
+
 interface PlanItemData {
   machineSystemDetailId: string;
   maintenanceTemplateId?: string;
@@ -188,9 +198,10 @@ class MaintenancePlanService {
       where: { maintenancePlanItemId_thang_lanThu: { maintenancePlanItemId: itemId, thang: month, lanThu } },
     });
 
+    let log;
     if (existing) {
       const newHoanThanh = !existing.hoanThanh;
-      const log = await prisma.maintenancePlanItemLog.update({
+      log = await prisma.maintenancePlanItemLog.update({
         where: { id: existing.id },
         data: {
           hoanThanh: newHoanThanh,
@@ -205,25 +216,72 @@ class MaintenancePlanService {
       } else {
         await this.deleteAutoRecord(log.id);
       }
+    } else {
+      log = await prisma.maintenancePlanItemLog.create({
+        data: {
+          maintenancePlanItemId: itemId,
+          thang: month,
+          lanThu,
+          hoanThanh: true,
+          ghiChu: ghiChu || null,
+          nguoiThucHien: nguoiThucHien || null,
+          ngayThucHien: new Date(),
+        },
+      });
 
-      return log;
+      await this.createAutoRecord(item, log);
     }
 
-    const log = await prisma.maintenancePlanItemLog.create({
-      data: {
-        maintenancePlanItemId: itemId,
-        thang: month,
-        lanThu,
-        hoanThanh: true,
-        ghiChu: ghiChu || null,
-        nguoiThucHien: nguoiThucHien || null,
-        ngayThucHien: new Date(),
-      },
-    });
-
-    await this.createAutoRecord(item, log);
+    // Auto status transition
+    await this.checkAndUpdatePlanStatus(planId);
 
     return log;
+  }
+
+  private async checkAndUpdatePlanStatus(planId: string) {
+    try {
+      const plan = await prisma.maintenancePlan.findUnique({
+        where: { id: planId },
+        include: {
+          items: { include: { logs: true } },
+        },
+      });
+      if (!plan) return;
+
+      let totalExpected = 0;
+      let totalCompleted = 0;
+
+      for (const item of plan.items) {
+        const applicableMonths = this.getApplicableMonths(item.tanSuat, item.thangBatDau ?? 1);
+        const timesPerMonth = FREQUENCY_TIMES[item.tanSuat] ?? 1;
+        totalExpected += applicableMonths.length * timesPerMonth;
+        totalCompleted += (item.logs ?? []).filter((l) => l.hoanThanh).length;
+      }
+
+      if (totalExpected > 0 && totalCompleted >= totalExpected && plan.trangThai !== 'Hoàn thành') {
+        await prisma.maintenancePlan.update({
+          where: { id: planId },
+          data: { trangThai: 'Hoàn thành' },
+        });
+      } else if (totalCompleted < totalExpected && plan.trangThai === 'Hoàn thành') {
+        await prisma.maintenancePlan.update({
+          where: { id: planId },
+          data: { trangThai: 'Đang thực hiện' },
+        });
+      }
+    } catch (_) {
+      // Status transition must not fail the toggle operation
+    }
+  }
+
+  private getApplicableMonths(frequency: string, thangBatDau: number): number[] {
+    switch (frequency) {
+      case 'HAI_THANG': { const m: number[] = []; for (let i = thangBatDau; i <= 12; i += 2) m.push(i); return m; }
+      case 'BA_THANG': { const m: number[] = []; for (let i = thangBatDau; i <= 12; i += 3) m.push(i); return m; }
+      case 'SAU_THANG': { const m: number[] = []; for (let i = thangBatDau; i <= 12; i += 6) m.push(i); return m; }
+      case 'HANG_NAM': return [thangBatDau];
+      default: return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    }
   }
 
   private async createAutoRecord(
