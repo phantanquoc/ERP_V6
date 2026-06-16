@@ -39,6 +39,7 @@ import {
   useAddTaskGroup,
   useUpdateTaskGroup,
   useDeleteTaskGroup,
+  useReorderTaskGroups,
 } from '../hooks/useProjectPhases';
 import type {
   CreateProjectCostRequest,
@@ -151,6 +152,7 @@ const ProjectList = () => {
   const addTaskGroup = useAddTaskGroup();
   const editTaskGroup = useUpdateTaskGroup();
   const removeTaskGroup = useDeleteTaskGroup();
+  const reorderTaskGroups = useReorderTaskGroups();
   const submitApproval = useSubmitApproval();
   const approveProject = useApproveProject();
   const rejectProject = useRejectProject();
@@ -430,6 +432,24 @@ const ProjectList = () => {
       await removeTaskGroup.mutateAsync({ projectId: selectedProject.id, groupId });
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Không xóa được mục công việc');
+    }
+  };
+
+  const moveGroup = async (phaseId: string, groupId: string, direction: -1 | 1) => {
+    if (!selectedProject) return;
+    const phase = phases.find(p => p.id === phaseId);
+    if (!phase?.taskGroups) return;
+    const sorted = [...phase.taskGroups].sort((a, b) => a.thuTu - b.thuTu);
+    const idx = sorted.findIndex(g => g.id === groupId);
+    if (idx < 0) return;
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= sorted.length) return;
+    const newOrder = sorted.map(g => g.id);
+    [newOrder[idx], newOrder[targetIdx]] = [newOrder[targetIdx], newOrder[idx]];
+    try {
+      await reorderTaskGroups.mutateAsync({ projectId: selectedProject.id, data: { items: newOrder.map((id, i) => ({ id, thuTu: i })) } });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không di chuyển được mục');
     }
   };
 
@@ -738,7 +758,7 @@ const ProjectList = () => {
                           {canWrite(selectedProject) && <button title="Thêm phát sinh" onClick={() => { setError(''); setPhatSinhForm({ tieuDe: '', nguoiPhuTrach: '', mucDoUuTien: '', ghiChu: '' }); setPhatSinhModal({ projectPhaseId: phase.id }); }} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-blue-600"><Plus className="h-4 w-4" /></button>}
                         </div>
                       </div>
-                      {!collapsedPhases.has(phase.id) && <GroupedTasksRenderer phase={{ ...phase, tasks: filterTasks(phase.tasks ?? []), taskGroups: phase.taskGroups }} canWrite={canWrite(selectedProject)} viewMode="actual" projectId={selectedProject.id} onEditTask={(task) => openTaskModal('edit', phase.id, task)} onDeleteTask={removeTask} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} onEditGroup={(group) => openTaskGroupModal('edit', phase.id, group)} onDeleteGroup={deleteGroup} onAddTaskToGroup={(groupId) => { openTaskModal('create', phase.id); setTaskForm((f) => ({ ...f, projectTaskGroupId: groupId })); }} onStatusChange={quickStatusChange} onTaskMoveToGroup={moveTaskToGroup} />}
+                      {!collapsedPhases.has(phase.id) && <GroupedTasksRenderer phase={{ ...phase, tasks: filterTasks(phase.tasks ?? []), taskGroups: phase.taskGroups }} canWrite={canWrite(selectedProject)} viewMode="actual" projectId={selectedProject.id} onEditTask={(task) => openTaskModal('edit', phase.id, task)} onDeleteTask={removeTask} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} onEditGroup={(group) => openTaskGroupModal('edit', phase.id, group)} onDeleteGroup={deleteGroup} onAddTaskToGroup={(groupId) => { openTaskModal('create', phase.id); setTaskForm((f) => ({ ...f, projectTaskGroupId: groupId })); }} onMoveGroup={(groupId, dir) => moveGroup(phase.id, groupId, dir)} onStatusChange={quickStatusChange} onTaskMoveToGroup={moveTaskToGroup} />}
                     </div>
                   ))}</div>
 
@@ -767,7 +787,7 @@ const ProjectList = () => {
                     <SortableContext items={phases.map((p) => p.id)} strategy={verticalListSortingStrategy}>
                       {phases.map((phase, phaseIndex) => (
                       <SortablePhaseItem key={phase.id} phase={phase} phaseIndex={phaseIndex} phasesLength={phases.length} canWrite={!isPlanLocked && canWrite(selectedProject)} onMovePhase={movePhase} onEditPhase={openPhaseModal} onAddTask={openTaskModal} onAddTaskGroup={(phaseId) => openTaskGroupModal('create', phaseId)} onRemovePhase={removePhase}>
-                        <GroupedTasksRenderer phase={phase} canWrite={!isPlanLocked && canWrite(selectedProject)} viewMode="plan" projectId={selectedProject.id} onEditTask={(task) => openTaskModal('edit', phase.id, task)} onDeleteTask={removeTask} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} onEditGroup={(group) => openTaskGroupModal('edit', phase.id, group)} onDeleteGroup={deleteGroup} onAddTaskToGroup={(groupId) => { openTaskModal('create', phase.id); setTaskForm((f) => ({ ...f, projectTaskGroupId: groupId })); }} onTaskMoveToGroup={moveTaskToGroup} />
+                        <GroupedTasksRenderer phase={phase} canWrite={!isPlanLocked && canWrite(selectedProject)} viewMode="plan" projectId={selectedProject.id} onEditTask={(task) => openTaskModal('edit', phase.id, task)} onDeleteTask={removeTask} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} onEditGroup={(group) => openTaskGroupModal('edit', phase.id, group)} onDeleteGroup={deleteGroup} onAddTaskToGroup={(groupId) => { openTaskModal('create', phase.id); setTaskForm((f) => ({ ...f, projectTaskGroupId: groupId })); }} onMoveGroup={(groupId, dir) => moveGroup(phase.id, groupId, dir)} onTaskMoveToGroup={moveTaskToGroup} />
                       </SortablePhaseItem>
                       ))}
                     </SortableContext>
@@ -1259,6 +1279,7 @@ const GroupedTasksRenderer = ({
   onEditGroup,
   onDeleteGroup,
   onAddTaskToGroup,
+  onMoveGroup,
   onStatusChange,
   onTaskMoveToGroup,
 }: {
@@ -1273,6 +1294,7 @@ const GroupedTasksRenderer = ({
   onEditGroup: (group: ProjectTaskGroup) => void;
   onDeleteGroup: (groupId: string) => void;
   onAddTaskToGroup: (groupId: string) => void;
+  onMoveGroup?: (groupId: string, direction: -1 | 1) => void;
   onStatusChange?: (taskId: string, newStatus: string) => void;
   onTaskMoveToGroup?: (taskId: string, newGroupId: string | null) => void;
 }) => {
@@ -1349,6 +1371,8 @@ const GroupedTasksRenderer = ({
                       <span className="text-xs text-gray-400">({section.tasks.length})</span>
                       {canWrite && (
                         <span className="ml-auto flex gap-1">
+                          {onMoveGroup && <button title="Di chuyển lên" onClick={() => onMoveGroup(group.id, -1)} className="rounded p-1 text-gray-400 hover:text-blue-600"><ArrowUp className="h-3.5 w-3.5" /></button>}
+                          {onMoveGroup && <button title="Di chuyển xuống" onClick={() => onMoveGroup(group.id, 1)} className="rounded p-1 text-gray-400 hover:text-blue-600"><ArrowDown className="h-3.5 w-3.5" /></button>}
                           <button title="Thêm CV vào mục" onClick={() => onAddTaskToGroup(group.id)} className="rounded p-1 text-gray-400 hover:text-blue-600"><Plus className="h-3.5 w-3.5" /></button>
                           <button title="Sửa mục" onClick={() => onEditGroup(group)} className="rounded p-1 text-gray-400 hover:text-green-600"><Edit className="h-3.5 w-3.5" /></button>
                           <button title="Xóa mục" onClick={() => onDeleteGroup(group.id)} className="rounded p-1 text-gray-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
