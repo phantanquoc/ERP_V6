@@ -122,7 +122,9 @@ async function getLateMinutes(checkInTime: Date): Promise<{ lateMinutes: number;
 
     if (inShift) {
       const raw = (checkInMinutes - startMin + 1440) % 1440;
-      const diff = raw <= 720 ? raw : 1440 - raw;
+      // Subtract 1 for early arrivals to give tiebreaker preference —
+      // employees almost always arrive early, not late.
+      const diff = raw <= 720 ? raw : 1440 - raw - 1;
       if (diff < bestDiff) { bestDiff = diff; bestShift = { name: shift.name, startMinutes: startMin }; }
     }
   }

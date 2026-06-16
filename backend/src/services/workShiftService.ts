@@ -111,8 +111,9 @@ class WorkShiftService {
     const diff = (checkIn - shiftStart + 1440) % 1440;
     // If diff > 720 (12h), it means checkIn is BEFORE shiftStart (early arrival)
     // Convert to "negative" distance so early arrival is preferred over a shift
-    // that started long ago.
-    return diff <= 720 ? diff : 1440 - diff;
+    // that started long ago. Subtract 1 to give early arrivals tiebreaker
+    // advantage — employees almost always arrive early, not late.
+    return diff <= 720 ? diff : 1440 - diff - 1;
   }
 }
 
