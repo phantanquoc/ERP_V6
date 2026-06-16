@@ -4,12 +4,15 @@ import projectService, {
   CreateProjectPhaseRequest,
   CreateProjectTaskRequest,
   CreateProjectUpdateRequest,
+  CreateTaskGroupRequest,
   ReorderProjectPhasesRequest,
   ReorderProjectTasksRequest,
+  ReorderTaskGroupsRequest,
   UpdateProjectCostRequest,
   UpdateProjectPhaseRequest,
   UpdateProjectTaskRequest,
   UpdateProjectUpdateRequest,
+  UpdateTaskGroupRequest,
   ProjectApproval,
 } from '../services/projectService';
 import { projectKeys } from './useProjects';
@@ -144,6 +147,57 @@ export const useDeleteProjectTask = () => {
     onSuccess: (_, variables) => {
       invalidateProjectContext(queryClient, variables.projectId);
       queryClient.invalidateQueries({ queryKey: projectTaskKeys.unphased(variables.projectId) });
+    },
+  });
+};
+
+// ── Task Groups ──────────────────────────────────────────────────────────
+export const projectTaskGroupKeys = {
+  all: ['projectTaskGroups'] as const,
+  lists: () => [...projectTaskGroupKeys.all, 'list'] as const,
+  list: (projectId: string) => [...projectTaskGroupKeys.lists(), projectId] as const,
+};
+
+export const useAddTaskGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, phaseId, data }: { projectId: string; phaseId: string; data: CreateTaskGroupRequest }) =>
+      projectService.addTaskGroup(projectId, phaseId, data),
+    onSuccess: (_, variables) => {
+      invalidateProjectContext(queryClient, variables.projectId);
+    },
+  });
+};
+
+export const useUpdateTaskGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, groupId, data }: { projectId: string; groupId: string; data: UpdateTaskGroupRequest }) =>
+      projectService.updateTaskGroup(projectId, groupId, data),
+    onSuccess: (_, variables) => {
+      invalidateProjectContext(queryClient, variables.projectId);
+    },
+  });
+};
+
+export const useDeleteTaskGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, groupId }: { projectId: string; groupId: string }) =>
+      projectService.deleteTaskGroup(projectId, groupId),
+    onSuccess: (_, variables) => {
+      invalidateProjectContext(queryClient, variables.projectId);
+    },
+  });
+};
+
+export const useReorderTaskGroups = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, data }: { projectId: string; data: ReorderTaskGroupsRequest }) =>
+      projectService.reorderTaskGroups(projectId, data),
+    onSuccess: (_, variables) => {
+      invalidateProjectContext(queryClient, variables.projectId);
     },
   });
 };

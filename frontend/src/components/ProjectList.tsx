@@ -1,6 +1,6 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import React, { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Diamond, Edit, GripVertical, Plus, Search, Trash2, X } from 'lucide-react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, useDroppable } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useSearchParams } from 'react-router-dom';
@@ -36,17 +36,22 @@ import {
   useSubmitApproval,
   useApproveProject,
   useRejectProject,
+  useAddTaskGroup,
+  useUpdateTaskGroup,
+  useDeleteTaskGroup,
 } from '../hooks/useProjectPhases';
 import type {
   CreateProjectCostRequest,
   CreateProjectPhaseRequest,
   CreateProjectRequest,
   CreateProjectTaskRequest,
+  CreateTaskGroupRequest,
   Project,
   ProjectApproval,
   ProjectCost,
   ProjectPhase,
   ProjectTask,
+  ProjectTaskGroup,
   ProjectTaskPriority,
 } from '../services/projectService';
 
@@ -91,6 +96,7 @@ const emptyTask = (projectPhaseId?: string | null, order = 0): CreateProjectTask
   moTa: '',
   nguoiPhuTrach: '',
   projectPhaseId,
+  projectTaskGroupId: null,
   tienDo: 0,
   ngayBatDau: '',
   ngayKetThuc: '',
@@ -142,6 +148,9 @@ const ProjectList = () => {
   const createTask = useCreateProjectTask();
   const updateTask = useUpdateProjectTask();
   const deleteTask = useDeleteProjectTask();
+  const addTaskGroup = useAddTaskGroup();
+  const editTaskGroup = useUpdateTaskGroup();
+  const removeTaskGroup = useDeleteTaskGroup();
   const submitApproval = useSubmitApproval();
   const approveProject = useApproveProject();
   const rejectProject = useRejectProject();
@@ -160,6 +169,8 @@ const ProjectList = () => {
   const [taskForm, setTaskForm] = useState<CreateProjectTaskRequest>(emptyTask());
   const [phatSinhModal, setPhatSinhModal] = useState<{ projectPhaseId?: string | null } | null>(null);
   const [phatSinhForm, setPhatSinhForm] = useState({ tieuDe: '', nguoiPhuTrach: '', mucDoUuTien: '' as string, ghiChu: '' });
+  const [taskGroupModal, setTaskGroupModal] = useState<{ mode: 'create' | 'edit'; phaseId: string; group?: ProjectTaskGroup } | null>(null);
+  const [taskGroupForm, setTaskGroupForm] = useState<CreateTaskGroupRequest>({ tenMuc: '', moTa: '' });
   const [rejectModal, setRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [selectedAdminId, setSelectedAdminId] = useState('');
@@ -392,6 +403,45 @@ const ProjectList = () => {
     }
   };
 
+  const openTaskGroupModal = (mode: 'create' | 'edit', phaseId: string, group?: ProjectTaskGroup) => {
+    setError('');
+    setTaskGroupModal({ mode, phaseId, group });
+    setTaskGroupForm(group ? { tenMuc: group.tenMuc, moTa: group.moTa ?? '' } : { tenMuc: '', moTa: '' });
+  };
+
+  const saveTaskGroup = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedProject || !taskGroupModal) return;
+    try {
+      if (taskGroupModal.group) {
+        await editTaskGroup.mutateAsync({ projectId: selectedProject.id, groupId: taskGroupModal.group.id, data: taskGroupForm });
+      } else {
+        await addTaskGroup.mutateAsync({ projectId: selectedProject.id, phaseId: taskGroupModal.phaseId, data: taskGroupForm });
+      }
+      setTaskGroupModal(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không lưu được mục công việc');
+    }
+  };
+
+  const deleteGroup = async (groupId: string) => {
+    if (!selectedProject || !confirm('Xóa mục công việc? Công việc trong mục sẽ chuyển về chưa phân mục.')) return;
+    try {
+      await removeTaskGroup.mutateAsync({ projectId: selectedProject.id, groupId });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không xóa được mục công việc');
+    }
+  };
+
+  const moveTaskToGroup = async (taskId: string, newGroupId: string | null) => {
+    if (!selectedProject) return;
+    try {
+      await updateTask.mutateAsync({ projectId: selectedProject.id, taskId, data: { projectTaskGroupId: newGroupId } });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không chuyển được công việc');
+    }
+  };
+
   const openTaskModal = (mode: TaskMode, projectPhaseId?: string | null, task?: ProjectTask) => {
     setError('');
     setTaskModal({ mode, task, projectPhaseId, fromTab: detailTab });
@@ -400,6 +450,7 @@ const ProjectList = () => {
       moTa: task.moTa ?? '',
       nguoiPhuTrach: task.nguoiPhuTrach ?? '',
       projectPhaseId: task.projectPhaseId ?? projectPhaseId ?? null,
+      projectTaskGroupId: task.projectTaskGroupId ?? null,
       tienDo: task.tienDo ?? 0,
       ngayBatDau: dateInput(task.ngayBatDau),
       ngayKetThuc: dateInput(task.ngayKetThuc),
@@ -687,7 +738,7 @@ const ProjectList = () => {
                           {canWrite(selectedProject) && <button title="Thêm phát sinh" onClick={() => { setError(''); setPhatSinhForm({ tieuDe: '', nguoiPhuTrach: '', mucDoUuTien: '', ghiChu: '' }); setPhatSinhModal({ projectPhaseId: phase.id }); }} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-blue-600"><Plus className="h-4 w-4" /></button>}
                         </div>
                       </div>
-                      {!collapsedPhases.has(phase.id) && <TaskTable tasks={filterTasks(phase.tasks ?? [])} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', phase.id, task)} onDelete={removeTask} viewMode="actual" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} phaseId={phase.id} onStatusChange={quickStatusChange} />}
+                      {!collapsedPhases.has(phase.id) && <GroupedTasksRenderer phase={{ ...phase, tasks: filterTasks(phase.tasks ?? []), taskGroups: phase.taskGroups }} canWrite={canWrite(selectedProject)} viewMode="actual" projectId={selectedProject.id} onEditTask={(task) => openTaskModal('edit', phase.id, task)} onDeleteTask={removeTask} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} onEditGroup={(group) => openTaskGroupModal('edit', phase.id, group)} onDeleteGroup={deleteGroup} onAddTaskToGroup={(groupId) => { openTaskModal('create', phase.id); setTaskForm((f) => ({ ...f, projectTaskGroupId: groupId })); }} onStatusChange={quickStatusChange} onTaskMoveToGroup={moveTaskToGroup} />}
                     </div>
                   ))}</div>
 
@@ -715,8 +766,8 @@ const ProjectList = () => {
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handlePhaseDragEnd}>
                     <SortableContext items={phases.map((p) => p.id)} strategy={verticalListSortingStrategy}>
                       {phases.map((phase, phaseIndex) => (
-                      <SortablePhaseItem key={phase.id} phase={phase} phaseIndex={phaseIndex} phasesLength={phases.length} canWrite={!isPlanLocked && canWrite(selectedProject)} onMovePhase={movePhase} onEditPhase={openPhaseModal} onAddTask={openTaskModal} onRemovePhase={removePhase}>
-                        <TaskTable tasks={phase.tasks ?? []} canWrite={!isPlanLocked && canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', phase.id, task)} onDelete={removeTask} viewMode="plan" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} />
+                      <SortablePhaseItem key={phase.id} phase={phase} phaseIndex={phaseIndex} phasesLength={phases.length} canWrite={!isPlanLocked && canWrite(selectedProject)} onMovePhase={movePhase} onEditPhase={openPhaseModal} onAddTask={openTaskModal} onAddTaskGroup={(phaseId) => openTaskGroupModal('create', phaseId)} onRemovePhase={removePhase}>
+                        <GroupedTasksRenderer phase={phase} canWrite={!isPlanLocked && canWrite(selectedProject)} viewMode="plan" projectId={selectedProject.id} onEditTask={(task) => openTaskModal('edit', phase.id, task)} onDeleteTask={removeTask} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} onEditGroup={(group) => openTaskGroupModal('edit', phase.id, group)} onDeleteGroup={deleteGroup} onAddTaskToGroup={(groupId) => { openTaskModal('create', phase.id); setTaskForm((f) => ({ ...f, projectTaskGroupId: groupId })); }} onTaskMoveToGroup={moveTaskToGroup} />
                       </SortablePhaseItem>
                       ))}
                     </SortableContext>
@@ -821,7 +872,10 @@ const ProjectList = () => {
             <label className="block space-y-1"><span className="font-medium text-gray-700">Tiêu đề</span><input required value={taskForm.tieuDe} onChange={(event) => setTaskForm((form) => ({ ...form, tieuDe: event.target.value }))} disabled={!!isActualEditPlanTask} className={`w-full rounded-md border border-gray-300 px-3 py-2 ${isActualEditPlanTask ? 'bg-gray-100 text-gray-500' : ''}`} /></label>
             {!isActualEditPlanTask && (
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1"><span className="font-medium text-gray-700">Giai đoạn</span><select value={taskForm.projectPhaseId ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, projectPhaseId: event.target.value || null }))} className="w-full rounded-md border border-gray-300 px-3 py-2"><option value="">Chưa phân giai đoạn</option>{phases.map((phase) => <option key={phase.id} value={phase.id}>{phase.tenGiaiDoan}</option>)}</select></label>
+              <label className="space-y-1"><span className="font-medium text-gray-700">Giai đoạn</span><select value={taskForm.projectPhaseId ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, projectPhaseId: event.target.value || null, projectTaskGroupId: null }))} className="w-full rounded-md border border-gray-300 px-3 py-2"><option value="">Chưa phân giai đoạn</option>{phases.map((phase) => <option key={phase.id} value={phase.id}>{phase.tenGiaiDoan}</option>)}</select></label>
+              {(() => { const selectedPhaseGroups = phases.find(p => p.id === taskForm.projectPhaseId)?.taskGroups ?? []; return selectedPhaseGroups.length > 0 ? (
+                <label className="space-y-1"><span className="font-medium text-gray-700">Mục công việc</span><select value={taskForm.projectTaskGroupId ?? ''} onChange={(event) => setTaskForm((form) => ({ ...form, projectTaskGroupId: event.target.value || null }))} className="w-full rounded-md border border-gray-300 px-3 py-2"><option value="">Chưa phân mục</option>{selectedPhaseGroups.sort((a, b) => a.thuTu - b.thuTu).map((g) => <option key={g.id} value={g.id}>{g.tenMuc}</option>)}</select></label>
+              ) : null; })()}
               <div className="space-y-1"><span className="font-medium text-gray-700">Người phụ trách</span><EmployeePicker value={taskForm.nguoiPhuTrach ?? ''} onChange={(name) => setTaskForm((form) => ({ ...form, nguoiPhuTrach: name }))} multiple /></div>
               <div className="flex items-center gap-2 pt-6">
                 <input type="checkbox" id="laMilestone" checked={taskForm.laMilestone ?? false} onChange={(event) => setTaskForm((form) => ({ ...form, laMilestone: event.target.checked }))} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
@@ -871,6 +925,18 @@ const ProjectList = () => {
           </div>
         </Modal>
       )}
+
+      <Modal isOpen={!!taskGroupModal} onClose={() => setTaskGroupModal(null)} showBackdrop>
+        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <ModalHeader title={taskGroupModal?.group ? 'Sửa mục công việc' : 'Thêm mục công việc'} onClose={() => setTaskGroupModal(null)} />
+          <form onSubmit={saveTaskGroup} className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
+            {error && <ErrorBox message={error} />}
+            <label className="block space-y-1"><span className="font-medium text-gray-700">Tên mục</span><input required value={taskGroupForm.tenMuc} onChange={(e) => setTaskGroupForm((f) => ({ ...f, tenMuc: e.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" placeholder="VD: Phần cứng, Phần mềm, Nhân sự..." /></label>
+            <label className="block space-y-1"><span className="font-medium text-gray-700">Mô tả (tùy chọn)</span><textarea rows={2} value={taskGroupForm.moTa ?? ''} onChange={(e) => setTaskGroupForm((f) => ({ ...f, moTa: e.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
+            <FormActions onCancel={() => setTaskGroupModal(null)} submitLabel="Lưu" />
+          </form>
+        </div>
+      </Modal>
     </div>
   );
 };
@@ -1137,11 +1203,12 @@ const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId
   );
 };
 
-const SortablePhaseItem = ({ phase, phaseIndex, phasesLength, canWrite, onMovePhase, onEditPhase, onAddTask, onRemovePhase, children }: {
+const SortablePhaseItem = ({ phase, phaseIndex, phasesLength, canWrite, onMovePhase, onEditPhase, onAddTask, onAddTaskGroup, onRemovePhase, children }: {
   phase: ProjectPhase; phaseIndex: number; phasesLength: number; canWrite: boolean;
   onMovePhase: (phaseId: string, direction: -1 | 1) => void;
   onEditPhase: (mode: 'edit', phase: ProjectPhase) => void;
   onAddTask: (mode: 'create', phaseId: string) => void;
+  onAddTaskGroup: (phaseId: string) => void;
   onRemovePhase: (phase: ProjectPhase) => void;
   children: ReactNode;
 }) => {
@@ -1165,12 +1232,155 @@ const SortablePhaseItem = ({ phase, phaseIndex, phasesLength, canWrite, onMovePh
             <button title="Xuống" disabled={phaseIndex === phasesLength - 1} onClick={() => onMovePhase(phase.id, 1)} className="rounded p-1.5 text-gray-500 hover:bg-white disabled:opacity-40"><ArrowDown className="h-4 w-4" /></button>
             <button title="Sửa" onClick={() => onEditPhase('edit', phase)} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-green-600"><Edit className="h-4 w-4" /></button>
             <button title="Thêm công việc" onClick={() => onAddTask('create', phase.id)} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-blue-600"><Plus className="h-4 w-4" /></button>
+            <button title="Thêm mục" onClick={() => onAddTaskGroup(phase.id)} className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-white hover:text-blue-600">+ Mục</button>
             <button title="Xóa" onClick={() => onRemovePhase(phase)} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
           </div>
         )}
       </div>
       {children}
     </div>
+  );
+};
+
+const DroppableGroupSection = ({ groupId, children }: { groupId: string; children: React.ReactNode }) => {
+  const { setNodeRef, isOver } = useDroppable({ id: `group-drop-${groupId}` });
+  return <div ref={setNodeRef} className={isOver ? 'ring-2 ring-blue-300 ring-inset rounded' : ''}>{children}</div>;
+};
+
+const GroupedTasksRenderer = ({
+  phase,
+  canWrite,
+  viewMode = 'actual',
+  projectId,
+  onEditTask,
+  onDeleteTask,
+  onMoveTask,
+  onDragEnd,
+  onEditGroup,
+  onDeleteGroup,
+  onAddTaskToGroup,
+  onStatusChange,
+  onTaskMoveToGroup,
+}: {
+  phase: ProjectPhase;
+  canWrite: boolean;
+  viewMode?: 'plan' | 'actual';
+  projectId?: string;
+  onEditTask: (task: ProjectTask) => void;
+  onDeleteTask: (task: ProjectTask) => void;
+  onMoveTask?: (taskId: string, direction: -1 | 1) => void;
+  onDragEnd?: (event: DragEndEvent) => void;
+  onEditGroup: (group: ProjectTaskGroup) => void;
+  onDeleteGroup: (groupId: string) => void;
+  onAddTaskToGroup: (groupId: string) => void;
+  onStatusChange?: (taskId: string, newStatus: string) => void;
+  onTaskMoveToGroup?: (taskId: string, newGroupId: string | null) => void;
+}) => {
+  const groups = [...(phase.taskGroups ?? [])].sort((a, b) => a.thuTu - b.thuTu);
+  const allTasks = phase.tasks ?? [];
+  const hasGroups = groups.length > 0;
+
+  if (!hasGroups) {
+    return <TaskTable tasks={allTasks} canWrite={canWrite} onEdit={onEditTask} onDelete={onDeleteTask} viewMode={viewMode} projectId={projectId} onMoveTask={onMoveTask} onDragEnd={onDragEnd} onStatusChange={onStatusChange} />;
+  }
+
+  const ungroupedTasks = allTasks.filter(t => !t.projectTaskGroupId);
+
+  const groupedSections: { groupId: string | null; tasks: ProjectTask[] }[] = groups.map((g) => ({
+    groupId: g.id,
+    tasks: (g.tasks ?? allTasks.filter(t => t.projectTaskGroupId === g.id)).sort((a, b) => a.thuTu - b.thuTu),
+  }));
+  groupedSections.push({ groupId: null, tasks: ungroupedTasks.sort((a, b) => a.thuTu - b.thuTu) });
+
+  const findGroupForTask = (taskId: string | number): string | null => {
+    const tid = String(taskId);
+    for (const section of groupedSections) {
+      if (section.tasks.some(t => t.id === tid)) return section.groupId;
+    }
+    return null;
+  };
+
+  const handleGroupedDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const overId = String(over.id);
+    const sourceGroup = findGroupForTask(active.id);
+    let targetGroup: string | null;
+
+    if (overId.startsWith('group-drop-')) {
+      targetGroup = overId.replace('group-drop-', '');
+      if (targetGroup === '__ungrouped') targetGroup = null;
+    } else {
+      targetGroup = findGroupForTask(over.id);
+    }
+
+    if (sourceGroup !== targetGroup && onTaskMoveToGroup) {
+      onTaskMoveToGroup(String(active.id), targetGroup);
+    } else if (sourceGroup === targetGroup && onDragEnd) {
+      onDragEnd(event);
+    }
+  };
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const isPlan = viewMode === 'plan';
+  const colCount = isPlan ? (canWrite ? 6 : 5) : (canWrite ? 9 : 8);
+
+  const allTaskIds = groupedSections.flatMap(s => s.tasks.map(t => t.id));
+
+  return (
+    <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleGroupedDragEnd}>
+      <SortableContext items={allTaskIds} strategy={verticalListSortingStrategy}>
+        {groupedSections.map((section) => {
+          const group = section.groupId ? groups.find(g => g.id === section.groupId) : null;
+          const dropId = section.groupId ?? '__ungrouped';
+          return (
+            <DroppableGroupSection key={dropId} groupId={dropId}>
+              <div className={`${section.groupId ? 'bg-gray-100' : 'bg-gray-50 border-t border-gray-200'}`}>
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-200">
+                  {group ? (
+                    <>
+                      <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{group.tenMuc}</span>
+                      {group.moTa && <span className="text-xs text-gray-500">— {group.moTa}</span>}
+                      <span className="text-xs text-gray-400">({section.tasks.length})</span>
+                      {canWrite && (
+                        <span className="ml-auto flex gap-1">
+                          <button title="Thêm CV vào mục" onClick={() => onAddTaskToGroup(group.id)} className="rounded p-1 text-gray-400 hover:text-blue-600"><Plus className="h-3.5 w-3.5" /></button>
+                          <button title="Sửa mục" onClick={() => onEditGroup(group)} className="rounded p-1 text-gray-400 hover:text-green-600"><Edit className="h-3.5 w-3.5" /></button>
+                          <button title="Xóa mục" onClick={() => onDeleteGroup(group.id)} className="rounded p-1 text-gray-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs font-medium text-gray-500 italic">Chưa phân mục</span>
+                      <span className="text-xs text-gray-400">({section.tasks.length})</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm">
+                  {section.tasks.length === 0 ? (
+                    <tbody><tr><td colSpan={colCount} className="px-3 py-3 text-center text-gray-400 text-xs">Kéo công việc vào đây</td></tr></tbody>
+                  ) : (
+                    <tbody className="divide-y divide-gray-100">
+                      {section.tasks.map((task, idx) => (
+                        <TaskRow key={task.id} task={task} isPlan={isPlan} colCount={colCount} canWrite={canWrite} onEdit={onEditTask} onDelete={onDeleteTask} projectId={projectId} onMoveTask={onMoveTask} taskIndex={idx} tasksLength={section.tasks.length} onStatusChange={onStatusChange} />
+                      ))}
+                    </tbody>
+                  )}
+                </table>
+              </div>
+            </DroppableGroupSection>
+          );
+        })}
+      </SortableContext>
+    </DndContext>
   );
 };
 
