@@ -121,7 +121,8 @@ async function getLateMinutes(checkInTime: Date): Promise<{ lateMinutes: number;
     }
 
     if (inShift) {
-      const diff = (checkInMinutes - startMin + 1440) % 1440;
+      const raw = (checkInMinutes - startMin + 1440) % 1440;
+      const diff = raw <= 720 ? raw : 1440 - raw;
       if (diff < bestDiff) { bestDiff = diff; bestShift = { name: shift.name, startMinutes: startMin }; }
     }
   }
