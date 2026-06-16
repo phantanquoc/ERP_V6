@@ -1354,10 +1354,26 @@ const GroupedTasksRenderer = ({
 
   const allTaskIds = groupedSections.flatMap(s => s.tasks.map(t => t.id));
 
+  const theadRow = (
+    <thead className="bg-white text-xs uppercase text-gray-600">
+      <tr>
+        <th className="w-10 border-b px-3 py-2 text-left">TT</th>
+        <th className="border-b px-3 py-2 text-left">Công việc</th>
+        <th className="w-[120px] border-b px-3 py-2 text-left">Phụ trách</th>
+        {!isPlan && <th className="w-[80px] border-b px-3 py-2 text-left">Ưu tiên</th>}
+        {!isPlan && <th className="w-[70px] border-b px-3 py-2 text-left">Tiến độ</th>}
+        {!isPlan && <th className="w-[90px] border-b px-3 py-2 text-left">Trạng thái</th>}
+        <th className="w-[150px] border-b px-3 py-2 text-left">{isPlan ? 'Ngày KH' : 'Ngày TT'}</th>
+        <th className="w-[100px] border-b px-3 py-2 text-left">Chi phí</th>
+        {canWrite && <th className="w-[100px] border-b px-3 py-2 text-right">Thao tác</th>}
+      </tr>
+    </thead>
+  );
+
   return (
     <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleGroupedDragEnd}>
       <SortableContext items={allTaskIds} strategy={verticalListSortingStrategy}>
-        {groupedSections.map((section) => {
+        {groupedSections.map((section, sectionIdx) => {
           const group = section.groupId ? groups.find(g => g.id === section.groupId) : null;
           const dropId = section.groupId ?? '__ungrouped';
           return (
@@ -1389,6 +1405,7 @@ const GroupedTasksRenderer = ({
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[700px] text-sm">
+                  {sectionIdx === 0 && theadRow}
                   {section.tasks.length === 0 ? (
                     <tbody><tr><td colSpan={colCount} className="px-3 py-3 text-center text-gray-400 text-xs">Kéo công việc vào đây</td></tr></tbody>
                   ) : (
