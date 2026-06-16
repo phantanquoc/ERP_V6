@@ -120,6 +120,7 @@ class ProjectController {
         moTa: req.body.moTa,
         nguoiPhuTrach: req.body.nguoiPhuTrach,
         projectPhaseId: req.body.projectPhaseId === '' ? null : req.body.projectPhaseId,
+        projectTaskGroupId: req.body.projectTaskGroupId === '' ? null : (req.body.projectTaskGroupId ?? null),
         tienDo: req.body.tienDo !== undefined ? parseInt(req.body.tienDo, 10) : undefined,
         ngayBatDau: req.body.ngayBatDau ? new Date(req.body.ngayBatDau) : undefined,
         ngayKetThuc: req.body.ngayKetThuc ? new Date(req.body.ngayKetThuc) : undefined,
@@ -147,6 +148,7 @@ class ProjectController {
         moTa: req.body.moTa,
         nguoiPhuTrach: req.body.nguoiPhuTrach,
         projectPhaseId: req.body.projectPhaseId === '' ? null : req.body.projectPhaseId,
+        projectTaskGroupId: req.body.projectTaskGroupId !== undefined ? (req.body.projectTaskGroupId === '' ? null : req.body.projectTaskGroupId) : undefined,
         tienDo: req.body.tienDo !== undefined ? parseInt(req.body.tienDo, 10) : undefined,
         ngayBatDau: req.body.ngayBatDau ? new Date(req.body.ngayBatDau) : undefined,
         ngayKetThuc: req.body.ngayKetThuc ? new Date(req.body.ngayKetThuc) : undefined,
@@ -169,6 +171,54 @@ class ProjectController {
         req.user!.role,
       );
       res.json({ success: true, data: task, message: 'Cập nhật công việc thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Task Groups
+  async addTaskGroup(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const group = await projectService.addTaskGroup(req.params.id, req.params.phaseId, {
+        tenMuc: req.body.tenMuc,
+        moTa: req.body.moTa,
+        thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu, 10) : undefined,
+      });
+      res.status(201).json({ success: true, data: group, message: 'Thêm mục công việc thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateTaskGroup(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data: Record<string, unknown> = {
+        tenMuc: req.body.tenMuc,
+        moTa: req.body.moTa,
+        thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu, 10) : undefined,
+      };
+      Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+      const group = await projectService.updateTaskGroup(req.params.id, req.params.groupId, data);
+      res.json({ success: true, data: group, message: 'Cập nhật mục công việc thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteTaskGroup(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      await projectService.deleteTaskGroup(req.params.id, req.params.groupId);
+      res.json({ success: true, message: 'Xóa mục công việc thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async reorderTaskGroups(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const items = Array.isArray(req.body.items) ? req.body.items : [];
+      const result = await projectService.reorderTaskGroups(req.params.id, items);
+      res.json({ success: true, data: result, message: 'Sắp xếp mục công việc thành công' });
     } catch (error) {
       next(error);
     }

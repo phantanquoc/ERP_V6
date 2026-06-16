@@ -63,6 +63,7 @@ interface CreateTaskData {
   moTa?: string;
   nguoiPhuTrach?: string;
   projectPhaseId?: string | null;
+  projectTaskGroupId?: string | null;
   tienDo?: number;
   ngayBatDau?: Date;
   ngayKetThuc?: Date;
@@ -101,7 +102,13 @@ const projectInclude = {
   members: true,
   phases: {
     orderBy: { thuTu: 'asc' as const },
-    include: { tasks: { orderBy: { thuTu: 'asc' as const }, include: { costs: { orderBy: { createdAt: 'asc' as const } } } } },
+    include: {
+      taskGroups: {
+        orderBy: { thuTu: 'asc' as const },
+        include: { tasks: { orderBy: { thuTu: 'asc' as const }, include: { costs: { orderBy: { createdAt: 'asc' as const } } } } },
+      },
+      tasks: { orderBy: { thuTu: 'asc' as const }, include: { costs: { orderBy: { createdAt: 'asc' as const } } } },
+    },
   },
   tasks: { orderBy: { thuTu: 'asc' as const }, include: { costs: { orderBy: { createdAt: 'asc' as const } } } },
   updates: { orderBy: { ngay: 'desc' as const } },
@@ -316,11 +323,116 @@ class ProjectService {
     }
   }
 
+  private async validateGroupBelongsToPhase(groupId: string, phaseId: string) {
+    const group = await prisma.projectTaskGroup.findUnique({ where: { id: groupId } });
+    if (!group) {
+      throw new NotFoundError('Không tìm thấy mục công việc');
+    }
+    if (group.projectPhaseId !== phaseId) {
+      throw new ValidationError('Mục công việc không thuộc giai đoạn đã chọn');
+    }
+    return group;
+  }
+
+  // ── Task Groups ──────────────────────────────────────────────────────────
+  async addTaskGroup(projectId: string, phaseId: string, data: { tenMuc: string; moTa?: string; thuTu?: number }) {
+    const phase = await prisma.projectPhase.findUnique({ where: { id: phaseId } });
+    if (!phase || phase.projectId !== projectId) {
+      throw new NotFoundError('Không tìm thấy giai đoạn');
+    }
+
+    const nextOrder = data.thuTu ?? (await prisma.projectTaskGroup.count({ where: { projectPhaseId: phaseId } }));
+
+    return prisma.projectTaskGroup.create({
+      data: {
+        projectPhaseId: phaseId,
+        tenMuc: data.tenMuc,
+        moTa: data.moTa,
+        thuTu: nextOrder,
+      },
+      include: { tasks: { orderBy: { thuTu: 'asc' } } },
+    });
+  }
+
+  async updateTaskGroup(projectId: string, groupId: string, data: { tenMuc?: string; moTa?: string; thuTu?: number }) {
+    const group = await prisma.projectTaskGroup.findUnique({
+      where: { id: groupId },
+      include: { projectPhase: { select: { projectId: true } } },
+    });
+    if (!group || group.projectPhase.projectId !== projectId) {
+      throw new NotFoundError('Không tìm thấy mục công việc');
+    }
+
+    return prisma.projectTaskGroup.update({
+      where: { id: groupId },
+      data: {
+        tenMuc: data.tenMuc,
+        moTa: data.moTa,
+        thuTu: data.thuTu,
+      },
+      include: { tasks: { orderBy: { thuTu: 'asc' } } },
+    });
+  }
+
+  async deleteTaskGroup(projectId: string, groupId: string) {
+    const group = await prisma.projectTaskGroup.findUnique({
+      where: { id: groupId },
+      include: { projectPhase: { select: { projectId: true } } },
+    });
+    if (!group || group.projectPhase.projectId !== projectId) {
+      throw new NotFoundError('Không tìm thấy mục công việc');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // Nullify tasks' FK before delete (tasks become ungrouped)
+      await tx.projectTask.updateMany({
+        where: { projectTaskGroupId: groupId },
+        data: { projectTaskGroupId: null },
+      });
+      return tx.projectTaskGroup.delete({ where: { id: groupId } });
+    });
+  }
+
+  async reorderTaskGroups(projectId: string, items: { id: string; thuTu: number }[]) {
+    if (items.length === 0) return [];
+
+    // Validate all groups belong to same project
+    const groups = await prisma.projectTaskGroup.findMany({
+      where: { id: { in: items.map((i) => i.id) } },
+      include: { projectPhase: { select: { projectId: true } } },
+    });
+    for (const group of groups) {
+      if (group.projectPhase.projectId !== projectId) {
+        throw new ValidationError('Mục công việc không thuộc dự án');
+      }
+    }
+
+    await prisma.$transaction(
+      items.map((item) => prisma.projectTaskGroup.update({
+        where: { id: item.id },
+        data: { thuTu: item.thuTu },
+      })),
+    );
+
+    return prisma.projectTaskGroup.findMany({
+      where: { id: { in: items.map((i) => i.id) } },
+      orderBy: { thuTu: 'asc' },
+      include: { tasks: { orderBy: { thuTu: 'asc' } } },
+    });
+  }
+
   async addTask(projectId: string, data: CreateTaskData) {
     await this.getById(projectId);
     this.validateProgress(data.tienDo);
     this.validateTaskStatus(data.trangThai);
     await this.validatePhaseBelongsToProject(projectId, data.projectPhaseId);
+
+    // Validate group belongs to phase if both are specified
+    if (data.projectTaskGroupId && data.projectPhaseId) {
+      await this.validateGroupBelongsToPhase(data.projectTaskGroupId, data.projectPhaseId);
+    } else if (data.projectTaskGroupId && !data.projectPhaseId) {
+      throw new ValidationError('Mục công việc không thuộc giai đoạn đã chọn');
+    }
 
     if (data.ngayBatDau && data.ngayKetThuc) {
       if (new Date(data.ngayKetThuc) < new Date(data.ngayBatDau)) {
@@ -337,6 +449,7 @@ class ProjectService {
       data: {
         projectId,
         projectPhaseId: data.projectPhaseId ?? null,
+        projectTaskGroupId: data.projectTaskGroupId ?? null,
         tieuDe: data.tieuDe,
         moTa: data.moTa,
         nguoiPhuTrach: data.nguoiPhuTrach,
@@ -369,6 +482,20 @@ class ProjectService {
     this.validateTaskStatus(data.trangThai);
     if (data.projectPhaseId !== undefined) {
       await this.validatePhaseBelongsToProject(projectId, data.projectPhaseId);
+    }
+
+    // Validate group belongs to the effective phase
+    if (data.projectTaskGroupId !== undefined && data.projectTaskGroupId !== null) {
+      const effectivePhaseId = data.projectPhaseId !== undefined ? data.projectPhaseId : oldTask.projectPhaseId;
+      if (!effectivePhaseId) {
+        throw new ValidationError('Mục công việc không thuộc giai đoạn đã chọn');
+      }
+      await this.validateGroupBelongsToPhase(data.projectTaskGroupId, effectivePhaseId);
+    }
+
+    // If phase changes and group wasn't explicitly updated, clear group
+    if (data.projectPhaseId !== undefined && data.projectPhaseId !== oldTask.projectPhaseId && data.projectTaskGroupId === undefined) {
+      data.projectTaskGroupId = null;
     }
 
     const effectiveStart = data.ngayBatDau ?? oldTask.ngayBatDau;

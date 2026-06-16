@@ -417,15 +417,34 @@ model ProjectPhase {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tasks   ProjectTask[]
-  updates ProjectUpdate[]
-  costs   ProjectCost[]
+  project    Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks      ProjectTask[]
+  taskGroups ProjectTaskGroup[]
+  updates    ProjectUpdate[]
+  costs      ProjectCost[]
 
   @@index([projectId])
   @@index([trangThai])
   @@index([projectId, thuTu])
   @@map("project_phases")
+  @@schema("business")
+}
+
+model ProjectTaskGroup {
+  id             String   @id @default(cuid())
+  projectPhaseId String
+  tenMuc         String
+  moTa           String?  @db.Text
+  thuTu          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  projectPhase ProjectPhase  @relation(fields: [projectPhaseId], references: [id], onDelete: Cascade)
+  tasks        ProjectTask[]
+
+  @@index([projectPhaseId])
+  @@index([projectPhaseId, thuTu])
+  @@map("project_task_groups")
   @@schema("business")
 }
 
@@ -447,6 +466,7 @@ model ProjectTask {
   id                  String        @id @default(cuid())
   projectId           String
   projectPhaseId      String?
+  projectTaskGroupId  String?
   tieuDe              String
   moTa                String?       @db.Text
   nguoiPhuTrach       String?
@@ -465,12 +485,14 @@ model ProjectTask {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectPhase ProjectPhase? @relation(fields: [projectPhaseId], references: [id], onDelete: Cascade)
-  costs        ProjectCost[]
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectPhase     ProjectPhase?     @relation(fields: [projectPhaseId], references: [id], onDelete: Cascade)
+  projectTaskGroup ProjectTaskGroup? @relation(fields: [projectTaskGroupId], references: [id], onDelete: SetNull)
+  costs            ProjectCost[]
 
   @@index([projectId])
   @@index([projectPhaseId])
+  @@index([projectTaskGroupId])
   @@index([projectId, projectPhaseId, thuTu])
   @@map("project_tasks")
   @@schema("business")
