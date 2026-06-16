@@ -62,7 +62,68 @@ export const useToggleMonth = () => {
   return useMutation({
     mutationFn: ({ planId, itemId, month, lanThu, ghiChu, nguoiThucHien }: { planId: string; itemId: string; month: number; lanThu?: number; ghiChu?: string; nguoiThucHien?: string }) =>
       maintenancePlanService.toggleMonth(planId, itemId, month, lanThu, ghiChu, nguoiThucHien),
-    onSuccess: () => {
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: maintenancePlanKeys.lists() });
+      const previousData = queryClient.getQueriesData({ queryKey: maintenancePlanKeys.lists() });
+
+      queryClient.setQueriesData(
+        { queryKey: maintenancePlanKeys.lists() },
+        (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((plan: any) => {
+              if (plan.id !== variables.planId) return plan;
+              return {
+                ...plan,
+                items: (plan.items ?? []).map((item: any) => {
+                  if (item.id !== variables.itemId) return item;
+                  const targetLanThu = variables.lanThu ?? 1;
+                  const existingLog = (item.logs ?? []).find(
+                    (l: any) => l.thang === variables.month && l.lanThu === targetLanThu,
+                  );
+                  let newLogs;
+                  if (existingLog) {
+                    newLogs = (item.logs ?? []).map((l: any) =>
+                      l.thang === variables.month && l.lanThu === targetLanThu
+                        ? { ...l, hoanThanh: !l.hoanThanh, ngayThucHien: !l.hoanThanh ? new Date().toISOString() : null }
+                        : l,
+                    );
+                  } else {
+                    newLogs = [
+                      ...(item.logs ?? []),
+                      {
+                        id: `optimistic-${Date.now()}`,
+                        maintenancePlanItemId: variables.itemId,
+                        thang: variables.month,
+                        lanThu: targetLanThu,
+                        hoanThanh: true,
+                        ghiChu: variables.ghiChu || null,
+                        nguoiThucHien: variables.nguoiThucHien || null,
+                        ngayThucHien: new Date().toISOString(),
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                      },
+                    ];
+                  }
+                  return { ...item, logs: newLogs };
+                }),
+              };
+            }),
+          };
+        },
+      );
+
+      return { previousData };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousData) {
+        for (const [queryKey, data] of context.previousData) {
+          queryClient.setQueryData(queryKey, data);
+        }
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: maintenancePlanKeys.lists() });
       queryClient.invalidateQueries({ queryKey: maintenancePlanKeys.details() });
     },
