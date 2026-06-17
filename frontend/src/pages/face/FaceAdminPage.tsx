@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { CheckCircle, XCircle, RefreshCw, ToggleLeft, ToggleRight, User, Loader2, ScanFace } from 'lucide-react';
+import { CheckCircle, XCircle, RefreshCw, ToggleLeft, ToggleRight, User, Loader2, ScanFace, Contact, Glasses, Camera, Play } from 'lucide-react';
 import faceAttendanceService, { EmployeeFaceProfile } from '../../services/faceAttendanceService';
 import { loadFaceMesh } from '../../utils/loadFaceMesh';
 import { useAuth } from '../../contexts/AuthContext';
@@ -556,28 +556,28 @@ const FaceAdminPage: React.FC = () => {
   const pose = POSES[Math.min(currentPose, POSES.length - 1)];
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <>
+      <div className="space-y-5">
         {/* Header */}
         <div className="mb-5">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <span className="text-2xl">🪪</span> Đăng ký khuôn mặt nhân viên
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+            <Contact className="w-7 h-7 text-blue-600" /> Đăng ký khuôn mặt nhân viên
           </h1>
-          <p className="text-gray-400 text-sm mt-0.5">Chọn nhân viên → hệ thống tự chụp {POSES.length} góc mặt</p>
+          <p className="text-gray-500 text-sm mt-0.5">Chọn nhân viên → hệ thống tự chụp {POSES.length} góc mặt</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
           {/* ── Employee list ────────────────────────────────────────────── */}
-          <div className="lg:col-span-2 bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
-            <div className="p-3 border-b border-gray-800 flex gap-2">
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-3 border-b border-gray-200 flex gap-2">
               <input
                 type="text"
                 placeholder="Tìm theo tên / mã NV..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-500"
+                className="flex-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400"
               />
-              <button onClick={loadEmployees} className="text-gray-500 hover:text-blue-400 transition-colors px-1">
+              <button onClick={loadEmployees} className="text-gray-500 hover:text-blue-600 transition-colors px-1">
                 <RefreshCw className="w-4 h-4" />
               </button>
             </div>
@@ -593,17 +593,17 @@ const FaceAdminPage: React.FC = () => {
                   <div
                     key={emp.employeeId}
                     onClick={() => selectEmployee(emp)}
-                    className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-gray-800 last:border-0 transition-all ${
+                    className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-gray-200 last:border-0 transition-all ${
                       selected?.employeeId === emp.employeeId
-                        ? 'bg-blue-900/40 border-l-2 border-l-blue-500'
-                        : 'hover:bg-gray-800/60'
+                        ? 'bg-blue-50 border-l-2 border-l-blue-600'
+                        : 'hover:bg-gray-50'
                     }`}
                   >
-                    <div className="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center shrink-0">
-                      <User className="w-5 h-5 text-gray-400" />
+                    <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
+                      <User className="w-5 h-5 text-gray-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-white truncate">{emp.fullName}</p>
+                      <p className="font-medium text-sm text-gray-900 truncate">{emp.fullName}</p>
                       <p className="text-xs text-gray-500">{emp.employeeCode}</p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -617,7 +617,7 @@ const FaceAdminPage: React.FC = () => {
                             : <><ToggleLeft  className="w-5 h-5 text-gray-500" /><span className="text-gray-500">Tắt</span></>}
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">Chưa đăng ký</span>
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">Chưa đăng ký</span>
                       )}
                     </div>
                   </div>
@@ -629,19 +629,19 @@ const FaceAdminPage: React.FC = () => {
           {/* ── Enroll panel ─────────────────────────────────────────────── */}
           <div className="lg:col-span-3 flex flex-col gap-4">
             {!selected ? (
-              <div className="bg-gray-900 rounded-2xl border border-gray-800 flex flex-col items-center justify-center h-96 text-gray-600">
-                <User className="w-20 h-20 mb-3 opacity-10" />
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center h-96 text-gray-500">
+                <User className="w-20 h-20 mb-3 text-gray-300" />
                 <p className="text-lg">Chọn nhân viên từ danh sách</p>
               </div>
             ) : (
               <>
                 {/* Employee info */}
-                <div className="bg-gray-900 rounded-2xl border border-gray-800 px-5 py-4 flex items-center justify-between">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4 flex items-center justify-between">
                   <div>
-                    <h2 className="text-lg font-bold">{selected.fullName}</h2>
-                    <p className="text-sm text-gray-400">{selected.employeeCode} · {selected.email}</p>
+                    <h2 className="text-lg font-bold text-gray-900">{selected.fullName}</h2>
+                    <p className="text-sm text-gray-500">{selected.employeeCode} · {selected.email}</p>
                     {selected.faceProfile && (
-                      <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                      <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" />
                         Đã đăng ký {selected.faceProfile.imageCount} ảnh —{' '}
                         {selected.faceProfile.isActive ? 'Đang hoạt động' : 'Đã vô hiệu'}
@@ -652,13 +652,13 @@ const FaceAdminPage: React.FC = () => {
                     {selected.faceProfile && enrollState === 'idle' && !cameraOn && (
                       <button
                         onClick={() => { setEnrollMode('variation'); startCamera(); }}
-                        className="text-xs px-3 py-1.5 bg-amber-600/20 text-amber-400 border border-amber-600/40 rounded-lg hover:bg-amber-600/30 transition"
+                        className="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition flex items-center gap-1"
                       >
-                        👓 Thêm biến thể
+                        <Glasses className="w-3 h-3" /> Thêm biến thể
                       </button>
                     )}
                     {(cameraOn || capturedImages.length > 0) && (
-                      <button onClick={resetEnroll} className="text-xs px-3 py-1.5 bg-red-600/20 text-red-400 border border-red-600/40 rounded-lg hover:bg-red-600/30 transition flex items-center gap-1">
+                      <button onClick={resetEnroll} className="text-xs px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition flex items-center gap-1">
                         <XCircle className="w-3 h-3" /> Làm lại
                       </button>
                     )}
@@ -667,22 +667,22 @@ const FaceAdminPage: React.FC = () => {
 
                 {/* ── Camera + auto-capture ─────────────────────────────────── */}
                 {enrollState === 'capturing' && (
-                  <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Pose instruction */}
                     <div className="px-5 pt-4 pb-3 flex items-center gap-3">
                       <span className="text-4xl">{pose.emoji}</span>
                       <div className="flex-1">
-                        <p className="font-semibold text-white">
-                          Góc {currentPose + 1}/{POSES.length}: <span className="text-blue-400">{pose.label}</span>
+                        <p className="font-semibold text-gray-900">
+                          Góc {currentPose + 1}/{POSES.length}: <span className="text-blue-600">{pose.label}</span>
                         </p>
-                        <p className="text-sm text-gray-400">{pose.hint}</p>
+                        <p className="text-sm text-gray-500">{pose.hint}</p>
                       </div>
                       <span className={`text-xs px-2 py-1 rounded-full border font-medium transition-all ${
-                        ovalState === 'flash'      ? 'bg-green-900/50 text-green-400 border-green-700' :
-                        ovalState === 'stable'     ? 'bg-yellow-900/50 text-yellow-400 border-yellow-700 animate-pulse' :
-                        ovalState === 'wrong-pose' ? 'bg-orange-900/50 text-orange-400 border-orange-700' :
-                        ovalState === 'detecting'  ? 'bg-blue-900/50 text-blue-400 border-blue-700' :
-                                                     'bg-gray-800 text-gray-400 border-gray-700'
+                        ovalState === 'flash'      ? 'bg-green-50 text-green-700 border-green-200' :
+                        ovalState === 'stable'     ? 'bg-yellow-50 text-yellow-700 border-yellow-200 animate-pulse' :
+                        ovalState === 'wrong-pose' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                        ovalState === 'detecting'  ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                     'bg-gray-100 text-gray-600 border-gray-200'
                       }`}>{ovalMsg}</span>
                     </div>
 
@@ -706,8 +706,8 @@ const FaceAdminPage: React.FC = () => {
                     {/* Progress dots */}
                     <div className="px-5 pb-4">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-gray-500">Tiến độ chụp</span>
-                        <span className="text-xs text-gray-400">{capturedImages.length}/{POSES.length}</span>
+                        <span className="text-xs text-gray-600">Tiến độ chụp</span>
+                        <span className="text-xs text-gray-500">{capturedImages.length}/{POSES.length}</span>
                       </div>
                       <div className="flex gap-1.5">
                         {POSES.map((p, i) => (
@@ -715,21 +715,21 @@ const FaceAdminPage: React.FC = () => {
                             <div className={`h-1.5 w-full rounded-full transition-all duration-300 ${
                               i < capturedImages.length ? 'bg-green-500' :
                               i === currentPose        ? 'bg-blue-500 animate-pulse' :
-                                                         'bg-gray-700'
+                                                         'bg-gray-200'
                             }`} />
-                            <span className="text-[10px] text-gray-600">{p.emoji}</span>
+                            <span className="text-[10px] text-gray-500">{p.emoji}</span>
                           </div>
                         ))}
                       </div>
 
                       {/* Start scanning button */}
                       {!scanStartedRef.current && (
-                        <div className="mt-4 pt-4 border-t border-gray-700">
+                        <div className="mt-4 pt-4 border-t border-gray-200">
                           <button
                             onClick={startScanning}
-                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                           >
-                            ▶ Bắt đầu quét
+                            <Play className="w-4 h-4" /> Bắt đầu quét
                           </button>
                           <p className="text-xs text-gray-500 text-center mt-2">
                             Canh mặt vào giữa khung hình, sau đó nhấn để tự động chụp
@@ -742,50 +742,50 @@ const FaceAdminPage: React.FC = () => {
 
                 {/* ── Idle: start button ─────────────────────────────────────── */}
                 {enrollState === 'idle' && capturedImages.length === 0 && (
-                  <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 text-center">
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center">
                     {enrollMode === 'variation' && (
-                      <div className="mb-4 p-3 bg-amber-900/30 border border-amber-700/40 rounded-xl text-sm text-amber-300 flex items-center gap-2">
-                        <span>👓</span> Chế độ <strong>thêm biến thể</strong> — ảnh cũ được giữ lại.
+                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-center gap-2">
+                        <Glasses className="w-4 h-4 shrink-0" /> Chế độ <strong>thêm biến thể</strong> — ảnh cũ được giữ lại.
                       </div>
                     )}
                     <div className="flex justify-center gap-4 mb-6 flex-wrap">
                       {POSES.map((p, i) => (
-                        <div key={i} className="flex flex-col items-center gap-1 text-gray-500">
+                        <div key={i} className="flex flex-col items-center gap-1 text-gray-600">
                           <span className="text-2xl">{p.emoji}</span>
                           <span className="text-[10px]">{p.label}</span>
                         </div>
                       ))}
                     </div>
-                    <p className="text-gray-400 text-sm mb-5">
-                      Hệ thống sẽ <strong className="text-white">tự động chụp</strong> khi nhận diện mặt đúng góc trong khung oval.
+                    <p className="text-gray-600 text-sm mb-5">
+                      Hệ thống sẽ <strong className="text-gray-900">tự động chụp</strong> khi nhận diện mặt đúng góc trong khung oval.
                     </p>
                     <button
                       onClick={startCamera}
-                      className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-500 flex items-center gap-2 mx-auto transition"
+                      className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 flex items-center gap-2 mx-auto transition"
                     >
-                      📷 Bắt đầu đăng ký
+                      <Camera className="w-4 h-4" /> Bắt đầu đăng ký
                     </button>
                   </div>
                 )}
 
                 {/* ── Submitting ────────────────────────────────────────────── */}
                 {enrollState === 'submitting' && (
-                  <div className="bg-gray-900 rounded-2xl border border-gray-800 p-10 text-center">
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-10 text-center">
                     <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-gray-300">Đang xử lý & lưu embedding khuôn mặt...</p>
+                    <p className="text-gray-700">Đang xử lý & lưu embedding khuôn mặt...</p>
                   </div>
                 )}
 
                 {/* ── Done / Error ───────────────────────────────────────────── */}
                 {(enrollState === 'done' || enrollState === 'error') && enrollMsg && (
-                  <div className={`rounded-2xl p-5 flex items-start gap-3 ${
+                  <div className={`rounded-xl p-5 flex items-start gap-3 ${
                     enrollState === 'done'
-                      ? 'bg-green-900/30 border border-green-700/50 text-green-300'
-                      : 'bg-red-900/30 border border-red-700/50 text-red-300'
+                      ? 'bg-green-50 border border-green-200 text-green-800'
+                      : 'bg-red-50 border border-red-200 text-red-800'
                   }`}>
                     {enrollState === 'done'
-                      ? <CheckCircle className="w-5 h-5 shrink-0 mt-0.5 text-green-400" />
-                      : <XCircle    className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />}
+                      ? <CheckCircle className="w-5 h-5 shrink-0 mt-0.5 text-green-600" />
+                      : <XCircle    className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />}
                     <div>
                       <p className="font-medium">{enrollMsg}</p>
                       <button onClick={resetEnroll} className="text-sm underline mt-2 opacity-70 hover:opacity-100">
@@ -856,7 +856,7 @@ const FaceAdminPage: React.FC = () => {
           </button>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
