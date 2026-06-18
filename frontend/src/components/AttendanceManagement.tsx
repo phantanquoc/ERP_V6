@@ -395,7 +395,7 @@ const AttendanceManagement: React.FC = () => {
     // Calendar employees are already filtered by department, so records just need date+employee match
     const recordMap = new Map<string, AttendanceRecord>();
     attendances.forEach(record => {
-      const dateKey = record.attendanceDate.split('T')[0];
+      const dateKey = toLocalDateKey(new Date(record.attendanceDate));
       recordMap.set(`${record.employeeCode}_${dateKey}`, record);
     });
 
