@@ -617,20 +617,46 @@ const FaceKioskPageV2: React.FC = () => {
       <canvas ref={captureRef} className="hidden" />
 
       {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-8 py-5"
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)' }}>
-        <div className="text-white drop-shadow">
-          <p className="text-2xl font-bold tracking-widest uppercase">Chấm Công Khuôn Mặt</p>
-          <p className="text-white/60 text-sm mt-0.5">Đưa khuôn mặt vào camera để điểm danh</p>
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between gap-3 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5"
+        style={{
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)',
+          paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+        }}>
+        <div className="flex items-center gap-3 sm:gap-4 text-white drop-shadow min-w-0">
+          <img
+            src="/abf-logo.png"
+            alt="ABF — Healthy life with natural food"
+            className="h-10 sm:h-12 md:h-14 w-auto object-contain shrink-0"
+            style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))' }}
+          />
+          <div className="border-l border-white/20 pl-3 sm:pl-4 min-w-0">
+            <p className="text-base sm:text-xl md:text-2xl font-bold tracking-wider md:tracking-widest uppercase truncate">Chấm Công Khuôn Mặt</p>
+            <p className="hidden sm:block text-white/60 text-xs md:text-sm mt-0.5 truncate">Đưa khuôn mặt vào camera để điểm danh</p>
+          </div>
         </div>
-        <div className="text-right text-white drop-shadow">
-          <p className="text-5xl font-mono font-bold tabular-nums leading-none">
+        <div className="text-right text-white drop-shadow shrink-0">
+          <p className="text-3xl sm:text-4xl md:text-5xl font-mono font-bold tabular-nums leading-none">
             {currentTime.toLocaleTimeString('vi-VN')}
           </p>
-          <p className="text-white/60 text-sm mt-1">
+          <p className="text-white/60 text-xs md:text-sm mt-1">
             {currentTime.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
           </p>
         </div>
+      </div>
+
+      {/* Powered by Koola — subtle signature */}
+      <div className="absolute z-20 flex items-center gap-1.5 text-white/45 pointer-events-none"
+        style={{
+          right: 'max(1.25rem, env(safe-area-inset-right))',
+          bottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+        }}>
+        <span className="text-[10px] sm:text-[11px] font-light tracking-[0.25em] uppercase">Powered by</span>
+        <img
+          src="/koola-logo.png"
+          alt="Koola"
+          className="h-3.5 sm:h-4 w-auto object-contain"
+          style={{ filter: 'brightness(0) invert(1) drop-shadow(0 1px 2px rgba(0,0,0,0.6))', opacity: 0.85 }}
+        />
       </div>
 
       {/* Face guide */}
@@ -692,8 +718,11 @@ const FaceKioskPageV2: React.FC = () => {
 
       {/* Status bar */}
       {!cameraError && kioskState === 'waiting' && (
-        <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col justify-center items-center pb-8 pt-16 gap-3"
-          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)' }}>
+        <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col justify-center items-center gap-3 pt-16"
+          style={{
+            background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)',
+            paddingBottom: 'max(2rem, calc(env(safe-area-inset-bottom) + 1.75rem))',
+          }}>
           {facePos === 'none' && (
             <div className="flex items-center gap-3 bg-black/50 backdrop-blur-sm px-5 py-2.5 rounded-full border border-white/10">
               <span className="w-2.5 h-2.5 rounded-full animate-pulse bg-yellow-400" />
@@ -729,14 +758,14 @@ const FaceKioskPageV2: React.FC = () => {
 
       {/* Result overlay */}
       {kioskState === 'result' && result && (
-        <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center ${overlayBg[result.type]} bg-opacity-90 backdrop-blur-sm`}>
+        <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center ${overlayBg[result.type]} bg-opacity-90 backdrop-blur-sm px-6`}>
           {overlayIcon[result.type]}
-          <h2 className="text-5xl font-bold text-white mt-6 text-center px-8 drop-shadow-lg">{result.title}</h2>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mt-6 text-center drop-shadow-lg">{result.title}</h2>
           {result.employee && (
-            <p className="text-3xl text-white/90 mt-4 font-semibold text-center drop-shadow">{result.employee}</p>
+            <p className="text-xl sm:text-2xl md:text-3xl text-white/90 mt-4 font-semibold text-center drop-shadow max-w-3xl">{result.employee}</p>
           )}
           {result.subtitle && (
-            <p className="text-2xl text-white/80 mt-2 font-medium text-center drop-shadow">{result.subtitle}</p>
+            <p className="text-lg sm:text-xl md:text-2xl text-white/80 mt-2 font-medium text-center drop-shadow">{result.subtitle}</p>
           )}
           {result.time && (
             <p className="text-white/60 mt-6 flex items-center gap-2 text-xl">
