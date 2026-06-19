@@ -504,13 +504,14 @@ model Attendance {
 }
 
 model WorkShift {
-  id        String   @id @default(cuid())
-  name      String // e.g. "Ca 1", "Ca 2", "Ca 3"
-  startTime String // format "HH:mm" e.g. "06:00"
-  endTime   String // format "HH:mm" e.g. "14:00"
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String            @id @default(cuid())
+  name          String // e.g. "Ca 1", "Ca 2", "Ca 3"
+  startTime     String // format "HH:mm" e.g. "06:00"
+  endTime       String // format "HH:mm" e.g. "14:00"
+  isActive      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  overtimeItems OvertimePlanItem[]
 
   @@map("work_shifts")
   @@schema("common")
@@ -965,24 +966,43 @@ model AcceptanceHandoverItem {
 }
 
 model OvertimePlan {
-  id                String             @id @default(cuid())
-  ngayTao           DateTime           @default(now())
-  nguoiTaoId        String // User ID người tạo
-  nguoiThamGiaIds   String[] // Array of employee IDs tham gia tăng ca
-  noiDung           String // Nội dung công việc tăng ca
-  ngayTangCa        DateTime // Ngày thực hiện tăng ca
-  gioBatDau         String // Giờ bắt đầu (format "HH:mm")
-  gioKetThuc        String // Giờ kết thúc (format "HH:mm")
-  ghiChu            String?
-  files             String[]           @default([])
-  mucDoUuTien       TaskPriority // Reuse TaskPriority enum
-  trangThai         OvertimePlanStatus @default(CHO_DUYET)
-  trangThaiTiepNhan Json               @default("{}") // Map of userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
-  gioThucTe         Json               @default("{}") // Map of userId -> { gioVao, gioRa }
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id          String             @id @default(cuid())
+  ngayTao     DateTime           @default(now())
+  nguoiTaoId  String // User ID người tạo
+  noiDung     String // Nội dung công việc tăng ca
+  ghiChu      String?
+  files       String[]           @default([])
+  mucDoUuTien TaskPriority // Reuse TaskPriority enum
+  trangThai   OvertimePlanStatus @default(CHO_DUYET)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  items       OvertimePlanItem[]
 
   @@map("overtime_plans")
+  @@schema("common")
+}
+
+model OvertimePlanItem {
+  id               String       @id @default(cuid())
+  overtimePlanId   String
+  ngayTangCa       DateTime // Ngày thực hiện tăng ca
+  gioBatDau        String // Giờ bắt đầu (format "HH:mm")
+  gioKetThuc       String // Giờ kết thúc (format "HH:mm")
+  workShiftId      String? // FK to WorkShift (nullable, SetNull on delete)
+  workShiftName    String? // Snapshot of shift name at creation/update time
+  nguoiThamGiaIds  String[] // Array of user IDs tham gia tăng ca
+  ghiChuItem       String?
+  trangThaiTiepNhan Json        @default("{}") @db.JsonB // Map userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
+  gioThucTe        Json        @default("{}") @db.JsonB // Map userId -> { gioVao, gioRa }
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  overtimePlan     OvertimePlan @relation(fields: [overtimePlanId], references: [id], onDelete: Cascade)
+  workShift        WorkShift?   @relation(fields: [workShiftId], references: [id], onDelete: SetNull)
+
+  @@index([overtimePlanId])
+  @@index([ngayTangCa])
+  @@index([workShiftId])
+  @@map("overtime_plan_items")
   @@schema("common")
 }
 

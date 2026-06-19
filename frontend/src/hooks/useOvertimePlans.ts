@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { overtimePlanService, OvertimePlanStatus } from '../services/overtimePlanService';
+import { overtimePlanService, OvertimePlanStatus, CreateOvertimePlanData } from '../services/overtimePlanService';
 
 export const overtimePlanKeys = {
   all: ['overtime-plans'] as const,
@@ -30,6 +30,33 @@ export function useMyOvertimePlans(params: OvertimePlanParams = {}, enabled = tr
     queryKey: overtimePlanKeys.myList(params),
     queryFn: () => overtimePlanService.getMyPlans(params),
     enabled,
+  });
+}
+
+// Hook to create an overtime plan
+export function useCreateOvertimePlan() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: CreateOvertimePlanData) => overtimePlanService.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: overtimePlanKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: overtimePlanKeys.myLists() });
+    },
+  });
+}
+
+// Hook to update an overtime plan
+export function useUpdateOvertimePlan() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CreateOvertimePlanData }) =>
+      overtimePlanService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: overtimePlanKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: overtimePlanKeys.myLists() });
+    },
   });
 }
 
