@@ -140,6 +140,26 @@ Spawn subagents để cô lập context, song song hóa công việc độc lậ
 
 Dùng `pdftotext`, không dùng `Read` tool. Chỉ dùng `Read` khi user yêu cầu phân tích images/charts bên trong document.
 
+### Codebase Exploration (BẮT BUỘC)
+
+Khi cần hiểu codebase, tìm code, hoặc trả lời câu hỏi về structure → **LUÔN gọi `mcp__codebase-retrieval__codebase-retrieval` ĐẦU TIÊN**, trước cả `Read`/`Grep`/`Glob` hay spawn Explore subagent.
+
+**Triggers bắt buộc dùng MCP trước:**
+- "tìm function/class/service/hook/component xyz"
+- "code nào xử lý X", "ở đâu trong codebase…", "logic của Y nằm đâu"
+- Bất kỳ task nào cần hiểu cross-file behavior hoặc high-level architecture
+- Trước khi implement feature mới (gather context về pattern hiện có)
+
+**Khi nào fallback sang tool khác:**
+- Đã biết exact file path → `Read` trực tiếp
+- Tìm exact string/symbol literal → `Grep`
+- Liệt kê file theo pattern → `Glob`
+- Cần xem một file cụ thể nhưng chưa biết line range → `mcp__codebase-retrieval__file-retrieval`
+
+**Workflow chuẩn:**
+1. `codebase-retrieval` với câu hỏi natural language → lấy snippet + file paths
+2. `Read` các file cụ thể với line range trả về để có context đầy đủ trước khi edit
+
 ---
 
 ## Dedicated Tools
