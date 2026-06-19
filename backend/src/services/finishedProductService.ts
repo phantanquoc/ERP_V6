@@ -3,11 +3,11 @@ import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 
 export class FinishedProductService {
-  async getAllFinishedProducts(page: number = 1, limit: number = 10, tenMay?: string) {
+  async getAllFinishedProducts(page: number = 1, limit: number = 10, machineSystemId?: string) {
     const skip = (page - 1) * limit;
 
-    // Filter by machine name directly
-    const whereClause = tenMay ? { tenMay } : {};
+    // Filter by machine system
+    const whereClause = machineSystemId ? { machineSystemId } : {};
 
     const [data, total] = await Promise.all([
       prisma.finishedProduct.findMany({
@@ -23,11 +23,11 @@ export class FinishedProductService {
               thoiGianChien: true,
             },
           },
-          machine: {
+          machineSystem: {
             select: {
               id: true,
-              tenMay: true,
-              maMay: true,
+              tenHeThong: true,
+              maHeThong: true,
               trangThai: true,
             },
           },
@@ -99,8 +99,7 @@ export class FinishedProductService {
         thoiGianChien: new Date(data.thoiGianChien),
         tenHangHoa: data.tenHangHoa,
         khoiLuong: data.khoiLuong,
-        machineId: data.machineId,
-        tenMay: data.tenMay,
+        machineSystemId: data.machineSystemId ?? null,
         materialEvaluationId: data.materialEvaluationId,
         aKhoiLuong: data.aKhoiLuong || 0,
         bKhoiLuong: data.bKhoiLuong || 0,
@@ -240,7 +239,7 @@ export class FinishedProductService {
         maChien: true,
         thoiGianChien: true,
         tenHangHoa: true,
-        tenMay: true,
+        machineSystemId: true,
         aKhoiLuong: true,
         bKhoiLuong: true,
         bDauKhoiLuong: true,
@@ -269,7 +268,7 @@ export class FinishedProductService {
       date,
       totalWeight,
       productCount: products.length,
-      machines: [...new Set(products.map(p => p.tenMay).filter(Boolean))],
+      machineSystems: [...new Set(products.map(p => p.machineSystemId).filter(Boolean))],
     };
   }
 
@@ -282,8 +281,8 @@ export class FinishedProductService {
         { nguoiThucHien: { contains: filters.search, mode: 'insensitive' } },
       ];
     }
-    if (filters?.tenMay) {
-      where.tenMay = filters.tenMay;
+    if (filters?.machineSystemId) {
+      where.machineSystemId = filters.machineSystemId;
     }
 
     const data = await prisma.finishedProduct.findMany({
@@ -299,7 +298,7 @@ export class FinishedProductService {
       { header: 'Mã chiên', key: 'maChien', width: 15 },
       { header: 'Thời gian chiên', key: 'thoiGianChien', width: 20 },
       { header: 'Tên hàng hóa', key: 'tenHangHoa', width: 20 },
-      { header: 'Tên máy', key: 'tenMay', width: 15 },
+      { header: 'Hệ thống máy', key: 'machineSystemId', width: 20 },
       { header: 'KL đầu vào (kg)', key: 'khoiLuong', width: 15 },
       { header: 'A (kg)', key: 'aKhoiLuong', width: 12 },
       { header: 'A (%)', key: 'aTiLe', width: 10 },
@@ -328,7 +327,7 @@ export class FinishedProductService {
         maChien: item.maChien,
         thoiGianChien: item.thoiGianChien || '',
         tenHangHoa: item.tenHangHoa,
-        tenMay: item.tenMay || '',
+        machineSystemId: item.machineSystemId || '',
         khoiLuong: item.khoiLuong,
         aKhoiLuong: item.aKhoiLuong,
         aTiLe: item.aTiLe,

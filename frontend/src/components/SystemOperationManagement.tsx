@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Settings } from 'lucide-react';
 import systemOperationService, { SystemOperation, GiaiDoan } from '../services/systemOperationService';
-import machineService, { Machine } from '../services/machineService';
 import materialEvaluationService, { MaterialEvaluation } from '../services/materialEvaluationService';
 import Modal from './Modal';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductionEmployees } from '../hooks/useProductionEmployees';
+import { useMachineSystems } from '../hooks/useMachineSystemDetails';
 
 interface FormData {
   maChien: string;
-  tenMay: string;
+  machineSystemId: string;
   thoiGianChien: string;
   khoiLuongDauVao: number;
   giaiDoan1: GiaiDoan;
@@ -31,10 +31,11 @@ interface SystemOperationManagementProps {
 const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ initialMaChien, initialThoiGianChien }) => {
   const { user } = useAuth();
   const { data: productionEmployees = [] } = useProductionEmployees();
+  const machineSystemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
+  const machineSystems = machineSystemsQuery.data?.data ?? [];
   const [operations, setOperations] = useState<SystemOperation[]>([]);
-  const [machines, setMachines] = useState<Machine[]>([]);
   const [materialEvaluations, setMaterialEvaluations] = useState<MaterialEvaluation[]>([]);
-  const [selectedMachine, setSelectedMachine] = useState<string>('');
+  const [selectedMachineSystemId, setSelectedMachineSystemId] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -43,7 +44,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
   const [error, setError] = useState('');
   const [formData, setFormData] = useState<FormData>({
     maChien: '',
-    tenMay: '',
+    machineSystemId: '',
     thoiGianChien: '',
     khoiLuongDauVao: 0,
     giaiDoan1: { thoiGian: 0, nhietDo: 0, apSuat: 0 },
@@ -68,68 +69,35 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
     ]},
   ];
 
-  // Lấy danh sách operations của máy đang chọn
+  // Lấy danh sách operations của hệ thống máy đang chọn
   const filteredOperations = operations.filter(op => {
-    const matchMachine = op.tenMay === selectedMachine;
+    const matchMachine = !selectedMachineSystemId || op.machineSystemId === selectedMachineSystemId;
     const matchMaChien = !filterValues.maChien || (op.maChien || '').toLowerCase().includes(filterValues.maChien.toLowerCase());
     const matchTrangThai = !filterValues.trangThai || (op.trangThai || '').toLowerCase().includes(filterValues.trangThai.toLowerCase());
     const search = filterValues._search.toLowerCase();
-    const matchSearch = !search || (op.maChien || '').toLowerCase().includes(search) || (op.tenMay || '').toLowerCase().includes(search) || (op.nguoiThucHien || '').toLowerCase().includes(search);
+    const matchSearch = !search || (op.maChien || '').toLowerCase().includes(search) || (op.machineSystem?.tenHeThong || '').toLowerCase().includes(search) || (op.nguoiThucHien || '').toLowerCase().includes(search);
     return matchMachine && matchMaChien && matchTrangThai && matchSearch;
   });
 
   const totalPages = Math.ceil(filteredOperations.length / itemsPerPage);
   const paginatedOperations = filteredOperations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  // Map trạng thái máy sang trạng thái thông số vận hành
-  const mapMachineStatusToOperationStatus = (machineStatus: string): 'DANG_HOAT_DONG' | 'BAO_TRI' | 'NGUNG_HOAT_DONG' => {
-    switch (machineStatus) {
-      case 'HOAT_DONG':
-        return 'DANG_HOAT_DONG';
-      case 'BẢO_TRÌ':
-        return 'BAO_TRI';
-      case 'NGỪNG_HOẠT_ĐỘNG':
-        return 'NGUNG_HOAT_DONG';
-      default:
-        return 'DANG_HOAT_DONG';
-    }
-  };
-
   useEffect(() => {
-    loadMachines();
+    loadOperations();
   }, []);
 
   useEffect(() => {
-    if (selectedMachine) {
+    if (selectedMachineSystemId) {
       loadOperations();
       setCurrentPage(1);
     }
-  }, [selectedMachine]);
-
-  const loadMachines = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const result = await machineService.getAllMachines(1, 100, { trangThai: 'HOAT_DONG' });
-      setMachines(result.data);
-
-      // Set first machine as selected if available
-      if (result.data.length > 0 && !selectedMachine) {
-        setSelectedMachine(result.data[0].tenMay);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Lỗi tải danh sách máy');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [selectedMachineSystemId]);
 
   const loadOperations = async () => {
     try {
       setLoading(true);
       setError('');
-      const result = await systemOperationService.getAllSystemOperations(1, 1000, selectedMachine);
+      const result = await systemOperationService.getAllSystemOperations(1, 1000, selectedMachineSystemId || undefined);
       setOperations(result.data);
     } catch (err: any) {
       setError(err.message || 'Lỗi tải dữ liệu');
@@ -219,7 +187,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       setSelectedOperation(operation);
       setFormData({
         maChien: operation.maChien,
-        tenMay: operation.tenMay,
+        machineSystemId: operation.machineSystemId ?? '',
         thoiGianChien: toDatetimeLocalFormat(operation.thoiGianChien),
         khoiLuongDauVao: operation.khoiLuongDauVao || 0,
         giaiDoan1: operation.giaiDoan1,
@@ -234,22 +202,16 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       setIsEditing(false);
       setSelectedOperation(null);
 
-      // Tìm máy hiện tại để lấy trạng thái
-      const currentMachine = machines.find(m => m.tenMay === selectedMachine);
-      const operationStatus = currentMachine
-        ? mapMachineStatusToOperationStatus(currentMachine.trangThai)
-        : 'DANG_HOAT_DONG';
-
       setFormData({
         maChien: initialMaChien || '',
-        tenMay: selectedMachine,
+        machineSystemId: selectedMachineSystemId,
         thoiGianChien: initialThoiGianChien || '',
         khoiLuongDauVao: 0,
         giaiDoan1: { thoiGian: 0, nhietDo: 0, apSuat: 0 },
         giaiDoan2: { thoiGian: 0, nhietDo: 0, apSuat: 0 },
         giaiDoan3: { thoiGian: 0, nhietDo: 0, apSuat: 0 },
         giaiDoan4: { thoiGian: 0, nhietDo: 0, apSuat: 0 },
-        trangThai: operationStatus,
+        trangThai: 'DANG_HOAT_DONG',
         ghiChu: '',
         nguoiThucHien: currentUserName,
       });
@@ -356,28 +318,8 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
     }
   };
 
-  const handleRemoveMachine = async (machine: Machine) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa ${machine.tenMay}?`)) {
-      try {
-        setLoading(true);
-        setError('');
-        await machineService.deleteMachine(machine.id);
-        await loadMachines();
-
-        // Select first machine if current machine was deleted
-        if (selectedMachine === machine.tenMay && machines.length > 1) {
-          const remainingMachines = machines.filter(m => m.id !== machine.id);
-          if (remainingMachines.length > 0) {
-            setSelectedMachine(remainingMachines[0].tenMay);
-          }
-        }
-      } catch (err: any) {
-        setError(err.message || 'Lỗi xóa máy');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
+  const handleRemoveMachine = async (_machine: { id: string; tenMay?: string }) => {
+    // Machine removal is handled in MachineSystemList; this function is preserved for compatibility
   };
 
   return (
@@ -421,14 +363,14 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
         {/* Mobile: dropdown */}
         <div className="sm:hidden px-4 py-3">
           <select
-            value={selectedMachine}
-            onChange={(e) => setSelectedMachine(e.target.value)}
+            value={selectedMachineSystemId}
+            onChange={(e) => setSelectedMachineSystemId(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
           >
-            {machines.map((machine) => (
-              <option key={machine.id} value={machine.tenMay}>
-                {machine.tenMay}
-                {machine.trangThai !== 'HOAT_DONG' && ` (${machine.trangThai === 'BẢO_TRÌ' ? 'Bảo trì' : 'Ngừng'})`}
+            <option value="">Tất cả hệ thống</option>
+            {machineSystems.map((ms) => (
+              <option key={ms.id} value={ms.id}>
+                {ms.maHeThong} — {ms.tenHeThong}
               </option>
             ))}
           </select>
@@ -436,24 +378,27 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
         {/* Desktop: tabs */}
         <div className="hidden sm:block border-b border-gray-200">
           <nav className="-mb-px flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
-            {machines.map((machine) => (
+            <button
+              onClick={() => setSelectedMachineSystemId('')}
+              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                !selectedMachineSystemId
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Tất cả
+            </button>
+            {machineSystems.map((ms) => (
               <button
-                key={machine.id}
-                onClick={() => setSelectedMachine(machine.tenMay)}
-                className={`
-                  whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-                  ${selectedMachine === machine.tenMay
+                key={ms.id}
+                onClick={() => setSelectedMachineSystemId(ms.id)}
+                className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                  selectedMachineSystemId === ms.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }
-                `}
+                }`}
               >
-                {machine.tenMay}
-                {machine.trangThai !== 'HOAT_DONG' && (
-                  <span className="ml-2 text-xs text-gray-500">
-                    ({machine.trangThai === 'BẢO_TRÌ' ? 'Bảo trì' : 'Ngừng'})
-                  </span>
-                )}
+                {ms.maHeThong}
               </button>
             ))}
           </nav>
@@ -504,7 +449,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                 >
                   <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                   <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{operation.maChien}</td>
-                  <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-purple-600 border-r border-gray-200">{operation.tenMay}</td>
+                  <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-purple-600 border-r border-gray-200">{operation.machineSystem?.tenHeThong ?? '—'}</td>
                   <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">{formatDateTime(operation.thoiGianChien)}</td>
                   <td className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{operation.khoiLuongDauVao || 0} kg</td>
                   <td className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{operation.tongThoiGianSay} phút</td>
@@ -637,15 +582,22 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tên máy <span className="text-red-500">*</span>
+                    Hệ thống máy <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="tenMay"
-                    value={formData.tenMay}
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
-                  />
+                  <select
+                    name="machineSystemId"
+                    value={formData.machineSystemId}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">-- Chọn hệ thống máy --</option>
+                    {machineSystems.map((ms) => (
+                      <option key={ms.id} value={ms.id}>
+                        {ms.maHeThong} — {ms.tenHeThong}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -924,8 +876,8 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                   <p className="mt-1 text-sm text-gray-900 font-semibold">{selectedOperation.maChien}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-500">Tên máy</label>
-                  <p className="mt-1 text-sm text-purple-600 font-semibold">{selectedOperation.tenMay}</p>
+                  <label className="block text-sm font-medium text-gray-500">Hệ thống máy</label>
+                  <p className="mt-1 text-sm text-purple-600 font-semibold">{selectedOperation.machineSystem?.tenHeThong ?? '—'}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-500">Thời gian chiên</label>

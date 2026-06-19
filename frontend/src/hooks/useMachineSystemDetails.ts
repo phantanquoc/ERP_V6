@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import machineSystemService, {
+  CloneMachineSystemRequest,
   CreateMachineSystemDetailRequest,
   CreateMachineSystemRequest,
+  MachineStatusLogFilters,
   MachineSystemCategory,
   MachineSystemDetailFilters,
   MachineSystemFilters,
+  UpdateMachineStatusRequest,
   UpdateMachineSystemDetailRequest,
   UpdateMachineSystemRequest,
 } from '../services/machineSystemService';
@@ -158,3 +161,51 @@ export const useDetailTree = (machineSystemId: string | undefined) =>
     queryFn: () => machineSystemService.getDetailTree(machineSystemId!),
     enabled: !!machineSystemId,
   });
+
+export const machineStatusLogKeys = {
+  all: ['machineStatusLogs'] as const,
+  lists: () => [...machineStatusLogKeys.all, 'list'] as const,
+  list: (filters: MachineStatusLogFilters = {}) => [...machineStatusLogKeys.lists(), filters] as const,
+};
+
+export const useMachineStatusLogs = (filters: MachineStatusLogFilters = {}) =>
+  useQuery({
+    queryKey: machineStatusLogKeys.list(filters),
+    queryFn: () => machineSystemService.getMachineStatusLogs(filters),
+  });
+
+export const machineSystemSummaryKeys = {
+  all: ['machineSystemSummary'] as const,
+  detail: (id: string) => [...machineSystemSummaryKeys.all, id] as const,
+};
+
+export const useMachineSystemSummary = (id: string, recentLimit?: number) =>
+  useQuery({
+    queryKey: [...machineSystemSummaryKeys.detail(id), recentLimit],
+    queryFn: () => machineSystemService.getMachineSystemSummary(id, recentLimit),
+    enabled: !!id,
+  });
+
+export const useCloneMachineSystem = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CloneMachineSystemRequest }) =>
+      machineSystemService.cloneMachineSystem(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: machineSystemKeys.lists() });
+    },
+  });
+};
+
+export const useUpdateMachineStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateMachineStatusRequest }) =>
+      machineSystemService.updateMachineStatus(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: machineSystemKeys.detail(variables.id) });
+      queryClient.invalidateQueries({ queryKey: machineStatusLogKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: machineSystemSummaryKeys.detail(variables.id) });
+    },
+  });
+};

@@ -15,8 +15,10 @@ router.get('/distinct-fields', machineSystemController.getDistinctFields.bind(ma
 router.get('/', machineSystemController.getAll.bind(machineSystemController));
 router.get('/export/excel', machineSystemController.exportExcel.bind(machineSystemController));
 router.get('/:id', machineSystemController.getById.bind(machineSystemController));
-router.get('/:id/machines', machineSystemController.getMachinesForSystem.bind(machineSystemController));
+router.get('/:id/summary', machineSystemController.getSummary.bind(machineSystemController));
 router.post('/', technicalAccess, upload, machineSystemController.create.bind(machineSystemController));
+router.post('/:id/clone', technicalAccess, machineSystemController.clone.bind(machineSystemController));
+router.post('/:id/status', technicalAccess, machineSystemController.updateStatus.bind(machineSystemController));
 router.put('/:id', technicalAccess, upload, machineSystemController.update.bind(machineSystemController));
 router.delete('/:id', technicalAccess, machineSystemController.remove.bind(machineSystemController));
 

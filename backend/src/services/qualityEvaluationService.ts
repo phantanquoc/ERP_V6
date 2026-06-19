@@ -3,11 +3,11 @@ import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 
 export class QualityEvaluationService {
-  async getAllQualityEvaluations(page: number = 1, limit: number = 10, tenMay?: string) {
+  async getAllQualityEvaluations(page: number = 1, limit: number = 10, machineSystemId?: string) {
     const skip = (page - 1) * limit;
 
-    // Filter by machine name directly
-    const whereClause = tenMay ? { tenMay } : {};
+    // Filter by machine system
+    const whereClause = machineSystemId ? { machineSystemId } : {};
 
     const [data, total] = await Promise.all([
       prisma.qualityEvaluation.findMany({
@@ -30,11 +30,11 @@ export class QualityEvaluationService {
               tenHangHoa: true,
             },
           },
-          machine: {
+          machineSystem: {
             select: {
               id: true,
-              tenMay: true,
-              maMay: true,
+              tenHeThong: true,
+              maHeThong: true,
             },
           },
         },
@@ -59,7 +59,7 @@ export class QualityEvaluationService {
       include: {
         materialEvaluation: true,
         finishedProduct: true,
-        machine: true,
+        machineSystem: true,
       },
     });
 

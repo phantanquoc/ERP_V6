@@ -10,8 +10,8 @@ export interface QualityEvaluation {
   mauSac: string;
 
   // Machine info
-  machineId?: string;
-  tenMay?: string;
+  machineSystemId?: string | null;
+  machineSystem?: { id: string; maHeThong: string; tenHeThong: string } | null;
   
   // Tỉ lệ thành phẩm đầu ra (%)
   aTiLe: number;
@@ -63,11 +63,11 @@ class QualityEvaluationService {
     return formData;
   }
 
-  async getAllQualityEvaluations(page: number = 1, limit: number = 10, tenMay?: string): Promise<PaginatedResponse> {
+  async getAllQualityEvaluations(page: number = 1, limit: number = 10, machineSystemId?: string): Promise<PaginatedResponse> {
     try {
       const params: any = { page, limit };
-      if (tenMay) {
-        params.tenMay = tenMay;
+      if (machineSystemId) {
+        params.machineSystemId = machineSystemId;
       }
 
       const response = await apiClient.get('/quality-evaluations', { params });

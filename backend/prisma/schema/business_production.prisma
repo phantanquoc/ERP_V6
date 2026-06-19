@@ -313,8 +313,7 @@ model MaterialEvaluationCriteria {
 model SystemOperation {
   id              String   @id @default(cuid())
   maChien         String
-  machineId       String?
-  tenMay          String
+  machineSystemId String?
   thoiGianChien   DateTime
   khoiLuongDauVao Float?   @default(0)
 
@@ -346,11 +345,12 @@ model SystemOperation {
   materialEvaluationId String?
   materialEvaluation   MaterialEvaluation? @relation(fields: [materialEvaluationId], references: [id], onDelete: SetNull)
 
-  machine Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  machineSystem MachineSystem? @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([machineSystemId])
   @@map("system_operations")
   @@schema("business")
 }
@@ -362,11 +362,10 @@ model FinishedProduct {
   tenHangHoa    String
   khoiLuong     Float
 
-  // Relation to Machine
-  machineId String?
-  tenMay    String?
-  trangThai SystemOperationStatus @default(DANG_HOAT_DONG)
-  machine   Machine?              @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  // Relation to MachineSystem
+  machineSystemId String?
+  trangThai       SystemOperationStatus @default(DANG_HOAT_DONG)
+  machineSystem   MachineSystem?        @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
 
   // Relation to MaterialEvaluation
   materialEvaluationId String?
@@ -414,7 +413,8 @@ model FinishedProduct {
   updatedAt          DateTime            @updatedAt
   qualityEvaluations QualityEvaluation[]
 
-  @@unique([maChien, machineId])
+  @@unique([maChien, machineSystemId])
+  @@index([machineSystemId])
   @@map("finished_products")
   @@schema("business")
 }
@@ -426,10 +426,9 @@ model QualityEvaluation {
   tenHangHoa    String
   mauSac        String @default("")
 
-  // Relation to Machine
-  machineId String?
-  tenMay    String?
-  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  // Relation to MachineSystem
+  machineSystemId String?
+  machineSystem   MachineSystem? @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
 
   // Relation to FinishedProduct
   finishedProductId String?
@@ -467,7 +466,8 @@ model QualityEvaluation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([maChien, machineId])
+  @@unique([maChien, machineSystemId])
+  @@index([machineSystemId])
   @@map("quality_evaluations")
   @@schema("business")
 }

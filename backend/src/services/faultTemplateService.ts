@@ -28,7 +28,9 @@ export interface CreateFaultTemplateData {
   moTa: string;
   mucDo: string;
   machineSystemId?: string;
-  machineSystemDetailId: string;
+  machineSystemDetailId?: string;
+  tenDetailGoiY?: string;
+  loaiDetailGoiY?: string;
   hoatDong?: boolean;
   trangThai?: string;
   ghiChu?: string;
@@ -49,11 +51,13 @@ class FaultTemplateService {
   }
 
   private async validateMachineDetail(
-    machineSystemDetailId: string,
-    machineSystemId?: string,
+    machineSystemDetailId: string | null | undefined,
+    machineSystemId?: string | null,
     requireActive = true,
     tx: Prisma.TransactionClient = prisma,
   ) {
+    if (!machineSystemDetailId) return null;
+
     const detail = await tx.machineSystemDetail.findUnique({
       where: { id: machineSystemDetailId },
       include: { machineSystem: true },
@@ -121,8 +125,10 @@ class FaultTemplateService {
         tenMauLoi: data.tenMauLoi,
         moTa: data.moTa,
         mucDo: data.mucDo,
-        machineSystemId: detail.machineSystemId,
-        machineSystemDetailId: detail.id,
+        machineSystemId: detail ? detail.machineSystemId : (data.machineSystemId ?? null),
+        machineSystemDetailId: detail ? detail.id : null,
+        tenDetailGoiY: data.tenDetailGoiY,
+        loaiDetailGoiY: data.loaiDetailGoiY,
         hoatDong: data.hoatDong ?? true,
         trangThai: data.trangThai ?? 'Hoạt động',
         ghiChu: data.ghiChu,
@@ -139,8 +145,8 @@ class FaultTemplateService {
 
     if (data.machineSystemDetailId || data.machineSystemId) {
       const detail = await this.validateMachineDetail(machineSystemDetailId, machineSystemId);
-      machineSystemId = detail.machineSystemId;
-      machineSystemDetailId = detail.id;
+      machineSystemId = detail ? detail.machineSystemId : machineSystemId;
+      machineSystemDetailId = detail ? detail.id : null;
     }
 
     return prisma.faultTemplate.update({
@@ -152,6 +158,8 @@ class FaultTemplateService {
         mucDo: data.mucDo,
         machineSystemId,
         machineSystemDetailId,
+        tenDetailGoiY: data.tenDetailGoiY,
+        loaiDetailGoiY: data.loaiDetailGoiY,
         hoatDong: data.hoatDong,
         trangThai: data.trangThai,
         ghiChu: data.ghiChu,

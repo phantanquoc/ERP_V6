@@ -11,7 +11,6 @@ interface CreateFaultRecordData {
   maHeThong?: string;
   machineSystemId?: string;
   machineSystemDetailId?: string;
-  machineId?: string;
   faultTemplateId?: string;
   mucDo?: string;
   trangThai?: string;
@@ -26,7 +25,6 @@ interface UpdateFaultRecordData {
   maHeThong?: string;
   machineSystemId?: string | null;
   machineSystemDetailId?: string | null;
-  machineId?: string | null;
   faultTemplateId?: string | null;
   mucDo?: string;
   trangThai?: string;
@@ -38,7 +36,6 @@ interface UpdateFaultRecordData {
 const faultRecordInclude = {
   machineSystem: true,
   machineSystemDetail: true,
-  machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
   faultTemplate: true,
 } satisfies Prisma.FaultRecordInclude;
 
@@ -50,7 +47,6 @@ const faultRecordListSelect = {
   maHeThong: true,
   machineSystemId: true,
   machineSystemDetailId: true,
-  machineId: true,
   faultTemplateId: true,
   mucDo: true,
   trangThai: true,
@@ -65,7 +61,6 @@ const faultRecordListSelect = {
   machineSystemDetail: {
     select: { id: true, maChiTiet: true, tenChiTiet: true, loaiChiTiet: true },
   },
-  machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
   faultTemplate: {
     select: { id: true, maMauLoi: true, tenMauLoi: true, mucDo: true },
   },
@@ -91,7 +86,6 @@ class FaultRecordService {
     machineSystemId?: string,
     machineSystemDetailId?: string,
     faultTemplateId?: string,
-    machineId?: string,
   ) {
     const { skip, limit: limitNum } = getPaginationParams(page, limit);
 
@@ -101,7 +95,6 @@ class FaultRecordService {
     if (machineSystemId) where.machineSystemId = machineSystemId;
     if (machineSystemDetailId) where.machineSystemDetailId = machineSystemDetailId;
     if (faultTemplateId) where.faultTemplateId = faultTemplateId;
-    if (machineId) where.machineId = machineId;
     if (search) {
       where.OR = [
         { maLoi: { contains: search, mode: 'insensitive' } },
@@ -151,7 +144,7 @@ class FaultRecordService {
         template,
         machineSystem: template.machineSystem,
         machineSystemDetail: template.machineSystemDetail,
-        maHeThong: template.machineSystem.maHeThong,
+        maHeThong: template.machineSystem?.maHeThong ?? null,
       };
     }
 
@@ -215,7 +208,6 @@ class FaultRecordService {
         maHeThong: context.maHeThong,
         machineSystemId: context.machineSystem?.id,
         machineSystemDetailId: context.machineSystemDetail?.id,
-        machineId: data.machineId || null,
         faultTemplateId: context.template?.id,
         mucDo,
         trangThai: data.trangThai ?? 'Đang theo dõi',
@@ -252,7 +244,6 @@ class FaultRecordService {
         maHeThong: context ? context.maHeThong : data.maHeThong,
         machineSystemId: needsContext ? context?.machineSystem?.id ?? null : undefined,
         machineSystemDetailId: needsContext ? context?.machineSystemDetail?.id ?? null : undefined,
-        machineId: data.machineId !== undefined ? (data.machineId || null) : undefined,
         faultTemplateId: needsContext ? context?.template?.id ?? null : undefined,
         mucDo: data.mucDo ?? (context?.template ? context.template.mucDo : undefined),
         trangThai: data.trangThai,

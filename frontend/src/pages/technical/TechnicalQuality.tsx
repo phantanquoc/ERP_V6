@@ -2,16 +2,16 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Cog } from 'lucide-react';
 import OrderManagement from '../../components/OrderManagement';
-import MachineActivityReport from '../../components/MachineActivityReport';
+import MachineStatusLogList from '../../components/MachineStatusLogList';
 import RepairRequestList from '../../components/RepairRequestList';
 import MachineSystemList from '../../components/MachineSystemList';
 import MaintenanceTab from '../../components/MaintenanceTab';
 
-type TabType = 'machineSystems' | 'machineActivity' | 'orders' | 'repairRequests' | 'maintenance';
+type TabType = 'machineSystems' | 'machineStatusLog' | 'orders' | 'repairRequests' | 'maintenance';
 
 const tabs: { key: TabType; label: string }[] = [
   { key: 'machineSystems', label: 'Hệ thống máy' },
-  { key: 'machineActivity', label: 'Báo cáo hoạt động' },
+  { key: 'machineStatusLog', label: 'Nhật ký trạng thái máy' },
   { key: 'orders', label: 'Đơn hàng' },
   { key: 'repairRequests', label: 'Sửa chữa & Nghiệm thu' },
   { key: 'maintenance', label: 'Bảo dưỡng & Sửa chữa' },
@@ -67,7 +67,7 @@ const TechnicalQuality = () => {
 
       {/* Content */}
       {activeTab === 'machineSystems' && <MachineSystemList />}
-      {activeTab === 'machineActivity' && <MachineActivityReport />}
+      {activeTab === 'machineStatusLog' && <MachineStatusLogList />}
       {activeTab === 'orders' && <OrderManagement hideHeader={true} />}
       {activeTab === 'repairRequests' && <RepairRequestList />}
       {activeTab === 'maintenance' && <MaintenanceTab />}

@@ -889,7 +889,6 @@ model RepairRequestItem {
   repairRequestId       Int
   machineSystemId       String?
   machineSystemDetailId String?
-  machineId             String?
   tenHeThong            String // Tên hệ thống/thiết bị
   tinhTrangThietBi      String // Khu vực sử dụng / tình trạng
   loaiLoi               String // Loại lỗi (Lỗi mới / Lỗi lặp lại)
@@ -899,13 +898,11 @@ model RepairRequestItem {
   repairRequest         RepairRequest            @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
   machineSystem         MachineSystem?           @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
   machineSystemDetail   MachineSystemDetail?     @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
-  machine               Machine?                 @relation(fields: [machineId], references: [id], onDelete: SetNull)
   handoverItems         AcceptanceHandoverItem[]
 
   @@index([repairRequestId])
   @@index([machineSystemId])
   @@index([machineSystemDetailId])
-  @@index([machineId])
   @@map("repair_request_items")
   @@schema("common")
 }
@@ -940,7 +937,6 @@ model AcceptanceHandoverItem {
   repairRequestItemId   String
   machineSystemId       String?
   machineSystemDetailId String?
-  machineId             String?
   tenHeThong            String
   tenChiTiet            String?
   tinhTrangTruocSuaChua String   @db.Text
@@ -953,14 +949,12 @@ model AcceptanceHandoverItem {
   repairRequestItem   RepairRequestItem    @relation(fields: [repairRequestItemId], references: [id], onDelete: Restrict)
   machineSystem       MachineSystem?       @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
   machineSystemDetail MachineSystemDetail? @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
-  machine             Machine?             @relation(fields: [machineId], references: [id], onDelete: SetNull)
 
   @@unique([acceptanceHandoverId, repairRequestItemId])
   @@index([acceptanceHandoverId])
   @@index([repairRequestItemId])
   @@index([machineSystemId])
   @@index([machineSystemDetailId])
-  @@index([machineId])
   @@map("acceptance_handover_items")
   @@schema("common")
 }

@@ -18,7 +18,6 @@ import {
   useUpdateFaultTemplate,
 } from '../hooks/useFaultTemplates';
 import { useMachineSystemDetails, useMachineSystems } from '../hooks/useMachineSystemDetails';
-import { useMachinesForSystem } from '../hooks/useMachines';
 import type { FaultRecord, CreateFaultRecordRequest } from '../services/faultRecordService';
 import type { FaultTemplate, CreateFaultTemplateRequest } from '../services/faultTemplateService';
 import type { FaultRecordFilters } from '../services/faultRecordService';
@@ -51,7 +50,6 @@ const emptyRecordForm = (nguoiPhatHien = ''): CreateFaultRecordRequest => ({
   maHeThong: '',
   machineSystemId: '',
   machineSystemDetailId: '',
-  machineId: '',
   faultTemplateId: '',
   mucDo: 'Trung bình',
   trangThai: 'Đang theo dõi',
@@ -119,8 +117,6 @@ const FaultRecordList = () => {
     [details, templateForm.machineSystemId]
   );
 
-  const machinesForRecordQuery = useMachinesForSystem(recordForm.machineSystemId ?? '');
-  const machinesForRecord = machinesForRecordQuery.data ?? [];
 
   const openRecordModal = (mode: ModalMode, record?: FaultRecord) => {
     setError('');
@@ -132,7 +128,6 @@ const FaultRecordList = () => {
       maHeThong: record.maHeThong ?? record.machineSystem?.maHeThong ?? '',
       machineSystemId: record.machineSystemId ?? '',
       machineSystemDetailId: record.machineSystemDetailId ?? '',
-      machineId: record.machineId ?? '',
       faultTemplateId: record.faultTemplateId ?? '',
       mucDo: record.mucDo,
       trangThai: record.trangThai,
@@ -197,7 +192,6 @@ const FaultRecordList = () => {
         ...recordForm,
         machineSystemId: recordForm.machineSystemId || undefined,
         machineSystemDetailId: recordForm.machineSystemDetailId || undefined,
-        machineId: recordForm.machineId || undefined,
         faultTemplateId: recordForm.faultTemplateId || undefined,
         maHeThong: recordForm.maHeThong || undefined,
       };
@@ -328,7 +322,6 @@ const FaultRecordList = () => {
                     <td className="px-3 py-2.5">
                       <div className="text-gray-800 leading-tight text-xs">{record.machineSystem ? record.machineSystem.tenHeThong : record.maHeThong ?? '—'}</div>
                       {record.machineSystemDetail && <div className="text-[11px] text-gray-400 mt-0.5">{record.machineSystemDetail.tenChiTiet}</div>}
-                      {record.machine && <div className="text-[11px] text-gray-400">{record.machine.tenMay}</div>}
                     </td>
                     <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${severityBadge(record.mucDo)}`}>{record.mucDo}</span></td>
                     <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(record.trangThai)}`}>{record.trangThai}</span></td>
@@ -451,7 +444,7 @@ const FaultRecordList = () => {
               </label>
               <label className="space-y-1">
                 <span className="font-medium text-gray-700">Hệ thống</span>
-                <select disabled={recordModal?.mode === 'view'} value={recordForm.machineSystemId ?? ''} onChange={(event) => setRecordForm((form) => ({ ...form, machineSystemId: event.target.value, machineSystemDetailId: '', machineId: '', maHeThong: systems.find((system) => system.id === event.target.value)?.maHeThong ?? '' }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
+                <select disabled={recordModal?.mode === 'view'} value={recordForm.machineSystemId ?? ''} onChange={(event) => setRecordForm((form) => ({ ...form, machineSystemId: event.target.value, machineSystemDetailId: '', maHeThong: systems.find((system) => system.id === event.target.value)?.maHeThong ?? '' }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
                   <option value="">Chọn hệ thống</option>
                   {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
                 </select>
@@ -461,13 +454,6 @@ const FaultRecordList = () => {
                 <select disabled={recordModal?.mode === 'view'} value={recordForm.machineSystemDetailId ?? ''} onChange={(event) => syncSystemFromDetail(event.target.value, 'record')} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
                   <option value="">Không chọn</option>
                   {detailOptionsForRecord.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="font-medium text-gray-700">Máy cụ thể</span>
-                <select disabled={recordModal?.mode === 'view' || !recordForm.machineSystemId} value={recordForm.machineId ?? ''} onChange={(event) => setRecordForm((form) => ({ ...form, machineId: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
-                  <option value="">Không chọn</option>
-                  {machinesForRecord.map((m: any) => <option key={m.id} value={m.id}>{m.maMay} - {m.tenMay}</option>)}
                 </select>
               </label>
               <label className="space-y-1">

@@ -51,7 +51,6 @@ export interface RepairRequest {
 export interface RepairRequestItemInput {
   machineSystemId?: string;
   machineSystemDetailId?: string;
-  machineId?: string;
   tenHeThong: string;
   tinhTrangThietBi: string;
   loaiLoi: string;

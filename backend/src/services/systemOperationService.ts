@@ -1,25 +1,12 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
-import { SystemOperationStatus } from '@prisma/client';
+import { MachineSystemCategory, SystemOperationStatus } from '@prisma/client';
 
 export class SystemOperationService {
-  // Map MachineStatus to SystemOperationStatus
-  private mapMachineStatusToOperationStatus(machineStatus: string): SystemOperationStatus {
-    switch (machineStatus) {
-      case 'HOAT_DONG':
-        return SystemOperationStatus.DANG_HOAT_DONG;
-      case 'BẢO_TRÌ':
-        return SystemOperationStatus.BAO_TRI;
-      case 'NGỪNG_HOẠT_ĐỘNG':
-        return SystemOperationStatus.NGUNG_HOAT_DONG;
-      default:
-        return SystemOperationStatus.DANG_HOAT_DONG;
-    }
-  }
-  async getAllSystemOperations(page: number = 1, limit: number = 10, tenMay?: string) {
+  async getAllSystemOperations(page: number = 1, limit: number = 10, machineSystemId?: string) {
     const skip = (page - 1) * limit;
 
-    const where = tenMay ? { tenMay } : {};
+    const where = machineSystemId ? { machineSystemId } : {};
 
     const [data, total] = await Promise.all([
       prisma.systemOperation.findMany({
@@ -29,6 +16,7 @@ export class SystemOperationService {
         orderBy: { createdAt: 'desc' },
         include: {
           materialEvaluation: true,
+          machineSystem: { select: { id: true, maHeThong: true, tenHeThong: true } },
         },
       }),
       prisma.systemOperation.count({ where }),
@@ -50,6 +38,7 @@ export class SystemOperationService {
       where: { id },
       include: {
         materialEvaluation: true,
+        machineSystem: { select: { id: true, maHeThong: true, tenHeThong: true } },
       },
     });
 
@@ -70,20 +59,22 @@ export class SystemOperationService {
       throw new ValidationError(`Mã chiên "${maChien}" đã tồn tại. Mỗi mã chiên chỉ được tạo thông số vận hành 1 lần duy nhất.`);
     }
 
-    // Get active machines that belong to production systems (SAN_XUAT, DONG_GOI, BAO_QUAN)
-    const productionCategories = ['SAN_XUAT', 'DONG_GOI', 'BAO_QUAN'];
-    const machines = await prisma.machine.findMany({
-      where: { trangThai: 'HOAT_DONG' },
+    // Get active machine systems that belong to production categories (SAN_XUAT, DONG_GOI, BAO_QUAN)
+    const productionCategories: MachineSystemCategory[] = [
+      MachineSystemCategory.SAN_XUAT,
+      MachineSystemCategory.DONG_GOI,
+      MachineSystemCategory.BAO_QUAN,
+    ];
+    const machineSystems = await prisma.machineSystem.findMany({
+      where: {
+        trangThai: 'HOAT_DONG',
+        loaiHeThong: { in: productionCategories },
+      },
       orderBy: { createdAt: 'asc' },
-      include: { machineSystem: true },
-    }).then(allMachines =>
-      allMachines.filter(m =>
-        m.machineSystemId && m.machineSystem && productionCategories.includes(m.machineSystem.loaiHeThong)
-      )
-    );
+    });
 
-    if (machines.length === 0) {
-      throw new NotFoundError('No production machines found');
+    if (machineSystems.length === 0) {
+      throw new NotFoundError('Không tìm thấy hệ thống máy sản xuất đang hoạt động');
     }
 
     // Get material evaluation to auto-fill finished product data
@@ -94,26 +85,21 @@ export class SystemOperationService {
       },
     });
 
-    // Create system operations and finished product in a transaction
+    // Create system operations and finished products in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Delete any orphaned quality evaluations with this maChien (from previous failed/deleted operations)
-      await tx.qualityEvaluation.deleteMany({
-        where: { maChien },
-      });
+      // Delete any orphaned quality evaluations with this maChien
+      await tx.qualityEvaluation.deleteMany({ where: { maChien } });
 
       // Delete any orphaned finished products with this maChien
-      await tx.finishedProduct.deleteMany({
-        where: { maChien },
-      });
+      await tx.finishedProduct.deleteMany({ where: { maChien } });
 
-      // Create system operations for all machines
+      // Create system operations for all machine systems
       const operations = await Promise.all(
-        machines.map(machine =>
+        machineSystems.map((ms) =>
           tx.systemOperation.create({
             data: {
               maChien,
-              machineId: machine.id,
-              tenMay: machine.tenMay,
+              machineSystemId: ms.id,
               thoiGianChien,
               giaiDoan1ThoiGian: 0,
               giaiDoan1NhietDo: 0,
@@ -128,7 +114,7 @@ export class SystemOperationService {
               giaiDoan4NhietDo: 0,
               giaiDoan4ApSuat: 0,
               tongThoiGianSay: 0,
-              trangThai: this.mapMachineStatusToOperationStatus(machine.trangThai),
+              trangThai: SystemOperationStatus.DANG_HOAT_DONG,
               ghiChu: '',
               nguoiThucHien: '',
               materialEvaluationId: materialEvaluation?.id,
@@ -137,49 +123,45 @@ export class SystemOperationService {
         )
       );
 
-      // Create finished products for each machine with auto-filled data from material evaluation
+      // Create finished products for each machine system
       if (materialEvaluation) {
         const finishedProducts = await Promise.all(
-          machines.map(machine =>
+          machineSystems.map((ms) =>
             tx.finishedProduct.create({
               data: {
                 maChien: materialEvaluation.maChien,
                 thoiGianChien: materialEvaluation.thoiGianChien,
                 tenHangHoa: materialEvaluation.tenHangHoa,
-                khoiLuong: 0, // Will be filled by user later
+                khoiLuong: 0,
                 nguoiThucHien: '',
-                machineId: machine.id,
-                tenMay: machine.tenMay,
-                trangThai: this.mapMachineStatusToOperationStatus(machine.trangThai),
+                machineSystemId: ms.id,
+                trangThai: SystemOperationStatus.DANG_HOAT_DONG,
                 materialEvaluationId: materialEvaluation.id,
               },
             })
           )
         );
 
-        // Create quality evaluations for each machine, linked to finished products
+        // Create quality evaluations for each machine system, linked to finished products
         await Promise.all(
-          finishedProducts.map((finishedProduct) =>
+          finishedProducts.map((fp) =>
             tx.qualityEvaluation.create({
               data: {
-                maChien: finishedProduct.maChien,
-                thoiGianChien: finishedProduct.thoiGianChien.toISOString(),
-                tenHangHoa: finishedProduct.tenHangHoa,
-                machineId: finishedProduct.machineId,
-                tenMay: finishedProduct.tenMay,
+                maChien: fp.maChien,
+                thoiGianChien: fp.thoiGianChien.toISOString(),
+                tenHangHoa: fp.tenHangHoa,
+                machineSystemId: fp.machineSystemId,
                 materialEvaluationId: materialEvaluation.id,
-                finishedProductId: finishedProduct.id,
+                finishedProductId: fp.id,
                 nguoiThucHien: '',
-                // Auto-fill percentage fields from finished product
-                aTiLe: finishedProduct.aTiLe || 0,
-                bTiLe: finishedProduct.bTiLe || 0,
-                bDauTiLe: finishedProduct.bDauTiLe || 0,
-                cTiLe: finishedProduct.cTiLe || 0,
-                vunLonTiLe: finishedProduct.vunLonTiLe || 0,
-                vunNhoTiLe: finishedProduct.vunNhoTiLe || 0,
-                phePhamTiLe: finishedProduct.phePhamTiLe || 0,
-                uotTiLe: finishedProduct.uotTiLe || 0,
-                // Quality evaluation fields default to empty
+                aTiLe: fp.aTiLe || 0,
+                bTiLe: fp.bTiLe || 0,
+                bDauTiLe: fp.bDauTiLe || 0,
+                cTiLe: fp.cTiLe || 0,
+                vunLonTiLe: fp.vunLonTiLe || 0,
+                vunNhoTiLe: fp.vunNhoTiLe || 0,
+                phePhamTiLe: fp.phePhamTiLe || 0,
+                uotTiLe: fp.uotTiLe || 0,
                 muiHuong: '',
                 huongVi: '',
                 doNgot: '',
@@ -203,6 +185,7 @@ export class SystemOperationService {
       orderBy: { createdAt: 'desc' },
       include: {
         materialEvaluation: true,
+        machineSystem: { select: { id: true, maHeThong: true, tenHeThong: true } },
       },
     });
 
@@ -210,25 +193,27 @@ export class SystemOperationService {
   }
 
   async createSystemOperation(data: any) {
-    // Check if maChien already exists for this machine
+    // Check if maChien already exists for this machine system
     const existingOperation = await prisma.systemOperation.findFirst({
       where: {
         maChien: data.maChien,
-        tenMay: data.tenMay,
+        machineSystemId: data.machineSystemId,
       },
     });
 
     if (existingOperation) {
-      throw new ValidationError(`Mã chiên "${data.maChien}" đã tồn tại cho máy "${data.tenMay}". Mỗi mã chiên chỉ được tạo thông số vận hành 1 lần duy nhất.`);
+      throw new ValidationError(`Mã chiên "${data.maChien}" đã tồn tại cho hệ thống máy này. Mỗi mã chiên chỉ được tạo thông số vận hành 1 lần duy nhất.`);
     }
 
-    // Find machine by tenMay to get machineId
-    const machine = await prisma.machine.findUnique({
-      where: { tenMay: data.tenMay },
-    });
-
-    if (!machine) {
-      throw new NotFoundError(`Machine with name ${data.tenMay} not found`);
+    // Find machine system to validate
+    let machineSystem = null;
+    if (data.machineSystemId) {
+      machineSystem = await prisma.machineSystem.findUnique({
+        where: { id: data.machineSystemId },
+      });
+      if (!machineSystem) {
+        throw new NotFoundError(`Không tìm thấy hệ thống máy với id "${data.machineSystemId}"`);
+      }
     }
 
     // Get material evaluation to auto-fill finished product data
@@ -248,12 +233,10 @@ export class SystemOperationService {
 
     // Create system operation and finished product in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create system operation
       const operation = await tx.systemOperation.create({
         data: {
           maChien: data.maChien,
-          machineId: machine.id,
-          tenMay: data.tenMay,
+          machineSystemId: data.machineSystemId ?? null,
           thoiGianChien: new Date(data.thoiGianChien),
           khoiLuongDauVao: data.khoiLuongDauVao ? Number(data.khoiLuongDauVao) : 0,
           giaiDoan1ThoiGian: Number(data.giaiDoan1ThoiGian || 0),
@@ -269,25 +252,23 @@ export class SystemOperationService {
           giaiDoan4NhietDo: Number(data.giaiDoan4NhietDo || 0),
           giaiDoan4ApSuat: Number(data.giaiDoan4ApSuat || 0),
           tongThoiGianSay,
-          trangThai: this.mapMachineStatusToOperationStatus(machine.trangThai),
+          trangThai: SystemOperationStatus.DANG_HOAT_DONG,
           ghiChu: data.ghiChu,
           nguoiThucHien: data.nguoiThucHien,
           materialEvaluationId: data.materialEvaluationId,
         },
       });
 
-      // Create finished product with auto-filled data from material evaluation
-      if (materialEvaluation) {
+      if (materialEvaluation && data.machineSystemId) {
         await tx.finishedProduct.create({
           data: {
             maChien: materialEvaluation.maChien,
             thoiGianChien: materialEvaluation.thoiGianChien,
             tenHangHoa: materialEvaluation.tenHangHoa,
-            khoiLuong: 0, // Will be filled by user later
+            khoiLuong: 0,
             nguoiThucHien: data.nguoiThucHien,
-            machineId: machine.id,
-            tenMay: machine.tenMay,
-            trangThai: this.mapMachineStatusToOperationStatus(machine.trangThai),
+            machineSystemId: data.machineSystemId,
+            trangThai: SystemOperationStatus.DANG_HOAT_DONG,
             materialEvaluationId: materialEvaluation.id,
           },
         });
@@ -342,53 +323,28 @@ export class SystemOperationService {
   }
 
   async deleteSystemOperation(id: string) {
-    const existing = await prisma.systemOperation.findUnique({
-      where: { id },
-    });
+    const existing = await prisma.systemOperation.findUnique({ where: { id } });
 
     if (!existing) {
       throw new NotFoundError('System operation not found');
     }
 
-    await prisma.systemOperation.delete({
-      where: { id },
-    });
+    await prisma.systemOperation.delete({ where: { id } });
   }
 
   async deleteByMaChien(maChien: string) {
-    // Check if maChien exists in any related table
-    const existingOperation = await prisma.systemOperation.findFirst({
-      where: { maChien },
-    });
-
-    const existingFinishedProduct = await prisma.finishedProduct.findFirst({
-      where: { maChien },
-    });
-
-    const existingQualityEvaluation = await prisma.qualityEvaluation.findFirst({
-      where: { maChien },
-    });
+    const existingOperation = await prisma.systemOperation.findFirst({ where: { maChien } });
+    const existingFinishedProduct = await prisma.finishedProduct.findFirst({ where: { maChien } });
+    const existingQualityEvaluation = await prisma.qualityEvaluation.findFirst({ where: { maChien } });
 
     if (!existingOperation && !existingFinishedProduct && !existingQualityEvaluation) {
       throw new NotFoundError(`Không tìm thấy dữ liệu với mã chiên "${maChien}"`);
     }
 
-    // Delete all related data in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Delete quality evaluations first (depends on finished products)
-      const deletedQualityEvaluations = await tx.qualityEvaluation.deleteMany({
-        where: { maChien },
-      });
-
-      // Delete finished products
-      const deletedFinishedProducts = await tx.finishedProduct.deleteMany({
-        where: { maChien },
-      });
-
-      // Delete system operations
-      const deletedSystemOperations = await tx.systemOperation.deleteMany({
-        where: { maChien },
-      });
+      const deletedQualityEvaluations = await tx.qualityEvaluation.deleteMany({ where: { maChien } });
+      const deletedFinishedProducts = await tx.finishedProduct.deleteMany({ where: { maChien } });
+      const deletedSystemOperations = await tx.systemOperation.deleteMany({ where: { maChien } });
 
       return {
         deletedSystemOperations: deletedSystemOperations.count,
@@ -402,4 +358,3 @@ export class SystemOperationService {
 }
 
 export default new SystemOperationService();
-

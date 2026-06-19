@@ -193,8 +193,8 @@ describe('Route auth enforcement', () => {
       expect(hasRouterLevelMiddleware(router, 'authenticate')).toBe(true);
     });
 
-    it('machineActivityReportRoutes has authenticate on router level', () => {
-      const router = require('@routes/machineActivityReportRoutes').default;
+    it('machineStatusLogRoutes has authenticate on router level', () => {
+      const router = require('@routes/machineStatusLogRoutes').default;
       expect(hasRouterLevelMiddleware(router, 'authenticate')).toBe(true);
     });
 

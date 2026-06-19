@@ -10,7 +10,6 @@ import ExcelJS from 'exceljs';
 interface RepairRequestItemData {
   machineSystemId?: string;
   machineSystemDetailId?: string;
-  machineId?: string;
   tenHeThong: string;
   tinhTrangThietBi: string;
   loaiLoi: string;
@@ -56,7 +55,6 @@ const repairRequestInclude = {
           repairRequestItem: true,
           machineSystem: true,
           machineSystemDetail: true,
-          machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
         },
       },
     },
@@ -65,16 +63,14 @@ const repairRequestInclude = {
     include: {
       machineSystem: true,
       machineSystemDetail: true,
-      machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
     },
     orderBy: { createdAt: 'asc' as const },
   },
 } satisfies Prisma.RepairRequestInclude;
 
-type ResolvedRepairRequestItemData = Omit<RepairRequestItemData, 'machineSystemId' | 'machineSystemDetailId' | 'machineId'> & {
+type ResolvedRepairRequestItemData = Omit<RepairRequestItemData, 'machineSystemId' | 'machineSystemDetailId'> & {
   machineSystemId: string | null;
   machineSystemDetailId: string | null;
-  machineId: string | null;
 };
 
 class RepairRequestService {
@@ -165,7 +161,6 @@ class RepairRequestService {
         ...item,
         machineSystemId: machineSystem?.id ?? null,
         machineSystemDetailId: machineSystemDetail?.id ?? null,
-        machineId: item.machineId || null,
         tenHeThong: machineSystem ? machineSystem.tenHeThong : item.tenHeThong,
         tinhTrangThietBi: machineSystemDetail && !item.tinhTrangThietBi
           ? machineSystemDetail.tenChiTiet
@@ -204,7 +199,6 @@ class RepairRequestService {
             repairRequestId: created.id,
             machineSystemId: item.machineSystemId,
             machineSystemDetailId: item.machineSystemDetailId,
-            machineId: item.machineId,
             tenHeThong: item.tenHeThong,
             tinhTrangThietBi: item.tinhTrangThietBi,
             loaiLoi: item.loaiLoi,
@@ -251,7 +245,6 @@ class RepairRequestService {
               repairRequestId: id,
               machineSystemId: item.machineSystemId,
               machineSystemDetailId: item.machineSystemDetailId,
-              machineId: item.machineId,
               tenHeThong: item.tenHeThong,
               tinhTrangThietBi: item.tinhTrangThietBi,
               loaiLoi: item.loaiLoi,

@@ -8,17 +8,24 @@ const mockPrisma: any = {
     if (typeof arg === 'function') return (arg as (tx: any) => unknown)(mockPrisma);
     return Promise.all(arg as Promise<unknown>[]);
   }),
-  machine: {
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    findFirst: jest.fn(),
-    count: jest.fn(),
-    create: jest.fn(),
-  },
   machineSystem: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
+  machineSystemDetail: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+  },
+  machineStatusLog: {
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    count: jest.fn(),
+    create: jest.fn(),
   },
   faultRecord: {
     findFirst: jest.fn(),
@@ -27,6 +34,9 @@ const mockPrisma: any = {
     count: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+  },
+  faultTemplate: {
+    findUnique: jest.fn(),
   },
   repairRequest: {
     findUnique: jest.fn(),
@@ -40,11 +50,18 @@ const mockPrisma: any = {
     createMany: jest.fn(),
     deleteMany: jest.fn(),
   },
+  systemOperation: {
+    findMany: jest.fn(),
+  },
+  maintenanceRecord: {
+    findMany: jest.fn(),
+  },
   acceptanceHandover: {
     findFirst: jest.fn(),
     create: jest.fn(),
   },
   acceptanceHandoverItem: {
+    findMany: jest.fn(),
     createMany: jest.fn(),
     deleteMany: jest.fn(),
   },
@@ -55,120 +72,95 @@ jest.mock('@config/database', () => ({
   default: mockPrisma,
 }));
 
-import { MachineService } from '@services/machineService';
 import machineSystemService from '@services/machineSystemService';
 import faultRecordService from '@services/faultRecordService';
-import { NotFoundError } from '@utils/errors';
-
-const machineService = new MachineService();
+import { MachineStatus } from '@prisma/client';
+import { NotFoundError, ValidationError } from '@utils/errors';
 
 beforeEach(() => {
   jest.clearAllMocks();
 });
 
-describe('MachineService — filters', () => {
-  it('getAllMachines applies machineSystemId filter', async () => {
-    mockPrisma.machine.findMany.mockResolvedValue([]);
-    mockPrisma.machine.count.mockResolvedValue(0);
+describe('MachineSystemService — getSummary', () => {
+  it('returns summary with recent faults, repairs, and status logs', async () => {
+    mockPrisma.machineSystem.findUnique.mockResolvedValue({ id: 'sys-1', maHeThong: 'HT001' });
+    mockPrisma.faultRecord.findMany.mockResolvedValue([{ id: 'f1', maLoi: 'L001' }]);
+    mockPrisma.repairRequestItem.findMany.mockResolvedValue([{ id: 'r1', noiDungLoi: 'Hỏng bơm' }]);
+    mockPrisma.acceptanceHandoverItem.findMany.mockResolvedValue([]);
+    mockPrisma.systemOperation.findMany.mockResolvedValue([]);
+    mockPrisma.maintenanceRecord.findMany.mockResolvedValue([]);
+    mockPrisma.machineStatusLog.findMany.mockResolvedValue([{ id: 's1', trangThaiMoi: MachineStatus.BAO_TRI }]);
 
-    await machineService.getAllMachines(1, 10, { machineSystemId: 'sys-1' });
-
-    const whereArg = mockPrisma.machine.findMany.mock.calls[0][0].where;
-    expect(whereArg.machineSystemId).toBe('sys-1');
-  });
-
-  it('getAllMachines applies trangThai filter', async () => {
-    mockPrisma.machine.findMany.mockResolvedValue([]);
-    mockPrisma.machine.count.mockResolvedValue(0);
-
-    await machineService.getAllMachines(1, 10, { trangThai: 'HOAT_DONG' });
-
-    const whereArg = mockPrisma.machine.findMany.mock.calls[0][0].where;
-    expect(whereArg.trangThai).toBe('HOAT_DONG');
-  });
-
-  it('getAllMachines applies search filter with OR', async () => {
-    mockPrisma.machine.findMany.mockResolvedValue([]);
-    mockPrisma.machine.count.mockResolvedValue(0);
-
-    await machineService.getAllMachines(1, 10, { search: 'sấy' });
-
-    const whereArg = mockPrisma.machine.findMany.mock.calls[0][0].where;
-    expect(whereArg.OR).toHaveLength(2);
-    expect(whereArg.OR[0].maMay.contains).toBe('sấy');
-  });
-
-  it('getAllMachines returns paginated result', async () => {
-    const machines = [{ id: '1', maMay: 'MAY001', tenMay: 'Máy 1' }];
-    mockPrisma.machine.findMany.mockResolvedValue(machines);
-    mockPrisma.machine.count.mockResolvedValue(25);
-
-    const result = await machineService.getAllMachines(2, 10);
-
-    expect(result.pagination).toEqual({ page: 2, limit: 10, total: 25, totalPages: 3 });
-    expect(result.data).toEqual(machines);
-    expect(mockPrisma.machine.findMany.mock.calls[0][0].skip).toBe(10);
-  });
-});
-
-describe('MachineService — getMachineSummary', () => {
-  it('returns machine with related faults, repairs, operations', async () => {
-    const summary = {
-      id: 'machine-1',
-      maMay: 'MAY001',
-      tenMay: 'Máy sấy 1',
-      trangThai: 'HOAT_DONG',
-      machineSystem: { id: 'sys-1', maHeThong: 'HT001' },
-      faultRecords: [{ id: 'f1', maLoi: 'L001' }],
-      repairRequestItems: [{ id: 'r1', noiDungLoi: 'Hỏng bơm' }],
-      systemOperations: [{ id: 'o1', loaiVanHanh: 'Kiểm tra' }],
-    };
-    mockPrisma.machine.findUnique.mockResolvedValue(summary);
-
-    const result = await machineService.getMachineSummary('machine-1');
+    const result = await machineSystemService.getSummary('sys-1');
 
     expect(result.faultRecords).toHaveLength(1);
-    expect(result.repairRequestItems).toHaveLength(1);
-    expect(result.systemOperations).toHaveLength(1);
-    expect(mockPrisma.machine.findUnique.mock.calls[0][0].include.faultRecords.take).toBe(3);
-    expect(mockPrisma.machine.findUnique.mock.calls[0][0].include.repairRequestItems.take).toBe(3);
-    expect(mockPrisma.machine.findUnique.mock.calls[0][0].include.systemOperations.take).toBe(5);
-  });
-
-  it('throws NotFoundError when machine does not exist', async () => {
-    mockPrisma.machine.findUnique.mockResolvedValue(null);
-
-    await expect(machineService.getMachineSummary('nonexist')).rejects.toThrow(NotFoundError);
-  });
-});
-
-describe('MachineSystemService — getMachinesForSystem', () => {
-  it('returns machines with fault and repair counts', async () => {
-    mockPrisma.machineSystem.findUnique.mockResolvedValue({ id: 'sys-1', maHeThong: 'HT001' });
-    const machines = [
-      { id: 'm1', maMay: 'MAY001', _count: { faultRecords: 2, repairRequestItems: 1 } },
-      { id: 'm2', maMay: 'MAY002', _count: { faultRecords: 0, repairRequestItems: 0 } },
-    ];
-    mockPrisma.machine.findMany.mockResolvedValue(machines);
-
-    const result = await machineSystemService.getMachinesForSystem('sys-1');
-
-    expect(result).toHaveLength(2);
-    expect(result[0]._count.faultRecords).toBe(2);
-    expect(mockPrisma.machine.findMany.mock.calls[0][0].where.machineSystemId).toBe('sys-1');
+    expect(result.repairItems).toHaveLength(1);
+    expect(result.statusLogs).toHaveLength(1);
   });
 
   it('throws NotFoundError when system does not exist', async () => {
     mockPrisma.machineSystem.findUnique.mockResolvedValue(null);
 
-    await expect(machineSystemService.getMachinesForSystem('no-sys')).rejects.toThrow(NotFoundError);
+    await expect(machineSystemService.getSummary('no-sys')).rejects.toThrow(NotFoundError);
   });
 });
 
-describe('FaultRecordService — machineId support', () => {
-  it('createFaultRecord includes machineId in data', async () => {
-    mockPrisma.faultRecord.findFirst.mockResolvedValue(null);
-    const created = { id: 'fr-1', maLoi: 'L001', machineId: 'machine-1' };
+describe('MachineSystemService — updateStatus', () => {
+  it('throws ValidationError when new status equals current status', async () => {
+    mockPrisma.machineSystem.findUnique.mockResolvedValue({
+      id: 'sys-1',
+      trangThai: MachineStatus.HOAT_DONG,
+    });
+
+    await expect(
+      machineSystemService.updateStatus('sys-1', MachineStatus.HOAT_DONG, 'same status', 'Nguyen A'),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it('throws ValidationError when nguyenNhan is empty', async () => {
+    mockPrisma.machineSystem.findUnique.mockResolvedValue({
+      id: 'sys-1',
+      trangThai: MachineStatus.HOAT_DONG,
+    });
+
+    await expect(
+      machineSystemService.updateStatus('sys-1', MachineStatus.BAO_TRI, '', 'Nguyen A'),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it('updates trangThai and creates status log in transaction', async () => {
+    mockPrisma.machineSystem.findUnique.mockResolvedValue({
+      id: 'sys-1',
+      trangThai: MachineStatus.HOAT_DONG,
+    });
+    const updated = { id: 'sys-1', trangThai: MachineStatus.BAO_TRI };
+    mockPrisma.machineSystem.update.mockResolvedValue(updated);
+    mockPrisma.machineStatusLog.create.mockResolvedValue({ id: 'log-1' });
+
+    const result = await machineSystemService.updateStatus(
+      'sys-1', MachineStatus.BAO_TRI, 'Bảo trì định kỳ', 'Nguyen A',
+    );
+
+    expect(result).toEqual(updated);
+    expect(mockPrisma.machineStatusLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          machineSystemId: 'sys-1',
+          trangThaiCu: MachineStatus.HOAT_DONG,
+          trangThaiMoi: MachineStatus.BAO_TRI,
+          nguyenNhan: 'Bảo trì định kỳ',
+        }),
+      }),
+    );
+  });
+});
+
+describe('FaultRecordService — machineSystemId support', () => {
+  it('createFaultRecord passes machineSystemId through resolveMachineContext', async () => {
+    const ms = { id: 'sys-1', maHeThong: 'HT001', tenHeThong: 'Hệ thống A' };
+    mockPrisma.machineSystem.findUnique.mockResolvedValue(ms);
+    mockPrisma.machineSystemDetail.findUnique.mockResolvedValue(null);
+    const created = { id: 'fr-1', maLoi: 'LI-2026-001', machineSystemId: 'sys-1' };
     mockPrisma.faultRecord.create.mockResolvedValue(created);
 
     const result = await faultRecordService.createFaultRecord({
@@ -178,17 +170,16 @@ describe('FaultRecordService — machineId support', () => {
       trangThai: 'Đang theo dõi',
       nguoiPhatHien: 'Nguyễn Văn A',
       ngayPhatHien: new Date('2026-06-01'),
-      machineId: 'machine-1',
+      machineSystemId: 'sys-1',
     });
 
-    expect(result.machineId).toBe('machine-1');
+    expect(result.machineSystemId).toBe('sys-1');
     const createData = mockPrisma.faultRecord.create.mock.calls[0][0].data;
-    expect(createData.machineId).toBe('machine-1');
+    expect(createData.machineSystemId).toBe('sys-1');
   });
 
-  it('createFaultRecord sets machineId to null when not provided', async () => {
-    mockPrisma.faultRecord.findFirst.mockResolvedValue(null);
-    mockPrisma.faultRecord.create.mockResolvedValue({ id: 'fr-2', maLoi: 'L002', machineId: null });
+  it('createFaultRecord sets machineSystemId to null when not provided', async () => {
+    mockPrisma.faultRecord.create.mockResolvedValue({ id: 'fr-2', maLoi: 'L002', machineSystemId: null });
 
     await faultRecordService.createFaultRecord({
       tenLoi: 'Lỗi khác',
@@ -200,18 +191,18 @@ describe('FaultRecordService — machineId support', () => {
     });
 
     const createData = mockPrisma.faultRecord.create.mock.calls[0][0].data;
-    expect(createData.machineId).toBeNull();
+    expect(createData.machineSystemId).toBeUndefined();
   });
 
-  it('getAllFaultRecords applies machineId filter', async () => {
+  it('getAllFaultRecords applies machineSystemId filter', async () => {
     mockPrisma.faultRecord.findMany.mockResolvedValue([]);
     mockPrisma.faultRecord.count.mockResolvedValue(0);
 
     await faultRecordService.getAllFaultRecords(
-      1, 10, undefined, undefined, undefined, undefined, undefined, undefined, 'machine-1'
+      1, 10, undefined, undefined, undefined, 'sys-1',
     );
 
     const whereArg = mockPrisma.faultRecord.findMany.mock.calls[0][0].where;
-    expect(whereArg.machineId).toBe('machine-1');
+    expect(whereArg.machineSystemId).toBe('sys-1');
   });
 });
