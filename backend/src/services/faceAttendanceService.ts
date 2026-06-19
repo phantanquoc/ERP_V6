@@ -692,8 +692,11 @@ export class FaceAttendanceService {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${employee.id}))`;
 
       const today = getTodayInAppTz();
+      // Only consider regular attendance for kiosk check-in/out decisions.
+      // Overtime records (auto-created from approved plans, or via overtimeCheckIn)
+      // must not block a regular shift check-in on the same day.
       const todaysAttendances = await tx.attendance.findMany({
-        where: { employeeId: employee.id, attendanceDate: today },
+        where: { employeeId: employee.id, attendanceDate: today, isOvertime: false },
         orderBy: { createdAt: 'desc' },
         select: { id: true, checkInTime: true, checkOutTime: true },
       });
