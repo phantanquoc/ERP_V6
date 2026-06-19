@@ -8,15 +8,13 @@ class OvertimePlanController {
     try {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
-      const nguoiThamGia = req.body['nguoiThamGia[]'] || req.body.nguoiThamGia || [];
-      const nguoiThamGiaArray = Array.isArray(nguoiThamGia) ? nguoiThamGia : [nguoiThamGia];
       const files = req.files as Express.Multer.File[] | undefined;
       const filePaths = files?.map(file => getFileUrl('overtime-plans', file.filename)) || [];
-      const { noiDung, ngayTangCa, gioBatDau, gioKetThuc, ghiChu, mucDoUuTien } = req.body;
-      const plan = await overtimePlanService.create(
-        { nguoiThamGia: nguoiThamGiaArray, noiDung, ngayTangCa, gioBatDau, gioKetThuc, ghiChu, mucDoUuTien },
-        userId, filePaths
-      );
+      // items is sent as JSON.stringify(items) in FormData
+      const rawItems = req.body.items;
+      const items = rawItems ? JSON.parse(rawItems) : [];
+      const { noiDung, ghiChu, mucDoUuTien } = req.body;
+      const plan = await overtimePlanService.create({ items, noiDung, ghiChu, mucDoUuTien }, userId, filePaths);
       res.status(201).json({ success: true, data: plan, message: 'Tạo kế hoạch tăng ca thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
@@ -58,15 +56,19 @@ class OvertimePlanController {
     try {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
-      const nguoiThamGia = req.body['nguoiThamGia[]'] || req.body.nguoiThamGia;
-      const nguoiThamGiaArray = nguoiThamGia ? (Array.isArray(nguoiThamGia) ? nguoiThamGia : [nguoiThamGia]) : undefined;
+      const isAdmin = req.user?.role === 'ADMIN';
       const files = req.files as Express.Multer.File[] | undefined;
       const filePaths = files?.map(file => getFileUrl('overtime-plans', file.filename));
-      const { noiDung, ngayTangCa, gioBatDau, gioKetThuc, ghiChu, mucDoUuTien } = req.body;
+      // items is sent as JSON.stringify(items) in FormData
+      const rawItems = req.body.items;
+      const items = rawItems ? JSON.parse(rawItems) : undefined;
+      const { noiDung, ghiChu, mucDoUuTien } = req.body;
       const plan = await overtimePlanService.update(
         req.params.id as string,
-        { nguoiThamGia: nguoiThamGiaArray, noiDung, ngayTangCa, gioBatDau, gioKetThuc, ghiChu, mucDoUuTien },
-        userId, filePaths
+        { items, noiDung, ghiChu, mucDoUuTien },
+        userId,
+        isAdmin,
+        filePaths,
       );
       res.json({ success: true, data: plan, message: 'Cập nhật kế hoạch tăng ca thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
@@ -76,7 +78,8 @@ class OvertimePlanController {
     try {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
-      await overtimePlanService.delete(req.params.id as string, userId);
+      const isAdmin = req.user?.role === 'ADMIN';
+      await overtimePlanService.delete(req.params.id as string, userId, isAdmin);
       res.json({ success: true, message: 'Xóa kế hoạch tăng ca thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
@@ -85,7 +88,9 @@ class OvertimePlanController {
     try {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
-      const plan = await overtimePlanService.acceptPlan(req.params.id as string, userId, req.body);
+      const { itemId, trangThai } = req.body;
+      if (!itemId) { res.status(400).json({ success: false, message: 'Thiếu itemId' }); return; }
+      const plan = await overtimePlanService.acceptPlan(req.params.id as string, userId, { itemId, trangThai });
       res.json({ success: true, data: plan, message: 'Cập nhật trạng thái tiếp nhận thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
@@ -103,13 +108,12 @@ class OvertimePlanController {
     try {
       const userId = req.user?.id;
       if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
-      const isUserAdmin = req.user?.role === 'ADMIN';
-      const { actualTimes } = req.body;
-      const plan = await overtimePlanService.updateActualTime(req.params.id as string, userId, actualTimes, isUserAdmin);
+      const { itemId, actualTimes } = req.body;
+      if (!itemId) { res.status(400).json({ success: false, message: 'Thiếu itemId' }); return; }
+      const plan = await overtimePlanService.updateActualTime(req.params.id as string, userId, { itemId, actualTimes });
       res.json({ success: true, data: plan, message: 'Cập nhật giờ thực tế thành công' } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
 }
 
 export default new OvertimePlanController();
-

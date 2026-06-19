@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Plus } from 'lucide-react';
+import {
+  Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Plus,
+  Pencil, Trash2, FileImage, FileSpreadsheet, FileCode,
+} from 'lucide-react';
 import { OvertimePlan, OvertimePlanStatus } from '../services/overtimePlanService';
-import { useOvertimePlans, useMyOvertimePlans, useApprovePlan } from '../hooks/useOvertimePlans';
+import { useOvertimePlans, useMyOvertimePlans, useApprovePlan, useDeleteOvertimePlan } from '../hooks/useOvertimePlans';
 import { ModalForm } from './ModalForm';
 import CreateOvertimePlanModal from './CreateOvertimePlanModal';
 import { getFileUrl } from '../config/api';
+
 interface OvertimePlanListModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -16,12 +20,104 @@ interface OvertimePlanListModalProps {
   highlightPlanId?: string;
 }
 
-const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, onClose, isAdmin = false, canViewAll = false, canCreate = false, embedded = false, highlightPlanId }) => {
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+/** Format "DD/MM" from an ISO date string or Date-like value */
+function fmtDMY(dateStr: string): string {
+  const d = new Date(dateStr);
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${day}/${month}`;
+}
+
+/** Render "Ngày tăng ca" cell value from items array */
+function renderDateRange(plan: OvertimePlan): string {
+  const items = plan.items ?? [];
+  if (items.length === 0) return '—';
+  if (items.length === 1) return `1 ngày ${fmtDMY(items[0].ngayTangCa)}`;
+  const sorted = [...items].sort((a, b) => a.ngayTangCa.localeCompare(b.ngayTangCa));
+  return `${items.length} ngày (${fmtDMY(sorted[0].ngayTangCa)} – ${fmtDMY(sorted[sorted.length - 1].ngayTangCa)})`;
+}
+
+/** Count total unique participants across all items */
+function countParticipants(plan: OvertimePlan): number {
+  const ids = new Set<string>();
+  (plan.items ?? []).forEach(item => item.nguoiThamGiaIds.forEach(id => ids.add(id)));
+  return ids.size;
+}
+
+/** Compute hours between "HH:mm" strings (positive, capped at 24) */
+function computeHours(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const diff = (eh * 60 + em) - (sh * 60 + sm);
+  return Math.max(0, diff) / 60;
+}
+
+// ── file preview helpers ──────────────────────────────────────────────────────
+
+type FileIconType = 'image' | 'spreadsheet' | 'code' | 'text';
+
+function getFileType(filename: string): FileIconType {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  if (/^(jpg|jpeg|png|gif|webp)$/.test(ext)) return 'image';
+  if (/^(xlsx|xls|csv)$/.test(ext)) return 'spreadsheet';
+  if (/^(doc|docx)$/.test(ext)) return 'code';
+  return 'text';
+}
+
+/** Strip leading timestamp prefix like "1234567890-" from a filename */
+function friendlyName(filename: string): string {
+  const base = filename.split('/').pop() ?? filename;
+  return base.replace(/^\d+-/, '');
+}
+
+function FileCardIcon({ type }: { type: FileIconType }) {
+  switch (type) {
+    case 'image': return <FileImage className="w-5 h-5 text-blue-500 flex-shrink-0" />;
+    case 'spreadsheet': return <FileSpreadsheet className="w-5 h-5 text-green-600 flex-shrink-0" />;
+    case 'code': return <FileCode className="w-5 h-5 text-indigo-500 flex-shrink-0" />;
+    default: return <FileText className="w-5 h-5 text-gray-500 flex-shrink-0" />;
+  }
+}
+
+function FileCard({ file }: { file: string }) {
+  const url = getFileUrl(file);
+  const type = getFileType(file);
+  const name = friendlyName(file);
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors text-sm text-blue-600 hover:text-blue-800"
+    >
+      {type === 'image' && (
+        <img
+          src={url}
+          alt={name}
+          className="w-20 h-20 object-cover rounded flex-shrink-0"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+      )}
+      <FileCardIcon type={type} />
+      <span className="break-all">{name}</span>
+    </a>
+  );
+}
+
+// ── main component ────────────────────────────────────────────────────────────
+
+const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
+  isOpen, onClose, isAdmin = false, canViewAll = false, canCreate = false, embedded = false, highlightPlanId,
+}) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editPlan, setEditPlan] = useState<OvertimePlan | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewPlan, setViewPlan] = useState<OvertimePlan | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const itemsPerPage = 10;
 
   // TanStack Query hooks
@@ -41,6 +137,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
   const loading = activeQuery.isLoading;
 
   const approvePlan = useApprovePlan();
+  const deletePlan = useDeleteOvertimePlan();
   const actionLoading = approvePlan.isPending ? approvePlan.variables?.id ?? null : null;
 
   // Auto-open detail when highlightPlanId is provided from notification
@@ -96,6 +193,17 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
     }
   };
 
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    try {
+      await deletePlan.mutateAsync(confirmDeleteId);
+      setConfirmDeleteId(null);
+    } catch (error) {
+      console.error('Error deleting plan:', error);
+      alert('Có lỗi xảy ra khi xóa kế hoạch');
+    }
+  };
+
   if (!isOpen) return null;
 
   const tableContent = (
@@ -117,7 +225,6 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
               <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Ngày tăng ca</th>
               <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Người tạo</th>
               <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Nội dung</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Giờ</th>
               <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Trạng thái</th>
               <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Hành động</th>
             </tr>
@@ -134,7 +241,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-400" />
                       <span className="text-sm font-medium text-gray-900">
-                        {new Date(plan.ngayTangCa).toLocaleDateString('vi-VN')}
+                        {renderDateRange(plan)}
                       </span>
                     </div>
                     <div className="mt-1">
@@ -154,17 +261,12 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                     <p className="text-sm text-gray-900 line-clamp-2 max-w-xs">{plan.noiDung}</p>
                     <div className="mt-1 flex items-center gap-1">
                       <Users className="w-3 h-3 text-gray-400" />
-                      <span className="text-xs text-gray-500">{plan.nguoiThamGia?.length || 0} người</span>
+                      <span className="text-xs text-gray-500">{countParticipants(plan)} người</span>
                       {plan.files && plan.files.length > 0 && (
                         <span className="ml-2 flex items-center gap-1 text-xs text-blue-600">
                           <FileText className="w-3 h-3" /> {plan.files.length} file
                         </span>
                       )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {plan.gioBatDau} - {plan.gioKetThuc}
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -199,6 +301,26 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                             title="Từ chối"
                           >
                             <XCircle className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+
+                      {/* Admin can edit / delete any plan regardless of status */}
+                      {isAdmin && (
+                        <>
+                          <button
+                            onClick={() => { setEditPlan(plan); setShowCreateModal(true); }}
+                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                            title="Chỉnh sửa"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(plan.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                            title="Xóa"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </>
                       )}
@@ -243,11 +365,12 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
 
   const subModals = (
     <>
-      {/* Detail Modal */}
+      {/* Detail Modal — Task 3.7: items sub-table */}
       <ModalForm
         isOpen={!!viewPlan}
         onClose={() => setViewPlan(null)}
         title="Chi tiết kế hoạch tăng ca"
+        maxWidth="4xl"
         footer={
           <div className="flex justify-end">
             <button onClick={() => setViewPlan(null)}
@@ -260,17 +383,6 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
         {viewPlan && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase">Ngày tăng ca</p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">
-                  {new Date(viewPlan.ngayTangCa).toLocaleDateString('vi-VN', { weekday: 'long' })}
-                </p>
-                <p className="text-sm text-gray-700">{new Date(viewPlan.ngayTangCa).toLocaleDateString('vi-VN')}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase">Giờ làm việc</p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">{viewPlan.gioBatDau} - {viewPlan.gioKetThuc}</p>
-              </div>
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase">Người tạo</p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">{viewPlan.nguoiTao?.lastName} {viewPlan.nguoiTao?.firstName}</p>
@@ -293,28 +405,66 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
                 <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{viewPlan.ghiChu}</p>
               </div>
             )}
+            {/* Items sub-table sorted by ngayTangCa ASC (ordered from backend) */}
             <div>
-              <p className="text-xs font-medium text-gray-500 uppercase">Người tham gia ({viewPlan.nguoiThamGia?.length || 0})</p>
-              <div className="mt-2 space-y-2">
-                {viewPlan.nguoiThamGia?.map((person, idx) => (
-                  <div key={idx} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{person.lastName} {person.firstName}</p>
-                      <p className="text-xs text-gray-500">{person.employeeCode} • {person.department}</p>
-                    </div>
-                  </div>
-                ))}
+              <p className="text-xs font-medium text-gray-500 uppercase mb-2">
+                Chi tiết ngày tăng ca ({viewPlan.items?.length ?? 0} dòng)
+              </p>
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Ngày</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Ca</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Nhân sự</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Giờ bắt đầu</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Giờ kết thúc</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Tổng giờ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {(viewPlan.items ?? []).map((item) => {
+                      const hours = computeHours(item.gioBatDau, item.gioKetThuc);
+                      return (
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
+                            {new Date(item.ngayTangCa).toLocaleDateString('vi-VN')}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                            {item.workShiftName ?? <span className="text-gray-400">—</span>}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="space-y-0.5">
+                              {item.nguoiThamGia?.length > 0
+                                ? item.nguoiThamGia.map((p, idx) => (
+                                    <p key={idx} className="text-xs text-gray-700">
+                                      {p.lastName} {p.firstName}
+                                      <span className="text-gray-400 ml-1">({p.employeeCode})</span>
+                                    </p>
+                                  ))
+                                : <span className="text-xs text-gray-400">—</span>
+                              }
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-700">{item.gioBatDau}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-700">{item.gioKetThuc}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-700 font-medium">
+                            {hours.toFixed(1)}h
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
+            {/* Task 3.8: File preview cards */}
             {viewPlan.files && viewPlan.files.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase">File đính kèm</p>
-                <div className="mt-2 space-y-1">
+                <p className="text-xs font-medium text-gray-500 uppercase mb-2">File đính kèm</p>
+                <div className="space-y-2">
                   {viewPlan.files.map((file, idx) => (
-                    <a key={idx} href={getFileUrl(file)} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline">
-                      <FileText className="w-4 h-4" />{file}
-                    </a>
+                    <FileCard key={idx} file={file} />
                   ))}
                 </div>
               </div>
@@ -359,10 +509,41 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
         </div>
       </ModalForm>
 
+      {/* Confirm Delete Modal */}
+      <ModalForm
+        isOpen={!!confirmDeleteId}
+        onClose={() => setConfirmDeleteId(null)}
+        title="Xác nhận xóa kế hoạch"
+        titleIcon={<Trash2 className="w-4 h-4 text-red-500" />}
+        maxWidth="sm"
+        footer={
+          <div className="flex justify-end gap-3">
+            <button onClick={() => setConfirmDeleteId(null)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+              Hủy
+            </button>
+            <button
+              onClick={handleConfirmDelete}
+              disabled={deletePlan.isPending}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              {deletePlan.isPending ? 'Đang xóa...' : 'Xóa kế hoạch'}
+            </button>
+          </div>
+        }
+      >
+        <div className="flex items-start gap-3 p-1">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-gray-700">Bạn có chắc muốn xóa kế hoạch tăng ca này? Hành động này không thể hoàn tác.</p>
+        </div>
+      </ModalForm>
+
+      {/* Create / Edit Modal */}
       <CreateOvertimePlanModal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSuccess={() => activeQuery.refetch()}
+        onClose={() => { setShowCreateModal(false); setEditPlan(null); }}
+        onSuccess={() => { activeQuery.refetch(); setEditPlan(null); }}
+        initialData={editPlan}
       />
     </>
   );
@@ -416,4 +597,3 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({ isOpen, o
 };
 
 export default OvertimePlanListModal;
-
