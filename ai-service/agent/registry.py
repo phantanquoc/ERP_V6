@@ -561,22 +561,6 @@ TOOLS: List[dict] = [
     },
     # ─── Máy móc & Bảo trì ────────────────────────────────────────────────
     {
-        "name": "list_machines",
-        "description": "Xem danh sách máy móc/thiết bị",
-        "method": "GET",
-        "path": "/api/machines",
-        "path_params": [],
-        "query_params": [
-            {"name": "page", "type": "integer", "required": False, "description": "Số trang"},
-            {"name": "limit", "type": "integer", "required": False, "description": "Số lượng mỗi trang"},
-        ],
-        "body_params": [],
-        "is_write": False,
-        "is_export": False,
-        "required_roles": [],
-        "category": "maintenance",
-    },
-    {
         "name": "list_repair_requests",
         "description": "Xem yêu cầu sửa chữa",
         "method": "GET",
@@ -594,12 +578,35 @@ TOOLS: List[dict] = [
         "category": "maintenance",
     },
     {
-        "name": "list_machine_activity_reports",
-        "description": "Xem báo cáo hoạt động máy (thời gian chạy/dừng, hiệu suất)",
+        "name": "list_machine_systems",
+        "description": "Xem danh sách máy vật lý (hệ thống máy). Có thể lọc theo trạng thái, khu vực, loại hệ thống.",
         "method": "GET",
-        "path": "/api/machine-activity-reports",
+        "path": "/api/machine-systems",
         "path_params": [],
         "query_params": [
+            {"name": "page", "type": "integer", "required": False, "description": "Số trang"},
+            {"name": "limit", "type": "integer", "required": False, "description": "Số lượng mỗi trang"},
+            {"name": "trangThai", "type": "string", "required": False, "description": "Trạng thái máy", "enum": ["HOAT_DONG", "BAO_TRI", "NGUNG_HOAT_DONG"]},
+            {"name": "khuVuc", "type": "string", "required": False, "description": "Khu vực đặt máy"},
+            {"name": "loaiHeThong", "type": "string", "required": False, "description": "Loại hệ thống máy (enum MachineSystemCategory, VD: CHIEN_HAM_CHAN_KHONG, HONG_NGOAI, KHAC)"},
+        ],
+        "body_params": [],
+        "is_write": False,
+        "is_export": False,
+        "required_roles": [],
+        "category": "maintenance",
+    },
+    {
+        "name": "list_machine_status_logs",
+        "description": "Xem nhật ký trạng thái máy — lịch sử các lần chuyển trạng thái của máy vật lý (HOAT_DONG/BAO_TRI/NGUNG_HOAT_DONG).",
+        "method": "GET",
+        "path": "/api/machine-status-logs",
+        "path_params": [],
+        "query_params": [
+            {"name": "machineSystemId", "type": "string", "required": False, "description": "ID máy vật lý (lọc theo máy cụ thể)"},
+            {"name": "trangThaiMoi", "type": "string", "required": False, "description": "Trạng thái mới cần lọc", "enum": ["HOAT_DONG", "BAO_TRI", "NGUNG_HOAT_DONG"]},
+            {"name": "fromDate", "type": "string", "required": False, "description": "Ngày bắt đầu lọc (YYYY-MM-DD)"},
+            {"name": "toDate", "type": "string", "required": False, "description": "Ngày kết thúc lọc (YYYY-MM-DD)"},
             {"name": "page", "type": "integer", "required": False, "description": "Số trang"},
             {"name": "limit", "type": "integer", "required": False, "description": "Số lượng mỗi trang"},
         ],
@@ -610,20 +617,27 @@ TOOLS: List[dict] = [
         "category": "maintenance",
     },
     {
-        "name": "list_machine_systems",
-        "description": "Xem danh sách hệ thống máy",
-        "method": "GET",
-        "path": "/api/machine-systems",
-        "path_params": [],
-        "query_params": [
-            {"name": "page", "type": "integer", "required": False, "description": "Số trang"},
-            {"name": "limit", "type": "integer", "required": False, "description": "Số lượng mỗi trang"},
+        "name": "update_machine_status",
+        "description": "Cập nhật trạng thái máy vật lý và ghi nhật ký chuyển trạng thái. Yêu cầu xác nhận trước khi thực hiện.",
+        "method": "POST",
+        "path": "/api/machine-systems/{machineSystemId}/status",
+        "path_params": [
+            {"name": "machineSystemId", "type": "string", "required": True, "description": "ID máy vật lý (lấy từ list_machine_systems)"},
         ],
-        "body_params": [],
-        "is_write": False,
+        "query_params": [],
+        "body_params": [
+            {"name": "trangThai", "type": "string", "required": True, "description": "Trạng thái mới", "enum": ["HOAT_DONG", "BAO_TRI", "NGUNG_HOAT_DONG"]},
+            {"name": "nguyenNhan", "type": "string", "required": True, "description": "Lý do chuyển trạng thái. Bắt buộc — không được để trống."},
+            {"name": "nguoiCapNhat", "type": "string", "required": True, "description": "Tên hoặc ID người thực hiện cập nhật (lấy từ get_my_profile)"},
+            {"name": "ghiChu", "type": "string", "required": False, "description": "Ghi chú thêm"},
+        ],
+        "is_write": True,
         "is_export": False,
         "required_roles": [],
         "category": "maintenance",
+        "_validate": [
+            {"field": "nguyenNhan", "check": "non_empty", "error": "nguyenNhan là bắt buộc — vui lòng nhập lý do chuyển trạng thái máy"},
+        ],
     },
     # ─── Tài chính ────────────────────────────────────────────────────────
     {
@@ -971,15 +985,15 @@ TOOLS: List[dict] = [
     },
     {
         "name": "create_repair_request",
-        "description": "Tạo yêu cầu sửa chữa máy móc/thiết bị.",
+        "description": "Tạo yêu cầu sửa chữa máy móc/thiết bị. Phải gọi list_machine_systems trước để lấy machineSystemId.",
         "method": "POST",
         "path": "/api/repair-requests",
         "path_params": [],
         "query_params": [],
         "body_params": [
+            {"name": "machineSystemId", "type": "string", "required": True, "description": "ID máy vật lý cần sửa (lấy từ list_machine_systems). Bắt buộc — không được để trống."},
             {"name": "ngayThang", "type": "string", "required": True, "description": "Ngày tạo yêu cầu (YYYY-MM-DD)"},
             {"name": "maYeuCau", "type": "string", "required": True, "description": "Mã yêu cầu sửa chữa (VD: SC-001)"},
-            {"name": "tenHeThong", "type": "string", "required": True, "description": "Tên hệ thống/máy cần sửa"},
             {"name": "tinhTrangThietBi", "type": "string", "required": True, "description": "Tình trạng thiết bị hiện tại"},
             {"name": "loaiLoi", "type": "string", "required": True, "description": "Loại lỗi: Cơ khí/Điện/Điện tử/Phần mềm/Khác"},
             {"name": "mucDoUuTien", "type": "string", "required": True, "description": "Mức độ ưu tiên: Khẩn cấp/Cao/Trung bình/Thấp"},
@@ -990,6 +1004,9 @@ TOOLS: List[dict] = [
         "is_export": False,
         "required_roles": [],
         "category": "maintenance",
+        "_validate": [
+            {"field": "machineSystemId", "check": "non_empty", "error": "machineSystemId là bắt buộc — vui lòng gọi list_machine_systems để lấy ID máy cần sửa"},
+        ],
     },
     # ─── Quy trình & Đánh giá ─────────────────────────────────────────────
     {

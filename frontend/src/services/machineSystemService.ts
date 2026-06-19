@@ -26,6 +26,8 @@ export type MachineSystemCategory =
   | 'AN_TOAN'
   | 'KHAC';
 
+export type MachineStatus = 'HOAT_DONG' | 'BAO_TRI' | 'NGUNG_HOAT_DONG';
+
 export interface MachineSystem {
   id: string;
   khuVuc?: string | null;
@@ -41,6 +43,7 @@ export interface MachineSystem {
   nguoiThucHien?: string | null;
   fileDinhKem?: string | null;
   hoatDong: boolean;
+  trangThai?: MachineStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -119,6 +122,52 @@ export interface CreateMachineSystemDetailRequest {
 }
 
 export type UpdateMachineSystemDetailRequest = Partial<CreateMachineSystemDetailRequest>;
+
+export interface MachineStatusLog {
+  id: string;
+  machineSystemId: string;
+  trangThaiCu?: string | null;
+  trangThaiMoi: MachineStatus;
+  nguyenNhan: string;
+  nguoiCapNhat: string;
+  ghiChu?: string | null;
+  thoiDiem: string;
+  createdAt: string;
+  updatedAt: string;
+  machineSystem?: MachineSystem | null;
+}
+
+export interface MachineStatusLogFilters {
+  machineSystemId?: string;
+  trangThaiMoi?: MachineStatus;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface CloneMachineSystemRequest {
+  overrides?: {
+    maHeThong?: string;
+    tenHeThong?: string;
+  };
+}
+
+export interface UpdateMachineStatusRequest {
+  trangThaiMoi: MachineStatus;
+  nguyenNhan: string;
+  ghiChu?: string;
+}
+
+export interface MachineSystemSummary {
+  machine: MachineSystem;
+  faultRecords: any[];
+  repairItems: any[];
+  handoverItems: any[];
+  systemOperations: any[];
+  maintenanceRecords: any[];
+  statusLogs: MachineStatusLog[];
+}
 
 const appendFormFields = (formData: FormData, data: Record<string, unknown>) => {
   Object.entries(data).forEach(([key, value]) => {
@@ -228,6 +277,33 @@ class MachineSystemService {
   async getDetailTree(machineSystemId: string): Promise<ApiResponse<MachineSystemDetail[]>> {
     return apiClient.get<MachineSystemDetail[]>('/machine-system-details/tree', {
       params: { machineSystemId },
+    });
+  }
+
+  async cloneMachineSystem(id: string, data: CloneMachineSystemRequest): Promise<ApiResponse<MachineSystem>> {
+    return apiClient.post<MachineSystem>(`/machine-systems/${id}/clone`, data);
+  }
+
+  async updateMachineStatus(id: string, data: UpdateMachineStatusRequest): Promise<ApiResponse<MachineSystem>> {
+    return apiClient.post<MachineSystem>(`/machine-systems/${id}/status`, data);
+  }
+
+  async getMachineSystemSummary(id: string, recentLimit?: number): Promise<ApiResponse<MachineSystemSummary>> {
+    return apiClient.get<MachineSystemSummary>(`/machine-systems/${id}/summary`, {
+      params: recentLimit !== undefined ? { recentLimit } : undefined,
+    });
+  }
+
+  async getMachineStatusLogs(filters: MachineStatusLogFilters = {}): Promise<ApiResponse<MachineStatusLog[]>> {
+    return apiClient.get<MachineStatusLog[]>('/machine-status-logs', {
+      params: {
+        machineSystemId: filters.machineSystemId,
+        trangThaiMoi: filters.trangThaiMoi,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        page: filters.page ?? 1,
+        limit: filters.limit ?? 10,
+      },
     });
   }
 }

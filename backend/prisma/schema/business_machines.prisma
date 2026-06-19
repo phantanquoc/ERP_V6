@@ -2,8 +2,8 @@
 
 enum MachineStatus {
   HOAT_DONG
-  BẢO_TRÌ
-  NGỪNG_HOẠT_ĐỘNG
+  BAO_TRI
+  NGUNG_HOAT_DONG
 
   @@schema("business")
 }
@@ -59,30 +59,6 @@ enum MaintenanceTeam {
 
 // ─── Models ──────────────────────────────────────────────────────────────────
 
-model Machine {
-  id              String        @id @default(cuid())
-  maMay           String        @unique @default("")
-  tenMay          String        @unique
-  moTa            String?
-  trangThai       MachineStatus @default(HOAT_DONG)
-  ghiChu          String?
-  machineSystemId String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  machineSystem      MachineSystem?           @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
-  systemOperations   SystemOperation[]
-  finishedProducts   FinishedProduct[]
-  qualityEvaluations QualityEvaluation[]
-  faultRecords       FaultRecord[]
-  repairRequestItems RepairRequestItem[]
-  handoverItems      AcceptanceHandoverItem[]
-
-  @@index([machineSystemId])
-  @@map("machines")
-  @@schema("business")
-}
-
 model MachineSystem {
   id              String                @id @default(cuid())
   khuVuc          String
@@ -98,20 +74,48 @@ model MachineSystem {
   nguoiThucHien   String?
   fileDinhKem     String?
   hoatDong        Boolean               @default(true)
+  trangThai       MachineStatus         @default(HOAT_DONG)
+  parentSystemId  String?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
+  parentSystem       MachineSystem?           @relation("MachineSystemClones", fields: [parentSystemId], references: [id], onDelete: SetNull)
+  clonedSystems      MachineSystem[]          @relation("MachineSystemClones")
   details            MachineSystemDetail[]
   faultTemplates     FaultTemplate[]
   faultRecords       FaultRecord[]
   repairRequestItems RepairRequestItem[]
   handoverItems      AcceptanceHandoverItem[]
-  machines           Machine[]
   maintenancePlans   MaintenancePlan[]
   maintenanceRecords MaintenanceRecord[]
+  statusLogs         MachineStatusLog[]
+  systemOperations   SystemOperation[]
+  finishedProducts   FinishedProduct[]
+  qualityEvaluations QualityEvaluation[]
 
   @@index([maHeThong])
+  @@index([parentSystemId])
   @@map("machine_systems")
+  @@schema("business")
+}
+
+model MachineStatusLog {
+  id             String        @id @default(cuid())
+  machineSystemId String
+  trangThaiCu    MachineStatus
+  trangThaiMoi   MachineStatus
+  nguyenNhan     String        @db.Text
+  nguoiCapNhat   String
+  ghiChu         String?       @db.Text
+  thoiDiem       DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  machineSystem MachineSystem @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
+
+  @@index([machineSystemId])
+  @@index([thoiDiem])
+  @@map("machine_status_logs")
   @@schema("business")
 }
 
@@ -154,32 +158,16 @@ model MachineSystemDetail {
   @@schema("business")
 }
 
-model MachineActivityReport {
-  id              String   @id @default(cuid())
-  viTri           String
-  tenHeThong      String
-  tongSoLuong     Int
-  soLuongHoatDong Int
-  soLuongNgung    Int
-  nguyenNhan      String   @db.Text
-  nguoiBaoCao     String
-  fileDinhKem     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([createdAt])
-  @@map("machine_activity_reports")
-  @@schema("business")
-}
-
 model FaultTemplate {
   id                    String   @id @default(cuid())
   maMauLoi              String   @unique
   tenMauLoi             String
   moTa                  String   @db.Text
   mucDo                 String
-  machineSystemId       String
-  machineSystemDetailId String
+  machineSystemId       String?
+  machineSystemDetailId String?
+  tenDetailGoiY         String?
+  loaiDetailGoiY        String?
   hoatDong              Boolean  @default(true)
   trangThai             String   @default("Hoạt động")
   ghiChu                String?  @db.Text
@@ -187,8 +175,8 @@ model FaultTemplate {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  machineSystem       MachineSystem       @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
-  machineSystemDetail MachineSystemDetail @relation(fields: [machineSystemDetailId], references: [id], onDelete: Cascade)
+  machineSystem       MachineSystem?       @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
+  machineSystemDetail MachineSystemDetail? @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
   faultRecords        FaultRecord[]
 
   @@index([machineSystemId])
@@ -207,7 +195,6 @@ model FaultRecord {
   maHeThong             String? // soft ref tới MachineSystem.maHeThong
   machineSystemId       String?
   machineSystemDetailId String?
-  machineId             String?
   faultTemplateId       String?
   mucDo                 String // Nghiêm trọng / Trung bình / Nhẹ
   trangThai             String   @default("Đang theo dõi") // Đang theo dõi / Đã xử lý / Tái phát
@@ -219,13 +206,11 @@ model FaultRecord {
 
   machineSystem       MachineSystem?       @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
   machineSystemDetail MachineSystemDetail? @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
-  machine             Machine?             @relation(fields: [machineId], references: [id], onDelete: SetNull)
   faultTemplate       FaultTemplate?       @relation(fields: [faultTemplateId], references: [id], onDelete: SetNull)
 
   @@index([maLoi])
   @@index([machineSystemId])
   @@index([machineSystemDetailId])
-  @@index([machineId])
   @@index([faultTemplateId])
   @@index([trangThai])
   @@map("fault_records")

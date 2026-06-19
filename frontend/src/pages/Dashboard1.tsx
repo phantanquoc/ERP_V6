@@ -44,7 +44,6 @@ import internalInspectionService from "../services/internalInspectionService";
 import invoiceService from "../services/invoiceService";
 import debtService from "../services/debtService";
 import generalCostService from "../services/generalCostService";
-import machineService from "../services/machineService";
 import machineSystemService from "../services/machineSystemService";
 import repairRequestService from "../services/repairRequestService";
 import faultRecordService from "../services/faultRecordService";
@@ -324,12 +323,6 @@ const Dashboard1: React.FC = () => {
     enabled: canSeeStats,
   });
 
-  const { data: machinesData } = useQuery({
-    queryKey: ['dashboard', 'machines'],
-    queryFn: () => machineService.getAllMachines(1, 10000),
-    enabled: canSeeStats,
-  });
-
   const { data: machineSystemsData } = useQuery({
     queryKey: ['dashboard', 'machineSystems'],
     queryFn: () => machineSystemService.getMachineSystems({ page: 1, limit: 10000 }),
@@ -423,7 +416,7 @@ const Dashboard1: React.FC = () => {
   const costs = costsData?.data || [];
   const debtSummary = debtSummaryData?.data?.data || debtSummaryData?.data || {};
   const taxReports = taxReportsData?.data || [];
-  const machines = machinesData?.data || [];
+  const machines = machineSystemsData?.data || [];
   const machineSystems = machineSystemsData?.data || [];
   const repairRequests = repairRequestsData?.data || [];
   const faultRecords = faultRecordsData?.data || [];
@@ -572,7 +565,7 @@ const Dashboard1: React.FC = () => {
       icon: <Factory className="h-6 w-6" />,
       color: "bg-indigo-400",
       stats: [
-        { label: "Máy móc", value: machines.length.toString(), link: "/production/management?tab=machines" },
+        { label: "Hệ thống máy", value: machines.length.toString(), link: "/technical/quality?tab=machineSystems" },
         { label: "Đang SX", value: filteredOrders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length.toString(), link: "/production/management?tab=productionOrders" },
         { label: "Thành phẩm", value: filteredFinishedProducts.length.toString(), link: "/production/management?tab=finishedProduct" },
         { label: "Đã giao", value: filteredOrders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length.toString(), link: "/production/management?tab=orderList" }
@@ -599,7 +592,6 @@ const Dashboard1: React.FC = () => {
         { label: "Mẫu lỗi", value: faultRecords.length.toString(), link: "/technical/mechanical?tab=faultRecords" },
         { label: "Linh kiện", value: spareParts.length.toString(), link: "/technical/mechanical?tab=spareParts" },
         { label: "Dự án", value: projects.length.toString(), link: "/technical/projects" },
-        { label: "Máy móc", value: machines.length.toString(), link: "/production/management?tab=machines" }
       ]
     }
   }), [

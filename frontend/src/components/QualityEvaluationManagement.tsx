@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Edit, Trash2, Eye, Download } from 'lucide-react';
 import qualityEvaluationService, { QualityEvaluation } from '../services/qualityEvaluationService';
-import machineService, { Machine } from '../services/machineService';
 import { useAuth } from '../contexts/AuthContext';
 import QualityEvaluationModal from './QualityEvaluationModal';
 import TableFilter, { FilterField } from './TableFilter';
+import { useMachineSystems } from '../hooks/useMachineSystemDetails';
 
 const QualityEvaluationManagement: React.FC = () => {
   const { user } = useAuth();
+  const machineSystemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
+  const machineSystems = machineSystemsQuery.data?.data ?? [];
   const [evaluations, setEvaluations] = useState<QualityEvaluation[]>([]);
-  const [machines, setMachines] = useState<Machine[]>([]);
-  const [selectedMachine, setSelectedMachine] = useState<string>('');
+  const [selectedMachineSystemId, setSelectedMachineSystemId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,44 +55,19 @@ const QualityEvaluationManagement: React.FC = () => {
   });
 
   useEffect(() => {
-    loadMachines();
-  }, []);
+    loadEvaluations();
+    setCurrentPage(1);
+  }, [selectedMachineSystemId]);
 
   useEffect(() => {
-    // Auto-select first machine when machines are loaded
-    if (machines.length > 0 && !selectedMachine) {
-      setSelectedMachine(machines[0].tenMay);
-    }
-  }, [machines]);
-
-  useEffect(() => {
-    if (selectedMachine) {
-      loadEvaluations();
-      setCurrentPage(1); // Reset to page 1 when changing machine
-    }
-  }, [selectedMachine]);
-
-  useEffect(() => {
-    if (selectedMachine) {
-      loadEvaluations();
-    }
+    loadEvaluations();
   }, [currentPage]);
-
-  const loadMachines = async () => {
-    try {
-      const result = await machineService.getAllMachines(1, 100);
-      setMachines(result.data);
-    } catch (err: any) {
-      setError(err.message || 'Lỗi tải danh sách máy');
-      console.error(err);
-    }
-  };
 
   const loadEvaluations = async () => {
     try {
       setLoading(true);
       setError('');
-      const result = await qualityEvaluationService.getAllQualityEvaluations(currentPage, 1000, selectedMachine);
+      const result = await qualityEvaluationService.getAllQualityEvaluations(currentPage, 1000, selectedMachineSystemId || undefined);
       setEvaluations(result.data);
       setTotalPages(result.pagination.totalPages);
     } catch (err: any) {
@@ -305,13 +281,14 @@ const QualityEvaluationManagement: React.FC = () => {
         {/* Mobile: dropdown */}
         <div className="sm:hidden px-4 py-3">
           <select
-            value={selectedMachine}
-            onChange={(e) => setSelectedMachine(e.target.value)}
+            value={selectedMachineSystemId}
+            onChange={(e) => setSelectedMachineSystemId(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
           >
-            {machines.map((machine) => (
-              <option key={machine.id} value={machine.tenMay}>
-                {machine.tenMay}
+            <option value="">Tất cả hệ thống</option>
+            {machineSystems.map((ms) => (
+              <option key={ms.id} value={ms.id}>
+                {ms.maHeThong} — {ms.tenHeThong}
               </option>
             ))}
           </select>
@@ -319,17 +296,27 @@ const QualityEvaluationManagement: React.FC = () => {
         {/* Desktop: tabs */}
         <div className="hidden sm:block border-b border-gray-200">
           <nav className="flex space-x-4 px-4 overflow-x-auto" aria-label="Tabs">
-            {machines.map((machine) => (
+            <button
+              onClick={() => setSelectedMachineSystemId('')}
+              className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                !selectedMachineSystemId
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Tất cả
+            </button>
+            {machineSystems.map((ms) => (
               <button
-                key={machine.id}
-                onClick={() => setSelectedMachine(machine.tenMay)}
+                key={ms.id}
+                onClick={() => setSelectedMachineSystemId(ms.id)}
                 className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  selectedMachine === machine.tenMay
+                  selectedMachineSystemId === ms.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                {machine.tenMay}
+                {ms.maHeThong}
               </button>
             ))}
           </nav>

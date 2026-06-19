@@ -233,10 +233,62 @@ class TestGetToolByName:
         assert tool["is_write"] is True
         assert tool["path"] == "/api/repair-requests"
         body_params = {p["name"]: p for p in tool["body_params"]}
-        assert "tenHeThong" in body_params
-        assert body_params["tenHeThong"]["required"] is True
+        assert "machineSystemId" in body_params
+        assert body_params["machineSystemId"]["required"] is True
+        assert "tenHeThong" not in body_params, "tenHeThong phải được xóa khỏi create_repair_request"
         assert "noiDungLoi" in body_params
         assert "loaiLoi" in body_params
+
+    def test_tim_list_machine_status_logs(self):
+        tool = get_tool_by_name("list_machine_status_logs")
+        assert tool is not None
+        assert tool["method"] == "GET"
+        assert tool["is_write"] is False
+        assert tool["path"] == "/api/machine-status-logs"
+        assert tool["category"] == "maintenance"
+        query_params = {p["name"]: p for p in tool["query_params"]}
+        assert "machineSystemId" in query_params
+        assert "trangThaiMoi" in query_params
+        assert "fromDate" in query_params
+        assert "toDate" in query_params
+        # trangThaiMoi must have enum values
+        assert set(query_params["trangThaiMoi"]["enum"]) == {"HOAT_DONG", "BAO_TRI", "NGUNG_HOAT_DONG"}
+
+    def test_tim_update_machine_status(self):
+        tool = get_tool_by_name("update_machine_status")
+        assert tool is not None
+        assert tool["method"] == "POST"
+        assert tool["is_write"] is True
+        assert tool["path"] == "/api/machine-systems/{machineSystemId}/status"
+        assert tool["category"] == "maintenance"
+        path_params = {p["name"]: p for p in tool["path_params"]}
+        assert "machineSystemId" in path_params
+        assert path_params["machineSystemId"]["required"] is True
+        body_params = {p["name"]: p for p in tool["body_params"]}
+        assert "trangThai" in body_params
+        assert body_params["trangThai"]["required"] is True
+        assert "nguyenNhan" in body_params
+        assert body_params["nguyenNhan"]["required"] is True
+        assert "nguoiCapNhat" in body_params
+        assert body_params["nguoiCapNhat"]["required"] is True
+
+    def test_list_machines_removed(self):
+        """list_machines phải bị xóa khỏi registry."""
+        assert get_tool_by_name("list_machines") is None
+
+    def test_list_machine_activity_reports_removed(self):
+        """list_machine_activity_reports phải bị xóa khỏi registry."""
+        assert get_tool_by_name("list_machine_activity_reports") is None
+
+    def test_list_machine_systems_co_filters(self):
+        """list_machine_systems phải có filter trangThai, khuVuc, loaiHeThong."""
+        tool = get_tool_by_name("list_machine_systems")
+        assert tool is not None
+        query_params = {p["name"]: p for p in tool["query_params"]}
+        assert "trangThai" in query_params
+        assert "khuVuc" in query_params
+        assert "loaiHeThong" in query_params
+        assert set(query_params["trangThai"]["enum"]) == {"HOAT_DONG", "BAO_TRI", "NGUNG_HOAT_DONG"}
 
     def test_all_write_tools_have_body_params(self):
         """Tất cả write tools (trừ internal) phải có ít nhất 1 body_param."""

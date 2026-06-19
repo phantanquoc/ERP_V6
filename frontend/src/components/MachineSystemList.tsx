@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Edit, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, Edit, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import Modal from './Modal';
 import {
+  useCloneMachineSystem,
   useCreateMachineSystem,
   useCreateMachineSystemDetail,
   useDeactivateMachineSystemDetail,
@@ -17,11 +18,13 @@ import {
   useUpdateMachineSystemDetail,
 } from '../hooks/useMachineSystemDetails';
 import { useEmployeesForAssignment, type EmployeeOption } from '../hooks/useEmployeesForAssignment';
-import { useMachinesForSystem } from '../hooks/useMachines';
 import MachineSummaryDrawer from './MachineSummaryDrawer';
+import MachineStatusUpdateDialog from './MachineStatusUpdateDialog';
 import type {
+  CloneMachineSystemRequest,
   CreateMachineSystemDetailRequest,
   CreateMachineSystemRequest,
+  MachineStatus,
   MachineSystem,
   MachineSystemCategory,
   MachineSystemDetail,
@@ -176,52 +179,6 @@ const Combobox = ({
   );
 };
 
-const MachinesForSystemPanel = ({ systemId, onMachineClick }: { systemId: string; onMachineClick?: (id: string) => void }) => {
-  const { data: machines, isLoading } = useMachinesForSystem(systemId);
-
-  const getStatusBadge = (status: string) => {
-    const map: Record<string, { label: string; cls: string }> = {
-      HOAT_DONG: { label: 'Hoạt động', cls: 'bg-green-100 text-green-700' },
-      'BẢO_TRÌ': { label: 'Bảo trì', cls: 'bg-yellow-100 text-yellow-700' },
-      'NGỪNG_HOẠT_ĐỘNG': { label: 'Ngừng HĐ', cls: 'bg-red-100 text-red-700' },
-    };
-    const cfg = map[status] || map.HOAT_DONG;
-    return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${cfg.cls}`}>{cfg.label}</span>;
-  };
-
-  if (isLoading) return <div className="border-t border-gray-200 pt-3 text-sm text-gray-500">Đang tải máy...</div>;
-  if (!machines || machines.length === 0) return <div className="border-t border-gray-200 pt-3 text-sm text-gray-400">Chưa có máy nào thuộc hệ thống này</div>;
-
-  return (
-    <div className="border-t border-gray-200 pt-3">
-      <h4 className="mb-2 text-sm font-semibold text-gray-700">Máy trong hệ thống ({machines.length})</h4>
-      <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-gray-50">
-            <tr>
-              <th className="px-3 py-1.5 text-left font-medium text-gray-600">Mã máy</th>
-              <th className="px-3 py-1.5 text-left font-medium text-gray-600">Tên máy</th>
-              <th className="px-3 py-1.5 text-center font-medium text-gray-600">Trạng thái</th>
-              <th className="px-3 py-1.5 text-center font-medium text-gray-600">Lỗi</th>
-              <th className="px-3 py-1.5 text-center font-medium text-gray-600">Sửa chữa</th>
-            </tr>
-          </thead>
-          <tbody>
-            {machines.map((m: any) => (
-              <tr key={m.id} className="border-t border-gray-100 hover:bg-blue-50 cursor-pointer" onClick={() => onMachineClick?.(m.id)}>
-                <td className="px-3 py-1.5 font-medium text-blue-600">{m.maMay}</td>
-                <td className="px-3 py-1.5 text-gray-800">{m.tenMay}</td>
-                <td className="px-3 py-1.5 text-center">{getStatusBadge(m.trangThai)}</td>
-                <td className="px-3 py-1.5 text-center">{m._count?.faultRecords ?? 0}</td>
-                <td className="px-3 py-1.5 text-center">{m._count?.repairRequestItems ?? 0}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
 
 const emptySystemForm = (): SystemForm => ({
   khuVuc: '',
@@ -256,6 +213,21 @@ const detailTypeLabel = (value?: string) =>
 
 const statusBadge = (active?: boolean) =>
   active ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200';
+
+const MACHINE_STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  HOAT_DONG: { label: 'Hoạt động', cls: 'bg-green-100 text-green-700 border-green-200' },
+  BAO_TRI: { label: 'Bảo trì', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  NGUNG_HOAT_DONG: { label: 'Ngừng HĐ', cls: 'bg-red-100 text-red-700 border-red-200' },
+};
+
+const machineStatusBadge = (status?: MachineStatus | null) => {
+  const cfg = (status && MACHINE_STATUS_MAP[status]) ?? MACHINE_STATUS_MAP.HOAT_DONG;
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.cls}`}>
+      {cfg.label}
+    </span>
+  );
+};
 
 const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
 
@@ -301,6 +273,7 @@ const MachineSystemList = () => {
   const updateDetail = useUpdateMachineSystemDetail();
   const deactivateDetail = useDeactivateMachineSystemDetail();
   const deleteDetail = useDeleteMachineSystemDetail();
+  const cloneSystem = useCloneMachineSystem();
 
   const systems = systemsQuery.data?.data ?? [];
   const allSystems = allSystemsQuery.data?.data ?? [];
@@ -314,7 +287,10 @@ const MachineSystemList = () => {
   const [systemForm, setSystemForm] = useState<SystemForm>(emptySystemForm());
   const [detailForm, setDetailForm] = useState<DetailForm>(emptyDetailForm());
   const [error, setError] = useState('');
-  const [drawerMachineId, setDrawerMachineId] = useState<string | null>(null);
+  const [drawerSystemId, setDrawerSystemId] = useState<string | null>(null);
+  const [statusUpdateSystemId, setStatusUpdateSystemId] = useState<string | null>(null);
+  const [cloneDialog, setCloneDialog] = useState<{ system: MachineSystem; maHeThong: string; tenHeThong: string } | null>(null);
+  const [cloneError, setCloneError] = useState('');
 
   // Employee dropdown for assignment
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -671,15 +647,16 @@ const MachineSystemList = () => {
                 <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Khu vực</th>
                 <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Vị trí</th>
                 <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Người TH</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Trạng thái</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[100px]">Thao tác</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Hoạt động</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Tình trạng</th>
+                <th className="border-b border-gray-200 px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[130px]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {systemsQuery.isLoading ? (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
+                <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
               ) : systems.length === 0 ? (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Chưa có hệ thống phù hợp.</td></tr>
+                <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Chưa có hệ thống phù hợp.</td></tr>
               ) : systems.map((system) => (
                 <tr key={system.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{system.maHeThong}</td>
@@ -693,10 +670,25 @@ const MachineSystemList = () => {
                       {system.hoatDong ? 'Đang hoạt động' : 'Dừng'}
                     </span>
                   </td>
+                  <td className="px-3 py-2.5">
+                    {machineStatusBadge(system.trangThai as MachineStatus | undefined)}
+                  </td>
                   <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
                     <div className="flex justify-end gap-0.5">
-                      <button type="button" title="Xem" onClick={() => openSystemModal('view', system)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
+                      <button type="button" title="Xem" onClick={() => { setDrawerSystemId(system.id); }} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
                       <button type="button" title="Sửa" onClick={() => openSystemModal('edit', system)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>
+                      <button
+                        type="button"
+                        title="Nhân bản"
+                        onClick={() => setCloneDialog({ system, maHeThong: system.maHeThong + '-COPY', tenHeThong: system.tenHeThong + ' (bản sao)' })}
+                        className="rounded-md p-1.5 text-gray-400 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+                      ><Copy className="h-4 w-4" /></button>
+                      <button
+                        type="button"
+                        title="Cập nhật trạng thái"
+                        onClick={() => setStatusUpdateSystemId(system.id)}
+                        className="rounded-md p-1.5 text-gray-400 hover:bg-yellow-50 hover:text-yellow-600 transition-colors"
+                      ><RefreshCw className="h-4 w-4" /></button>
                       <button type="button" title="Xóa" onClick={() => removeSystem(system)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </td>
@@ -1019,7 +1011,15 @@ const MachineSystemList = () => {
               </label>
             </div>
             {systemModal?.mode === 'view' && systemModal?.record && (
-              <MachinesForSystemPanel systemId={systemModal.record.id} onMachineClick={setDrawerMachineId} />
+              <div className="border-t border-gray-200 pt-3">
+                <button
+                  type="button"
+                  onClick={() => { setSystemModal(null); setDrawerSystemId(systemModal.record!.id); }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50"
+                >
+                  <Eye className="h-4 w-4" /> Xem tổng quan hệ thống
+                </button>
+              </div>
             )}
             <div className="flex justify-end gap-2 border-t border-gray-200 pt-3">
               <button type="button" onClick={() => setSystemModal(null)} className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">{systemModal?.mode === 'view' ? 'Đóng' : 'Hủy'}</button>
@@ -1101,7 +1101,88 @@ const MachineSystemList = () => {
         </div>
       </Modal>
 
-      <MachineSummaryDrawer machineId={drawerMachineId} onClose={() => setDrawerMachineId(null)} />
+      <MachineSummaryDrawer machineSystemId={drawerSystemId} onClose={() => setDrawerSystemId(null)} />
+
+      <MachineStatusUpdateDialog
+        machineSystemId={statusUpdateSystemId}
+        machineName={systems.find((s) => s.id === statusUpdateSystemId)?.tenHeThong}
+        onClose={() => setStatusUpdateSystemId(null)}
+        onSuccess={() => setStatusUpdateSystemId(null)}
+      />
+
+      {cloneDialog && (
+        <Modal isOpen onClose={() => { setCloneDialog(null); setCloneError(''); }} showBackdrop>
+          <div
+            className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-lg bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <h3 className="text-base font-semibold text-gray-900">Nhân bản hệ thống máy</h3>
+              <button type="button" onClick={() => { setCloneDialog(null); setCloneError(''); }} className="rounded p-1.5 text-gray-500 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
+              <p className="text-xs text-gray-500">
+                Nhân bản từ: <span className="font-medium text-gray-700">{cloneDialog.system.maHeThong} — {cloneDialog.system.tenHeThong}</span>
+              </p>
+              {cloneError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{cloneError}</div>
+              )}
+              <label className="block space-y-1">
+                <span className="font-medium text-gray-700">Mã hệ thống mới <span className="text-red-500">*</span></span>
+                <input
+                  type="text"
+                  value={cloneDialog.maHeThong}
+                  onChange={(e) => setCloneDialog((d) => d ? { ...d, maHeThong: e.target.value } : null)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Mã hệ thống mới"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="font-medium text-gray-700">Tên hệ thống mới <span className="text-red-500">*</span></span>
+                <input
+                  type="text"
+                  value={cloneDialog.tenHeThong}
+                  onChange={(e) => setCloneDialog((d) => d ? { ...d, tenHeThong: e.target.value } : null)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Tên hệ thống mới"
+                />
+              </label>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setCloneDialog(null); setCloneError(''); }}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  disabled={cloneSystem.isPending}
+                  onClick={async () => {
+                    setCloneError('');
+                    const { system, maHeThong, tenHeThong } = cloneDialog;
+                    if (!maHeThong.trim() || !tenHeThong.trim()) {
+                      setCloneError('Vui lòng nhập đầy đủ mã và tên hệ thống mới');
+                      return;
+                    }
+                    try {
+                      await cloneSystem.mutateAsync({ id: system.id, data: { maHeThong: maHeThong.trim(), tenHeThong: tenHeThong.trim() } });
+                      setCloneDialog(null);
+                    } catch (err) {
+                      setCloneError(err instanceof Error ? err.message : 'Không nhân bản được hệ thống');
+                    }
+                  }}
+                  className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {cloneSystem.isPending ? 'Đang nhân bản...' : 'Nhân bản'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

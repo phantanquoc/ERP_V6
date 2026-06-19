@@ -46,7 +46,6 @@ const handoverInclude = {
         include: {
           machineSystem: true,
           machineSystemDetail: true,
-          machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
         },
       },
     },
@@ -56,7 +55,6 @@ const handoverInclude = {
       repairRequestItem: true,
       machineSystem: true,
       machineSystemDetail: true,
-      machine: { select: { id: true, maMay: true, tenMay: true, trangThai: true } },
     },
     orderBy: { createdAt: 'asc' as const },
   },
@@ -172,7 +170,6 @@ class AcceptanceHandoverService {
         repairRequestItemId: repairItem.id,
         machineSystemId: repairItem.machineSystemId,
         machineSystemDetailId: repairItem.machineSystemDetailId,
-        machineId: repairItem.machineId,
         tenHeThong: repairItem.tenHeThong,
         tenChiTiet: repairItem.machineSystemDetail?.tenChiTiet ?? null,
         tinhTrangTruocSuaChua: item.tinhTrangTruocSuaChua,

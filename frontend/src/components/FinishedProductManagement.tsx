@@ -1,22 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Edit, Trash2, Eye, FileText, X, Download } from 'lucide-react';
 import finishedProductService, { FinishedProduct } from '../services/finishedProductService';
-import machineService, { Machine } from '../services/machineService';
 import FinishedProductModal from './FinishedProductModal';
 import FinishedProductViewModal from './FinishedProductViewModal';
 import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
 import TableFilter, { FilterField } from './TableFilter';
+import { useMachineSystems } from '../hooks/useMachineSystemDetails';
 
 // Special constant for "Tổng các máy" tab
 const TOTAL_ALL_MACHINES = '__TOTAL_ALL_MACHINES__';
 
 const FinishedProductManagement: React.FC = () => {
   const { user } = useAuth();
+  const machineSystemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
+  const machineSystems = machineSystemsQuery.data?.data ?? [];
   const [products, setProducts] = useState<FinishedProduct[]>([]);
   const [allProducts, setAllProducts] = useState<FinishedProduct[]>([]); // All products from all machines
-  const [machines, setMachines] = useState<Machine[]>([]);
-  const [selectedMachine, setSelectedMachine] = useState<string>('');
+  const [selectedMachineSystemId, setSelectedMachineSystemId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,50 +62,34 @@ const FinishedProductManagement: React.FC = () => {
   });
 
   useEffect(() => {
-    loadMachines();
-  }, []);
-
-  useEffect(() => {
-    if (selectedMachine) {
+    if (selectedMachineSystemId && selectedMachineSystemId !== TOTAL_ALL_MACHINES) {
       setCurrentPage(1);
       loadProducts();
     }
-  }, [selectedMachine]);
+  }, [selectedMachineSystemId]);
 
   // Load all products when "Tổng các máy" tab is selected
   useEffect(() => {
-    if (selectedMachine === TOTAL_ALL_MACHINES) {
+    if (selectedMachineSystemId === TOTAL_ALL_MACHINES) {
       loadAllProducts();
     }
-  }, [selectedMachine]);
+  }, [selectedMachineSystemId]);
 
-  const loadMachines = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const result = await machineService.getAllMachines(1, 100);
-      setMachines(result.data);
-
-      // Set first machine as selected if available
-      if (result.data.length > 0 && !selectedMachine) {
-        setSelectedMachine(result.data[0].tenMay);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Lỗi tải danh sách máy');
-      console.error(err);
-    } finally {
-      setLoading(false);
+  // Auto-select first machine system when list loads
+  useEffect(() => {
+    if (machineSystems.length > 0 && !selectedMachineSystemId) {
+      setSelectedMachineSystemId(machineSystems[0].id);
     }
-  };
+  }, [machineSystems]);
 
   const loadProducts = async () => {
-    if (selectedMachine === TOTAL_ALL_MACHINES) {
+    if (selectedMachineSystemId === TOTAL_ALL_MACHINES) {
       return; // Skip loading for total tab, handled separately
     }
     try {
       setLoading(true);
       setError('');
-      const result = await finishedProductService.getAllFinishedProducts(1, 1000, selectedMachine);
+      const result = await finishedProductService.getAllFinishedProducts(1, 1000, selectedMachineSystemId || undefined);
       setProducts(result.data);
     } catch (err: any) {
       setError(err.message || 'Lỗi tải dữ liệu');
@@ -136,10 +121,8 @@ const FinishedProductManagement: React.FC = () => {
       case 'HOAT_DONG':
       case 'DANG_HOAT_DONG':
         return 'Đang hoạt động';
-      case 'BẢO_TRÌ':
       case 'BAO_TRI':
         return 'Bảo trì';
-      case 'NGỪNG_HOẠT_ĐỘNG':
       case 'NGUNG_HOAT_DONG':
         return 'Ngừng hoạt động';
       default:
@@ -153,10 +136,8 @@ const FinishedProductManagement: React.FC = () => {
       case 'HOAT_DONG':
       case 'DANG_HOAT_DONG':
         return 'bg-green-100 text-green-800';
-      case 'BẢO_TRÌ':
       case 'BAO_TRI':
         return 'bg-yellow-100 text-yellow-800';
-      case 'NGỪNG_HOẠT_ĐỘNG':
       case 'NGUNG_HOAT_DONG':
         return 'bg-red-100 text-red-800';
       default:
@@ -227,7 +208,7 @@ const FinishedProductManagement: React.FC = () => {
 
   // Aggregate products by maChien for "Tổng các máy" tab
   const aggregatedByMaChien = useMemo((): AggregatedProduct[] => {
-    if (selectedMachine !== TOTAL_ALL_MACHINES || allProducts.length === 0) {
+    if (selectedMachineSystemId !== TOTAL_ALL_MACHINES || allProducts.length === 0) {
       return [];
     }
 
@@ -251,7 +232,7 @@ const FinishedProductManagement: React.FC = () => {
 
       products.forEach((p) => {
         const tiLe = Number(getRateValue(p).toFixed(2)); // Round to 2 decimal places
-        const tenMay = p.tenMay || 'Không xác định';
+        const tenMay = p.machineSystem?.tenHeThong || 'Không xác định';
 
         if (minMachine === null || tiLe < minMachine.tiLe) {
           minMachine = { tenMay, tiLe };
@@ -354,7 +335,7 @@ const FinishedProductManagement: React.FC = () => {
     // Sort by thoiGianChien descending
     result.sort((a, b) => new Date(b.thoiGianChien).getTime() - new Date(a.thoiGianChien).getTime());
     return result;
-  }, [selectedMachine, allProducts]);
+  }, [selectedMachineSystemId, allProducts]);
 
   // Filtered aggregated data
   const filteredAggregated = aggregatedByMaChien.filter(item => {
@@ -569,7 +550,7 @@ const FinishedProductManagement: React.FC = () => {
   const handleExportExcel = async () => {
     try {
       await finishedProductService.exportToExcel({
-        tenMay: selectedMachine !== TOTAL_ALL_MACHINES ? selectedMachine : undefined,
+        machineSystemId: selectedMachineSystemId !== TOTAL_ALL_MACHINES ? selectedMachineSystemId : undefined,
       });
     } catch (error) {
       console.error('Error exporting to Excel:', error);
@@ -600,18 +581,18 @@ const FinishedProductManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Machine Selector */}
+      {/* Machine System Selector */}
       <div className="bg-white rounded-lg shadow">
         {/* Mobile: dropdown */}
         <div className="sm:hidden px-4 py-3">
           <select
-            value={selectedMachine}
-            onChange={(e) => setSelectedMachine(e.target.value)}
+            value={selectedMachineSystemId}
+            onChange={(e) => setSelectedMachineSystemId(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
           >
-            {machines.map((machine) => (
-              <option key={machine.id} value={machine.tenMay}>
-                {machine.tenMay}
+            {machineSystems.map((system) => (
+              <option key={system.id} value={system.id}>
+                {system.maHeThong} — {system.tenHeThong}
               </option>
             ))}
             <option value={TOTAL_ALL_MACHINES}>Tổng các máy</option>
@@ -620,27 +601,27 @@ const FinishedProductManagement: React.FC = () => {
         {/* Desktop: tabs */}
         <div className="hidden sm:block border-b border-gray-200">
           <nav className="-mb-px flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
-            {machines.map((machine) => (
+            {machineSystems.map((system) => (
               <button
-                key={machine.id}
-                onClick={() => setSelectedMachine(machine.tenMay)}
+                key={system.id}
+                onClick={() => setSelectedMachineSystemId(system.id)}
                 className={`
                   whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center
-                  ${selectedMachine === machine.tenMay
+                  ${selectedMachineSystemId === system.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }
                 `}
               >
-                {machine.tenMay}
+                {system.maHeThong} — {system.tenHeThong}
               </button>
             ))}
             {/* Tab Tổng các máy */}
             <button
-              onClick={() => setSelectedMachine(TOTAL_ALL_MACHINES)}
+              onClick={() => setSelectedMachineSystemId(TOTAL_ALL_MACHINES)}
               className={`
                 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-                ${selectedMachine === TOTAL_ALL_MACHINES
+                ${selectedMachineSystemId === TOTAL_ALL_MACHINES
                   ? 'border-green-500 text-green-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }
@@ -659,7 +640,7 @@ const FinishedProductManagement: React.FC = () => {
       />
 
       {/* Aggregated Table View for "Tổng các máy" tab - Display by maChien */}
-      {selectedMachine === TOTAL_ALL_MACHINES && (
+      {selectedMachineSystemId === TOTAL_ALL_MACHINES && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
@@ -766,7 +747,7 @@ const FinishedProductManagement: React.FC = () => {
       )}
 
               {/* Table for individual machines */}
-      {selectedMachine !== TOTAL_ALL_MACHINES && (
+      {selectedMachineSystemId !== TOTAL_ALL_MACHINES && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">

@@ -8,7 +8,6 @@ import {
   FileText,
   TrendingUp,
   ClipboardCheck,
-  Cog,
   PackageCheck,
   Star,
   BarChart3
@@ -19,30 +18,20 @@ import ProductionProcessManagement from '../../components/ProductionProcessManag
 import OrderManagement from '../../components/OrderManagement';
 import MaterialEvaluationManagement from '../../components/MaterialEvaluationManagement';
 import SystemOperationManagement from '../../components/SystemOperationManagement';
-import MachineManagement from '../../components/MachineManagement';
 import FinishedProductManagement from '../../components/FinishedProductManagement';
 import QualityEvaluationManagement from '../../components/QualityEvaluationManagement';
 import ProductionReportList from '../../components/ProductionDepartment/ProductionReportList';
-import machineService from '../../services/machineService';
 import { orderService } from '../../services/orderService';
 
 const ProductionDepartment = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'machines' | 'processList' | 'productionOrders' | 'orderList' | 'standards' | 'materialEvaluation' | 'systemOperation' | 'finishedProduct' | 'qualityEvaluation' | 'productionReport'>(() => {
+  const [activeTab, setActiveTab] = useState<'processList' | 'productionOrders' | 'orderList' | 'standards' | 'materialEvaluation' | 'systemOperation' | 'finishedProduct' | 'qualityEvaluation' | 'productionReport'>(() => {
     const tabParam = searchParams.get('tab');
-    const validTabs = ['machines', 'processList', 'productionOrders', 'orderList', 'standards', 'materialEvaluation', 'systemOperation', 'finishedProduct', 'qualityEvaluation', 'productionReport'];
-    return validTabs.includes(tabParam || '') ? tabParam as any : 'machines';
+    const validTabs = ['processList', 'productionOrders', 'orderList', 'standards', 'materialEvaluation', 'systemOperation', 'finishedProduct', 'qualityEvaluation', 'productionReport'];
+    return validTabs.includes(tabParam || '') ? tabParam as any : 'processList';
   });
   const [selectedMaChien, setSelectedMaChien] = useState<string>('');
   const [selectedThoiGianChien, setSelectedThoiGianChien] = useState<string>('');
-
-  // Machine statistics
-  const [machineStats, setMachineStats] = useState({
-    total: 0,
-    hoatDong: 0,
-    baoTri: 0,
-    ngungHoatDong: 0
-  });
 
   // Order statistics
   const [orderStats, setOrderStats] = useState({
@@ -53,10 +42,8 @@ const ProductionDepartment = () => {
     daGiao: 0
   });
 
-  const [loading, setLoading] = useState(false);
-
   useEffect(() => {
-    loadAllStats();
+    loadOrderStats();
   }, []);
 
   // Sync tab to URL when changed
@@ -66,31 +53,6 @@ const ProductionDepartment = () => {
       setSearchParams({ tab: activeTab }, { replace: true });
     }
   }, [activeTab]);
-
-  const loadAllStats = async () => {
-    setLoading(true);
-    await Promise.all([
-      loadMachineStats(),
-      loadOrderStats()
-    ]);
-    setLoading(false);
-  };
-
-  const loadMachineStats = async () => {
-    try {
-      const result = await machineService.getAllMachines(1, 1000);
-      const machines = result.data;
-
-      setMachineStats({
-        total: machines.length,
-        hoatDong: machines.filter(m => m.trangThai === 'HOAT_DONG').length,
-        baoTri: machines.filter(m => m.trangThai === 'BẢO_TRÌ').length,
-        ngungHoatDong: machines.filter(m => m.trangThai === 'NGỪNG_HOẠT_ĐỘNG').length
-      });
-    } catch (error) {
-      console.error('Error loading machine stats:', error);
-    }
-  };
 
   const loadOrderStats = async () => {
     try {
@@ -118,7 +80,6 @@ const ProductionDepartment = () => {
 
 
   const tabs = [
-    { id: 'machines', name: 'Quản lý máy móc', icon: <Cog className="w-4 h-4" /> },
     { id: 'processList', name: 'Danh sách quy trình', icon: <FileText className="w-4 h-4" /> },
     { id: 'productionOrders', name: 'Danh sách quy trình sản xuất', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <Package className="w-4 h-4" /> },
@@ -141,39 +102,7 @@ const ProductionDepartment = () => {
       </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          {/* Tổng quan máy móc */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <Cog className="w-5 h-5 mr-2 text-blue-600" />
-                Tổng quan máy móc
-              </h3>
-            </div>
-            <div className="space-y-3">
-              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Tổng số máy</span>
-                  <span className="text-2xl font-bold text-blue-600">{machineStats.total}</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
-                  <div className="text-lg sm:text-xl font-bold text-green-600">{machineStats.hoatDong}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Đang hoạt động</div>
-                </div>
-                <div className="bg-yellow-50 rounded-lg p-2 text-center hover:bg-yellow-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-yellow-300 cursor-pointer">
-                  <div className="text-lg sm:text-xl font-bold text-yellow-600">{machineStats.baoTri}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Đang bảo trì</div>
-                </div>
-                <div className="bg-red-50 rounded-lg p-2 text-center hover:bg-red-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-red-300 cursor-pointer col-span-2 sm:col-span-1">
-                  <div className="text-lg sm:text-xl font-bold text-red-600">{machineStats.ngungHoatDong}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Ngừng hoạt động</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 gap-4 sm:gap-6">
           {/* Tổng quan đơn hàng */}
           <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
             <div className="flex items-center justify-between mb-4">
@@ -232,7 +161,6 @@ const ProductionDepartment = () => {
       </div>
 
       {/* Content */}
-      {activeTab === 'machines' && <MachineManagement />}
       {activeTab === 'processList' && <ProcessManagement mode="standard-only" />}
       {activeTab === 'standards' && <MaterialStandardManagement />}
       {activeTab === 'productionOrders' && <ProductionProcessManagement />}

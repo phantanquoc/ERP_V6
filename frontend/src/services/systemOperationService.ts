@@ -9,7 +9,7 @@ export interface GiaiDoan {
 export interface SystemOperation {
   id: string;
   maChien: string;
-  tenMay: string;
+  machineSystemId?: string | null;
   thoiGianChien: string;
   khoiLuongDauVao?: number;
   giaiDoan1: GiaiDoan;
@@ -21,15 +21,16 @@ export interface SystemOperation {
   ghiChu?: string;
   nguoiThucHien: string;
   materialEvaluationId?: string;
+  machineSystem?: { id: string; maHeThong: string; tenHeThong: string } | null;
   createdAt?: string;
   updatedAt?: string;
 }
 
 class SystemOperationService {
-  async getAllSystemOperations(page: number = 1, limit: number = 10, tenMay?: string): Promise<{ data: SystemOperation[], pagination: any }> {
+  async getAllSystemOperations(page: number = 1, limit: number = 10, machineSystemId?: string): Promise<{ data: SystemOperation[], pagination: any }> {
     try {
       const params: any = { page, limit };
-      if (tenMay) params.tenMay = tenMay;
+      if (machineSystemId) params.machineSystemId = machineSystemId;
 
        const response = await apiClient.get('/system-operations', {
         params,
@@ -103,7 +104,7 @@ class SystemOperationService {
     return {
       id: data.id,
       maChien: data.maChien,
-      tenMay: data.tenMay,
+      machineSystemId: data.machineSystemId ?? null,
       thoiGianChien: data.thoiGianChien,
       khoiLuongDauVao: data.khoiLuongDauVao,
       giaiDoan1: {
@@ -131,6 +132,7 @@ class SystemOperationService {
       ghiChu: data.ghiChu,
       nguoiThucHien: data.nguoiThucHien,
       materialEvaluationId: data.materialEvaluationId,
+      machineSystem: data.machineSystem ?? null,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     };
@@ -140,7 +142,7 @@ class SystemOperationService {
   private transformToAPI(data: Partial<SystemOperation>): any {
     return {
       maChien: data.maChien,
-      tenMay: data.tenMay,
+      machineSystemId: data.machineSystemId,
       thoiGianChien: data.thoiGianChien,
       khoiLuongDauVao: data.khoiLuongDauVao,
       giaiDoan1ThoiGian: data.giaiDoan1?.thoiGian,

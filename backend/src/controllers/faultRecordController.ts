@@ -14,7 +14,6 @@ class FaultRecordController {
       const machineSystemId = req.query.machineSystemId as string | undefined;
       const machineSystemDetailId = req.query.machineSystemDetailId as string | undefined;
       const faultTemplateId = req.query.faultTemplateId as string | undefined;
-      const machineId = req.query.machineId as string | undefined;
 
       const result = await faultRecordService.getAllFaultRecords(
         page,
@@ -25,7 +24,6 @@ class FaultRecordController {
         machineSystemId,
         machineSystemDetailId,
         faultTemplateId,
-        machineId,
       );
       res.json({ success: true, data: result.data, pagination: result.pagination });
     } catch (error) {
@@ -50,7 +48,6 @@ class FaultRecordController {
         maHeThong: req.body.maHeThong,
         machineSystemId: req.body.machineSystemId,
         machineSystemDetailId: req.body.machineSystemDetailId,
-        machineId: req.body.machineId,
         faultTemplateId: req.body.faultTemplateId,
         mucDo: req.body.mucDo,
         trangThai: req.body.trangThai,
@@ -74,7 +71,6 @@ class FaultRecordController {
         maHeThong: req.body.maHeThong,
         machineSystemId: req.body.machineSystemId,
         machineSystemDetailId: req.body.machineSystemDetailId,
-        machineId: req.body.machineId,
         faultTemplateId: req.body.faultTemplateId,
         mucDo: req.body.mucDo,
         trangThai: req.body.trangThai,

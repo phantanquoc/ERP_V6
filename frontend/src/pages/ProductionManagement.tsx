@@ -9,7 +9,7 @@ import {
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import machineService from '../services/machineService';
+import machineSystemService from '../services/machineSystemService';
 import { orderService } from '../services/orderService';
 import finishedProductService from '../services/finishedProductService';
 import warehouseService from '../services/warehouseService';
@@ -165,7 +165,7 @@ const ProductionManagement = () => {
       const currentYear = new Date().getFullYear();
 
       const [machineRes, orderRes, finishedRes, warehouseRes, receiptRes, issueRes, supplyRes] = await Promise.allSettled([
-        machineService.getAllMachines(1, 10000),
+        machineSystemService.getMachineSystems({ page: 1, limit: 10000 }),
         orderService.getAllOrders(1, 10000),
         finishedProductService.getAllFinishedProducts(1, 10000),
         warehouseService.getAllWarehouses(),
@@ -175,12 +175,12 @@ const ProductionManagement = () => {
       ]);
 
       if (machineRes.status === 'fulfilled') {
-        const machines = machineRes.value.data;
+        const machines = machineRes.value.data ?? [];
         setMachineStats({
           total: machines.length,
           hoatDong: machines.filter((m: any) => m.trangThai === 'HOAT_DONG').length,
-          baoTri: machines.filter((m: any) => m.trangThai === 'BẢO_TRÌ').length,
-          ngungHoatDong: machines.filter((m: any) => m.trangThai === 'NGỪNG_HOẠT_ĐỘNG').length,
+          baoTri: machines.filter((m: any) => m.trangThai === 'BAO_TRI').length,
+          ngungHoatDong: machines.filter((m: any) => m.trangThai === 'NGUNG_HOAT_DONG').length,
         });
       }
 

@@ -12,7 +12,6 @@ import {
   useUpdateRepairRequest,
 } from '../hooks/useRepairRequests';
 import { useMachineSystemDetails, useMachineSystems } from '../hooks/useMachineSystemDetails';
-import { useMachines } from '../hooks/useMachines';
 import repairRequestService, {
   CreateRepairRequestRequest,
   RepairRequest,
@@ -29,7 +28,6 @@ const FAULT_TYPES = ['Lỗi mới', 'Lỗi lặp lại'];
 const emptyItem = (): ItemDraft => ({
   machineSystemId: '',
   machineSystemDetailId: '',
-  machineId: '',
   tenHeThong: '',
   tinhTrangThietBi: '',
   loaiLoi: '',
@@ -76,7 +74,6 @@ const RepairRequestList = () => {
   const generatedCode = useGeneratedRepairRequestCode();
   const systemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
   const detailsQuery = useMachineSystemDetails({ page: 1, limit: 400, hoatDong: true, sortBy: 'thuTu', sortOrder: 'asc' });
-  const machinesQuery = useMachines({ limit: 1000 });
 
   const createRequest = useCreateRepairRequest();
   const updateRequest = useUpdateRepairRequest();
@@ -86,7 +83,6 @@ const RepairRequestList = () => {
   const pagination = requestsQuery.data?.pagination;
   const systems = systemsQuery.data?.data ?? [];
   const details = detailsQuery.data?.data ?? [];
-  const allMachines = machinesQuery.data?.data ?? [];
 
   const [modal, setModal] = useState<{ mode: ModalMode; record?: RepairRequest } | null>(null);
   const [form, setForm] = useState<CreateRepairRequestRequest>(emptyForm());
@@ -112,7 +108,6 @@ const RepairRequestList = () => {
       id: item.id,
       machineSystemId: item.machineSystemId ?? '',
       machineSystemDetailId: item.machineSystemDetailId ?? '',
-      machineId: item.machineId ?? '',
       tenHeThong: item.tenHeThong,
       tinhTrangThietBi: item.tinhTrangThietBi,
       loaiLoi: item.loaiLoi,
@@ -129,7 +124,6 @@ const RepairRequestList = () => {
     patchItem(index, {
       machineSystemId: systemId,
       machineSystemDetailId: '',
-      machineId: '',
       tenHeThong: system ? `${system.maHeThong} - ${system.tenHeThong}` : '',
     });
   };
@@ -151,7 +145,6 @@ const RepairRequestList = () => {
     const cleanedItems = items.map((item) => ({
       machineSystemId: item.machineSystemId || undefined,
       machineSystemDetailId: item.machineSystemDetailId || undefined,
-      machineId: item.machineId || undefined,
       tenHeThong: item.tenHeThong.trim(),
       tinhTrangThietBi: item.tinhTrangThietBi.trim(),
       loaiLoi: item.loaiLoi,
@@ -349,7 +342,6 @@ const RepairRequestList = () => {
                     <tr>
                       <th className="px-3 py-2 text-left">Hệ thống</th>
                       <th className="px-3 py-2 text-left">Chi tiết máy</th>
-                      <th className="px-3 py-2 text-left">Máy cụ thể</th>
                       <th className="px-3 py-2 text-left">Snapshot hệ thống/text</th>
                       <th className="px-3 py-2 text-left">Tình trạng/khu vực</th>
                       <th className="px-3 py-2 text-left">Loại lỗi</th>
@@ -360,7 +352,6 @@ const RepairRequestList = () => {
                   <tbody className="divide-y divide-gray-100">
                     {items.map((item, index) => {
                       const itemDetails = detailOptions.filter((detail) => !item.machineSystemId || detail.machineSystemId === item.machineSystemId);
-                      const itemMachines = allMachines.filter((m) => !item.machineSystemId || m.machineSystemId === item.machineSystemId);
                       return (
                         <tr key={item.id ?? index}>
                           <td className="px-3 py-2">
@@ -373,12 +364,6 @@ const RepairRequestList = () => {
                             <select disabled={modal?.mode === 'view'} value={item.machineSystemDetailId ?? ''} onChange={(event) => selectDetail(index, event.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50">
                               <option value="">Không chọn</option>
                               {itemDetails.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
-                            </select>
-                          </td>
-                          <td className="px-3 py-2">
-                            <select disabled={modal?.mode === 'view' || !item.machineSystemId} value={item.machineId ?? ''} onChange={(event) => patchItem(index, { machineId: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50">
-                              <option value="">Không chọn</option>
-                              {itemMachines.map((m) => <option key={m.id} value={m.id}>{m.maMay} - {m.tenMay}</option>)}
                             </select>
                           </td>
                           <td className="px-3 py-2">

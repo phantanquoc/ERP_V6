@@ -10,15 +10,9 @@ export interface FinishedProduct {
   khoiLuong: number;
 
   // Machine info
-  machineId?: string;
-  tenMay?: string;
+  machineSystemId?: string | null;
   trangThai?: 'DANG_HOAT_DONG' | 'BAO_TRI' | 'NGUNG_HOAT_DONG';
-  machine?: {
-    id: string;
-    tenMay: string;
-    maMay: string;
-    trangThai: 'HOAT_DONG' | 'BẢO_TRÌ' | 'NGỪNG_HOẠT_ĐỘNG';
-  };
+  machineSystem?: { id: string; maHeThong: string; tenHeThong: string } | null;
 
   // Thành phẩm A
   aKhoiLuong: number;
@@ -86,11 +80,11 @@ class FinishedProductService {
     return formData;
   }
 
-  async getAllFinishedProducts(page: number = 1, limit: number = 10, tenMay?: string): Promise<{ data: FinishedProduct[], pagination: any }> {
+  async getAllFinishedProducts(page: number = 1, limit: number = 10, machineSystemId?: string): Promise<{ data: FinishedProduct[], pagination: any }> {
     try {
       const params: any = { page, limit };
-      if (tenMay) {
-        params.tenMay = tenMay;
+      if (machineSystemId) {
+        params.machineSystemId = machineSystemId;
       }
 
       const response = await apiClient.get<FinishedProductResponse>('/finished-products', { params });
@@ -157,10 +151,10 @@ class FinishedProductService {
     }
   }
 
-  async exportToExcel(filters?: { search?: string; tenMay?: string }): Promise<void> {
+  async exportToExcel(filters?: { search?: string; machineSystemId?: string }): Promise<void> {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
-    if (filters?.tenMay) params.append('tenMay', filters.tenMay);
+    if (filters?.machineSystemId) params.append('machineSystemId', filters.machineSystemId);
     const url = `${API_BASE_URL}/finished-products/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     await downloadFile(url, `danh-sach-thanh-pham-${Date.now()}.xlsx`);
   }
