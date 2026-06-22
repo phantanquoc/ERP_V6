@@ -303,13 +303,13 @@ const PurchasingEquipment = () => {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-1 -mb-px">
+      <div className="border-b border-gray-200 overflow-x-auto">
+        <nav className="flex w-max min-w-full gap-1 -mb-px">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              className={`px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
                 activeTab === tab.id
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -326,23 +326,23 @@ const PurchasingEquipment = () => {
           {/* NHÀ CUNG CẤP THIẾT BỊ */}
           {activeTab === 'suppliers' && (
             <div>
-              <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="relative">
+              <div className="mb-6 flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 sm:items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <input
                       type="text"
                       placeholder="Tìm kiếm nhà cung cấp..."
                       value={supplierSearch}
                       onChange={(e) => setSupplierSearch(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 w-64"
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 w-full sm:w-64"
                     />
                   </div>
                   <button onClick={handleSearchSuppliers} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
                     <Search className="h-4 w-4" /> Tìm kiếm
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   <button
                     onClick={async () => {
                       try { await supplierService.exportToExcel({ search: supplierSearch || undefined, phanLoaiNCC: 'Thiết bị' }); }
@@ -368,7 +368,7 @@ const PurchasingEquipment = () => {
                 <div className="text-center py-8"><p className="text-gray-500">Chưa có nhà cung cấp nào</p></div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full min-w-[1100px]">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
@@ -413,7 +413,7 @@ const PurchasingEquipment = () => {
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{item.doanhChi ? `${(item.doanhChi / 1000000).toFixed(0)}M` : '-'}</td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{item.employee?.user ? `${item.employee.user.lastName} ${item.employee.user.firstName}` : '-'}</td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                               <button onClick={() => openDetailModal(item)} className="text-purple-600 hover:text-purple-800" title="Xem chi tiết"><Eye className="w-4 h-4" /></button>
                               <button onClick={() => openEditSupplierModal(item)} className="text-green-600 hover:text-green-800" title="Chỉnh sửa"><Edit className="w-4 h-4" /></button>
                               <button onClick={() => setDeleteConfirmId(item.id)} className="text-red-600 hover:text-red-800" title="Xóa"><Trash2 className="w-4 h-4" /></button>
@@ -443,20 +443,20 @@ const PurchasingEquipment = () => {
           {/* DANH SÁCH MUA HÀNG */}
           {activeTab === 'purchaseRequestList' && (
             <div>
-              <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="relative">
+              <div className="mb-6 flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 sm:items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <input type="text" placeholder="Tìm kiếm yêu cầu mua hàng..." value={purchaseRequestSearch}
                       onChange={(e) => setPurchaseRequestSearch(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 w-64"
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 w-full sm:w-64"
                     />
                   </div>
                   <button onClick={fetchPurchaseRequests} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
                     <Search className="h-4 w-4" /> Tìm kiếm
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   <button
                     onClick={async () => {
                       try { await purchaseRequestService.exportToExcel({ search: purchaseRequestSearch || undefined }); }
@@ -479,7 +479,7 @@ const PurchasingEquipment = () => {
                 <div className="text-center py-8"><p className="text-gray-500">Chưa có yêu cầu mua hàng nào</p></div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full min-w-[900px]">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
@@ -528,7 +528,7 @@ const PurchasingEquipment = () => {
                             }`}>{item.trangThai}</span>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                               <button onClick={() => openPurchaseRequestDetail(item)} className="text-purple-600 hover:text-purple-800" title="Xem chi tiết"><Eye className="w-4 h-4" /></button>
                               <button onClick={() => openEditPurchaseRequest(item)} className="text-green-600 hover:text-green-800" title="Chỉnh sửa"><Edit className="w-4 h-4" /></button>
                               <button onClick={() => handleDeletePurchaseRequest(item.id)} className="text-red-600 hover:text-red-800" title="Xóa"><Trash2 className="w-4 h-4" /></button>
@@ -573,13 +573,13 @@ const PurchasingEquipment = () => {
         {/* Supplier Detail Modal */}
         {isDetailModalOpen && selectedItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chi tiết nhà cung cấp</h2>
                   <button onClick={closeDetailModal} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Mã NCC</label><p className="text-sm font-semibold text-purple-600">{selectedItem.maNhaCungCap}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Tên NCC</label><p className="text-sm text-gray-900">{selectedItem.tenNhaCungCap}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Loại cung cấp</label><p className="text-sm text-gray-900">{selectedItem.loaiCungCap}</p></div>
@@ -588,13 +588,13 @@ const PurchasingEquipment = () => {
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">SĐT</label><p className="text-sm text-gray-900">{selectedItem.soDienThoai}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Email</label><p className="text-sm text-gray-900">{selectedItem.emailLienHe}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Loại hình</label><p className="text-sm text-gray-900">{selectedItem.loaiHinh}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Địa chỉ</label><p className="text-sm text-gray-900">{selectedItem.diaChi}</p></div>
+                  <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Địa chỉ</label><p className="text-sm text-gray-900">{selectedItem.diaChi}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Trạng thái</label>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedItem.trangThai === 'Đang cung cấp' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{selectedItem.trangThai}</span>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Doanh chi</label><p className="text-sm text-gray-900">{selectedItem.doanhChi ? `${(selectedItem.doanhChi).toLocaleString('vi-VN')} VNĐ` : '-'}</p></div>
-                  {selectedItem.website && <div className="bg-gray-50 p-4 rounded-lg col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Website</label><a href={selectedItem.website} target="_blank" rel="noopener noreferrer" className="text-sm text-purple-600 hover:underline">{selectedItem.website}</a></div>}
-                  {selectedItem.khaNang && <div className="bg-gray-50 p-4 rounded-lg col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Khả năng cung cấp</label><p className="text-sm text-gray-900">{selectedItem.khaNang}</p></div>}
+                  {selectedItem.website && <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Website</label><a href={selectedItem.website} target="_blank" rel="noopener noreferrer" className="text-sm text-purple-600 hover:underline">{selectedItem.website}</a></div>}
+                  {selectedItem.khaNang && <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Khả năng cung cấp</label><p className="text-sm text-gray-900">{selectedItem.khaNang}</p></div>}
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
                   <button onClick={closeDetailModal} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Đóng</button>
@@ -607,8 +607,8 @@ const PurchasingEquipment = () => {
         {/* Purchase Request Detail Modal */}
         {selectedPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chi tiết yêu cầu mua hàng</h2>
                   <button onClick={closePurchaseRequestDetail} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
@@ -625,9 +625,10 @@ const PurchasingEquipment = () => {
 
                   {/* Items table */}
                   {selectedPurchaseRequest.items && selectedPurchaseRequest.items.length > 0 && (
-                    <div className="bg-gray-50 p-4 rounded-lg col-span-2">
+                    <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-500 mb-2">Danh sách sản phẩm</label>
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+	                      <table className="w-full min-w-[760px] text-sm">
                         <thead>
                           <tr className="border-b border-gray-200">
                             <th className="text-left py-2 px-2 font-medium text-gray-600">STT</th>
@@ -661,17 +662,18 @@ const PurchasingEquipment = () => {
                           </tr>
                         </tbody>
                       </table>
+	                      </div>
                     </div>
                   )}
 
-                  <div className="bg-gray-50 p-4 rounded-lg col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Mục đích yêu cầu</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.mucDichYeuCau}</p></div>
+                  <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Mục đích yêu cầu</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.mucDichYeuCau}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Trạng thái</label>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedPurchaseRequest.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' : selectedPurchaseRequest.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' : selectedPurchaseRequest.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>{selectedPurchaseRequest.trangThai}</span>
                   </div>
-                  {selectedPurchaseRequest.ghiChu && <div className="bg-gray-50 p-4 rounded-lg col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Ghi chú</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.ghiChu}</p></div>}
+                  {selectedPurchaseRequest.ghiChu && <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Ghi chú</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.ghiChu}</p></div>}
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Người duyệt</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.nguoiDuyet || <span className="text-gray-400 italic">Chưa có</span>}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Ngày duyệt</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.ngayDuyet ? new Date(selectedPurchaseRequest.ngayDuyet).toLocaleDateString('vi-VN') : <span className="text-gray-400 italic">Chưa duyệt</span>}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">File đính kèm</label>
+                  <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">File đính kèm</label>
                     {selectedPurchaseRequest.fileKemTheo ? <a href={selectedPurchaseRequest.fileKemTheo} target="_blank" rel="noopener noreferrer" className="text-sm text-purple-600 hover:underline">{selectedPurchaseRequest.fileKemTheo}</a> : <p className="text-sm text-gray-400 italic">Không có file đính kèm</p>}
                   </div>
                 </div>
@@ -686,13 +688,13 @@ const PurchasingEquipment = () => {
         {/* Edit Purchase Request Modal */}
         {editingPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <form onSubmit={handleEditSubmit} className="p-6">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+              <form onSubmit={handleEditSubmit} className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chỉnh sửa yêu cầu mua hàng</h2>
                   <button type="button" onClick={closeEditPurchaseRequest} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Mã yêu cầu</label>
                     <input type="text" value={editingPurchaseRequest.maYeuCau} disabled className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100" />
@@ -701,7 +703,7 @@ const PurchasingEquipment = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Phân loại</label>
                     <input type="text" value={editFormData.phanLoai || ''} onChange={(e) => setEditFormData({...editFormData, phanLoai: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tên hàng hoá</label>
                     <input type="text" value={editFormData.tenHangHoa || ''} onChange={(e) => setEditFormData({...editFormData, tenHangHoa: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   </div>
@@ -713,7 +715,7 @@ const PurchasingEquipment = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị tính</label>
                     <input type="text" value={editFormData.donViTinh || ''} onChange={(e) => setEditFormData({...editFormData, donViTinh: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Mục đích yêu cầu</label>
                     <input type="text" value={editFormData.mucDichYeuCau || ''} onChange={(e) => setEditFormData({...editFormData, mucDichYeuCau: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   </div>
@@ -729,7 +731,7 @@ const PurchasingEquipment = () => {
                       <option value="Chờ duyệt">Chờ duyệt</option><option value="Đã duyệt">Đã duyệt</option><option value="Từ chối">Từ chối</option><option value="Hoàn thành">Hoàn thành</option>
                     </select>
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                     <textarea value={editFormData.ghiChu || ''} onChange={(e) => setEditFormData({...editFormData, ghiChu: e.target.value})} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   </div>
@@ -741,7 +743,7 @@ const PurchasingEquipment = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ngày duyệt</label>
                     <input type="date" value={editFormData.ngayDuyet ? new Date(editFormData.ngayDuyet).toISOString().split('T')[0] : ''} onChange={(e) => setEditFormData({...editFormData, ngayDuyet: e.target.value ? new Date(e.target.value).toISOString() : undefined})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] || null)} accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
                       existingFileName={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined}
                       existingFileUrl={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined}
@@ -760,13 +762,13 @@ const PurchasingEquipment = () => {
         {/* Modal Thêm nhà cung cấp */}
         {isAddSupplierModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white">
+            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6 border-b flex justify-between items-center sticky top-0 bg-white">
                 <h2 className="text-xl font-semibold">Thêm nhà cung cấp mới</h2>
                 <button onClick={() => setIsAddSupplierModalOpen(false)} className="text-gray-500 hover:text-gray-700"><X className="w-6 h-6" /></button>
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); handleAddSupplier(); }} className="p-6">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleAddSupplier(); }} className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Mã NCC</label><input type="text" value={supplierFormData.maNhaCungCap || ''} disabled className="w-full border rounded-md px-3 py-2 bg-gray-100" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Tên nhà cung cấp *</label><input type="text" value={supplierFormData.tenNhaCungCap || ''} onChange={(e) => setSupplierFormData({...supplierFormData, tenNhaCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại cung cấp *</label><input type="text" placeholder="VD: Máy móc, Thiết bị điện..." value={supplierFormData.loaiCungCap || ''} onChange={(e) => setSupplierFormData({...supplierFormData, loaiCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
@@ -775,7 +777,7 @@ const PurchasingEquipment = () => {
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Người liên hệ *</label><input type="text" value={supplierFormData.nguoiLienHe || ''} onChange={(e) => setSupplierFormData({...supplierFormData, nguoiLienHe: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại *</label><input type="text" value={supplierFormData.soDienThoai || ''} onChange={(e) => setSupplierFormData({...supplierFormData, soDienThoai: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Email liên hệ *</label><input type="email" value={supplierFormData.emailLienHe || ''} onChange={(e) => setSupplierFormData({...supplierFormData, emailLienHe: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ *</label><input type="text" value={supplierFormData.diaChi || ''} onChange={(e) => setSupplierFormData({...supplierFormData, diaChi: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div className="col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ *</label><input type="text" value={supplierFormData.diaChi || ''} onChange={(e) => setSupplierFormData({...supplierFormData, diaChi: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Khả năng cung cấp</label><input type="text" value={supplierFormData.khaNang || ''} onChange={(e) => setSupplierFormData({...supplierFormData, khaNang: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại hình *</label><select value={supplierFormData.loaiHinh || 'Sản xuất'} onChange={(e) => setSupplierFormData({...supplierFormData, loaiHinh: e.target.value})} className="w-full border rounded-md px-3 py-2"><option value="Sản xuất">Sản xuất</option><option value="Thương mại">Thương mại</option></select></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label><select value={supplierFormData.trangThai || 'Đang cung cấp'} onChange={(e) => setSupplierFormData({...supplierFormData, trangThai: e.target.value})} className="w-full border rounded-md px-3 py-2"><option value="Đang cung cấp">Đang cung cấp</option><option value="Ngừng cung cấp">Ngừng cung cấp</option></select></div>
@@ -793,13 +795,13 @@ const PurchasingEquipment = () => {
         {/* Modal Sửa nhà cung cấp */}
         {isEditSupplierModalOpen && editingSupplier && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white">
+            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6 border-b flex justify-between items-center sticky top-0 bg-white">
                 <h2 className="text-xl font-semibold">Sửa nhà cung cấp - {editingSupplier.maNhaCungCap}</h2>
                 <button onClick={() => { setIsEditSupplierModalOpen(false); setEditingSupplier(null); }} className="text-gray-500 hover:text-gray-700"><X className="w-6 h-6" /></button>
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); handleEditSupplier(); }} className="p-6">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleEditSupplier(); }} className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Tên nhà cung cấp *</label><input type="text" value={supplierFormData.tenNhaCungCap || ''} onChange={(e) => setSupplierFormData({...supplierFormData, tenNhaCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại cung cấp *</label><input type="text" value={supplierFormData.loaiCungCap || ''} onChange={(e) => setSupplierFormData({...supplierFormData, loaiCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Quốc gia *</label><input type="text" value={supplierFormData.quocGia || ''} onChange={(e) => setSupplierFormData({...supplierFormData, quocGia: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>

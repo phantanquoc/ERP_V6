@@ -202,12 +202,12 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Danh sách báo giá</h2>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h2 className="text-xl sm:text-2xl font-bold">Danh sách báo giá</h2>
         <button
           onClick={handleExportExcel}
           disabled={exportLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
         >
           <Download size={18} />
           {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
@@ -238,7 +238,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full min-w-[1200px] border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
@@ -370,11 +370,11 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
         const totalItems = quotations.length;
         const totalPages = Math.ceil(totalItems / itemsPerPage);
         return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
             <span className="text-sm text-gray-600">
               Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
@@ -409,9 +409,9 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
 
       {/* Modal Xem Chi Tiết */}
       <Modal isOpen={showViewModal && !!selectedQuotation} onClose={() => setShowViewModal(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex justify-between items-center rounded-t-xl shrink-0">
-              <h2 className="text-2xl font-bold">Chi Tiết Báo Giá</h2>
+        <div className="bg-white rounded-xl shadow-2xl w-[calc(100vw-1rem)] sm:max-w-4xl sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 sm:px-6 py-4 flex justify-between items-start sm:items-center gap-3 rounded-t-xl shrink-0">
+              <h2 className="text-xl sm:text-2xl font-bold">Chi Tiết Báo Giá</h2>
               <button
                 onClick={() => setShowViewModal(false)}
                 className="text-white hover:text-gray-200 transition-colors"
@@ -422,10 +422,10 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1 p-6 space-y-6">
+            <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-6">
               {selectedQuotation && (<>
               {/* Thông tin cơ bản */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mã báo giá</label>
                   <p className="text-lg font-semibold text-blue-600">
@@ -484,7 +484,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                      selectedQuotation.tinhTrang}
                   </span>
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                   <p className="text-lg">{selectedQuotation.ghiChu || '-'}</p>
                 </div>
@@ -494,7 +494,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
               {selectedQuotation.maDinhMuc && (
                 <div className="border-t pt-4">
                   <h3 className="text-lg font-semibold mb-3">Thông tin định mức</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Mã định mức</label>
                       <p className="text-lg">{selectedQuotation.maDinhMuc}</p>
@@ -518,7 +518,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
               {/* Thông tin sản xuất */}
               <div className="border-t pt-4">
                 <h3 className="text-lg font-semibold mb-3">Thông tin sản xuất</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Thành phẩm tồn kho</label>
                     <p className="text-lg">{selectedQuotation.thanhPhamTonKho ? `${selectedQuotation.thanhPhamTonKho} KG` : '-'}</p>
@@ -544,7 +544,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
               </>)}
             </div>
 
-            <div className="bg-gray-50 px-6 py-4 flex justify-end rounded-b-xl border-t shrink-0">
+            <div className="bg-gray-50 px-4 sm:px-6 py-4 flex justify-end rounded-b-xl border-t shrink-0">
               <button
                 onClick={() => setShowViewModal(false)}
                 className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
@@ -557,9 +557,9 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
 
       {/* Modal Chỉnh Sửa */}
       <Modal isOpen={showEditModal && !!selectedQuotation} onClose={() => setShowEditModal(false)} showBackdrop>
-        <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="bg-gradient-to-r from-yellow-600 to-yellow-700 text-white px-6 py-4 flex justify-between items-center rounded-t-xl shrink-0">
-              <h2 className="text-2xl font-bold">Chỉnh Sửa Báo Giá</h2>
+        <div className="bg-white rounded-xl shadow-2xl w-[calc(100vw-1rem)] sm:max-w-2xl sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-gradient-to-r from-yellow-600 to-yellow-700 text-white px-4 sm:px-6 py-4 flex justify-between items-start sm:items-center gap-3 rounded-t-xl shrink-0">
+              <h2 className="text-xl sm:text-2xl font-bold">Chỉnh Sửa Báo Giá</h2>
               <button
                 onClick={() => setShowEditModal(false)}
                 className="text-white hover:text-gray-200 transition-colors"
@@ -570,12 +570,12 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1 p-6 space-y-6">
+            <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-6">
               {selectedQuotation && (<>
               {/* Thông tin không thể chỉnh sửa */}
               <div className="bg-gray-50 p-4 rounded-lg space-y-3">
                 <h3 className="font-semibold text-gray-700 mb-3">Thông tin báo giá</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1">Mã báo giá</label>
                     <p className="text-lg font-semibold text-blue-600">
@@ -677,16 +677,16 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
               </>)}
             </div>
 
-            <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3 rounded-b-xl border-t shrink-0">
+            <div className="bg-gray-50 px-4 sm:px-6 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 rounded-b-xl border-t shrink-0">
               <button
                 onClick={() => setShowEditModal(false)}
-                className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                className="w-full sm:w-auto px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
               >
                 Hủy
               </button>
               <button
                 onClick={handleUpdateQuotation}
-                className="px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                className="w-full sm:w-auto px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
               >
                 Lưu thay đổi
               </button>

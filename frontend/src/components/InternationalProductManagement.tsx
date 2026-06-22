@@ -191,13 +191,13 @@ const InternationalProductManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Danh sách hàng hóa</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Danh sách hàng hóa</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           {canManageCategories && (
             <button
               onClick={() => { fetchCategories(); setShowCategoryModal(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
               title="Cài đặt loại hàng hóa"
             >
               <Settings className="w-4 h-4" />
@@ -213,7 +213,7 @@ const InternationalProductManagement: React.FC = () => {
                 alert('Lỗi khi xuất Excel');
               }
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <Download className="w-4 h-4" />
             Xuất Excel
@@ -221,7 +221,7 @@ const InternationalProductManagement: React.FC = () => {
           {canCreateEdit && (
             <button
               onClick={openCreateModal}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Thêm hàng hóa
@@ -241,7 +241,7 @@ const InternationalProductManagement: React.FC = () => {
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full min-w-[800px] border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
@@ -328,11 +328,11 @@ const InternationalProductManagement: React.FC = () => {
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
           <span className="text-sm text-gray-600">
             Hiển thị {(currentPage - 1) * 10 + 1}–{Math.min(currentPage * 10, pagination.total)} / {pagination.total} mục
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
@@ -366,16 +366,16 @@ const InternationalProductManagement: React.FC = () => {
 
       {/* Create/Edit Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-between items-center border-b px-6 py-4 shrink-0">
-                <h2 className="text-xl font-bold">
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-2xl sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-start sm:items-center gap-3 border-b px-4 sm:px-6 py-4 shrink-0">
+                <h2 className="text-lg sm:text-xl font-bold">
                   {editingProduct ? 'Chỉnh sửa hàng hóa' : 'Thêm hàng hóa mới'}
                 </h2>
                 <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">
                   <X className="w-6 h-6" />
                 </button>
               </div>
-          <div className="overflow-y-auto flex-1 p-6">
+          <div className="overflow-y-auto flex-1 p-4 sm:p-6">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -438,18 +438,18 @@ const InternationalProductManagement: React.FC = () => {
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 mt-6">
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-6">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     Hủy
                   </button>
                   <button
                     type="button"
                     onClick={editingProduct ? handleUpdate : handleCreate}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                   >
                     {editingProduct ? 'Cập nhật' : 'Tạo mới'}
                   </button>
@@ -461,14 +461,14 @@ const InternationalProductManagement: React.FC = () => {
 
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal && !!selectedProduct} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-between items-center border-b px-6 py-4 shrink-0">
-                <h2 className="text-xl font-bold">Chi tiết hàng hóa</h2>
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-2xl sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-start sm:items-center gap-3 border-b px-4 sm:px-6 py-4 shrink-0">
+                <h2 className="text-lg sm:text-xl font-bold">Chi tiết hàng hóa</h2>
                 <button onClick={() => setShowDetailModal(false)} className="text-gray-500 hover:text-gray-700">
                   <X className="w-6 h-6" />
                 </button>
               </div>
-          <div className="overflow-y-auto flex-1 p-6">
+          <div className="overflow-y-auto flex-1 p-4 sm:p-6">
               {selectedProduct && (<>
               <div className="space-y-4">
                 <div>
@@ -491,7 +491,7 @@ const InternationalProductManagement: React.FC = () => {
                   <p className="mt-1 text-sm text-gray-900">{selectedProduct.moTaSanPham || '-'}</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Ngày tạo</label>
                     <p className="mt-1 text-sm text-gray-900">
@@ -513,17 +513,17 @@ const InternationalProductManagement: React.FC = () => {
 
       {/* Category Settings Modal */}
       <Modal isOpen={showCategoryModal} onClose={() => { setShowCategoryModal(false); setEditingCategory(null); setNewCategoryName(''); }} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-between items-center border-b px-6 py-4 shrink-0">
-                <h2 className="text-xl font-bold">Cài đặt loại hàng hóa</h2>
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-lg sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-start sm:items-center gap-3 border-b px-4 sm:px-6 py-4 shrink-0">
+                <h2 className="text-lg sm:text-xl font-bold">Cài đặt loại hàng hóa</h2>
                 <button onClick={() => { setShowCategoryModal(false); setEditingCategory(null); setNewCategoryName(''); }} className="text-gray-500 hover:text-gray-700">
                   <X className="w-6 h-6" />
                 </button>
               </div>
-          <div className="overflow-y-auto flex-1 p-6">
+          <div className="overflow-y-auto flex-1 p-4 sm:p-6">
 
               {/* Add new category */}
-              <div className="flex gap-2 mb-4">
+              <div className="flex flex-col sm:flex-row gap-2 mb-4">
                 <input
                   type="text"
                   value={newCategoryName}

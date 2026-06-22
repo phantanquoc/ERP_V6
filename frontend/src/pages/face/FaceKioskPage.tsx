@@ -733,15 +733,15 @@ const FaceKioskPage: React.FC = () => {
 
       {/* Top bar */}
       <div
-        className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-8 py-5"
+        className="absolute top-0 left-0 right-0 z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-8 py-4 sm:py-5"
         style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
       >
         <div className="text-white drop-shadow">
-          <p className="text-2xl font-bold tracking-widest uppercase">Chấm Công Khuôn Mặt</p>
-          <p className="text-white/60 text-sm mt-0.5">Đứng trước camera để điểm danh tự động</p>
+          <p className="text-lg sm:text-2xl font-bold tracking-widest uppercase">Chấm Công Khuôn Mặt</p>
+          <p className="text-white/60 text-xs sm:text-sm mt-0.5">Đứng trước camera để điểm danh tự động</p>
         </div>
-        <div className="text-right text-white drop-shadow">
-          <p className="text-5xl font-mono font-bold tabular-nums leading-none">
+        <div className="text-left sm:text-right text-white drop-shadow">
+          <p className="text-3xl sm:text-5xl font-mono font-bold tabular-nums leading-none">
             {currentTime.toLocaleTimeString('vi-VN')}
           </p>
           <p className="text-white/60 text-sm mt-1">
@@ -756,7 +756,7 @@ const FaceKioskPage: React.FC = () => {
           <div className="flex flex-col items-center">
             <div
               className="border-2 border-white/50 border-dashed rounded-full animate-pulse"
-              style={{ width: 'min(320px, 40vw)', height: 'min(420px, 55vh)' }}
+              style={{ width: 'min(320px, 70vw)', height: 'min(420px, 55vh)' }}
             />
             <p className="mt-4 text-white/70 text-base font-medium tracking-wide drop-shadow">
               Đặt khuôn mặt vào khung
@@ -872,7 +872,7 @@ const FaceKioskPage: React.FC = () => {
       {/* Status bar */}
       {!cameraError && (kioskState === 'waiting' || kioskState === 'challenge') && (
         <div
-          className="absolute bottom-0 left-0 right-0 z-10 flex flex-col justify-center items-center pb-8 pt-16 gap-3"
+          className="absolute bottom-0 left-0 right-0 z-10 flex flex-col justify-center items-center px-4 pb-6 sm:pb-8 pt-14 sm:pt-16 gap-3"
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)' }}
         >
           {facePos === 'none' && (
@@ -918,7 +918,7 @@ const FaceKioskPage: React.FC = () => {
       {kioskState === 'result' && result && (
         <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center ${overlayBg[result.type]} bg-opacity-90 backdrop-blur-sm`}>
           {overlayIcon[result.type]}
-          <h2 className="text-5xl font-bold text-white mt-6 text-center px-8 drop-shadow-lg">{result.title}</h2>
+          <h2 className="text-3xl sm:text-5xl font-bold text-white mt-6 text-center px-4 sm:px-8 drop-shadow-lg">{result.title}</h2>
           {result.employee && (
             <p className="text-3xl text-white/90 mt-4 font-semibold text-center drop-shadow">{result.employee}</p>
           )}

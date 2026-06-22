@@ -424,13 +424,13 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Danh sách yêu cầu báo giá</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h2 className="text-xl sm:text-2xl font-bold">Danh sách yêu cầu báo giá</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
           <button
             onClick={handleExportExcel}
             disabled={exportLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             <Download size={18} />
             {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
@@ -438,7 +438,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
           {mode === 'business' && (
             <button
               onClick={openCreateModal}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Thêm yêu cầu báo giá
@@ -471,7 +471,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
 
       {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full min-w-[920px] border-collapse">
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
@@ -592,11 +592,11 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
         const totalItems = requests.length;
         const totalPages = Math.ceil(totalItems / itemsPerPage);
         return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
             <span className="text-sm text-gray-600">
               Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
@@ -680,14 +680,14 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
 
                 {/* Danh sách sản phẩm */}
                 <div className="border-t border-b border-gray-200 py-4">
-                  <div className="flex justify-between items-center mb-4">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
                     <label className="block text-sm font-medium text-gray-700">
                       Danh sách sản phẩm <span className="text-red-500">*</span>
                     </label>
                     <button
                       type="button"
                       onClick={addItem}
-                      className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      className="flex items-center justify-center gap-2 px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                     >
                       <Plus className="w-4 h-4" />
                       Thêm sản phẩm
@@ -731,7 +731,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                         </div>
 
                         {/* Yêu cầu sản phẩm & Quy cách đóng gói */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Yêu cầu sản phẩm
@@ -758,7 +758,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                         </div>
 
                         {/* Số lượng & Đơn vị tính */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Số lượng <span className="text-red-500">*</span>
@@ -794,7 +794,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                         </div>
 
                         {/* Giá đối thủ bán & Giá bán gần nhất */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Giá đối thủ bán (VND)
@@ -824,7 +824,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                 </div>
 
                 {/* Hình thức vận chuyển & Hình thức thanh toán */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Hình thức vận chuyển
@@ -911,7 +911,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                     />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Quốc gia
@@ -966,7 +966,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 mt-6">
+                <div className="flex flex-col sm:flex-row sm:justify-end gap-2 mt-6">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
@@ -1000,7 +1000,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
           {selectedRequest && (
             <div className="overflow-y-auto flex-1 p-6">
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Mã yêu cầu báo giá</label>
                     <p className="mt-1 text-sm text-gray-900">{selectedRequest.maYeuCauBaoGia}</p>
@@ -1011,7 +1011,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Mã nhân viên</label>
                     <p className="mt-1 text-sm text-gray-900">{selectedRequest.maNhanVien}</p>
@@ -1022,7 +1022,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Mã khách hàng</label>
                     <p className="mt-1 text-sm text-gray-900">{selectedRequest.maKhachHang}</p>
@@ -1079,7 +1079,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Hình thức vận chuyển</label>
                     <p className="mt-1 text-sm text-gray-900">{selectedRequest.hinhThucVanChuyen || '-'}</p>
@@ -1096,7 +1096,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                     <p className="mt-1 text-sm text-gray-900">{selectedRequest.cangDen || '-'}</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-500">Quốc gia</label>
                       <p className="mt-1 text-sm text-gray-900">{selectedRequest.quocGia || '-'}</p>
@@ -1117,7 +1117,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                   <p className="mt-1 text-sm text-gray-900">{selectedRequest.ghiChu || '-'}</p>
                 </div>
 
-                <div className="flex justify-end gap-2 mt-6">
+                <div className="flex flex-col sm:flex-row sm:justify-end gap-2 mt-6">
                   <button
                     type="button"
                     onClick={() => setShowDetailModal(false)}

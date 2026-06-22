@@ -213,7 +213,7 @@ const AccountingAdmin = () => {
                     </span>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
                     <div className="text-xl font-bold text-red-600">
                       {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(assetOverview.tongCongNo)}

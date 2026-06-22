@@ -235,7 +235,7 @@ const BusinessDomestic = () => {
                   <span className="text-2xl font-bold text-green-600">{quotationStats.total}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
                   <div className="text-lg font-bold text-green-600">{quotationStats.daDatHang}</div>
                   <div className="text-[10px] text-gray-600 mt-0.5 leading-tight">Đã Đ.hàng</div>

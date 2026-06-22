@@ -180,19 +180,19 @@ const DomesticCustomerManagement: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Danh sách khách hàng nội địa</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h2 className="text-xl sm:text-2xl font-bold">Danh sách khách hàng nội địa</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <button
             onClick={handleExportExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <Download className="w-4 h-4" />
             Xuất Excel
           </button>
           <button
             onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Thêm khách hàng
@@ -210,7 +210,7 @@ const DomesticCustomerManagement: React.FC = () => {
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full min-w-[950px] border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã KH</th>
@@ -308,11 +308,11 @@ const DomesticCustomerManagement: React.FC = () => {
         const totalItems = customers.length;
         const totalPages = Math.ceil(totalItems / itemsPerPage);
         return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
             <span className="text-sm text-gray-600">
               Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
@@ -347,11 +347,11 @@ const DomesticCustomerManagement: React.FC = () => {
 
       {/* Create/Edit Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg w-[calc(100vw-1rem)] sm:max-w-2xl sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             {/* Header — shrink-0, outside scroll */}
-            <div className="px-6 py-4 border-b border-gray-200 shrink-0">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-200 shrink-0">
+              <div className="flex justify-between items-start sm:items-center gap-3">
+                <h2 className="text-lg sm:text-xl font-bold">
                   {editingCustomer ? 'Chỉnh sửa khách hàng' : 'Thêm khách hàng nội địa'}
                 </h2>
                 <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">
@@ -360,9 +360,9 @@ const DomesticCustomerManagement: React.FC = () => {
               </div>
             </div>
             {/* Body — scrollable */}
-            <div className="overflow-y-auto flex-1 px-6 py-5">
+            <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-5">
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Tên công ty <span className="text-red-500">*</span>
@@ -391,7 +391,7 @@ const DomesticCustomerManagement: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Tỉnh/Thành phố <span className="text-red-500">*</span>
@@ -432,7 +432,7 @@ const DomesticCustomerManagement: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Số điện thoại
@@ -459,7 +459,7 @@ const DomesticCustomerManagement: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Website
@@ -486,7 +486,7 @@ const DomesticCustomerManagement: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Loại khách hàng <span className="text-red-500">*</span>
@@ -535,16 +535,16 @@ const DomesticCustomerManagement: React.FC = () => {
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 mt-6">
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-6">
                   <button
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     Hủy
                   </button>
                   <button
                     onClick={editingCustomer ? handleUpdate : handleCreate}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                   >
                     {editingCustomer ? 'Cập nhật' : 'Tạo mới'}
                   </button>
@@ -556,18 +556,18 @@ const DomesticCustomerManagement: React.FC = () => {
 
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal && !!selectedCustomer} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 overflow-y-auto flex-1">
+        <div className="bg-white rounded-lg w-[calc(100vw-1rem)] sm:max-w-2xl sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
               {selectedCustomer && (<>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Chi tiết khách hàng</h2>
+              <div className="flex justify-between items-start sm:items-center gap-3 mb-4">
+                <h2 className="text-lg sm:text-xl font-bold">Chi tiết khách hàng</h2>
                 <button onClick={() => setShowDetailModal(false)} className="text-gray-500 hover:text-gray-700">
                   <X className="w-6 h-6" />
                 </button>
               </div>
 
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-3 rounded">
                     <label className="text-sm font-medium text-gray-500">Mã khách hàng</label>
                     <p className="text-sm text-gray-900 mt-1">{selectedCustomer.maKhachHang}</p>
@@ -600,7 +600,7 @@ const DomesticCustomerManagement: React.FC = () => {
                     <label className="text-sm font-medium text-gray-500">Email</label>
                     <p className="text-sm text-gray-900 mt-1">{selectedCustomer.email || '-'}</p>
                   </div>
-                  <div className="bg-gray-50 p-3 rounded col-span-2">
+                  <div className="bg-gray-50 p-3 rounded sm:col-span-2">
                     <label className="text-sm font-medium text-gray-500">Địa chỉ</label>
                     <p className="text-sm text-gray-900 mt-1">{selectedCustomer.diaChi || '-'}</p>
                   </div>

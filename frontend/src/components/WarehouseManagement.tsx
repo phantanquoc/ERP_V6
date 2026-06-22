@@ -237,8 +237,8 @@ const WarehouseManagement: React.FC = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Quản lý kho</h2>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Quản lý kho</h2>
       </div>
 
       {/* Warehouse Tabs */}
@@ -283,7 +283,7 @@ const WarehouseManagement: React.FC = () => {
       {selectedWarehouse && (
         <div className="bg-white rounded-lg shadow">
           {/* Warehouse Header */}
-          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-200">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <WarehouseIcon className="w-5 h-5 text-blue-600" />
@@ -293,17 +293,17 @@ const WarehouseManagement: React.FC = () => {
                 <p className="text-xs text-gray-500">{selectedWarehouse.lots?.length || 0} lô</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setShowLotModal(true)}
-                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-1.5 transition-colors"
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Thêm lô
               </button>
               <button
                 onClick={() => handleDeleteWarehouse(selectedWarehouse.id)}
-                className="px-3 py-2 bg-white text-red-600 border border-red-200 rounded-lg hover:bg-red-50 text-sm font-medium flex items-center gap-1.5 transition-colors"
+                className="px-3 py-2 bg-white text-red-600 border border-red-200 rounded-lg hover:bg-red-50 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
                 Xóa kho
@@ -312,7 +312,7 @@ const WarehouseManagement: React.FC = () => {
           </div>
 
           {/* Lots */}
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
           {loading ? (
             <p className="text-center text-gray-500 py-8">Đang tải...</p>
           ) : selectedWarehouse?.lots && selectedWarehouse.lots.length > 0 ? (
@@ -326,7 +326,7 @@ const WarehouseManagement: React.FC = () => {
                     {paginatedLots.map((lot, lotIndex) => (
                 <div key={lot.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                   {/* Lot Header */}
-                  <div className="flex justify-between items-center px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
                     <div className="flex items-center gap-2.5">
                       <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700">
                         {(currentPage - 1) * itemsPerPage + lotIndex + 1}
@@ -336,20 +336,20 @@ const WarehouseManagement: React.FC = () => {
                         <p className="text-xs text-gray-400">{lot.lotProducts?.length || 0} sản phẩm</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                       <button
                         onClick={() => {
                           setSelectedLotId(lot.id);
                           setShowProductModal(true);
                         }}
-                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
                       >
                         <PackagePlus className="w-3.5 h-3.5" />
                         Thêm sản phẩm
                       </button>
                       <button
                         onClick={() => handleDeleteLot(lot.id)}
-                        className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg hover:bg-red-50 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                        className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg hover:bg-red-50 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Xóa lô
@@ -360,7 +360,7 @@ const WarehouseManagement: React.FC = () => {
                   {/* Products in Lot */}
                   {lot?.lotProducts && lot.lotProducts.length > 0 ? (
                     <div className="overflow-x-auto">
-                      <table className="w-full table-fixed">
+                      <table className="w-full min-w-[520px] table-fixed">
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="w-[50%] px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -418,11 +418,11 @@ const WarehouseManagement: React.FC = () => {
                 </div>
               ))}
                     {lotsTotalPages > 1 && (
-                      <div className="flex items-center justify-between mt-4 px-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
                         <span className="text-sm text-gray-600">
                           Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, allLots.length)} / {allLots.length} lô
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
                           <button
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
@@ -478,7 +478,7 @@ const WarehouseManagement: React.FC = () => {
 
       {/* Create Warehouse Modal */}
       <Modal isOpen={showWarehouseModal} onClose={() => { setShowWarehouseModal(false); setNewWarehouseName(''); }} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Tạo kho mới</h2>
             </div>
@@ -495,7 +495,7 @@ const WarehouseManagement: React.FC = () => {
                 placeholder="Nhập tên kho"
               />
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
               <button
                 onClick={() => {
                   setShowWarehouseModal(false);
@@ -518,7 +518,7 @@ const WarehouseManagement: React.FC = () => {
 
       {/* Create Lot Modal */}
       <Modal isOpen={showLotModal} onClose={() => { setShowLotModal(false); setNewLotName(''); }} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Tạo lô mới</h2>
             </div>
@@ -535,7 +535,7 @@ const WarehouseManagement: React.FC = () => {
                 placeholder="Nhập tên lô"
               />
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
               <button
                 onClick={() => {
                   setShowLotModal(false);
@@ -558,7 +558,7 @@ const WarehouseManagement: React.FC = () => {
 
       {/* Add Product to Lot Modal */}
       <Modal isOpen={showProductModal} onClose={() => { setShowProductModal(false); resetProductForm(); }} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Thêm sản phẩm vào lô</h2>
             </div>
@@ -664,7 +664,7 @@ const WarehouseManagement: React.FC = () => {
 
       {/* Move Product Modal */}
       <Modal isOpen={showMoveModal && !!movingProduct} onClose={() => { setShowMoveModal(false); setMovingProduct(null); setTargetWarehouseId(''); setTargetLotId(''); }} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Di chuyển sản phẩm</h2>
             </div>
@@ -718,7 +718,7 @@ const WarehouseManagement: React.FC = () => {
               </select>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
               <button
                 onClick={() => {
                   setShowMoveModal(false);

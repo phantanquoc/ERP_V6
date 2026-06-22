@@ -464,7 +464,7 @@ const UserManagement: React.FC = () => {
       )}
 
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <h2 className="text-2xl font-bold text-gray-800 flex items-center">
           <Users className="w-6 h-6 mr-2 text-blue-600" />
           Quản lý người dùng
@@ -472,7 +472,7 @@ const UserManagement: React.FC = () => {
         <button
           onClick={openCreateModal}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           Thêm mới
@@ -495,16 +495,16 @@ const UserManagement: React.FC = () => {
           <div className="p-8 text-center text-gray-500">Không tìm thấy người dùng</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full min-w-[980px] border-collapse">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Họ tên</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Email</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vai trò</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Phòng ban</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Họ tên</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Email</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vai trò</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Phòng ban</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
                 </tr>
               </thead>
               <tbody>
@@ -515,31 +515,31 @@ const UserManagement: React.FC = () => {
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     }`}
                   >
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                       {user.lastName} {user.firstName}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">
                       {user.email}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
                       <div>{getRoleDisplayName(user.role)}</div>
                       {(user.secondaryDepartments ?? []).map((s, i) => (
                         <div key={i} className="text-xs text-blue-600 mt-0.5">(Phụ {i+1}) {getRoleDisplayName(s.role)}</div>
                       ))}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
                       <div>{user.departmentName || '-'}</div>
                       {(user.secondaryDepartments ?? []).map((s, i) => (
                         <div key={i} className="text-xs text-blue-600 mt-0.5">(Phụ {i+1}) {s.departmentName}</div>
                       ))}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
                       <div>{user.subDepartmentName || '-'}</div>
                       {(user.secondaryDepartments ?? []).map((s, i) => s.subDepartmentName ? (
                         <div key={i} className="text-xs text-blue-600 mt-0.5">(Phụ {i+1}) {s.subDepartmentName}</div>
                       ) : null)}
                     </td>
-                    <td className="px-6 py-4 text-center border-r border-gray-200">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-center border-r border-gray-200">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                         user.isActive
                           ? 'bg-green-100 text-green-700 border border-green-300'
@@ -548,7 +548,7 @@ const UserManagement: React.FC = () => {
                         {user.isActive ? 'Hoạt động' : 'Khóa'}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4">
                       <div className="flex items-center justify-center gap-3">
                         <button
                           onClick={() => openDetailModal(user)}
@@ -646,7 +646,7 @@ const UserManagement: React.FC = () => {
       <Modal isOpen={isDetailModalOpen && !!selectedUser} onClose={closeDetailModal} showBackdrop closeOnBackdrop={true}>
         <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             {/* Header — shrink-0, outside scroll */}
-            <div className="px-6 py-4 border-b border-gray-200 shrink-0">
+            <div className="px-3 py-3 sm:px-6 sm:py-4 border-b border-gray-200 shrink-0">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-gray-800">Chi tiết người dùng</h2>
                 <button
@@ -769,7 +769,7 @@ const UserManagement: React.FC = () => {
       <Modal isOpen={isFormModalOpen} onClose={closeFormModal} showBackdrop>
         <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             {/* Header — shrink-0, outside scroll */}
-            <div className="px-6 py-4 border-b border-gray-200 shrink-0">
+            <div className="px-3 py-3 sm:px-6 sm:py-4 border-b border-gray-200 shrink-0">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-gray-800">
                   {isEditMode ? 'Chỉnh sửa người dùng' : 'Tạo người dùng mới'}
