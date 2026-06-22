@@ -3,6 +3,7 @@ import { Edit, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
+import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
 import {
   useCreateFaultRecord,
   useCreateFaultRecordFromTemplate,
@@ -330,11 +331,13 @@ const FaultRecordList = () => {
                       <div className="text-[11px] text-gray-400 mt-0.5">{record.nguoiPhatHien}</div>
                     </td>
                     <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
-                      <div className="flex justify-end gap-0.5">
-                        <button title="Xem" onClick={() => openRecordModal('view', record)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
-                        {canWrite && <button title="Sửa" onClick={() => openRecordModal('edit', record)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>}
-                        {canDelete && <button title="Xóa" onClick={() => deleteRecord.mutate(record.id)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>}
-                      </div>
+                      <ResponsiveRowActions
+                        actions={[
+                          { key: 'view', label: 'Xem bản ghi', icon: <Eye className="h-4 w-4" />, onClick: () => openRecordModal('view', record), tone: 'primary' },
+                          ...(canWrite ? [{ key: 'edit', label: 'Sửa bản ghi', icon: <Edit className="h-4 w-4" />, onClick: () => openRecordModal('edit', record), tone: 'success' } satisfies RowAction] : []),
+                          ...(canDelete ? [{ key: 'delete', label: 'Xóa bản ghi', icon: <Trash2 className="h-4 w-4" />, onClick: () => deleteRecord.mutate(record.id), tone: 'danger' } satisfies RowAction] : []),
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -409,12 +412,14 @@ const FaultRecordList = () => {
                       <span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-gray-100 text-xs font-medium text-gray-600">{template._count?.faultRecords ?? 0}</span>
                     </td>
                     <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
-                      <div className="flex justify-end gap-0.5">
-                        <button title="Xem" onClick={() => openTemplateModal('view', template)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
-                        {canWrite && <button title="Sửa" onClick={() => openTemplateModal('edit', template)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>}
-                        {canWrite && template.hoatDong && <button title="Dừng hoạt động" onClick={() => deactivateTemplate.mutate(template.id)} className="rounded-md p-1.5 text-gray-400 hover:bg-yellow-50 hover:text-yellow-700 transition-colors"><Power className="h-4 w-4" /></button>}
-                        {canDelete && <button title="Xóa" onClick={() => deleteTemplate.mutate(template.id)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>}
-                      </div>
+                      <ResponsiveRowActions
+                        actions={[
+                          { key: 'view', label: 'Xem mẫu lỗi', icon: <Eye className="h-4 w-4" />, onClick: () => openTemplateModal('view', template), tone: 'primary' },
+                          ...(canWrite ? [{ key: 'edit', label: 'Sửa mẫu lỗi', icon: <Edit className="h-4 w-4" />, onClick: () => openTemplateModal('edit', template), tone: 'success' } satisfies RowAction] : []),
+                          ...(canWrite && template.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => deactivateTemplate.mutate(template.id), tone: 'warning' } satisfies RowAction] : []),
+                          ...(canDelete ? [{ key: 'delete', label: 'Xóa mẫu lỗi', icon: <Trash2 className="h-4 w-4" />, onClick: () => deleteTemplate.mutate(template.id), tone: 'danger' } satisfies RowAction] : []),
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}

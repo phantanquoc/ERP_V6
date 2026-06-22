@@ -20,6 +20,7 @@ import {
 import { useEmployeesForAssignment, type EmployeeOption } from '../hooks/useEmployeesForAssignment';
 import MachineSummaryDrawer from './MachineSummaryDrawer';
 import MachineStatusUpdateDialog from './MachineStatusUpdateDialog';
+import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
 import type {
   CloneMachineSystemRequest,
   CreateMachineSystemDetailRequest,
@@ -674,23 +675,15 @@ const MachineSystemList = () => {
                     {machineStatusBadge(system.trangThai as MachineStatus | undefined)}
                   </td>
                   <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
-                    <div className="flex justify-end gap-0.5">
-                      <button type="button" title="Xem" onClick={() => { setDrawerSystemId(system.id); }} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
-                      <button type="button" title="Sửa" onClick={() => openSystemModal('edit', system)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>
-                      <button
-                        type="button"
-                        title="Nhân bản"
-                        onClick={() => setCloneDialog({ system, maHeThong: system.maHeThong + '-COPY', tenHeThong: system.tenHeThong + ' (bản sao)' })}
-                        className="rounded-md p-1.5 text-gray-400 hover:bg-purple-50 hover:text-purple-600 transition-colors"
-                      ><Copy className="h-4 w-4" /></button>
-                      <button
-                        type="button"
-                        title="Cập nhật trạng thái"
-                        onClick={() => setStatusUpdateSystemId(system.id)}
-                        className="rounded-md p-1.5 text-gray-400 hover:bg-yellow-50 hover:text-yellow-600 transition-colors"
-                      ><RefreshCw className="h-4 w-4" /></button>
-                      <button type="button" title="Xóa" onClick={() => removeSystem(system)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>
-                    </div>
+                    <ResponsiveRowActions
+                      actions={[
+                        { key: 'view', label: 'Xem hệ thống', icon: <Eye className="h-4 w-4" />, onClick: () => { setDrawerSystemId(system.id); }, tone: 'primary' },
+                        { key: 'edit', label: 'Sửa hệ thống', icon: <Edit className="h-4 w-4" />, onClick: () => openSystemModal('edit', system), tone: 'success' },
+                        { key: 'clone', label: 'Nhân bản hệ thống', icon: <Copy className="h-4 w-4" />, onClick: () => setCloneDialog({ system, maHeThong: system.maHeThong + '-COPY', tenHeThong: system.tenHeThong + ' (bản sao)' }), tone: 'default' },
+                        { key: 'status', label: 'Cập nhật trạng thái', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setStatusUpdateSystemId(system.id), tone: 'warning' },
+                        { key: 'delete', label: 'Xóa hệ thống', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeSystem(system), tone: 'danger' },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -821,12 +814,14 @@ const MachineSystemList = () => {
                     </span>
                   </td>
                   <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
-                    <div className="flex justify-end gap-0.5">
-                      <button type="button" title="Xem" onClick={() => openDetailModal('view', node)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
-                      <button type="button" title="Sửa" onClick={() => openDetailModal('edit', node)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>
-                      {node.hoatDong && <button type="button" title="Dừng hoạt động" onClick={() => deactivate(node)} className="rounded-md p-1.5 text-gray-400 hover:bg-yellow-50 hover:text-yellow-700 transition-colors"><Power className="h-4 w-4" /></button>}
-                      <button type="button" title="Xóa" onClick={() => removeDetail(node)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>
-                    </div>
+                    <ResponsiveRowActions
+                      actions={[
+                        { key: 'view', label: 'Xem chi tiết', icon: <Eye className="h-4 w-4" />, onClick: () => openDetailModal('view', node), tone: 'primary' },
+                        { key: 'edit', label: 'Sửa chi tiết', icon: <Edit className="h-4 w-4" />, onClick: () => openDetailModal('edit', node), tone: 'success' },
+                        ...(node.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => deactivate(node), tone: 'warning' } satisfies RowAction] : []),
+                        { key: 'delete', label: 'Xóa chi tiết', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeDetail(node), tone: 'danger' },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
