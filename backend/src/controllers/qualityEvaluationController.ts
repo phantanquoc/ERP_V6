@@ -24,9 +24,9 @@ export class QualityEvaluationController {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
-      const tenMay = req.query.tenMay as string;
+      const machineSystemId = req.query.machineSystemId as string | undefined;
 
-      const result = await qualityEvaluationService.getAllQualityEvaluations(page, limit, tenMay);
+      const result = await qualityEvaluationService.getAllQualityEvaluations(page, limit, machineSystemId);
 
       res.json({
         success: true,

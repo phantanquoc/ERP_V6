@@ -59,7 +59,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
               {isLoading ? (
                 <div className="py-8 text-center text-gray-500">Đang tải...</div>
-              ) : !summary ? (
+              ) : !summary?.machine ? (
                 <div className="py-8 text-center text-gray-500">Không tìm thấy dữ liệu</div>
               ) : (
                 <>

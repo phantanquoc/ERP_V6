@@ -34,6 +34,37 @@ export const useMachineSystems = (filters: MachineSystemFilters = {}) =>
     queryFn: () => machineSystemService.getMachineSystems(filters),
   });
 
+const fryerMachineFilters: MachineSystemFilters = {
+  page: 1,
+  limit: 200,
+  hoatDong: true,
+  sortBy: 'maHeThong',
+  sortOrder: 'asc',
+};
+
+const isVacuumFryerMachineSystem = ({ maHeThong }: { maHeThong: string }) => {
+  const match = maHeThong.match(/^HT-CCK-(\d+)$/);
+  if (!match) return false;
+
+  const machineNumber = Number(match[1]);
+  return machineNumber >= 1 && machineNumber <= 8;
+};
+
+export const useActiveFryerMachineSystems = () =>
+  useQuery({
+    queryKey: machineSystemKeys.list(fryerMachineFilters),
+    queryFn: async () => {
+      const response = await machineSystemService.getMachineSystems(fryerMachineFilters);
+      const data = [...(response.data ?? [])]
+        .filter(isVacuumFryerMachineSystem)
+        .filter((machineSystem) => machineSystem.trangThai === undefined || machineSystem.trangThai === 'HOAT_DONG')
+        .sort((left, right) =>
+          left.maHeThong.localeCompare(right.maHeThong, 'vi-VN', { numeric: true })
+        );
+      return { ...response, data };
+    },
+  });
+
 export const useMachineSystem = (id: string) =>
   useQuery({
     queryKey: machineSystemKeys.detail(id),

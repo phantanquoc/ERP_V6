@@ -93,6 +93,7 @@ describe('MachineSystemService — getSummary', () => {
 
     const result = await machineSystemService.getSummary('sys-1');
 
+    expect(result.machine).toEqual({ id: 'sys-1', maHeThong: 'HT001' });
     expect(result.faultRecords).toHaveLength(1);
     expect(result.repairItems).toHaveLength(1);
     expect(result.statusLogs).toHaveLength(1);

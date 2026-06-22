@@ -75,6 +75,9 @@ export interface MachineSystemFilters {
   limit?: number;
   search?: string;
   hoatDong?: boolean;
+  trangThai?: MachineStatus;
+  loaiHeThong?: MachineSystemCategory;
+  maHeThongPrefix?: string;
   sortBy?: 'maHeThong' | 'tenHeThong' | 'createdAt' | 'updatedAt';
   sortOrder?: SortOrder;
 }
@@ -184,6 +187,9 @@ class MachineSystemService {
         limit: filters.limit ?? 10,
         search: filters.search,
         hoatDong: filters.hoatDong,
+        trangThai: filters.trangThai,
+        loaiHeThong: filters.loaiHeThong,
+        maHeThongPrefix: filters.maHeThongPrefix,
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
       },

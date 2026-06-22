@@ -12,9 +12,9 @@ export class FinishedProductController {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
-      const tenMay = req.query.tenMay as string | undefined;
+      const machineSystemId = req.query.machineSystemId as string | undefined;
 
-      const result = await finishedProductService.getAllFinishedProducts(page, limit, tenMay);
+      const result = await finishedProductService.getAllFinishedProducts(page, limit, machineSystemId);
 
       res.json({
         success: true,

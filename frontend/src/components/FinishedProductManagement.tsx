@@ -6,14 +6,14 @@ import FinishedProductViewModal from './FinishedProductViewModal';
 import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
 import TableFilter, { FilterField } from './TableFilter';
-import { useMachineSystems } from '../hooks/useMachineSystemDetails';
+import { useActiveFryerMachineSystems } from '../hooks/useMachineSystemDetails';
 
 // Special constant for "Tổng các máy" tab
 const TOTAL_ALL_MACHINES = '__TOTAL_ALL_MACHINES__';
 
 const FinishedProductManagement: React.FC = () => {
   const { user } = useAuth();
-  const machineSystemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
+  const machineSystemsQuery = useActiveFryerMachineSystems();
   const machineSystems = machineSystemsQuery.data?.data ?? [];
   const [products, setProducts] = useState<FinishedProduct[]>([]);
   const [allProducts, setAllProducts] = useState<FinishedProduct[]>([]); // All products from all machines
@@ -592,7 +592,7 @@ const FinishedProductManagement: React.FC = () => {
           >
             {machineSystems.map((system) => (
               <option key={system.id} value={system.id}>
-                {system.maHeThong} — {system.tenHeThong}
+                {system.tenHeThong} ({system.maHeThong})
               </option>
             ))}
             <option value={TOTAL_ALL_MACHINES}>Tổng các máy</option>
@@ -613,7 +613,7 @@ const FinishedProductManagement: React.FC = () => {
                   }
                 `}
               >
-                {system.maHeThong} — {system.tenHeThong}
+                {system.tenHeThong} ({system.maHeThong})
               </button>
             ))}
             {/* Tab Tổng các máy */}
