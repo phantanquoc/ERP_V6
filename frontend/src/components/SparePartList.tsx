@@ -6,6 +6,7 @@ import { useSpareParts, useCreateSparePart, useUpdateSparePart, useDeleteSparePa
 import sparePartService from '../services/sparePartService';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
+import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
 
 interface SparePart {
   id: string;
@@ -255,11 +256,13 @@ const SparePartList = () => {
                     </span>
                   </td>
                   <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
-                    <div className="flex justify-end gap-0.5">
-                      <button title="Xem" onClick={() => openViewModal(part)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><Eye size={14} /></button>
-                      {canWrite && <button title="Sửa" onClick={() => openEditModal(part)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"><Edit size={14} /></button>}
-                      {canDelete && <button title="Xóa" onClick={() => handleDelete(part.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={14} /></button>}
-                    </div>
+                    <ResponsiveRowActions
+                      actions={[
+                        { key: 'view', label: 'Xem chi tiết', icon: <Eye size={14} />, onClick: () => openViewModal(part), tone: 'primary' },
+                        ...(canWrite ? [{ key: 'edit', label: 'Sửa linh kiện', icon: <Edit size={14} />, onClick: () => openEditModal(part), tone: 'success' } satisfies RowAction] : []),
+                        ...(canDelete ? [{ key: 'delete', label: 'Xóa linh kiện', icon: <Trash2 size={14} />, onClick: () => handleDelete(part.id), tone: 'danger' } satisfies RowAction] : []),
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

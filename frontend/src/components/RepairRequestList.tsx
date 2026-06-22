@@ -4,6 +4,7 @@ import { getFileUrl } from '../config/api';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
+import ResponsiveRowActions from './ResponsiveRowActions';
 import {
   useCreateRepairRequest,
   useDeleteRepairRequest,
@@ -280,12 +281,14 @@ const RepairRequestList = () => {
                       )}
                     </td>
                     <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
-                      <div className="flex justify-end gap-0.5">
-                        <button title="Xem" onClick={() => openModal('view', request)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Eye className="h-4 w-4" /></button>
-                        <button title="Sửa" onClick={() => openModal('edit', request)} className="rounded-md p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"><Edit className="h-4 w-4" /></button>
-                        <button title="Nghiệm thu" onClick={() => setHandoverRequest(request)} className="rounded-md p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-700 transition-colors"><CheckCircle className="h-4 w-4" /></button>
-                        <button title="Xóa" onClick={() => remove(request)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>
-                      </div>
+                      <ResponsiveRowActions
+                        actions={[
+                          { key: 'view', label: 'Xem yêu cầu', icon: <Eye className="h-4 w-4" />, onClick: () => openModal('view', request), tone: 'primary' },
+                          { key: 'edit', label: 'Sửa yêu cầu', icon: <Edit className="h-4 w-4" />, onClick: () => openModal('edit', request), tone: 'success' },
+                          { key: 'handover', label: 'Nghiệm thu', icon: <CheckCircle className="h-4 w-4" />, onClick: () => setHandoverRequest(request), tone: 'primary' },
+                          { key: 'delete', label: 'Xóa yêu cầu', icon: <Trash2 className="h-4 w-4" />, onClick: () => remove(request), tone: 'danger' },
+                        ]}
+                      />
                     </td>
                   </tr>
                 );
