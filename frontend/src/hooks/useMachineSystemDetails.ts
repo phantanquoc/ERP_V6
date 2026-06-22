@@ -52,7 +52,7 @@ const isVacuumFryerMachineSystem = ({ maHeThong }: { maHeThong: string }) => {
 
 export const useActiveFryerMachineSystems = () =>
   useQuery({
-    queryKey: machineSystemKeys.list(fryerMachineFilters),
+    queryKey: [...machineSystemKeys.all, 'activeFryerList', fryerMachineFilters] as const,
     queryFn: async () => {
       const response = await machineSystemService.getMachineSystems(fryerMachineFilters);
       const data = [...(response.data ?? [])]
