@@ -622,17 +622,13 @@ const FaceKioskPageV2: React.FC = () => {
           background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)',
           paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
         }}>
-        <div className="flex items-center gap-3 sm:gap-4 text-white drop-shadow min-w-0">
+        <div className="flex items-center text-white drop-shadow min-w-0">
           <img
             src="/abf-logo.png"
             alt="ABF — Healthy life with natural food"
             className="h-10 sm:h-12 md:h-14 w-auto object-contain shrink-0"
             style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))' }}
           />
-          <div className="border-l border-white/20 pl-3 sm:pl-4 min-w-0">
-            <p className="text-base sm:text-xl md:text-2xl font-bold tracking-wider md:tracking-widest uppercase truncate">Chấm Công Khuôn Mặt</p>
-            <p className="hidden sm:block text-white/60 text-xs md:text-sm mt-0.5 truncate">Đưa khuôn mặt vào camera để điểm danh</p>
-          </div>
         </div>
         <div className="text-right text-white drop-shadow shrink-0">
           <p className="text-3xl sm:text-4xl md:text-5xl font-mono font-bold tabular-nums leading-none">
