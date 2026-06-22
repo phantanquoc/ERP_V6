@@ -160,9 +160,9 @@ const PayrollManagement: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <h2 className="text-2xl font-bold text-gray-800">Bảng Tính Lương</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <button
             onClick={() => {
               setSettingsForm({
@@ -171,7 +171,7 @@ const PayrollManagement: React.FC = () => {
               });
               setShowSettingsModal(true);
             }}
-            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center gap-2"
+            className="w-full px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center justify-center gap-2 sm:w-auto"
             title="Cài đặt"
           >
             <Settings size={18} />
@@ -192,7 +192,7 @@ const PayrollManagement: React.FC = () => {
               }
             }}
             disabled={sendingNotifications || loading}
-            className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 flex items-center gap-2"
+            className="w-full px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 flex items-center justify-center gap-2 sm:w-auto"
           >
             <Send size={18} />
             {sendingNotifications ? 'Đang gửi...' : 'Gửi bảng lương'}
@@ -206,7 +206,7 @@ const PayrollManagement: React.FC = () => {
                 alert('Không thể xuất file Excel');
               }
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+            className="flex w-full items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors sm:w-auto"
           >
             <Download size={18} />
             Xuất Excel
@@ -214,7 +214,7 @@ const PayrollManagement: React.FC = () => {
           <button
             onClick={() => queryClient.invalidateQueries({ queryKey: payrollKeys.lists() })}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 sm:w-auto"
           >
             {loading ? 'Đang tải...' : 'Làm mới'}
           </button>
@@ -260,19 +260,19 @@ const PayrollManagement: React.FC = () => {
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full min-w-[1100px] border-collapse">
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên NV</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vị trí</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Lương cơ bản</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Lương KPI</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Phụ cấp khác</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng khấu trừ</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Thực lĩnh</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên NV</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Vị trí</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Lương cơ bản</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Lương KPI</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Phụ cấp khác</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng khấu trừ</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Thực lĩnh</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
               </tr>
             </thead>
             <tbody>
@@ -283,26 +283,26 @@ const PayrollManagement: React.FC = () => {
                     index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                   }`}
                 >
-                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                     {payroll.employeeCode}
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
                     {payroll.employeeName}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">
                     {payroll.positionName}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 text-right border-r border-gray-200">
                     {payroll.baseSalary.toLocaleString('vi-VN')} ₫
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 text-right border-r border-gray-200">
                     {payroll.kpiBonus.toLocaleString('vi-VN')} ₫
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 text-right border-r border-gray-200">
                     {(payroll.positionAllowance + payroll.otherAllowances).toLocaleString('vi-VN')} ₫
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right border-r border-gray-200">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 text-right border-r border-gray-200">
                     {payroll.totalDeductions.toLocaleString('vi-VN')} ₫
                     {payroll.evaluationPending && (
                       <span className="ml-1 inline-block px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded">
@@ -310,10 +310,10 @@ const PayrollManagement: React.FC = () => {
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right border-r border-gray-200">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-gray-900 text-right border-r border-gray-200">
                     {payroll.netSalary.toLocaleString('vi-VN')} ₫
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4">
                     <div className="flex items-center justify-center">
                       <button
                         onClick={() => handleViewDetail(payroll)}
@@ -329,22 +329,22 @@ const PayrollManagement: React.FC = () => {
             </tbody>
             <tfoot>
               <tr className="bg-blue-50 border-t-2 border-blue-300">
-                <td colSpan={4} className="px-6 py-4 text-sm font-bold text-blue-800 border-r border-gray-200">
+                <td colSpan={4} className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-800 border-r border-gray-200">
                   Tổng cộng ({filteredPayrolls.length} nhân viên)
                 </td>
-                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
+                <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
                   {filteredPayrolls.reduce((sum, p) => sum + p.baseSalary, 0).toLocaleString('vi-VN')} ₫
                 </td>
-                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
+                <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
                   {filteredPayrolls.reduce((sum, p) => sum + p.kpiBonus, 0).toLocaleString('vi-VN')} ₫
                 </td>
-                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
+                <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
                   {filteredPayrolls.reduce((sum, p) => sum + p.positionAllowance + p.otherAllowances, 0).toLocaleString('vi-VN')} ₫
                 </td>
-                <td className="px-6 py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
+                <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
                   {filteredPayrolls.reduce((sum, p) => sum + p.totalDeductions, 0).toLocaleString('vi-VN')} ₫
                 </td>
-                <td className="px-6 py-4 text-sm font-bold text-blue-900 text-right border-r border-gray-200">
+                <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 text-right border-r border-gray-200">
                   {filteredPayrolls.reduce((sum, p) => sum + p.netSalary, 0).toLocaleString('vi-VN')} ₫
                 </td>
                 <td></td>
@@ -396,7 +396,7 @@ const PayrollManagement: React.FC = () => {
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal && !!editingPayroll} onClose={() => setShowDetailModal(false)} showBackdrop>
         <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b shrink-0">
+          <div className="bg-gray-100 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center border-b shrink-0">
               <h3 className="text-xl font-bold">Chi tiết Bảng Tính Lương</h3>
               <button
                 onClick={() => setShowDetailModal(false)}
@@ -409,7 +409,7 @@ const PayrollManagement: React.FC = () => {
             <div className="overflow-y-auto flex-1">
             {editingPayroll && (<div className="p-6">
               {/* Employee Info */}
-              <div className="grid grid-cols-2 gap-4 mb-6 pb-6 border-b">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 pb-6 border-b">
                 <div>
                   <p className="text-sm text-gray-600">Mã NV</p>
                   <p className="font-semibold">{editingPayroll.employeeCode}</p>
@@ -431,7 +431,7 @@ const PayrollManagement: React.FC = () => {
               </div>
 
               {/* Salary Details */}
-              <div className="grid grid-cols-2 gap-6 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
                 <div>
                   <h4 className="font-bold mb-4 text-lg">Thu nhập</h4>
                   <div className="space-y-3">
@@ -615,7 +615,7 @@ const PayrollManagement: React.FC = () => {
               </div>
 
               {/* Work Days */}
-              <div className="grid grid-cols-4 gap-4 mb-6 pb-6 border-b">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 pb-6 border-b">
                 <div>
                   <label className="block text-sm font-medium mb-2">Số ngày làm</label>
                   <input
@@ -721,7 +721,7 @@ const PayrollManagement: React.FC = () => {
       {/* Settings Modal */}
       <Modal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} showBackdrop>
         <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-b rounded-t-lg shrink-0">
+            <div className="bg-gray-100 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center border-b rounded-t-lg shrink-0">
               <h3 className="text-lg font-bold">Cài đặt Bảng Lương</h3>
               <button
                 onClick={() => setShowSettingsModal(false)}
@@ -754,7 +754,7 @@ const PayrollManagement: React.FC = () => {
                 <p className="text-xs text-gray-500 mt-1">Tiền OT = Giá OT × Số giờ OT</p>
               </div>
             </div>
-            <div className="px-6 py-4 border-t flex justify-end gap-3 shrink-0">
+            <div className="px-3 py-3 sm:px-6 sm:py-4 border-t flex justify-end gap-3 shrink-0">
               <button
                 onClick={() => setShowSettingsModal(false)}
                 className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"

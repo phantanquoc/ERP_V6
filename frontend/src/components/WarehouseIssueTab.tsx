@@ -177,11 +177,11 @@ const WarehouseIssueTab: React.FC = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Phiếu xuất kho</h2>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Phiếu xuất kho</h2>
         <button
           onClick={handleOpenModal}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 w-full sm:w-auto"
         >
           <Plus className="h-5 w-5" />
           Tạo phiếu xuất
@@ -198,7 +198,7 @@ const WarehouseIssueTab: React.FC = () => {
       {/* Issues Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full min-w-[900px] border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
@@ -262,11 +262,11 @@ const WarehouseIssueTab: React.FC = () => {
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
           <span className="text-sm text-gray-600">
             Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredIssues.length)} / {filteredIssues.length} mục
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
@@ -325,7 +325,7 @@ const WarehouseIssueTab: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="text-xs text-gray-500 uppercase font-medium">Ngày xuất</label>
                   <p className="text-sm font-semibold text-gray-900 mt-1">
@@ -345,7 +345,7 @@ const WarehouseIssueTab: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="text-xs text-gray-500 uppercase font-medium">Kho</label>
                   <p className="text-sm font-semibold text-gray-900 mt-1">{selectedIssue.tenKho}</p>
@@ -369,7 +369,7 @@ const WarehouseIssueTab: React.FC = () => {
                   </svg>
                   <span className="text-sm font-semibold text-orange-800">Lịch sử biến động số lượng</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   {/* Số lượng trước */}
                   <div className="text-center flex-1">
                     <p className="text-xs text-gray-500 uppercase mb-1">Trước khi xuất</p>
@@ -552,7 +552,7 @@ const WarehouseIssueTab: React.FC = () => {
                       </svg>
                       <span className="font-medium">Thông tin thay đổi số lượng:</span>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                       <div className="flex justify-between items-center bg-white px-2 py-1 rounded">
                         <span className="text-gray-600">Số lượng hiện tại:</span>
                         <span className="font-semibold text-gray-900">
@@ -600,7 +600,7 @@ const WarehouseIssueTab: React.FC = () => {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 shrink-0">
+              <div className="flex flex-col sm:flex-row sm:justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}

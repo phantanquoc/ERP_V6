@@ -192,9 +192,9 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Danh sách phản hồi từ khách hàng</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h2 className="text-xl sm:text-2xl font-bold">Danh sách phản hồi từ khách hàng</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <button
             onClick={async () => {
               try {
@@ -204,14 +204,14 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                 alert('Lỗi khi xuất Excel');
               }
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <Download className="w-4 h-4" />
             Xuất Excel
           </button>
           <button
             onClick={handleCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Thêm phản hồi
@@ -234,7 +234,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
         ) : !feedbacks || feedbacks.length === 0 ? (
           <div className="p-8 text-center text-gray-500">Không có dữ liệu</div>
         ) : (
-              <table className="w-full border-collapse">
+              <table className="w-full min-w-[1000px] border-collapse">
                 <thead>
                   <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
@@ -301,11 +301,11 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
         )}
       </div>
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
           <span className="text-sm text-gray-600">
             Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}

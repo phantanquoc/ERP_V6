@@ -364,13 +364,13 @@ const PurchasingMaterials = () => {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-1 -mb-px">
+      <div className="border-b border-gray-200 overflow-x-auto">
+        <nav className="flex w-max min-w-full gap-1 -mb-px">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              className={`px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
                 activeTab === tab.id
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -388,16 +388,16 @@ const PurchasingMaterials = () => {
           {activeTab === 'suppliers' && (
             <div>
               {/* Search and actions bar */}
-              <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="relative">
+              <div className="mb-6 flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 sm:items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <input
                       type="text"
                       placeholder="Tìm kiếm nhà cung cấp..."
                       value={supplierSearch}
                       onChange={(e) => setSupplierSearch(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 w-64"
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 w-full sm:w-64"
                     />
                   </div>
                   <button
@@ -408,7 +408,7 @@ const PurchasingMaterials = () => {
                     Tìm kiếm
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   <button
                     onClick={async () => {
                       try {
@@ -445,7 +445,7 @@ const PurchasingMaterials = () => {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full min-w-[1100px]">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
@@ -504,7 +504,7 @@ const PurchasingMaterials = () => {
                             {item.employee?.user ? `${item.employee.user.lastName} ${item.employee.user.firstName}` : '-'}
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                               <button
                                 onClick={() => openDetailModal(item)}
                                 className="text-blue-600 hover:text-blue-800"
@@ -567,16 +567,16 @@ const PurchasingMaterials = () => {
           {activeTab === 'purchaseRequestList' && (
             <div>
               {/* Search and filter bar */}
-              <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="relative">
+              <div className="mb-6 flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 sm:items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <input
                       type="text"
                       placeholder="Tìm kiếm yêu cầu mua hàng..."
                       value={purchaseRequestSearch}
                       onChange={(e) => setPurchaseRequestSearch(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 w-64"
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 w-full sm:w-64"
                     />
                   </div>
                   <button
@@ -587,7 +587,7 @@ const PurchasingMaterials = () => {
                     Tìm kiếm
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   <button
                     onClick={async () => {
                       try {
@@ -617,7 +617,7 @@ const PurchasingMaterials = () => {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full min-w-[900px]">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
@@ -675,7 +675,7 @@ const PurchasingMaterials = () => {
                             </span>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                               <button
                                 onClick={() => openPurchaseRequestDetail(item)}
                                 className="text-blue-600 hover:text-blue-800"
@@ -750,8 +750,8 @@ const PurchasingMaterials = () => {
         {/* Detail Modal */}
         {isDetailModalOpen && selectedItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chi tiết thông tin</h2>
                   <button
@@ -794,8 +794,8 @@ const PurchasingMaterials = () => {
         {/* Purchase Request Detail Modal */}
         {selectedPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chi tiết yêu cầu mua hàng</h2>
                   <button
@@ -808,7 +808,7 @@ const PurchasingMaterials = () => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <label className="block text-sm font-medium text-gray-500 mb-1">Mã yêu cầu</label>
                     <p className="text-sm font-semibold text-blue-600">{selectedPurchaseRequest.maYeuCau}</p>
@@ -842,9 +842,10 @@ const PurchasingMaterials = () => {
 
                   {/* Items table */}
                   {selectedPurchaseRequest.items && selectedPurchaseRequest.items.length > 0 && (
-                    <div className="bg-gray-50 p-4 rounded-lg col-span-2">
+                    <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-500 mb-2">Danh sách sản phẩm</label>
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+	                      <table className="w-full min-w-[760px] text-sm">
                         <thead>
                           <tr className="border-b border-gray-200">
                             <th className="text-left py-2 px-2 font-medium text-gray-600">STT</th>
@@ -878,9 +879,10 @@ const PurchasingMaterials = () => {
                           </tr>
                         </tbody>
                       </table>
+	                      </div>
                     </div>
                   )}
-                  <div className="bg-gray-50 p-4 rounded-lg col-span-2">
+                  <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-500 mb-1">Mục đích yêu cầu</label>
                     <p className="text-sm text-gray-900">{selectedPurchaseRequest.mucDichYeuCau}</p>
                   </div>
@@ -896,7 +898,7 @@ const PurchasingMaterials = () => {
                     </span>
                   </div>
                   {selectedPurchaseRequest.ghiChu && (
-                    <div className="bg-gray-50 p-4 rounded-lg col-span-2">
+                    <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-500 mb-1">Ghi chú</label>
                       <p className="text-sm text-gray-900">{selectedPurchaseRequest.ghiChu}</p>
                     </div>
@@ -915,7 +917,7 @@ const PurchasingMaterials = () => {
                         : <span className="text-gray-400 italic">Chưa duyệt</span>}
                     </p>
                   </div>
-                  <div className="bg-gray-50 p-4 rounded-lg col-span-2">
+                  <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-500 mb-1">File đính kèm</label>
                     {selectedPurchaseRequest.fileKemTheo ? (
                       <a
@@ -948,8 +950,8 @@ const PurchasingMaterials = () => {
         {/* Xử lý yêu cầu mua hàng Modal */}
         {editingPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <form onSubmit={handleEditSubmit} className="p-6">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+              <form onSubmit={handleEditSubmit} className="p-4 sm:p-6">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-5">
                   <div>
@@ -974,7 +976,7 @@ const PurchasingMaterials = () => {
                 {/* Section 1: Thông tin yêu cầu (read-only) */}
                 <div className="bg-gray-50 rounded-lg p-4 mb-5">
                   <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Thông tin yêu cầu</h3>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                     <div className="flex gap-2">
                       <span className="text-gray-500 flex-shrink-0">Người yêu cầu:</span>
                       <span className="font-medium text-gray-800">
@@ -1004,7 +1006,7 @@ const PurchasingMaterials = () => {
 
                     {/* Hàng hóa: single item hoặc multi-item */}
                     {editingPurchaseRequest.items && editingPurchaseRequest.items.length > 0 ? (
-                      <div className="col-span-2">
+                      <div className="col-span-1 sm:col-span-2">
                         <span className="text-gray-500">Danh sách hàng hóa:</span>
                         <div className="mt-1 space-y-1">
                           {editingPurchaseRequest.items.map((item, i) => (
@@ -1020,7 +1022,7 @@ const PurchasingMaterials = () => {
                       </div>
                     ) : (
                       <>
-                        <div className="col-span-2 flex gap-2">
+                        <div className="col-span-1 sm:col-span-2 flex gap-2">
                           <span className="text-gray-500 flex-shrink-0">Hàng hóa:</span>
                           <span className="font-medium text-gray-800">
                             {editingPurchaseRequest.tenHangHoa || '—'}
@@ -1038,13 +1040,13 @@ const PurchasingMaterials = () => {
                     )}
 
                     {editingPurchaseRequest.mucDichYeuCau && (
-                      <div className="col-span-2 flex gap-2">
+                      <div className="col-span-1 sm:col-span-2 flex gap-2">
                         <span className="text-gray-500 flex-shrink-0">Mục đích:</span>
                         <span className="text-gray-700">{editingPurchaseRequest.mucDichYeuCau}</span>
                       </div>
                     )}
                     {editingPurchaseRequest.ghiChu && (
-                      <div className="col-span-2 flex gap-2">
+                      <div className="col-span-1 sm:col-span-2 flex gap-2">
                         <span className="text-gray-500 flex-shrink-0">Ghi chú YC:</span>
                         <span className="text-gray-700 italic">{editingPurchaseRequest.ghiChu}</span>
                       </div>
@@ -1073,7 +1075,7 @@ const PurchasingMaterials = () => {
 
                     {/* Ghi chú mua hàng đã nhập */}
                     {editingPurchaseRequest.ghiChuMuaHang && (
-                      <div className="col-span-2 flex gap-2">
+                      <div className="col-span-1 sm:col-span-2 flex gap-2">
                         <span className="text-gray-500 flex-shrink-0">Ghi chú MH:</span>
                         <span className="text-gray-700 italic">{editingPurchaseRequest.ghiChuMuaHang}</span>
                       </div>
@@ -1081,7 +1083,7 @@ const PurchasingMaterials = () => {
 
                     {/* File đính kèm */}
                     {editingPurchaseRequest.fileKemTheo && (
-                      <div className="col-span-2 flex gap-2">
+                      <div className="col-span-1 sm:col-span-2 flex gap-2">
                         <span className="text-gray-500 flex-shrink-0">File đính kèm:</span>
                         <a
                           href={editingPurchaseRequest.fileKemTheo}
@@ -1126,7 +1128,7 @@ const PurchasingMaterials = () => {
 
                   {/* Thông tin duyệt — chỉ hiện khi chọn "Đã duyệt" */}
                   {editFormData.trangThai === 'Đã duyệt' && (
-                    <div className="grid grid-cols-2 gap-4 bg-green-50 border border-green-200 rounded-md p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-green-50 border border-green-200 rounded-md p-3">
                       <div>
                         <label className="block text-xs font-medium text-green-800 mb-1">Người duyệt</label>
                         <input
@@ -1227,15 +1229,15 @@ const PurchasingMaterials = () => {
         {/* Modal Thêm nhà cung cấp */}
         {isAddSupplierModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white">
+            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6 border-b flex justify-between items-center sticky top-0 bg-white">
                 <h2 className="text-xl font-semibold">Thêm nhà cung cấp mới</h2>
                 <button onClick={() => setIsAddSupplierModalOpen(false)} className="text-gray-500 hover:text-gray-700">
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); handleAddSupplier(); }} className="p-6">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleAddSupplier(); }} className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Mã NCC</label>
                     <input type="text" value={supplierFormData.maNhaCungCap || ''} disabled className="w-full border rounded-md px-3 py-2 bg-gray-100" />
@@ -1268,7 +1270,7 @@ const PurchasingMaterials = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Email liên hệ *</label>
                     <input type="email" value={supplierFormData.emailLienHe || ''} onChange={(e) => setSupplierFormData({...supplierFormData, emailLienHe: e.target.value})} required className="w-full border rounded-md px-3 py-2" />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ *</label>
                     <input type="text" value={supplierFormData.diaChi || ''} onChange={(e) => setSupplierFormData({...supplierFormData, diaChi: e.target.value})} required className="w-full border rounded-md px-3 py-2" />
                   </div>
@@ -1309,15 +1311,15 @@ const PurchasingMaterials = () => {
         {/* Modal Sửa nhà cung cấp */}
         {isEditSupplierModalOpen && editingSupplier && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white">
+            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6 border-b flex justify-between items-center sticky top-0 bg-white">
                 <h2 className="text-xl font-semibold">Sửa nhà cung cấp - {editingSupplier.maNhaCungCap}</h2>
                 <button onClick={() => { setIsEditSupplierModalOpen(false); setEditingSupplier(null); }} className="text-gray-500 hover:text-gray-700">
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); handleEditSupplier(); }} className="p-6">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleEditSupplier(); }} className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhà cung cấp *</label>
                     <input type="text" value={supplierFormData.tenNhaCungCap || ''} onChange={(e) => setSupplierFormData({...supplierFormData, tenNhaCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" />

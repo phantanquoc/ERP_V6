@@ -423,16 +423,16 @@ const ProductionProcessManagement: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Danh sách quy trình sản xuất</h2>
-        <p className="text-gray-600 mt-1">Quản lý quy trình sản xuất thực tế</p>
+      <div className="mb-4 sm:mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Danh sách quy trình sản xuất</h2>
+        <p className="text-sm sm:text-base text-gray-600 mt-1">Quản lý quy trình sản xuất thực tế</p>
       </div>
 
       {/* Action Bar */}
-      <div className="mb-6 flex justify-end items-center">
+      <div className="mb-4 sm:mb-6 flex justify-stretch sm:justify-end items-center">
         <button
           onClick={handleOpenModal}
-          className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-5 h-5" />
           Tạo quy trình sản xuất
@@ -449,7 +449,7 @@ const ProductionProcessManagement: React.FC = () => {
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full min-w-[1100px] border-collapse">
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
@@ -543,11 +543,11 @@ const ProductionProcessManagement: React.FC = () => {
         const totalItems = filteredProcesses.length;
         const totalPages = Math.ceil(totalItems / itemsPerPage);
         return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
             <span className="text-sm text-gray-600">
               Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
@@ -582,9 +582,9 @@ const ProductionProcessManagement: React.FC = () => {
 
       {/* Create/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-[95vw] w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
-              <h3 className="text-xl font-bold text-gray-800">
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-[95vw] sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-start sm:items-center gap-3 shrink-0">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800">
                 {editingProcess ? 'Chỉnh sửa quy trình sản xuất' : 'Tạo quy trình sản xuất mới'}
               </h3>
               <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700">
@@ -592,7 +592,7 @@ const ProductionProcessManagement: React.FC = () => {
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1 p-6">
+            <div className="overflow-y-auto flex-1 p-4 sm:p-6">
               {/* Template Selection */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -614,7 +614,7 @@ const ProductionProcessManagement: React.FC = () => {
               </div>
 
               {/* Additional Fields - Row 1 */}
-              <div className="mb-6 grid grid-cols-5 gap-4">
+              <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Tên quy trình sản xuất
@@ -680,7 +680,7 @@ const ProductionProcessManagement: React.FC = () => {
               </div>
 
               {/* Additional Fields - Row 2 (New Fields) */}
-              <div className="mb-6 grid grid-cols-4 gap-4">
+              <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Chọn Định mức NVL
@@ -748,7 +748,7 @@ const ProductionProcessManagement: React.FC = () => {
               {/* Flowchart Table */}
               {flowchartSections.length > 0 && (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse border border-gray-200">
+                  <table className="min-w-[1200px] border-collapse border border-gray-200">
                     <thead>
                       <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">STT</th>
@@ -867,17 +867,17 @@ const ProductionProcessManagement: React.FC = () => {
               )}
             </div>
 
-            <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 shrink-0">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 shrink-0">
               <button
                 onClick={handleCloseModal}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+                className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Hủy
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={loading || !selectedTemplateId || flowchartSections.length === 0}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Đang lưu...' : editingProcess ? 'Cập nhật' : 'Tạo mới'}
               </button>
@@ -887,10 +887,10 @@ const ProductionProcessManagement: React.FC = () => {
 
       {/* View Modal */}
       <Modal isOpen={isViewModalOpen && !!viewingProcess} onClose={handleCloseViewModal} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-[95vw] w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-[95vw] sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-start sm:items-center gap-3 shrink-0">
               <div>
-                <h3 className="text-xl font-bold text-gray-800">Chi tiết quy trình sản xuất</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800">Chi tiết quy trình sản xuất</h3>
                 <p className="text-sm text-gray-600 mt-1">
                   Mã: <span className="font-semibold text-blue-600">{viewingProcess?.maQuyTrinhSanXuat}</span> |
                   Tên: <span className="font-semibold">{viewingProcess?.tenQuyTrinh}</span>
@@ -901,7 +901,7 @@ const ProductionProcessManagement: React.FC = () => {
               </button>
             </div>
             {/* Nút xuất Excel */}
-            <div className="bg-white border-b border-gray-200 px-6 py-2 flex justify-end shrink-0">
+            <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-2 flex justify-stretch sm:justify-end shrink-0">
               <button
                 onClick={async () => {
                   if (!viewingProcess) return;
@@ -912,17 +912,17 @@ const ProductionProcessManagement: React.FC = () => {
                     alert('Lỗi khi xuất file Excel');
                   }
                 }}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
+                className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-sm"
               >
                 <Download className="w-4 h-4" />
                 Xuất Excel
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1 p-6">
+            <div className="overflow-y-auto flex-1 p-4 sm:p-6">
               {viewingProcess && (<>
               {/* Thông tin tổng quan */}
-              <div className="mb-6 grid grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg">
+              <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tên quy trình sản xuất</label>
                   <p className="text-sm text-gray-900">{viewingProcess.tenQuyTrinhSanXuat || '-'}</p>
@@ -993,7 +993,7 @@ const ProductionProcessManagement: React.FC = () => {
 
                   return (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse border border-gray-200">
+                  <table className="min-w-[1200px] border-collapse border border-gray-200">
                     <thead>
                       <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">STT</th>
@@ -1071,10 +1071,10 @@ const ProductionProcessManagement: React.FC = () => {
               </>)}
             </div>
 
-            <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 shrink-0">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 shrink-0">
               <button
                 onClick={handleCloseViewModal}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+                className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Đóng
               </button>
@@ -1083,7 +1083,7 @@ const ProductionProcessManagement: React.FC = () => {
                   handleCloseViewModal();
                   if (viewingProcess) handleEditProcess(viewingProcess);
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               >
                 Chỉnh sửa
               </button>

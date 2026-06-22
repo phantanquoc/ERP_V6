@@ -557,10 +557,10 @@ const FaceAdminPage: React.FC = () => {
 
   return (
     <>
-      <div className="space-y-5">
+      <div className="space-y-4 sm:space-y-5">
         {/* Header */}
-        <div className="mb-5">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+        <div className="mb-4 sm:mb-5">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-3">
             <Contact className="w-7 h-7 text-blue-600" /> Đăng ký khuôn mặt nhân viên
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">Chọn nhân viên → hệ thống tự chụp {POSES.length} góc mặt</p>
@@ -581,7 +581,7 @@ const FaceAdminPage: React.FC = () => {
                 <RefreshCw className="w-4 h-4" />
               </button>
             </div>
-            <div className="overflow-y-auto" style={{ maxHeight: '75vh' }}>
+            <div className="overflow-y-auto max-h-[55vh] lg:max-h-[75vh]">
               {loading ? (
                 <div className="p-8 text-center text-gray-500 flex items-center justify-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" /> Đang tải...
@@ -636,7 +636,7 @@ const FaceAdminPage: React.FC = () => {
             ) : (
               <>
                 {/* Employee info */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4 flex items-center justify-between">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">{selected.fullName}</h2>
                     <p className="text-sm text-gray-500">{selected.employeeCode} · {selected.email}</p>
@@ -648,7 +648,7 @@ const FaceAdminPage: React.FC = () => {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {selected.faceProfile && enrollState === 'idle' && !cameraOn && (
                       <button
                         onClick={() => { setEnrollMode('variation'); startCamera(); }}
@@ -669,7 +669,7 @@ const FaceAdminPage: React.FC = () => {
                 {enrollState === 'capturing' && (
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Pose instruction */}
-                    <div className="px-5 pt-4 pb-3 flex items-center gap-3">
+                    <div className="px-4 sm:px-5 pt-4 pb-3 flex flex-col sm:flex-row sm:items-center gap-3">
                       <span className="text-4xl">{pose.emoji}</span>
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900">
@@ -687,7 +687,7 @@ const FaceAdminPage: React.FC = () => {
                     </div>
 
                     {/* Camera view */}
-                    <div className="relative bg-black mx-4 mb-3 rounded-xl overflow-hidden" style={{ aspectRatio: '4/3' }}>
+                    <div className="relative bg-black mx-3 sm:mx-4 mb-3 rounded-xl overflow-hidden max-h-[60vh]" style={{ aspectRatio: '4/3' }}>
                       <video
                         ref={videoRef} muted playsInline autoPlay
                         className="w-full h-full object-cover"
@@ -704,7 +704,7 @@ const FaceAdminPage: React.FC = () => {
                     </div>
 
                     {/* Progress dots */}
-                    <div className="px-5 pb-4">
+                    <div className="px-4 sm:px-5 pb-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs text-gray-600">Tiến độ chụp</span>
                         <span className="text-xs text-gray-500">{capturedImages.length}/{POSES.length}</span>
