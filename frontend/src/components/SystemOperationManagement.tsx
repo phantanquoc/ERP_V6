@@ -7,7 +7,7 @@ import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductionEmployees } from '../hooks/useProductionEmployees';
-import { useMachineSystems } from '../hooks/useMachineSystemDetails';
+import { useActiveFryerMachineSystems } from '../hooks/useMachineSystemDetails';
 
 interface FormData {
   maChien: string;
@@ -31,7 +31,7 @@ interface SystemOperationManagementProps {
 const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ initialMaChien, initialThoiGianChien }) => {
   const { user } = useAuth();
   const { data: productionEmployees = [] } = useProductionEmployees();
-  const machineSystemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
+  const machineSystemsQuery = useActiveFryerMachineSystems();
   const machineSystems = machineSystemsQuery.data?.data ?? [];
   const [operations, setOperations] = useState<SystemOperation[]>([]);
   const [materialEvaluations, setMaterialEvaluations] = useState<MaterialEvaluation[]>([]);
@@ -370,7 +370,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
             <option value="">Tất cả hệ thống</option>
             {machineSystems.map((ms) => (
               <option key={ms.id} value={ms.id}>
-                {ms.maHeThong} — {ms.tenHeThong}
+                {ms.tenHeThong} ({ms.maHeThong})
               </option>
             ))}
           </select>
@@ -398,7 +398,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                {ms.maHeThong}
+                {ms.tenHeThong}
               </button>
             ))}
           </nav>
@@ -594,7 +594,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                     <option value="">-- Chọn hệ thống máy --</option>
                     {machineSystems.map((ms) => (
                       <option key={ms.id} value={ms.id}>
-                        {ms.maHeThong} — {ms.tenHeThong}
+                        {ms.tenHeThong} ({ms.maHeThong})
                       </option>
                     ))}
                   </select>

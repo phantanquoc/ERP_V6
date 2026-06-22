@@ -43,6 +43,16 @@ interface CloneOverrides {
   viTri?: string;
 }
 
+interface MachineSystemFilters {
+  search?: string;
+  hoatDong?: boolean;
+  trangThai?: MachineStatus;
+  loaiHeThong?: MachineSystemCategory;
+  maHeThongPrefix?: string;
+  sortBy?: 'maHeThong' | 'tenHeThong' | 'createdAt' | 'updatedAt';
+  sortOrder?: 'asc' | 'desc';
+}
+
 interface SummaryLimits {
   faultRecords?: number;
   repairItems?: number;
@@ -102,26 +112,33 @@ class MachineSystemService {
     return results.map((r) => r.value).filter((v) => v.length > 0);
   }
 
-  async getAllMachineSystems(page: number = 1, limit: number = 10, search?: string) {
+  async getAllMachineSystems(page: number = 1, limit: number = 10, filters: MachineSystemFilters = {}) {
     const { skip, limit: limitNum } = getPaginationParams(page, limit);
 
-    const where = search
-      ? {
-          OR: [
-            { maHeThong: { contains: search, mode: 'insensitive' as const } },
-            { tenHeThong: { contains: search, mode: 'insensitive' as const } },
-            { khuVuc: { contains: search, mode: 'insensitive' as const } },
-            { viTri: { contains: search, mode: 'insensitive' as const } },
-          ],
-        }
-      : {};
+    const where: Prisma.MachineSystemWhereInput = {};
+
+    if (filters.search) {
+      where.OR = [
+        { maHeThong: { contains: filters.search, mode: 'insensitive' } },
+        { tenHeThong: { contains: filters.search, mode: 'insensitive' } },
+        { khuVuc: { contains: filters.search, mode: 'insensitive' } },
+        { viTri: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (filters.hoatDong !== undefined) where.hoatDong = filters.hoatDong;
+    if (filters.trangThai) where.trangThai = filters.trangThai;
+    if (filters.loaiHeThong) where.loaiHeThong = filters.loaiHeThong;
+    if (filters.maHeThongPrefix) where.maHeThong = { startsWith: filters.maHeThongPrefix };
+
+    const orderBy = { [filters.sortBy ?? 'createdAt']: filters.sortOrder ?? 'desc' } as Prisma.MachineSystemOrderByWithRelationInput;
 
     const [data, total] = await Promise.all([
       prisma.machineSystem.findMany({
         where,
         skip,
         take: limitNum,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
       }),
       prisma.machineSystem.count({ where }),
     ]);
@@ -270,7 +287,7 @@ class MachineSystemService {
    * Return recent activity summary for a single physical machine.
    */
   async getSummary(systemId: string, limits: SummaryLimits = {}) {
-    await this.getMachineSystemById(systemId);
+    const machine = await this.getMachineSystemById(systemId);
 
     const faultLimit = limits.faultRecords ?? 5;
     const repairLimit = limits.repairItems ?? 5;
@@ -339,7 +356,7 @@ class MachineSystemService {
         }),
       ]);
 
-    return { faultRecords, repairItems, handoverItems, systemOperations, maintenanceRecords, statusLogs };
+    return { machine, faultRecords, repairItems, handoverItems, systemOperations, maintenanceRecords, statusLogs };
   }
 
   /**

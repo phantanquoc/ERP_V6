@@ -10,8 +10,17 @@ class MachineSystemController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string | undefined;
+      const filters = {
+        search,
+        hoatDong: req.query.hoatDong !== undefined ? req.query.hoatDong === 'true' : undefined,
+        trangThai: req.query.trangThai as MachineStatus | undefined,
+        loaiHeThong: req.query.loaiHeThong as MachineSystemCategory | undefined,
+        maHeThongPrefix: req.query.maHeThongPrefix as string | undefined,
+        sortBy: req.query.sortBy as 'maHeThong' | 'tenHeThong' | 'createdAt' | 'updatedAt' | undefined,
+        sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
+      };
 
-      const result = await machineSystemService.getAllMachineSystems(page, limit, search);
+      const result = await machineSystemService.getAllMachineSystems(page, limit, filters);
       res.json({ success: true, data: result.data, pagination: result.pagination });
     } catch (error) {
       next(error);
