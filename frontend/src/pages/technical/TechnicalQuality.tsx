@@ -2,24 +2,26 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Cog } from 'lucide-react';
 import OrderManagement from '../../components/OrderManagement';
-import MachineStatusLogList from '../../components/MachineStatusLogList';
 import RepairRequestList from '../../components/RepairRequestList';
 import MachineSystemList from '../../components/MachineSystemList';
 import MaintenanceTab from '../../components/MaintenanceTab';
 
-type TabType = 'machineSystems' | 'machineStatusLog' | 'orders' | 'repairRequests' | 'maintenance';
+type TabType = 'machineSystems' | 'orders' | 'repairRequests' | 'maintenance';
 
 const tabs: { key: TabType; label: string }[] = [
   { key: 'machineSystems', label: 'Hệ thống máy' },
-  { key: 'machineStatusLog', label: 'Nhật ký trạng thái máy' },
   { key: 'orders', label: 'Đơn hàng' },
   { key: 'repairRequests', label: 'Sửa chữa & Nghiệm thu' },
   { key: 'maintenance', label: 'Bảo dưỡng & Sửa chữa' },
 ];
 
+const isTabType = (value: string | null): value is TabType =>
+  tabs.some((tab) => tab.key === value);
+
 const TechnicalQuality = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = (searchParams.get('tab') as TabType) || 'machineSystems';
+  const tabParam = searchParams.get('tab');
+  const initialTab = isTabType(tabParam) ? tabParam : 'machineSystems';
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
 
   useEffect(() => {
@@ -30,8 +32,8 @@ const TechnicalQuality = () => {
   }, [activeTab]);
 
   useEffect(() => {
-    const tabParam = searchParams.get('tab') as TabType | null;
-    if (tabParam && tabParam !== activeTab) {
+    const tabParam = searchParams.get('tab');
+    if (isTabType(tabParam) && tabParam !== activeTab) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -67,7 +69,6 @@ const TechnicalQuality = () => {
 
       {/* Content */}
       {activeTab === 'machineSystems' && <MachineSystemList />}
-      {activeTab === 'machineStatusLog' && <MachineStatusLogList />}
       {activeTab === 'orders' && <OrderManagement hideHeader={true} />}
       {activeTab === 'repairRequests' && <RepairRequestList />}
       {activeTab === 'maintenance' && <MaintenanceTab />}
