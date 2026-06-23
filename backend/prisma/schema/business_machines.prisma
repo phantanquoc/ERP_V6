@@ -44,6 +44,7 @@ enum MaintenanceFrequency {
   BA_THANG
   SAU_THANG
   HANG_NAM
+  KHONG_CO_DINH
 
   @@schema("business")
 }

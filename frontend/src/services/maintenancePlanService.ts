@@ -25,7 +25,7 @@ export interface MaintenancePlanItem {
   thangBatDau: number;
   createdAt: string;
   updatedAt: string;
-  machineSystemDetail?: { id: string; maChiTiet: string; tenChiTiet: string };
+  machineSystemDetail?: { id: string; maChiTiet: string; tenChiTiet: string; hoatDong?: boolean; parentDetailId?: string | null; loaiChiTiet?: string };
   maintenanceTemplate?: { id: string; noiDung: string } | null;
   logs?: MaintenancePlanItemLog[];
 }
@@ -50,7 +50,7 @@ export interface MaintenancePlan {
 export interface CreatePlanItemRequest {
   machineSystemDetailId: string;
   maintenanceTemplateId?: string;
-  noiDung: string;
+  noiDung?: string;
   tanSuat?: string;
   toThucHien?: string;
   soLuong?: number;
@@ -63,7 +63,7 @@ export interface CreateMaintenancePlanRequest {
   nam: number;
   nguoiLap: string;
   ghiChu?: string;
-  items: CreatePlanItemRequest[];
+  items?: CreatePlanItemRequest[];
 }
 
 export interface UpdateMaintenancePlanRequest {
@@ -129,6 +129,10 @@ class MaintenancePlanService {
 
   async updateLogNote(logId: string, data: { ghiChu?: string; nguoiThucHien?: string }) {
     return apiClient.patch<MaintenancePlanItemLog>(`/maintenance-plans/logs/${logId}/note`, data);
+  }
+
+  async syncDetails(id: string) {
+    return apiClient.post<MaintenancePlan>(`/maintenance-plans/${id}/sync-details`);
   }
 
   async delete(id: string) {
