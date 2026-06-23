@@ -39,11 +39,12 @@ interface Props {
   year: number;
   plan?: MaintenancePlan;
   viewOnly?: boolean;
+  lockedMachineSystemId?: string;
 }
 
-const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly }: Props) => {
+const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMachineSystemId }: Props) => {
   const { user } = useAuth();
-  const [selectedSystemId, setSelectedSystemId] = useState(plan?.machineSystemId ?? '');
+  const [selectedSystemId, setSelectedSystemId] = useState(plan?.machineSystemId ?? lockedMachineSystemId ?? '');
   const [ghiChu, setGhiChu] = useState(plan?.ghiChu ?? '');
   const [items, setItems] = useState<ItemDraft[]>([]);
 
@@ -144,7 +145,7 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly }: Props) 
             <select
               value={selectedSystemId}
               onChange={(e) => { setSelectedSystemId(e.target.value); setItems([]); }}
-              disabled={viewOnly}
+              disabled={viewOnly || !!lockedMachineSystemId}
               className={selectCls()}
             >
               <option value="">-- Chọn hệ thống --</option>

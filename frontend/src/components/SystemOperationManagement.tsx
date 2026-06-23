@@ -26,16 +26,17 @@ interface FormData {
 interface SystemOperationManagementProps {
   initialMaChien?: string;
   initialThoiGianChien?: string;
+  lockedMachineSystemId?: string;
 }
 
-const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ initialMaChien, initialThoiGianChien }) => {
+const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ initialMaChien, initialThoiGianChien, lockedMachineSystemId }) => {
   const { user } = useAuth();
   const { data: productionEmployees = [] } = useProductionEmployees();
   const machineSystemsQuery = useActiveFryerMachineSystems();
   const machineSystems = machineSystemsQuery.data?.data ?? [];
   const [operations, setOperations] = useState<SystemOperation[]>([]);
   const [materialEvaluations, setMaterialEvaluations] = useState<MaterialEvaluation[]>([]);
-  const [selectedMachineSystemId, setSelectedMachineSystemId] = useState<string>('');
+  const [selectedMachineSystemId, setSelectedMachineSystemId] = useState<string>(lockedMachineSystemId ?? '');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -85,6 +86,13 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
   useEffect(() => {
     loadOperations();
   }, []);
+
+  useEffect(() => {
+    if (lockedMachineSystemId) {
+      setSelectedMachineSystemId(lockedMachineSystemId);
+      setCurrentPage(1);
+    }
+  }, [lockedMachineSystemId]);
 
   useEffect(() => {
     if (selectedMachineSystemId) {
@@ -359,51 +367,53 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       )}
 
       {/* Machine Selector */}
-      <div className="bg-white rounded-lg shadow">
-        {/* Mobile: dropdown */}
-        <div className="sm:hidden px-4 py-3">
-          <select
-            value={selectedMachineSystemId}
-            onChange={(e) => setSelectedMachineSystemId(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
-          >
-            <option value="">Tất cả hệ thống</option>
-            {machineSystems.map((ms) => (
-              <option key={ms.id} value={ms.id}>
-                {ms.tenHeThong} ({ms.maHeThong})
-              </option>
-            ))}
-          </select>
-        </div>
-        {/* Desktop: tabs */}
-        <div className="hidden sm:block border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
-            <button
-              onClick={() => setSelectedMachineSystemId('')}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                !selectedMachineSystemId
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+      {!lockedMachineSystemId && (
+        <div className="bg-white rounded-lg shadow">
+          {/* Mobile: dropdown */}
+          <div className="sm:hidden px-4 py-3">
+            <select
+              value={selectedMachineSystemId}
+              onChange={(e) => setSelectedMachineSystemId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
             >
-              Tất cả
-            </button>
-            {machineSystems.map((ms) => (
+              <option value="">Tất cả hệ thống</option>
+              {machineSystems.map((ms) => (
+                <option key={ms.id} value={ms.id}>
+                  {ms.tenHeThong} ({ms.maHeThong})
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* Desktop: tabs */}
+          <div className="hidden sm:block border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
               <button
-                key={ms.id}
-                onClick={() => setSelectedMachineSystemId(ms.id)}
+                onClick={() => setSelectedMachineSystemId('')}
                 className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                  selectedMachineSystemId === ms.id
+                  !selectedMachineSystemId
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                {ms.tenHeThong}
+                Tất cả
               </button>
-            ))}
-          </nav>
+              {machineSystems.map((ms) => (
+                <button
+                  key={ms.id}
+                  onClick={() => setSelectedMachineSystemId(ms.id)}
+                  className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                    selectedMachineSystemId === ms.id
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  {ms.tenHeThong}
+                </button>
+              ))}
+            </nav>
+          </div>
         </div>
-      </div>
+      )}
 
       <TableFilter
         filters={operationFilterFields}
@@ -589,7 +599,8 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                     value={formData.machineSystemId}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    disabled={!!lockedMachineSystemId}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
                   >
                     <option value="">-- Chọn hệ thống máy --</option>
                     {machineSystems.map((ms) => (

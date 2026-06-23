@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Eye, Trash2, Check, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useMaintenancePlans, useToggleMonth, useDeleteMaintenancePlan, useUpdateLogNote } from '../hooks/useMaintenancePlans';
 import { useMachineSystems } from '../hooks/useMachineSystemDetails';
@@ -127,14 +127,25 @@ interface LogModalState {
   nguoiLap: string;
 }
 
-const MaintenancePlanList = () => {
+interface MaintenancePlanListProps {
+  lockedMachineSystemId?: string;
+}
+
+const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps = {}) => {
   const [page, setPage] = useState(1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedSystemId, setSelectedSystemId] = useState('');
+  const [selectedSystemId, setSelectedSystemId] = useState(lockedMachineSystemId ?? '');
   const [selectedTrangThai, setSelectedTrangThai] = useState('');
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [viewingPlan, setViewingPlan] = useState<MaintenancePlan | null>(null);
   const [logModal, setLogModal] = useState<LogModalState | null>(null);
+
+  useEffect(() => {
+    if (lockedMachineSystemId) {
+      setSelectedSystemId(lockedMachineSystemId);
+      setPage(1);
+    }
+  }, [lockedMachineSystemId]);
 
   const filters = useMemo(() => ({
     page,
@@ -186,16 +197,18 @@ const MaintenancePlanList = () => {
               <option key={y} value={y}>Năm {y}</option>
             ))}
           </select>
-          <select
-            value={selectedSystemId}
-            onChange={(e) => { setSelectedSystemId(e.target.value); setPage(1); }}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
-          >
-            <option value="">Tất cả hệ thống</option>
-            {systems.map((s: any) => (
-              <option key={s.id} value={s.id}>{s.tenHeThong}</option>
-            ))}
-          </select>
+          {!lockedMachineSystemId && (
+            <select
+              value={selectedSystemId}
+              onChange={(e) => { setSelectedSystemId(e.target.value); setPage(1); }}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
+            >
+              <option value="">Tất cả hệ thống</option>
+              {systems.map((s: any) => (
+                <option key={s.id} value={s.id}>{s.tenHeThong}</option>
+              ))}
+            </select>
+          )}
           <select
             value={selectedTrangThai}
             onChange={(e) => { setSelectedTrangThai(e.target.value); setPage(1); }}
@@ -251,6 +264,7 @@ const MaintenancePlanList = () => {
           onClose={() => setModalMode(null)}
           systems={systems}
           year={selectedYear}
+          lockedMachineSystemId={lockedMachineSystemId}
         />
       )}
       {modalMode === 'view' && viewingPlan && (
@@ -260,6 +274,7 @@ const MaintenancePlanList = () => {
           year={selectedYear}
           plan={viewingPlan}
           viewOnly
+          lockedMachineSystemId={lockedMachineSystemId}
         />
       )}
 

@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Activity } from 'lucide-react';
 import { useMachineStatusLogs, useMachineSystems } from '../hooks/useMachineSystemDetails';
 import type { MachineStatus, MachineStatusLogFilters } from '../services/machineSystemService';
+
+interface MachineStatusLogListProps {
+  lockedMachineSystemId?: string;
+  hideHeader?: boolean;
+}
 
 const STATUS_OPTIONS: { value: MachineStatus; label: string }[] = [
   { value: 'HOAT_DONG', label: 'Hoạt động' },
@@ -26,11 +31,18 @@ const statusLabel = (status?: string | null) => {
 const formatDateTime = (value?: string | null) =>
   value ? new Date(value).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 
-const MachineStatusLogList = () => {
+const MachineStatusLogList = ({ lockedMachineSystemId, hideHeader }: MachineStatusLogListProps = {}) => {
   const [filters, setFilters] = useState<MachineStatusLogFilters>({
     page: 1,
     limit: 20,
+    machineSystemId: lockedMachineSystemId,
   });
+
+  useEffect(() => {
+    if (lockedMachineSystemId) {
+      setFilters((f) => ({ ...f, machineSystemId: lockedMachineSystemId, page: 1 }));
+    }
+  }, [lockedMachineSystemId]);
 
   const logsQuery = useMachineStatusLogs(filters);
   const systemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
@@ -43,21 +55,25 @@ const MachineStatusLogList = () => {
     <div className="space-y-4">
       <section className="rounded-lg border border-gray-200 bg-white">
         <div className="flex flex-col gap-3 border-b border-gray-200 p-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">Nhật ký trạng thái máy</h2>
-            <p className="text-xs text-gray-500">Lịch sử cập nhật trạng thái của hệ thống máy.</p>
-          </div>
+          {!hideHeader && (
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Nhật ký trạng thái máy</h2>
+              <p className="text-xs text-gray-500">Lịch sử cập nhật trạng thái của hệ thống máy.</p>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
-            <select
-              value={filters.machineSystemId ?? ''}
-              onChange={(e) => setFilters((f) => ({ ...f, machineSystemId: e.target.value || undefined, page: 1 }))}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="">Tất cả máy</option>
-              {systems.map((s) => (
-                <option key={s.id} value={s.id}>{s.maHeThong} — {s.tenHeThong}</option>
-              ))}
-            </select>
+            {!lockedMachineSystemId && (
+              <select
+                value={filters.machineSystemId ?? ''}
+                onChange={(e) => setFilters((f) => ({ ...f, machineSystemId: e.target.value || undefined, page: 1 }))}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="">Tất cả máy</option>
+                {systems.map((s) => (
+                  <option key={s.id} value={s.id}>{s.maHeThong} — {s.tenHeThong}</option>
+                ))}
+              </select>
+            )}
             <select
               value={filters.trangThaiMoi ?? ''}
               onChange={(e) => setFilters((f) => ({ ...f, trangThaiMoi: (e.target.value || undefined) as MachineStatus | undefined, page: 1 }))}
