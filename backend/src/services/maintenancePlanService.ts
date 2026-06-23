@@ -12,6 +12,7 @@ const FREQUENCY_TIMES: Record<string, number> = {
   BA_THANG: 1,
   SAU_THANG: 1,
   HANG_NAM: 1,
+  KHONG_CO_DINH: 0,
 };
 
 interface PlanItemData {
@@ -33,7 +34,7 @@ export interface CreateMaintenancePlanData {
   ghiChu?: string;
   trangThai?: string;
   fileDinhKem?: string;
-  items: PlanItemData[];
+  items?: PlanItemData[];
 }
 
 export interface UpdateMaintenancePlanData {
@@ -57,7 +58,7 @@ const planInclude = {
   machineSystem: { select: { id: true, maHeThong: true, tenHeThong: true, khuVuc: true, viTri: true } },
   items: {
     include: {
-      machineSystemDetail: { select: { id: true, maChiTiet: true, tenChiTiet: true } },
+      machineSystemDetail: { select: { id: true, maChiTiet: true, tenChiTiet: true, hoatDong: true, parentDetailId: true, loaiChiTiet: true } },
       maintenanceTemplate: { select: { id: true, noiDung: true } },
       logs: { orderBy: [{ thang: 'asc' as const }, { lanThu: 'asc' as const }] },
     },
@@ -113,8 +114,23 @@ class MaintenancePlanService {
     });
     if (existing) throw new ConflictError(`Hệ thống này đã có kế hoạch bảo dưỡng năm ${data.nam}`);
 
+    // Resolve items: if not provided or empty, auto-populate from MachineSystemDetail
+    let resolvedItems: PlanItemData[];
     if (!data.items || data.items.length === 0) {
-      throw new ValidationError('Kế hoạch phải có ít nhất 1 nội dung bảo dưỡng');
+      const allDetails = await prisma.machineSystemDetail.findMany({
+        where: { machineSystemId: data.machineSystemId },
+        select: { id: true },
+      });
+      resolvedItems = allDetails.map((d) => ({
+        machineSystemDetailId: d.id,
+        noiDung: '',
+        tanSuat: 'BA_THANG',
+        toThucHien: 'CO_KHI',
+        soLuong: 1,
+        thangBatDau: 1,
+      }));
+    } else {
+      resolvedItems = data.items;
     }
 
     const maKeHoach = data.maKeHoach ?? await this.generateCode();
@@ -133,18 +149,20 @@ class MaintenancePlanService {
         },
       });
 
-      await tx.maintenancePlanItem.createMany({
-        data: data.items.map((item) => ({
-          maintenancePlanId: plan.id,
-          machineSystemDetailId: item.machineSystemDetailId,
-          maintenanceTemplateId: item.maintenanceTemplateId || null,
-          noiDung: item.noiDung,
-          tanSuat: (item.tanSuat as any) || 'BA_THANG',
-          toThucHien: (item.toThucHien as any) || 'CO_KHI',
-          soLuong: item.soLuong ?? 1,
-          thangBatDau: item.thangBatDau ?? 1,
-        })),
-      });
+      if (resolvedItems.length > 0) {
+        await tx.maintenancePlanItem.createMany({
+          data: resolvedItems.map((item) => ({
+            maintenancePlanId: plan.id,
+            machineSystemDetailId: item.machineSystemDetailId,
+            maintenanceTemplateId: item.maintenanceTemplateId || null,
+            noiDung: item.noiDung,
+            tanSuat: (item.tanSuat as any) || 'BA_THANG',
+            toThucHien: (item.toThucHien as any) || 'CO_KHI',
+            soLuong: item.soLuong ?? 1,
+            thangBatDau: item.thangBatDau ?? 1,
+          })),
+        });
+      }
 
       return tx.maintenancePlan.findUnique({ where: { id: plan.id }, include: planInclude });
     });
@@ -252,6 +270,8 @@ class MaintenancePlanService {
       let totalCompleted = 0;
 
       for (const item of plan.items) {
+        // KHONG_CO_DINH items do not count toward plan progress
+        if ((item.tanSuat as string) === 'KHONG_CO_DINH') continue;
         const applicableMonths = this.getApplicableMonths(item.tanSuat, item.thangBatDau ?? 1);
         const timesPerMonth = FREQUENCY_TIMES[item.tanSuat] ?? 1;
         totalExpected += applicableMonths.length * timesPerMonth;
@@ -280,6 +300,7 @@ class MaintenancePlanService {
       case 'BA_THANG': { const m: number[] = []; for (let i = thangBatDau; i <= 12; i += 3) m.push(i); return m; }
       case 'SAU_THANG': { const m: number[] = []; for (let i = thangBatDau; i <= 12; i += 6) m.push(i); return m; }
       case 'HANG_NAM': return [thangBatDau];
+      case 'KHONG_CO_DINH': return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
       default: return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     }
   }
@@ -335,6 +356,41 @@ class MaintenancePlanService {
       where: { id: logId },
       data: updateData,
     });
+  }
+
+  async syncDetails(planId: string) {
+    const plan = await this.getById(planId);
+
+    // Get all current details for the system
+    const allDetails = await prisma.machineSystemDetail.findMany({
+      where: { machineSystemId: plan.machineSystemId },
+      select: { id: true },
+    });
+
+    // Get existing item detail IDs
+    const existingDetailIds = new Set(
+      (plan.items ?? []).map((item: any) => item.machineSystemDetailId),
+    );
+
+    // Find missing details
+    const missingDetails = allDetails.filter((d) => !existingDetailIds.has(d.id));
+
+    if (missingDetails.length === 0) return plan;
+
+    // Add missing items
+    await prisma.maintenancePlanItem.createMany({
+      data: missingDetails.map((d) => ({
+        maintenancePlanId: planId,
+        machineSystemDetailId: d.id,
+        noiDung: '',
+        tanSuat: 'BA_THANG' as any,
+        toThucHien: 'CO_KHI' as any,
+        soLuong: 1,
+        thangBatDau: 1,
+      })),
+    });
+
+    return this.getById(planId);
   }
 
   async delete(id: string) {

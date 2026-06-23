@@ -94,6 +94,16 @@ class MaintenancePlanController {
     }
   }
 
+  async syncDetails(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const plan = await maintenancePlanService.syncDetails(id);
+      res.json({ success: true, message: 'Đã đồng bộ linh kiện', data: plan });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async remove(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       await maintenancePlanService.delete(req.params.id);

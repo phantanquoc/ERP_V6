@@ -16,6 +16,7 @@ router.get('/:id', technicalAccess, maintenancePlanController.getById.bind(maint
 router.post('/', technicalAccess, upload, maintenancePlanController.create.bind(maintenancePlanController));
 router.put('/:id', technicalAccess, upload, maintenancePlanController.update.bind(maintenancePlanController));
 router.patch('/:id/items/:itemId/toggle', technicalAccess, maintenancePlanController.toggleMonth.bind(maintenancePlanController));
+router.post('/:id/sync-details', technicalAccess, maintenancePlanController.syncDetails.bind(maintenancePlanController));
 router.patch('/logs/:logId/note', technicalAccess, maintenancePlanController.updateLogNote.bind(maintenancePlanController));
 router.delete('/:id', technicalAccess, maintenancePlanController.remove.bind(maintenancePlanController));
 

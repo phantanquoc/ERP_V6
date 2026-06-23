@@ -4,6 +4,7 @@ import maintenancePlanService, {
   CreateMaintenancePlanRequest,
   UpdateMaintenancePlanRequest,
 } from '../services/maintenancePlanService';
+import { maintenanceRecordKeys } from './useMaintenanceRecords';
 
 export const maintenancePlanKeys = {
   all: ['maintenancePlans'] as const,
@@ -126,6 +127,7 @@ export const useToggleMonth = () => {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: maintenancePlanKeys.lists() });
       queryClient.invalidateQueries({ queryKey: maintenancePlanKeys.details() });
+      queryClient.invalidateQueries({ queryKey: maintenanceRecordKeys.lists() });
     },
   });
 };
@@ -135,6 +137,17 @@ export const useUpdateLogNote = () => {
   return useMutation({
     mutationFn: ({ logId, data }: { logId: string; data: { ghiChu?: string; nguoiThucHien?: string } }) =>
       maintenancePlanService.updateLogNote(logId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: maintenancePlanKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: maintenancePlanKeys.details() });
+    },
+  });
+};
+
+export const useSyncDetails = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => maintenancePlanService.syncDetails(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: maintenancePlanKeys.lists() });
       queryClient.invalidateQueries({ queryKey: maintenancePlanKeys.details() });
