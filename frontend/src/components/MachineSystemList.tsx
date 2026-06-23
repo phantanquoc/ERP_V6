@@ -4,26 +4,21 @@ import Modal from './Modal';
 import {
   useCloneMachineSystem,
   useCreateMachineSystem,
-  useCreateMachineSystemDetail,
   useDeactivateMachineSystemDetail,
   useDeleteMachineSystem,
   useDeleteMachineSystemDetail,
   useDetailTree,
   useDistinctMachineSystemFields,
-  useMachineSystemDetails,
   useMachineSystems,
-  useNextDetailCode,
   useNextMachineSystemCode,
   useUpdateMachineSystem,
-  useUpdateMachineSystemDetail,
 } from '../hooks/useMachineSystemDetails';
 import { useEmployeesForAssignment, type EmployeeOption } from '../hooks/useEmployeesForAssignment';
 import MachineSummaryDrawer from './MachineSummaryDrawer';
 import MachineStatusUpdateDialog from './MachineStatusUpdateDialog';
+import MachineSystemDetailFormModal from './MachineSystemDetailFormModal';
 import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
 import type {
-  CloneMachineSystemRequest,
-  CreateMachineSystemDetailRequest,
   CreateMachineSystemRequest,
   MachineStatus,
   MachineSystem,
@@ -32,12 +27,10 @@ import type {
   MachineSystemDetailFilters,
   MachineSystemDetailType,
   MachineSystemFilters,
-  UpdateMachineSystemDetailRequest,
 } from '../services/machineSystemService';
 
 type Mode = 'create' | 'edit' | 'view';
 type SystemForm = CreateMachineSystemRequest;
-type DetailForm = CreateMachineSystemDetailRequest;
 
 const DETAIL_TYPES: { value: MachineSystemDetailType; label: string }[] = [
   { value: 'THIET_BI', label: 'Thiết bị' },
@@ -194,21 +187,6 @@ const emptySystemForm = (): SystemForm => ({
   hoatDong: true,
 });
 
-const emptyDetailForm = (machineSystemId = ''): DetailForm => ({
-  machineSystemId,
-  parentDetailId: '',
-  loaiChiTiet: 'THIET_BI',
-  maChiTiet: '',
-  tenChiTiet: '',
-  viTri: '',
-  moTa: '',
-  maNguoiPhuTrach: '',
-  nguoiPhuTrach: '',
-  thuTu: 0,
-  hoatDong: true,
-  trangThai: 'Đang hoạt động',
-});
-
 const detailTypeLabel = (value?: string) =>
   DETAIL_TYPES.find((type) => type.value === value)?.label ?? value ?? '—';
 
@@ -230,16 +208,6 @@ const machineStatusBadge = (status?: MachineStatus | null) => {
   );
 };
 
-const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
-
-const getSystemName = (system?: MachineSystem | null) =>
-  system ? `${system.maHeThong} - ${system.tenHeThong}` : '—';
-
-const getDetailPath = (detail: MachineSystemDetail) => {
-  const parent = detail.parentDetail ? `${detail.parentDetail.maChiTiet} / ` : '';
-  return `${parent}${detail.maChiTiet} - ${detail.tenChiTiet}`;
-};
-
 const MachineSystemList = () => {
   const [systemFilters, setSystemFilters] = useState<MachineSystemFilters>({
     page: 1,
@@ -257,36 +225,21 @@ const MachineSystemList = () => {
 
   const systemsQuery = useMachineSystems(systemFilters);
   const allSystemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
-  const detailsQuery = useMachineSystemDetails(detailFilters);
-  const allDetailsQuery = useMachineSystemDetails({
-    page: 1,
-    limit: 300,
-    machineSystemId: detailFilters.machineSystemId,
-    hoatDong: true,
-    sortBy: 'thuTu',
-    sortOrder: 'asc',
-  });
 
   const createSystem = useCreateMachineSystem();
   const updateSystem = useUpdateMachineSystem();
   const deleteSystem = useDeleteMachineSystem();
-  const createDetail = useCreateMachineSystemDetail();
-  const updateDetail = useUpdateMachineSystemDetail();
   const deactivateDetail = useDeactivateMachineSystemDetail();
   const deleteDetail = useDeleteMachineSystemDetail();
   const cloneSystem = useCloneMachineSystem();
 
   const systems = systemsQuery.data?.data ?? [];
   const allSystems = allSystemsQuery.data?.data ?? [];
-  const details = detailsQuery.data?.data ?? [];
-  const allDetails = allDetailsQuery.data?.data ?? [];
   const systemPagination = systemsQuery.data?.pagination;
-  const detailPagination = detailsQuery.data?.pagination;
 
   const [systemModal, setSystemModal] = useState<{ mode: Mode; record?: MachineSystem } | null>(null);
   const [detailModal, setDetailModal] = useState<{ mode: Mode; record?: MachineSystemDetail } | null>(null);
   const [systemForm, setSystemForm] = useState<SystemForm>(emptySystemForm());
-  const [detailForm, setDetailForm] = useState<DetailForm>(emptyDetailForm());
   const [error, setError] = useState('');
   const [drawerSystemId, setDrawerSystemId] = useState<string | null>(null);
   const [statusUpdateSystemId, setStatusUpdateSystemId] = useState<string | null>(null);
@@ -365,16 +318,6 @@ const MachineSystemList = () => {
     }
   }, [systemModal?.mode, systemForm.loaiHeThong]);
 
-  const nextDetailCodeQuery = useNextDetailCode(
-    detailModal?.mode === 'create' ? detailForm.loaiChiTiet : undefined
-  );
-
-  useEffect(() => {
-    if (detailModal?.mode === 'create' && nextDetailCodeQuery.data?.data?.code) {
-      setDetailForm((form) => ({ ...form, maChiTiet: nextDetailCodeQuery.data!.data!.code }));
-    }
-  }, [nextDetailCodeQuery.data?.data?.code, detailModal?.mode]);
-
   const activeSystemId = detailFilters.machineSystemId ?? allSystems[systemPageIndex]?.id;
   const detailTreeQuery = useDetailTree(activeSystemId);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -436,25 +379,6 @@ const MachineSystemList = () => {
 
   const collapseAll = () => setExpandedIds(new Set());
 
-  const parentCandidatesQuery = useMachineSystemDetails({
-    page: 1,
-    limit: 500,
-    machineSystemId: detailForm.machineSystemId || undefined,
-    hoatDong: true,
-    sortBy: 'thuTu',
-    sortOrder: 'asc',
-  });
-  const parentDetailOptions = useMemo(() => {
-    if (!detailForm.machineSystemId) return [];
-    const type = detailForm.loaiChiTiet;
-    if (type === 'THIET_BI') return [];
-    const all = (parentCandidatesQuery.data?.data ?? []).filter(
-      (d) => d.id !== detailModal?.record?.id
-    );
-    if (type === 'CUM') return all.filter((d) => d.loaiChiTiet === 'THIET_BI');
-    return all.filter((d) => d.loaiChiTiet === 'THIET_BI' || d.loaiChiTiet === 'CUM');
-  }, [parentCandidatesQuery.data?.data, detailForm.machineSystemId, detailForm.loaiChiTiet, detailModal?.record?.id]);
-
   const openSystemModal = (mode: Mode, record?: MachineSystem) => {
     setError('');
     setSystemModal({ mode, record });
@@ -474,22 +398,7 @@ const MachineSystemList = () => {
   };
 
   const openDetailModal = (mode: Mode, record?: MachineSystemDetail) => {
-    setError('');
     setDetailModal({ mode, record });
-    setDetailForm(record ? {
-      machineSystemId: record.machineSystemId,
-      parentDetailId: record.parentDetailId ?? '',
-      loaiChiTiet: record.loaiChiTiet,
-      maChiTiet: record.maChiTiet,
-      tenChiTiet: record.tenChiTiet,
-      viTri: record.viTri ?? '',
-      moTa: record.moTa ?? '',
-      maNguoiPhuTrach: record.maNguoiPhuTrach ?? '',
-      nguoiPhuTrach: record.nguoiPhuTrach ?? '',
-      thuTu: record.thuTu,
-      hoatDong: record.hoatDong,
-      trangThai: record.trangThai,
-    } : emptyDetailForm(detailFilters.machineSystemId ?? allSystems[0]?.id ?? ''));
   };
 
   const saveSystem = async (event: FormEvent) => {
@@ -504,26 +413,6 @@ const MachineSystemList = () => {
       setSystemModal(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được hệ thống');
-    }
-  };
-
-  const saveDetail = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!detailModal) return;
-    const payload: UpdateMachineSystemDetailRequest = {
-      ...detailForm,
-      parentDetailId: detailForm.parentDetailId || null,
-      thuTu: Number(detailForm.thuTu) || 0,
-    };
-    try {
-      if (detailModal.record) {
-        await updateDetail.mutateAsync({ id: detailModal.record.id, data: payload });
-      } else {
-        await createDetail.mutateAsync({ data: payload as DetailForm });
-      }
-      setDetailModal(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không lưu được chi tiết máy');
     }
   };
 
@@ -587,13 +476,15 @@ const MachineSystemList = () => {
     );
   };
 
+  let selectedSystem: MachineSystem | undefined;
+
   return (
     <div className="space-y-4">
       <section className="rounded-lg border border-gray-200 bg-white">
         <div className="flex flex-col gap-3 border-b border-gray-200 p-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Hệ thống máy</h2>
-            <p className="text-xs text-gray-500">Danh mục hệ thống gốc để quản lý chi tiết máy.</p>
+            <p className="text-xs text-gray-500">Chọn Hồ sơ máy để xem thông tin, cây linh kiện, trạng thái, sửa chữa, bảo dưỡng và vận hành.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="relative">
@@ -677,7 +568,7 @@ const MachineSystemList = () => {
                   <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
                     <ResponsiveRowActions
                       actions={[
-                        { key: 'view', label: 'Xem hệ thống', icon: <Eye className="h-4 w-4" />, onClick: () => { setDrawerSystemId(system.id); }, tone: 'primary' },
+                        { key: 'view', label: 'Hồ sơ máy', icon: <Eye className="h-4 w-4" />, onClick: () => { setDrawerSystemId(system.id); }, tone: 'primary' },
                         { key: 'edit', label: 'Sửa hệ thống', icon: <Edit className="h-4 w-4" />, onClick: () => openSystemModal('edit', system), tone: 'success' },
                         { key: 'clone', label: 'Nhân bản hệ thống', icon: <Copy className="h-4 w-4" />, onClick: () => setCloneDialog({ system, maHeThong: system.maHeThong + '-COPY', tenHeThong: system.tenHeThong + ' (bản sao)' }), tone: 'default' },
                         { key: 'status', label: 'Cập nhật trạng thái', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setStatusUpdateSystemId(system.id), tone: 'warning' },
@@ -693,167 +584,87 @@ const MachineSystemList = () => {
         {renderPager(systemPagination, systemFilters.page ?? 1, (page) => setSystemFilters((filters) => ({ ...filters, page })))}
       </section>
 
-      <section className="rounded-lg border border-gray-200 bg-white">
-        <div className="flex flex-col gap-3 border-b border-gray-200 p-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      {detailFilters.machineSystemId && (selectedSystem = allSystems.find((system) => system.id === detailFilters.machineSystemId)) && (
+        <section className="rounded-lg border border-gray-200 bg-white">
+          <div className="flex flex-col gap-3 border-b border-gray-200 p-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-gray-900">Chi tiết hệ thống máy</h2>
-              <p className="text-xs text-gray-500">Thiết bị, cụm, linh kiện và điểm kiểm tra theo cây hệ thống.</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-blue-600">Chi tiết hệ thống máy</p>
+              <h2 className="mt-1 text-base font-semibold text-gray-900">{selectedSystem.maHeThong} — {selectedSystem.tenHeThong}</h2>
+              <p className="text-xs text-gray-500">Cây thiết bị, cụm, linh kiện và điểm kiểm tra của máy đang chọn.</p>
             </div>
             <button
               type="button"
-              onClick={() => openDetailModal('create')}
-              className="inline-flex w-fit items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              onClick={() => setDrawerSystemId(selectedSystem.id)}
+              className="inline-flex w-fit items-center gap-1.5 rounded-md border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
             >
-              <Plus className="h-4 w-4" /> Thêm chi tiết
+              <Eye className="h-4 w-4" /> Mở hồ sơ máy
             </button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-              <input
-                value={detailFilters.search ?? ''}
-                onChange={(event) => setDetailFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))}
-                placeholder="Tìm chi tiết"
-                className="w-52 rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+          <div className="overflow-x-auto">
+            <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-1.5">
+              <button type="button" onClick={expandAll} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-200" title="Mở tất cả">
+                <ChevronsUpDown className="h-3.5 w-3.5" /> Mở
+              </button>
+              <button type="button" onClick={collapseAll} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-200" title="Thu gọn">
+                <ChevronsDownUp className="h-3.5 w-3.5" /> Gọn
+              </button>
+              <span className="text-xs text-gray-400">({treeItemsSource?.length ?? 0} chi tiết)</span>
             </div>
-            <select
-              value={detailFilters.machineSystemId ?? ''}
-              onChange={(event) => { setDetailFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, page: 1 })); setSystemPageIndex(0); setExpandedIds(new Set()); }}
-              className="min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="">Tất cả hệ thống</option>
-              {allSystems.map((system) => <option key={system.id} value={system.id}>{getSystemName(system)}</option>)}
-            </select>
-            <select
-              value={detailFilters.loaiChiTiet ?? ''}
-              onChange={(event) => setDetailFilters((filters) => ({ ...filters, loaiChiTiet: (event.target.value || undefined) as MachineSystemDetailType | undefined, page: 1 }))}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="">Tất cả loại</option>
-              {DETAIL_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
-            </select>
-            <select
-              value={detailFilters.hoatDong === undefined ? '' : String(detailFilters.hoatDong)}
-              onChange={(event) => setDetailFilters((filters) => ({ ...filters, hoatDong: event.target.value === '' ? undefined : event.target.value === 'true', page: 1 }))}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="">Tất cả hoạt động</option>
-              <option value="true">Đang hoạt động</option>
-              <option value="false">Dừng</option>
-            </select>
-            <select
-              value={detailFilters.sortBy}
-              onChange={(event) => setDetailFilters((filters) => ({ ...filters, sortBy: event.target.value as MachineSystemDetailFilters['sortBy'], page: 1 }))}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              {DETAIL_SORTS.map((sort) => <option key={sort.value} value={sort.value}>{sort.label}</option>)}
-            </select>
-            <button
-              type="button"
-              onClick={() => setDetailFilters((filters) => ({ ...filters, sortOrder: filters.sortOrder === 'asc' ? 'desc' : 'asc', page: 1 }))}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              {detailFilters.sortOrder === 'asc' ? 'Tăng' : 'Giảm'}
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-1.5">
-            <button type="button" onClick={expandAll} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-200" title="Mở tất cả">
-              <ChevronsUpDown className="h-3.5 w-3.5" /> Mở
-            </button>
-            <button type="button" onClick={collapseAll} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-200" title="Thu gọn">
-              <ChevronsDownUp className="h-3.5 w-3.5" /> Gọn
-            </button>
-            <span className="text-xs text-gray-400">({treeItemsSource?.length ?? 0} chi tiết)</span>
-            {!detailFilters.machineSystemId && allSystems[systemPageIndex] && (
-              <span className="ml-auto text-xs font-medium text-blue-600">{allSystems[systemPageIndex].maHeThong} — {allSystems[systemPageIndex].tenHeThong}</span>
-            )}
-          </div>
-          <table className="w-full min-w-[800px] border-collapse text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
-              <tr>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[160px]">Tên chi tiết</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[80px]">Mã</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Loại</th>
-                {!detailFilters.machineSystemId && <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[120px]">Hệ thống</th>}
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[80px]">Vị trí</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Phụ trách</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Trạng thái</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[110px]">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {detailTreeQuery.isLoading ? (
-                <tr><td colSpan={detailFilters.machineSystemId ? 7 : 8} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
-              ) : !treeData || treeData.length === 0 ? (
-                <tr><td colSpan={detailFilters.machineSystemId ? 7 : 8} className="px-3 py-8 text-center text-gray-400">Chưa có chi tiết nào.</td></tr>
-              ) : treeData.map((node) => (
-                <tr key={node.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-3 py-2.5 sticky left-0 bg-white z-10">
-                    <div className="flex items-center" style={{ paddingLeft: `${node.depth * 24}px` }}>
-                      {node.children.length > 0 ? (
-                        <button type="button" onClick={() => toggleExpand(node.id)} className="mr-1 rounded p-0.5 text-gray-400 hover:text-gray-700">
-                          {expandedIds.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </button>
-                      ) : <span className="mr-1 inline-block w-5" />}
-                      <span className="text-gray-900 font-medium">{node.tenChiTiet}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 font-mono text-xs text-blue-700 font-medium">{node.maChiTiet}</td>
-                  <td className="px-3 py-2.5 text-gray-600 text-xs">{detailTypeLabel(node.loaiChiTiet)}</td>
-                  {!detailFilters.machineSystemId && <td className="px-3 py-2.5 text-gray-600 text-xs">{getSystemName(node.machineSystem)}</td>}
-                  <td className="px-3 py-2.5 text-gray-600 text-xs">{node.viTri || '—'}</td>
-                  <td className="px-3 py-2.5 text-gray-600 text-xs">{node.nguoiPhuTrach || '—'}</td>
-                  <td className="px-3 py-2.5">
-                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(node.hoatDong)}`}>
-                      {node.hoatDong ? node.trangThai : 'Dừng'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
-                    <ResponsiveRowActions
-                      actions={[
-                        { key: 'view', label: 'Xem chi tiết', icon: <Eye className="h-4 w-4" />, onClick: () => openDetailModal('view', node), tone: 'primary' },
-                        { key: 'edit', label: 'Sửa chi tiết', icon: <Edit className="h-4 w-4" />, onClick: () => openDetailModal('edit', node), tone: 'success' },
-                        ...(node.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => deactivate(node), tone: 'warning' } satisfies RowAction] : []),
-                        { key: 'delete', label: 'Xóa chi tiết', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeDetail(node), tone: 'danger' },
-                      ]}
-                    />
-                  </td>
+            <table className="w-full min-w-[760px] border-collapse text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
+                <tr>
+                  <th className="border-b border-gray-200 px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[180px]">Tên chi tiết</th>
+                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[80px]">Mã</th>
+                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Loại</th>
+                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Vị trí</th>
+                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Phụ trách</th>
+                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Trạng thái</th>
+                  <th className="border-b border-gray-200 px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[110px]">Thao tác</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!detailFilters.machineSystemId && allSystems.length > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-3 py-2 text-sm">
-            <span className="text-gray-600">
-              Hệ thống {systemPageIndex + 1}/{allSystems.length}: <span className="font-medium">{allSystems[systemPageIndex]?.tenHeThong}</span>
-            </span>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                disabled={systemPageIndex <= 0}
-                onClick={() => { setSystemPageIndex((i) => i - 1); setExpandedIds(new Set()); }}
-                className="rounded-md border border-gray-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Trước
-              </button>
-              <button
-                type="button"
-                disabled={systemPageIndex >= allSystems.length - 1}
-                onClick={() => { setSystemPageIndex((i) => i + 1); setExpandedIds(new Set()); }}
-                className="rounded-md border border-gray-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Sau
-              </button>
-            </div>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {detailTreeQuery.isLoading ? (
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
+                ) : !treeData || treeData.length === 0 ? (
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có chi tiết nào.</td></tr>
+                ) : treeData.map((node) => (
+                  <tr key={node.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-3 py-2.5 sticky left-0 bg-white z-10">
+                      <div className="flex items-center" style={{ paddingLeft: `${node.depth * 24}px` }}>
+                        {node.children.length > 0 ? (
+                          <button type="button" onClick={() => toggleExpand(node.id)} className="mr-1 rounded p-0.5 text-gray-400 hover:text-gray-700">
+                            {expandedIds.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </button>
+                        ) : <span className="mr-1 inline-block w-5" />}
+                        <span className="text-gray-900 font-medium">{node.tenChiTiet}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs text-blue-700 font-medium">{node.maChiTiet}</td>
+                    <td className="px-3 py-2.5 text-gray-600 text-xs">{detailTypeLabel(node.loaiChiTiet)}</td>
+                    <td className="px-3 py-2.5 text-gray-600 text-xs">{node.viTri || '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-600 text-xs">{node.nguoiPhuTrach || '—'}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(node.hoatDong)}`}>
+                        {node.hoatDong ? node.trangThai : 'Dừng'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                      <ResponsiveRowActions
+                        actions={[
+                          { key: 'view', label: 'Xem chi tiết', icon: <Eye className="h-4 w-4" />, onClick: () => openDetailModal('view', node), tone: 'primary' },
+                          { key: 'edit', label: 'Sửa chi tiết', icon: <Edit className="h-4 w-4" />, onClick: () => openDetailModal('edit', node), tone: 'success' },
+                          ...(node.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => deactivate(node), tone: 'warning' } satisfies RowAction] : []),
+                          { key: 'delete', label: 'Xóa chi tiết', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeDetail(node), tone: 'danger' },
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       <Modal isOpen={!!systemModal} onClose={() => setSystemModal(null)} showBackdrop>
         <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
@@ -1024,77 +835,13 @@ const MachineSystemList = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} showBackdrop>
-        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
-          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-            <h3 className="text-base font-semibold text-gray-900">
-              {detailModal?.mode === 'view' ? 'Chi tiết máy' : detailModal?.record ? 'Sửa chi tiết máy' : 'Thêm chi tiết máy'}
-            </h3>
-            <button type="button" title="Đóng" onClick={() => setDetailModal(null)} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
-          </div>
-          <form onSubmit={saveDetail} className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
-            {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{error}</div>}
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1 md:col-span-2">
-                <span className="font-medium text-gray-700">Hệ thống</span>
-                <select required disabled={detailModal?.mode === 'view'} value={detailForm.machineSystemId} onChange={(event) => setDetailForm((form) => ({ ...form, machineSystemId: event.target.value, parentDetailId: '' }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
-                  <option value="">Chọn hệ thống</option>
-                  {allSystems.map((system) => <option key={system.id} value={system.id}>{getSystemName(system)}</option>)}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="font-medium text-gray-700">Loại chi tiết</span>
-                <select required disabled={detailModal?.mode === 'view'} value={detailForm.loaiChiTiet} onChange={(event) => setDetailForm((form) => ({ ...form, loaiChiTiet: event.target.value as MachineSystemDetailType }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
-                  {DETAIL_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="font-medium text-gray-700">Cấp cha</span>
-                <select disabled={detailModal?.mode === 'view' || !detailForm.machineSystemId} value={detailForm.parentDetailId ?? ''} onChange={(event) => setDetailForm((form) => ({ ...form, parentDetailId: event.target.value || null }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
-                  <option value="">Không có</option>
-                  {parentDetailOptions.map((detail) => <option key={detail.id} value={detail.id}>{getDetailPath(detail)}</option>)}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="font-medium text-gray-700">Mã chi tiết {detailModal?.mode === 'create' && <span className="text-xs text-gray-400">(tự sinh)</span>}</span>
-                <input required disabled={detailModal?.mode === 'view' || detailModal?.mode === 'create'} value={detailModal?.mode === 'create' && nextDetailCodeQuery.isLoading ? 'Đang tải...' : detailForm.maChiTiet} onChange={(event) => setDetailForm((form) => ({ ...form, maChiTiet: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
-              </label>
-              <label className="space-y-1">
-                <span className="font-medium text-gray-700">Tên chi tiết</span>
-                <input required disabled={detailModal?.mode === 'view'} value={detailForm.tenChiTiet} onChange={(event) => setDetailForm((form) => ({ ...form, tenChiTiet: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
-              </label>
-              <label className="space-y-1">
-                <span className="font-medium text-gray-700">Vị trí</span>
-                <input disabled={detailModal?.mode === 'view'} value={detailForm.viTri ?? ''} onChange={(event) => setDetailForm((form) => ({ ...form, viTri: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
-              </label>
-              <label className="space-y-1">
-                <span className="font-medium text-gray-700">Thứ tự</span>
-                <input type="number" disabled={detailModal?.mode === 'view'} value={detailForm.thuTu ?? 0} onChange={(event) => setDetailForm((form) => ({ ...form, thuTu: Number(event.target.value) }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
-              </label>
-              <label className="space-y-1">
-                <span className="font-medium text-gray-700">Người phụ trách</span>
-                <input disabled={detailModal?.mode === 'view'} value={detailForm.nguoiPhuTrach ?? ''} onChange={(event) => setDetailForm((form) => ({ ...form, nguoiPhuTrach: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
-              </label>
-              <label className="space-y-1">
-                <span className="font-medium text-gray-700">Trạng thái</span>
-                <input disabled={detailModal?.mode === 'view'} value={detailForm.trangThai ?? ''} onChange={(event) => setDetailForm((form) => ({ ...form, trangThai: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
-              </label>
-              <label className="flex items-center gap-2 pt-6">
-                <input type="checkbox" disabled={detailModal?.mode === 'view'} checked={!!detailForm.hoatDong} onChange={(event) => setDetailForm((form) => ({ ...form, hoatDong: event.target.checked }))} />
-                <span className="font-medium text-gray-700">Đang hoạt động</span>
-              </label>
-              <label className="space-y-1 md:col-span-2">
-                <span className="font-medium text-gray-700">Mô tả</span>
-                <textarea disabled={detailModal?.mode === 'view'} rows={2} value={detailForm.moTa ?? ''} onChange={(event) => setDetailForm((form) => ({ ...form, moTa: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
-              </label>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-gray-200 pt-3">
-              <button type="button" onClick={() => setDetailModal(null)} className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">{detailModal?.mode === 'view' ? 'Đóng' : 'Hủy'}</button>
-              {detailModal?.mode !== 'view' && <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700">Lưu</button>}
-            </div>
-          </form>
-        </div>
-      </Modal>
+      <MachineSystemDetailFormModal
+        isOpen={!!detailModal}
+        mode={detailModal?.mode ?? 'create'}
+        record={detailModal?.record}
+        allSystems={allSystems}
+        onClose={() => setDetailModal(null)}
+      />
 
       <MachineSummaryDrawer machineSystemId={drawerSystemId} onClose={() => setDrawerSystemId(null)} />
 
