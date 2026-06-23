@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { CheckCircle, Edit, Eye, Plus, Search, Trash2, Wrench, X } from 'lucide-react';
 import { getFileUrl } from '../config/api';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
@@ -26,8 +26,8 @@ const PRIORITIES = ['Thấp', 'Trung bình', 'Cao', 'Khẩn cấp'];
 const STATUSES = ['Chờ xử lý', 'Đang sửa chữa', 'Hoàn thành'];
 const FAULT_TYPES = ['Lỗi mới', 'Lỗi lặp lại'];
 
-const emptyItem = (): ItemDraft => ({
-  machineSystemId: '',
+const emptyItem = (machineSystemId = ''): ItemDraft => ({
+  machineSystemId,
   machineSystemDetailId: '',
   tenHeThong: '',
   tinhTrangThietBi: '',
@@ -64,8 +64,19 @@ const itemLabel = (item: ItemDraft) => {
   return `${linked}: ${item.tenHeThong || '—'}`;
 };
 
-const RepairRequestList = () => {
-  const [filters, setFilters] = useState({ page: 1, limit: 10, search: '', trangThai: '' });
+interface RepairRequestListProps {
+  lockedMachineSystemId?: string;
+}
+
+const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {}) => {
+  const [filters, setFilters] = useState({ page: 1, limit: lockedMachineSystemId ? 200 : 10, search: '', trangThai: '' });
+
+  useEffect(() => {
+    if (lockedMachineSystemId) {
+      setFilters((value) => ({ ...value, limit: 200, page: 1 }));
+    }
+  }, [lockedMachineSystemId]);
+
   const requestsQuery = useRepairRequests({
     page: filters.page,
     limit: filters.limit,
@@ -80,8 +91,14 @@ const RepairRequestList = () => {
   const updateRequest = useUpdateRepairRequest();
   const deleteRequest = useDeleteRepairRequest();
 
-  const requests = requestsQuery.data?.data ?? [];
-  const pagination = requestsQuery.data?.pagination;
+  const rawRequests = requestsQuery.data?.data ?? [];
+  const requests = useMemo(() => {
+    if (!lockedMachineSystemId) return rawRequests;
+    return rawRequests.filter((request) =>
+      request.items?.some((item) => item.machineSystemId === lockedMachineSystemId)
+    );
+  }, [rawRequests, lockedMachineSystemId]);
+  const pagination = lockedMachineSystemId ? undefined : requestsQuery.data?.pagination;
   const systems = systemsQuery.data?.data ?? [];
   const details = detailsQuery.data?.data ?? [];
 
@@ -113,7 +130,7 @@ const RepairRequestList = () => {
       tinhTrangThietBi: item.tinhTrangThietBi,
       loaiLoi: item.loaiLoi,
       noiDungLoi: item.noiDungLoi,
-    })) : [emptyItem()]);
+    })) : [emptyItem(lockedMachineSystemId)]);
   };
 
   const patchItem = (index: number, patch: Partial<ItemDraft>) => {
@@ -121,9 +138,10 @@ const RepairRequestList = () => {
   };
 
   const selectSystem = (index: number, systemId: string) => {
-    const system = systems.find((item) => item.id === systemId);
+    const effectiveSystemId = lockedMachineSystemId ?? systemId;
+    const system = systems.find((item) => item.id === effectiveSystemId);
     patchItem(index, {
-      machineSystemId: systemId,
+      machineSystemId: effectiveSystemId,
       machineSystemDetailId: '',
       tenHeThong: system ? `${system.maHeThong} - ${system.tenHeThong}` : '',
     });
@@ -133,7 +151,7 @@ const RepairRequestList = () => {
     const detail = details.find((item) => item.id === detailId);
     const system = detail?.machineSystem ?? systems.find((item) => item.id === detail?.machineSystemId);
     patchItem(index, {
-      machineSystemId: detail?.machineSystemId ?? '',
+      machineSystemId: lockedMachineSystemId ?? detail?.machineSystemId ?? '',
       machineSystemDetailId: detailId,
       tenHeThong: detail
         ? `${system?.maHeThong ?? ''} ${system?.tenHeThong ?? ''} / ${detail.maChiTiet} - ${detail.tenChiTiet}`.trim()
@@ -337,7 +355,7 @@ const RepairRequestList = () => {
             <div className="rounded-lg border border-gray-200">
               <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
                 <div className="font-medium text-gray-800">Thiết bị lỗi</div>
-                {modal?.mode !== 'view' && <button type="button" onClick={() => setItems((value) => [...value, emptyItem()])} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"><Plus className="h-3.5 w-3.5" /> Thêm dòng</button>}
+                {modal?.mode !== 'view' && <button type="button" onClick={() => setItems((value) => [...value, emptyItem(lockedMachineSystemId)])} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"><Plus className="h-3.5 w-3.5" /> Thêm dòng</button>}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[980px] text-sm">
@@ -358,7 +376,7 @@ const RepairRequestList = () => {
                       return (
                         <tr key={item.id ?? index}>
                           <td className="px-3 py-2">
-                            <select disabled={modal?.mode === 'view'} value={item.machineSystemId ?? ''} onChange={(event) => selectSystem(index, event.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50">
+                            <select disabled={modal?.mode === 'view' || !!lockedMachineSystemId} value={item.machineSystemId ?? ''} onChange={(event) => selectSystem(index, event.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-1.5 disabled:bg-gray-50">
                               <option value="">Text-only</option>
                               {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
                             </select>

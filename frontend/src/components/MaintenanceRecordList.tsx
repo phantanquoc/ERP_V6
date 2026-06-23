@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Plus, Eye, Edit2, Trash2, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Plus, Eye, Edit2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMaintenanceRecords, useDeleteMaintenanceRecord } from '../hooks/useMaintenanceRecords';
 import { useMachineSystems } from '../hooks/useMachineSystemDetails';
 import MaintenanceRecordForm from './MaintenanceRecordForm';
@@ -7,13 +7,24 @@ import { MaintenanceRecord } from '../services/maintenanceRecordService';
 
 type ModalMode = 'create' | 'edit' | 'view' | null;
 
-const MaintenanceRecordList = () => {
+interface MaintenanceRecordListProps {
+  lockedMachineSystemId?: string;
+}
+
+const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListProps = {}) => {
   const [page, setPage] = useState(1);
   const [loaiFilter, setLoaiFilter] = useState('');
-  const [systemFilter, setSystemFilter] = useState('');
+  const [systemFilter, setSystemFilter] = useState(lockedMachineSystemId ?? '');
   const [search, setSearch] = useState('');
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | null>(null);
+
+  useEffect(() => {
+    if (lockedMachineSystemId) {
+      setSystemFilter(lockedMachineSystemId);
+      setPage(1);
+    }
+  }, [lockedMachineSystemId]);
 
   const filters = useMemo(() => ({
     page,
@@ -68,16 +79,18 @@ const MaintenanceRecordList = () => {
             <option value="Bảo dưỡng">Bảo dưỡng</option>
             <option value="Sửa chữa">Sửa chữa</option>
           </select>
-          <select
-            value={systemFilter}
-            onChange={(e) => { setSystemFilter(e.target.value); setPage(1); }}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
-          >
-            <option value="">Tất cả hệ thống</option>
-            {systems.map((s: any) => (
-              <option key={s.id} value={s.id}>{s.tenHeThong}</option>
-            ))}
-          </select>
+          {!lockedMachineSystemId && (
+            <select
+              value={systemFilter}
+              onChange={(e) => { setSystemFilter(e.target.value); setPage(1); }}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
+            >
+              <option value="">Tất cả hệ thống</option>
+              {systems.map((s: any) => (
+                <option key={s.id} value={s.id}>{s.tenHeThong}</option>
+              ))}
+            </select>
+          )}
         </div>
         <button
           onClick={() => { setSelectedRecord(null); setModalMode('create'); }}
@@ -162,6 +175,7 @@ const MaintenanceRecordList = () => {
           record={selectedRecord}
           systems={systems}
           onClose={() => { setModalMode(null); setSelectedRecord(null); }}
+          lockedMachineSystemId={lockedMachineSystemId}
         />
       )}
     </div>

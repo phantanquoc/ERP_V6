@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls } from './ModalForm';
 import { useCreateMaintenanceRecord, useUpdateMaintenanceRecord, useGeneratedRecordCode } from '../hooks/useMaintenanceRecords';
 import { useMachineSystemDetails } from '../hooks/useMachineSystemDetails';
@@ -9,13 +9,14 @@ interface Props {
   record: MaintenanceRecord | null;
   systems: any[];
   onClose: () => void;
+  lockedMachineSystemId?: string;
 }
 
-const MaintenanceRecordForm = ({ mode, record, systems, onClose }: Props) => {
+const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSystemId }: Props) => {
   const isView = mode === 'view';
   const isEdit = mode === 'edit';
 
-  const [machineSystemId, setMachineSystemId] = useState(record?.machineSystemId ?? '');
+  const [machineSystemId, setMachineSystemId] = useState(record?.machineSystemId ?? lockedMachineSystemId ?? '');
   const [machineSystemDetailId, setMachineSystemDetailId] = useState(record?.machineSystemDetailId ?? '');
   const [loai, setLoai] = useState(record?.loai ?? 'Bảo dưỡng');
   const [noiDung, setNoiDung] = useState(record?.noiDung ?? '');
@@ -101,7 +102,12 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose }: Props) => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField label="Hệ thống" required>
-            <select value={machineSystemId} onChange={(e) => { setMachineSystemId(e.target.value); setMachineSystemDetailId(''); }} disabled={isView} className={selectCls()}>
+            <select
+              value={machineSystemId}
+              onChange={(e) => { setMachineSystemId(e.target.value); setMachineSystemDetailId(''); }}
+              disabled={isView || !!lockedMachineSystemId}
+              className={selectCls()}
+            >
               <option value="">-- Chọn hệ thống --</option>
               {systems.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.tenHeThong}</option>

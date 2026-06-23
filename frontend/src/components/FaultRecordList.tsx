@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Edit, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
@@ -45,11 +45,11 @@ const statusBadge = (value: string) => {
 
 const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
 
-const emptyRecordForm = (nguoiPhatHien = ''): CreateFaultRecordRequest => ({
+const emptyRecordForm = (nguoiPhatHien = '', machineSystemId = ''): CreateFaultRecordRequest => ({
   tenLoi: '',
   moTa: '',
   maHeThong: '',
-  machineSystemId: '',
+  machineSystemId,
   machineSystemDetailId: '',
   faultTemplateId: '',
   mucDo: 'Trung bình',
@@ -58,18 +58,22 @@ const emptyRecordForm = (nguoiPhatHien = ''): CreateFaultRecordRequest => ({
   ngayPhatHien: new Date().toISOString().split('T')[0],
 });
 
-const emptyTemplateForm = (): CreateFaultTemplateRequest => ({
+const emptyTemplateForm = (machineSystemId = ''): CreateFaultTemplateRequest => ({
   tenMauLoi: '',
   moTa: '',
   mucDo: 'Trung bình',
-  machineSystemId: '',
+  machineSystemId,
   machineSystemDetailId: '',
   hoatDong: true,
   trangThai: 'Đang áp dụng',
   ghiChu: '',
 });
 
-const FaultRecordList = () => {
+interface FaultRecordListProps {
+  lockedMachineSystemId?: string;
+}
+
+const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) => {
   const { user } = useAuth();
   const reporter = user ? `${user.lastName} ${user.firstName}`.trim() : '';
   const isTechnical = user?.department === 'technical' ||
@@ -78,8 +82,15 @@ const FaultRecordList = () => {
   const canDelete = user?.role === 'admin' || isTechnical;
 
   const [view, setView] = useState<ViewMode>('records');
-  const [recordFilters, setRecordFilters] = useState<FaultRecordFilters>({ page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc' });
-  const [templateFilters, setTemplateFilters] = useState<FaultTemplateFilters>({ page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc' });
+  const [recordFilters, setRecordFilters] = useState<FaultRecordFilters>({ page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc', machineSystemId: lockedMachineSystemId });
+  const [templateFilters, setTemplateFilters] = useState<FaultTemplateFilters>({ page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc', machineSystemId: lockedMachineSystemId });
+
+  useEffect(() => {
+    if (lockedMachineSystemId) {
+      setRecordFilters((f) => ({ ...f, machineSystemId: lockedMachineSystemId, machineSystemDetailId: undefined, page: 1 }));
+      setTemplateFilters((f) => ({ ...f, machineSystemId: lockedMachineSystemId, machineSystemDetailId: undefined, page: 1 }));
+    }
+  }, [lockedMachineSystemId]);
 
   const recordsQuery = useFaultRecords(recordFilters);
   const templatesQuery = useFaultTemplates(templateFilters);
@@ -104,8 +115,8 @@ const FaultRecordList = () => {
 
   const [recordModal, setRecordModal] = useState<{ mode: ModalMode; record?: FaultRecord } | null>(null);
   const [templateModal, setTemplateModal] = useState<{ mode: ModalMode; template?: FaultTemplate } | null>(null);
-  const [recordForm, setRecordForm] = useState<CreateFaultRecordRequest>(emptyRecordForm(reporter));
-  const [templateForm, setTemplateForm] = useState<CreateFaultTemplateRequest>(emptyTemplateForm());
+  const [recordForm, setRecordForm] = useState<CreateFaultRecordRequest>(emptyRecordForm(reporter, lockedMachineSystemId ?? ''));
+  const [templateForm, setTemplateForm] = useState<CreateFaultTemplateRequest>(emptyTemplateForm(lockedMachineSystemId ?? ''));
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState('');
 
@@ -134,7 +145,7 @@ const FaultRecordList = () => {
       trangThai: record.trangThai,
       nguoiPhatHien: record.nguoiPhatHien,
       ngayPhatHien: record.ngayPhatHien?.split('T')[0] ?? '',
-    } : emptyRecordForm(reporter));
+    } : emptyRecordForm(reporter, lockedMachineSystemId ?? ''));
   };
 
   const openTemplateModal = (mode: ModalMode, template?: FaultTemplate) => {
@@ -151,7 +162,7 @@ const FaultRecordList = () => {
       hoatDong: template.hoatDong,
       trangThai: template.trangThai,
       ghiChu: template.ghiChu ?? '',
-    } : emptyTemplateForm());
+    } : emptyTemplateForm(lockedMachineSystemId ?? ''));
   };
 
   const syncSystemFromDetail = (detailId: string, target: 'record' | 'template') => {
@@ -160,14 +171,14 @@ const FaultRecordList = () => {
       setRecordForm((form) => ({
         ...form,
         machineSystemDetailId: detailId,
-        machineSystemId: detail?.machineSystemId ?? form.machineSystemId,
+        machineSystemId: lockedMachineSystemId ?? detail?.machineSystemId ?? form.machineSystemId,
         maHeThong: detail?.machineSystem?.maHeThong ?? form.maHeThong,
       }));
     } else {
       setTemplateForm((form) => ({
         ...form,
         machineSystemDetailId: detailId,
-        machineSystemId: detail?.machineSystemId ?? form.machineSystemId,
+        machineSystemId: lockedMachineSystemId ?? detail?.machineSystemId ?? form.machineSystemId,
       }));
     }
   };
@@ -180,7 +191,7 @@ const FaultRecordList = () => {
       tenLoi: template?.tenMauLoi ?? form.tenLoi,
       moTa: template?.moTa ?? form.moTa,
       mucDo: template?.mucDo ?? form.mucDo,
-      machineSystemId: template?.machineSystemId ?? form.machineSystemId,
+      machineSystemId: lockedMachineSystemId ?? template?.machineSystemId ?? form.machineSystemId,
       machineSystemDetailId: template?.machineSystemDetailId ?? form.machineSystemDetailId,
       maHeThong: template?.machineSystem?.maHeThong ?? form.maHeThong,
     }));
@@ -276,7 +287,7 @@ const FaultRecordList = () => {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
                 <input value={recordFilters.search ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))} placeholder="Tìm mã, tên lỗi..." className="w-full rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
               </div>
-              <select value={recordFilters.machineSystemId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <select value={recordFilters.machineSystemId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm" disabled={!!lockedMachineSystemId} hidden={!!lockedMachineSystemId}>
                 <option value="">Tất cả hệ thống</option>
                 {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
               </select>
@@ -359,7 +370,7 @@ const FaultRecordList = () => {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
                 <input value={templateFilters.search ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))} placeholder="Tìm mã, tên mẫu..." className="w-full rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
               </div>
-              <select value={templateFilters.machineSystemId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <select value={templateFilters.machineSystemId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm" disabled={!!lockedMachineSystemId} hidden={!!lockedMachineSystemId}>
                 <option value="">Tất cả hệ thống</option>
                 {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
               </select>
@@ -449,7 +460,7 @@ const FaultRecordList = () => {
               </label>
               <label className="space-y-1">
                 <span className="font-medium text-gray-700">Hệ thống</span>
-                <select disabled={recordModal?.mode === 'view'} value={recordForm.machineSystemId ?? ''} onChange={(event) => setRecordForm((form) => ({ ...form, machineSystemId: event.target.value, machineSystemDetailId: '', maHeThong: systems.find((system) => system.id === event.target.value)?.maHeThong ?? '' }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
+                <select disabled={recordModal?.mode === 'view' || !!lockedMachineSystemId} value={recordForm.machineSystemId ?? ''} onChange={(event) => setRecordForm((form) => ({ ...form, machineSystemId: event.target.value, machineSystemDetailId: '', maHeThong: systems.find((system) => system.id === event.target.value)?.maHeThong ?? '' }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
                   <option value="">Chọn hệ thống</option>
                   {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
                 </select>
@@ -506,7 +517,7 @@ const FaultRecordList = () => {
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1">
                 <span className="font-medium text-gray-700">Hệ thống</span>
-                <select disabled={templateModal?.mode === 'view'} value={templateForm.machineSystemId ?? ''} onChange={(event) => setTemplateForm((form) => ({ ...form, machineSystemId: event.target.value, machineSystemDetailId: '' }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
+                <select disabled={templateModal?.mode === 'view' || !!lockedMachineSystemId} value={templateForm.machineSystemId ?? ''} onChange={(event) => setTemplateForm((form) => ({ ...form, machineSystemId: event.target.value, machineSystemDetailId: '' }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
                   <option value="">Chọn hệ thống</option>
                   {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
                 </select>
