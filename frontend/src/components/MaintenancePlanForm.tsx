@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
 import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls } from './ModalForm';
 import { useCreateMaintenancePlan, useGeneratedPlanCode } from '../hooks/useMaintenancePlans';
-import { useMaintenanceTemplates } from '../hooks/useMaintenanceTemplates';
 import { useMachineSystemDetails } from '../hooks/useMachineSystemDetails';
 import { useAuth } from '../contexts/AuthContext';
 import { MaintenancePlan } from '../services/maintenancePlanService';
@@ -15,6 +13,7 @@ const FREQUENCY_OPTIONS = [
   { value: 'BA_THANG', label: '3 tháng/lần' },
   { value: 'SAU_THANG', label: '6 tháng/lần' },
   { value: 'HANG_NAM', label: 'Hàng năm' },
+  { value: 'KHONG_CO_DINH', label: 'Không lịch cố định' },
 ];
 
 const TEAM_OPTIONS = [
@@ -24,13 +23,20 @@ const TEAM_OPTIONS = [
   { value: 'TONG_HOP', label: 'Tổng hợp' },
 ];
 
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: `Tháng ${i + 1}` }));
+
+/** Frequencies where thangBatDau matters (not every month) */
+const NEEDS_START_MONTH = new Set(['HAI_THANG', 'BA_THANG', 'SAU_THANG', 'HANG_NAM']);
+
 interface ItemDraft {
   machineSystemDetailId: string;
-  maintenanceTemplateId?: string;
+  tenChiTiet: string;
+  hoatDong: boolean;
   noiDung: string;
   tanSuat: string;
   toThucHien: string;
   soLuong: number;
+  thangBatDau: number;
 }
 
 interface Props {
@@ -47,65 +53,69 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
   const [selectedSystemId, setSelectedSystemId] = useState(plan?.machineSystemId ?? lockedMachineSystemId ?? '');
   const [ghiChu, setGhiChu] = useState(plan?.ghiChu ?? '');
   const [items, setItems] = useState<ItemDraft[]>([]);
+  const [bulkTanSuat, setBulkTanSuat] = useState('BA_THANG');
+  const [bulkThangBatDau, setBulkThangBatDau] = useState(1);
+  const [bulkToThucHien, setBulkToThucHien] = useState('CO_KHI');
+
+  const applyBulk = () => {
+    setItems((prev) => prev.map((item) => ({
+      ...item,
+      tanSuat: bulkTanSuat,
+      thangBatDau: NEEDS_START_MONTH.has(bulkTanSuat) ? bulkThangBatDau : 1,
+      toThucHien: bulkToThucHien,
+    })));
+  };
 
   const { data: codeResponse } = useGeneratedPlanCode();
+  // Fetch ALL details (including hoatDong=false) for the selected system
   const { data: detailsResponse } = useMachineSystemDetails({
     page: 1,
     limit: 500,
     machineSystemId: selectedSystemId || undefined,
-    hoatDong: true,
-  });
-  const { data: templatesResponse } = useMaintenanceTemplates({
-    machineSystemId: selectedSystemId || undefined,
-    hoatDong: true,
-    limit: 200,
   });
 
   const createPlan = useCreateMaintenancePlan();
   const details = detailsResponse?.data ?? [];
-  const templates = templatesResponse?.data ?? [];
   const generatedCode = codeResponse?.data?.code ?? '';
 
+  // When editing an existing plan, populate items from plan data
   useEffect(() => {
     if (plan?.items) {
       setItems(plan.items.map((i) => ({
         machineSystemDetailId: i.machineSystemDetailId,
-        maintenanceTemplateId: i.maintenanceTemplateId ?? undefined,
+        tenChiTiet: i.machineSystemDetail?.tenChiTiet ?? '',
+        hoatDong: i.machineSystemDetail?.hoatDong !== false,
         noiDung: i.noiDung,
         tanSuat: i.tanSuat,
         toThucHien: i.toThucHien,
         soLuong: i.soLuong,
+        thangBatDau: i.thangBatDau ?? 1,
       })));
     }
   }, [plan]);
 
-  const handleLoadTemplates = () => {
-    if (templates.length === 0) return;
-    const newItems: ItemDraft[] = templates.map((t: any) => ({
-      machineSystemDetailId: t.machineSystemDetailId ?? '',
-      maintenanceTemplateId: t.id,
-      noiDung: t.noiDung,
-      tanSuat: t.tanSuat,
-      toThucHien: t.toThucHien,
+  // When system changes (create mode), auto-populate from fetched details
+  useEffect(() => {
+    if (plan) return; // skip for existing plan — items come from plan.items
+    if (!selectedSystemId || details.length === 0) return;
+    setItems(details.map((d: any) => ({
+      machineSystemDetailId: d.id,
+      tenChiTiet: d.tenChiTiet,
+      hoatDong: d.hoatDong !== false,
+      noiDung: '',
+      tanSuat: 'BA_THANG',
+      toThucHien: 'CO_KHI',
       soLuong: 1,
-    }));
-    setItems((prev) => [...prev, ...newItems]);
-  };
-
-  const addItem = () => {
-    setItems((prev) => [...prev, { machineSystemDetailId: '', noiDung: '', tanSuat: 'BA_THANG', toThucHien: 'CO_KHI', soLuong: 1 }]);
-  };
-
-  const removeItem = (index: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== index));
-  };
+      thangBatDau: 1,
+    })));
+  }, [details, selectedSystemId, plan]);
 
   const updateItem = (index: number, field: keyof ItemDraft, value: any) => {
     setItems((prev) => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
   };
 
   const handleSubmit = async () => {
-    if (!selectedSystemId || items.length === 0) return;
+    if (!selectedSystemId) return;
     await createPlan.mutateAsync({
       data: {
         maKeHoach: generatedCode,
@@ -113,7 +123,14 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
         nam: year,
         nguoiLap: user?.fullName ?? 'N/A',
         ghiChu: ghiChu || undefined,
-        items: items.filter((i) => i.machineSystemDetailId && i.noiDung),
+        items: items.map((i) => ({
+          machineSystemDetailId: i.machineSystemDetailId,
+          noiDung: i.noiDung,
+          tanSuat: i.tanSuat,
+          toThucHien: i.toThucHien,
+          soLuong: i.soLuong,
+          thangBatDau: NEEDS_START_MONTH.has(i.tanSuat) ? i.thangBatDau : 1,
+        })),
       },
     });
     onClose();
@@ -131,7 +148,7 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
           onSubmit={handleSubmit}
           submitLabel="Lưu kế hoạch"
           isLoading={createPlan.isPending}
-          submitDisabled={!selectedSystemId || items.length === 0}
+          submitDisabled={!selectedSystemId}
         />
       )}
     >
@@ -169,111 +186,150 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
           />
         </FormField>
 
-        {/* Items */}
+        {/* Items table */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium text-gray-700">Nội dung bảo dưỡng</h4>
-            {!viewOnly && (
-              <div className="flex gap-2">
-                {templates.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleLoadTemplates}
-                    className="text-xs px-3 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
-                  >
-                    Nạp từ template ({templates.length})
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={addItem}
-                  className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 flex items-center gap-1"
-                >
-                  <Plus className="w-3 h-3" /> Thêm dòng
-                </button>
-              </div>
-            )}
+            <h4 className="text-sm font-medium text-gray-700">
+              Nội dung bảo dưỡng
+              {items.length > 0 && (
+                <span className="ml-2 text-xs font-normal text-gray-400">({items.length} thiết bị)</span>
+              )}
+            </h4>
           </div>
+
+          {/* Bulk apply controls */}
+          {!viewOnly && items.length > 0 && (
+            <div className="flex items-end gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-medium text-blue-700 uppercase tracking-wide">Tần suất</label>
+                <select
+                  value={bulkTanSuat}
+                  onChange={(e) => setBulkTanSuat(e.target.value)}
+                  className="text-xs border border-blue-200 rounded px-2 py-1.5 bg-white"
+                >
+                  {FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              {NEEDS_START_MONTH.has(bulkTanSuat) && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-medium text-blue-700 uppercase tracking-wide">Bắt đầu</label>
+                  <select
+                    value={bulkThangBatDau}
+                    onChange={(e) => setBulkThangBatDau(Number(e.target.value))}
+                    className="text-xs border border-blue-200 rounded px-2 py-1.5 bg-white"
+                  >
+                    {MONTH_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-medium text-blue-700 uppercase tracking-wide">Tổ TH</label>
+                <select
+                  value={bulkToThucHien}
+                  onChange={(e) => setBulkToThucHien(e.target.value)}
+                  className="text-xs border border-blue-200 rounded px-2 py-1.5 bg-white"
+                >
+                  {TEAM_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={applyBulk}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 whitespace-nowrap"
+              >
+                Áp dụng tất cả
+              </button>
+            </div>
+          )}
 
           {items.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">
-              {selectedSystemId ? 'Chưa có nội dung. Nạp từ template hoặc thêm thủ công.' : 'Vui lòng chọn hệ thống trước.'}
+              {selectedSystemId ? 'Đang tải danh sách thiết bị...' : 'Vui lòng chọn hệ thống trước.'}
             </p>
           ) : (
             <div className="overflow-x-auto border border-gray-200 rounded-lg">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-50 border-b">
-                    <th className="px-2 py-2 text-left w-[180px]">Thiết bị</th>
+                    <th className="px-2 py-2 text-left w-[200px]">Thiết bị</th>
                     <th className="px-2 py-2 text-left">Nội dung BD</th>
-                    <th className="px-2 py-2 text-center w-[120px]">Tần suất</th>
+                    <th className="px-2 py-2 text-center w-[140px]">Tần suất</th>
+                    <th className="px-2 py-2 text-center w-[80px]">Bắt đầu</th>
                     <th className="px-2 py-2 text-center w-[100px]">Tổ TH</th>
-                    <th className="px-2 py-2 text-center w-[60px]">SL</th>
-                    {!viewOnly && <th className="px-2 py-2 w-[40px]"></th>}
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, idx) => (
-                    <tr key={idx} className="border-b border-gray-100">
+                    <tr key={item.machineSystemDetailId} className="border-b border-gray-100">
                       <td className="px-2 py-1.5">
-                        <select
-                          value={item.machineSystemDetailId}
-                          onChange={(e) => updateItem(idx, 'machineSystemDetailId', e.target.value)}
-                          disabled={viewOnly}
-                          className="w-full text-xs border border-gray-200 rounded px-1 py-1"
-                        >
-                          <option value="">-- Chọn --</option>
-                          {details.map((d: any) => (
-                            <option key={d.id} value={d.id}>{d.tenChiTiet}</option>
-                          ))}
-                        </select>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-gray-800">{item.tenChiTiet || '—'}</span>
+                          {!item.hoatDong && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-600 rounded-full leading-none">
+                              Ngừng HĐ
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-2 py-1.5">
-                        <input
-                          value={item.noiDung}
-                          onChange={(e) => updateItem(idx, 'noiDung', e.target.value)}
-                          disabled={viewOnly}
-                          className="w-full text-xs border border-gray-200 rounded px-2 py-1"
-                          placeholder="Nội dung bảo dưỡng..."
-                        />
+                        {viewOnly ? (
+                          <span className="text-gray-700">{item.noiDung || <span className="text-gray-300 italic">—</span>}</span>
+                        ) : (
+                          <input
+                            value={item.noiDung}
+                            onChange={(e) => updateItem(idx, 'noiDung', e.target.value)}
+                            className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+                            placeholder="Nội dung bảo dưỡng (tuỳ chọn)..."
+                          />
+                        )}
                       </td>
                       <td className="px-2 py-1.5">
-                        <select
-                          value={item.tanSuat}
-                          onChange={(e) => updateItem(idx, 'tanSuat', e.target.value)}
-                          disabled={viewOnly}
-                          className="w-full text-xs border border-gray-200 rounded px-1 py-1"
-                        >
-                          {FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
+                        {viewOnly ? (
+                          <span className="text-gray-600">
+                            {FREQUENCY_OPTIONS.find((o) => o.value === item.tanSuat)?.label ?? item.tanSuat}
+                          </span>
+                        ) : (
+                          <select
+                            value={item.tanSuat}
+                            onChange={(e) => updateItem(idx, 'tanSuat', e.target.value)}
+                            className="w-full text-xs border border-gray-200 rounded px-1 py-1"
+                          >
+                            {FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                        )}
                       </td>
                       <td className="px-2 py-1.5">
-                        <select
-                          value={item.toThucHien}
-                          onChange={(e) => updateItem(idx, 'toThucHien', e.target.value)}
-                          disabled={viewOnly}
-                          className="w-full text-xs border border-gray-200 rounded px-1 py-1"
-                        >
-                          {TEAM_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
+                        {NEEDS_START_MONTH.has(item.tanSuat) ? (
+                          viewOnly ? (
+                            <span className="text-gray-600">T{item.thangBatDau}</span>
+                          ) : (
+                            <select
+                              value={item.thangBatDau}
+                              onChange={(e) => updateItem(idx, 'thangBatDau', Number(e.target.value))}
+                              className="w-full text-xs border border-gray-200 rounded px-1 py-1"
+                            >
+                              {MONTH_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                          )
+                        ) : (
+                          <span className="block text-center text-gray-300 text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-2 py-1.5">
-                        <input
-                          type="number"
-                          value={item.soLuong}
-                          onChange={(e) => updateItem(idx, 'soLuong', parseInt(e.target.value, 10) || 1)}
-                          disabled={viewOnly}
-                          min={1}
-                          className="w-full text-xs border border-gray-200 rounded px-2 py-1 text-center"
-                        />
+                        {viewOnly ? (
+                          <span className="text-gray-600">
+                            {TEAM_OPTIONS.find((o) => o.value === item.toThucHien)?.label ?? item.toThucHien}
+                          </span>
+                        ) : (
+                          <select
+                            value={item.toThucHien}
+                            onChange={(e) => updateItem(idx, 'toThucHien', e.target.value)}
+                            className="w-full text-xs border border-gray-200 rounded px-1 py-1"
+                          >
+                            {TEAM_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                        )}
                       </td>
-                      {!viewOnly && (
-                        <td className="px-2 py-1.5 text-center">
-                          <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -287,4 +343,3 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
 };
 
 export default MaintenancePlanForm;
-

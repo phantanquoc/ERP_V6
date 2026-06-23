@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Plus, Eye, Trash2, Check, ChevronLeft, ChevronRight, Download } from 'lucide-react';
-import { useMaintenancePlans, useToggleMonth, useDeleteMaintenancePlan, useUpdateLogNote } from '../hooks/useMaintenancePlans';
+import { Plus, Eye, Trash2, Check, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
+import { useMaintenancePlans, useToggleMonth, useDeleteMaintenancePlan, useUpdateLogNote, useSyncDetails } from '../hooks/useMaintenancePlans';
 import { useMachineSystems } from '../hooks/useMachineSystemDetails';
 import MaintenancePlanForm from './MaintenancePlanForm';
 import MaintenanceLogModal from './MaintenanceLogModal';
@@ -15,6 +15,7 @@ const FREQUENCY_LABELS: Record<string, string> = {
   BA_THANG: '3 tháng/lần',
   SAU_THANG: '6 tháng/lần',
   HANG_NAM: 'Hàng năm',
+  KHONG_CO_DINH: 'Không cố định',
 };
 const TEAM_LABELS: Record<string, string> = {
   CO_KHI: 'Cơ khí',
@@ -32,6 +33,7 @@ const FREQUENCY_TIMES: Record<string, number> = {
   BA_THANG: 1,
   SAU_THANG: 1,
   HANG_NAM: 1,
+  KHONG_CO_DINH: 0,
 };
 
 /** Which months are applicable for each frequency, starting from thangBatDau */
@@ -53,6 +55,7 @@ function getApplicableMonths(frequency: string, thangBatDau: number = 1): number
       return months;
     }
     case 'HANG_NAM': return [thangBatDau];
+    case 'KHONG_CO_DINH': return MONTHS;
     default: return MONTHS; // HANG_NGAY, HANG_TUAN, HANG_THANG
   }
 }
@@ -67,6 +70,8 @@ function calculatePlanProgress(items: MaintenancePlanItem[]): { completed: numbe
   let total = 0;
   let completed = 0;
   for (const item of items) {
+    // KHONG_CO_DINH items do not count toward plan progress
+    if (item.tanSuat === 'KHONG_CO_DINH') continue;
     const applicableMonths = getApplicableMonths(item.tanSuat, item.thangBatDau ?? 1);
     const timesPerMonth = getTimesPerMonth(item.tanSuat);
     total += applicableMonths.length * timesPerMonth;
@@ -160,6 +165,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
   const toggleMonth = useToggleMonth();
   const deletePlan = useDeleteMaintenancePlan();
   const updateLogNote = useUpdateLogNote();
+  const syncDetails = useSyncDetails();
 
   const plans = plansResponse?.data ?? [];
   const pagination = plansResponse?.pagination;
@@ -241,6 +247,8 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
             onOpenLogModal={handleOpenLogModal}
             onView={() => { setViewingPlan(plan); setModalMode('view'); }}
             onDelete={() => handleDelete(plan.id)}
+            onSync={() => syncDetails.mutate(plan.id)}
+            isSyncing={syncDetails.isPending}
           />
         ))
       )}
@@ -309,11 +317,44 @@ interface PlanCardProps {
   onOpenLogModal: (state: LogModalState) => void;
   onView: () => void;
   onDelete: () => void;
+  onSync: () => void;
+  isSyncing: boolean;
 }
 
-const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onDelete }: PlanCardProps) => {
+const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onDelete, onSync, isSyncing }: PlanCardProps) => {
   const { completed, total } = calculatePlanProgress(plan.items ?? []);
   const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  const items = plan.items ?? [];
+
+  // Build parent-child groups for display
+  // Parents: items where machineSystemDetail.parentDetailId === null (or undefined)
+  // Children: items where parentDetailId is set
+  // Standalone: items with no parent and no children themselves
+  const parentItems = items.filter((i) => !i.machineSystemDetail?.parentDetailId);
+  const childItemsByParentDetailId = new Map<string, MaintenancePlanItem[]>();
+  for (const item of items) {
+    const pid = item.machineSystemDetail?.parentDetailId;
+    if (pid) {
+      const arr = childItemsByParentDetailId.get(pid) ?? [];
+      arr.push(item);
+      childItemsByParentDetailId.set(pid, arr);
+    }
+  }
+
+  // Determine which parentItems actually have children
+  const renderedRows: Array<{ type: 'parent-header'; item: MaintenancePlanItem; children: MaintenancePlanItem[] } | { type: 'child' | 'standalone'; item: MaintenancePlanItem }> = [];
+  for (const parentItem of parentItems) {
+    const children = childItemsByParentDetailId.get(parentItem.machineSystemDetailId) ?? [];
+    if (children.length > 0) {
+      renderedRows.push({ type: 'parent-header', item: parentItem, children });
+      for (const child of children) {
+        renderedRows.push({ type: 'child', item: child });
+      }
+    } else {
+      renderedRows.push({ type: 'standalone', item: parentItem });
+    }
+  }
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -334,6 +375,16 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onDelete }: PlanCard
           }`}>
             {plan.trangThai}
           </span>
+          {plan.trangThai === 'Đang thực hiện' && (
+            <button
+              onClick={onSync}
+              disabled={isSyncing}
+              className="p-1.5 text-gray-400 hover:text-indigo-600 rounded disabled:opacity-50"
+              title="Đồng bộ linh kiện mới"
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            </button>
+          )}
           <button onClick={() => exportPlanCSV(plan)} className="p-1.5 text-gray-400 hover:text-green-600 rounded" title="Export CSV">
             <Download className="w-4 h-4" />
           </button>
@@ -361,16 +412,54 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onDelete }: PlanCard
             </tr>
           </thead>
           <tbody>
-            {(plan.items ?? []).map((item) => (
-              <PlanItemRow
-                key={item.id}
-                planId={plan.id}
-                item={item}
-                nguoiLap={plan.nguoiLap}
-                onToggle={onToggle}
-                onOpenLogModal={onOpenLogModal}
-              />
-            ))}
+            {renderedRows.map((row) => {
+              if (row.type === 'parent-header') {
+                // Calculate group progress for current month
+                const groupChildren = row.children;
+                const groupTotal = groupChildren.length;
+                const groupCompleted = groupChildren.filter((child) => {
+                  const logs = child.logs ?? [];
+                  const monthLogs = logs.filter((l) => l.thang === CURRENT_MONTH && l.hoanThanh);
+                  return monthLogs.length > 0;
+                }).length;
+                return (
+                  <tr key={`parent-${row.item.id}`} className="bg-gray-50/70 border-b border-gray-200">
+                    <td className="px-3 py-1.5 font-medium text-gray-700" colSpan={4}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-semibold uppercase tracking-wide">
+                          {row.item.machineSystemDetail?.loaiChiTiet ?? 'Cụm'}
+                        </span>
+                        <span>{row.item.machineSystemDetail?.tenChiTiet ?? '—'}</span>
+                        {row.item.machineSystemDetail?.hoatDong === false && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-600 rounded-full leading-none">
+                            Ngừng HĐ
+                          </span>
+                        )}
+                        <span className="text-gray-400 text-[10px]">
+                          T{CURRENT_MONTH}: {groupCompleted}/{groupTotal}
+                        </span>
+                      </div>
+                    </td>
+                    {MONTHS.map((m) => (
+                      <td key={m} className={`px-1 py-1.5 ${m === CURRENT_MONTH ? 'bg-blue-50/30' : ''}`} />
+                    ))}
+                  </tr>
+                );
+              }
+
+              const indent = row.type === 'child';
+              return (
+                <PlanItemRow
+                  key={row.item.id}
+                  planId={plan.id}
+                  item={row.item}
+                  nguoiLap={plan.nguoiLap}
+                  onToggle={onToggle}
+                  onOpenLogModal={onOpenLogModal}
+                  indent={indent}
+                />
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -400,17 +489,35 @@ interface PlanItemRowProps {
   nguoiLap: string;
   onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string) => void;
   onOpenLogModal: (state: LogModalState) => void;
+  indent?: boolean;
 }
 
-const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal }: PlanItemRowProps) => {
+const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal, indent }: PlanItemRowProps) => {
   const applicableMonths = getApplicableMonths(item.tanSuat, item.thangBatDau ?? 1);
   const timesPerMonth = getTimesPerMonth(item.tanSuat);
   const logs = item.logs ?? [];
+  const isKhongCoDinh = item.tanSuat === 'KHONG_CO_DINH';
+
+  // Smart suggestion: skip for KHONG_CO_DINH
+  const suggestedMonth = isKhongCoDinh ? null : (applicableMonths.find((m) => {
+    const monthLogs = logs.filter((l) => l.thang === m);
+    const completedCount = monthLogs.filter((l) => l.hoanThanh).length;
+    return completedCount < timesPerMonth;
+  }) ?? null);
+
+  const hoatDong = item.machineSystemDetail?.hoatDong !== false;
 
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50">
       <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-        {item.machineSystemDetail?.tenChiTiet ?? '—'}
+        <div className={`flex items-center gap-1.5 ${indent ? 'pl-4' : ''}`}>
+          <span>{item.machineSystemDetail?.tenChiTiet ?? '—'}</span>
+          {!hoatDong && (
+            <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-600 rounded-full leading-none">
+              Ngừng HĐ
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-3 py-2 text-gray-700 max-w-[200px] truncate">{item.noiDung}</td>
       <td className="px-2 py-2 text-center text-gray-600">{FREQUENCY_LABELS[item.tanSuat] ?? item.tanSuat}</td>
@@ -418,9 +525,7 @@ const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal }: PlanI
       {MONTHS.map((m) => {
         const isApplicable = applicableMonths.includes(m);
         const isCurrentMonth = m === CURRENT_MONTH;
-        if (!isApplicable) {
-          return <td key={m} className={`px-1 py-2 text-center ${isCurrentMonth ? 'bg-blue-50/30' : ''}`}><span className="text-gray-300">&mdash;</span></td>;
-        }
+        const isSuggested = isApplicable && m === suggestedMonth;
         const monthLogs = logs.filter((l) => l.thang === m);
         return (
           <td key={m} className={`px-1 py-2 ${isCurrentMonth ? 'bg-blue-50/30' : ''}`}>
@@ -433,6 +538,8 @@ const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal }: PlanI
               noiDung={item.noiDung}
               tenThietBi={item.machineSystemDetail?.tenChiTiet ?? '—'}
               nguoiLap={nguoiLap}
+              isApplicable={isApplicable}
+              isSuggested={isSuggested}
               onToggle={onToggle}
               onOpenLogModal={onOpenLogModal}
             />
@@ -452,14 +559,31 @@ interface MonthCellProps {
   noiDung: string;
   tenThietBi: string;
   nguoiLap: string;
+  isApplicable: boolean;
+  isSuggested: boolean;
   onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string) => void;
   onOpenLogModal: (state: LogModalState) => void;
 }
 
-const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThietBi, nguoiLap, onToggle, onOpenLogModal }: MonthCellProps) => {
+const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThietBi, nguoiLap, isApplicable, isSuggested, onToggle, onOpenLogModal }: MonthCellProps) => {
   const openModal = () => {
     onOpenLogModal({ planId, itemId, month, timesPerMonth, noiDung, tenThietBi, nguoiLap });
   };
+
+  // Non-applicable months: clickable but styled with dashed border to indicate "extra"
+  if (!isApplicable) {
+    return (
+      <div className="flex flex-col items-center gap-0.5">
+        <button
+          onClick={openModal}
+          className="w-6 h-6 rounded border border-dashed border-gray-200 flex items-center justify-center text-gray-300 hover:border-gray-400 hover:text-gray-400 transition-colors"
+          title="Tháng không áp dụng — nhấn để xem / ghi chú"
+        >
+          <span className="text-[9px]">+</span>
+        </button>
+      </div>
+    );
+  }
 
   if (timesPerMonth === 1) {
     const log = logs.find((l) => l.lanThu === 1);
@@ -472,6 +596,8 @@ const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThi
           className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${
             checked
               ? 'bg-green-500 border-green-500 text-white'
+              : isSuggested
+              ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-300 hover:bg-blue-100'
               : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
           }`}
         >
@@ -496,6 +622,8 @@ const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThi
             ? 'bg-green-500 border-green-500 text-white'
             : completedCount > 0
             ? 'bg-green-100 border-green-300 text-green-700'
+            : isSuggested
+            ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-300 hover:bg-blue-100 text-gray-500'
             : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-gray-500'
         }`}
         title={`${completedCount}/${timesPerMonth} hoàn thành`}
