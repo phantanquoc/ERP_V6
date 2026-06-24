@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { getDepartmentDisplayName, isAdmin } from "../utils/permissions";
-import { UserRole } from "../types/auth";
 import { useSystemSettings } from "../contexts/SystemSettingsContext";
 import { ThemeHeader, getThemePageBackground } from "../components/ThemeHeaders";
 import EmployeeDashboard from "./EmployeeDashboard";
@@ -231,8 +230,7 @@ const Dashboard1: React.FC = () => {
   const [customEnd, setCustomEnd] = useState<string>('');
 
   const userIsAdmin = user ? isAdmin(user.department) : false;
-  const isDepartmentHead = user?.role === UserRole.DEPARTMENT_HEAD;
-  const canSeeStats = userIsAdmin || isDepartmentHead;
+  const canSeeStats = userIsAdmin;
   const { settings } = useSystemSettings();
   const activeTheme = settings?.activeTheme || 'DEFAULT';
 
@@ -492,24 +490,7 @@ const Dashboard1: React.FC = () => {
     });
   };
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Đang tải...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Non-stats users (EMPLOYEE, TEAM_LEAD) see the personal employee dashboard
-  if (!canSeeStats) {
-    return <EmployeeDashboard />;
-  }
-
-  // Nếu là admin, hiển thị Admin Dashboard
-  const departmentName = getDepartmentDisplayName(user.department);
+  // Hooks hoisted above early returns to satisfy Rules of Hooks
   const quickStats = useMemo(
     () => getQuickStats(tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, overtimeCount, overtimePendingCount, evaluationPendingCount, reportUnreadCount),
     [tasksCount, feedbackCount, purchaseRequestCount, purchaseRequestPendingCount, workPlanCount, overtimeCount, overtimePendingCount, evaluationPendingCount, reportUnreadCount]
@@ -626,6 +607,25 @@ const Dashboard1: React.FC = () => {
       setIsDailyReportModalOpen(true);
     }
   }, []);
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Đang tải...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Non-stats users (EMPLOYEE, TEAM_LEAD) see the personal employee dashboard
+  if (!canSeeStats) {
+    return <EmployeeDashboard />;
+  }
+
+  // Nếu là admin, hiển thị Admin Dashboard
+  const departmentName = getDepartmentDisplayName(user.department);
 
   return (
     <div className={`-m-6 min-h-full ${getThemePageBackground(activeTheme)}`}>
@@ -762,24 +762,6 @@ const Dashboard1: React.FC = () => {
                   />
                 </div>
               ))}
-            </div>
-          </div>
-        ) : isDepartmentHead ? (
-          /* Department Head — only their own department card */
-          <div>
-            <div className="mb-3">
-              <h2 className="text-xl font-bold text-gray-800">Dashboard phòng ban</h2>
-            </div>
-
-            <div>
-              {departmentStats[user.department as keyof typeof departmentStats] && (
-                <DepartmentCard
-                  department={departmentStats[user.department as keyof typeof departmentStats]}
-                  onClick={() => handleDepartmentClick(user.department || '')}
-                  onStatClick={handleStatClick}
-                  isFullWidth={true}
-                />
-              )}
             </div>
           </div>
         ) : null}
