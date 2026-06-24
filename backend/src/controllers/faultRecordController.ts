@@ -54,6 +54,11 @@ class FaultRecordController {
         nguoiPhatHien: req.body.nguoiPhatHien,
         ngayPhatHien: req.body.ngayPhatHien ? new Date(req.body.ngayPhatHien) : undefined,
         fileDinhKem: req.file ? getFileUrl('fault-records', req.file.filename) : undefined,
+        // Task 4.3: pass userRole for auto-create gate
+        userRole: req.user?.role,
+        repairSteps: req.body.repairSteps
+          ? (typeof req.body.repairSteps === 'string' ? JSON.parse(req.body.repairSteps) : req.body.repairSteps)
+          : undefined,
       };
 
       const record = await faultRecordService.createFaultRecord(data);

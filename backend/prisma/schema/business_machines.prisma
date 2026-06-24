@@ -179,12 +179,32 @@ model FaultTemplate {
   machineSystem       MachineSystem?       @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
   machineSystemDetail MachineSystemDetail? @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
   faultRecords        FaultRecord[]
+  repairSteps         RepairStep[]
 
   @@index([machineSystemId])
   @@index([machineSystemDetailId])
   @@index([hoatDong])
   @@index([trangThai])
   @@map("fault_templates")
+  @@schema("business")
+}
+
+model RepairStep {
+  id                String   @id @default(cuid())
+  faultTemplateId   String
+  stepNumber        Int
+  moTa              String   @db.Text
+  thoiGianUocTinh   Int?
+  dungCu            String?
+  ghiChu            String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  faultTemplate FaultTemplate @relation(fields: [faultTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([faultTemplateId])
+  @@index([faultTemplateId, stepNumber])
+  @@map("repair_steps")
   @@schema("business")
 }
 
