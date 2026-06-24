@@ -170,6 +170,11 @@ export interface MachineSystemSummary {
   systemOperations: any[];
   maintenanceRecords: any[];
   statusLogs: MachineStatusLog[];
+  maintenancePlans: any[];
+  finishedProducts: any[];
+  qualityEvaluations: any[];
+  parentSystem: { id: string; maHeThong: string; tenHeThong: string } | null;
+  clonedSystemsCount: number;
 }
 
 const appendFormFields = (formData: FormData, data: Record<string, unknown>) => {
