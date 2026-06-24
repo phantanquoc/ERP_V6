@@ -8,6 +8,7 @@ import { ModalForm, ModalFooter } from './ModalForm';
 import { useAllEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { useWorkShifts } from '../hooks/useWorkShifts';
 import { useCreateOvertimePlan, useUpdateOvertimePlan } from '../hooks/useOvertimePlans';
+import EmployeeSelectionModal from './EmployeeSelectionModal';
 
 interface CreateOvertimePlanModalProps {
   isOpen: boolean;
@@ -75,13 +76,11 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({
   const [error, setError] = useState('');
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
-  // Employee picker state per row
-  const [activeRowForPicker, setActiveRowForPicker] = useState<number | null>(null);
-  const [departmentFilter, setDepartmentFilter] = useState<string>('');
+  // Employee picker state
+  const [pickerRowIndex, setPickerRowIndex] = useState<number | null>(null);
 
-  const { data: employeeData, isLoading: loadingEmployees } = useAllEmployeesForAssignment();
+  const { data: employeeData } = useAllEmployeesForAssignment();
   const employees = (employeeData?.employees ?? []) as Employee[];
-  const departments = employeeData?.departments ?? [];
 
   const { data: workShifts = [] } = useWorkShifts(isOpen);
 
@@ -124,7 +123,7 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({
     }
     setError('');
     setRowErrors({});
-    setActiveRowForPicker(null);
+    setPickerRowIndex(null);
   }, [isOpen, initialData?.id]);
 
   // Re-reconcile employee IDs once employees load in edit mode
@@ -152,8 +151,7 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({
     setRows([emptyRow()]);
     setError('');
     setRowErrors({});
-    setActiveRowForPicker(null);
-    setDepartmentFilter('');
+    setPickerRowIndex(null);
   };
 
   const handleClose = () => {
@@ -190,14 +188,6 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({
       workShiftId: shiftId,
       ...(shift ? { gioBatDau: shift.startTime, gioKetThuc: shift.endTime } : {}),
     });
-  };
-
-  const toggleEmployee = (idx: number, empId: string) => {
-    const row = rows[idx];
-    const next = row.nguoiThamGia.includes(empId)
-      ? row.nguoiThamGia.filter(id => id !== empId)
-      : [...row.nguoiThamGia, empId];
-    updateRow(idx, { nguoiThamGia: next });
   };
 
   // ─── Footer totals ────────────────────────────────────────────────────────
@@ -277,11 +267,6 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({
 
   const getEmployeeNames = (empIds: string[]) =>
     employees.filter(e => empIds.includes(e._id)).map(e => `${e.lastName} ${e.firstName}`).join(', ');
-
-  const filteredEmployees = useMemo(() => {
-    if (departmentFilter) return employees.filter(e => e.department === departmentFilter);
-    return employees;
-  }, [employees, departmentFilter]);
 
   return (
     <ModalForm
@@ -401,11 +386,11 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({
                           ))}
                         </select>
                       </td>
-                      {/* Nhân sự — inline picker toggle */}
+                      {/* Nhân sự — open modal picker */}
                       <td className="px-3 py-2">
                         <button
                           type="button"
-                          onClick={() => setActiveRowForPicker(activeRowForPicker === idx ? null : idx)}
+                          onClick={() => setPickerRowIndex(idx)}
                           className="w-full text-left px-2 py-1.5 border border-gray-300 rounded text-sm hover:bg-gray-50 focus:ring-1 focus:ring-blue-500 min-w-[160px]"
                         >
                           {row.nguoiThamGia.length === 0
@@ -452,53 +437,6 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({
                         </button>
                       </td>
                     </tr>
-                    {/* Employee picker expanded row */}
-                    {activeRowForPicker === idx && (
-                      <tr>
-                        <td colSpan={7} className="px-3 py-3 bg-blue-50 border-t border-blue-200">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-3">
-                              <label className="text-xs font-medium text-gray-600">Lọc phòng ban:</label>
-                              <select
-                                value={departmentFilter}
-                                onChange={e => setDepartmentFilter(e.target.value)}
-                                className="px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
-                              >
-                                <option value="">Tất cả</option>
-                                {departments.map(d => <option key={d} value={d}>{d}</option>)}
-                              </select>
-                              <button
-                                type="button"
-                                onClick={() => setActiveRowForPicker(null)}
-                                className="ml-auto text-xs text-gray-500 hover:text-gray-700 underline"
-                              >
-                                Đóng
-                              </button>
-                            </div>
-                            {loadingEmployees ? (
-                              <p className="text-xs text-gray-500">Đang tải nhân viên...</p>
-                            ) : (
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-1 max-h-40 overflow-y-auto">
-                                {filteredEmployees.map(emp => (
-                                  <label key={emp._id} className="flex items-center gap-2 px-2 py-1.5 bg-white rounded border border-gray-200 cursor-pointer hover:border-blue-400 transition-colors text-xs">
-                                    <input
-                                      type="checkbox"
-                                      checked={row.nguoiThamGia.includes(emp._id)}
-                                      onChange={() => toggleEmployee(idx, emp._id)}
-                                      className="w-3.5 h-3.5 text-blue-600 rounded"
-                                    />
-                                    <span className="truncate">
-                                      <span className="font-medium">{emp.lastName} {emp.firstName}</span>
-                                      <span className="text-gray-400 ml-1">({emp.employeeCode})</span>
-                                    </span>
-                                  </label>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
                     {/* Row error */}
                     {rowErrors[idx] && (
                       <tr>
@@ -539,6 +477,18 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({
           accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
         />
       </form>
+      {/* Employee selection modal — rendered outside the form to avoid nesting issues */}
+      <EmployeeSelectionModal
+        isOpen={pickerRowIndex !== null}
+        onClose={() => setPickerRowIndex(null)}
+        selectedIds={pickerRowIndex !== null ? rows[pickerRowIndex]?.nguoiThamGia ?? [] : []}
+        onConfirm={(ids) => {
+          if (pickerRowIndex !== null) {
+            updateRow(pickerRowIndex, { nguoiThamGia: ids });
+          }
+          setPickerRowIndex(null);
+        }}
+      />
     </ModalForm>
   );
 };
