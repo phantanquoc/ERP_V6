@@ -60,6 +60,9 @@ interface SummaryLimits {
   operations?: number;
   maintenanceRecords?: number;
   statusLogs?: number;
+  maintenancePlans?: number;
+  finishedProducts?: number;
+  qualityEvaluations?: number;
 }
 
 const CATEGORY_PREFIX_MAP: Record<MachineSystemCategory, string> = {
@@ -295,68 +298,123 @@ class MachineSystemService {
     const opLimit = limits.operations ?? 5;
     const maintenanceLimit = limits.maintenanceRecords ?? 5;
     const statusLimit = limits.statusLogs ?? 10;
+    const maintenancePlanLimit = limits.maintenancePlans ?? 5;
+    const finishedProductLimit = limits.finishedProducts ?? 5;
+    const qualityEvalLimit = limits.qualityEvaluations ?? 5;
 
-    const [faultRecords, repairItems, handoverItems, systemOperations, maintenanceRecords, statusLogs] =
-      await Promise.all([
-        prisma.faultRecord.findMany({
-          where: { machineSystemId: systemId },
-          orderBy: { createdAt: 'desc' },
-          take: faultLimit,
-          select: { id: true, maLoi: true, tenLoi: true, mucDo: true, trangThai: true, ngayPhatHien: true },
-        }),
-        prisma.repairRequestItem.findMany({
-          where: { machineSystemId: systemId },
-          orderBy: { createdAt: 'desc' },
-          take: repairLimit,
-          select: {
-            id: true,
-            tenHeThong: true,
-            loaiLoi: true,
-            noiDungLoi: true,
-            createdAt: true,
-            repairRequest: { select: { id: true, maYeuCau: true, trangThai: true } },
-          },
-        }),
-        prisma.acceptanceHandoverItem.findMany({
-          where: { machineSystemId: systemId },
-          orderBy: { createdAt: 'desc' },
-          take: handoverLimit,
-          select: {
-            id: true,
-            tinhTrangTruocSuaChua: true,
-            tinhTrangSauSuaChua: true,
-            createdAt: true,
-            acceptanceHandover: { select: { id: true, maNghiemThu: true, createdAt: true } },
-          },
-        }),
-        prisma.systemOperation.findMany({
-          where: { machineSystemId: systemId },
-          orderBy: { createdAt: 'desc' },
-          take: opLimit,
-          select: { id: true, maChien: true, thoiGianChien: true, trangThai: true, nguoiThucHien: true },
-        }),
-        prisma.maintenanceRecord.findMany({
-          where: { machineSystemId: systemId },
-          orderBy: { ngayThucHien: 'desc' },
-          take: maintenanceLimit,
-          select: { id: true, maBienBan: true, loai: true, ngayThucHien: true, nguoiThucHien: true },
-        }),
-        prisma.machineStatusLog.findMany({
-          where: { machineSystemId: systemId },
-          orderBy: { thoiDiem: 'desc' },
-          take: statusLimit,
-          select: {
-            id: true,
-            trangThaiCu: true,
-            trangThaiMoi: true,
-            nguyenNhan: true,
-            nguoiCapNhat: true,
-            thoiDiem: true,
-          },
-        }),
-      ]);
+    const [
+      faultRecords,
+      repairItems,
+      handoverItems,
+      systemOperations,
+      maintenanceRecords,
+      statusLogs,
+      machineWithLineage,
+      maintenancePlans,
+      finishedProducts,
+      qualityEvaluations,
+    ] = await Promise.all([
+      prisma.faultRecord.findMany({
+        where: { machineSystemId: systemId },
+        orderBy: { createdAt: 'desc' },
+        take: faultLimit,
+        select: { id: true, maLoi: true, tenLoi: true, mucDo: true, trangThai: true, ngayPhatHien: true },
+      }),
+      prisma.repairRequestItem.findMany({
+        where: { machineSystemId: systemId },
+        orderBy: { createdAt: 'desc' },
+        take: repairLimit,
+        select: {
+          id: true,
+          tenHeThong: true,
+          loaiLoi: true,
+          noiDungLoi: true,
+          createdAt: true,
+          repairRequest: { select: { id: true, maYeuCau: true, trangThai: true } },
+        },
+      }),
+      prisma.acceptanceHandoverItem.findMany({
+        where: { machineSystemId: systemId },
+        orderBy: { createdAt: 'desc' },
+        take: handoverLimit,
+        select: {
+          id: true,
+          tenHeThong: true,
+          tinhTrangTruocSuaChua: true,
+          tinhTrangSauSuaChua: true,
+          createdAt: true,
+          acceptanceHandover: { select: { id: true, maNghiemThu: true, ngayNghiemThu: true, createdAt: true } },
+        },
+      }),
+      prisma.systemOperation.findMany({
+        where: { machineSystemId: systemId },
+        orderBy: { createdAt: 'desc' },
+        take: opLimit,
+        select: { id: true, maChien: true, thoiGianChien: true, trangThai: true, nguoiThucHien: true },
+      }),
+      prisma.maintenanceRecord.findMany({
+        where: { machineSystemId: systemId },
+        orderBy: { ngayThucHien: 'desc' },
+        take: maintenanceLimit,
+        select: { id: true, maBienBan: true, loai: true, ngayThucHien: true, nguoiThucHien: true },
+      }),
+      prisma.machineStatusLog.findMany({
+        where: { machineSystemId: systemId },
+        orderBy: { thoiDiem: 'desc' },
+        take: statusLimit,
+        select: {
+          id: true,
+          trangThaiCu: true,
+          trangThaiMoi: true,
+          nguyenNhan: true,
+          nguoiCapNhat: true,
+          thoiDiem: true,
+        },
+      }),
+      prisma.machineSystem.findUnique({
+        where: { id: systemId },
+        select: {
+          parentSystem: { select: { id: true, maHeThong: true, tenHeThong: true } },
+          _count: { select: { clonedSystems: true } },
+        },
+      }),
+      prisma.maintenancePlan.findMany({
+        where: { machineSystemId: systemId },
+        orderBy: { nam: 'desc' },
+        take: maintenancePlanLimit,
+        select: { id: true, maKeHoach: true, nam: true, nguoiLap: true, trangThai: true, ngayLap: true },
+      }),
+      prisma.finishedProduct.findMany({
+        where: { machineSystemId: systemId },
+        orderBy: { createdAt: 'desc' },
+        take: finishedProductLimit,
+        select: { id: true, maChien: true, thoiGianChien: true, tenHangHoa: true, khoiLuong: true, trangThai: true },
+      }),
+      prisma.qualityEvaluation.findMany({
+        where: { machineSystemId: systemId },
+        orderBy: { createdAt: 'desc' },
+        take: qualityEvalLimit,
+        select: { id: true, maChien: true, createdAt: true },
+      }),
+    ]);
 
-    return { machine, faultRecords, repairItems, handoverItems, systemOperations, maintenanceRecords, statusLogs };
+    const parentSystem = machineWithLineage?.parentSystem ?? null;
+    const clonedSystemsCount = machineWithLineage?._count?.clonedSystems ?? 0;
+
+    return {
+      machine,
+      faultRecords,
+      repairItems,
+      handoverItems,
+      systemOperations,
+      maintenanceRecords,
+      statusLogs,
+      maintenancePlans,
+      finishedProducts,
+      qualityEvaluations,
+      parentSystem,
+      clonedSystemsCount,
+    };
   }
 
   /**

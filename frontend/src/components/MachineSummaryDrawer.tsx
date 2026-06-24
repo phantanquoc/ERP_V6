@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ClipboardCheck, Edit, Eye, History, Info, Plus, Power, RefreshCw, Settings2, Trash2, Wrench, X } from 'lucide-react';
 import Portal from './Portal';
 import { useDeactivateMachineSystemDetail, useDeleteMachineSystemDetail, useDetailTree, useMachineSystemSummary, useMachineSystems } from '../hooks/useMachineSystemDetails';
-import type { MachineStatus, MachineSystem, MachineSystemDetail } from '../services/machineSystemService';
+import type { MachineStatus, MachineSystem, MachineSystemDetail, MachineSystemCategory } from '../services/machineSystemService';
 import MachineStatusLogList from './MachineStatusLogList';
 import MachineStatusUpdateDialog from './MachineStatusUpdateDialog';
 import FaultRecordList from './FaultRecordList';
@@ -41,6 +41,33 @@ const MACHINE_STATUS_MAP: Record<MachineStatus, { label: string; cls: string }> 
   HOAT_DONG: { label: 'Hoạt động', cls: 'bg-green-100 text-green-700 border-green-200' },
   BAO_TRI: { label: 'Bảo trì', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
   NGUNG_HOAT_DONG: { label: 'Ngừng HĐ', cls: 'bg-red-100 text-red-700 border-red-200' },
+};
+
+const CATEGORY_LABELS: Record<MachineSystemCategory, string> = {
+  SAN_XUAT: 'Sản xuất',
+  DONG_GOI: 'Đóng gói',
+  BAO_QUAN: 'Bảo quản',
+  DIEN: 'Điện',
+  NUOC: 'Nước',
+  HOI: 'Hơi',
+  KHI_NEN: 'Khí nén',
+  LAM_NONG: 'Làm nóng',
+  VAN_CHUYEN: 'Vận chuyển',
+  PCCC: 'PCCC',
+  CHAT_THAI: 'Chất thải',
+  KIEM_TRA_CL: 'Kiểm tra CL',
+  AN_TOAN: 'An toàn',
+  KHAC: 'Khác',
+};
+
+const formatDate = (dateStr?: string | null): string => {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 };
 
 const statusBadge = (status?: MachineStatus | string | null) => {
@@ -123,6 +150,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
   const maintenanceCount = summary?.maintenanceRecords?.length ?? 0;
   const operationCount = summary?.systemOperations?.length ?? 0;
   const statusLogCount = summary?.statusLogs?.length ?? 0;
+  const handoverCount = summary?.handoverItems?.length ?? 0;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -208,13 +236,14 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                 </button>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-6">
+              <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-7">
                 <SummaryMetric label="Chi tiết" value={treeItems?.length ?? 0} />
                 <SummaryMetric label="Nhật ký trạng thái" value={statusLogCount} />
                 <SummaryMetric label="Lỗi" value={faultCount} tone="warning" />
                 <SummaryMetric label="Sửa chữa" value={repairCount} tone="warning" />
                 <SummaryMetric label="Bảo dưỡng" value={maintenanceCount} tone="success" />
                 <SummaryMetric label="Vận hành" value={operationCount} />
+                <SummaryMetric label="Nghiệm thu" value={handoverCount} tone="success" />
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
@@ -255,6 +284,8 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                           <dd className="font-mono text-xs font-medium text-blue-700">{summary.machine.maHeThong}</dd>
                           <dt className="text-gray-500">Tên hệ thống</dt>
                           <dd className="font-medium text-gray-900">{summary.machine.tenHeThong}</dd>
+                          <dt className="text-gray-500">Loại hệ thống</dt>
+                          <dd className="text-gray-700">{CATEGORY_LABELS[summary.machine.loaiHeThong] ?? summary.machine.loaiHeThong}</dd>
                           <dt className="text-gray-500">Trạng thái</dt>
                           <dd>{statusBadge(summary.machine.trangThai)}</dd>
                           <dt className="text-gray-500">Hoạt động</dt>
@@ -265,7 +296,56 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                           <dd className="text-gray-700">{summary.machine.viTri || '—'}</dd>
                           <dt className="text-gray-500">Người TH</dt>
                           <dd className="text-gray-700">{summary.machine.nguoiThucHien || '—'}</dd>
+                          {summary.machine.maThietBi && (
+                            <>
+                              <dt className="text-gray-500">Mã thiết bị</dt>
+                              <dd className="font-mono text-xs text-gray-700">{summary.machine.maThietBi}</dd>
+                            </>
+                          )}
+                          {summary.machine.tenThietBi && (
+                            <>
+                              <dt className="text-gray-500">Tên thiết bị</dt>
+                              <dd className="text-gray-700">{summary.machine.tenThietBi}</dd>
+                            </>
+                          )}
+                          {summary.machine.fileDinhKem && (
+                            <>
+                              <dt className="text-gray-500">File đính kèm</dt>
+                              <dd>
+                                <a
+                                  href={summary.machine.fileDinhKem}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-blue-600 underline hover:text-blue-800 break-all"
+                                >
+                                  {summary.machine.fileDinhKem.split('/').pop() ?? 'Tải xuống'}
+                                </a>
+                              </dd>
+                            </>
+                          )}
+                          <dt className="text-gray-500">Ngày tạo</dt>
+                          <dd className="text-gray-700">{formatDate(summary.machine.createdAt)}</dd>
+                          <dt className="text-gray-500">Cập nhật</dt>
+                          <dd className="text-gray-700">{formatDate(summary.machine.updatedAt)}</dd>
                         </dl>
+                        {(summary.parentSystem || (summary.clonedSystemsCount ?? 0) > 0) && (
+                          <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm">
+                            <p className="mb-1 text-xs font-semibold text-blue-700">Dòng hệ thống</p>
+                            {summary.parentSystem && (
+                              <p className="text-gray-700">
+                                Hệ thống gốc:{' '}
+                                <span className="font-medium text-blue-700">
+                                  {summary.parentSystem.tenHeThong} ({summary.parentSystem.maHeThong})
+                                </span>
+                              </p>
+                            )}
+                            {(summary.clonedSystemsCount ?? 0) > 0 && (
+                              <p className="text-gray-700">
+                                Số bản sao: <span className="font-medium">{summary.clonedSystemsCount}</span>
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </section>
                       <section className="rounded-lg border border-gray-200 bg-white p-3">
                         <h3 className="mb-3 text-sm font-semibold text-gray-900">Mô tả vận hành</h3>
@@ -378,6 +458,39 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                     <div className="space-y-4">
                       <FaultRecordList lockedMachineSystemId={machineSystemId ?? undefined} />
                       <RepairRequestList lockedMachineSystemId={machineSystemId ?? undefined} />
+                      <section className="rounded-lg border border-gray-200 bg-white">
+                        <div className="border-b border-gray-200 bg-gray-50 px-3 py-2">
+                          <h3 className="text-sm font-semibold text-gray-900">Nghiệm thu sau sửa chữa</h3>
+                        </div>
+                        {!summary?.handoverItems || summary.handoverItems.length === 0 ? (
+                          <p className="px-3 py-4 text-sm text-gray-400">Chưa có nghiệm thu</p>
+                        ) : (
+                          <ul className="divide-y divide-gray-100">
+                            {summary.handoverItems.map((item: any) => (
+                              <li key={item.id} className="px-3 py-3 text-sm">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                  <span className="font-mono text-xs font-medium text-blue-700">
+                                    {item.acceptanceHandover?.maNghiemThu ?? '—'}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {formatDate(item.acceptanceHandover?.ngayNghiemThu)}
+                                  </span>
+                                </div>
+                                <div className="mt-1 grid gap-1 text-xs text-gray-600 sm:grid-cols-2">
+                                  <div>
+                                    <span className="font-medium text-gray-500">Trước: </span>
+                                    {item.tinhTrangTruocSuaChua}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-500">Sau: </span>
+                                    {item.tinhTrangSauSuaChua}
+                                  </div>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
                     </div>
                   )}
 
