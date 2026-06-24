@@ -1,8 +1,10 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Edit, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
+import FaultTemplateDetail from './FaultTemplateDetail';
 import Modal from './Modal';
+import RepairStepForm from './RepairStepForm';
 import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
 import FaultTrendChart from './FaultTrendChart';
 import FaultHeatmap from './FaultHeatmap';
@@ -21,11 +23,12 @@ import {
   useDeactivateFaultTemplate,
   useDeleteFaultTemplate,
   useFaultTemplates,
+  useTemplateSearch,
   useUpdateFaultTemplate,
 } from '../hooks/useFaultTemplates';
 import { useMachineSystemDetails, useMachineSystems } from '../hooks/useMachineSystemDetails';
 import type { FaultRecord, CreateFaultRecordRequest } from '../services/faultRecordService';
-import type { FaultTemplate, CreateFaultTemplateRequest } from '../services/faultTemplateService';
+import type { FaultTemplate, CreateFaultTemplateRequest, RepairStepInput } from '../services/faultTemplateService';
 import type { FaultRecordFilters } from '../services/faultRecordService';
 import type { FaultTemplateFilters } from '../services/faultTemplateService';
 
@@ -93,6 +96,7 @@ const emptyTemplateForm = (machineSystemId = ''): CreateFaultTemplateRequest => 
   hoatDong: true,
   trangThai: 'Đang áp dụng',
   ghiChu: '',
+  repairSteps: [],
 });
 
 // Sub-component: recurrence banner shown inside the create modal
@@ -241,11 +245,20 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   const [templateModal, setTemplateModal] = useState<{ mode: ModalMode; template?: FaultTemplate } | null>(null);
   const [recordForm, setRecordForm] = useState<CreateFaultRecordRequest>(emptyRecordForm(reporter, lockedMachineSystemId ?? ''));
   const [templateForm, setTemplateForm] = useState<CreateFaultTemplateRequest>(emptyTemplateForm(lockedMachineSystemId ?? ''));
+  const [templateRepairSteps, setTemplateRepairSteps] = useState<RepairStepInput[]>([]);
+  const [recordRepairSteps, setRecordRepairSteps] = useState<RepairStepInput[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   // A4: id queued from recurrence banner click — opens view modal once data is fetched
   const [pendingViewId, setPendingViewId] = useState('');
   const pendingViewQuery = useFaultRecord(pendingViewId);
+  // 8.2: template detail drawer
+  const [detailTemplate, setDetailTemplate] = useState<FaultTemplate | null>(null);
+  // 6.1: typeahead combobox state
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const templateSearchRef = useRef<HTMLDivElement>(null);
+  const templateSearchQuery = useTemplateSearch(templateSearch);
 
   const createFaultTemplateId = !recordModal?.record ? (recordForm.faultTemplateId ?? '') : '';
   const createMachineSystemDetailId = !recordModal?.record ? (recordForm.machineSystemDetailId ?? '') : '';
@@ -263,6 +276,9 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
     setError('');
     setSelectedFile(null);
     setRecordModal({ mode, record });
+    setTemplateSearch('');
+    setShowTemplateDropdown(false);
+    setRecordRepairSteps([]);
     setRecordForm(record ? {
       tenLoi: record.tenLoi,
       moTa: record.moTa,
@@ -287,10 +303,28 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingViewId, pendingViewQuery.data]);
 
+  // 6.1: close typeahead dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (templateSearchRef.current && !templateSearchRef.current.contains(e.target as Node)) {
+        setShowTemplateDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const openTemplateModal = (mode: ModalMode, template?: FaultTemplate) => {
     setError('');
     setSelectedFile(null);
     setTemplateModal({ mode, template });
+    const steps: RepairStepInput[] = (template?.repairSteps ?? []).map((s) => ({
+      moTa: s.moTa,
+      thoiGianUocTinh: s.thoiGianUocTinh ?? null,
+      dungCu: s.dungCu ?? null,
+      ghiChu: s.ghiChu ?? null,
+    }));
+    setTemplateRepairSteps(steps);
     setTemplateForm(template ? {
       maMauLoi: template.maMauLoi,
       tenMauLoi: template.tenMauLoi,
@@ -301,6 +335,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
       hoatDong: template.hoatDong,
       trangThai: template.trangThai,
       ghiChu: template.ghiChu ?? '',
+      repairSteps: steps,
     } : emptyTemplateForm(lockedMachineSystemId ?? ''));
   };
 
@@ -322,8 +357,8 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
     }
   };
 
-  const chooseTemplate = (templateId: string) => {
-    const template = activeTemplates.find((item) => item.id === templateId);
+  const chooseTemplate = (templateId: string, templateObj?: FaultTemplate) => {
+    const template = templateObj ?? activeTemplates.find((item) => item.id === templateId);
     setRecordForm((form) => ({
       ...form,
       faultTemplateId: templateId,
@@ -334,6 +369,8 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
       machineSystemDetailId: template?.machineSystemDetailId ?? form.machineSystemDetailId,
       maHeThong: template?.machineSystem?.maHeThong ?? form.maHeThong,
     }));
+    setTemplateSearch(template ? `${template.maMauLoi} - ${template.tenMauLoi}` : '');
+    setShowTemplateDropdown(false);
   };
 
   const saveRecord = async (event: FormEvent) => {
@@ -362,7 +399,11 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
           file: selectedFile ?? undefined,
         });
       } else {
-        await createRecord.mutateAsync({ data: payload, file: selectedFile ?? undefined });
+        // auto-create path — include repairSteps when canMutate
+        const autoPayload = canMutate && recordRepairSteps.length > 0
+          ? { ...payload, repairSteps: recordRepairSteps }
+          : payload;
+        await createRecord.mutateAsync({ data: autoPayload, file: selectedFile ?? undefined });
       }
       setRecordModal(null);
     } catch (err) {
@@ -376,6 +417,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
       const payload: CreateFaultTemplateRequest = {
         ...templateForm,
         machineSystemId: templateForm.machineSystemId || undefined,
+        repairSteps: templateRepairSteps,
       };
       if (templateModal?.template) {
         await updateTemplate.mutateAsync({ id: templateModal.template.id, data: payload, file: selectedFile ?? undefined });
@@ -765,7 +807,11 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                 ) : templates.length === 0 ? (
                   <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có mẫu lỗi phù hợp.</td></tr>
                 ) : templates.map((template) => (
-                  <tr key={template.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr
+                    key={template.id}
+                    className="hover:bg-gray-50/50 transition-colors cursor-pointer"
+                    onClick={() => setDetailTemplate(template)}
+                  >
                     <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{template.maMauLoi}</td>
                     <td className="px-3 py-2.5 font-medium text-gray-900">{template.tenMauLoi}</td>
                     <td className="px-3 py-2.5">
@@ -785,7 +831,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                     <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
                       <ResponsiveRowActions
                         actions={[
-                          { key: 'view', label: 'Xem mẫu lỗi', icon: <Eye className="h-4 w-4" />, onClick: () => openTemplateModal('view', template), tone: 'primary' },
+                          { key: 'view', label: 'Xem mẫu lỗi', icon: <Eye className="h-4 w-4" />, onClick: () => setDetailTemplate(template), tone: 'primary' },
                           ...(canMutate ? [{ key: 'edit', label: 'Sửa mẫu lỗi', icon: <Edit className="h-4 w-4" />, onClick: () => openTemplateModal('edit', template), tone: 'success' } satisfies RowAction] : []),
                           ...(canMutate && template.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => deactivateTemplate.mutate(template.id), tone: 'warning' } satisfies RowAction] : []),
                           ...(canMutate ? [{ key: 'delete', label: 'Xóa mẫu lỗi', icon: <Trash2 className="h-4 w-4" />, onClick: () => deleteTemplate.mutate(template.id), tone: 'danger' } satisfies RowAction] : []),
@@ -803,7 +849,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
       )}
 
       {/* Record create/edit/view modal */}
-      <Modal isOpen={!!recordModal} onClose={() => setRecordModal(null)} showBackdrop>
+      <Modal isOpen={!!recordModal} onClose={() => setRecordModal(null)} showBackdrop closeOnBackdrop>
         <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h3 className="text-base font-semibold text-gray-900">{recordModal?.mode === 'view' ? 'Chi tiết bản ghi lỗi' : recordModal?.record ? 'Sửa bản ghi lỗi' : 'Thêm bản ghi lỗi'}</h3>
@@ -824,13 +870,125 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
               />
             )}
             <div className="grid gap-3 md:grid-cols-2">
+              {/* 6.1: Typeahead combobox for template selection */}
               <label className="space-y-1 md:col-span-2">
                 <span className="font-medium text-gray-700">Chọn từ mẫu lỗi</span>
-                <select disabled={recordModal?.mode === 'view' || !!recordModal?.record} value={recordForm.faultTemplateId ?? ''} onChange={(event) => chooseTemplate(event.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
-                  <option value="">Không dùng mẫu</option>
-                  {activeTemplates.map((template) => <option key={template.id} value={template.id}>{template.maMauLoi} - {template.tenMauLoi}</option>)}
-                </select>
+                {recordModal?.mode === 'view' || !!recordModal?.record ? (
+                  <div className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-700">
+                    {recordModal?.record?.faultTemplate
+                      ? `${recordModal.record.faultTemplate.maMauLoi} - ${recordModal.record.faultTemplate.tenMauLoi}`
+                      : 'Không dùng mẫu'}
+                  </div>
+                ) : (
+                  <div ref={templateSearchRef} className="relative">
+                    <input
+                      type="text"
+                      value={templateSearch}
+                      onChange={(e) => {
+                        setTemplateSearch(e.target.value);
+                        setShowTemplateDropdown(true);
+                        if (!e.target.value) {
+                          setRecordForm((f) => ({ ...f, faultTemplateId: '' }));
+                        }
+                      }}
+                      onFocus={() => setShowTemplateDropdown(true)}
+                      placeholder="Tìm tên mẫu lỗi... (ít nhất 2 ký tự)"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2"
+                    />
+                    {/* Clear button */}
+                    {(recordForm.faultTemplateId || templateSearch) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTemplateSearch('');
+                          setShowTemplateDropdown(false);
+                          setRecordForm((f) => ({ ...f, faultTemplateId: '' }));
+                        }}
+                        className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600"
+                        title="Xóa lựa chọn"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                    {/* Dropdown */}
+                    {showTemplateDropdown && (
+                      <div className="absolute z-20 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg">
+                        {/* "No template" option */}
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setTemplateSearch('');
+                            setShowTemplateDropdown(false);
+                            setRecordForm((f) => ({ ...f, faultTemplateId: '' }));
+                          }}
+                          className="flex w-full items-center px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
+                        >
+                          Không chọn mẫu
+                        </button>
+                        {templateSearch.length >= 2 && (
+                          <>
+                            {templateSearchQuery.isLoading && (
+                              <p className="px-3 py-2 text-sm text-gray-400">Đang tìm...</p>
+                            )}
+                            {templateSearchQuery.data?.data?.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => chooseTemplate(t.id, t)}
+                                className={`flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-blue-50 ${recordForm.faultTemplateId === t.id ? 'bg-blue-50' : ''}`}
+                              >
+                                <div className="text-left">
+                                  <span className="font-medium text-gray-800">{t.tenMauLoi}</span>
+                                  <span className="ml-1.5 font-mono text-xs text-gray-400">{t.maMauLoi}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${severityBadge(t.mucDo)}`}>{t.mucDo}</span>
+                                  {t._count && (
+                                    <span className="text-[11px] text-gray-400">{t._count.faultRecords} lần</span>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                            {!templateSearchQuery.isLoading && templateSearch.length >= 2 && (templateSearchQuery.data?.data?.length ?? 0) === 0 && (
+                              <p className="px-3 py-2 text-sm text-gray-400">Không tìm thấy mẫu phù hợp.</p>
+                            )}
+                          </>
+                        )}
+                        {templateSearch.length < 2 && templateSearch.length > 0 && (
+                          <p className="px-3 py-2 text-sm text-gray-400">Nhập thêm ký tự để tìm...</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </label>
+              {/* 6.2: Linked repair steps read-only when template selected */}
+              {recordForm.faultTemplateId && (() => {
+                const tpl = activeTemplates.find((t) => t.id === recordForm.faultTemplateId);
+                const steps = tpl?.repairSteps ?? [];
+                if (steps.length === 0) return null;
+                return (
+                  <div className="md:col-span-2 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                    <p className="mb-2 text-xs font-semibold text-blue-600">Các bước sửa chữa ({steps.length})</p>
+                    <ol className="space-y-1">
+                      {steps.map((step, i) => (
+                        <li key={step.id} className="flex gap-2 text-sm text-blue-800">
+                          <span className="shrink-0 font-bold">{i + 1}.</span>
+                          <div>
+                            <span>{step.moTa}</span>
+                            {step.thoiGianUocTinh != null && (
+                              <span className="ml-1.5 text-xs text-blue-500">{step.thoiGianUocTinh} phút</span>
+                            )}
+                            {step.dungCu && <span className="ml-1.5 text-xs text-blue-500">{step.dungCu}</span>}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                );
+              })()}
               <label className="space-y-1">
                 <span className="font-medium text-gray-700">Hệ thống</span>
                 <select disabled={recordModal?.mode === 'view' || !!lockedMachineSystemId} value={recordForm.machineSystemId ?? ''} onChange={(event) => setRecordForm((form) => ({ ...form, machineSystemId: event.target.value, machineSystemDetailId: '', maHeThong: systems.find((system) => system.id === event.target.value)?.maHeThong ?? '' }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
@@ -870,6 +1028,33 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                 <textarea required disabled={recordModal?.mode === 'view'} rows={3} value={recordForm.moTa ?? ''} onChange={(event) => setRecordForm((form) => ({ ...form, moTa: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
               </label>
               {recordModal?.mode !== 'view' && <div className="md:col-span-2"><FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] ?? null)} compact /></div>}
+              {/* 7.2: RepairStepForm shown when auto-creating (no template, canMutate) */}
+              {recordModal?.mode !== 'view' && !recordModal?.record && !recordForm.faultTemplateId && canMutate && (
+                <div className="md:col-span-2 space-y-1">
+                  <span className="font-medium text-gray-700 text-sm">Các bước sửa chữa (tùy chọn)</span>
+                  <RepairStepForm steps={recordRepairSteps} onChange={setRecordRepairSteps} />
+                </div>
+              )}
+              {/* 7.4: Repair steps read-only in view modal when linked template has steps */}
+              {recordModal?.mode === 'view' && recordModal.record?.faultTemplate?.repairSteps && recordModal.record.faultTemplate.repairSteps.length > 0 && (
+                <div className="md:col-span-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <p className="mb-2 text-xs font-semibold text-gray-500">Các bước sửa chữa ({recordModal.record.faultTemplate.repairSteps.length})</p>
+                  <ol className="space-y-1">
+                    {recordModal.record.faultTemplate.repairSteps.map((step, i) => (
+                      <li key={step.id} className="flex gap-2 text-sm text-gray-700">
+                        <span className="shrink-0 font-bold text-gray-400">{i + 1}.</span>
+                        <div>
+                          <span>{step.moTa}</span>
+                          {step.thoiGianUocTinh != null && (
+                            <span className="ml-1.5 text-xs text-gray-400">{step.thoiGianUocTinh} phút</span>
+                          )}
+                          {step.dungCu && <span className="ml-1.5 text-xs text-gray-400">{step.dungCu}</span>}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 border-t pt-3">
               <button type="button" onClick={() => setRecordModal(null)} className="rounded-md border border-gray-300 px-4 py-2">{recordModal?.mode === 'view' ? 'Đóng' : 'Hủy'}</button>
@@ -880,7 +1065,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
       </Modal>
 
       {/* Template create/edit/view modal */}
-      <Modal isOpen={!!templateModal} onClose={() => setTemplateModal(null)} showBackdrop>
+      <Modal isOpen={!!templateModal} onClose={() => setTemplateModal(null)} showBackdrop closeOnBackdrop>
         <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h3 className="text-base font-semibold text-gray-900">{templateModal?.mode === 'view' ? 'Chi tiết mẫu lỗi' : templateModal?.template ? 'Sửa mẫu lỗi' : 'Thêm mẫu lỗi'}</h3>
@@ -928,6 +1113,15 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                 <textarea disabled={templateModal?.mode === 'view'} rows={2} value={templateForm.ghiChu ?? ''} onChange={(event) => setTemplateForm((form) => ({ ...form, ghiChu: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
               </label>
               {templateModal?.mode !== 'view' && <div className="md:col-span-2"><FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] ?? null)} compact /></div>}
+              {/* 7.3: RepairStepForm integrated into template create/edit */}
+              <div className="md:col-span-2 space-y-1">
+                <span className="font-medium text-gray-700 text-sm">Các bước sửa chữa</span>
+                <RepairStepForm
+                  steps={templateRepairSteps}
+                  onChange={setTemplateRepairSteps}
+                  disabled={templateModal?.mode === 'view'}
+                />
+              </div>
             </div>
             <div className="flex justify-end gap-2 border-t pt-3">
               <button type="button" onClick={() => setTemplateModal(null)} className="rounded-md border border-gray-300 px-4 py-2">{templateModal?.mode === 'view' ? 'Đóng' : 'Hủy'}</button>
@@ -936,6 +1130,11 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
           </form>
         </div>
       </Modal>
+      {/* 8.2: Template detail drawer */}
+      <FaultTemplateDetail
+        template={detailTemplate}
+        onClose={() => setDetailTemplate(null)}
+      />
     </div>
   );
 };
