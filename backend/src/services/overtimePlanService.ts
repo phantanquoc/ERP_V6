@@ -462,6 +462,14 @@ class OvertimePlanService {
           metadata: { noiDung: plan.noiDung, lyDo, planId: plan.id },
         });
       }
+
+      if (isApproved) {
+        await notificationService.notify(NotificationEvent.OVERTIME_PLAN_APPROVED_DEPT, {
+          actorUserId: adminUserId,
+          entityId: plan.id,
+          metadata: { noiDung: plan.noiDung, planId: plan.id },
+        });
+      }
     } catch (error) { logger.error('Error sending overtime plan approval notification:', error); }
 
     const finalPlan = await this.findPlanWithItems(planId);

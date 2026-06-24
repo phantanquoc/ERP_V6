@@ -245,6 +245,22 @@ const entries: NotificationEventDef[] = [
     }),
     resolveRecipients: resolveDirectRecipients,
   },
+  {
+    event: NotificationEvent.OVERTIME_PLAN_APPROVED_DEPT,
+    notificationType: NotificationType.OVERTIME_PLAN,
+    buildMessage: (ctx) => ({
+      title: 'Kế hoạch tăng ca đã được duyệt',
+      message: `Kế hoạch tăng ca đã được phê duyệt. Nội dung: ${ctx.metadata?.noiDung ?? ''}.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const general = await getEmployeeIdsByDeptCode('DEPT_GENERAL');
+      const quality = await getEmployeeIdsByDeptCode('DEPT_QUALITY');
+      const combined = [...new Set([...general, ...quality])];
+      return ctx.actorUserId
+        ? combined.filter(id => id !== ctx.actorUserId)
+        : combined;
+    },
+  },
 
   // ── Supply Request ──
   {
