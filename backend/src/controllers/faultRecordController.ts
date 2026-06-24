@@ -114,6 +114,40 @@ class FaultRecordController {
       next(error);
     }
   }
+
+  async checkRecurrence(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const faultTemplateId = req.query.faultTemplateId as string | undefined;
+      const machineSystemDetailId = req.query.machineSystemDetailId as string | undefined;
+      const tenLoi = req.query.tenLoi as string | undefined;
+
+      // Validation moved to service; pass all three params
+      const data = await faultRecordService.checkRecurrence({ faultTemplateId, machineSystemDetailId, tenLoi });
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getStats(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const machineSystemId = req.query.machineSystemId as string | undefined;
+      const data = await faultRecordService.getStats(machineSystemId ? { machineSystemId } : undefined);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getHeatmap(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const machineSystemId = req.query.machineSystemId as string | undefined;
+      const data = await faultRecordService.getHeatmap(machineSystemId ? { machineSystemId } : undefined);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new FaultRecordController();

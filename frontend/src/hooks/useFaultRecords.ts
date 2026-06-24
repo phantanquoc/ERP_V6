@@ -12,6 +12,10 @@ export const faultRecordKeys = {
   list: (filters: FaultRecordFilters) => [...faultRecordKeys.lists(), filters] as const,
   details: () => [...faultRecordKeys.all, 'detail'] as const,
   detail: (id: string) => [...faultRecordKeys.details(), id] as const,
+  stats: (machineSystemId?: string) => [...faultRecordKeys.all, 'stats', machineSystemId ?? null] as const,
+  heatmap: (machineSystemId?: string) => [...faultRecordKeys.all, 'heatmap', machineSystemId ?? null] as const,
+  recurrence: (faultTemplateId: string, machineSystemDetailId: string) =>
+    [...faultRecordKeys.all, 'recurrence', faultTemplateId, machineSystemDetailId] as const,
 };
 
 export const useFaultRecords = (filters: FaultRecordFilters = {}) => {
@@ -29,6 +33,35 @@ export const useFaultRecord = (id: string) => {
   });
 };
 
+export const useFaultRecordStats = (machineSystemId?: string) => {
+  return useQuery({
+    queryKey: faultRecordKeys.stats(machineSystemId),
+    queryFn: () => faultRecordService.getStats(machineSystemId),
+  });
+};
+
+export const useFaultHeatmap = (machineSystemId?: string, options?: { enabled?: boolean }) => {
+  return useQuery({
+    queryKey: faultRecordKeys.heatmap(machineSystemId),
+    queryFn: () => faultRecordService.getHeatmap(machineSystemId),
+    enabled: options?.enabled ?? true,
+  });
+};
+
+export const useFaultRecurrence = ({
+  faultTemplateId,
+  machineSystemDetailId,
+}: {
+  faultTemplateId: string;
+  machineSystemDetailId: string;
+}) => {
+  return useQuery({
+    queryKey: faultRecordKeys.recurrence(faultTemplateId, machineSystemDetailId),
+    queryFn: () => faultRecordService.getRecurrence({ faultTemplateId, machineSystemDetailId }),
+    enabled: Boolean(faultTemplateId && machineSystemDetailId),
+  });
+};
+
 export const useCreateFaultRecord = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -36,6 +69,7 @@ export const useCreateFaultRecord = () => {
       faultRecordService.create(data, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: faultRecordKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: faultRecordKeys.stats() });
     },
   });
 };
@@ -47,6 +81,7 @@ export const useCreateFaultRecordFromTemplate = () => {
       faultRecordService.createFromTemplate(data, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: faultRecordKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: faultRecordKeys.stats() });
     },
   });
 };
@@ -59,6 +94,7 @@ export const useUpdateFaultRecord = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: faultRecordKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: faultRecordKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: faultRecordKeys.stats() });
     },
   });
 };
@@ -69,6 +105,7 @@ export const useDeleteFaultRecord = () => {
     mutationFn: (id: string) => faultRecordService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: faultRecordKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: faultRecordKeys.stats() });
     },
   });
 };

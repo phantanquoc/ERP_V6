@@ -26,6 +26,63 @@ export interface FaultRecord {
   faultTemplate?: FaultTemplate | null;
 }
 
+export interface FaultRecurrenceRecord {
+  id: string;
+  maLoi: string;
+  ngayPhatHien: string;
+  trangThai: string;
+  mucDo: string;
+  nguoiPhatHien: string;
+}
+
+export interface FaultRecurrenceResponse {
+  count: number;
+  records: FaultRecurrenceRecord[];
+  mode: 'template' | 'text';
+}
+
+export interface FaultStatsMachine {
+  machineSystemId: string;
+  tenHeThong: string;
+  maHeThong: string;
+  count: number;
+}
+
+export interface FaultStatsRecurring {
+  faultTemplateId: string;
+  tenMauLoi: string;
+  machineSystemDetailId: string;
+  tenChiTiet: string;
+  count: number;
+  lastSeenAt: string | null;
+}
+
+export interface FaultStatsResponse {
+  total: number;
+  bySeverity: Record<string, number>;
+  byStatus: Record<string, number>;
+  bySeverityByStatus: Record<string, Record<string, number>>;
+  last7Days: number;
+  last30Days: number;
+  thisMonth: number;
+  prevMonth: number;
+  monthlyTrend: Array<{ month: string; count: number }>;
+  recent: { today: FaultRecord[]; thisWeek: FaultRecord[] };
+  topMachines: FaultStatsMachine[];
+  topRecurring: FaultStatsRecurring[];
+  mttrDays: number | null;
+}
+
+export interface FaultHeatmapCell {
+  machineSystemId: string;
+  tenHeThong: string;
+  faultTemplateId: string;
+  tenMauLoi: string;
+  count: number;
+}
+
+export type FaultHeatmapResponse = FaultHeatmapCell[];
+
 export interface CreateFaultRecordRequest {
   tenLoi?: string;
   moTa?: string;
@@ -138,6 +195,40 @@ class FaultRecordService {
       return await apiClient.delete<void>(`/fault-records/${id}`);
     } catch (error: unknown) {
       throw new Error(getErrorMessage(error, 'Lỗi khi xóa bản ghi lỗi'));
+    }
+  }
+
+  async getRecurrence(params: { faultTemplateId?: string; machineSystemDetailId?: string; tenLoi?: string }): Promise<ApiResponse<FaultRecurrenceResponse>> {
+    try {
+      const queryParams: Record<string, string> = {};
+      if (params.faultTemplateId) queryParams.faultTemplateId = params.faultTemplateId;
+      if (params.machineSystemDetailId) queryParams.machineSystemDetailId = params.machineSystemDetailId;
+      if (params.tenLoi) queryParams.tenLoi = params.tenLoi;
+      return await apiClient.get<FaultRecurrenceResponse>('/fault-records/recurrence', {
+        params: queryParams,
+      });
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi kiểm tra tái phát'));
+    }
+  }
+
+  async getStats(machineSystemId?: string): Promise<ApiResponse<FaultStatsResponse>> {
+    try {
+      const params: Record<string, string> = {};
+      if (machineSystemId) params.machineSystemId = machineSystemId;
+      return await apiClient.get<FaultStatsResponse>('/fault-records/stats', { params });
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi lấy thống kê lỗi'));
+    }
+  }
+
+  async getHeatmap(machineSystemId?: string): Promise<ApiResponse<FaultHeatmapResponse>> {
+    try {
+      const params: Record<string, string> = {};
+      if (machineSystemId) params.machineSystemId = machineSystemId;
+      return await apiClient.get<FaultHeatmapResponse>('/fault-records/heatmap', { params });
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi lấy dữ liệu heatmap'));
     }
   }
 
