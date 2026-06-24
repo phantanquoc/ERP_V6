@@ -10,16 +10,8 @@ import CreateTaskModal from '../components/CreateTaskModal';
 import CreateWorkPlanModal from '../components/CreateWorkPlanModal';
 import OvertimePlanListModal from '../components/OvertimePlanListModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
-import LeaveRequestModal from '../components/LeaveRequestModal';
-import AttendanceHistoryModal from '../components/AttendanceHistoryModal';
-import PersonalInfoModal from '../components/PersonalInfoModal';
-import DailyWorkReportListModal from '../components/DailyWorkReportListModal';
-import TaskListModal from '../components/TaskListModal';
-import WorkPlanListModal from '../components/WorkPlanListModal';
-import EmployeeSelfEvaluationModal from '../components/EmployeeSelfEvaluationModal';
 import {
   FileText, Settings, Users, Briefcase, MessageSquare, AlertTriangle, Plus, Trash2,
-  Calendar, Clock, UserCircle, ClipboardList, Target, CheckSquare, Award,
 } from 'lucide-react';
 import {
   repairRequestSchema, generalRequestSchema,
@@ -62,15 +54,6 @@ const CommonManagement = () => {
   const [feedbackType, setFeedbackType]                 = useState<FeedbackType>('GOP_Y');
   const [isSubmitting, setIsSubmitting]                 = useState(false);
 
-  // Personal modals
-  const [isLeaveRequestOpen, setIsLeaveRequestOpen]         = useState(false);
-  const [isAttendanceHistoryOpen, setIsAttendanceHistoryOpen] = useState(false);
-  const [isPersonalInfoOpen, setIsPersonalInfoOpen]         = useState(false);
-  const [isDailyReportOpen, setIsDailyReportOpen]           = useState(false);
-  const [isTaskListOpen, setIsTaskListOpen]                 = useState(false);
-  const [isWorkPlanListOpen, setIsWorkPlanListOpen]         = useState(false);
-  const [isSelfEvaluationOpen, setIsSelfEvaluationOpen]     = useState(false);
-
   // Multi-item repair state
   const [repairItems, setRepairItems] = useState<RepairItemRow[]>([emptyRepairItem()]);
   const [repairItemErrors, setRepairItemErrors] = useState<{ [key: string]: string }>({});
@@ -99,29 +82,14 @@ const CommonManagement = () => {
 
   const categories = [
     {
-      title: 'Hồ sơ & yêu cầu cá nhân',
-      description: 'Hồ sơ, điểm danh, nghỉ phép và công việc của bạn',
+      title: 'Đã ban hành',
       items: [
-        { id: 'thong_tin_ca_nhan',  title: 'Thông tin cá nhân',       icon: <UserCircle    className="h-6 w-6" />, color: 'bg-violet-500',   description: 'Xem và cập nhật hồ sơ chi tiết của bạn' },
-        { id: 'xin_nghi_phep',      title: 'Xin nghỉ phép',           icon: <Calendar      className="h-6 w-6" />, color: 'bg-orange-500',   description: 'Đăng ký đơn nghỉ phép và theo dõi trạng thái' },
-        { id: 'lich_su_cham_cong',  title: 'Lịch sử chấm công',       icon: <Clock         className="h-6 w-6" />, color: 'bg-sky-500',      description: 'Xem lịch sử quẹt thẻ và thống kê công của bạn' },
-        { id: 'bao_cao_cong_viec',  title: 'Báo cáo công việc',       icon: <ClipboardList className="h-6 w-6" />, color: 'bg-emerald-500',  description: 'Gửi và xem báo cáo công việc hàng ngày' },
-        { id: 'nhiem_vu_cua_toi',   title: 'Nhiệm vụ của tôi',        icon: <Target        className="h-6 w-6" />, color: 'bg-blue-500',     description: 'Danh sách nhiệm vụ được giao cho bạn' },
-        { id: 'ke_hoach_cua_toi',   title: 'Kế hoạch của tôi',        icon: <CheckSquare   className="h-6 w-6" />, color: 'bg-green-500',    description: 'Danh sách kế hoạch công việc của bạn' },
-        { id: 'tu_danh_gia',        title: 'Tự đánh giá hiệu quả',    icon: <Award         className="h-6 w-6" />, color: 'bg-purple-500',   description: 'Tự đánh giá hiệu quả công việc theo kỳ' },
-      ],
-    },
-    {
-      title: 'Tạo nhiệm vụ và kế hoạch công việc',
-      description: 'Phân công nhiệm vụ và lập kế hoạch cho phòng ban',
-      items: [
-        { id: 'nhiem_vu', title: 'Tạo nhiệm vụ',          icon: <Users    className="h-6 w-6" />, color: 'bg-indigo-500', description: 'Tạo và phân công nhiệm vụ cho nhân viên' },
-        { id: 'ke_hoach', title: 'Tạo kế hoạch công việc', icon: <FileText className="h-6 w-6" />, color: 'bg-teal-500',   description: 'Lập kế hoạch công việc theo thời gian' },
+        { id: 'ds_gop_y',    title: 'Danh sách quy trình',       icon: <MessageSquare className="h-6 w-6" />, color: 'bg-pink-500',   description: 'Xem danh sách quy trình đã ban hành' },
+        { id: 'ds_cuoc_hop', title: 'Danh sách các cuộc họp',    icon: <AlertTriangle  className="h-6 w-6" />, color: 'bg-red-500',    description: 'Xem lịch sử và kết quả các cuộc họp' },
       ],
     },
     {
       title: 'Tạo yêu cầu',
-      description: 'Đề xuất sửa chữa, bổ sung vật tư và tăng ca',
       items: [
         { id: 'yeu_cau_sua_chua',   title: 'Tạo phiếu yêu cầu sửa chữa kiểm tra',    icon: <Settings   className="h-6 w-6" />, color: 'bg-blue-500',   description: 'Yêu cầu sửa chữa thiết bị, máy móc hoặc cơ sở vật chất' },
         { id: 'yeu_cau_bo_sung',    title: 'Tạo yêu cầu bổ sung/cung cấp',            icon: <Plus       className="h-6 w-6" />, color: 'bg-green-500',  description: 'Yêu cầu bổ sung vật tư, thiết bị hoặc nhân lực' },
@@ -130,16 +98,14 @@ const CommonManagement = () => {
       ],
     },
     {
-      title: 'Đã ban hành',
-      description: 'Tài liệu, quy trình và cuộc họp đã ban hành',
+      title: 'Tạo nhiệm vụ và kế hoạch công việc',
       items: [
-        { id: 'ds_gop_y',    title: 'Danh sách quy trình',       icon: <MessageSquare className="h-6 w-6" />, color: 'bg-pink-500',   description: 'Xem danh sách quy trình đã ban hành' },
-        { id: 'ds_cuoc_hop', title: 'Danh sách các cuộc họp',    icon: <AlertTriangle  className="h-6 w-6" />, color: 'bg-red-500',    description: 'Xem lịch sử và kết quả các cuộc họp' },
+        { id: 'nhiem_vu', title: 'Tạo nhiệm vụ',          icon: <Users    className="h-6 w-6" />, color: 'bg-indigo-500', description: 'Tạo và phân công nhiệm vụ cho nhân viên' },
+        { id: 'ke_hoach', title: 'Tạo kế hoạch công việc', icon: <FileText className="h-6 w-6" />, color: 'bg-teal-500',   description: 'Lập kế hoạch công việc theo thời gian' },
       ],
     },
     {
-      title: 'Góp ý & khó khăn',
-      description: 'Gửi góp ý riêng và báo cáo khó khăn trong công việc',
+      title: 'Góp ý riêng',
       items: [
         { id: 'gop_y',       title: 'Góp ý riêng', icon: <MessageSquare className="h-6 w-6" />, color: 'bg-pink-500', description: 'Gửi góp ý, đề xuất cải tiến' },
         { id: 'neu_kho_khan', title: 'Nêu khó khăn', icon: <AlertTriangle className="h-6 w-6" />, color: 'bg-red-500',  description: 'Báo cáo khó khăn trong công việc' },
@@ -151,13 +117,6 @@ const CommonManagement = () => {
     categories.flatMap(c => c.items).find(i => i.id === type)?.title || '';
 
   const handleCategorySelect = (id: string) => {
-    if (id === 'thong_tin_ca_nhan')  { setIsPersonalInfoOpen(true); return; }
-    if (id === 'xin_nghi_phep')      { setIsLeaveRequestOpen(true); return; }
-    if (id === 'lich_su_cham_cong')  { setIsAttendanceHistoryOpen(true); return; }
-    if (id === 'bao_cao_cong_viec')  { setIsDailyReportOpen(true); return; }
-    if (id === 'nhiem_vu_cua_toi')   { setIsTaskListOpen(true); return; }
-    if (id === 'ke_hoach_cua_toi')   { setIsWorkPlanListOpen(true); return; }
-    if (id === 'tu_danh_gia')        { setIsSelfEvaluationOpen(true); return; }
     if (id === 'ds_gop_y')          { setIsProcessListOpen(true); return; }
     if (id === 'ds_cuoc_hop')        { alert('Chức năng đang bảo trì, vui lòng quay lại sau!'); return; }
     if (id === 'de_nghi_dieu_chinh') { alert('Chức năng đang bảo trì, vui lòng quay lại sau!'); return; }
@@ -285,7 +244,7 @@ const CommonManagement = () => {
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 sm:p-6 rounded-lg">
         <h1 className="text-xl sm:text-2xl font-bold">Chung</h1>
         <p className="text-blue-100 text-sm sm:text-base mt-1 sm:mt-2">
-          Hồ sơ cá nhân, yêu cầu, nhiệm vụ và công việc chung — {user.lastName} {user.firstName}
+          Tạo yêu cầu, nhiệm vụ và quản lý công việc chung — {user.lastName} {user.firstName}
         </p>
       </div>
 
@@ -293,12 +252,7 @@ const CommonManagement = () => {
       <div className="space-y-6 sm:space-y-8">
         {categories.map((cat, i) => (
           <div key={i} className="space-y-2 sm:space-y-3">
-            <div>
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">{cat.title}</h2>
-              {cat.description && (
-                <p className="text-xs sm:text-sm text-gray-500 mt-0.5">{cat.description}</p>
-              )}
-            </div>
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">{cat.title}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {cat.items.map((item) => (
                 <button
@@ -548,43 +502,6 @@ const CommonManagement = () => {
         onClose={() => setIsFeedbackModalOpen(false)}
         type={feedbackType}
         onSuccess={() => {}}
-      />
-
-      {/* ── Hồ sơ & yêu cầu cá nhân ── */}
-      <PersonalInfoModal
-        isOpen={isPersonalInfoOpen}
-        onClose={() => setIsPersonalInfoOpen(false)}
-      />
-      <LeaveRequestModal
-        isOpen={isLeaveRequestOpen}
-        onClose={() => setIsLeaveRequestOpen(false)}
-        showBackdrop={true}
-      />
-      <AttendanceHistoryModal
-        isOpen={isAttendanceHistoryOpen}
-        onClose={() => setIsAttendanceHistoryOpen(false)}
-        employeeId={user.employeeId}
-        employeeName={`${user.lastName || ''} ${user.firstName || ''}`.trim()}
-      />
-      <DailyWorkReportListModal
-        isOpen={isDailyReportOpen}
-        onClose={() => setIsDailyReportOpen(false)}
-      />
-      <TaskListModal
-        isOpen={isTaskListOpen}
-        onClose={() => setIsTaskListOpen(false)}
-      />
-      <WorkPlanListModal
-        isOpen={isWorkPlanListOpen}
-        onClose={() => setIsWorkPlanListOpen(false)}
-      />
-      <EmployeeSelfEvaluationModal
-        isOpen={isSelfEvaluationOpen}
-        onClose={() => setIsSelfEvaluationOpen(false)}
-        evaluationId={null}
-        employeeId={user?.employeeId || null}
-        month={new Date().getMonth() + 1}
-        year={new Date().getFullYear()}
       />
     </div>
   );
