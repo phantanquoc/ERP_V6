@@ -509,6 +509,21 @@ const entries: NotificationEventDef[] = [
     }),
     resolveRecipients: resolveDirectRecipients,
   },
+
+  // ── Fault Record Recurrence ──
+  {
+    event: NotificationEvent.FAULT_RECURRENCE_THRESHOLD,
+    notificationType: NotificationType.FAULT_RECORD,
+    buildMessage: (ctx) => ({
+      title: 'Lỗi tái phát nhiều lần',
+      message: `Lỗi "${ctx.metadata?.tenLoi ?? ''}" đã xảy ra ${ctx.metadata?.count ?? 0} lần trên thiết bị. Vui lòng kiểm tra.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
 ];
 
 /* ─── Build Registry Map ───────────────────────────────────────────────────── */

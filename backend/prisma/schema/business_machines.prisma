@@ -201,6 +201,7 @@ model FaultRecord {
   trangThai             String   @default("Đang theo dõi") // Đang theo dõi / Đã xử lý / Tái phát
   nguoiPhatHien         String
   ngayPhatHien          DateTime @default(now())
+  ngayXuLy              DateTime?
   fileDinhKem           String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
