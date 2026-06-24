@@ -37,12 +37,26 @@ class FaultTemplateController {
     }
   }
 
+  // Task 4.1: getSummary controller method
+  async getSummary(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const summary = await faultTemplateService.getSummary(req.params.id);
+      res.json({ success: true, data: summary });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const repairSteps = req.body.repairSteps
+        ? (typeof req.body.repairSteps === 'string' ? JSON.parse(req.body.repairSteps) : req.body.repairSteps)
+        : undefined;
       const template = await faultTemplateService.create({
         ...req.body,
         hoatDong: parseBoolean(req.body.hoatDong),
         fileDinhKem: req.file ? getFileUrl('fault-templates', req.file.filename) : undefined,
+        repairSteps,
       });
       res.status(201).json({ success: true, data: template, message: 'Tạo mẫu lỗi thành công' });
     } catch (error) {
@@ -52,10 +66,14 @@ class FaultTemplateController {
 
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const repairSteps = req.body.repairSteps !== undefined
+        ? (typeof req.body.repairSteps === 'string' ? JSON.parse(req.body.repairSteps) : req.body.repairSteps)
+        : undefined;
       const template = await faultTemplateService.update(req.params.id, {
         ...req.body,
         hoatDong: parseBoolean(req.body.hoatDong),
         fileDinhKem: req.file ? getFileUrl('fault-templates', req.file.filename) : undefined,
+        repairSteps,
       });
       res.json({ success: true, data: template, message: 'Cập nhật mẫu lỗi thành công' });
     } catch (error) {

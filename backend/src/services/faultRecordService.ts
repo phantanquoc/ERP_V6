@@ -14,8 +14,18 @@ const RECURRENCE_NOTIFICATION_THRESHOLD = 3;
 const SEVERITY_KEYS = ['Nghiêm trọng', 'Trung bình', 'Nhẹ'] as const;
 const STATUS_KEYS = ['Đang theo dõi', 'Đã xử lý', 'Tái phát'] as const;
 
+// Roles allowed to auto-create templates (canMutate gate)
+const CAN_MUTATE_ROLES = ['ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'];
+
 type SeverityKey = typeof SEVERITY_KEYS[number];
 type StatusKey = typeof STATUS_KEYS[number];
+
+export interface RepairStepInput {
+  moTa: string;
+  thoiGianUocTinh?: number | null;
+  dungCu?: string | null;
+  ghiChu?: string | null;
+}
 
 interface CreateFaultRecordData {
   tenLoi?: string;
@@ -29,6 +39,10 @@ interface CreateFaultRecordData {
   nguoiPhatHien: string;
   ngayPhatHien?: Date;
   fileDinhKem?: string;
+  // Task 3.1: userRole for canMutate gate
+  userRole?: string;
+  // Task 3.2: repairSteps for auto-create scenario
+  repairSteps?: RepairStepInput[];
 }
 
 interface UpdateFaultRecordData {
@@ -48,7 +62,13 @@ interface UpdateFaultRecordData {
 const faultRecordInclude = {
   machineSystem: true,
   machineSystemDetail: true,
-  faultTemplate: true,
+  faultTemplate: {
+    include: {
+      repairSteps: {
+        orderBy: { stepNumber: 'asc' },
+      },
+    },
+  },
 } satisfies Prisma.FaultRecordInclude;
 
 const faultRecordListSelect = {
@@ -206,6 +226,74 @@ class FaultRecordService {
 
   async createFaultRecord(data: CreateFaultRecordData) {
     const maLoi = await this.generateFaultCode();
+
+    // Task 3.1: Auto-create template for canMutate roles when no faultTemplateId provided
+    const canMutate = data.userRole ? CAN_MUTATE_ROLES.includes(data.userRole) : false;
+    const shouldAutoCreate = !data.faultTemplateId && canMutate && data.tenLoi && data.mucDo;
+
+    if (shouldAutoCreate) {
+      const tenLoi = data.tenLoi!;
+      const mucDo = data.mucDo!;
+
+      return prisma.$transaction(async (tx) => {
+        // Generate template code in transaction
+        const year = new Date().getFullYear();
+        const lastTemplate = await tx.faultTemplate.findFirst({
+          where: { maMauLoi: yearlyCodeWhere('ML', year) },
+          orderBy: { maMauLoi: 'desc' },
+          select: { maMauLoi: true },
+        });
+        const maMauLoi = nextYearlyCode(lastTemplate?.maMauLoi ?? null, 'ML', year);
+
+        const template = await tx.faultTemplate.create({
+          data: {
+            maMauLoi,
+            tenMauLoi: tenLoi,
+            moTa: data.moTa ?? tenLoi,
+            mucDo,
+            machineSystemId: data.machineSystemId ?? null,
+            machineSystemDetailId: data.machineSystemDetailId ?? null,
+            hoatDong: true,
+            trangThai: 'Hoạt động',
+          },
+        });
+
+        // Task 3.2: create RepairSteps on auto-created template
+        if (data.repairSteps && data.repairSteps.length > 0) {
+          await tx.repairStep.createMany({
+            data: data.repairSteps.map((step, index) => ({
+              faultTemplateId: template.id,
+              stepNumber: index + 1,
+              moTa: step.moTa,
+              thoiGianUocTinh: step.thoiGianUocTinh ?? null,
+              dungCu: step.dungCu ?? null,
+              ghiChu: step.ghiChu ?? null,
+            })),
+          });
+        }
+
+        const record = await tx.faultRecord.create({
+          data: {
+            maLoi,
+            tenLoi,
+            moTa: data.moTa ?? tenLoi,
+            maHeThong: data.maHeThong ?? null,
+            machineSystemId: data.machineSystemId ?? null,
+            machineSystemDetailId: data.machineSystemDetailId ?? null,
+            faultTemplateId: template.id,
+            mucDo,
+            trangThai: data.trangThai ?? 'Đang theo dõi',
+            nguoiPhatHien: data.nguoiPhatHien,
+            ngayPhatHien: data.ngayPhatHien ?? new Date(),
+            fileDinhKem: data.fileDinhKem ?? null,
+          },
+          include: faultRecordInclude,
+        });
+
+        return record;
+      });
+    }
+
     const context = await this.resolveMachineContext(data);
     const tenLoi = data.tenLoi ?? context.template?.tenMauLoi;
     const mucDo = data.mucDo ?? context.template?.mucDo;

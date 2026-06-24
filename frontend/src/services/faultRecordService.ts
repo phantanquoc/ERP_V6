@@ -1,6 +1,6 @@
 import apiClient, { ApiResponse } from './apiClient';
 import { API_BASE_URL } from '../config/api';
-import type { FaultTemplate } from './faultTemplateService';
+import type { FaultTemplate, RepairStepInput } from './faultTemplateService';
 import type { MachineSystem, MachineSystemDetail, SortOrder } from './machineSystemService';
 
 export interface FaultRecord {
@@ -95,6 +95,7 @@ export interface CreateFaultRecordRequest {
   trangThai?: string;
   nguoiPhatHien: string;
   ngayPhatHien?: string;
+  repairSteps?: RepairStepInput[];
 }
 
 export type UpdateFaultRecordRequest = Partial<CreateFaultRecordRequest>;
@@ -125,6 +126,10 @@ export interface FaultRecordFilters {
 const appendFormFields = (formData: FormData, data: Record<string, unknown>) => {
   Object.entries(data).forEach(([key, value]) => {
     if (value === undefined) return;
+    if (Array.isArray(value)) {
+      formData.append(key, JSON.stringify(value));
+      return;
+    }
     formData.append(key, value === null ? '' : String(value));
   });
 };

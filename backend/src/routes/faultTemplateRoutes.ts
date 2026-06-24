@@ -11,6 +11,8 @@ const technicalAccess = requireTechnicalAccess(TECHNICAL_SUB_DEPARTMENT_CODES.ME
 router.use(authenticate);
 
 router.get('/', technicalAccess, faultTemplateController.list.bind(faultTemplateController));
+// Task 4.2: summary route must be registered BEFORE /:id to avoid route shadowing
+router.get('/:id/summary', faultTemplateController.getSummary.bind(faultTemplateController));
 router.get('/:id', technicalAccess, faultTemplateController.getById.bind(faultTemplateController));
 router.post('/', technicalAccess, upload, faultTemplateController.create.bind(faultTemplateController));
 router.put('/:id', technicalAccess, upload, faultTemplateController.update.bind(faultTemplateController));

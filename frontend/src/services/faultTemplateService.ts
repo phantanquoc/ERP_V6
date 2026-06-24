@@ -1,6 +1,25 @@
 import apiClient, { ApiResponse } from './apiClient';
 import type { MachineSystem, MachineSystemDetail, SortOrder } from './machineSystemService';
 
+export interface RepairStep {
+  id: string;
+  faultTemplateId: string;
+  stepNumber: number;
+  moTa: string;
+  thoiGianUocTinh?: number | null;
+  dungCu?: string | null;
+  ghiChu?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RepairStepInput {
+  moTa: string;
+  thoiGianUocTinh?: number | null;
+  dungCu?: string | null;
+  ghiChu?: string | null;
+}
+
 export interface FaultTemplate {
   id: string;
   maMauLoi: string;
@@ -20,6 +39,36 @@ export interface FaultTemplate {
   _count?: {
     faultRecords: number;
   };
+  repairSteps?: RepairStep[];
+}
+
+export interface FaultTemplateSummaryRecord {
+  id: string;
+  maLoi: string;
+  tenLoi: string;
+  mucDo: string;
+  trangThai: string;
+  ngayPhatHien: string;
+  nguoiPhatHien: string;
+  machineSystem?: { tenHeThong: string; maHeThong: string } | null;
+  machineSystemDetail?: { tenChiTiet: string } | null;
+}
+
+export interface FaultTemplateSummary {
+  id: string;
+  maMauLoi: string;
+  tenMauLoi: string;
+  moTa: string;
+  mucDo: string;
+  hoatDong: boolean;
+  trangThai: string;
+  ghiChu?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  repairSteps: RepairStep[];
+  totalRecords: number;
+  recentRecords: FaultTemplateSummaryRecord[];
+  monthlyTimeline: Array<{ month: string; count: number }>;
 }
 
 export interface FaultTemplateFilters {
@@ -46,6 +95,7 @@ export interface CreateFaultTemplateRequest {
   hoatDong?: boolean;
   trangThai?: string;
   ghiChu?: string;
+  repairSteps?: RepairStepInput[];
 }
 
 export type UpdateFaultTemplateRequest = Partial<CreateFaultTemplateRequest>;
@@ -53,6 +103,10 @@ export type UpdateFaultTemplateRequest = Partial<CreateFaultTemplateRequest>;
 const appendFormFields = (formData: FormData, data: Record<string, unknown>) => {
   Object.entries(data).forEach(([key, value]) => {
     if (value === undefined) return;
+    if (key === 'repairSteps') {
+      formData.append(key, JSON.stringify(value));
+      return;
+    }
     formData.append(key, value === null ? '' : String(value));
   });
 };
@@ -78,6 +132,10 @@ class FaultTemplateService {
 
   async getById(id: string): Promise<ApiResponse<FaultTemplate>> {
     return apiClient.get<FaultTemplate>(`/fault-templates/${id}`);
+  }
+
+  async getSummary(id: string): Promise<ApiResponse<FaultTemplateSummary>> {
+    return apiClient.get<FaultTemplateSummary>(`/fault-templates/${id}/summary`);
   }
 
   async create(data: CreateFaultTemplateRequest, file?: File): Promise<ApiResponse<FaultTemplate>> {
