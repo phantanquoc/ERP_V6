@@ -15,6 +15,8 @@ interface AttendanceRecord {
   stt: number;
   id: string;
   ids: string[];
+  regularIds?: string[];
+  overtimeIds?: string[];
   employeeCode: string;
   employeeName: string;
   positionName: string;
@@ -26,6 +28,16 @@ interface AttendanceRecord {
   workHours: number;
   status: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME';
   notes: string | null;
+  // Split fields — new from backend
+  regularStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME' | null;
+  regularHours?: number;
+  regularCheckInTimes?: string[];
+  regularCheckOutTimes?: string[];
+  overtimeHours?: number;
+  overtimeCheckInTimes?: string[];
+  overtimeCheckOutTimes?: string[];
+  hasOvertime?: boolean;
+  overtimeNotes?: string | null;
 }
 
 // Each individual attendance entry in the edit modal
@@ -221,21 +233,50 @@ const AttendanceManagement: React.FC = () => {
       return `${hours}:${minutes}`;
     };
 
-    // Build entries for each record id
-    const entries: EditEntry[] = record.ids.map((id, index) => ({
-      id,
-      checkInTime: getLocalTimeString(record.checkInTimes[index] ?? null),
-      checkOutTime: getLocalTimeString(record.checkOutTimes[index] ?? null),
-      status: record.status,
-      notes: '',
-    }));
+    // Build entries by mapping regular IDs to regular times, overtime IDs to overtime times
+    const regularIds = record.regularIds || [];
+    const overtimeIds = record.overtimeIds || [];
+    const regularCheckIns = record.regularCheckInTimes || [];
+    const regularCheckOuts = record.regularCheckOutTimes || [];
+    const overtimeCheckIns = record.overtimeCheckInTimes || [];
+    const overtimeCheckOuts = record.overtimeCheckOutTimes || [];
+    const regularNotesParts = record.notes ? record.notes.split('; ') : [];
+    const overtimeNotesParts = record.overtimeNotes ? record.overtimeNotes.split('; ') : [];
 
-    // Parse notes - the backend joins them with '; '
-    if (record.notes) {
-      const notesParts = record.notes.split('; ');
-      entries.forEach((entry, index) => {
-        entry.notes = notesParts[index] || '';
+    const entries: EditEntry[] = [
+      ...regularIds.map((id, index) => ({
+        id,
+        checkInTime: getLocalTimeString(regularCheckIns[index] ?? null),
+        checkOutTime: getLocalTimeString(regularCheckOuts[index] ?? null),
+        status: (record.regularStatus || 'PRESENT') as EditEntry['status'],
+        notes: regularNotesParts[index] || '',
+      })),
+      ...overtimeIds.map((id, index) => ({
+        id,
+        checkInTime: getLocalTimeString(overtimeCheckIns[index] ?? null),
+        checkOutTime: getLocalTimeString(overtimeCheckOuts[index] ?? null),
+        status: 'OVERTIME' as EditEntry['status'],
+        notes: overtimeNotesParts[index] || '',
+      })),
+    ];
+
+    // Fallback: if no split IDs available, use old flat mapping
+    if (entries.length === 0 && record.ids.length > 0) {
+      record.ids.forEach((id, index) => {
+        entries.push({
+          id,
+          checkInTime: getLocalTimeString(record.checkInTimes[index] ?? null),
+          checkOutTime: getLocalTimeString(record.checkOutTimes[index] ?? null),
+          status: record.status,
+          notes: '',
+        });
       });
+      if (record.notes) {
+        const notesParts = record.notes.split('; ');
+        entries.forEach((entry, index) => {
+          entry.notes = notesParts[index] || '';
+        });
+      }
     }
 
     setEditEntries(entries);
@@ -620,56 +661,93 @@ const AttendanceManagement: React.FC = () => {
                   </thead>
                   <tbody>
                     {paginatedAttendances.map((record, index) => (
-                      <tr
-                        key={record.id}
-                        className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
-                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                        }`}
-                      >
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 border-r border-gray-200">
-                          <div className="text-sm font-medium text-gray-900">{record.employeeName}</div>
-                          <div className="text-xs text-gray-500">{record.employeeCode} &middot; {record.positionName}</div>
-                        </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
-                          {formatDateWithWeekday(record.attendanceDate)}
-                        </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
-                          {formatTimes(record.checkInTimes)}
-                        </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
-                          {formatTimes(record.checkOutTimes)}
-                        </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
-                          {record.workHours.toFixed(2)}
-                        </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 text-center border-r border-gray-200">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[record.status] || ''}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[record.status] || ''}`}></span>
-                            {getStatusLabel(record.status)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">
-                          {record.notes || '-'}
-                        </td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4">
-                          <div className="flex items-center justify-center gap-3">
-                            <button
-                              onClick={() => handleEdit(record)}
-                              className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                              title="Chỉnh sửa"
-                            >
-                              <Edit2 className="w-5 h-5" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(record.id)}
-                              className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                              title="Xóa"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                      <React.Fragment key={record.id}>
+                        <tr
+                          className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                          }`}
+                        >
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 border-r border-gray-200">
+                            <div className="text-sm font-medium text-gray-900">{record.employeeName}</div>
+                            <div className="text-xs text-gray-500">{record.employeeCode} &middot; {record.positionName}</div>
+                          </td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
+                            {formatDateWithWeekday(record.attendanceDate)}
+                          </td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
+                            {formatTimes(record.regularStatus ? (record.regularCheckInTimes ?? record.checkInTimes) : (record.overtimeCheckInTimes ?? []))}
+                          </td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
+                            {formatTimes(record.regularStatus ? (record.regularCheckOutTimes ?? record.checkOutTimes) : (record.overtimeCheckOutTimes ?? []))}
+                          </td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
+                            {(record.regularStatus ? (record.regularHours ?? record.workHours) : (record.overtimeHours ?? record.workHours)).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 text-center border-r border-gray-200">
+                            {record.regularStatus ? (
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[record.regularStatus] || ''}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[record.regularStatus] || ''}`}></span>
+                                {getStatusLabel(record.regularStatus)}
+                              </span>
+                            ) : (
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[record.status] || ''}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[record.status] || ''}`}></span>
+                                {getStatusLabel(record.status)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">
+                            {record.notes || '-'}
+                          </td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4">
+                            <div className="flex items-center justify-center gap-3">
+                              <button
+                                onClick={() => handleEdit(record)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                                title="Chỉnh sửa"
+                              >
+                                <Edit2 className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(record.id)}
+                                className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                                title="Xóa"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {record.hasOvertime && record.regularStatus && (
+                          <tr className={`border-b border-gray-200 bg-purple-50/40`}>
+                            <td className="px-3 py-2 sm:px-6 border-r border-gray-200 pl-8">
+                              <div className="text-xs italic text-purple-700">Tăng ca</div>
+                            </td>
+                            <td className="px-3 py-2 sm:px-6 text-xs text-gray-500 italic border-r border-gray-200">
+                              {formatDateWithWeekday(record.attendanceDate)}
+                            </td>
+                            <td className="px-3 py-2 sm:px-6 text-xs text-gray-700 italic border-r border-gray-200">
+                              {formatTimes(record.overtimeCheckInTimes ?? [])}
+                            </td>
+                            <td className="px-3 py-2 sm:px-6 text-xs text-gray-700 italic border-r border-gray-200">
+                              {formatTimes(record.overtimeCheckOutTimes ?? [])}
+                            </td>
+                            <td className="px-3 py-2 sm:px-6 text-xs text-gray-700 italic border-r border-gray-200">
+                              {(record.overtimeHours ?? 0).toFixed(2)}
+                            </td>
+                            <td className="px-3 py-2 sm:px-6 text-center border-r border-gray-200">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                Tăng ca
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 sm:px-6 text-xs text-gray-500 italic border-r border-gray-200">
+                              {record.overtimeNotes || '-'}
+                            </td>
+                            <td className="px-3 py-2 sm:px-6"></td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -771,20 +849,28 @@ const AttendanceManagement: React.FC = () => {
                           {calendarData.days.map((day) => {
                             const dateKey = toLocalDateKey(day);
                             const record = calendarData.records.get(`${emp.code}_${dateKey}`);
+
+                            // Determine what to render for this cell
+                            const isSplit = !!(record?.hasOvertime && record?.regularStatus);
                             let letter = '';
                             let cellClass = '';
+                            let regularColor = '';
+                            let regularTextColor = '';
+                            const overtimeColor = '#f3e8ff'; // purple-100
+
                             if (record) {
-                              switch (record.status) {
+                              const effectiveStatus = record.regularStatus ?? record.status;
+                              switch (effectiveStatus) {
                                 case 'PRESENT':
-                                  letter = 'Đ'; cellClass = 'bg-green-100 text-green-700'; presentDays++; break;
+                                  letter = 'Đ'; cellClass = 'bg-green-100 text-green-700'; regularColor = '#dcfce7'; regularTextColor = '#15803d'; presentDays++; break;
                                 case 'LATE':
-                                  letter = 'M'; cellClass = 'bg-amber-100 text-amber-700'; presentDays++; break;
+                                  letter = 'M'; cellClass = 'bg-amber-100 text-amber-700'; regularColor = '#fef3c7'; regularTextColor = '#b45309'; presentDays++; break;
                                 case 'ABSENT':
-                                  letter = 'V'; cellClass = 'bg-red-100 text-red-700'; break;
+                                  letter = 'V'; cellClass = 'bg-red-100 text-red-700'; regularColor = '#fee2e2'; regularTextColor = '#b91c1c'; break;
                                 case 'ON_LEAVE':
-                                  letter = 'N'; cellClass = 'bg-blue-100 text-blue-700'; break;
+                                  letter = 'N'; cellClass = 'bg-blue-100 text-blue-700'; regularColor = '#dbeafe'; regularTextColor = '#1d4ed8'; break;
                                 case 'OVERTIME':
-                                  letter = 'T'; cellClass = 'bg-purple-100 text-purple-700'; presentDays++; break;
+                                  letter = 'T'; cellClass = 'bg-purple-100 text-purple-700'; regularColor = '#f3e8ff'; regularTextColor = '#7e22ce'; presentDays++; break;
                               }
                             }
                             return (
@@ -812,11 +898,20 @@ const AttendanceManagement: React.FC = () => {
                                   }
                                 }}
                               >
-                                {letter && (
+                                {record && isSplit ? (
+                                  // Split diagonal: top-left = regular color, bottom-right = overtime purple
+                                  <span
+                                    className="inline-flex items-center justify-center w-7 h-7 rounded text-xs font-medium relative overflow-hidden border border-gray-300"
+                                    style={{ background: `linear-gradient(to bottom right, ${regularColor} 50%, ${overtimeColor} 50%)` }}
+                                  >
+                                    <span className="absolute top-0 left-0.5 text-[9px] font-bold leading-none" style={{ color: regularTextColor }}>{letter}</span>
+                                    <span className="absolute bottom-0 right-0.5 text-[9px] font-bold leading-none text-purple-700">T</span>
+                                  </span>
+                                ) : letter ? (
                                   <span className={`inline-flex items-center justify-center w-6 h-6 rounded text-xs font-medium ${cellClass}`}>
                                     {letter}
                                   </span>
-                                )}
+                                ) : null}
                               </td>
                             );
                           })}
@@ -925,9 +1020,11 @@ const AttendanceManagement: React.FC = () => {
                   </label>
                   <div className="max-h-80 overflow-y-auto space-y-3 pr-1">
                     {editEntries.map((entry, index) => (
-                      <div key={entry.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <div key={entry.id} className={`border rounded-lg p-3 ${entry.status === 'OVERTIME' ? 'border-purple-300 bg-purple-50' : 'border-gray-200 bg-gray-50'}`}>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-semibold text-blue-600">Lần {index + 1}</span>
+                          <span className={`text-sm font-semibold ${entry.status === 'OVERTIME' ? 'text-purple-600' : 'text-blue-600'}`}>
+                            {entry.status === 'OVERTIME' ? `Tăng ca ${index + 1}` : `Ca ${index + 1}`}
+                          </span>
                         </div>
                         <div className="grid grid-cols-2 gap-3 mb-2">
                           <div>
@@ -1080,29 +1177,101 @@ const AttendanceManagement: React.FC = () => {
               <button onClick={() => setCalendarModal(null)} className="text-white hover:text-gray-200">&#10005;</button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[calendarModal.record.status] || ''}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[calendarModal.record.status] || ''}`}></span>
-                  {STATUS_LABELS[calendarModal.record.status]}
-                </span>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-600">Giờ vào:</span>
-                <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.checkInTimes)}</span>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-600">Giờ ra:</span>
-                <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.checkOutTimes)}</span>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-600">Tổng giờ làm:</span>
-                <span className="ml-2 text-sm text-gray-900">{calendarModal.record.workHours.toFixed(2)} giờ</span>
-              </div>
-              {calendarModal.record.notes && (
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Ghi chú:</span>
-                  <span className="ml-2 text-sm text-gray-900">{calendarModal.record.notes}</span>
+              {/* Section 1: Regular shift */}
+              {calendarModal.record.regularStatus && (
+                <div className="space-y-3">
+                  {calendarModal.record.hasOvertime && (
+                    <h4 className="text-sm font-semibold text-gray-700 border-b pb-1">Ca bình thường</h4>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[calendarModal.record.regularStatus] || ''}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[calendarModal.record.regularStatus] || ''}`}></span>
+                      {STATUS_LABELS[calendarModal.record.regularStatus]}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Giờ vào:</span>
+                    <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.regularCheckInTimes ?? calendarModal.record.checkInTimes)}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Giờ ra:</span>
+                    <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.regularCheckOutTimes ?? calendarModal.record.checkOutTimes)}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Số giờ:</span>
+                    <span className="ml-2 text-sm text-gray-900">{(calendarModal.record.regularHours ?? calendarModal.record.workHours).toFixed(2)} giờ</span>
+                  </div>
+                  {calendarModal.record.notes && (
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Ghi chú:</span>
+                      <span className="ml-2 text-sm text-gray-900">{calendarModal.record.notes}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Show plain view for records without regularStatus split (pure overtime or old data) */}
+              {!calendarModal.record.regularStatus && !calendarModal.record.hasOvertime && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[calendarModal.record.status] || ''}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[calendarModal.record.status] || ''}`}></span>
+                      {STATUS_LABELS[calendarModal.record.status]}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Giờ vào:</span>
+                    <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.checkInTimes)}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Giờ ra:</span>
+                    <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.checkOutTimes)}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Tổng giờ làm:</span>
+                    <span className="ml-2 text-sm text-gray-900">{calendarModal.record.workHours.toFixed(2)} giờ</span>
+                  </div>
+                  {calendarModal.record.notes && (
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Ghi chú:</span>
+                      <span className="ml-2 text-sm text-gray-900">{calendarModal.record.notes}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Section 2: Overtime */}
+              {calendarModal.record.hasOvertime && (
+                <div className="space-y-3 border-t pt-3">
+                  {!calendarModal.record.regularStatus && (
+                    <p className="text-xs text-gray-400 italic">Không có ca bình thường</p>
+                  )}
+                  <h4 className="text-sm font-semibold text-purple-700 border-b border-purple-100 pb-1">Tăng ca</h4>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                      Tăng ca
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Giờ vào:</span>
+                    <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.overtimeCheckInTimes ?? [])}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Giờ ra:</span>
+                    <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.overtimeCheckOutTimes ?? [])}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Số giờ tăng ca:</span>
+                    <span className="ml-2 text-sm text-gray-900">{(calendarModal.record.overtimeHours ?? 0).toFixed(2)} giờ</span>
+                  </div>
+                  {calendarModal.record.overtimeNotes && (
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Ghi chú:</span>
+                      <span className="ml-2 text-sm text-gray-900">{calendarModal.record.overtimeNotes}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1121,7 +1290,14 @@ const AttendanceManagement: React.FC = () => {
           .filter((item): item is { day: Date; record: AttendanceRecord } => item.record !== null);
         const counts = { PRESENT: 0, LATE: 0, ABSENT: 0, ON_LEAVE: 0, OVERTIME: 0 };
         empRecords.forEach(({ record }) => {
-          if (counts[record.status] !== undefined) counts[record.status]++;
+          // Count overtime separately from regular status
+          if (record.hasOvertime) counts.OVERTIME++;
+          if (record.regularStatus && counts[record.regularStatus] !== undefined) {
+            counts[record.regularStatus]++;
+          } else if (!record.regularStatus && !record.hasOvertime && counts[record.status] !== undefined) {
+            // Fallback for records without split fields (old data)
+            counts[record.status]++;
+          }
         });
         return (
           <Modal isOpen onClose={() => setCalendarModal(null)} showBackdrop closeOnBackdrop>
@@ -1156,21 +1332,56 @@ const AttendanceManagement: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {empRecords.map(({ day, record }) => (
-                          <tr key={day.toISOString()} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="px-3 py-2 text-gray-900 whitespace-nowrap">{formatDateObj(day)}</td>
-                            <td className="px-3 py-2 text-center">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[record.status] || ''}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[record.status] || ''}`}></span>
-                                {STATUS_LABELS[record.status]}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-gray-900">{formatTimes(record.checkInTimes)}</td>
-                            <td className="px-3 py-2 text-gray-900">{formatTimes(record.checkOutTimes)}</td>
-                            <td className="px-3 py-2 text-right text-gray-900">{record.workHours.toFixed(2)}</td>
-                            <td className="px-3 py-2 text-gray-700">{record.notes || '-'}</td>
-                          </tr>
-                        ))}
+                        {empRecords.map(({ day, record }) => {
+                          // Determine display data based on split fields
+                          const isPureOvertime = !record.regularStatus && record.hasOvertime;
+                          const hasBoth = !!(record.regularStatus && record.hasOvertime);
+                          const displayStatus = record.regularStatus ?? record.status;
+                          const displayCheckIn = record.regularCheckInTimes ?? record.checkInTimes;
+                          const displayCheckOut = record.regularCheckOutTimes ?? record.checkOutTimes;
+                          const displayHours = record.regularHours ?? record.workHours;
+
+                          return (
+                            <tr key={day.toISOString()} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="px-3 py-2 text-gray-900 whitespace-nowrap">{formatDateObj(day)}</td>
+                              <td className="px-3 py-2 text-center">
+                                {isPureOvertime ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                    Tăng ca
+                                  </span>
+                                ) : (
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[displayStatus] || ''}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[displayStatus] || ''}`}></span>
+                                    {STATUS_LABELS[displayStatus]}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-gray-900">
+                                {isPureOvertime ? formatTimes(record.overtimeCheckInTimes ?? []) : formatTimes(displayCheckIn)}
+                              </td>
+                              <td className="px-3 py-2 text-gray-900">
+                                {isPureOvertime ? formatTimes(record.overtimeCheckOutTimes ?? []) : formatTimes(displayCheckOut)}
+                              </td>
+                              <td className="px-3 py-2 text-right text-gray-900">
+                                {isPureOvertime
+                                  ? (record.overtimeHours ?? 0).toFixed(2)
+                                  : displayHours.toFixed(2)}
+                                {hasBoth && (
+                                  <div className="text-xs text-purple-600 italic">
+                                    +{(record.overtimeHours ?? 0).toFixed(2)} TC
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-gray-700">
+                                {record.notes || '-'}
+                                {hasBoth && record.overtimeNotes && (
+                                  <div className="text-xs text-purple-600 italic">{record.overtimeNotes}</div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

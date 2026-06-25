@@ -61,15 +61,7 @@ export class AttendanceService {
       ],
     });
 
-    // Group by employeeId + attendanceDate so that 1 employee + 1 day = 1 row
-    const statusPriority: Record<string, number> = {
-      ABSENT: 5,
-      LATE: 4,
-      ON_LEAVE: 3,
-      OVERTIME: 2,
-      PRESENT: 1,
-    };
-
+    // Group by employeeId + attendanceDate, separating regular from overtime rows
     const groupMap = new Map<string, any>();
 
     for (const attendance of attendances) {
@@ -79,55 +71,91 @@ export class AttendanceService {
         groupMap.set(key, {
           id: attendance.id,
           ids: [attendance.id],
+          regularIds: !attendance.isOvertime ? [attendance.id] : [],
+          overtimeIds: attendance.isOvertime ? [attendance.id] : [],
           employeeCode: attendance.employee.employeeCode,
           employeeName: `${attendance.employee.user.lastName} ${attendance.employee.user.firstName}`.trim(),
           positionName: attendance.employee.position?.name || '',
           departmentId: attendance.employee.subDepartment?.department?.id || attendance.employee.user.departmentId || null,
           departmentName: attendance.employee.subDepartment?.department?.name || null,
           attendanceDate: attendance.attendanceDate,
-          checkInTimes: attendance.checkInTime ? [attendance.checkInTime] : [],
-          checkOutTimes: attendance.checkOutTime ? [attendance.checkOutTime] : [],
-          workHours: attendance.workHours || 0,
-          status: attendance.status,
-          notes: attendance.notes ? [attendance.notes] : [],
+          // Regular (isOvertime === false) fields
+          regularStatus: !attendance.isOvertime ? attendance.status : null,
+          regularCheckInTimes: (!attendance.isOvertime && attendance.checkInTime) ? [attendance.checkInTime] : [],
+          regularCheckOutTimes: (!attendance.isOvertime && attendance.checkOutTime) ? [attendance.checkOutTime] : [],
+          regularHours: !attendance.isOvertime ? (attendance.workHours || 0) : 0,
+          regularNotes: (!attendance.isOvertime && attendance.notes) ? [attendance.notes] : [],
+          // Overtime (isOvertime === true) fields
+          hasOvertime: attendance.isOvertime,
+          overtimeCheckInTimes: (attendance.isOvertime && attendance.checkInTime) ? [attendance.checkInTime] : [],
+          overtimeCheckOutTimes: (attendance.isOvertime && attendance.checkOutTime) ? [attendance.checkOutTime] : [],
+          overtimeHours: attendance.isOvertime ? (attendance.workHours || 0) : 0,
+          overtimeNotesList: (attendance.isOvertime && attendance.notes) ? [attendance.notes] : [],
         });
       } else {
         const group = groupMap.get(key)!;
         group.ids.push(attendance.id);
-        if (attendance.checkInTime) {
-          group.checkInTimes.push(attendance.checkInTime);
-        }
-        if (attendance.checkOutTime) {
-          group.checkOutTimes.push(attendance.checkOutTime);
-        }
-        group.workHours += attendance.workHours || 0;
-        // Take the most significant status
-        if ((statusPriority[attendance.status] || 0) > (statusPriority[group.status] || 0)) {
-          group.status = attendance.status;
-        }
-        if (attendance.notes) {
-          group.notes.push(attendance.notes);
+
+        if (!attendance.isOvertime) {
+          group.regularIds.push(attendance.id);
+          if (attendance.checkInTime) group.regularCheckInTimes.push(attendance.checkInTime);
+          if (attendance.checkOutTime) group.regularCheckOutTimes.push(attendance.checkOutTime);
+          group.regularHours += attendance.workHours || 0;
+          if (!group.regularStatus) group.regularStatus = attendance.status;
+          if (attendance.notes) group.regularNotes.push(attendance.notes);
+        } else {
+          group.hasOvertime = true;
+          group.overtimeIds.push(attendance.id);
+          if (attendance.checkInTime) group.overtimeCheckInTimes.push(attendance.checkInTime);
+          if (attendance.checkOutTime) group.overtimeCheckOutTimes.push(attendance.checkOutTime);
+          group.overtimeHours += attendance.workHours || 0;
+          if (attendance.notes) group.overtimeNotesList.push(attendance.notes);
         }
       }
     }
 
     // Convert Map values to array, sort times, join notes, assign stt
-    const result = Array.from(groupMap.values()).map((group, index) => ({
-      stt: index + 1,
-      id: group.id,
-      ids: group.ids,
-      employeeCode: group.employeeCode,
-      employeeName: group.employeeName,
-      positionName: group.positionName,
-      departmentId: group.departmentId,
-      departmentName: group.departmentName,
-      attendanceDate: group.attendanceDate,
-      checkInTimes: group.checkInTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime()),
-      checkOutTimes: group.checkOutTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime()),
-      workHours: Math.round(group.workHours * 100) / 100,
-      status: group.status,
-      notes: group.notes.length > 0 ? group.notes.join('; ') : null,
-    }));
+    const result = Array.from(groupMap.values()).map((group, index) => {
+      const regularCheckInTimes = group.regularCheckInTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime());
+      const regularCheckOutTimes = group.regularCheckOutTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime());
+      const overtimeCheckInTimes = group.overtimeCheckInTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime());
+      const overtimeCheckOutTimes = group.overtimeCheckOutTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime());
+      const overtimeNotes = group.overtimeNotesList.length > 0 ? group.overtimeNotesList.join('; ') : null;
+      const regularNotes = group.regularNotes.length > 0 ? group.regularNotes.join('; ') : null;
+
+      // Backwards-compat fields: status = regular status (or 'OVERTIME' if only overtime), workHours = regular hours only
+      const status = group.regularStatus ?? 'OVERTIME';
+
+      return {
+        stt: index + 1,
+        id: group.id,
+        ids: group.ids,
+        regularIds: group.regularIds,
+        overtimeIds: group.overtimeIds,
+        employeeCode: group.employeeCode,
+        employeeName: group.employeeName,
+        positionName: group.positionName,
+        departmentId: group.departmentId,
+        departmentName: group.departmentName,
+        attendanceDate: group.attendanceDate,
+        // Backwards-compat fields
+        checkInTimes: regularCheckInTimes,
+        checkOutTimes: regularCheckOutTimes,
+        workHours: Math.round(group.regularHours * 100) / 100,
+        status,
+        notes: regularNotes,
+        // New split fields
+        regularStatus: group.regularStatus,
+        regularHours: Math.round(group.regularHours * 100) / 100,
+        regularCheckInTimes,
+        regularCheckOutTimes,
+        hasOvertime: group.hasOvertime,
+        overtimeHours: Math.round(group.overtimeHours * 100) / 100,
+        overtimeCheckInTimes,
+        overtimeCheckOutTimes,
+        overtimeNotes,
+      };
+    });
 
     return result;
   }
@@ -404,9 +432,15 @@ export class AttendanceService {
       }
     }
 
+    // Sync isOvertime with status so grouping in getAttendanceByDateRange stays consistent
+    const updateData: typeof data & { isOvertime?: boolean } = { ...data };
+    if (data.status !== undefined) {
+      updateData.isOvertime = data.status === 'OVERTIME';
+    }
+
     const updated = await prisma.attendance.update({
       where: { id: attendanceId },
-      data,
+      data: updateData,
       include: {
         employee: {
           include: {
