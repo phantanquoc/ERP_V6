@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { overtimePlanService, OvertimePlanStatus, CreateOvertimePlanData } from '../services/overtimePlanService';
+import { attendanceKeys } from './useAttendance';
 
 export const overtimePlanKeys = {
   all: ['overtime-plans'] as const,
@@ -77,6 +78,7 @@ export function useApprovePlan() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.lists() });
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.myLists() });
+      queryClient.invalidateQueries({ queryKey: attendanceKeys.lists() });
     },
   });
 }
