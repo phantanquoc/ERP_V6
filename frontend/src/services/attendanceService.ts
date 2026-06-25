@@ -169,8 +169,8 @@ class AttendanceService {
     notes?: string;
   }): Promise<any> {
     try {
-      // Create date at start of day in local timezone
-      const attendanceDate = new Date(data.attendanceDate + 'T00:00:00');
+      // Midnight UTC to match getTodayInAppTz() convention
+      const attendanceDate = new Date(data.attendanceDate + 'T00:00:00.000Z');
 
       const response = await apiClient.post('/attendances', {
         employeeId: data.employeeId,
