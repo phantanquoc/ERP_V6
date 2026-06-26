@@ -47,6 +47,7 @@ const PurchasingEquipment = React.lazy(() => import('./pages/purchasing/Purchasi
 // Production Management
 const ProductionManagement = React.lazy(() => import('./pages/ProductionManagement'));
 const ProductionDepartment = React.lazy(() => import('./pages/production/ProductionDepartment'));
+const ProductionData = React.lazy(() => import('./pages/production/ProductionData'));
 const ProductionWarehouse = React.lazy(() => import('./pages/production/ProductionWarehouse'));
 
 // Technical Management
@@ -211,6 +212,11 @@ function App() {
             <Route path="/production/management" element={
               <ProtectedSubRoute department="production" subModule="management">
                 <ProductionDepartment />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/production/data" element={
+              <ProtectedSubRoute department="production" subModule="data">
+                <ProductionData />
               </ProtectedSubRoute>
             } />
             <Route path="/production/warehouse" element={
