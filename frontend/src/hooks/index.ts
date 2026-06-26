@@ -1,4 +1,3 @@
-// Export all hooks from individual files
 export * from './useDepartments';
 export * from './useEmployees';
 export * from './usePositions';
@@ -30,3 +29,5 @@ export * from './useDailyWorkReports';
 export * from './useMaintenanceTemplates';
 export * from './useMaintenancePlans';
 export * from './useMaintenanceRecords';
+export * from './useFinishedProducts';
+export * from './useProductionEntities';

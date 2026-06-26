@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import productionReportService, { ProductionReport } from '../../services/productionReportService';
 import materialStandardService, { MaterialStandard } from '../../services/materialStandardService';
-import finishedProductService from '../../services/finishedProductService';
+import finishedProductService, { OutputStatisticsFilters } from '../../services/finishedProductService';
 import Modal from '../Modal';
 import DatePicker from '../DatePicker';
 import { parseNumberInput } from '../../utils/numberInput';
@@ -124,8 +124,10 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
 
     setLoadingWeight(true);
     try {
-      const result = await finishedProductService.getTotalWeightByDate(date);
-      const totalWeight = result.totalWeight || 0;
+      // Use output statistics: sum tongKhoiLuong across all products/machines for that date
+      const filters: OutputStatisticsFilters = { dateFrom: date, dateTo: date };
+      const rows = await finishedProductService.getOutputStatistics(filters);
+      const totalWeight = rows.reduce((sum, row) => sum + (row.tongKhoiLuong || 0), 0);
 
       // Update khoiLuongThanhPhamThucTe and recalculate auto values
       const tiLeThuHoi = selectedMaterialStandard?.tiLeThuHoi || 0;
