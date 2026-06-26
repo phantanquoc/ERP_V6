@@ -108,6 +108,15 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     });
   }, [formData.nguoiThucHien, productionEmployees]);
 
+  const stockPreview = useMemo(() => {
+    if (!selectedKien) return null;
+    const current = selectedKien.soLuong;
+    const exporting = parseFloat(String(formData.khoiLuong)) || 0;
+    const remaining = current - exporting;
+    const percentage = current > 0 ? (remaining / current) * 100 : 0;
+    return { current, exporting, remaining, percentage };
+  }, [selectedKien, formData.khoiLuong]);
+
   useEffect(() => {
     loadEvaluations();
     loadCriteria();
@@ -671,10 +680,14 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
             </div>
 
             <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {/* Section 1: Thông tin chung */}
+              <div className="border-t border-gray-200 pt-4 mt-4 first:border-t-0 first:pt-0 first:mt-0">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Thông tin chung</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mã chiên <span className="text-red-500">*</span>
+                    Mã chiên <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">(tự sinh)</span>
                   </label>
                   <input
                     type="text"
@@ -697,6 +710,63 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     allowClear
                   />
                 </div>
+
+                {/* Người thực hiện in Section 1 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Người thực hiện <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="nguoiThucHien"
+                      value={formData.nguoiThucHien}
+                      onChange={(e) => {
+                        handleInputChange(e);
+                        setIsNguoiThucHienOpen(true);
+                      }}
+                      onFocus={() => setIsNguoiThucHienOpen(true)}
+                      onBlur={() => window.setTimeout(() => setIsNguoiThucHienOpen(false), 120)}
+                      required
+                      autoComplete="off"
+                      placeholder="Nhập hoặc chọn nhân viên sản xuất"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    {isNguoiThucHienOpen && (
+                      <div className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                        {loadingProductionEmployees ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">Đang tải danh sách...</div>
+                        ) : productionEmployees.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">Không có nhân viên sản xuất</div>
+                        ) : filteredProductionEmployees.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">Không tìm thấy nhân viên phù hợp</div>
+                        ) : (
+                          filteredProductionEmployees.map(employee => (
+                            <button
+                              key={employee.id}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleNguoiThucHienSelect(employee.name);
+                              }}
+                              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50 focus:bg-blue-50"
+                            >
+                              <span className="font-medium text-gray-900">{employee.name}</span>
+                              <span className="ml-3 text-xs text-gray-500">{employee.employeeCode}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                </div>
+              </div>
+
+              {/* Section 2: Nguyên liệu xuất từ kho */}
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Nguyên liệu xuất từ kho</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                 {/* ── Warehouse cascade (create only) or snapshot read-only (edit) ── */}
                 {isEditing ? (
@@ -827,19 +897,16 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                             ? 'Không có kiện tồn kho'
                             : '-- Chọn kiện --'}
                         </option>
-                        {kienList.map(k => {
-                          const lot = lots.find(l => l.id === k.lotId);
-                          return (
-                            <option key={k.id} value={k.id}>
-                              {lot?.tenLo ?? ''}-{k.id.slice(-4)} &bull; Tồn: {k.soLuong} {k.donViTinh}
-                            </option>
-                          );
-                        })}
+                        {kienList.map((k, idx) => (
+                          <option key={k.id} value={k.id}>
+                            Kiện {idx + 1} · Tồn {k.soLuong} {k.donViTinh}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
-                    {/* Khối lượng xuất – bounded by selectedKien.soLuong */}
-                    <div>
+                    {/* Khối lượng xuất – bounded by selectedKien.soLuong – col-span-2 for preview */}
+                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Khối lượng xuất (kg) <span className="text-red-500">*</span>
                       </label>
@@ -849,7 +916,8 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                         min={0}
                         max={selectedKien?.soLuong ?? undefined}
                         name="khoiLuong"
-                        value={formData.khoiLuong}
+                        value={formData.khoiLuong === 0 ? '' : formData.khoiLuong}
+                        placeholder="0"
                         onChange={(e) => {
                           const val = parseNumberInput(e.target.value);
                           setFormData(prev => ({ ...prev, khoiLuong: val }));
@@ -868,18 +936,70 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                       {khoiLuongError && (
                         <p className="mt-1 text-xs text-red-600">{khoiLuongError}</p>
                       )}
+
+                      {/* Real-time stock preview */}
+                      {stockPreview && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-md p-3 mt-2 space-y-1.5 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Tồn kiện hiện tại:</span>
+                            <span className="font-medium">{stockPreview.current} {selectedKien!.donViTinh}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Khối lượng xuất:</span>
+                            <span className="font-medium text-orange-600">-{stockPreview.exporting} {selectedKien!.donViTinh}</span>
+                          </div>
+                          <div className="border-t border-gray-200 pt-1.5">
+                            <div className="flex justify-between mb-1">
+                              <span className="text-gray-600">Còn lại sau xuất:</span>
+                              <span className={`font-medium ${
+                                stockPreview.percentage > 20
+                                  ? 'text-green-600'
+                                  : stockPreview.percentage > 5
+                                  ? 'text-amber-600'
+                                  : 'text-red-600'
+                              }`}>
+                                {stockPreview.remaining.toFixed(2)} {selectedKien!.donViTinh} ({Math.max(0, stockPreview.percentage).toFixed(0)}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                              <div
+                                className={`h-2 rounded-full transition-all duration-200 ${
+                                  stockPreview.percentage > 20
+                                    ? 'bg-green-500'
+                                    : stockPreview.percentage > 5
+                                    ? 'bg-amber-500'
+                                    : 'bg-red-500'
+                                }`}
+                                style={{ width: `${Math.min(100, Math.max(0, stockPreview.percentage))}%` }}
+                              />
+                            </div>
+                            {stockPreview.percentage <= 0 && (
+                              <p className="mt-1 text-xs text-red-600 font-medium">Vượt quá tồn kho</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
 
+                </div>
+              </div>
+
+              {/* Section 3: Thông số chiên */}
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Thông số chiên</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Số lần ngâm <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
+                    min={0}
                     name="soLanNgam"
-                    value={formData.soLanNgam}
+                    value={formData.soLanNgam === 0 ? '' : formData.soLanNgam}
+                    placeholder="0"
                     onChange={handleInputChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
@@ -893,8 +1013,10 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <input
                     type="number"
                     step="0.1"
+                    min={0}
                     name="nhietDoNuocTruocNgam"
-                    value={formData.nhietDoNuocTruocNgam}
+                    value={formData.nhietDoNuocTruocNgam === 0 ? '' : formData.nhietDoNuocTruocNgam}
+                    placeholder="0"
                     onChange={handleInputChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
@@ -908,8 +1030,10 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <input
                     type="number"
                     step="0.1"
+                    min={0}
                     name="nhietDoNuocSauVot"
-                    value={formData.nhietDoNuocSauVot}
+                    value={formData.nhietDoNuocSauVot === 0 ? '' : formData.nhietDoNuocSauVot}
+                    placeholder="0"
                     onChange={handleInputChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
@@ -922,8 +1046,10 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   </label>
                   <input
                     type="number"
+                    min={0}
                     name="thoiGianNgam"
-                    value={formData.thoiGianNgam}
+                    value={formData.thoiGianNgam === 0 ? '' : formData.thoiGianNgam}
+                    placeholder="0"
                     onChange={handleInputChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
@@ -937,14 +1063,22 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <input
                     type="number"
                     step="0.1"
+                    min={0}
                     name="brixNuocNgam"
-                    value={formData.brixNuocNgam}
+                    value={formData.brixNuocNgam === 0 ? '' : formData.brixNuocNgam}
+                    placeholder="0"
                     onChange={handleInputChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
+                </div>
+              </div>
 
+              {/* Section 4: Đánh giá nguyên liệu */}
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Đánh giá nguyên liệu</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Đánh giá trước ngâm <span className="text-red-500">*</span>
@@ -988,56 +1122,12 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     })}
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Người thực hiện <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="nguoiThucHien"
-                      value={formData.nguoiThucHien}
-                      onChange={(e) => {
-                        handleInputChange(e);
-                        setIsNguoiThucHienOpen(true);
-                      }}
-                      onFocus={() => setIsNguoiThucHienOpen(true)}
-                      onBlur={() => window.setTimeout(() => setIsNguoiThucHienOpen(false), 120)}
-                      required
-                      autoComplete="off"
-                      placeholder="Nhập hoặc chọn nhân viên sản xuất"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    {isNguoiThucHienOpen && (
-                      <div className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
-                        {loadingProductionEmployees ? (
-                          <div className="px-3 py-2 text-sm text-gray-500">Đang tải danh sách...</div>
-                        ) : productionEmployees.length === 0 ? (
-                          <div className="px-3 py-2 text-sm text-gray-500">Không có nhân viên sản xuất</div>
-                        ) : filteredProductionEmployees.length === 0 ? (
-                          <div className="px-3 py-2 text-sm text-gray-500">Không tìm thấy nhân viên phù hợp</div>
-                        ) : (
-                          filteredProductionEmployees.map(employee => (
-                            <button
-                              key={employee.id}
-                              type="button"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                handleNguoiThucHienSelect(employee.name);
-                              }}
-                              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50 focus:bg-blue-50"
-                            >
-                              <span className="font-medium text-gray-900">{employee.name}</span>
-                              <span className="ml-3 text-xs text-gray-500">{employee.employeeCode}</span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
                 </div>
+              </div>
 
+              {/* Section 5: File đính kèm */}
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">File đính kèm</h3>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     File đính kèm
@@ -1049,7 +1139,8 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 mt-6 shrink-0">
+              {/* Sticky footer */}
+              <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 -mx-6 -mb-6 flex justify-end gap-2 mt-6">
                 <button
                   type="button"
                   onClick={handleCloseModal}
