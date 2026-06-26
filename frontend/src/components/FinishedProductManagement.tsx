@@ -177,7 +177,7 @@ const FinishedProductManagement: React.FC = () => {
   const machineSystems = machineSystemsQuery.data?.data ?? [];
   const [products, setProducts] = useState<FinishedProduct[]>([]);
   const [allProducts, setAllProducts] = useState<FinishedProduct[]>([]); // All products from all machines
-  const [selectedMachineSystemId, setSelectedMachineSystemId] = useState<string>('');
+  const [selectedMachineSystemId, setSelectedMachineSystemId] = useState<string>(TOTAL_ALL_MACHINES);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -237,10 +237,10 @@ const FinishedProductManagement: React.FC = () => {
     }
   }, [selectedMachineSystemId]);
 
-  // Auto-select first machine system when list loads
+  // Auto-select "Tổng các máy" by default when list loads
   useEffect(() => {
     if (machineSystems.length > 0 && !selectedMachineSystemId) {
-      setSelectedMachineSystemId(machineSystems[0].id);
+      setSelectedMachineSystemId(TOTAL_ALL_MACHINES);
     }
   }, [machineSystems]);
 
@@ -813,17 +813,30 @@ const FinishedProductManagement: React.FC = () => {
             onChange={(e) => setSelectedMachineSystemId(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
           >
+            <option value={TOTAL_ALL_MACHINES}>Tổng các máy</option>
             {machineSystems.map((system) => (
               <option key={system.id} value={system.id}>
                 {system.tenHeThong} ({system.maHeThong})
               </option>
             ))}
-            <option value={TOTAL_ALL_MACHINES}>Tổng các máy</option>
           </select>
         </div>
         {/* Desktop: tabs */}
         <div className="hidden sm:block border-b border-gray-200">
           <nav className="-mb-px flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
+            {/* Tab Tổng các máy */}
+            <button
+              onClick={() => setSelectedMachineSystemId(TOTAL_ALL_MACHINES)}
+              className={`
+                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                ${selectedMachineSystemId === TOTAL_ALL_MACHINES
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              Tổng các máy
+            </button>
             {machineSystems.map((system) => (
               <button
                 key={system.id}
@@ -839,19 +852,6 @@ const FinishedProductManagement: React.FC = () => {
                 {system.tenHeThong} ({system.maHeThong})
               </button>
             ))}
-            {/* Tab Tổng các máy */}
-            <button
-              onClick={() => setSelectedMachineSystemId(TOTAL_ALL_MACHINES)}
-              className={`
-                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-                ${selectedMachineSystemId === TOTAL_ALL_MACHINES
-                  ? 'border-green-500 text-green-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              Tổng các máy
-            </button>
           </nav>
         </div>
       </div>

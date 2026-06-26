@@ -285,7 +285,7 @@ const QualityEvaluationManagement: React.FC = () => {
             onChange={(e) => setSelectedMachineSystemId(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
           >
-            <option value="">Tất cả hệ thống</option>
+            <option value="">Tổng các máy</option>
             {machineSystems.map((ms) => (
               <option key={ms.id} value={ms.id}>
                 {ms.tenHeThong} ({ms.maHeThong})
@@ -304,7 +304,7 @@ const QualityEvaluationManagement: React.FC = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Tất cả
+              Tổng các máy
             </button>
             {machineSystems.map((ms) => (
               <button
