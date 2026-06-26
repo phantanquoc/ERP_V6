@@ -4,7 +4,7 @@ import {
   Cog, Package, ClipboardList,
   CheckCircle, AlertTriangle, XCircle, Clock,
   TrendingUp, ArrowRight, RefreshCw, Warehouse,
-  Factory
+  Factory, FileBarChart
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer
@@ -512,6 +512,13 @@ const ProductionManagement = () => {
           desc="Máy móc, quy trình, đơn hàng"
           icon={<Factory className="w-5 h-5" />}
           to="/production/management"
+          navigate={navigate}
+        />
+        <NavCard
+          title="Dữ liệu sản xuất"
+          desc="Đánh giá NL, vận hành, thành phẩm"
+          icon={<FileBarChart className="w-5 h-5" />}
+          to="/production/data"
           navigate={navigate}
         />
         <NavCard

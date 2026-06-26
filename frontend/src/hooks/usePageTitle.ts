@@ -21,6 +21,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/purchasing/equipment': 'Mua thiết bị',
   '/production': 'Bộ phận sản xuất',
   '/production/management': 'Quản lý SX',
+  '/production/data': 'Dữ liệu SX',
   '/production/warehouse': 'Quản lý kho',
   '/technical': 'Bộ phận kỹ thuật',
   '/technical/quality': 'QLHTM',

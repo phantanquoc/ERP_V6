@@ -81,6 +81,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
     ], module: 'purchasing' },
     { path: '/production', name: 'Bộ phận sản xuất', icon: <Factory size={20} />, subItems: [
       { path: '/production/management', name: 'Quản lý SX', subModule: 'management' },
+      { path: '/production/data', name: 'Dữ liệu SX', subModule: 'data' },
       { path: '/production/warehouse', name: 'Quản lý kho', subModule: 'warehouse' },
     ], module: 'production' },
     { path: '/technical', name: 'Bộ phận kỹ thuật', icon: <Wrench size={20} />, subItems: [
