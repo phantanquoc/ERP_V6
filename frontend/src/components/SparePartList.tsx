@@ -7,6 +7,7 @@ import sparePartService from '../services/sparePartService';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
 import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
+import UnitSelect from './common/UnitSelect';
 
 interface SparePart {
   id: string;
@@ -30,7 +31,6 @@ const LOAI_OPTIONS = [
   { value: 'TH', label: 'Tổng hợp' },
 ];
 
-const DON_VI_OPTIONS = ['Cái', 'Bộ', 'Mét', 'Kg', 'Lít', 'Cuộn', 'Tấm', 'Khác'];
 const TRANG_THAI_OPTIONS = ['Đang sử dụng', 'Chưa sử dụng', 'Hết hàng'];
 
 const trangThaiBadge = (tt: string) => {
@@ -328,9 +328,12 @@ const SparePartList = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị <span className="text-red-500">*</span></label>
-                    <select required value={formData.donVi} onChange={e => setFormData(f => ({ ...f, donVi: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
-                      {DON_VI_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
+                    <UnitSelect
+                      required
+                      value={formData.donVi}
+                      onChange={(val) => setFormData(f => ({ ...f, donVi: val }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">

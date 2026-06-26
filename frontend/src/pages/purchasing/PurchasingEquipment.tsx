@@ -21,6 +21,7 @@ import OrderManagement from '../../components/OrderManagement';
 import purchaseRequestService from '../../services/purchaseRequestService';
 import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } from '../../services/supplierService';
 import { parseNumberInput } from '../../utils/numberInput';
+import UnitSelect from '../../components/common/UnitSelect';
 
 interface PurchaseRequest {
   id: string;
@@ -713,7 +714,11 @@ const PurchasingEquipment = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị tính</label>
-                    <input type="text" value={editFormData.donViTinh || ''} onChange={(e) => setEditFormData({...editFormData, donViTinh: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    <UnitSelect
+                      value={editFormData.donViTinh || ''}
+                      onChange={(val) => setEditFormData({...editFormData, donViTinh: val})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
                   </div>
                   <div className="col-span-1 sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Mục đích yêu cầu</label>

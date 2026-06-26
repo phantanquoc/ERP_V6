@@ -7,6 +7,7 @@ import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import Modal from './Modal';
 import { useSupplierOptions } from '../hooks/useSuppliers';
+import UnitSelect from './common/UnitSelect';
 
 interface CreatePurchaseRequestModalProps {
   isOpen: boolean;
@@ -255,16 +256,11 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                         </td>
                         <td className="px-2 py-2">
-                          <select value={row.donViTinh}
-                            onChange={(e) => updateItem(index, { donViTinh: e.target.value })}
-                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            <option value="Kg">Kg</option>
-                            <option value="Cái">Cái</option>
-                            <option value="Hệ">Hệ</option>
-                            <option value="Lít">Lít</option>
-                            <option value="Thùng">Thùng</option>
-                            <option value="Bộ">Bộ</option>
-                          </select>
+                          <UnitSelect
+                            value={row.donViTinh}
+                            onChange={(val) => updateItem(index, { donViTinh: val })}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
                         </td>
                         <td className="px-2 py-2">
                           <select value={row.nhaCungCapId}

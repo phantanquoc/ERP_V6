@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { SERVER_BASE_URL } from '../config/api';
+import UnitSelect from './common/UnitSelect';
 
 interface ProcessManagementProps {
   mode?: 'full' | 'standard-only' | 'production';
@@ -1022,16 +1023,11 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                         />
                                       </td>
                                       <td className="border border-gray-300 px-2 py-1">
-                                        <select
+                                        <UnitSelect
                                           value={cost.donVi || ''}
-                                          onChange={(e) => handleCostChange(sectionIndex, costIndex, 'donVi', e.target.value)}
+                                          onChange={(val) => handleCostChange(sectionIndex, costIndex, 'donVi', val)}
                                           className="w-full px-2 py-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                        >
-                                          <option value="">-- Chọn đơn vị --</option>
-                                          <option value="Người">Người</option>
-                                          <option value="Kg">Kg</option>
-                                          <option value="Cái">Cái</option>
-                                        </select>
+                                        />
                                       </td>
                                       <td className="border border-gray-300 px-2 py-1 text-center">
                                         <button
@@ -1469,12 +1465,10 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                 </div>
                               ) : (
                                 // Mode standard-only - cho phép sửa
-                                <input
-                                  type="text"
+                                <UnitSelect
                                   value={cost.donViDinhMucLaoDong || ''}
-                                  onChange={(e) => handleDonViDinhMucChange(sectionIndex, costIndex, e.target.value)}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
-                                  placeholder="Nhập đơn vị"
+                                  onChange={(val) => handleDonViDinhMucChange(sectionIndex, costIndex, val)}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
                                 />
                               )}
                             </td>

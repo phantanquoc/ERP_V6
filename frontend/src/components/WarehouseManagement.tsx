@@ -10,6 +10,9 @@ import {
 import { useProducts } from '../hooks';
 import { parseNumberInputStr } from '../utils/numberInput';
 import Modal from './Modal';
+import ProductCombobox from './common/ProductCombobox';
+import UnitSelect from './common/UnitSelect';
+import { DEFAULT_DON_VI_TINH, DON_VI_TINH_OPTIONS } from '../constants/units';
 
 const WarehouseManagement: React.FC = () => {
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
@@ -57,11 +60,10 @@ const WarehouseManagement: React.FC = () => {
   const [newWarehouseName, setNewWarehouseName] = useState('');
   const [newLotName, setNewLotName] = useState('');
   const [selectedLotId, setSelectedLotId] = useState('');
-  const [selectedProductType, setSelectedProductType] = useState('');
-  const [productCodeSearch, setProductCodeSearch] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [productQuantity, setProductQuantity] = useState('');
-  const [productUnit, setProductUnit] = useState('');
+  const [productUnit, setProductUnit] = useState(DEFAULT_DON_VI_TINH);
+  const [quantityTouched, setQuantityTouched] = useState(false);
   const [movingProduct, setMovingProduct] = useState<LotProduct | null>(null);
   const [targetWarehouseId, setTargetWarehouseId] = useState('');
   const [targetLotId, setTargetLotId] = useState('');
@@ -174,25 +176,11 @@ const WarehouseManagement: React.FC = () => {
 
   const resetProductForm = () => {
     setSelectedLotId('');
-    setSelectedProductType('');
-    setProductCodeSearch('');
     setSelectedProductId('');
     setProductQuantity('');
-    setProductUnit('');
+    setProductUnit(DEFAULT_DON_VI_TINH);
+    setQuantityTouched(false);
   };
-
-  // Filter products by type and code search
-  const filteredProducts = products.filter((p) => {
-    if (selectedProductType && p.loaiSanPham !== selectedProductType) return false;
-    if (productCodeSearch) {
-      const search = productCodeSearch.toLowerCase();
-      return p.maSanPham.toLowerCase().includes(search) || p.tenSanPham.toLowerCase().includes(search);
-    }
-    return true;
-  });
-
-  // Get unique product types
-  const productTypes = Array.from(new Set(products.map((p) => p.loaiSanPham).filter(Boolean)));
 
   const handleRemoveProduct = async (productId: string) => {
     if (!confirm('Bạn có chắc chắn muốn xóa sản phẩm này khỏi lô?')) return;
@@ -566,55 +554,22 @@ const WarehouseManagement: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Loại sản phẩm
-                </label>
-                <select
-                  value={selectedProductType}
-                  onChange={(e) => {
-                    setSelectedProductType(e.target.value);
-                    setSelectedProductId(''); // Reset product selection when type changes
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Tất cả loại sản phẩm --</option>
-                  {productTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tìm theo mã / tên sản phẩm
-                </label>
-                <input
-                  type="text"
-                  value={productCodeSearch}
-                  onChange={(e) => {
-                    setProductCodeSearch(e.target.value);
-                    setSelectedProductId('');
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="VD: SP-001 hoặc tên sản phẩm..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Sản phẩm <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Chọn sản phẩm --</option>
-                  {(filteredProducts || []).map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.maSanPham} - {product.tenSanPham}
-                    </option>
-                  ))}
-                </select>
+                <ProductCombobox
+                  products={products}
+                  value={selectedProductId || null}
+                  onChange={(productId, product) => {
+                    setSelectedProductId(productId ?? '');
+                    // Auto-fill unit from product if it matches a standard option
+                    if (product?.donViTinh && DON_VI_TINH_OPTIONS.includes(product.donViTinh)) {
+                      setProductUnit(product.donViTinh);
+                    } else if (!productId) {
+                      // Reset to default when clearing
+                      setProductUnit(DEFAULT_DON_VI_TINH);
+                    }
+                  }}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -624,22 +579,28 @@ const WarehouseManagement: React.FC = () => {
                   type="number"
                   value={productQuantity}
                   onChange={(e) => setProductQuantity(parseNumberInputStr(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  onBlur={() => setQuantityTouched(true)}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                    quantityTouched && (!productQuantity || parseFloat(productQuantity) <= 0)
+                      ? 'border-red-400 focus:ring-red-400'
+                      : 'border-gray-300'
+                  }`}
                   placeholder="Nhập số lượng"
                   min="0"
                   step="0.01"
                 />
+                {quantityTouched && (!productQuantity || parseFloat(productQuantity) <= 0) && (
+                  <p className="mt-1 text-xs text-red-500">Số lượng phải lớn hơn 0</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Đơn vị tính <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <UnitSelect
                   value={productUnit}
-                  onChange={(e) => setProductUnit(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="VD: kg, thùng, cái"
+                  onChange={setProductUnit}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-4">
@@ -651,7 +612,12 @@ const WarehouseManagement: React.FC = () => {
                 </button>
                 <button
                   onClick={handleAddProductToLot}
-                  disabled={!selectedProductId || !productQuantity || !productUnit}
+                  disabled={
+                    !selectedProductId ||
+                    !productQuantity ||
+                    parseFloat(productQuantity) <= 0 ||
+                    !productUnit
+                  }
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Thêm

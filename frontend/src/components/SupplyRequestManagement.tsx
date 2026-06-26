@@ -9,6 +9,7 @@ import { parseNumberInput } from '../utils/numberInput';
 import warehouseService from '../services/warehouseService';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
+import UnitSelect from './common/UnitSelect';
 
 interface SupplyRequestManagementProps {
   onClose?: () => void;
@@ -632,18 +633,11 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                                 />
                               </td>
                               <td className="px-2 py-2">
-                                <select
+                                <UnitSelect
                                   value={row.donViTinh}
-                                  onChange={(e) => setEditItems(prev => prev.map((r, i) => i === idx ? { ...r, donViTinh: e.target.value } : r))}
+                                  onChange={(val) => setEditItems(prev => prev.map((r, i) => i === idx ? { ...r, donViTinh: val } : r))}
                                   className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                >
-                                  <option value="Kg">Kg</option>
-                                  <option value="Cái">Cái</option>
-                                  <option value="Hệ">Hệ</option>
-                                  <option value="Lít">Lít</option>
-                                  <option value="Thùng">Thùng</option>
-                                  <option value="Bộ">Bộ</option>
-                                </select>
+                                />
                               </td>
                               <td className="px-2 py-2 text-center">
                                 <button

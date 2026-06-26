@@ -6,6 +6,7 @@ import exportCostService, { ExportCost, CreateExportCostInput, UpdateExportCostI
 import generalCostService, { GeneralCost, CreateGeneralCostInput, UpdateGeneralCostInput } from '../services/generalCostService';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import UnitSelect from './common/UnitSelect';
 
 type CostType = 'export' | 'general';
 type AnyCost = ExportCost | GeneralCost;
@@ -387,10 +388,9 @@ const ExportCostManagement: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Đơn vị tính
                   </label>
-                  <input
-                    type="text"
+                  <UnitSelect
                     value={formData.donViTinh}
-                    onChange={(e) => setFormData({ ...formData, donViTinh: e.target.value })}
+                    onChange={(val) => setFormData({ ...formData, donViTinh: val })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

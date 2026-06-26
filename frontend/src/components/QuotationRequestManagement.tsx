@@ -9,6 +9,7 @@ import internationalProductService, { InternationalProduct } from '../services/i
 import { useQuotationRequests, quotationRequestKeys } from '../hooks';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
 import { parseNumberInput } from '../utils/numberInput';
+import UnitSelect from './common/UnitSelect';
 
 interface QuotationRequestManagementProps {
   mode?: 'business' | 'pricing';
@@ -775,21 +776,12 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Đơn vị tính <span className="text-red-500">*</span>
                             </label>
-                            <select
+                            <UnitSelect
                               value={item.donViTinh}
-                              onChange={(e) => updateItem(index, 'donViTinh', e.target.value)}
+                              onChange={(val) => updateItem(index, 'donViTinh', val)}
                               required
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            >
-                              <option value="">-- Chọn đơn vị --</option>
-                              <option value="Kg">Kg</option>
-                              <option value="MT">MT</option>
-                              <option value="Tấn">Tấn</option>
-                              <option value="Thùng">Thùng</option>
-                              <option value="Hộp">Hộp</option>
-                              <option value="Cái">Cái</option>
-                              <option value="Lít">Lít</option>
-                            </select>
+                            />
                           </div>
                         </div>
 

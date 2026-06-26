@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
 import { internationalProductService, InternationalProduct } from '../services/internationalProductService';
 import { ModalForm, ModalFooter, FormField, selectCls, textareaCls, readonlyCls } from './ModalForm';
+import UnitSelect from './common/UnitSelect';
 
 interface SupplyRequestModalProps {
   isOpen: boolean;
@@ -279,18 +280,11 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
 
                         {/* Đơn vị */}
                         <td className="px-3 py-2">
-                          <select
+                          <UnitSelect
                             value={row.donViTinh}
-                            onChange={(e) => updateItem(index, { donViTinh: e.target.value })}
+                            onChange={(val) => updateItem(index, { donViTinh: val })}
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          >
-                            <option value="Kg">Kg</option>
-                            <option value="Cái">Cái</option>
-                            <option value="Hệ">Hệ</option>
-                            <option value="Lít">Lít</option>
-                            <option value="Thùng">Thùng</option>
-                            <option value="Bộ">Bộ</option>
-                          </select>
+                          />
                         </td>
 
                         {/* Remove */}
