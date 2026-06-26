@@ -123,9 +123,12 @@ export class QualityEvaluationService {
     }
 
     // Auto-fill percentage data from finished_product if available
+    // Preserve user-provided fields (including danhGiaTongQuan) via the spread.
     const updateData: any = { ...data };
 
     if (existingEvaluation.finishedProduct) {
+      // Override percentage fields with calculated values from finished product
+      // danhGiaTongQuan and other assessment fields are NOT overwritten here — preserved from data.
       updateData.aTiLe = existingEvaluation.finishedProduct.aTiLe;
       updateData.bTiLe = existingEvaluation.finishedProduct.bTiLe;
       updateData.bDauTiLe = existingEvaluation.finishedProduct.bDauTiLe;
@@ -134,6 +137,11 @@ export class QualityEvaluationService {
       updateData.vunNhoTiLe = existingEvaluation.finishedProduct.vunNhoTiLe;
       updateData.phePhamTiLe = existingEvaluation.finishedProduct.phePhamTiLe;
       updateData.uotTiLe = existingEvaluation.finishedProduct.uotTiLe;
+    }
+
+    // Explicitly restore danhGiaTongQuan from data to guard against any future regression
+    if (data.danhGiaTongQuan !== undefined) {
+      updateData.danhGiaTongQuan = data.danhGiaTongQuan;
     }
 
     // Only update nguoiThucHien if it's provided

@@ -144,30 +144,6 @@ model Supplier {
   @@schema("business")
 }
 
-model product_batches {
-  id                     String               @id
-  productId              String
-  warehouseId            String
-  soLo                   String
-  soLuong                Float                @default(0)
-  soLuongNhap            Float
-  donViTinh              String?
-  ngayNhap               DateTime             @default(now())
-  ngaySanXuat            DateTime?
-  hanSuDung              DateTime?
-  giaNhap                Float?
-  nhaCungCap             String?
-  trangThai              String               @default("active")
-  ghiChu                 String?
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime
-  international_products InternationalProduct @relation(fields: [productId], references: [id])
-  warehouses             warehouses           @relation(fields: [warehouseId], references: [id])
-
-  @@unique([productId, warehouseId, soLo])
-  @@schema("business")
-}
-
 model warehouses {
   id              String            @id
   maKho           String            @unique
@@ -183,7 +159,6 @@ model warehouses {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime
   lots            Lot[]
-  product_batches product_batches[]
 
   @@schema("business")
 }
@@ -371,6 +346,10 @@ model FinishedProduct {
   materialEvaluationId String?
   materialEvaluation   MaterialEvaluation? @relation(fields: [materialEvaluationId], references: [id], onDelete: SetNull)
 
+  // Relation to InternationalProduct (base product link for warehouse receipt)
+  internationalProductId String?
+  internationalProduct   InternationalProduct? @relation(fields: [internationalProductId], references: [id], onDelete: SetNull)
+
   // Thành phẩm A
   aKhoiLuong Float @default(0)
   aTiLe      Float @default(0)
@@ -406,6 +385,9 @@ model FinishedProduct {
   // Tổng khối lượng thành phẩm đầu ra
   tongKhoiLuong Float @default(0)
 
+  // Flag: đã nhập kho hay chưa (set true atomically trong warehouse receipt transaction)
+  daNhapKho Boolean @default(false)
+
   fileDinhKem   String?
   nguoiThucHien String
 
@@ -415,6 +397,7 @@ model FinishedProduct {
 
   @@unique([maChien, machineSystemId])
   @@index([machineSystemId])
+  @@index([internationalProductId])
   @@map("finished_products")
   @@schema("business")
 }

@@ -1,15 +1,175 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Eye, FileText, X, Download } from 'lucide-react';
+import { Edit, Trash2, Eye, FileText, X, Download, Warehouse, SlidersHorizontal } from 'lucide-react';
 import finishedProductService, { FinishedProduct } from '../services/finishedProductService';
 import FinishedProductModal from './FinishedProductModal';
 import FinishedProductViewModal from './FinishedProductViewModal';
+import FinishedProductWarehouseReceiptModal from './FinishedProductWarehouseReceiptModal';
 import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
 import TableFilter, { FilterField } from './TableFilter';
 import { useActiveFryerMachineSystems } from '../hooks/useMachineSystemDetails';
+import { useQueryClient } from '@tanstack/react-query';
+import { finishedProductKeys } from '../hooks/useFinishedProducts';
 
 // Special constant for "Tổng các máy" tab
 const TOTAL_ALL_MACHINES = '__TOTAL_ALL_MACHINES__';
+
+// Grade field definitions for per-machine adjust modal
+const GRADE_FIELDS: Array<{ key: keyof FinishedProduct; label: string }> = [
+  { key: 'aKhoiLuong', label: 'Thành phẩm A (kg)' },
+  { key: 'bKhoiLuong', label: 'Thành phẩm B (kg)' },
+  { key: 'bDauKhoiLuong', label: 'Thành phẩm B Dầu (kg)' },
+  { key: 'cKhoiLuong', label: 'Thành phẩm C (kg)' },
+  { key: 'vunLonKhoiLuong', label: 'Vụn lớn (kg)' },
+  { key: 'vunNhoKhoiLuong', label: 'Vụn nhỏ (kg)' },
+  { key: 'phePhamKhoiLuong', label: 'Phế phẩm (kg)' },
+  { key: 'uotKhoiLuong', label: 'Ướt (kg)' },
+];
+
+// ─── Per-machine Adjust Modal ─────────────────────────────────────────────────
+
+interface AdjustMachinesModalProps {
+  maChien: string;
+  products: FinishedProduct[];
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const AdjustMachinesModal: React.FC<AdjustMachinesModalProps> = ({ maChien, products, onClose, onSuccess }) => {
+  type GradeValues = Record<string, Record<string, number>>;
+
+  const initValues = (): GradeValues => {
+    const init: GradeValues = {};
+    products.forEach((p) => {
+      init[p.id] = {};
+      GRADE_FIELDS.forEach(({ key }) => {
+        init[p.id][key as string] = Number(p[key]) || 0;
+      });
+    });
+    return init;
+  };
+
+  const [values, setValues] = React.useState<GradeValues>(initValues);
+  const [saving, setSaving] = React.useState(false);
+  const [saveError, setSaveError] = React.useState('');
+
+  const handleChange = (productId: string, field: string, raw: string) => {
+    const num = parseFloat(raw);
+    setValues((prev) => ({
+      ...prev,
+      [productId]: { ...prev[productId], [field]: isNaN(num) ? 0 : num },
+    }));
+  };
+
+  const handleSubmit = async () => {
+    setSaving(true);
+    setSaveError('');
+    try {
+      await Promise.all(
+        products.map((p) => {
+          const gradeData: Partial<FinishedProduct> = {};
+          GRADE_FIELDS.forEach(({ key }) => {
+            (gradeData as any)[key] = values[p.id][key as string];
+          });
+          return finishedProductService.updateFinishedProduct(p.id, gradeData);
+        }),
+      );
+      onSuccess();
+    } catch (err: any) {
+      setSaveError(err?.message || 'Lỗi cập nhật dữ liệu');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} showBackdrop closeOnBackdrop={false}>
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[calc(100vh-2rem)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-orange-100 shrink-0 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <SlidersHorizontal className="w-5 h-5 text-orange-600" />
+              Điều chỉnh từng máy
+            </h3>
+            <p className="text-sm text-gray-600 mt-0.5">Mã chiên: <span className="font-semibold">{maChien}</span></p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {products.length === 0 ? (
+            <p className="text-center text-gray-500 py-8">Không có máy nào trong mẻ này.</p>
+          ) : (
+            products.map((p) => (
+              <div key={p.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                  <p className="text-sm font-semibold text-gray-800">
+                    {p.machineSystem?.tenHeThong ?? 'Máy không xác định'}
+                    {p.machineSystem?.maHeThong ? ` (${p.machineSystem.maHeThong})` : ''}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4">
+                  {GRADE_FIELDS.map(({ key, label }) => (
+                    <div key={key as string}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={values[p.id]?.[key as string] ?? 0}
+                        onChange={(e) => handleChange(p.id, key as string, e.target.value)}
+                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+
+          {saveError && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
+              {saveError}
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 shrink-0 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving || products.length === 0}
+            className="px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            {saving ? (
+              <>
+                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Đang lưu…
+              </>
+            ) : (
+              'Lưu điều chỉnh'
+            )}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
 
 const FinishedProductManagement: React.FC = () => {
   const { user } = useAuth();
@@ -24,6 +184,8 @@ const FinishedProductManagement: React.FC = () => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<FinishedProduct | null>(null);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [selectedProductForReceipt, setSelectedProductForReceipt] = useState<FinishedProduct | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
   const itemsPerPage = 10;
@@ -204,6 +366,8 @@ const FinishedProductManagement: React.FC = () => {
     uotTiLe: number;
     machineCount: number;
     evaluations: AllEvaluations;
+    // true when every FinishedProduct in this batch has daNhapKho=true
+    daNhapKho: boolean;
   }
 
   // Aggregate products by maChien for "Tổng các máy" tab
@@ -329,6 +493,7 @@ const FinishedProductManagement: React.FC = () => {
         uotTiLe: calculatePercentage(totals.uotKhoiLuong),
         machineCount: products.length,
         evaluations,
+        daNhapKho: products.every((p) => p.daNhapKho === true),
       });
     });
 
@@ -359,10 +524,56 @@ const FinishedProductManagement: React.FC = () => {
   const [selectedAggregatedProduct, setSelectedAggregatedProduct] = useState<AggregatedProduct | null>(null);
   const [isAggregatedViewModalOpen, setIsAggregatedViewModalOpen] = useState(false);
 
+  // State for bulk warehouse receipt selection
+  const [selectedMaChienSet, setSelectedMaChienSet] = useState<Set<string>>(new Set());
+  const [isBulkReceiptModalOpen, setIsBulkReceiptModalOpen] = useState(false);
+
+  // State for per-machine adjust modal
+  const [adjustMaChien, setAdjustMaChien] = useState<string | null>(null);
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+
+  const queryClient = useQueryClient();
+
   const handleViewAggregated = (product: AggregatedProduct) => {
     setSelectedAggregatedProduct(product);
     setIsAggregatedViewModalOpen(true);
   };
+
+  // Initialise checkbox selection: tick rows not yet received when tab becomes active
+  useEffect(() => {
+    if (selectedMachineSystemId === TOTAL_ALL_MACHINES && filteredAggregated.length > 0) {
+      setSelectedMaChienSet(
+        new Set(filteredAggregated.filter((p) => !p.daNhapKho).map((p) => p.maChien)),
+      );
+    } else if (selectedMachineSystemId !== TOTAL_ALL_MACHINES) {
+      setSelectedMaChienSet(new Set());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMachineSystemId, aggregatedByMaChien]);
+
+  const handleToggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedMaChienSet(
+        new Set(filteredAggregated.filter((p) => !p.daNhapKho).map((p) => p.maChien)),
+      );
+    } else {
+      setSelectedMaChienSet(new Set());
+    }
+  };
+
+  const handleToggleRow = (maChien: string, checked: boolean) => {
+    setSelectedMaChienSet((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(maChien);
+      else next.delete(maChien);
+      return next;
+    });
+  };
+
+  const pendingRows = filteredAggregated.filter((p) => !p.daNhapKho);
+  const allPendingSelected =
+    pendingRows.length > 0 && pendingRows.every((p) => selectedMaChienSet.has(p.maChien));
+  const selectedMaChienList = Array.from(selectedMaChienSet);
 
   const formatDateTime = (datetime: string) => {
     if (!datetime) return '-';
@@ -565,13 +776,25 @@ const FinishedProductManagement: React.FC = () => {
           <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Quản lý Thành phẩm đầu ra</h2>
         </div>
-        <button
-          onClick={handleExportExcel}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <Download size={18} />
-          Xuất Excel
-        </button>
+        <div className="flex items-center gap-2">
+          {selectedMachineSystemId === TOTAL_ALL_MACHINES && (
+            <button
+              onClick={() => setIsBulkReceiptModalOpen(true)}
+              disabled={selectedMaChienList.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Warehouse size={18} />
+              Nhập kho toàn bộ ({selectedMaChienList.length})
+            </button>
+          )}
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Download size={18} />
+            Xuất Excel
+          </button>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -646,6 +869,15 @@ const FinishedProductManagement: React.FC = () => {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
+                  <th className="px-3 py-2 sm:px-4 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">
+                    <input
+                      type="checkbox"
+                      checked={allPendingSelected}
+                      onChange={(e) => handleToggleSelectAll(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      title="Chọn tất cả chưa nhập kho"
+                    />
+                  </th>
                   <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
                   <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
                   <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
@@ -660,7 +892,7 @@ const FinishedProductManagement: React.FC = () => {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={9} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">
+                    <td colSpan={10} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                         <span className="ml-2">Đang tải...</span>
@@ -669,7 +901,7 @@ const FinishedProductManagement: React.FC = () => {
                   </tr>
                 ) : filteredAggregated.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">
+                    <td colSpan={10} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">
                       Chưa có dữ liệu
                     </td>
                   </tr>
@@ -678,14 +910,31 @@ const FinishedProductManagement: React.FC = () => {
                     <tr
                       key={product.maChien}
                       className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
-                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                        product.daNhapKho ? 'opacity-50' : index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                       }`}
                     >
+                      {/* Checkbox cell */}
+                      <td className="px-3 py-2 sm:px-4 sm:py-4 text-center border-r border-gray-200">
+                        <input
+                          type="checkbox"
+                          checked={selectedMaChienSet.has(product.maChien)}
+                          disabled={product.daNhapKho}
+                          onChange={(e) => handleToggleRow(product.maChien, e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                        />
+                      </td>
                       <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
                         {index + 1}
                       </td>
-                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-green-600 border-r border-gray-200">
-                        {product.maChien}
+                      <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold border-r border-gray-200">
+                        <span className={product.daNhapKho ? 'text-gray-400' : 'text-green-600'}>
+                          {product.maChien}
+                        </span>
+                        {product.daNhapKho && (
+                          <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                            Đã nhập kho
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">
                         {formatDateTime(product.thoiGianChien)}
@@ -734,6 +983,17 @@ const FinishedProductManagement: React.FC = () => {
                             title="Xem chi tiết tổng hợp"
                           >
                             <Eye className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setAdjustMaChien(product.maChien);
+                              setIsAdjustModalOpen(true);
+                            }}
+                            disabled={product.daNhapKho}
+                            className="p-1.5 text-orange-600 hover:bg-orange-100 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={product.daNhapKho ? 'Đã nhập kho, không thể điều chỉnh' : 'Điều chỉnh từng máy'}
+                          >
+                            <SlidersHorizontal className="w-5 h-5" />
                           </button>
                         </div>
                       </td>
@@ -825,6 +1085,16 @@ const FinishedProductManagement: React.FC = () => {
                             <Edit className="w-5 h-5" />
                           </button>
                           <button
+                            onClick={() => {
+                              setSelectedProductForReceipt(product);
+                              setIsReceiptModalOpen(true);
+                            }}
+                            className="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-md transition-colors"
+                            title="Nhập kho"
+                          >
+                            <Warehouse className="w-5 h-5" />
+                          </button>
+                          <button
                             onClick={() => handleDelete(product.id)}
                             className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                             title="Xóa"
@@ -899,6 +1169,51 @@ const FinishedProductManagement: React.FC = () => {
         product={selectedProduct}
         onClose={() => setIsViewModalOpen(false)}
       />
+
+      <FinishedProductWarehouseReceiptModal
+        isOpen={isReceiptModalOpen}
+        product={selectedProductForReceipt}
+        onClose={() => {
+          setIsReceiptModalOpen(false);
+          setSelectedProductForReceipt(null);
+        }}
+        onSuccess={() => {
+          setIsReceiptModalOpen(false);
+          setSelectedProductForReceipt(null);
+          loadProducts();
+        }}
+      />
+
+      {/* Bulk warehouse receipt modal */}
+      <FinishedProductWarehouseReceiptModal
+        isOpen={isBulkReceiptModalOpen}
+        product={null}
+        maChienList={selectedMaChienList}
+        onClose={() => setIsBulkReceiptModalOpen(false)}
+        onSuccess={() => {
+          setIsBulkReceiptModalOpen(false);
+          setSelectedMaChienSet(new Set());
+          loadAllProducts();
+        }}
+      />
+
+      {/* Per-machine adjust modal */}
+      {isAdjustModalOpen && adjustMaChien && (
+        <AdjustMachinesModal
+          maChien={adjustMaChien}
+          products={allProducts.filter((p) => p.maChien === adjustMaChien)}
+          onClose={() => {
+            setIsAdjustModalOpen(false);
+            setAdjustMaChien(null);
+          }}
+          onSuccess={() => {
+            setIsAdjustModalOpen(false);
+            setAdjustMaChien(null);
+            loadAllProducts();
+            queryClient.invalidateQueries({ queryKey: finishedProductKeys.lists() });
+          }}
+        />
+      )}
 
       {/* Aggregated Product View Modal */}
       <Modal isOpen={isAggregatedViewModalOpen && !!selectedAggregatedProduct} onClose={() => setIsAggregatedViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>

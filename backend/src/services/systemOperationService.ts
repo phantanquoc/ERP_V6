@@ -214,6 +214,10 @@ export class SystemOperationService {
       if (!machineSystem) {
         throw new NotFoundError(`Không tìm thấy hệ thống máy với id "${data.machineSystemId}"`);
       }
+      // D6: Validate active status — single-create cannot bypass inactive machine
+      if (machineSystem.trangThai !== 'HOAT_DONG') {
+        throw new ValidationError(`Hệ thống máy "${machineSystem.tenHeThong}" không đang hoạt động. Chỉ có thể tạo thông số vận hành cho máy đang hoạt động.`);
+      }
     }
 
     // Get material evaluation to auto-fill finished product data

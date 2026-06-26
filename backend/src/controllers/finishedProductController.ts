@@ -98,24 +98,101 @@ export class FinishedProductController {
     }
   }
 
-  async getTotalWeightByDate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  /**
+   * GET /api/finished-products/:id/receipt-rows
+   * Returns auto-filled grade rows for a finished product (for pre-filling the receipt modal)
+   */
+  async getReceiptRows(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const date = req.query.date as string;
+      const id = req.params.id as string;
+      const rows = await finishedProductService.buildReceiptRowsForFinishedProduct(id);
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      next(error);
+    }
+  }
 
-      if (!date) {
+  /**
+   * POST /api/finished-products/:id/warehouse-receipt
+   * Confirm warehouse receipt with user-edited rows, warehouseId, lotId
+   */
+  async confirmWarehouseReceipt(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const finishedProductId = req.params.id as string;
+      const { warehouseId, lotId, rows } = req.body;
+      const employeeId = req.user?.id ?? '';
+
+      const receipts = await finishedProductService.confirmFinishedProductWarehouseReceipt(
+        finishedProductId,
+        warehouseId,
+        lotId,
+        rows,
+        employeeId,
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Nhập kho thành phẩm thành công',
+        data: receipts,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/finished-products/bulk-warehouse-receipt
+   * Bulk confirm warehouse receipt for multiple fry-batches (maChien)
+   */
+  async bulkConfirmReceipt(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { maChienList, warehouseId, lotId } = req.body;
+      const employeeId = req.user?.id ?? '';
+
+      const result = await finishedProductService.confirmBulkFinishedProductWarehouseReceipt(
+        maChienList,
+        warehouseId,
+        lotId,
+        employeeId,
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Nhập kho toàn bộ thành phẩm thành công',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/finished-products/output-statistics
+   * Multi-dimensional output statistics: date × product × grade × machine
+   */
+  async getOutputStatistics(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
+      const machineSystemId = req.query.machineSystemId as string | undefined;
+      const tenHangHoa = req.query.tenHangHoa as string | undefined;
+
+      if (!dateFrom || !dateTo) {
         res.status(400).json({
           success: false,
-          message: 'Ngày tháng là bắt buộc',
+          message: 'Ngày bắt đầu (dateFrom) và ngày kết thúc (dateTo) là bắt buộc',
         });
         return;
       }
 
-      const result = await finishedProductService.getTotalWeightByDate(date);
-
-      res.json({
-        success: true,
-        data: result,
+      const result = await finishedProductService.getOutputStatistics({
+        dateFrom,
+        dateTo,
+        machineSystemId,
+        tenHangHoa,
       });
+
+      res.json({ success: true, data: result });
     } catch (error) {
       next(error);
     }

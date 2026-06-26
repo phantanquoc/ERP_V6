@@ -14,6 +14,9 @@ export interface FinishedProduct {
   trangThai?: 'DANG_HOAT_DONG' | 'BAO_TRI' | 'NGUNG_HOAT_DONG';
   machineSystem?: { id: string; maHeThong: string; tenHeThong: string } | null;
 
+  // Warehouse receipt flag
+  daNhapKho?: boolean;
+
   // Thành phẩm A
   aKhoiLuong: number;
   aTiLe: number;
@@ -64,6 +67,63 @@ interface FinishedProductResponse {
     totalPages: number;
   };
   message?: string;
+}
+
+// ─── Warehouse receipt types ──────────────────────────────────────────────────
+
+/** A single pre-filled grade row returned by GET /:id/receipt-rows */
+export interface ReceiptRow {
+  tenSanPham: string;
+  soLuongNhap: number;
+}
+
+/** Body sent to POST /:id/warehouse-receipt */
+export interface ConfirmWarehouseReceiptInput {
+  warehouseId: string;
+  lotId: string;
+  rows: Array<{ tenSanPham: string; soLuongNhap: number; donViTinh?: string }>;
+}
+
+/** Body sent to POST /finished-products/bulk-warehouse-receipt */
+export interface BulkReceiptPayload {
+  maChienList: string[];
+  warehouseId: string;
+  lotId: string;
+}
+
+/** Response from POST /finished-products/bulk-warehouse-receipt */
+export interface BulkReceiptResponse {
+  success: boolean;
+}
+
+// ─── Output statistics types ───────────────────────────────────────────────────
+
+export interface OutputStatisticsRow {
+  id: string;
+  date: string; // YYYY-MM-DD
+  maChien: string;
+  tenHangHoa: string;
+  machineSystemId: string | null;
+  maHeThong: string | null;
+  tenHeThong: string | null;
+  aKhoiLuong: number;
+  bKhoiLuong: number;
+  bDauKhoiLuong: number;
+  cKhoiLuong: number;
+  vunLonKhoiLuong: number;
+  vunNhoKhoiLuong: number;
+  phePhamKhoiLuong: number;
+  uotKhoiLuong: number;
+  tongKhoiLuong: number;
+  goodOutput: number;
+  scrap: number;
+}
+
+export interface OutputStatisticsFilters {
+  dateFrom: string; // YYYY-MM-DD
+  dateTo: string;   // YYYY-MM-DD
+  machineSystemId?: string;
+  tenHangHoa?: string;
 }
 
 class FinishedProductService {
@@ -142,21 +202,55 @@ class FinishedProductService {
     }
   }
 
-  async getTotalWeightByDate(date: string): Promise<{ totalWeight: number; productCount: number }> {
-    try {
-      const response = await apiClient.get<{ totalWeight: number; productCount: number }>('/finished-products/total-weight-by-date', { params: { date } });
-      return response.data as { totalWeight: number; productCount: number };
-    } catch (error) {
-      throw this.handleError(error);
-    }
-  }
-
   async exportToExcel(filters?: { search?: string; machineSystemId?: string }): Promise<void> {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
     if (filters?.machineSystemId) params.append('machineSystemId', filters.machineSystemId);
     const url = `${API_BASE_URL}/finished-products/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     await downloadFile(url, `danh-sach-thanh-pham-${Date.now()}.xlsx`);
+  }
+
+  /** GET /finished-products/:id/receipt-rows — pre-filled grade rows for the receipt modal */
+  async getReceiptRows(id: string): Promise<ReceiptRow[]> {
+    try {
+      const response = await apiClient.get<{ success: boolean; data: ReceiptRow[] }>(`/finished-products/${id}/receipt-rows`);
+      return (response as any).data ?? [];
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /** POST /finished-products/:id/warehouse-receipt — confirm receipt with user-edited rows */
+  async confirmWarehouseReceipt(id: string, input: ConfirmWarehouseReceiptInput): Promise<unknown> {
+    try {
+      const response = await apiClient.post(`/finished-products/${id}/warehouse-receipt`, input);
+      return (response as any).data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /** POST /finished-products/bulk-warehouse-receipt — bulk receipt for multiple maChien */
+  async bulkConfirmWarehouseReceipt(payload: BulkReceiptPayload): Promise<BulkReceiptResponse> {
+    try {
+      const response = await apiClient.post('/finished-products/bulk-warehouse-receipt', payload);
+      return (response as any).data ?? { success: true };
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /** GET /finished-products/output-statistics — multi-dimensional output stats */
+  async getOutputStatistics(filters: OutputStatisticsFilters): Promise<OutputStatisticsRow[]> {
+    try {
+      const response = await apiClient.get<{ success: boolean; data: OutputStatisticsRow[] }>(
+        '/finished-products/output-statistics',
+        { params: filters },
+      );
+      return (response as any).data ?? [];
+    } catch (error) {
+      throw this.handleError(error);
+    }
   }
 
   private handleError(error: any): Error {
@@ -168,4 +262,5 @@ class FinishedProductService {
 }
 
 export default new FinishedProductService();
+
 

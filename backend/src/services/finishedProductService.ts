@@ -1,6 +1,43 @@
 import prisma from '@config/database';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
+import warehouseReceiptService from '@services/warehouseReceiptService';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
+
+// ─── Grade → SKU label mapping ────────────────────────────────────────────────
+// Each grade field on FinishedProduct maps to a fixed human-readable label
+// used as the suffix in the warehouse SKU name: "{base tenHangHoa} - {label}"
+export const GRADE_LABELS: Record<string, string> = {
+  aKhoiLuong: 'Loại A',
+  bKhoiLuong: 'Loại B',
+  bDauKhoiLuong: 'Loại B Dầu',
+  cKhoiLuong: 'Loại C',
+  vunLonKhoiLuong: 'Vụn lớn',
+  vunNhoKhoiLuong: 'Vụn nhỏ',
+  phePhamKhoiLuong: 'Phế phẩm',
+  uotKhoiLuong: 'Ướt',
+};
+
+// Ordered grade field list (determines row order in receipts)
+const GRADE_FIELDS = [
+  'aKhoiLuong',
+  'bKhoiLuong',
+  'bDauKhoiLuong',
+  'cKhoiLuong',
+  'vunLonKhoiLuong',
+  'vunNhoKhoiLuong',
+  'phePhamKhoiLuong',
+  'uotKhoiLuong',
+] as const;
+
+// ─── Receipt row type (mirrors warehouseReceiptService.CreateReceiptInput) ────
+export interface ReceiptRowInput {
+  tenSanPham: string;
+  soLuongNhap: number;
+  donViTinh?: string;
+  warehouseId: string;
+  lotId: string;
+}
 
 export class FinishedProductService {
   async getAllFinishedProducts(page: number = 1, limit: number = 10, machineSystemId?: string) {
@@ -219,57 +256,429 @@ export class FinishedProductService {
   }
 
   /**
-   * Get total tongKhoiLuong (total output weight) by date
-   * This aggregates all finished products from ALL machines for a specific date based on thoiGianChien
-   * Similar to "Tổng các máy" tab calculation - sums all component weights from all machines
+   * Build warehouse receipt input rows from a FinishedProduct's 8 grade weights.
+   * Grades with weight 0 are skipped. Returns up to 8 rows.
+   * Each row tenSanPham = "{base tenHangHoa} - {GRADE_LABELS[field]}"
    */
-  async getTotalWeightByDate(date: string) {
-    const targetDate = date.split('T')[0];
-    const startOfDay = new Date(`${targetDate}T00:00:00.000Z`);
-    const endOfDay = new Date(`${targetDate}T23:59:59.999Z`);
+  async buildReceiptRowsForFinishedProduct(finishedProductId: string): Promise<Array<{ tenSanPham: string; soLuongNhap: number }>> {
+    const fp = await prisma.finishedProduct.findUnique({
+      where: { id: finishedProductId },
+    });
+
+    if (!fp) {
+      throw new NotFoundError('Thành phẩm không tồn tại');
+    }
+
+    const rows: Array<{ tenSanPham: string; soLuongNhap: number }> = [];
+    for (const field of GRADE_FIELDS) {
+      const weight = (fp as any)[field] as number;
+      if (weight && weight > 0) {
+        rows.push({
+          tenSanPham: `${fp.tenHangHoa} - ${GRADE_LABELS[field]}`,
+          soLuongNhap: weight,
+        });
+      }
+    }
+
+    return rows;
+  }
+
+  /**
+   * Confirm warehouse receipt for a finished product:
+   * accepts user-confirmed rows (with possibly edited quantities), warehouseId, lotId,
+   * generates receipt codes, then delegates to warehouseReceiptService.batchCreate.
+   */
+  async confirmFinishedProductWarehouseReceipt(
+    finishedProductId: string,
+    warehouseId: string,
+    lotId: string,
+    rows: Array<{ tenSanPham: string; soLuongNhap: number; donViTinh?: string }>,
+    userId: string,
+  ) {
+    if (!warehouseId) {
+      throw new ValidationError('Vui lòng chọn kho nhập hàng');
+    }
+    if (!lotId) {
+      throw new ValidationError('Vui lòng chọn lô hàng');
+    }
+    if (!rows || rows.length === 0) {
+      throw new ValidationError('Không có dòng sản phẩm nào để nhập kho');
+    }
+
+    // Validate that the finished product exists
+    const fp = await prisma.finishedProduct.findUnique({ where: { id: finishedProductId } });
+    if (!fp) {
+      throw new NotFoundError('Thành phẩm không tồn tại');
+    }
+
+    // Check idempotency: reject if already received
+    if (fp.daNhapKho) {
+      throw new ConflictError('Thành phẩm này đã được nhập kho, không thể nhập kho lại');
+    }
+
+    // Validate warehouse and lot exist
+    const warehouse = await prisma.warehouses.findUnique({ where: { id: warehouseId } });
+    if (!warehouse) {
+      throw new NotFoundError('Kho hàng không tồn tại');
+    }
+    const lot = await prisma.lot.findUnique({ where: { id: lotId } });
+    if (!lot) {
+      throw new NotFoundError('Lô hàng không tồn tại');
+    }
+
+    // Look up employee info
+    let maNhanVien = '';
+    let tenNhanVien = '';
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true, employees: { select: { employeeCode: true } } },
+      });
+      if (user) {
+        tenNhanVien = `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim();
+        maNhanVien = user.employees?.employeeCode ?? '';
+      }
+    }
+
+    const year = new Date().getFullYear();
+
+    // Build receipt inputs — generate codes sequentially to ensure uniqueness
+    const receiptInputs: Array<{
+      maPhieuNhap: string;
+      employeeId: string;
+      maNhanVien: string;
+      tenNhanVien: string;
+      warehouseId: string;
+      tenKho: string;
+      lotId: string;
+      tenLo: string;
+      tenSanPham: string;
+      soLuongNhap: number;
+      donViTinh: string;
+      ghiChu: string;
+    }> = [];
+
+    for (const row of rows) {
+      const last = await prisma.warehouseReceipt.findFirst({
+        where: { maPhieuNhap: yearlyCodeWhere('PN', year) },
+        orderBy: { maPhieuNhap: 'desc' },
+        select: { maPhieuNhap: true },
+      });
+      // Also account for codes already generated in this loop
+      const lastInLoop = receiptInputs.length > 0 ? receiptInputs[receiptInputs.length - 1].maPhieuNhap : null;
+      const lastCode = lastInLoop && (!last?.maPhieuNhap || lastInLoop > last.maPhieuNhap)
+        ? lastInLoop
+        : (last?.maPhieuNhap ?? null);
+
+      receiptInputs.push({
+        maPhieuNhap: nextYearlyCode(lastCode, 'PN', year),
+        employeeId: userId,
+        maNhanVien,
+        tenNhanVien,
+        warehouseId,
+        tenKho: warehouse.tenKho,
+        lotId,
+        tenLo: lot.tenLo,
+        tenSanPham: row.tenSanPham,
+        soLuongNhap: row.soLuongNhap,
+        donViTinh: row.donViTinh || 'Kg',
+        ghiChu: `Nhập kho thành phẩm từ mẻ sản xuất`,
+      });
+    }
+
+    const receipts = await warehouseReceiptService.batchCreate(receiptInputs);
+
+    // Mark the finished product as received (atomically after successful receipt creation)
+    await prisma.finishedProduct.update({
+      where: { id: finishedProductId },
+      data: { daNhapKho: true },
+    });
+
+    return receipts;
+  }
+
+  /**
+   * Bulk warehouse receipt for multiple fry-batches (maChien).
+   * Accepts maChienList + a single warehouseId + lotId.
+   * For each maChien, sums 8 grade weights across all machines, skips grade=0,
+   * generates sequential maPhieuNhap codes, calls warehouseReceiptService.batchCreate,
+   * and marks all affected FinishedProduct rows daNhapKho=true.
+   * All operations run in one prisma.$transaction.
+   */
+  async confirmBulkFinishedProductWarehouseReceipt(
+    maChienList: string[],
+    warehouseId: string,
+    lotId: string,
+    userId: string,
+  ) {
+    // Input validation
+    if (!maChienList || maChienList.length === 0) {
+      throw new ValidationError('Danh sách mã chiên không được để trống');
+    }
+    if (!warehouseId) {
+      throw new ValidationError('Vui lòng chọn kho nhập hàng');
+    }
+    if (!lotId) {
+      throw new ValidationError('Vui lòng chọn lô hàng');
+    }
+
+    // Validate warehouse and lot exist
+    const warehouse = await prisma.warehouses.findUnique({ where: { id: warehouseId } });
+    if (!warehouse) {
+      throw new NotFoundError('Kho hàng không tồn tại');
+    }
+    const lot = await prisma.lot.findUnique({ where: { id: lotId } });
+    if (!lot) {
+      throw new NotFoundError('Lô hàng không tồn tại');
+    }
+
+    // Look up employee info
+    let maNhanVien = '';
+    let tenNhanVien = '';
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true, employees: { select: { employeeCode: true } } },
+      });
+      if (user) {
+        tenNhanVien = `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim();
+        maNhanVien = user.employees?.employeeCode ?? '';
+      }
+    }
+
+    // Fetch all FinishedProduct rows for all listed maChien in one query
+    const allFPs = await prisma.finishedProduct.findMany({
+      where: { maChien: { in: maChienList } },
+    });
+
+    // Validate: every maChien must have at least one FP row
+    for (const maChien of maChienList) {
+      const hasFPs = allFPs.some((fp) => fp.maChien === maChien);
+      if (!hasFPs) {
+        throw new NotFoundError(`Không tìm thấy thành phẩm cho mẻ chiên: ${maChien}`);
+      }
+    }
+
+    // Validate: no FP in any selected maChien may already be received
+    const alreadyReceived = allFPs.filter((fp) => fp.daNhapKho);
+    if (alreadyReceived.length > 0) {
+      const maChienSet = [...new Set(alreadyReceived.map((fp) => fp.maChien))].join(', ');
+      throw new ConflictError(`Các mẻ chiên sau đã được nhập kho, không thể nhập kho lại: ${maChienSet}`);
+    }
+
+    const year = new Date().getFullYear();
+
+    // Build receipt inputs for all maChien inside the transaction
+    await prisma.$transaction(async (tx) => {
+      // Get the last receipt code once before the loop
+      const lastExisting = await tx.warehouseReceipt.findFirst({
+        where: { maPhieuNhap: yearlyCodeWhere('PN', year) },
+        orderBy: { maPhieuNhap: 'desc' },
+        select: { maPhieuNhap: true },
+      });
+      let lastCode: string | null = lastExisting?.maPhieuNhap ?? null;
+
+      // Build receipt rows per maChien and accumulate
+      const receiptInputs: Array<{
+        maPhieuNhap: string;
+        employeeId: string;
+        maNhanVien: string;
+        tenNhanVien: string;
+        warehouseId: string;
+        tenKho: string;
+        lotId: string;
+        tenLo: string;
+        tenSanPham: string;
+        soLuongNhap: number;
+        donViTinh: string;
+        ghiChu: string;
+      }> = [];
+
+      for (const maChien of maChienList) {
+        const fps = allFPs.filter((fp) => fp.maChien === maChien);
+
+        // Sum 8 grades across all machines for this maChien
+        const sums: Record<string, number> = {};
+        for (const field of GRADE_FIELDS) {
+          sums[field] = fps.reduce((acc, fp) => acc + ((fp as any)[field] as number || 0), 0);
+        }
+
+        // Use first FP's tenHangHoa for the SKU prefix
+        const tenHangHoa = fps[0].tenHangHoa;
+
+        // Build rows, skip grades with sum = 0
+        for (const field of GRADE_FIELDS) {
+          const weight = sums[field];
+          if (!weight || weight <= 0) continue;
+
+          lastCode = nextYearlyCode(lastCode, 'PN', year);
+          receiptInputs.push({
+            maPhieuNhap: lastCode,
+            employeeId: userId,
+            maNhanVien,
+            tenNhanVien,
+            warehouseId,
+            tenKho: warehouse.tenKho,
+            lotId,
+            tenLo: lot.tenLo,
+            tenSanPham: `${tenHangHoa} - ${GRADE_LABELS[field]}`,
+            soLuongNhap: weight,
+            donViTinh: 'Kg',
+            ghiChu: `Nhập kho thành phẩm từ mẻ chiên ${maChien} (tổng các máy)`,
+          });
+        }
+      }
+
+      // Create all receipts (each resolves/creates LotProduct and updates soLuong)
+      for (const input of receiptInputs) {
+        const soLuongNhapFloat = parseFloat(input.soLuongNhap.toString());
+        // Resolve lot product (create if needed)
+        let lotProduct = await tx.internationalProduct.findFirst({
+          where: { tenSanPham: { equals: input.tenSanPham, mode: 'insensitive' } },
+        });
+        if (!lotProduct) {
+          // Generate a new product code — use a safe approach inside transaction
+          const lastProduct = await tx.internationalProduct.findFirst({
+            where: { maSanPham: { startsWith: 'SP' } },
+            orderBy: { maSanPham: 'desc' },
+            select: { maSanPham: true },
+          });
+          // Simple increment: SP001 -> SP002
+          const lastNum = lastProduct ? parseInt(lastProduct.maSanPham.replace('SP', ''), 10) : 0;
+          const maSanPham = `SP${String(lastNum + 1).padStart(3, '0')}`;
+          lotProduct = await tx.internationalProduct.create({
+            data: { maSanPham, tenSanPham: input.tenSanPham, donViTinh: 'Kg' },
+          });
+        }
+
+        let lpRecord = await tx.lotProduct.findFirst({
+          where: { lotId: input.lotId, internationalProductId: lotProduct.id },
+        });
+        if (!lpRecord) {
+          lpRecord = await tx.lotProduct.create({
+            data: {
+              lotId: input.lotId,
+              internationalProductId: lotProduct.id,
+              soLuong: 0,
+              donViTinh: 'Kg',
+            },
+          });
+        }
+
+        const soLuongTruoc = lpRecord.soLuong;
+        const soLuongSau = soLuongTruoc + soLuongNhapFloat;
+
+        await tx.warehouseReceipt.create({
+          data: {
+            maPhieuNhap: input.maPhieuNhap,
+            employeeId: input.employeeId,
+            maNhanVien: input.maNhanVien,
+            tenNhanVien: input.tenNhanVien,
+            warehouseId: input.warehouseId,
+            tenKho: input.tenKho,
+            lotId: input.lotId,
+            tenLo: input.tenLo,
+            lotProductId: lpRecord.id,
+            tenSanPham: input.tenSanPham,
+            soLuongTruoc,
+            soLuongNhap: soLuongNhapFloat,
+            soLuongSau,
+            donViTinh: input.donViTinh,
+            ghiChu: input.ghiChu,
+          },
+        });
+
+        await tx.lotProduct.update({
+          where: { id: lpRecord.id },
+          data: { soLuong: soLuongSau },
+        });
+      }
+
+      // Mark all FinishedProduct rows of selected maChien as received
+      await tx.finishedProduct.updateMany({
+        where: { maChien: { in: maChienList } },
+        data: { daNhapKho: true },
+      });
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Get multi-dimensional output statistics grouped by date, product, grade, and machine.
+   * Required: dateFrom, dateTo (YYYY-MM-DD)
+   * Optional: machineSystemId, tenHangHoa
+   * Computes good output (A+B+BDầu+C+vụn lớn+vụn nhỏ) vs scrap (phế phẩm+ướt).
+   */
+  async getOutputStatistics(filters: {
+    dateFrom: string;
+    dateTo: string;
+    machineSystemId?: string;
+    tenHangHoa?: string;
+  }) {
+    if (!filters.dateFrom || !filters.dateTo) {
+      throw new ValidationError('Ngày bắt đầu và ngày kết thúc là bắt buộc');
+    }
+
+    const startDate = new Date(`${filters.dateFrom}T00:00:00.000Z`);
+    const endDate = new Date(`${filters.dateTo}T23:59:59.999Z`);
+
+    const where: any = {
+      thoiGianChien: { gte: startDate, lte: endDate },
+    };
+
+    if (filters.machineSystemId) {
+      where.machineSystemId = filters.machineSystemId;
+    }
+
+    if (filters.tenHangHoa) {
+      where.tenHangHoa = { contains: filters.tenHangHoa, mode: 'insensitive' };
+    }
 
     const products = await prisma.finishedProduct.findMany({
-      where: {
-        thoiGianChien: {
-          gte: startOfDay,
-          lte: endOfDay,
+      where,
+      orderBy: [{ thoiGianChien: 'asc' }, { tenHangHoa: 'asc' }],
+      include: {
+        machineSystem: {
+          select: { id: true, maHeThong: true, tenHeThong: true },
         },
-      },
-      select: {
-        maChien: true,
-        thoiGianChien: true,
-        tenHangHoa: true,
-        machineSystemId: true,
-        aKhoiLuong: true,
-        bKhoiLuong: true,
-        bDauKhoiLuong: true,
-        cKhoiLuong: true,
-        vunLonKhoiLuong: true,
-        vunNhoKhoiLuong: true,
-        phePhamKhoiLuong: true,
-        uotKhoiLuong: true,
       },
     });
 
-    const totalWeight = products.reduce((sum, product) => {
-      const productTotal =
-        (product.aKhoiLuong || 0) +
-        (product.bKhoiLuong || 0) +
-        (product.bDauKhoiLuong || 0) +
-        (product.cKhoiLuong || 0) +
-        (product.vunLonKhoiLuong || 0) +
-        (product.vunNhoKhoiLuong || 0) +
-        (product.phePhamKhoiLuong || 0) +
-        (product.uotKhoiLuong || 0);
-      return sum + productTotal;
-    }, 0);
+    const rows = products.map((p) => {
+      const date = p.thoiGianChien.toISOString().split('T')[0];
+      const goodOutput =
+        (p.aKhoiLuong || 0) +
+        (p.bKhoiLuong || 0) +
+        (p.bDauKhoiLuong || 0) +
+        (p.cKhoiLuong || 0) +
+        (p.vunLonKhoiLuong || 0) +
+        (p.vunNhoKhoiLuong || 0);
+      const scrap = (p.phePhamKhoiLuong || 0) + (p.uotKhoiLuong || 0);
 
-    return {
-      date,
-      totalWeight,
-      productCount: products.length,
-      machineSystems: [...new Set(products.map(p => p.machineSystemId).filter(Boolean))],
-    };
+      return {
+        id: p.id,
+        date,
+        maChien: p.maChien,
+        tenHangHoa: p.tenHangHoa,
+        machineSystemId: p.machineSystemId,
+        maHeThong: p.machineSystem?.maHeThong ?? null,
+        tenHeThong: p.machineSystem?.tenHeThong ?? null,
+        aKhoiLuong: p.aKhoiLuong,
+        bKhoiLuong: p.bKhoiLuong,
+        bDauKhoiLuong: p.bDauKhoiLuong,
+        cKhoiLuong: p.cKhoiLuong,
+        vunLonKhoiLuong: p.vunLonKhoiLuong,
+        vunNhoKhoiLuong: p.vunNhoKhoiLuong,
+        phePhamKhoiLuong: p.phePhamKhoiLuong,
+        uotKhoiLuong: p.uotKhoiLuong,
+        tongKhoiLuong: p.tongKhoiLuong,
+        goodOutput,
+        scrap,
+      };
+    });
+
+    return rows;
   }
 
   async exportToExcel(filters?: any): Promise<Buffer> {
