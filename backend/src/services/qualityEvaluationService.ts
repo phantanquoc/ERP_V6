@@ -14,7 +14,10 @@ export class QualityEvaluationService {
         where: whereClause,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [
+          { maChien: 'desc' },
+          { machineSystem: { maHeThong: 'asc' } },
+        ],
         include: {
           materialEvaluation: {
             select: {

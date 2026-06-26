@@ -13,7 +13,10 @@ export class SystemOperationService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [
+          { maChien: 'desc' },
+          { machineSystem: { maHeThong: 'asc' } },
+        ],
         include: {
           materialEvaluation: true,
           machineSystem: { select: { id: true, maHeThong: true, tenHeThong: true } },
