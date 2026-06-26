@@ -75,8 +75,8 @@ model InternationalProduct {
   donViTinh             String?
   lotProducts           LotProduct[]
   orderItems            OrderItem[]
-  product_batches       product_batches[]
   quotationRequestItems QuotationRequestItem[]
+  finishedProducts      FinishedProduct[]
 
   @@index([tenSanPham])
   @@index([loaiSanPham])

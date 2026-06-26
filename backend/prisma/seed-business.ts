@@ -467,13 +467,6 @@ async function main(): Promise<void> {
     create: { id: 'lp-tp-mit-001', lotId: lotTP.id, internationalProductId: mitSayDeo.id, soLuong: 350, donViTinh: 'kg', giaThanh: 180000 },
   });
 
-  // Product batch (NVL)
-  await prisma.$executeRaw`
-    INSERT INTO business.product_batches (id, "productId", "warehouseId", "soLo", "soLuong", "soLuongNhap", "donViTinh", "ngayNhap", "ngaySanXuat", "hanSuDung", "giaNhap", "nhaCungCap", "trangThai", "ghiChu", "createdAt", "updatedAt")
-    VALUES ('pb-nvl-001', ${mitSayDeo.id}, 'wh-nvl-001', 'LO-NVL-2026-001', 13300, 14300, 'kg', '2026-04-13', '2026-04-12', '2026-04-20', 25000, 'HTX Mít Tiền Giang', 'active', 'Mít tươi Thái múi, đã xuất 1000kg cho 2 mẻ sấy', NOW(), NOW())
-    ON CONFLICT ("productId", "warehouseId", "soLo") DO NOTHING
-  `;
-
   // Phiếu nhập kho NVL
   await prisma.warehouseReceipt.upsert({
     where: { maPhieuNhap: 'PN-2026-001' }, update: {},

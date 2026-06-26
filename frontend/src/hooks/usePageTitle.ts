@@ -22,7 +22,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/production': 'Bộ phận sản xuất',
   '/production/management': 'Quản lý SX',
   '/production/warehouse': 'Quản lý kho',
-  '/production/data': 'Dữ liệu SX',
   '/technical': 'Bộ phận kỹ thuật',
   '/technical/quality': 'QLHTM',
   '/technical/mechanical': 'Cơ điện',
