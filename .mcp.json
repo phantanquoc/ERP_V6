@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "codebase-retrieval": {
+      "type": "http",
+      "url": "http://127.0.0.1:6699/mcp-repo/Downloads_koola_ERP_ERP_V6"
+    }
+  }
+}

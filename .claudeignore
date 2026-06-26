@@ -1,0 +1,92 @@
+# === Dependencies ===
+node_modules/
+**/node_modules/
+
+# === Build outputs ===
+dist/
+build/
+**/dist/
+**/build/
+dist-ssr/
+*.tsbuildinfo
+
+# === Lockfiles (large, low-signal) ===
+package-lock.json
+**/package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# === Python (ai-service) ===
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+ai-service/wheels/
+
+# === ML model binaries / vector store ===
+*.onnx
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.h5
+chroma/
+**/chroma_db/
+*.sqlite3
+frontend/public/models/
+frontend/dist/models/
+
+# === Environment & secrets ===
+.env
+.env.*
+!.env.production.example
+nginx/ssl/*.pem
+nginx/ssl/*.key
+nginx/ssl/*.crt
+
+# === Database / Prisma local artifacts ===
+prisma/dev.db
+prisma/dev.db-journal
+backend/prisma/backups/
+postgres_data/
+
+# === Uploads / runtime data ===
+uploads/
+backend/uploads/
+ai-service/face_data/
+
+# === Logs ===
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# === Testing / coverage ===
+coverage/
+.nyc_output/
+
+# === IDE / OS ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# === VCS / tooling internals ===
+.git/
+.gitnexus/
+.opencode/
+.claude/worktrees/
+
+# === Minified / generated assets ===
+*.min.js
+*.min.css
+*.map
