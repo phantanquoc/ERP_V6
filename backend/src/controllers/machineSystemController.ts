@@ -183,13 +183,13 @@ class MachineSystemController {
 
   async updateStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { trangThai, nguyenNhan, ghiChu } = req.body as {
-        trangThai: MachineStatus;
+      const { trangThaiMoi, nguyenNhan, ghiChu } = req.body as {
+        trangThaiMoi: MachineStatus;
         nguyenNhan: string;
         ghiChu?: string;
       };
 
-      if (!trangThai || !Object.values(MachineStatus).includes(trangThai)) {
+      if (!trangThaiMoi || !Object.values(MachineStatus).includes(trangThaiMoi)) {
         res.status(400).json({ success: false, message: 'Trạng thái máy không hợp lệ' });
         return;
       }
@@ -200,12 +200,32 @@ class MachineSystemController {
 
       const updated = await machineSystemService.updateStatus(
         req.params.id,
-        trangThai,
+        trangThaiMoi,
         nguyenNhan,
         nguoiCapNhat,
         ghiChu,
       );
       res.json({ success: true, data: updated, message: 'Cập nhật trạng thái máy thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/machine-systems/active-production
+   * Returns machines with loaiHeThong ∈ {SAN_XUAT, DONG_GOI, BAO_QUAN} and trangThai = HOAT_DONG.
+   * This is the single source of truth for the "active fryer machine" set used by the
+   * frontend (replaces the old regex-based filter).
+   */
+  async getActiveProductionMachines(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const productionCategories: MachineSystemCategory[] = [
+        MachineSystemCategory.SAN_XUAT,
+        MachineSystemCategory.DONG_GOI,
+        MachineSystemCategory.BAO_QUAN,
+      ];
+      const data = await machineSystemService.getActiveProductionMachines(productionCategories);
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }
