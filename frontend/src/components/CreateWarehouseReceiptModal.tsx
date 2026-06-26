@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import Modal from './Modal';
+import UnitSelect from './common/UnitSelect';
 
 interface CreateWarehouseReceiptModalProps {
   isOpen: boolean;
@@ -435,21 +436,11 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị tính</label>
-                <select
+                <UnitSelect
                   value={singleForm.donViTinh}
-                  onChange={(e) => setSingleForm({ ...singleForm, donViTinh: e.target.value })}
+                  onChange={(val) => setSingleForm({ ...singleForm, donViTinh: val })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                >
-                  <option value="">-- Chọn --</option>
-                  <option value="Kg">Kg</option>
-                  <option value="Cái">Cái</option>
-                  <option value="Hộp">Hộp</option>
-                  <option value="Thùng">Thùng</option>
-                  <option value="Lít">Lít</option>
-                  <option value="Gói">Gói</option>
-                  <option value="Bao">Bao</option>
-                  <option value="Tấn">Tấn</option>
-                </select>
+                />
               </div>
             </div>
             <div>
