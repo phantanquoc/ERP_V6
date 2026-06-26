@@ -280,6 +280,13 @@ export class InternationalProductService {
 
     return result.count;
   }
+
+  async getRawMaterials(): Promise<any[]> {
+    return prisma.internationalProduct.findMany({
+      where: { loaiSanPham: 'Nguyên liệu thô' },
+      orderBy: { maSanPham: 'asc' },
+    });
+  }
 }
 
 export default new InternationalProductService();

@@ -104,6 +104,9 @@ router.get('/code/:code', internationalProductController.getProductByCode);
 
 router.get('/categories', internationalProductController.getCategories);
 
+// Raw materials endpoint — must come BEFORE /:id to avoid shadowing
+router.get('/raw-materials', internationalProductController.getRawMaterials);
+
 router.post(
   '/categories',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),

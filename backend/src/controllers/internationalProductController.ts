@@ -197,6 +197,15 @@ export class InternationalProductController {
       next(error);
     }
   }
+
+  async getRawMaterials(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await internationalProductService.getRawMaterials();
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new InternationalProductController();

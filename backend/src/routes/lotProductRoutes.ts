@@ -7,6 +7,8 @@ const {
   removeProductFromLot,
   moveProductBetweenLots,
   updateProductQuantity,
+  getLotsByProduct,
+  getKienByProductAndLot,
 } = lotProductController;
 import { authenticate } from '@middlewares/auth';
 
@@ -29,6 +31,46 @@ router.use(authenticate);
  *         description: Không có quyền truy cập
  */
 router.get('/', getAllLotProducts);
+
+// New cascading-dropdown endpoints — must come BEFORE /:id to avoid shadowing
+/**
+ * @swagger
+ * /api/lot-products/lots:
+ *   get:
+ *     tags: [Lot Products]
+ *     summary: Lấy danh sách lô chứa sản phẩm (có tồn kho > 0)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: internationalProductId
+ *         required: true
+ *         schema:
+ *           type: string
+ */
+router.get('/lots', getLotsByProduct);
+
+/**
+ * @swagger
+ * /api/lot-products/kien:
+ *   get:
+ *     tags: [Lot Products]
+ *     summary: Lấy danh sách kiện trong lô cho sản phẩm (có tồn kho > 0)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: internationalProductId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: lotId
+ *         required: true
+ *         schema:
+ *           type: string
+ */
+router.get('/kien', getKienByProductAndLot);
 
 /**
  * @swagger

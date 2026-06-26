@@ -7,8 +7,14 @@ export interface InternationalProduct {
   tenSanPham: string;
   moTaSanPham?: string;
   loaiSanPham?: string;
+  donViTinh?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RawMaterialsResponse {
+  success: boolean;
+  data: InternationalProduct[];
 }
 
 export interface CreateProductData {
@@ -125,6 +131,11 @@ export const internationalProductService = {
   async deleteCategory(name: string): Promise<{ success: boolean; data: { count: number }; message: string }> {
     const response = await apiClient.post('/international-products/categories/delete', { name });
     return response as unknown as { success: boolean; data: { count: number }; message: string };
+  },
+
+  async getRawMaterials(): Promise<RawMaterialsResponse> {
+    const response = await apiClient.get('/international-products/raw-materials');
+    return response as unknown as RawMaterialsResponse;
   },
 };
 

@@ -72,6 +72,39 @@ export class LotProductController {
       next(error);
     }
   }
+
+  async getLotsByProduct(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const internationalProductId = req.query.internationalProductId as string;
+
+      if (!internationalProductId) {
+        res.status(400).json({ success: false, message: 'internationalProductId là bắt buộc' });
+        return;
+      }
+
+      const data = await lotProductService.getLotsByProduct(internationalProductId);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getKienByProductAndLot(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const internationalProductId = req.query.internationalProductId as string;
+      const lotId = req.query.lotId as string;
+
+      if (!internationalProductId || !lotId) {
+        res.status(400).json({ success: false, message: 'internationalProductId và lotId là bắt buộc' });
+        return;
+      }
+
+      const data = await lotProductService.getKienByProductAndLot(internationalProductId, lotId);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new LotProductController();

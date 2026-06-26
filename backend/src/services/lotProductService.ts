@@ -1,4 +1,5 @@
 import prisma from '@config/database';
+import { ValidationError } from '@utils/errors';
 
 interface AddProductInput {
   lotId: string;
@@ -115,6 +116,66 @@ class LotProductService {
         giaThanh: input.giaThanh !== undefined ? parseFloat(input.giaThanh.toString()) : undefined,
       },
       include: { internationalProduct: true },
+    });
+  }
+
+  /**
+   * Returns distinct Lot records that have at least one LotProduct row
+   * for the given InternationalProduct with soLuong > 0.
+   */
+  async getLotsByProduct(internationalProductId: string) {
+    if (!internationalProductId) {
+      throw new ValidationError('internationalProductId là bắt buộc');
+    }
+
+    // Find all lotIds that have positive Kg stock for the product
+    const lotProducts = await prisma.lotProduct.findMany({
+      where: {
+        internationalProductId,
+        soLuong: { gt: 0 },
+        donViTinh: 'Kg',
+      },
+      select: { lotId: true },
+      distinct: ['lotId'],
+    });
+
+    const lotIds = lotProducts.map(lp => lp.lotId);
+
+    if (lotIds.length === 0) {
+      return [];
+    }
+
+    return prisma.lot.findMany({
+      where: { id: { in: lotIds } },
+      include: { warehouse: true },
+      orderBy: { tenLo: 'asc' },
+    });
+  }
+
+  /**
+   * Returns LotProduct rows inside a given lot for a given product,
+   * filtered to rows with soLuong > 0.
+   */
+  async getKienByProductAndLot(internationalProductId: string, lotId: string) {
+    if (!internationalProductId) {
+      throw new ValidationError('internationalProductId là bắt buộc');
+    }
+    if (!lotId) {
+      throw new ValidationError('lotId là bắt buộc');
+    }
+
+    return prisma.lotProduct.findMany({
+      where: {
+        internationalProductId,
+        lotId,
+        soLuong: { gt: 0 },
+        donViTinh: 'Kg',
+      },
+      include: {
+        internationalProduct: true,
+        lot: { include: { warehouse: true } },
+      },
+      orderBy: { createdAt: 'asc' },
     });
   }
 }
