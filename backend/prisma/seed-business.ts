@@ -59,6 +59,42 @@ async function main(): Promise<void> {
   });
   console.log('  ✅ 5 sản phẩm');
 
+  // ─── Nguyên liệu thô (NL-001..NL-008) — dùng cho dropdown đánh giá NL ──────
+  console.log('🌿 1b. Tạo nguyên liệu thô NL-001..NL-008...');
+  await prisma.internationalProduct.upsert({
+    where: { maSanPham: 'NL-001' }, update: {},
+    create: { maSanPham: 'NL-001', tenSanPham: 'Mít tươi', loaiSanPham: 'Nguyên liệu thô', donViTinh: 'kg' },
+  });
+  await prisma.internationalProduct.upsert({
+    where: { maSanPham: 'NL-002' }, update: {},
+    create: { maSanPham: 'NL-002', tenSanPham: 'Chuối tươi', loaiSanPham: 'Nguyên liệu thô', donViTinh: 'kg' },
+  });
+  await prisma.internationalProduct.upsert({
+    where: { maSanPham: 'NL-003' }, update: {},
+    create: { maSanPham: 'NL-003', tenSanPham: 'Khoai lang tươi', loaiSanPham: 'Nguyên liệu thô', donViTinh: 'kg' },
+  });
+  await prisma.internationalProduct.upsert({
+    where: { maSanPham: 'NL-004' }, update: {},
+    create: { maSanPham: 'NL-004', tenSanPham: 'Xoài tươi', loaiSanPham: 'Nguyên liệu thô', donViTinh: 'kg' },
+  });
+  await prisma.internationalProduct.upsert({
+    where: { maSanPham: 'NL-005' }, update: {},
+    create: { maSanPham: 'NL-005', tenSanPham: 'Sầu riêng', loaiSanPham: 'Nguyên liệu thô', donViTinh: 'kg' },
+  });
+  await prisma.internationalProduct.upsert({
+    where: { maSanPham: 'NL-006' }, update: {},
+    create: { maSanPham: 'NL-006', tenSanPham: 'Đậu phộng sống', loaiSanPham: 'Nguyên liệu thô', donViTinh: 'kg' },
+  });
+  await prisma.internationalProduct.upsert({
+    where: { maSanPham: 'NL-007' }, update: {},
+    create: { maSanPham: 'NL-007', tenSanPham: 'Khoai môn', loaiSanPham: 'Nguyên liệu thô', donViTinh: 'kg' },
+  });
+  await prisma.internationalProduct.upsert({
+    where: { maSanPham: 'NL-008' }, update: {},
+    create: { maSanPham: 'NL-008', tenSanPham: 'Dứa tươi', loaiSanPham: 'Nguyên liệu thô', donViTinh: 'kg' },
+  });
+  console.log('  ✅ 8 nguyên liệu thô');
+
   // ═══════════════════════════════════════════════════════════════════════════
   // 2. KHÁCH HÀNG
   // ═══════════════════════════════════════════════════════════════════════════

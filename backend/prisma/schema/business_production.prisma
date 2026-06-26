@@ -187,6 +187,7 @@ model LotProduct {
   giaThanh               Float?               @default(100000)
   internationalProduct   InternationalProduct @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
   lot                    Lot                  @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  materialEvaluations    MaterialEvaluation[]
 
   @@map("lot_products")
   @@schema("business")
@@ -220,9 +221,9 @@ model WarehouseReceipt {
 }
 
 model WarehouseIssue {
-  id              String         @id @default(cuid())
-  maPhieuXuat     String         @unique
-  ngayXuat        DateTime       @default(now())
+  id              String              @id @default(cuid())
+  maPhieuXuat     String              @unique
+  ngayXuat        DateTime            @default(now())
   employeeId      String
   maNhanVien      String
   tenNhanVien     String
@@ -232,15 +233,16 @@ model WarehouseIssue {
   tenLo           String
   lotProductId    String
   tenSanPham      String
-  soLuongTruoc    Float          @default(0) // Số lượng tồn kho trước khi xuất
+  soLuongTruoc    Float               @default(0) // Số lượng tồn kho trước khi xuất
   soLuongXuat     Float
-  soLuongSau      Float          @default(0) // Số lượng tồn kho sau khi xuất
+  soLuongSau      Float               @default(0) // Số lượng tồn kho sau khi xuất
   donViTinh       String
   ghiChu          String?
   supplyRequestId String?
-  supplyRequest   SupplyRequest? @relation(fields: [supplyRequestId], references: [id])
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  supplyRequest   SupplyRequest?      @relation(fields: [supplyRequestId], references: [id])
+  materialEvaluation MaterialEvaluation?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@map("warehouse_issues")
   @@schema("business")
@@ -262,6 +264,13 @@ model MaterialEvaluation {
   danhGiaSauNgam       String
   fileDinhKem          String?
   nguoiThucHien        String
+
+  // Warehouse integration (nullable, SetNull on warehouse delete)
+  lotProductId         String?
+  lotProduct           LotProduct?     @relation(fields: [lotProductId], references: [id], onDelete: SetNull)
+  warehouseIssueId     String?         @unique
+  warehouseIssue       WarehouseIssue? @relation(fields: [warehouseIssueId], references: [id], onDelete: SetNull)
+
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -269,6 +278,7 @@ model MaterialEvaluation {
   finishedProducts   FinishedProduct[]
   qualityEvaluations QualityEvaluation[]
 
+  @@index([lotProductId])
   @@map("material_evaluations")
   @@schema("business")
 }

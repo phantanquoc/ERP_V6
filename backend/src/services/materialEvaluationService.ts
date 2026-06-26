@@ -1,6 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
-import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
+import { nextStaticCode, staticCodeWhere, nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 
 export class MaterialEvaluationService {
   async getAllMaterialEvaluations(page: number = 1, limit: number = 10) {
@@ -65,6 +65,16 @@ export class MaterialEvaluationService {
     return nextStaticCode(last?.maChien ?? null, 'MC');
   }
 
+  private async generateWarehouseIssueCode(): Promise<string> {
+    const year = new Date().getFullYear();
+    const last = await prisma.warehouseIssue.findFirst({
+      where: { maPhieuXuat: yearlyCodeWhere('PX', year) },
+      orderBy: { maPhieuXuat: 'desc' },
+      select: { maPhieuXuat: true },
+    });
+    return nextYearlyCode(last?.maPhieuXuat ?? null, 'PX', year);
+  }
+
   async createMaterialEvaluation(data: any) {
     // Validate maChien uniqueness
     const existing = await prisma.materialEvaluation.findUnique({
@@ -76,8 +86,6 @@ export class MaterialEvaluationService {
     }
 
     // Parse datetime from frontend
-    // Frontend sends ISO string: "2026-01-17T03:30:00.000Z"
-    // This ensures consistent timezone handling
     let thoiGianChien: Date;
     if (data.thoiGianChien) {
       thoiGianChien = new Date(data.thoiGianChien);
@@ -85,6 +93,12 @@ export class MaterialEvaluationService {
       thoiGianChien = new Date();
     }
 
+    // If lotProductId is provided, run the transactional create with WarehouseIssue
+    if (data.lotProductId) {
+      return this.createWithWarehouseLink(data, thoiGianChien);
+    }
+
+    // Legacy create without warehouse link
     const evaluation = await prisma.materialEvaluation.create({
       data: {
         maChien: data.maChien,
@@ -107,6 +121,109 @@ export class MaterialEvaluationService {
     return evaluation;
   }
 
+  private async createWithWarehouseLink(data: any, thoiGianChien: Date) {
+    const khoiLuong = parseFloat(data.khoiLuong);
+
+    // Generate WarehouseIssue code BEFORE the transaction (uses a query)
+    const maPhieuXuat = await this.generateWarehouseIssueCode();
+
+    const evaluation = await prisma.$transaction(async (tx) => {
+      // 1. Read LotProduct inside the transaction for consistency
+      const lotProduct = await tx.lotProduct.findUnique({
+        where: { id: data.lotProductId },
+        include: {
+          internationalProduct: true,
+          lot: { include: { warehouse: true } },
+        },
+      });
+
+      if (!lotProduct) {
+        throw new NotFoundError('Không tìm thấy kiện hàng trong kho');
+      }
+
+      // Guard: only Kg units are allowed for material evaluation
+      if (lotProduct.donViTinh !== 'Kg') {
+        throw new ValidationError(
+          `Kiện hàng phải có đơn vị tính Kg để dùng cho đánh giá nguyên liệu. Đơn vị hiện tại: ${lotProduct.donViTinh}`
+        );
+      }
+
+      // 2. Validate stock
+      if (lotProduct.soLuong < khoiLuong) {
+        throw new ValidationError(
+          `Số lượng tồn kho không đủ. Tồn hiện tại: ${lotProduct.soLuong} ${lotProduct.donViTinh}`
+        );
+      }
+
+      const soLuongTruoc = lotProduct.soLuong;
+      const soLuongSau = soLuongTruoc - khoiLuong;
+
+      // 3. Build ghiChu with required prefix
+      const ngayXuat = thoiGianChien;
+      const dd = String(ngayXuat.getDate()).padStart(2, '0');
+      const mm = String(ngayXuat.getMonth() + 1).padStart(2, '0');
+      const yyyy = ngayXuat.getFullYear();
+      const ghiChu = `[TỰ ĐỘNG] Xuất nguyên liệu cho mẻ chiên ${data.maChien} ngày ${dd}/${mm}/${yyyy}`;
+
+      // 4. Create WarehouseIssue
+      const warehouseIssue = await tx.warehouseIssue.create({
+        data: {
+          maPhieuXuat,
+          employeeId: data.employeeId ?? lotProduct.internationalProductId, // fallback
+          maNhanVien: data.maNhanVien ?? '',
+          tenNhanVien: data.tenNhanVien ?? data.nguoiThucHien ?? '',
+          warehouseId: lotProduct.lot.warehouseId,
+          tenKho: lotProduct.lot.warehouse?.tenKho ?? '',
+          lotId: lotProduct.lotId,
+          tenLo: lotProduct.lot.tenLo,
+          lotProductId: lotProduct.id,
+          tenSanPham: lotProduct.internationalProduct.tenSanPham,
+          soLuongTruoc,
+          soLuongXuat: khoiLuong,
+          soLuongSau,
+          donViTinh: lotProduct.donViTinh,
+          ghiChu,
+        },
+      });
+
+      // 5. Decrement LotProduct.soLuong
+      await tx.lotProduct.update({
+        where: { id: lotProduct.id },
+        data: { soLuong: soLuongSau },
+      });
+
+      // 6. Build snapshot fields
+      const tenHangHoa = lotProduct.internationalProduct.tenSanPham;
+      const soLoKien = `${lotProduct.lot.tenLo}-${lotProduct.id.slice(-4)}`;
+
+      // 7. Create MaterialEvaluation with both FKs
+      const newEvaluation = await tx.materialEvaluation.create({
+        data: {
+          maChien: data.maChien,
+          thoiGianChien,
+          tenHangHoa,
+          soLoKien,
+          khoiLuong,
+          soLanNgam: parseInt(data.soLanNgam),
+          nhietDoNuocTruocNgam: parseFloat(data.nhietDoNuocTruocNgam),
+          nhietDoNuocSauVot: parseFloat(data.nhietDoNuocSauVot),
+          thoiGianNgam: parseInt(data.thoiGianNgam),
+          brixNuocNgam: parseFloat(data.brixNuocNgam),
+          danhGiaTruocNgam: data.danhGiaTruocNgam,
+          danhGiaSauNgam: data.danhGiaSauNgam,
+          fileDinhKem: data.fileDinhKem,
+          nguoiThucHien: data.nguoiThucHien,
+          lotProductId: lotProduct.id,
+          warehouseIssueId: warehouseIssue.id,
+        },
+      });
+
+      return newEvaluation;
+    });
+
+    return evaluation;
+  }
+
   async updateMaterialEvaluation(id: string, data: any) {
     const existing = await prisma.materialEvaluation.findUnique({
       where: { id },
@@ -116,11 +233,13 @@ export class MaterialEvaluationService {
       throw new NotFoundError('Material evaluation not found');
     }
 
+    // Strip immutable fields — khoiLuong, lotProductId, warehouseIssueId must never change
+    const { khoiLuong: _khoiLuong, lotProductId: _lotProductId, warehouseIssueId: _warehouseIssueId, ...safeData } = data;
+
     // Parse datetime from frontend
-    // Frontend sends ISO string: "2026-01-17T03:30:00.000Z"
     let thoiGianChien: Date | undefined;
-    if (data.thoiGianChien) {
-      thoiGianChien = new Date(data.thoiGianChien);
+    if (safeData.thoiGianChien) {
+      thoiGianChien = new Date(safeData.thoiGianChien);
     }
 
     // Use transaction to update MaterialEvaluation and sync to related tables
@@ -130,18 +249,17 @@ export class MaterialEvaluationService {
         where: { id },
         data: {
           thoiGianChien,
-          tenHangHoa: data.tenHangHoa,
-          soLoKien: data.soLoKien,
-          khoiLuong: data.khoiLuong != null ? parseFloat(data.khoiLuong) : undefined,
-          soLanNgam: data.soLanNgam != null ? parseInt(data.soLanNgam) : undefined,
-          nhietDoNuocTruocNgam: data.nhietDoNuocTruocNgam != null ? parseFloat(data.nhietDoNuocTruocNgam) : undefined,
-          nhietDoNuocSauVot: data.nhietDoNuocSauVot != null ? parseFloat(data.nhietDoNuocSauVot) : undefined,
-          thoiGianNgam: data.thoiGianNgam != null ? parseInt(data.thoiGianNgam) : undefined,
-          brixNuocNgam: data.brixNuocNgam != null ? parseFloat(data.brixNuocNgam) : undefined,
-          danhGiaTruocNgam: data.danhGiaTruocNgam,
-          danhGiaSauNgam: data.danhGiaSauNgam,
-          fileDinhKem: data.fileDinhKem,
-          nguoiThucHien: data.nguoiThucHien,
+          tenHangHoa: safeData.tenHangHoa,
+          soLoKien: safeData.soLoKien,
+          soLanNgam: safeData.soLanNgam != null ? parseInt(safeData.soLanNgam) : undefined,
+          nhietDoNuocTruocNgam: safeData.nhietDoNuocTruocNgam != null ? parseFloat(safeData.nhietDoNuocTruocNgam) : undefined,
+          nhietDoNuocSauVot: safeData.nhietDoNuocSauVot != null ? parseFloat(safeData.nhietDoNuocSauVot) : undefined,
+          thoiGianNgam: safeData.thoiGianNgam != null ? parseInt(safeData.thoiGianNgam) : undefined,
+          brixNuocNgam: safeData.brixNuocNgam != null ? parseFloat(safeData.brixNuocNgam) : undefined,
+          danhGiaTruocNgam: safeData.danhGiaTruocNgam,
+          danhGiaSauNgam: safeData.danhGiaSauNgam,
+          fileDinhKem: safeData.fileDinhKem,
+          nguoiThucHien: safeData.nguoiThucHien,
         },
       });
 
@@ -210,12 +328,40 @@ export class MaterialEvaluationService {
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      // 1. Delete dependent production rows
       const [deletedQualityEvaluations, deletedFinishedProducts, deletedSystemOperations] = await Promise.all([
         tx.qualityEvaluation.deleteMany({ where: { materialEvaluationId: id } }),
         tx.finishedProduct.deleteMany({ where: { materialEvaluationId: id } }),
         tx.systemOperation.deleteMany({ where: { materialEvaluationId: id } }),
       ]);
 
+      // 2. Handle warehouse refund if warehouseIssueId is set
+      if (existing.warehouseIssueId) {
+        const warehouseIssue = await tx.warehouseIssue.findUnique({
+          where: { id: existing.warehouseIssueId },
+        });
+
+        if (warehouseIssue) {
+          // Refund stock only if LotProduct still exists
+          if (existing.lotProductId) {
+            const lotProduct = await tx.lotProduct.findUnique({
+              where: { id: existing.lotProductId },
+            });
+
+            if (lotProduct) {
+              await tx.lotProduct.update({
+                where: { id: existing.lotProductId },
+                data: { soLuong: lotProduct.soLuong + warehouseIssue.soLuongXuat },
+              });
+            }
+          }
+
+          // Delete the WarehouseIssue
+          await tx.warehouseIssue.delete({ where: { id: existing.warehouseIssueId } });
+        }
+      }
+
+      // 3. Delete the MaterialEvaluation
       await tx.materialEvaluation.delete({ where: { id } });
 
       return {

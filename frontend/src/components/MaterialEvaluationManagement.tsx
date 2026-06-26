@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, Upload, Settings, Save } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import Modal from './Modal';
 import ConfirmDeleteModal from './common/ConfirmDeleteModal';
 import materialEvaluationService, { MaterialEvaluation, MaterialEvaluationDeleteInfo } from '../services/materialEvaluationService';
@@ -10,6 +11,10 @@ import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductionEmployees } from '../hooks/useProductionEmployees';
+import { useRawMaterials } from '../hooks/useRawMaterials';
+import { useLotsByProduct, lotsByProductKeys } from '../hooks/useLotsByProduct';
+import { useKienByProductAndLot } from '../hooks/useKienByProductAndLot';
+import { lotProductKeys } from '../services/lotProductService';
 
 
 interface MaterialEvaluationManagementProps {
@@ -25,8 +30,24 @@ const normalizeSearchText = (value: string): string =>
 
 const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> = ({ onCreateSystemOperation }) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: productionEmployees = [], isLoading: loadingProductionEmployees } = useProductionEmployees();
   const [isNguoiThucHienOpen, setIsNguoiThucHienOpen] = useState(false);
+
+  // Cascade dropdown state for create form
+  const [productId, setProductId] = useState<string>('');
+  const [lotId, setLotId] = useState<string>('');
+  const [lotProductId, setLotProductId] = useState<string>('');
+  const [khoiLuongError, setKhoiLuongError] = useState<string>('');
+
+  const { data: rawMaterials = [], isLoading: loadingRawMaterials } = useRawMaterials();
+  const { data: lots = [], isLoading: loadingLots } = useLotsByProduct(productId || null);
+  const { data: kienList = [], isLoading: loadingKien } = useKienByProductAndLot(
+    productId || null,
+    lotId || null
+  );
+
+  const selectedKien = kienList.find(k => k.id === lotProductId) ?? null;
   const [evaluations, setEvaluations] = useState<MaterialEvaluation[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -300,6 +321,10 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     setSelectedEvaluation(null);
     setIsEditing(false);
     setIsNguoiThucHienOpen(false);
+    setProductId('');
+    setLotId('');
+    setLotProductId('');
+    setKhoiLuongError('');
   };
 
   const handleViewDetail = (evaluation: MaterialEvaluation) => {
@@ -340,6 +365,9 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Block submit if quantity validation fails
+    if (khoiLuongError) return;
+
     try {
       setLoading(true);
       setError('');
@@ -352,6 +380,8 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         thoiGianChien: formData.thoiGianChien
           ? new Date(formData.thoiGianChien).toISOString()
           : '',
+        // Include lotProductId when creating with warehouse link
+        ...((!isEditing && lotProductId) ? { lotProductId } : {}),
       };
 
       if (isEditing && selectedEvaluation) {
@@ -360,6 +390,13 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       } else {
         // Create new evaluation
         await materialEvaluationService.createMaterialEvaluation(submitData);
+        // Invalidate related caches so stock counts refresh elsewhere
+        queryClient.invalidateQueries({ queryKey: ['materialEvaluations'] });
+        queryClient.invalidateQueries({ queryKey: lotProductKeys.lists() });
+        queryClient.invalidateQueries({ queryKey: ['warehouseIssues'] });
+        if (productId) {
+          queryClient.invalidateQueries({ queryKey: lotsByProductKeys.list(productId) });
+        }
       }
 
       await loadEvaluations();
@@ -661,50 +698,179 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tên hàng hóa <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="tenHangHoa"
-                    value={formData.tenHangHoa}
-                    onChange={(e) => setFormData(prev => ({ ...prev, tenHangHoa: e.target.value }))}
-                    required
-                    placeholder="VD: Xoài tươi, Mít tươi..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+                {/* ── Warehouse cascade (create only) or snapshot read-only (edit) ── */}
+                {isEditing ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tên hàng hóa
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.tenHangHoa ?? ''}
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Số lô, Kiện <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="soLoKien"
-                    value={formData.soLoKien}
-                    onChange={(e) => setFormData(prev => ({ ...prev, soLoKien: e.target.value }))}
-                    required
-                    placeholder="VD: L001-K05"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Số lô, Kiện
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.soLoKien ?? ''}
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Khối lượng (Kg) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    name="khoiLuong"
-                    value={formData.khoiLuong}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+                    {/* Khối lượng is hidden on edit — immutable after creation */}
+                  </>
+                ) : (
+                  <>
+                    {/* Select: Sản phẩm nguyên liệu */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Sản phẩm nguyên liệu <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={productId}
+                        onChange={(e) => {
+                          setProductId(e.target.value);
+                          setLotId('');
+                          setLotProductId('');
+                          setKhoiLuongError('');
+                          setFormData(prev => ({ ...prev, tenHangHoa: '', soLoKien: '', khoiLuong: 0 }));
+                        }}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">
+                          {loadingRawMaterials ? 'Đang tải...' : '-- Chọn sản phẩm --'}
+                        </option>
+                        {rawMaterials.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.maSanPham} – {p.tenSanPham}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Select: Lô */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Lô <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={lotId}
+                        onChange={(e) => {
+                          setLotId(e.target.value);
+                          setLotProductId('');
+                          setKhoiLuongError('');
+                          setFormData(prev => ({ ...prev, soLoKien: '', khoiLuong: 0 }));
+                        }}
+                        required
+                        disabled={!productId}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      >
+                        <option value="">
+                          {!productId
+                            ? '-- Chọn sản phẩm trước --'
+                            : loadingLots
+                            ? 'Đang tải...'
+                            : lots.length === 0
+                            ? 'Không có lô tồn kho'
+                            : '-- Chọn lô --'}
+                        </option>
+                        {lots.map(l => (
+                          <option key={l.id} value={l.id}>
+                            {l.tenLo}{l.warehouse ? ` (${l.warehouse.tenKho})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Select: Kiện */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Kiện <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={lotProductId}
+                        onChange={(e) => {
+                          const newKienId = e.target.value;
+                          setLotProductId(newKienId);
+                          setKhoiLuongError('');
+                          const chosen = kienList.find(k => k.id === newKienId) ?? null;
+                          if (chosen) {
+                            const lot = lots.find(l => l.id === lotId);
+                            const soLoKienLabel = `${lot?.tenLo ?? ''}-${newKienId.slice(-4)}`;
+                            setFormData(prev => ({
+                              ...prev,
+                              tenHangHoa: chosen.internationalProduct?.tenSanPham ?? prev.tenHangHoa,
+                              soLoKien: soLoKienLabel,
+                              khoiLuong: 0,
+                            }));
+                          }
+                        }}
+                        required
+                        disabled={!lotId}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      >
+                        <option value="">
+                          {!lotId
+                            ? '-- Chọn lô trước --'
+                            : loadingKien
+                            ? 'Đang tải...'
+                            : kienList.length === 0
+                            ? 'Không có kiện tồn kho'
+                            : '-- Chọn kiện --'}
+                        </option>
+                        {kienList.map(k => {
+                          const lot = lots.find(l => l.id === k.lotId);
+                          return (
+                            <option key={k.id} value={k.id}>
+                              {lot?.tenLo ?? ''}-{k.id.slice(-4)} &bull; Tồn: {k.soLuong} {k.donViTinh}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    {/* Khối lượng xuất – bounded by selectedKien.soLuong */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Khối lượng xuất (kg) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        max={selectedKien?.soLuong ?? undefined}
+                        name="khoiLuong"
+                        value={formData.khoiLuong}
+                        onChange={(e) => {
+                          const val = parseNumberInput(e.target.value);
+                          setFormData(prev => ({ ...prev, khoiLuong: val }));
+                          if (selectedKien && val > selectedKien.soLuong) {
+                            setKhoiLuongError(`Vượt quá tồn kho (${selectedKien.soLuong} kg)`);
+                          } else {
+                            setKhoiLuongError('');
+                          }
+                        }}
+                        required
+                        disabled={!lotProductId}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                          khoiLuongError ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
+                      {khoiLuongError && (
+                        <p className="mt-1 text-xs text-red-600">{khoiLuongError}</p>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -893,7 +1059,8 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  disabled={!!khoiLuongError}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isEditing ? 'Cập nhật' : 'Thêm mới'}
                 </button>
