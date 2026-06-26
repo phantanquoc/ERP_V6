@@ -12,6 +12,7 @@ router.use(authenticate);
 
 router.get('/generate-code', machineSystemController.getNextCode.bind(machineSystemController));
 router.get('/distinct-fields', machineSystemController.getDistinctFields.bind(machineSystemController));
+router.get('/active-production', machineSystemController.getActiveProductionMachines.bind(machineSystemController));
 router.get('/', machineSystemController.getAll.bind(machineSystemController));
 router.get('/export/excel', machineSystemController.exportExcel.bind(machineSystemController));
 router.get('/:id', machineSystemController.getById.bind(machineSystemController));

@@ -34,34 +34,16 @@ export const useMachineSystems = (filters: MachineSystemFilters = {}) =>
     queryFn: () => machineSystemService.getMachineSystems(filters),
   });
 
-const fryerMachineFilters: MachineSystemFilters = {
-  page: 1,
-  limit: 200,
-  hoatDong: true,
-  sortBy: 'maHeThong',
-  sortOrder: 'asc',
-};
-
-const isVacuumFryerMachineSystem = ({ maHeThong }: { maHeThong: string }) => {
-  const match = maHeThong.match(/^HT-CCK-(\d+)$/);
-  if (!match) return false;
-
-  const machineNumber = Number(match[1]);
-  return machineNumber >= 1 && machineNumber <= 8;
-};
-
+/**
+ * Returns machines eligible for system operations.
+ * Uses the unified backend endpoint: loaiHeThong ∈ {SAN_XUAT, DONG_GOI, BAO_QUAN} + trangThai = HOAT_DONG.
+ * This replaces the old regex-based filter on the frontend.
+ */
 export const useActiveFryerMachineSystems = () =>
   useQuery({
-    queryKey: [...machineSystemKeys.all, 'activeFryerList', fryerMachineFilters] as const,
+    queryKey: [...machineSystemKeys.all, 'activeProduction'] as const,
     queryFn: async () => {
-      const response = await machineSystemService.getMachineSystems(fryerMachineFilters);
-      const data = [...(response.data ?? [])]
-        .filter(isVacuumFryerMachineSystem)
-        .filter((machineSystem) => machineSystem.trangThai === undefined || machineSystem.trangThai === 'HOAT_DONG')
-        .sort((left, right) =>
-          left.maHeThong.localeCompare(right.maHeThong, 'vi-VN', { numeric: true })
-        );
-      return { ...response, data };
+      return machineSystemService.getActiveProductionMachines();
     },
   });
 
@@ -235,6 +217,8 @@ export const useUpdateMachineStatus = () => {
       machineSystemService.updateMachineStatus(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: machineSystemKeys.detail(variables.id) });
+      queryClient.invalidateQueries({ queryKey: machineSystemKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: [...machineSystemKeys.all, 'activeProduction'] });
       queryClient.invalidateQueries({ queryKey: machineStatusLogKeys.lists() });
       queryClient.invalidateQueries({ queryKey: machineSystemSummaryKeys.detail(variables.id) });
     },

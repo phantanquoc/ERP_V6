@@ -158,6 +158,20 @@ class MachineSystemService {
     return system;
   }
 
+  /**
+   * Returns active production machines: loaiHeThong ∈ categories, trangThai = HOAT_DONG.
+   * This is the single source of truth used by createBulkSystemOperations and the frontend.
+   */
+  async getActiveProductionMachines(categories: MachineSystemCategory[]) {
+    return prisma.machineSystem.findMany({
+      where: {
+        trangThai: 'HOAT_DONG',
+        loaiHeThong: { in: categories },
+      },
+      orderBy: { maHeThong: 'asc' },
+    });
+  }
+
   async createMachineSystem(data: CreateMachineSystemData) {
     return prisma.machineSystem.create({ data });
   }

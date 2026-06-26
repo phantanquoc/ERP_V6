@@ -317,6 +317,16 @@ class MachineSystemService {
       },
     });
   }
+
+  /**
+   * GET /api/machine-systems/active-production
+   * Returns machines eligible for system operations:
+   * loaiHeThong ∈ {SAN_XUAT, DONG_GOI, BAO_QUAN} and trangThai = HOAT_DONG.
+   * This is the single source of truth — replaces the old regex-based frontend filter.
+   */
+  async getActiveProductionMachines(): Promise<ApiResponse<MachineSystem[]>> {
+    return apiClient.get<MachineSystem[]>('/machine-systems/active-production');
+  }
 }
 
 export default new MachineSystemService();
