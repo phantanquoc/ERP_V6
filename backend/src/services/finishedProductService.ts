@@ -51,7 +51,10 @@ export class FinishedProductService {
         where: whereClause,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [
+          { maChien: 'desc' },
+          { machineSystem: { maHeThong: 'asc' } },
+        ],
         include: {
           materialEvaluation: {
             select: {
