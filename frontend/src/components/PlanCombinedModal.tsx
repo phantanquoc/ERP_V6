@@ -17,7 +17,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
   isOpen,
   onClose,
   isAdmin = false,
-  defaultTab = 'workPlans',
+  defaultTab = 'overtimePlans',
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab);
 
@@ -33,7 +33,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
       <div className="bg-white sm:rounded-xl rounded-t-xl shadow-2xl sm:max-w-6xl w-full flex flex-col h-[92vh] sm:h-auto sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-orange-500 px-6 py-4 flex items-center justify-between shrink-0">
+        <div className="bg-gradient-to-r from-orange-500 to-purple-600 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <Calendar className="w-6 h-6 text-white" />
             <h2 className="text-xl font-bold text-white">Kế hoạch</h2>
@@ -49,17 +49,6 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
         {/* Tabs */}
         <div className="flex border-b border-gray-200 bg-gray-50 shrink-0">
           <button
-            onClick={() => setActiveTab('workPlans')}
-            className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'workPlans'
-                ? 'border-purple-600 text-purple-600 bg-white'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            Kế hoạch công việc
-          </button>
-          <button
             onClick={() => setActiveTab('overtimePlans')}
             className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'overtimePlans'
@@ -70,14 +59,25 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
             <Clock className="w-4 h-4" />
             Kế hoạch tăng ca
           </button>
+          <button
+            onClick={() => setActiveTab('workPlans')}
+            className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'workPlans'
+                ? 'border-purple-600 text-purple-600 bg-white'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            Kế hoạch công việc
+          </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto">
           {activeTab === 'workPlans' && (
             <WorkPlanListModal
               isOpen={true}
-              onClose={handleClose}
+              onClose={() => {}}
               isAdmin={isAdmin}
               embedded={true}
             />
@@ -85,7 +85,7 @@ const PlanCombinedModal: React.FC<PlanCombinedModalProps> = ({
           {activeTab === 'overtimePlans' && (
             <OvertimePlanListModal
               isOpen={true}
-              onClose={handleClose}
+              onClose={() => {}}
               isAdmin={isAdmin}
               canViewAll={isAdmin}
               canCreate={isAdmin}

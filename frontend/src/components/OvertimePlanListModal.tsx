@@ -207,7 +207,8 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
   if (!isOpen) return null;
 
   const tableContent = (
-    <div className={embedded ? "p-4 overflow-x-auto max-h-[calc(90vh-220px)]" : "p-6 overflow-x-auto max-h-[calc(90vh-200px)]"}>
+    <>
+      <div className={embedded ? "p-4 overflow-x-auto" : "p-6 overflow-x-auto max-h-[calc(90vh-200px)]"}>
       {loading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto"></div>
@@ -332,35 +333,34 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
           </tbody>
         </table>
       )}
+      </div>
 
       {/* Pagination */}
-      {!loading && totalItems > 0 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <p className="text-sm text-gray-600">
-            Tổng: <span className="font-medium">{totalItems}</span> kế hoạch
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50 transition-colors"
-            >
-              ← Trước
-            </button>
-            <span className="px-3 py-1.5 text-sm text-gray-700">
-              Trang {currentPage} / {totalPages}
+      {!loading && plans.length > 0 && totalPages > 1 && (
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
             </span>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50 transition-colors"
-            >
-              Sau →
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Trước</button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-orange-500 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}>{page}</button>
+                  </React.Fragment>
+                ))}
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Sau</button>
+            </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 
   const subModals = (
