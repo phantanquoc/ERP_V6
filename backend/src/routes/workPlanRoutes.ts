@@ -179,6 +179,7 @@ router.post(
  */
 router.put(
   '/:id',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   uploadWorkPlans,
   workPlanController.updateWorkPlan
 );
@@ -211,7 +212,6 @@ router.put(
  */
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
   workPlanController.deleteWorkPlan
 );
 

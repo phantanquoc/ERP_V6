@@ -111,9 +111,24 @@ class WorkPlanController {
   async updateWorkPlan(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
+      const userId = req.user!.id;
+      const userRole = req.user!.role;
       const data = req.body;
+      const files = req.files as Express.Multer.File[] | undefined;
+      const filePaths = files?.map(file => getFileUrl('work-plans', file.filename)) || [];
 
-      const workPlan = await workPlanService.updateWorkPlan(id, data);
+      // Parse keepFiles from FormData (may arrive as JSON string or array)
+      if (data.keepFiles !== undefined) {
+        if (typeof data.keepFiles === 'string') {
+          try {
+            data.keepFiles = JSON.parse(data.keepFiles);
+          } catch {
+            data.keepFiles = [data.keepFiles];
+          }
+        }
+      }
+
+      const workPlan = await workPlanService.updateWorkPlan(id, data, userId, userRole, filePaths);
 
       res.json({
         success: true,
@@ -128,7 +143,9 @@ class WorkPlanController {
   async deleteWorkPlan(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
-      await workPlanService.deleteWorkPlan(id);
+      const userId = req.user!.id;
+      const userRole = req.user!.role;
+      await workPlanService.deleteWorkPlan(id, userId, userRole);
 
       res.json({
         success: true,
