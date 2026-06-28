@@ -64,7 +64,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
 
   const tableContent = (
     <>
-        <div className={embedded ? "p-4 overflow-x-auto max-h-[calc(90vh-220px)]" : "p-6 overflow-x-auto"}>
+        <div className={embedded ? "p-4 overflow-x-auto" : "p-6 overflow-x-auto"}>
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
