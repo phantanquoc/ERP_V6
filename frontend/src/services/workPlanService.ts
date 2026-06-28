@@ -14,6 +14,22 @@ export enum WorkPlanStatus {
   HUY = 'HUY',
 }
 
+export interface WorkPlanUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  employeeCode: string;
+  department?: string;
+}
+
+export interface WorkPlanEmployee {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  employeeCode: string;
+}
+
 export interface CreateWorkPlanData {
   tieuDe: string;
   noiDung: string;
@@ -22,6 +38,19 @@ export interface CreateWorkPlanData {
   ngayKetThuc: string;
   mucDoUuTien: WorkPlanPriority;
   ghiChu?: string;
+  files?: File[];
+}
+
+export interface UpdateWorkPlanData {
+  tieuDe?: string;
+  noiDung?: string;
+  nguoiThucHien?: string[];
+  ngayBatDau?: string;
+  ngayKetThuc?: string;
+  mucDoUuTien?: WorkPlanPriority;
+  trangThai?: WorkPlanStatus;
+  ghiChu?: string;
+  keepFiles?: string[];
   files?: File[];
 }
 
@@ -39,8 +68,18 @@ export interface WorkPlan {
   files: string[];
   createdAt: string;
   updatedAt: string;
-  nguoiTao?: any;
-  nguoiThucHien?: any[];
+  nguoiTao?: WorkPlanUser | null;
+  nguoiThucHien?: WorkPlanEmployee[];
+}
+
+export interface WorkPlanListResponse {
+  data: WorkPlan[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
 export const workPlanService = {
@@ -68,7 +107,7 @@ export const workPlanService = {
     }
 
      const response = await apiClient.post('/work-plans', formData);
- 
+
      return response.data;
   },
 
@@ -76,14 +115,14 @@ export const workPlanService = {
     page: number = 1,
     limit: number = 10,
     search?: string,
-  ): Promise<{ data: WorkPlan[]; pagination: any }> {
-     const response = await apiClient.get('/work-plans', {
+  ): Promise<WorkPlanListResponse> {
+     const response = await apiClient.get<WorkPlan[]>('/work-plans', {
        params: { page, limit, ...(search ? { search } : {}) },
      });
 
     return {
-       data: response.data,
-       pagination: (response as any).pagination,
+       data: response.data ?? [],
+       pagination: response.pagination ?? { total: 0, page, limit, totalPages: 1 },
     };
   },
 
@@ -91,14 +130,14 @@ export const workPlanService = {
     page: number = 1,
     limit: number = 10,
     search?: string,
-  ): Promise<{ data: WorkPlan[]; pagination: any }> {
-     const response = await apiClient.get('/work-plans/my-work-plans', {
+  ): Promise<WorkPlanListResponse> {
+     const response = await apiClient.get<WorkPlan[]>('/work-plans/my-work-plans', {
        params: { page, limit, ...(search ? { search } : {}) },
      });
 
     return {
-       data: response.data,
-       pagination: (response as any).pagination,
+       data: response.data ?? [],
+       pagination: response.pagination ?? { total: 0, page, limit, totalPages: 1 },
     };
   },
 
@@ -107,30 +146,35 @@ export const workPlanService = {
      return response.data;
   },
 
-  async updateWorkPlan(id: string, data: Partial<CreateWorkPlanData>): Promise<WorkPlan> {
+  async updateWorkPlan(id: string, data: UpdateWorkPlanData, files?: File[]): Promise<WorkPlan> {
     const formData = new FormData();
 
     if (data.nguoiThucHien) {
-      data.nguoiThucHien.forEach(id => {
-        formData.append('nguoiThucHien[]', id);
+      data.nguoiThucHien.forEach(empId => {
+        formData.append('nguoiThucHien[]', empId);
       });
     }
 
-    if (data.tieuDe) formData.append('tieuDe', data.tieuDe);
-    if (data.noiDung) formData.append('noiDung', data.noiDung);
-    if (data.ngayBatDau) formData.append('ngayBatDau', data.ngayBatDau);
-    if (data.ngayKetThuc) formData.append('ngayKetThuc', data.ngayKetThuc);
-    if (data.mucDoUuTien) formData.append('mucDoUuTien', data.mucDoUuTien);
+    if (data.tieuDe !== undefined) formData.append('tieuDe', data.tieuDe);
+    if (data.noiDung !== undefined) formData.append('noiDung', data.noiDung);
+    if (data.ngayBatDau !== undefined) formData.append('ngayBatDau', data.ngayBatDau);
+    if (data.ngayKetThuc !== undefined) formData.append('ngayKetThuc', data.ngayKetThuc);
+    if (data.mucDoUuTien !== undefined) formData.append('mucDoUuTien', data.mucDoUuTien);
+    if (data.trangThai !== undefined) formData.append('trangThai', data.trangThai);
     if (data.ghiChu !== undefined) formData.append('ghiChu', data.ghiChu || '');
 
-    if (data.files && data.files.length > 0) {
-      data.files.forEach(file => {
+    if (data.keepFiles !== undefined) {
+      formData.append('keepFiles', JSON.stringify(data.keepFiles));
+    }
+
+    if (files && files.length > 0) {
+      files.forEach(file => {
         formData.append('files', file);
       });
     }
 
      const response = await apiClient.put(`/work-plans/${id}`, formData);
- 
+
      return response.data;
   },
 
