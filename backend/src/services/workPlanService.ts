@@ -3,6 +3,7 @@ import logger from '@config/logger';
 import { WorkPlanStatus, TaskPriority } from '@prisma/client';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
+import { NotFoundError, ValidationError } from '@utils/errors';
 
 class WorkPlanService {
   // Helper function to populate work plan with user information
@@ -53,22 +54,29 @@ class WorkPlanService {
       where: { id: nguoiTaoId },
     });
     if (!nguoiTao) {
-      throw new Error('Người tạo kế hoạch không tồn tại');
+      throw new ValidationError('Người tạo kế hoạch không tồn tại');
+    }
+
+    // Validate date range
+    if (data.ngayBatDau && data.ngayKetThuc) {
+      if (new Date(data.ngayKetThuc) < new Date(data.ngayBatDau)) {
+        throw new ValidationError('Ngày kết thúc phải sau hoặc bằng ngày bắt đầu');
+      }
     }
 
     // Validate người thực hiện exists (data.nguoiThucHien contains employee IDs)
-    logger.debug('🔍 Received nguoiThucHien IDs:', data.nguoiThucHien);
+    logger.debug('Received nguoiThucHien IDs:', data.nguoiThucHien);
 
     const nguoiThucHienEmployees = await prisma.employee.findMany({
       where: { id: { in: data.nguoiThucHien } },
       select: { id: true, userId: true },
     });
 
-    logger.debug('✅ Found employees:', nguoiThucHienEmployees);
+    logger.debug('Found employees:', nguoiThucHienEmployees);
 
     if (nguoiThucHienEmployees.length !== data.nguoiThucHien.length) {
-      logger.debug(`❌ Mismatch: Expected ${data.nguoiThucHien.length}, found ${nguoiThucHienEmployees.length}`);
-      throw new Error('Một hoặc nhiều người thực hiện không tồn tại');
+      logger.debug(`Mismatch: Expected ${data.nguoiThucHien.length}, found ${nguoiThucHienEmployees.length}`);
+      throw new ValidationError('Một hoặc nhiều người thực hiện không tồn tại');
     }
 
     // Store employee IDs directly (as per schema: nguoiThucHienIds String[] // Array of employee IDs)
@@ -209,40 +217,98 @@ class WorkPlanService {
     });
 
     if (!workPlan) {
-      throw new Error('Không tìm thấy kế hoạch công việc');
+      throw new NotFoundError('Không tìm thấy kế hoạch công việc');
     }
 
     return this.populateWorkPlanWithUsers(workPlan);
   }
 
-  async updateWorkPlan(id: string, data: any): Promise<any> {
-    const workPlan = await prisma.workPlan.findUnique({
+  async updateWorkPlan(id: string, data: any, userId: string, userRole: string, files?: string[]): Promise<any> {
+    const existing = await prisma.workPlan.findUnique({
       where: { id },
     });
 
-    if (!workPlan) {
-      throw new Error('Không tìm thấy kế hoạch công việc');
+    if (!existing) {
+      throw new NotFoundError('Không tìm thấy kế hoạch');
+    }
+
+    const isAdmin = userRole === 'ADMIN';
+    const isCreator = existing.nguoiTaoId === userId;
+
+    // nguoiThucHienIds stores Employee IDs, but userId is a User ID — resolve first
+    const userEmployee = await prisma.employee.findFirst({
+      where: { userId },
+      select: { id: true },
+    });
+    const isAssignee = userEmployee
+      ? existing.nguoiThucHienIds.includes(userEmployee.id)
+      : false;
+
+    // Determine what is being changed
+    const contentFields = ['tieuDe', 'noiDung', 'nguoiThucHien', 'ngayBatDau', 'ngayKetThuc', 'mucDoUuTien', 'ghiChu', 'keepFiles'];
+    const hasStatusChange = data.trangThai !== undefined && data.trangThai !== existing.trangThai;
+    const hasContentChange = contentFields.some(f => data[f] !== undefined);
+
+    if (!isAdmin && !isCreator && !isAssignee) {
+      throw new ValidationError('Không có quyền sửa kế hoạch này');
+    }
+
+    if (hasStatusChange) {
+      if (!isAdmin && !isAssignee) {
+        // Creator trying to change status → error
+        throw new ValidationError('Người tạo không được đổi trạng thái — chỉ người được giao hoặc admin');
+      }
+    }
+
+    if (hasContentChange) {
+      if (!isAdmin && !isCreator) {
+        // Assignee (only) trying to change content → error
+        throw new ValidationError('Người được giao chỉ được đổi trạng thái');
+      }
     }
 
     const updateData: any = {};
-    if (data.tieuDe !== undefined) updateData.tieuDe = data.tieuDe;
-    if (data.noiDung !== undefined) updateData.noiDung = data.noiDung;
-    if (data.ngayBatDau !== undefined) updateData.ngayBatDau = new Date(data.ngayBatDau);
-    if (data.ngayKetThuc !== undefined) updateData.ngayKetThuc = new Date(data.ngayKetThuc);
-    if (data.mucDoUuTien !== undefined) updateData.mucDoUuTien = data.mucDoUuTien;
-    if (data.trangThai !== undefined) updateData.trangThai = data.trangThai;
-    if (data.ghiChu !== undefined) updateData.ghiChu = data.ghiChu;
 
-    if (data.nguoiThucHien) {
-      const nguoiThucHienEmployees = await prisma.employee.findMany({
-        where: { id: { in: data.nguoiThucHien } },
-        select: { id: true },
-      });
-      updateData.nguoiThucHienIds = nguoiThucHienEmployees.map(emp => emp.id);
+    if (isAdmin || isCreator) {
+      if (data.tieuDe !== undefined) updateData.tieuDe = data.tieuDe;
+      if (data.noiDung !== undefined) updateData.noiDung = data.noiDung;
+      if (data.mucDoUuTien !== undefined) updateData.mucDoUuTien = data.mucDoUuTien;
+      if (data.ghiChu !== undefined) updateData.ghiChu = data.ghiChu;
+
+      if (data.ngayBatDau !== undefined) updateData.ngayBatDau = new Date(data.ngayBatDau);
+      if (data.ngayKetThuc !== undefined) updateData.ngayKetThuc = new Date(data.ngayKetThuc);
+
+      // Validate date range using final values
+      const finalStart = updateData.ngayBatDau ?? existing.ngayBatDau;
+      const finalEnd = updateData.ngayKetThuc ?? existing.ngayKetThuc;
+      if (new Date(finalEnd) < new Date(finalStart)) {
+        throw new ValidationError('Ngày kết thúc phải sau hoặc bằng ngày bắt đầu');
+      }
+
+      if (data.nguoiThucHien) {
+        const nguoiThucHienEmployees = await prisma.employee.findMany({
+          where: { id: { in: data.nguoiThucHien } },
+          select: { id: true },
+        });
+        updateData.nguoiThucHienIds = nguoiThucHienEmployees.map((emp: { id: string }) => emp.id);
+      }
+
+      // File handling: keepFiles removes old ones, new uploads appended
+      const newFilePaths = files || [];
+      if (data.keepFiles !== undefined) {
+        const keepFiles = Array.isArray(data.keepFiles) ? data.keepFiles : [];
+        updateData.files = [...keepFiles, ...newFilePaths];
+      } else {
+        // backward compat: append-only
+        if (newFilePaths.length > 0) {
+          updateData.files = [...existing.files, ...newFilePaths];
+        }
+      }
     }
 
-    if (data.files && data.files.length > 0) {
-      updateData.files = [...workPlan.files, ...data.files];
+    // Status update (admin or assignee)
+    if (data.trangThai !== undefined && (isAdmin || isAssignee)) {
+      updateData.trangThai = data.trangThai;
     }
 
     const updatedWorkPlan = await prisma.workPlan.update({
@@ -253,13 +319,25 @@ class WorkPlanService {
     return updatedWorkPlan;
   }
 
-  async deleteWorkPlan(id: string): Promise<void> {
-    const workPlan = await prisma.workPlan.findUnique({
+  async deleteWorkPlan(id: string, userId: string, userRole: string): Promise<void> {
+    const existing = await prisma.workPlan.findUnique({
       where: { id },
     });
 
-    if (!workPlan) {
-      throw new Error('Không tìm thấy kế hoạch công việc');
+    if (!existing) {
+      throw new NotFoundError('Không tìm thấy kế hoạch');
+    }
+
+    const isAdmin = userRole === 'ADMIN';
+    const isCreator = existing.nguoiTaoId === userId;
+
+    if (!isAdmin) {
+      if (!isCreator) {
+        throw new ValidationError('Không có quyền xóa kế hoạch này');
+      }
+      if (existing.trangThai !== WorkPlanStatus.CHUA_BAT_DAU) {
+        throw new ValidationError('Chỉ xóa được kế hoạch chưa bắt đầu');
+      }
     }
 
     await prisma.workPlan.delete({
