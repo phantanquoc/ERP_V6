@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import quotationController from '@controllers/quotationController';
+import quotationRevisionController from '@controllers/quotationRevisionController';
 import { authenticate, authorize } from '@middlewares/auth';
 import { zodValidate } from '@middlewares/zodValidation';
 import { createQuotationSchema, updateQuotationSchema } from '@schemas';
@@ -78,6 +79,13 @@ router.get('/generate-code', quotationController.generateQuotationCode);
  *         description: Không có quyền truy cập
  */
 router.get('/export/excel', quotationController.exportToExcel);
+
+// Aging warnings (task 7.4) — must be before /:id to avoid route conflict
+router.get(
+  '/aging-warnings',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  quotationController.listAgingWarnings
+);
 
 /**
  * @swagger
@@ -202,8 +210,21 @@ router.patch(
  */
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN),
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
   quotationController.deleteQuotation
+);
+
+// Revision sub-routes (task 3.5)
+router.get(
+  '/:id/revisions',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  quotationRevisionController.listRevisions
+);
+
+router.get(
+  '/:id/revisions/:revisionId',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  quotationRevisionController.getRevisionById
 );
 
 export default router;

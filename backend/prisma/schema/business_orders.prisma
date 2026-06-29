@@ -238,11 +238,15 @@ model Quotation {
   employeeId               String?
   tenNhanVien              String?
   tinhTrang                QuotationStatus        @default(DRAFT)
+  priceLocked              Boolean                @default(false)
+  priceLockedAt            DateTime?
+  priceLockedBy            String?
   ghiChu                   String?
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   order                    Order?
   items                    QuotationItem[]
+  revisions                QuotationRevision[]
   customer                 InternationalCustomer? @relation(fields: [customerId], references: [id])
   quotationRequest         QuotationRequest       @relation(fields: [quotationRequestId], references: [id], onDelete: Cascade)
 
@@ -503,6 +507,23 @@ model TaxReport {
   order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("tax_reports")
+  @@schema("business")
+}
+
+model QuotationRevision {
+  id             String    @id @default(cuid())
+  quotationId    String
+  revisionNumber Int
+  snapshot       Json
+  createdBy      String
+  createdAt      DateTime  @default(now())
+  note           String?
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@unique([quotationId, revisionNumber])
+  @@index([quotationId])
+  @@map("quotation_revisions")
   @@schema("business")
 }
 
