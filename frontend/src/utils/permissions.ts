@@ -402,3 +402,19 @@ export const getDepartmentDisplayName = (department?: string): string => {
     default: return 'Chưa xác định';
   }
 };
+
+// --- Quotation role helpers ---
+
+/**
+ * Returns true for roles allowed to edit quotations: ADMIN, DEPARTMENT_HEAD, TEAM_LEAD.
+ */
+export function canEditQuotation(role?: string): boolean {
+  return role === UserRole.ADMIN || role === UserRole.DEPARTMENT_HEAD || role === UserRole.TEAM_LEAD;
+}
+
+/**
+ * Returns true for roles allowed to delete quotations: ADMIN, DEPARTMENT_HEAD.
+ */
+export function canDeleteQuotation(role?: string): boolean {
+  return role === UserRole.ADMIN || role === UserRole.DEPARTMENT_HEAD;
+}

@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { quotationService } from '../services/quotationService';
 import { quotationRequestService } from '../services/quotationRequestService';
+import { auditLogKeys } from './useAuditLogs';
+import { quotationRevisionKeys } from './useQuotationRevisions';
 
 // Query keys for quotations
 export const quotationKeys = {
@@ -27,15 +29,18 @@ interface QuotationFilters {
   limit?: number;
   search?: string;
   customerType?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 // Hook to get all quotations with filters
 export const useQuotations = (filters: QuotationFilters = {}) => {
-  const { page = 1, limit = 10, search, customerType } = filters;
-  
+  const { page = 1, limit = 20, search, customerType, status, dateFrom, dateTo } = filters;
+
   return useQuery({
-    queryKey: quotationKeys.list({ page, limit, search, customerType }),
-    queryFn: () => quotationService.getAllQuotations(page, limit, search, customerType),
+    queryKey: quotationKeys.list({ page, limit, search, customerType, status, dateFrom, dateTo }),
+    queryFn: () => quotationService.getAllQuotations(page, limit, search, customerType, status, dateFrom, dateTo),
   });
 };
 
@@ -69,6 +74,7 @@ export const useCreateQuotation = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
       queryClient.invalidateQueries({ queryKey: quotationKeys.count() });
+      queryClient.invalidateQueries({ queryKey: auditLogKeys.lists() });
     },
   });
 };
@@ -83,6 +89,8 @@ export const useUpdateQuotation = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: quotationKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: auditLogKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: quotationRevisionKeys.lists() });
     },
   });
 };
@@ -91,11 +99,11 @@ export const useUpdateQuotation = () => {
 
 // Hook to get all quotation requests with filters
 export const useQuotationRequests = (filters: QuotationFilters = {}) => {
-  const { page = 1, limit = 10, search, customerType } = filters;
-  
+  const { page = 1, limit = 20, search, customerType, status, dateFrom, dateTo } = filters;
+
   return useQuery({
-    queryKey: quotationRequestKeys.list({ page, limit, search, customerType }),
-    queryFn: () => quotationRequestService.getAllQuotationRequests(page, limit, search, customerType),
+    queryKey: quotationRequestKeys.list({ page, limit, search, customerType, status, dateFrom, dateTo }),
+    queryFn: () => quotationRequestService.getAllQuotationRequests(page, limit, search, customerType, status, dateFrom, dateTo),
   });
 };
 
@@ -129,6 +137,7 @@ export const useCreateQuotationRequest = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
       queryClient.invalidateQueries({ queryKey: quotationRequestKeys.count() });
+      queryClient.invalidateQueries({ queryKey: auditLogKeys.lists() });
     },
   });
 };
@@ -143,6 +152,7 @@ export const useUpdateQuotationRequest = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: quotationRequestKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: auditLogKeys.lists() });
     },
   });
 };
