@@ -1090,3 +1090,22 @@ model AttendanceDevice {
   @@map("attendance_devices")
   @@schema("common")
 }
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String
+  actorId    String
+  actorRole  String
+  before     Json?
+  after      Json?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
+  @@schema("common")
+}
