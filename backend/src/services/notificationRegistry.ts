@@ -540,6 +540,83 @@ const entries: NotificationEventDef[] = [
       return [...new Set([...technical, ...admins])];
     },
   },
+
+  // ── Pricing Department ──
+  {
+    event: NotificationEvent.QUOTATION_REQUEST_CREATED,
+    notificationType: NotificationType.PRICING,
+    buildMessage: (ctx) => ({
+      title: 'Có YCBG mới',
+      message: `Có YCBG mới: ${ctx.metadata?.tenKhachHang ?? ''} từ ${ctx.metadata?.nguoiTao ?? ''}`,
+    }),
+    // Notify DEPARTMENT_HEAD + TEAM_LEAD in creator's department
+    resolveRecipients: async (ctx) => {
+      const subDepartmentId = ctx.metadata?.subDepartmentId as string | undefined;
+      if (!subDepartmentId) return [];
+      const employees = await prisma.employee.findMany({
+        where: {
+          status: 'ACTIVE',
+          subDepartmentId,
+          user: { role: { in: ['DEPARTMENT_HEAD', 'TEAM_LEAD'] }, isActive: true },
+        },
+        select: { id: true },
+      });
+      // Also grab department heads of the parent department
+      const subDept = await prisma.subDepartment.findUnique({
+        where: { id: subDepartmentId },
+        select: { departmentId: true },
+      });
+      let deptHeadIds: string[] = [];
+      if (subDept?.departmentId) {
+        const deptHeads = await prisma.employee.findMany({
+          where: {
+            status: 'ACTIVE',
+            subDepartment: { departmentId: subDept.departmentId },
+            user: { role: 'DEPARTMENT_HEAD', isActive: true },
+          },
+          select: { id: true },
+        });
+        deptHeadIds = deptHeads.map(e => e.id);
+      }
+      return [...new Set([...employees.map(e => e.id), ...deptHeadIds])];
+    },
+  },
+  {
+    event: NotificationEvent.QUOTATION_WON,
+    notificationType: NotificationType.PRICING,
+    buildMessage: (ctx) => ({
+      title: 'Báo giá đã được đặt hàng',
+      message: `Báo giá ${ctx.metadata?.soBaoGia ?? ''} đã được khách hàng đặt hàng`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.QUOTATION_LOST,
+    notificationType: NotificationType.PRICING,
+    buildMessage: (ctx) => ({
+      title: 'Báo giá không đạt đơn hàng',
+      message: `Báo giá ${ctx.metadata?.soBaoGia ?? ''} không đạt đơn hàng`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.ORDER_DELIVERED,
+    notificationType: NotificationType.PRICING,
+    buildMessage: (ctx) => ({
+      title: 'Đơn hàng đã giao',
+      message: `Đơn hàng ${ctx.metadata?.soDonHang ?? ''} đã giao thành công`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.QUOTATION_PRICE_UNLOCKED,
+    notificationType: NotificationType.PRICING,
+    buildMessage: (ctx) => ({
+      title: 'Giá báo giá đã được mở khóa',
+      message: `ADMIN ${ctx.metadata?.tenAdmin ?? ''} đã mở khóa giá báo giá ${ctx.metadata?.soBaoGia ?? ''}`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
 ];
 
 /* ─── Build Registry Map ───────────────────────────────────────────────────── */
