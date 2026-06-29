@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Eye, Edit, Trash2, Package, Calculator, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import TableFilter, { FilterField } from './TableFilter';
+import ConfirmDialog from './common/ConfirmDialog';
 import { orderService, Order } from '../services/orderService';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
@@ -8,6 +10,64 @@ import Modal from './Modal';
 import { useOrders, orderKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInput } from '../utils/numberInput';
+import { useAuth } from '../contexts/AuthContext';
+import { useAuditLogs } from '../hooks/useAuditLogs';
+import { AuditLog } from '../services/auditLogService';
+
+const ORDER_ACTION_LABELS: Record<string, { label: string; className: string }> = {
+  CREATE: { label: 'Tạo mới', className: 'bg-green-100 text-green-800' },
+  UPDATE: { label: 'Cập nhật', className: 'bg-blue-100 text-blue-800' },
+  DELETE: { label: 'Xóa', className: 'bg-red-100 text-red-800' },
+  STATUS_CHANGE: { label: 'Đổi trạng thái', className: 'bg-yellow-100 text-yellow-800' },
+};
+
+const OrderAuditLogRow: React.FC<{ entry: AuditLog }> = ({ entry }) => {
+  const [expanded, setExpanded] = React.useState(false);
+  const chip = ORDER_ACTION_LABELS[entry.action] ?? { label: entry.action, className: 'bg-gray-100 text-gray-800' };
+  return (
+    <>
+      <tr className="border-b border-gray-100 hover:bg-gray-50">
+        <td className="px-3 py-2">
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${chip.className}`}>{chip.label}</span>
+        </td>
+        <td className="px-3 py-2 text-gray-700 text-xs">{entry.actorId}</td>
+        <td className="px-3 py-2 text-gray-500 text-xs">{entry.actorRole}</td>
+        <td className="px-3 py-2 text-gray-500 text-xs">{new Date(entry.createdAt).toLocaleString('vi-VN')}</td>
+        <td className="px-3 py-2">
+          {(entry.before !== null || entry.after !== null) && (
+            <button onClick={() => setExpanded(e => !e)} className="text-blue-600 hover:underline text-xs">
+              {expanded ? 'Ẩn' : 'Chi tiết'}
+            </button>
+          )}
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={5} className="px-3 pb-3 bg-gray-50">
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              {entry.before !== null && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Trước</p>
+                  <pre className="whitespace-pre-wrap text-xs font-mono text-gray-700 bg-white border rounded p-2 max-h-40 overflow-y-auto">
+                    {JSON.stringify(entry.before, null, 2)}
+                  </pre>
+                </div>
+              )}
+              {entry.after !== null && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Sau</p>
+                  <pre className="whitespace-pre-wrap text-xs font-mono text-gray-700 bg-white border rounded p-2 max-h-40 overflow-y-auto">
+                    {JSON.stringify(entry.after, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+};
 
 interface OrderManagementProps {
   hideHeader?: boolean;
@@ -15,6 +75,7 @@ interface OrderManagementProps {
 }
 
 const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, customerType }) => {
+  const { user } = useAuth();
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
     _search: '',
     maDonHang: '',
@@ -23,6 +84,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
     trangThaiSanXuat: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -31,17 +96,30 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
   const [quotationRequestForModal, setQuotationRequestForModal] = useState<QuotationRequest | null>(null);
   const [exportError, setExportError] = useState<string>('');
   const [exportSuccess, setExportSuccess] = useState<string>('');
+  // Audit log tab state (task 11.3)
+  const [orderDetailTab, setOrderDetailTab] = useState<'info' | 'audit'>('info');
+  const [orderAuditPage, setOrderAuditPage] = useState(1);
+  const { data: orderAuditData } = useAuditLogs(
+    { entityType: 'Order', entityId: selectedOrder?.id ?? '', page: orderAuditPage, limit: 10 },
+    !!selectedOrder?.id && orderDetailTab === 'audit'
+  );
   const [exportLoading, setExportLoading] = useState(false);
 
-  const itemsPerPage = 10;
+  const itemsPerPage = limit;
 
   const queryClient = useQueryClient();
   const filterCustomerType = customerType === 'all' ? undefined : customerType;
   const { data: ordersData, isLoading: loading, refetch: refetchOrders } = useOrders({
-    page: 1,
-    limit: 1000,
+    page: currentPage,
+    limit,
+    search: filterValues._search || undefined,
     customerType: filterCustomerType,
+    status: filterValues.trangThaiSanXuat || undefined,
   });
+
+  const orders = ordersData?.data || [];
+  const totalItems = (ordersData as any)?.pagination?.total ?? 0;
+  const totalPages = (ordersData as any)?.pagination?.totalPages ?? 1;
 
   const orderFilterFields: FilterField[] = [
     { key: 'maDonHang', label: 'Mã ĐH', type: 'text' },
@@ -49,22 +127,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
     { key: 'tenKhachHang', label: 'Khách hàng', type: 'text' },
     { key: 'trangThaiSanXuat', label: 'Trạng thái SX', type: 'text' },
   ];
-
-  const orders = React.useMemo(() => {
-    const allOrders = ordersData?.data || [];
-    return allOrders.filter(order => {
-      const search = (filterValues._search || '').toLowerCase();
-      const matchSearch = !search ||
-        (order.maDonHang || '').toLowerCase().includes(search) ||
-        (order.maBaoGia || '').toLowerCase().includes(search) ||
-        (order.tenKhachHang || '').toLowerCase().includes(search);
-      const matchMaDH = !filterValues.maDonHang || (order.maDonHang || '').toLowerCase().includes(filterValues.maDonHang.toLowerCase());
-      const matchMaBG = !filterValues.maBaoGia || (order.maBaoGia || '').toLowerCase().includes(filterValues.maBaoGia.toLowerCase());
-      const matchKH = !filterValues.tenKhachHang || (order.tenKhachHang || '').toLowerCase().includes(filterValues.tenKhachHang.toLowerCase());
-      const matchTTSX = !filterValues.trangThaiSanXuat || (order.trangThaiSanXuat || '').toLowerCase().includes(filterValues.trangThaiSanXuat.toLowerCase());
-      return matchSearch && matchMaDH && matchMaBG && matchKH && matchTTSX;
-    });
-  }, [ordersData, filterValues]);
 
   const handleFilterChange = (newValues: Record<string, string>) => {
     setFilterValues(newValues);
@@ -88,6 +150,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
 
   const handleView = (order: Order) => {
     setSelectedOrder(order);
+    setOrderDetailTab('info');
+    setOrderAuditPage(1);
     setShowViewModal(true);
   };
 
@@ -103,28 +167,29 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
 
     try {
       await orderService.updateOrder(selectedOrder.id, formData);
-      alert('Cập nhật đơn hàng thành công');
+      toast.success('Cập nhật đơn hàng thành công');
       setShowEditModal(false);
       queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
     } catch (error) {
       console.error('Error updating order:', error);
-      alert('Lỗi khi cập nhật đơn hàng');
+      toast.error('Lỗi khi cập nhật đơn hàng');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa đơn hàng này?')) {
-      return;
-    }
-
-    try {
-      await orderService.deleteOrder(id);
-      alert('Xóa đơn hàng thành công');
-      queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
-    } catch (error) {
-      console.error('Error deleting order:', error);
-      alert('Lỗi khi xóa đơn hàng');
-    }
+    setConfirmMessage('Bạn có chắc chắn muốn xóa đơn hàng này?');
+    setConfirmAction(() => async () => {
+      setConfirmOpen(false);
+      try {
+        await orderService.deleteOrder(id);
+        toast.success('Xóa đơn hàng thành công');
+        queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      } catch (error) {
+        console.error('Error deleting order:', error);
+        toast.error('Lỗi khi xóa đơn hàng');
+      }
+    });
+    setConfirmOpen(true);
   };
 
   const handleViewCosting = async (order: Order) => {
@@ -136,8 +201,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
       setQuotationRequestForModal(response.data);
       setShowCostingModal(true);
     } catch (error) {
-      console.error('❌ Error fetching quotation request:', error);
-      alert('Lỗi khi tải thông tin yêu cầu báo giá');
+      console.error('Error fetching quotation request:', error);
+      toast.error('Lỗi khi tải thông tin yêu cầu báo giá');
     }
   };
 
@@ -259,7 +324,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                 </td>
               </tr>
             ) : (
-              orders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((order, index) => (
+              orders.map((order, index) => (
                 <tr key={order.id} className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                   <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                     {(currentPage - 1) * itemsPerPage + index + 1}
@@ -328,14 +393,22 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
         </table>
         </div>
 
-      {(() => {
-        const totalItems = orders.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
+      {/* Server-side pagination + page-size selector */}
+      {totalItems > 0 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+              Hiển thị {(currentPage - 1) * limit + 1}–{Math.min(currentPage * limit, totalItems)} / {totalItems} mục
             </span>
+            <select
+              value={limit}
+              onChange={(e) => { setLimit(Number(e.target.value)); setCurrentPage(1); }}
+              className="text-sm border border-gray-300 rounded-md px-2 py-1"
+            >
+              {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}/trang</option>)}
+            </select>
+          </div>
+          {totalPages > 1 && (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -365,9 +438,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                 Sau
               </button>
             </div>
-          </div>
-        ) : null;
-      })()}
+          )}
+        </div>
+      )}
 
       {/* View Modal */}
       <Modal isOpen={showViewModal && !!selectedOrder} onClose={() => setShowViewModal(false)} showBackdrop closeOnBackdrop={true}>
@@ -389,8 +462,59 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
               </button>
             </div>
 
+            {/* Tab navigation (task 11.3) */}
+            <div className="flex border-b border-gray-200 px-6 shrink-0">
+              <button
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${orderDetailTab === 'info' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setOrderDetailTab('info')}
+              >
+                Thông tin
+              </button>
+              {(user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD') && (
+                <button
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${orderDetailTab === 'audit' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => setOrderDetailTab('audit')}
+                >
+                  Lịch sử hoạt động
+                </button>
+              )}
+            </div>
+
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto flex-1">
+              {orderDetailTab === 'audit' ? (
+                <div>
+                  {!orderAuditData?.data?.length ? (
+                    <p className="text-gray-500 text-sm text-center py-6">Chưa có hoạt động nào</p>
+                  ) : (
+                    <>
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200">
+                            <th className="px-3 py-2 text-left font-medium text-gray-700">Hành động</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700">Người thực hiện</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700">Vai trò</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700">Thời gian</th>
+                            <th className="px-3 py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orderAuditData.data.map((entry) => (
+                            <OrderAuditLogRow key={entry.id} entry={entry} />
+                          ))}
+                        </tbody>
+                      </table>
+                      {orderAuditData.pagination.totalPages > 1 && (
+                        <div className="flex justify-center gap-2 mt-3">
+                          <button disabled={orderAuditPage <= 1} onClick={() => setOrderAuditPage(p => p - 1)} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Trước</button>
+                          <span className="text-xs self-center">{orderAuditPage}/{orderAuditData.pagination.totalPages}</span>
+                          <button disabled={orderAuditPage >= orderAuditData.pagination.totalPages} onClick={() => setOrderAuditPage(p => p + 1)} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Sau</button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Thông tin cơ bản */}
                 <div className="space-y-4">
@@ -597,6 +721,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -902,6 +1027,15 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
           setShowCostingModal(false);
           setQuotationRequestForModal(null);
         }}
+      />
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title="Xác nhận xóa"
+        message={confirmMessage}
+        onConfirm={() => confirmAction && confirmAction()}
+        onCancel={() => setConfirmOpen(false)}
       />
     </div>
   );

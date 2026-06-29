@@ -1,24 +1,86 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus, Edit, Trash2, X, Download, DollarSign, Plane } from 'lucide-react';
+import toast from 'react-hot-toast';
 import Modal from './Modal';
+import ConfirmDialog from './common/ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
 import exportCostService, { ExportCost, CreateExportCostInput, UpdateExportCostInput } from '../services/exportCostService';
 import generalCostService, { GeneralCost, CreateGeneralCostInput, UpdateGeneralCostInput } from '../services/generalCostService';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import { useAuditLogs } from '../hooks/useAuditLogs';
+import { AuditLog } from '../services/auditLogService';
 import UnitSelect from './common/UnitSelect';
+import { useExportCosts, exportCostKeys } from '../hooks';
+import { useQueryClient } from '@tanstack/react-query';
 
 type CostType = 'export' | 'general';
 type AnyCost = ExportCost | GeneralCost;
 
+const EXPORT_ACTION_LABELS: Record<string, { label: string; className: string }> = {
+  CREATE: { label: 'Tạo mới', className: 'bg-green-100 text-green-800' },
+  UPDATE: { label: 'Cập nhật', className: 'bg-blue-100 text-blue-800' },
+  DELETE: { label: 'Xóa', className: 'bg-red-100 text-red-800' },
+};
+
+const ExportAuditLogRow: React.FC<{ entry: AuditLog }> = ({ entry }) => {
+  const [expanded, setExpanded] = React.useState(false);
+  const chip = EXPORT_ACTION_LABELS[entry.action] ?? { label: entry.action, className: 'bg-gray-100 text-gray-800' };
+  return (
+    <>
+      <tr className="border-b border-gray-100 hover:bg-gray-50">
+        <td className="px-3 py-2">
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${chip.className}`}>{chip.label}</span>
+        </td>
+        <td className="px-3 py-2 text-gray-700 text-xs">{entry.actorId}</td>
+        <td className="px-3 py-2 text-gray-500 text-xs">{entry.actorRole}</td>
+        <td className="px-3 py-2 text-gray-500 text-xs">{new Date(entry.createdAt).toLocaleString('vi-VN')}</td>
+        <td className="px-3 py-2">
+          {(entry.before !== null || entry.after !== null) && (
+            <button onClick={() => setExpanded(e => !e)} className="text-blue-600 hover:underline text-xs">
+              {expanded ? 'Ẩn' : 'Chi tiết'}
+            </button>
+          )}
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={5} className="px-3 pb-3 bg-gray-50">
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              {entry.before !== null && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Trước</p>
+                  <pre className="whitespace-pre-wrap text-xs font-mono text-gray-700 bg-white border rounded p-2 max-h-40 overflow-y-auto">
+                    {JSON.stringify(entry.before, null, 2)}
+                  </pre>
+                </div>
+              )}
+              {entry.after !== null && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Sau</p>
+                  <pre className="whitespace-pre-wrap text-xs font-mono text-gray-700 bg-white border rounded p-2 max-h-40 overflow-y-auto">
+                    {JSON.stringify(entry.after, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+};
+
 const ExportCostManagement: React.FC = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [costType, setCostType] = useState<CostType>('export');
-  const [costs, setCosts] = useState<AnyCost[]>([]);
-  const [loading, setLoading] = useState(false);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', tenChiPhi: '', loaiChiPhi: '' });
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [limit, setLimit] = useState(20);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
 
   const filterFields: FilterField[] = [
     { key: 'tenChiPhi', label: 'Tên chi phí', type: 'text', placeholder: 'Lọc tên chi phí...' },
@@ -26,6 +88,13 @@ const ExportCostManagement: React.FC = () => {
   ];
   const [showModal, setShowModal] = useState(false);
   const [editingCost, setEditingCost] = useState<AnyCost | null>(null);
+  // Audit log tab state for edit modal (task 11.3)
+  const [exportCostModalTab, setExportCostModalTab] = useState<'form' | 'audit'>('form');
+  const [exportCostAuditPage, setExportCostAuditPage] = useState(1);
+  const { data: exportCostAuditData } = useAuditLogs(
+    { entityType: 'ExportCost', entityId: (editingCost as ExportCost)?.id ?? '', page: exportCostAuditPage, limit: 10 },
+    !!(editingCost as ExportCost)?.id && exportCostModalTab === 'audit'
+  );
   const [formData, setFormData] = useState<CreateExportCostInput>({
     tenChiPhi: '',
     loaiChiPhi: '',
@@ -37,38 +106,50 @@ const ExportCostManagement: React.FC = () => {
     tenNhanVien: user?.firstName && user?.lastName ? `${user.lastName} ${user.firstName}` : '',
   });
 
-  useEffect(() => {
-    loadCosts();
-  }, [filterValues._search, costType]);
+  // General costs: still use manual state (no hook yet)
+  const [generalCosts, setGeneralCosts] = useState<GeneralCost[]>([]);
+  const [generalLoading, setGeneralLoading] = useState(false);
 
   const isExport = costType === 'export';
   const label = isExport ? 'chi phí xuất khẩu' : 'chi phí chung';
   const Label = isExport ? 'Chi phí Xuất khẩu' : 'Chi phí Chung';
 
-  const loadCosts = async () => {
+  // Export costs via TanStack Query hook
+  const { data: exportCostData, isLoading: exportLoading } = useExportCosts({
+    page: currentPage,
+    limit,
+    search: filterValues._search || undefined,
+    loaiChiPhi: filterValues.loaiChiPhi || undefined,
+  });
+
+  const exportCosts = exportCostData?.data ?? [];
+  const exportTotal = exportCostData?.pagination?.total ?? 0;
+  const exportTotalPages = exportCostData?.pagination?.totalPages ?? 1;
+
+  // Load general costs when that tab is active
+  React.useEffect(() => {
+    if (!isExport) {
+      loadGeneralCosts();
+    }
+  }, [filterValues._search, isExport]);
+
+  const loadGeneralCosts = async () => {
     try {
-      setLoading(true);
-      if (isExport) {
-        const response = await exportCostService.getAllExportCosts(1, 1000, filterValues._search || '');
-        setCosts(response.data);
-      } else {
-        const response = await generalCostService.getAllGeneralCosts(1, 1000, filterValues._search || '');
-        setCosts(response.data);
-      }
+      setGeneralLoading(true);
+      const response = await generalCostService.getAllGeneralCosts(1, 1000, filterValues._search || '');
+      setGeneralCosts(response.data);
     } catch (error) {
-      console.error(`Error loading ${label}:`, error);
-      alert(`Lỗi khi tải danh sách ${label}`);
+      console.error('Error loading chi phí chung:', error);
+      toast.error('Lỗi khi tải danh sách chi phí chung');
     } finally {
-      setLoading(false);
+      setGeneralLoading(false);
     }
   };
 
-  // Client-side filtering for additional filter fields
-  const filteredCosts = costs.filter((cost) => {
-    if (filterValues.tenChiPhi && !cost.tenChiPhi.toLowerCase().includes(filterValues.tenChiPhi.toLowerCase())) return false;
-    if (filterValues.loaiChiPhi && !cost.loaiChiPhi.toLowerCase().includes(filterValues.loaiChiPhi.toLowerCase())) return false;
-    return true;
-  });
+  const loading = isExport ? exportLoading : generalLoading;
+  const costs: AnyCost[] = isExport ? exportCosts : generalCosts;
+  const totalItems = isExport ? exportTotal : generalCosts.length;
+  const totalPages = isExport ? exportTotalPages : Math.ceil(generalCosts.length / limit);
 
   const handleOpenModal = (cost?: AnyCost) => {
     if (cost) {
@@ -94,6 +175,8 @@ const ExportCostManagement: React.FC = () => {
         tenNhanVien: user?.firstName && user?.lastName ? `${user.lastName} ${user.firstName}` : '',
       });
     }
+    setExportCostModalTab('form');
+    setExportCostAuditPage(1);
     setShowModal(true);
   };
 
@@ -106,7 +189,7 @@ const ExportCostManagement: React.FC = () => {
     e.preventDefault();
 
     if (!formData.tenChiPhi || !formData.loaiChiPhi) {
-      alert('Vui lòng nhập đầy đủ thông tin bắt buộc');
+      toast.error('Vui lòng nhập đầy đủ thông tin bắt buộc');
       return;
     }
 
@@ -124,32 +207,41 @@ const ExportCostManagement: React.FC = () => {
           await generalCostService.createGeneralCost(formData as CreateGeneralCostInput);
         }
       }
-      alert(editingCost ? `Cập nhật ${label} thành công!` : `Tạo ${label} thành công!`);
+      toast.success(editingCost ? `Cập nhật ${label} thành công!` : `Tạo ${label} thành công!`);
       handleCloseModal();
-      loadCosts();
+      if (isExport) {
+        queryClient.invalidateQueries({ queryKey: exportCostKeys.lists() });
+      } else {
+        loadGeneralCosts();
+      }
     } catch (error) {
       console.error(`Error saving ${label}:`, error);
-      alert(`Lỗi khi lưu ${label}`);
+      toast.error(`Lỗi khi lưu ${label}`);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa chi phí này?')) {
-      return;
-    }
-
-    try {
-      if (isExport) {
-        await exportCostService.deleteExportCost(id);
-      } else {
-        await generalCostService.deleteGeneralCost(id);
+    setConfirmMessage('Bạn có chắc chắn muốn xóa chi phí này?');
+    setConfirmAction(() => async () => {
+      setConfirmOpen(false);
+      try {
+        if (isExport) {
+          await exportCostService.deleteExportCost(id);
+        } else {
+          await generalCostService.deleteGeneralCost(id);
+        }
+        toast.success(`Xóa ${label} thành công!`);
+        if (isExport) {
+          queryClient.invalidateQueries({ queryKey: exportCostKeys.lists() });
+        } else {
+          loadGeneralCosts();
+        }
+      } catch (error) {
+        console.error(`Error deleting ${label}:`, error);
+        toast.error(`Lỗi khi xóa ${label}`);
       }
-      alert(`Xóa ${label} thành công!`);
-      loadCosts();
-    } catch (error) {
-      console.error(`Error deleting ${label}:`, error);
-      alert(`Lỗi khi xóa ${label}`);
-    }
+    });
+    setConfirmOpen(true);
   };
 
   const handleExportExcel = async () => {
@@ -159,10 +251,10 @@ const ExportCostManagement: React.FC = () => {
       } else {
         await generalCostService.exportToExcel();
       }
-      alert('Xuất file Excel thành công!');
+      toast.success('Xuất file Excel thành công!');
     } catch (error) {
       console.error('Error exporting to Excel:', error);
-      alert('Lỗi khi xuất file Excel');
+      toast.error('Lỗi khi xuất file Excel');
     }
   };
 
@@ -250,14 +342,14 @@ const ExportCostManagement: React.FC = () => {
                   Đang tải...
                 </td>
               </tr>
-            ) : filteredCosts.length === 0 ? (
+            ) : costs.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                   Không có dữ liệu
                 </td>
               </tr>
             ) : (
-              filteredCosts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((cost) => (
+              costs.map((cost) => (
                 <tr key={cost.id} className="hover:bg-blue-50/40 transition-colors">
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-700">
                     {cost.maChiPhi}
@@ -302,15 +394,22 @@ const ExportCostManagement: React.FC = () => {
         </table>
       </div>
 
-      {/* Pagination */}
-      {(() => {
-        const totalItems = filteredCosts.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-2 px-1">
+      {/* Server-side pagination + page-size selector */}
+      {totalItems > 0 && (
+        <div className="flex items-center justify-between mt-2 px-1">
+          <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+              Hiển thị {(currentPage - 1) * limit + 1}–{Math.min(currentPage * limit, totalItems)} / {totalItems} mục
             </span>
+            <select
+              value={limit}
+              onChange={(e) => { setLimit(Number(e.target.value)); setCurrentPage(1); }}
+              className="text-sm border border-gray-300 rounded-md px-2 py-1"
+            >
+              {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}/trang</option>)}
+            </select>
+          </div>
+          {totalPages > 1 && (
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -340,9 +439,9 @@ const ExportCostManagement: React.FC = () => {
                 Sau
               </button>
             </div>
-          </div>
-        ) : null;
-      })()}
+          )}
+        </div>
+      )}
 
       {/* Modal */}
       <Modal isOpen={showModal} onClose={handleCloseModal} showBackdrop>
@@ -356,6 +455,62 @@ const ExportCostManagement: React.FC = () => {
             </button>
           </div>
 
+          {/* Tab navigation — shown only when editing and ADMIN/DEPARTMENT_HEAD (task 11.3/11.4) */}
+          {editingCost && (user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD') && (
+            <div className="flex border-b border-gray-200 px-6 shrink-0">
+              <button
+                type="button"
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${exportCostModalTab === 'form' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setExportCostModalTab('form')}
+              >
+                Thông tin
+              </button>
+              <button
+                type="button"
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${exportCostModalTab === 'audit' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setExportCostModalTab('audit')}
+              >
+                Lịch sử hoạt động
+              </button>
+            </div>
+          )}
+
+          {exportCostModalTab === 'audit' && editingCost ? (
+            <div className="overflow-y-auto flex-1 p-6">
+              {!exportCostAuditData?.data?.length ? (
+                <p className="text-gray-500 text-sm text-center py-6">Chưa có hoạt động nào</p>
+              ) : (
+                <>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="px-3 py-2 text-left font-medium text-gray-700">Hành động</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-700">Người thực hiện</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-700">Vai trò</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-700">Thời gian</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {exportCostAuditData.data.map((entry) => (
+                        <ExportAuditLogRow key={entry.id} entry={entry} />
+                      ))}
+                    </tbody>
+                  </table>
+                  {exportCostAuditData.pagination.totalPages > 1 && (
+                    <div className="flex justify-center gap-2 mt-3">
+                      <button type="button" disabled={exportCostAuditPage <= 1} onClick={() => setExportCostAuditPage(p => p - 1)} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Trước</button>
+                      <span className="text-xs self-center">{exportCostAuditPage}/{exportCostAuditData.pagination.totalPages}</span>
+                      <button type="button" disabled={exportCostAuditPage >= exportCostAuditData.pagination.totalPages} onClick={() => setExportCostAuditPage(p => p + 1)} className="px-2 py-1 text-xs border rounded disabled:opacity-40">Sau</button>
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="mt-4 flex justify-end">
+                <button type="button" onClick={handleCloseModal} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Đóng</button>
+              </div>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6">
             <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -448,8 +603,18 @@ const ExportCostManagement: React.FC = () => {
                 </button>
               </div>
           </form>
+          )}
         </div>
       </Modal>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title="Xác nhận xóa"
+        message={confirmMessage}
+        onConfirm={() => confirmAction && confirmAction()}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 };
