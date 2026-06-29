@@ -33,6 +33,7 @@ export const NotificationType = {
   PRODUCTION_REPORT: 'PRODUCTION_REPORT',
   PROJECT_APPROVAL: 'PROJECT_APPROVAL',
   FAULT_RECORD: 'FAULT_RECORD',
+  PRICING: 'PRICING',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
@@ -97,6 +98,12 @@ export const NotificationEvent = {
   PROJECT_APPROVAL_REJECTED: 'PROJECT_APPROVAL_REJECTED',
   // Fault record recurrence
   FAULT_RECURRENCE_THRESHOLD: 'FAULT_RECURRENCE_THRESHOLD',
+  // Pricing department
+  QUOTATION_REQUEST_CREATED: 'QUOTATION_REQUEST_CREATED',
+  QUOTATION_WON: 'QUOTATION_WON',
+  QUOTATION_LOST: 'QUOTATION_LOST',
+  ORDER_DELIVERED: 'ORDER_DELIVERED',
+  QUOTATION_PRICE_UNLOCKED: 'QUOTATION_PRICE_UNLOCKED',
 } as const;
 
 export type NotificationEvent = typeof NotificationEvent[keyof typeof NotificationEvent];
