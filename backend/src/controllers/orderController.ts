@@ -58,11 +58,15 @@ class OrderController {
   async getAllOrders(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
+      const rawLimit = parseInt(req.query.limit as string);
+      const limit = [10, 20, 50, 100].includes(rawLimit) ? rawLimit : 20;
       const search = req.query.search as string;
       const customerType = req.query.customerType as string;
+      const status = req.query.status as string | undefined;
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
 
-      const result = await orderService.getAllOrders(page, limit, search, customerType);
+      const result = await orderService.getAllOrders(page, limit, search, customerType, status, dateFrom, dateTo);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -105,7 +109,7 @@ class OrderController {
         data.fileDinhKem = getFileUrl('orders', req.file.filename);
       }
 
-      const order = await orderService.updateOrder(id, data);
+      const order = await orderService.updateOrder(id, data, req.user?.role, req.user?.id);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -144,7 +148,7 @@ class OrderController {
     try {
       const id = req.params.id as string;
 
-      await orderService.deleteOrder(id);
+      await orderService.deleteOrder(id, req.user?.id, req.user?.role);
 
       const response: ApiResponse<null> = {
         success: true,

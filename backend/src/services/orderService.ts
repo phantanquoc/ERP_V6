@@ -1,8 +1,10 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
-import { TaxReportStatus } from '@prisma/client';
+import { TaxReportStatus, OrderProductionStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '../utils/codeGenerator';
+import { advanceOrderProductionStatus } from '../utils/statusTransitions';
+import { recordAudit } from '@utils/auditLog';
 import { NotificationEvent } from '@types';
 import notificationService from '@services/notificationService';
 import ExcelJS from 'exceljs';
@@ -133,11 +135,21 @@ class OrderService {
       });
     } catch {}
 
+    // Fire-and-forget: audit log (task 5.6)
+    recordAudit({
+      entityType: 'Order',
+      entityId: order.id,
+      action: 'CREATE',
+      actorId: 'system',
+      actorRole: 'UNKNOWN',
+      after: order,
+    });
+
     return order;
   }
 
   // Get all orders with pagination
-  async getAllOrders(page: number = 1, limit: number = 10, search?: string, customerType?: string) {
+  async getAllOrders(page: number = 1, limit: number = 10, search?: string, customerType?: string, status?: string, dateFrom?: string, dateTo?: string) {
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -147,6 +159,18 @@ class OrderService {
       where.customer = { quocGia: { not: null } };
     } else if (customerType === 'Nội địa') {
       where.customer = { tinhThanh: { not: null } };
+    }
+
+    // Filter by production status
+    if (status) {
+      where.trangThaiSanXuat = status as OrderProductionStatus;
+    }
+
+    // Filter by date range (createdAt)
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(`${dateFrom}T00:00:00.000Z`);
+      if (dateTo) where.createdAt.lte = new Date(`${dateTo}T23:59:59.999Z`);
     }
 
     // Search filter
@@ -168,6 +192,8 @@ class OrderService {
           id: true,
           maDonHang: true,
           maBaoGia: true,
+          quotationRequestId: true,
+          maYeuCauBaoGia: true,
           tenKhachHang: true,
           ngayDatHang: true,
           ngayGiaoHang: true,
@@ -255,13 +281,26 @@ class OrderService {
   }
 
   // Update order
-  async updateOrder(id: string, data: any) {
+  async updateOrder(id: string, data: any, actorRole?: string, actorId?: string) {
     const order = await prisma.order.findUnique({
       where: { id },
     });
 
     if (!order) {
       throw new NotFoundError('Không tìm thấy đơn hàng');
+    }
+
+    // Route production status change through forward-only helper
+    let resolvedTrangThaiSanXuat = data.trangThaiSanXuat;
+    if (data.trangThaiSanXuat !== undefined && data.trangThaiSanXuat !== null) {
+      // Only validate if the order already has a production status
+      if (order.trangThaiSanXuat !== null) {
+        resolvedTrangThaiSanXuat = advanceOrderProductionStatus(
+          order.trangThaiSanXuat,
+          data.trangThaiSanXuat as OrderProductionStatus,
+          { bypass: actorRole === 'ADMIN' }
+        );
+      }
     }
 
     const updatedOrder = await prisma.order.update({
@@ -279,7 +318,7 @@ class OrderService {
         ngayHoanThanhSanXuatKeHoach: this.convertToDateTime(data.ngayHoanThanhSanXuatKeHoach),
         ngayHoanThanhThucTe: this.convertToDateTime(data.ngayHoanThanhThucTe),
         ngayGiaoHang: this.convertToDateTime(data.ngayGiaoHang),
-        trangThaiSanXuat: data.trangThaiSanXuat,
+        trangThaiSanXuat: resolvedTrangThaiSanXuat,
         trangThaiThanhToan: data.trangThaiThanhToan,
         ghiChu: data.ghiChu,
         fileDinhKem: data.fileDinhKem,
@@ -296,7 +335,29 @@ class OrderService {
           metadata: { maDonHang: updatedOrder.maDonHang, trangThai: data.trangThaiSanXuat },
         });
       } catch {}
+
+      // Fire delivery notification when order is handed to customer (task 6.4)
+      if (data.trangThaiSanXuat === OrderProductionStatus.DA_GIAO_CHO_KHACH_HANG) {
+        try {
+          await notificationService.notify(NotificationEvent.ORDER_DELIVERED, {
+            entityId: updatedOrder.id,
+            metadata: { maDonHang: updatedOrder.maDonHang, tenKhachHang: updatedOrder.tenKhachHang },
+          });
+        } catch {}
+      }
     }
+
+    // Fire-and-forget: audit log (task 5.6)
+    const wasStatusChange = data.trangThaiSanXuat !== undefined && data.trangThaiSanXuat !== order.trangThaiSanXuat;
+    recordAudit({
+      entityType: 'Order',
+      entityId: id,
+      action: wasStatusChange ? 'STATUS_CHANGE' : 'UPDATE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      before: order,
+      after: updatedOrder,
+    });
 
     return updatedOrder;
   }
@@ -322,7 +383,7 @@ class OrderService {
   }
 
   // Delete order
-  async deleteOrder(id: string) {
+  async deleteOrder(id: string, actorId?: string, actorRole?: string) {
     const order = await prisma.order.findUnique({
       where: { id },
     });
@@ -333,6 +394,16 @@ class OrderService {
 
     await prisma.order.delete({
       where: { id },
+    });
+
+    // Fire-and-forget: audit log (task 5.6)
+    recordAudit({
+      entityType: 'Order',
+      entityId: id,
+      action: 'DELETE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      before: order,
     });
 
     return { message: 'Xóa đơn hàng thành công' };
