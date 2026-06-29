@@ -56,6 +56,8 @@ class FaultRecordController {
         fileDinhKem: req.file ? getFileUrl('fault-records', req.file.filename) : undefined,
         // Task 4.3: pass userRole for auto-create gate
         userRole: req.user?.role,
+        // pass userId for createdById tracking
+        userId: req.user?.id,
         repairSteps: req.body.repairSteps
           ? (typeof req.body.repairSteps === 'string' ? JSON.parse(req.body.repairSteps) : req.body.repairSteps)
           : undefined,

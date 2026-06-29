@@ -67,7 +67,7 @@ export class InvoiceService {
     return invoice;
   }
 
-  async createInvoice(data: any): Promise<any> {
+  async createInvoice(data: any, userId?: string): Promise<any> {
     if (!data.khachHang) {
       throw new ValidationError('Missing required field: khachHang');
     }
@@ -109,7 +109,7 @@ export class InvoiceService {
       data.thanhTien = parseFloat(data.thanhTien) || 0;
     }
 
-    const invoice = await prisma.invoice.create({ data });
+    const invoice = await prisma.invoice.create({ data: { ...data, createdById: userId ?? null } });
 
     try {
       await notificationService.notify(NotificationEvent.INVOICE_CREATED, {

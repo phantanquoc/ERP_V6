@@ -57,6 +57,7 @@ class RepairRequestController {
         trangThai: req.body.trangThai,
         fileDinhKem: req.file ? getFileUrl('repair-requests', req.file.filename) : undefined,
         ...(items !== undefined && { items }),
+        userId: req.user?.id,
       };
 
       const request = await repairRequestService.createRepairRequest(data);

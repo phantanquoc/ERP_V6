@@ -32,6 +32,7 @@ interface CreateRepairRequestData {
   trangThai?: string;
   fileDinhKem?: string;
   items?: RepairRequestItemData[];
+  userId?: string;
 }
 
 interface UpdateRepairRequestData {
@@ -190,6 +191,7 @@ class RepairRequestService {
           ghiChu: data.ghiChu,
           trangThai: data.trangThai || 'Chờ xử lý',
           fileDinhKem: data.fileDinhKem,
+          createdById: data.userId ?? null,
         },
       });
 

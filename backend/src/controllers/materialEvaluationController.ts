@@ -75,7 +75,7 @@ export class MaterialEvaluationController {
         data.fileDinhKem = getFileUrl('material-evaluations', req.file.filename);
       }
 
-      const evaluation = await materialEvaluationService.createMaterialEvaluation(data);
+      const evaluation = await materialEvaluationService.createMaterialEvaluation(data, req.user?.id);
 
       res.status(201).json({
         success: true,

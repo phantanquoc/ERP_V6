@@ -67,6 +67,7 @@ export class ProductionReportService {
         ...data,
         nguoiThucHien,
         chenhLechKhoiLuong,
+        createdById: userId ?? null,
       },
     });
 

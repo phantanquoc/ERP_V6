@@ -95,6 +95,7 @@ export class QualityEvaluationService {
       data: {
         ...data,
         nguoiThucHien,
+        createdById: userId ?? null,
       },
     });
 

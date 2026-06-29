@@ -178,7 +178,10 @@ router.get('/:id', authenticate, async (req, res) => {
  */
 router.post('/', authenticate, async (req, res) => {
   try {
-    const feedback = await customerFeedbackService.createFeedback(req.body);
+    const feedback = await customerFeedbackService.createFeedback({
+      ...req.body,
+      userId: (req as any).user?.id,
+    });
     res.status(201).json({
       success: true,
       data: feedback,

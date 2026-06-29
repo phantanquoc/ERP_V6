@@ -10,6 +10,7 @@ interface CreateCustomerFeedbackData {
   donHangLienQuan?: string;
   nguoiTiepNhan?: string;
   ghiChu?: string;
+  userId?: string;
 }
 
 interface UpdateCustomerFeedbackData {
@@ -39,10 +40,12 @@ export const customerFeedbackService = {
   // Create new feedback
   async createFeedback(data: CreateCustomerFeedbackData) {
     try {
+      const { userId, ...feedbackData } = data;
       const feedback = await prisma.customerFeedback.create({
         data: {
-          ...data,
+          ...feedbackData,
           ngayPhanHoi: new Date(),
+          createdById: userId ?? null,
         },
         include: {
           customer: true,

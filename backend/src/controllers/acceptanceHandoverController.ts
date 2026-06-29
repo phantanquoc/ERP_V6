@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import acceptanceHandoverService from '@services/acceptanceHandoverService';
 import { getFileUrl } from '@middlewares/upload';
 import { NotificationService } from '@services/notificationService';
+import type { AuthenticatedRequest } from '@types';
 
 const notificationService = new NotificationService();
 
@@ -47,11 +48,13 @@ class AcceptanceHandoverController {
     try {
       // Parse repairRequestId to number since it comes as string from FormData
       const file = req.file as Express.Multer.File | undefined;
+      const authReq = req as unknown as AuthenticatedRequest;
       const data = {
         ...req.body,
         repairRequestId: parseInt(req.body.repairRequestId, 10),
         items: parseItems(req.body.items),
         fileDinhKem: file ? getFileUrl('acceptance-handovers', file.filename) : undefined,
+        userId: authReq.user?.id,
       };
 
       const handover = await acceptanceHandoverService.createAcceptanceHandover(data);

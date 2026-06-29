@@ -47,6 +47,7 @@ class MaintenanceRecordController {
         ...req.body,
         ngayThucHien: new Date(req.body.ngayThucHien),
         fileDinhKem: req.file ? getFileUrl('maintenance-records', req.file.filename) : undefined,
+        userId: req.user?.id,
       });
       res.status(201).json({ success: true, data: record, message: 'Tạo biên bản thành công' });
     } catch (error) {
