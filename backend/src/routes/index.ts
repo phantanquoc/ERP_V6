@@ -71,6 +71,7 @@ const ROUTE_MAP: Record<string, string> = {
   maintenancePlan: '/api/maintenance-plans',
   maintenanceRecord: '/api/maintenance-records',
   auditLog: '/api/audit-logs',
+  myHistory: '/api',
 };
 
 export const registerRoutes = (app: Express): void => {
