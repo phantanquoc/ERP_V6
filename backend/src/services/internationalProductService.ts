@@ -283,7 +283,7 @@ export class InternationalProductService {
 
   async getRawMaterials(): Promise<any[]> {
     return prisma.internationalProduct.findMany({
-      where: { loaiSanPham: 'Nguyên liệu thô' },
+      where: { loaiSanPham: { startsWith: 'Nguyên liệu', mode: 'insensitive' } },
       orderBy: { maSanPham: 'asc' },
     });
   }
