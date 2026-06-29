@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Eye, Edit, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
@@ -47,6 +48,7 @@ const getStatusColor = (status: string) => {
 
 const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const canEdit = user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead';
   const canDelete = user?.role === 'admin';
   const [requests, setRequests] = useState<SupplyRequest[]>([]);
@@ -96,6 +98,21 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   useEffect(() => {
     fetchRequests();
   }, [searchTerm, currentPage]);
+
+  useEffect(() => {
+    const srId = searchParams.get('supplyRequestId');
+    if (srId) {
+      supplyRequestService.getSupplyRequestById(srId).then((res) => {
+        if (res.data) {
+          setSelectedRequest(res.data);
+          setModalMode('view');
+          setShowModal(true);
+        }
+      }).catch((err) => {
+        console.error('Error loading supply request from URL:', err);
+      });
+    }
+  }, [searchParams]);
 
   const fetchRequests = async () => {
     setLoading(true);
