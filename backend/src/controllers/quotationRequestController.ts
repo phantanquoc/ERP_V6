@@ -1,16 +1,33 @@
 import { Request, Response, NextFunction } from 'express';
+import { QuotationRequestStatus } from '@prisma/client';
 import quotationRequestService from '@services/quotationRequestService';
 import { AuthenticatedRequest, ApiResponse } from '@types';
+import { ValidationError } from '@utils/errors';
+
+const VALID_STATUSES = new Set<string>(Object.values(QuotationRequestStatus));
 
 export class QuotationRequestController {
   async getAllQuotationRequests(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
-      const search = req.query.search as string;
-      const customerType = req.query.customerType as string;
+      const rawLimit = parseInt(req.query.limit as string);
+      const limit = [10, 20, 50, 100].includes(rawLimit) ? rawLimit : 20;
+      const search = req.query.search as string | undefined;
+      const customerType = req.query.customerType as string | undefined;
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
 
-      const result = await quotationRequestService.getAllQuotationRequests(page, limit, search, customerType);
+      // Validate optional status filter (task 2.6)
+      let status: QuotationRequestStatus | undefined;
+      if (req.query.status) {
+        const rawStatus = req.query.status as string;
+        if (!VALID_STATUSES.has(rawStatus)) {
+          throw new ValidationError(`Trạng thái không hợp lệ: ${rawStatus}. Giá trị cho phép: ${[...VALID_STATUSES].join(', ')}`);
+        }
+        status = rawStatus as QuotationRequestStatus;
+      }
+
+      const result = await quotationRequestService.getAllQuotationRequests(page, limit, search, customerType, status, dateFrom, dateTo);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -63,7 +80,9 @@ export class QuotationRequestController {
 
   async createQuotationRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const request = await quotationRequestService.createQuotationRequest(req.body);
+      const actorId = req.user?.id;
+      const actorRole = req.user?.role;
+      const request = await quotationRequestService.createQuotationRequest(req.body, actorId, actorRole);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -80,12 +99,52 @@ export class QuotationRequestController {
   async updateQuotationRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
-      const request = await quotationRequestService.updateQuotationRequest(id, req.body);
+      const actorRole = req.user?.role;
+      const actorId = req.user?.id;
+      const request = await quotationRequestService.updateQuotationRequest(id, req.body, actorRole, actorId);
 
       const response: ApiResponse<any> = {
         success: true,
         data: request,
-        message: 'Quotation request updated successfully',
+        message: 'Yêu cầu báo giá đã được cập nhật',
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async cancelQuotationRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const actorRole = req.user?.role;
+      const actorId = req.user?.id;
+      const request = await quotationRequestService.cancelQuotationRequest(id, actorRole, actorId);
+
+      const response: ApiResponse<any> = {
+        success: true,
+        data: request,
+        message: 'Yêu cầu báo giá đã được hủy',
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async markInProgress(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const actorRole = req.user?.role;
+      const actorId = req.user?.id;
+      const request = await quotationRequestService.markInProgress(id, actorId, actorRole);
+
+      const response: ApiResponse<any> = {
+        success: true,
+        data: request,
+        message: 'Yêu cầu báo giá đang được xử lý',
       };
 
       res.json(response);
@@ -97,7 +156,9 @@ export class QuotationRequestController {
   async deleteQuotationRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
-      await quotationRequestService.deleteQuotationRequest(id);
+      const actorId = req.user?.id;
+      const actorRole = req.user?.role;
+      await quotationRequestService.deleteQuotationRequest(id, actorId, actorRole);
 
       const response: ApiResponse<any> = {
         success: true,
