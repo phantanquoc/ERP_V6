@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { ExportCost } from '@prisma/client';
 import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
+import { recordAudit } from '@utils/auditLog';
 
 export interface CreateExportCostInput {
   tenChiPhi: string;
@@ -35,17 +36,23 @@ class ExportCostService {
   }
 
   // Get all export costs with pagination
-  async getAllExportCosts(page: number = 1, limit: number = 10, search?: string) {
+  async getAllExportCosts(page: number = 1, limit: number = 20, search?: string, loaiChiPhi?: string) {
     const skip = (page - 1) * limit;
 
-    const where = search ? {
-      OR: [
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
         { maChiPhi: { contains: search, mode: 'insensitive' as any } },
         { tenChiPhi: { contains: search, mode: 'insensitive' as any } },
         { loaiChiPhi: { contains: search, mode: 'insensitive' as any } },
         { tenNhanVien: { contains: search, mode: 'insensitive' as any } }
-      ]
-    } : {};
+      ];
+    }
+
+    if (loaiChiPhi) {
+      where.loaiChiPhi = { contains: loaiChiPhi, mode: 'insensitive' as any };
+    }
 
     const [data, total] = await Promise.all([
       prisma.exportCost.findMany({
@@ -76,30 +83,71 @@ class ExportCostService {
   }
 
   // Create export cost
-  async createExportCost(input: CreateExportCostInput): Promise<ExportCost> {
+  async createExportCost(input: CreateExportCostInput, actorId?: string, actorRole?: string): Promise<ExportCost> {
     const maChiPhi = await this.generateCode();
 
-    return await prisma.exportCost.create({
+    const created = await prisma.exportCost.create({
       data: {
         maChiPhi,
         ...input
       }
     });
+
+    // Fire-and-forget: audit log (task 5.7)
+    recordAudit({
+      entityType: 'ExportCost',
+      entityId: created.id,
+      action: 'CREATE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      after: created,
+    });
+
+    return created;
   }
 
   // Update export cost
-  async updateExportCost(id: string, input: UpdateExportCostInput): Promise<ExportCost> {
-    return await prisma.exportCost.update({
+  async updateExportCost(id: string, input: UpdateExportCostInput, actorId?: string, actorRole?: string): Promise<ExportCost> {
+    const before = await prisma.exportCost.findUnique({ where: { id } });
+
+    const updated = await prisma.exportCost.update({
       where: { id },
       data: input
     });
+
+    // Fire-and-forget: audit log (task 5.7)
+    recordAudit({
+      entityType: 'ExportCost',
+      entityId: id,
+      action: 'UPDATE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      before: before ?? undefined,
+      after: updated,
+    });
+
+    return updated;
   }
 
   // Delete export cost
-  async deleteExportCost(id: string): Promise<ExportCost> {
-    return await prisma.exportCost.delete({
+  async deleteExportCost(id: string, actorId?: string, actorRole?: string): Promise<ExportCost> {
+    const before = await prisma.exportCost.findUnique({ where: { id } });
+
+    const deleted = await prisma.exportCost.delete({
       where: { id }
     });
+
+    // Fire-and-forget: audit log (task 5.7)
+    recordAudit({
+      entityType: 'ExportCost',
+      entityId: id,
+      action: 'DELETE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      before: before ?? undefined,
+    });
+
+    return deleted;
   }
 
   // Export to Excel
