@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Settings, Shield, History, LogOut, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { User, Settings, Shield, History, Clock, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import PersonalInfoModal from './PersonalInfoModal';
 import LoginHistoryModal from './LoginHistoryModal';
@@ -7,6 +8,7 @@ import ChangePasswordModal from './ChangePasswordModal';
 
 const UserProfileDropdown: React.FC = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -45,6 +47,9 @@ const UserProfileDropdown: React.FC = () => {
         break;
       case 'history':
         setIsLoginHistoryOpen(true);
+        break;
+      case 'my-history':
+        navigate('/my-history');
         break;
       case 'password':
         setIsChangePasswordOpen(true);
@@ -140,6 +145,20 @@ const UserProfileDropdown: React.FC = () => {
               <div className="text-left">
                 <div className="text-sm font-medium">Lịch sử đăng nhập</div>
                 <div className="text-xs text-gray-500">Lịch sử đăng nhập gần đây của tài khoản</div>
+              </div>
+            </button>
+
+            {/* Lịch sử của tôi */}
+            <button
+              onClick={() => handleMenuClick('my-history')}
+              className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-gray-50 transition-colors duration-150"
+            >
+              <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
+                <Clock className="w-4 h-4 text-indigo-600" />
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-medium">Lịch sử của tôi</div>
+                <div className="text-xs text-gray-500">Yêu cầu, nhiệm vụ, báo cáo, phiếu đã tạo</div>
               </div>
             </button>
 

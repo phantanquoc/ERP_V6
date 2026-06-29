@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, ClipboardList, ShieldCheck, Briefcase, Calculator, ShoppingCart, Factory, Wrench, Settings, ChevronDown, ChevronRight, ChevronLeft, ScanFace, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, ShieldCheck, Briefcase, Calculator, ShoppingCart, Factory, Wrench, Settings, ChevronDown, ChevronRight, ChevronLeft, ScanFace, BookOpen, History } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { hasModuleAccess, hasSubModuleAccess, isAdmin } from '../utils/permissions';
@@ -215,6 +215,19 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
 
         {/* Footer links */}
         <div className="border-t border-gray-800/50 p-2 space-y-1">
+          <Link
+            to="/my-history"
+            className={`flex items-center px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
+              location.pathname === '/my-history'
+                ? 'bg-gray-800 text-white'
+                : 'text-gray-400 hover:bg-gray-800/50 hover:text-white'
+            }`}
+            title={collapsed ? 'Lịch sử của tôi' : ''}
+          >
+            <span className={`text-gray-500 ${collapsed ? '' : 'mr-3'}`}><History size={20} /></span>
+            {!collapsed && <span className="font-medium">Lịch sử của tôi</span>}
+          </Link>
+
           <Link
             to="/huong-dan"
             className={`flex items-center px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
