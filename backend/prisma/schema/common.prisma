@@ -425,9 +425,11 @@ model InternalInspection {
   verifiedBy2Code      String
   status               String   @default("PENDING")
   notes                String?
+  createdById          String? // soft ref to auth.User.id — no FK constraint
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
+  @@index([createdById])
   @@map("internal_inspections")
   @@schema("common")
 }
@@ -874,12 +876,14 @@ model RepairRequest {
   ghiChu           String?  @db.Text
   trangThai        String   @default("Chờ xử lý") // Trạng thái
   fileDinhKem      String? // File đính kèm
+  createdById      String? // soft ref to auth.User.id — no FK constraint
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   items               RepairRequestItem[]
   acceptanceHandovers AcceptanceHandover[]
 
+  @@index([createdById])
   @@map("repair_requests")
   @@schema("common")
 }
@@ -921,12 +925,14 @@ model AcceptanceHandover {
   nguoiNhanId           String? // ID nhân viên người nhận (cho thông báo)
   fileDinhKem           String? // File đính kèm
   ghiChu                String?  @db.Text
+  createdById           String? // soft ref to auth.User.id — no FK constraint
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
   repairRequest RepairRequest            @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
   items         AcceptanceHandoverItem[]
 
+  @@index([createdById])
   @@map("acceptance_handovers")
   @@schema("common")
 }

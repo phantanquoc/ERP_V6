@@ -149,10 +149,12 @@ model CustomerFeedback {
   ngayXuLyXong     DateTime?
   mucDoHaiLong     String?
   ghiChu           String?
+  createdById      String? // soft ref to auth.User.id — no FK constraint
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
   customer         InternationalCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
+  @@index([createdById])
   @@map("customer_feedbacks")
   @@schema("business")
 }
@@ -502,10 +504,12 @@ model TaxReport {
   trangThai      TaxReportStatus @default(CHUA_BAO_CAO)
   ghiChi         String?
   fileDinhKem    String?
+  createdById    String? // soft ref to auth.User.id — no FK constraint
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
+  @@index([createdById])
   @@map("tax_reports")
   @@schema("business")
 }
@@ -548,8 +552,10 @@ model Invoice {
   mucDichSuDung String? // Mục đích sử dụng dành cho hạng mục nào
   nhaCungCap    String? // Nhà cung cấp (for loaiHoaDon = 'Mua hàng')
   files         String[] @default([])
+  createdById   String? // soft ref to auth.User.id — no FK constraint
   updatedAt     DateTime @updatedAt
 
+  @@index([createdById])
   @@map("invoices")
   @@schema("business")
 }
