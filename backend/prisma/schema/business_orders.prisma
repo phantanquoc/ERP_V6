@@ -8,6 +8,15 @@ enum CustomerStatus {
   @@schema("business")
 }
 
+enum QuotationRequestStatus {
+  CHO_XU_LY
+  DANG_BAO_GIA
+  DA_BAO_GIA
+  HUY
+
+  @@schema("business")
+}
+
 enum QuotationStatus {
   DRAFT
   DANG_CHO_PHAN_HOI
@@ -164,6 +173,7 @@ model QuotationRequest {
   cangDen           String?
   tiGiaUSD          Float?
   ghiChu            String?
+  status            QuotationRequestStatus @default(CHO_XU_LY)
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
   orders            Order[]

@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye, X, FileText, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
+import ConfirmDialog from './common/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { quotationRequestService, QuotationRequest } from '../services/quotationRequestService';
 import internationalCustomerService, { InternationalCustomer } from '../services/internationalCustomerService';
@@ -57,46 +59,37 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     }>,
   });
 
-  const itemsPerPage = 10;
+  const [limit, setLimit] = useState(20);
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
 
-  // React Query for fetching quotation requests
+  // React Query for fetching quotation requests — server-side pagination and search
   const filterCustomerType = customerType === 'all' ? undefined : customerType;
   const { data: requestsData, isLoading: loading } = useQuotationRequests({
-    page: 1,
-    limit: 1000,
+    page: currentPage,
+    limit,
     search: filterValues._search || undefined,
     customerType: filterCustomerType,
+    status: statusFilter || undefined,
   });
 
   // Derive data from query result
-  const rawRequests = requestsData?.data ?? [];
+  const requests = requestsData?.data ?? [];
+  const totalItems = requestsData?.pagination?.total ?? 0;
+  const totalPages = requestsData?.pagination?.totalPages ?? 1;
+
+  const handleFilterChange = (newValues: Record<string, string>) => {
+    setFilterValues(newValues);
+    setCurrentPage(1);
+  };
 
   const quotationRequestFilterFields: FilterField[] = [
     { key: 'maYeuCauBaoGia', label: 'Mã YC', type: 'text' },
     { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
     { key: 'tenKhachHang', label: 'Khách hàng', type: 'text' },
   ];
-
-  const requests = useMemo(() => {
-    return rawRequests.filter((r: any) => {
-      const search = (filterValues._search || '').toLowerCase();
-      const matchSearch = !search ||
-        (r.maYeuCauBaoGia || '').toLowerCase().includes(search) ||
-        (r.tenNhanVien || '').toLowerCase().includes(search) ||
-        (r.tenKhachHang || '').toLowerCase().includes(search) ||
-        (r.maNhanVien || '').toLowerCase().includes(search) ||
-        (r.maKhachHang || '').toLowerCase().includes(search);
-      const matchMa = !filterValues.maYeuCauBaoGia || (r.maYeuCauBaoGia || '').toLowerCase().includes(filterValues.maYeuCauBaoGia.toLowerCase());
-      const matchNV = !filterValues.tenNhanVien || (r.tenNhanVien || '').toLowerCase().includes(filterValues.tenNhanVien.toLowerCase());
-      const matchKH = !filterValues.tenKhachHang || (r.tenKhachHang || '').toLowerCase().includes(filterValues.tenKhachHang.toLowerCase());
-      return matchSearch && matchMa && matchNV && matchKH;
-    });
-  }, [rawRequests, filterValues]);
-
-  const handleFilterChange = (newValues: Record<string, string>) => {
-    setFilterValues(newValues);
-    setCurrentPage(1);
-  };
 
   // Fetch customers and products on mount and when customerType changes
   useEffect(() => {
@@ -164,18 +157,18 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       // Get current user's employee ID from localStorage
       const userStr = localStorage.getItem('user');
       if (!userStr) {
-        alert('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
+        toast.error('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
         return;
       }
       const user = JSON.parse(userStr);
 
       // Validate required fields
       if (!formData.customerId) {
-        alert('Vui lòng chọn khách hàng');
+        toast.error('Vui lòng chọn khách hàng');
         return;
       }
       if (formData.items.length === 0) {
-        alert('Vui lòng thêm ít nhất 1 sản phẩm');
+        toast.error('Vui lòng thêm ít nhất 1 sản phẩm');
         return;
       }
 
@@ -183,15 +176,15 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       for (let i = 0; i < formData.items.length; i++) {
         const item = formData.items[i];
         if (!item.productId) {
-          alert(`Sản phẩm ${i + 1}: Vui lòng chọn sản phẩm`);
+          toast.error(`Sản phẩm ${i + 1}: Vui lòng chọn sản phẩm`);
           return;
         }
         if (!item.soLuong || item.soLuong <= 0) {
-          alert(`Sản phẩm ${i + 1}: Vui lòng nhập số lượng hợp lệ`);
+          toast.error(`Sản phẩm ${i + 1}: Vui lòng nhập số lượng hợp lệ`);
           return;
         }
         if (!item.donViTinh || item.donViTinh.trim() === '') {
-          alert(`Sản phẩm ${i + 1}: Vui lòng nhập đơn vị tính`);
+          toast.error(`Sản phẩm ${i + 1}: Vui lòng nhập đơn vị tính`);
           return;
         }
       }
@@ -215,13 +208,13 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       };
 
       await quotationRequestService.createQuotationRequest(requestData);
-      alert('Tạo yêu cầu báo giá thành công!');
+      toast.success('Tạo yêu cầu báo giá thành công!');
       setShowModal(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
     } catch (error: any) {
       console.error('Error creating quotation request:', error);
-      alert(error.response?.data?.message || 'Lỗi khi tạo yêu cầu báo giá');
+      toast.error(error.response?.data?.message || 'Lỗi khi tạo yêu cầu báo giá');
     }
   };
 
@@ -231,11 +224,11 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     try {
       // Validate required fields
       if (!formData.customerId) {
-        alert('Vui lòng chọn khách hàng');
+        toast.error('Vui lòng chọn khách hàng');
         return;
       }
       if (formData.items.length === 0) {
-        alert('Vui lòng thêm ít nhất 1 sản phẩm');
+        toast.error('Vui lòng thêm ít nhất 1 sản phẩm');
         return;
       }
 
@@ -243,15 +236,15 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       for (let i = 0; i < formData.items.length; i++) {
         const item = formData.items[i];
         if (!item.productId) {
-          alert(`Sản phẩm ${i + 1}: Vui lòng chọn sản phẩm`);
+          toast.error(`Sản phẩm ${i + 1}: Vui lòng chọn sản phẩm`);
           return;
         }
         if (!item.soLuong || item.soLuong <= 0) {
-          alert(`Sản phẩm ${i + 1}: Vui lòng nhập số lượng hợp lệ`);
+          toast.error(`Sản phẩm ${i + 1}: Vui lòng nhập số lượng hợp lệ`);
           return;
         }
         if (!item.donViTinh || item.donViTinh.trim() === '') {
-          alert(`Sản phẩm ${i + 1}: Vui lòng nhập đơn vị tính`);
+          toast.error(`Sản phẩm ${i + 1}: Vui lòng nhập đơn vị tính`);
           return;
         }
       }
@@ -271,32 +264,46 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
           giaBanGanNhat: item.giaBanGanNhat ? Number(item.giaBanGanNhat) : undefined,
         })),
       });
-      alert('Cập nhật yêu cầu báo giá thành công!');
+      toast.success('Cập nhật yêu cầu báo giá thành công!');
       setShowModal(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
     } catch (error: any) {
       console.error('Error updating quotation request:', error);
-      alert(error.response?.data?.message || 'Lỗi khi cập nhật yêu cầu báo giá');
+      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật yêu cầu báo giá');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa yêu cầu báo giá này?')) return;
-
-    try {
-      await quotationRequestService.deleteQuotationRequest(id);
-      alert('Xóa yêu cầu báo giá thành công!');
-      queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
-    } catch (error: any) {
-      console.error('Error deleting quotation request:', error);
-      alert(error.response?.data?.message || 'Lỗi khi xóa yêu cầu báo giá');
-    }
+    setConfirmMessage('Bạn có chắc chắn muốn xóa yêu cầu báo giá này?');
+    setConfirmAction(() => async () => {
+      setConfirmOpen(false);
+      try {
+        await quotationRequestService.deleteQuotationRequest(id);
+        toast.success('Xóa yêu cầu báo giá thành công!');
+        queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
+      } catch (error: any) {
+        console.error('Error deleting quotation request:', error);
+        toast.error(error.response?.data?.message || 'Lỗi khi xóa yêu cầu báo giá');
+      }
+    });
+    setConfirmOpen(true);
   };
 
   const handleCreateQuotation = (request: QuotationRequest) => {
     setQuotationRequest(request);
     setShowQuotationModal(true);
+    // Spec W3: when opening create-quotation popup for a CHO_XU_LY request,
+    // advance it to DANG_BAO_GIA. Fire-and-forget — do not block UI.
+    if (request.status === 'CHO_XU_LY') {
+      quotationRequestService.markInProgress(request.id)
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
+        })
+        .catch(() => {
+          // Best-effort; badge will refresh on next list query
+        });
+    }
   };
 
   const handleQuotationSuccess = () => {
@@ -332,7 +339,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       setShowModal(true);
     } catch (error) {
       console.error('Error generating quotation request code:', error);
-      alert('Lỗi khi tạo mã yêu cầu báo giá');
+      toast.error('Lỗi khi tạo mã yêu cầu báo giá');
     }
   };
 
@@ -422,6 +429,23 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
   };
 
+  // Status badge helper (task 8.4)
+  const renderStatusBadge = (status?: string) => {
+    const badgeMap: Record<string, { label: string; className: string }> = {
+      CHO_XU_LY: { label: 'Chờ xử lý', className: 'bg-gray-100 text-gray-800 border border-gray-200' },
+      DANG_BAO_GIA: { label: 'Đang báo giá', className: 'bg-blue-100 text-blue-800 border border-blue-200' },
+      DA_BAO_GIA: { label: 'Đã báo giá', className: 'bg-green-100 text-green-800 border border-green-200' },
+      HUY: { label: 'Đã hủy', className: 'bg-red-100 text-red-800 border border-red-200' },
+    };
+    const badge = status ? badgeMap[status] : undefined;
+    if (!badge) return <span className="text-gray-400 text-xs">-</span>;
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${badge.className}`}>
+        {badge.label}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -456,6 +480,22 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
         searchPlaceholder="Tìm kiếm mã YC, nhân viên, khách hàng..."
       />
 
+      {/* Status filter dropdown (task 8.3) */}
+      <div className="mb-4 flex items-center gap-3">
+        <label className="text-sm font-medium text-gray-700">Trạng thái:</label>
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+          className="border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Tất cả</option>
+          <option value="CHO_XU_LY">Chờ xử lý</option>
+          <option value="DANG_BAO_GIA">Đang báo giá</option>
+          <option value="DA_BAO_GIA">Đã báo giá</option>
+          <option value="HUY">Đã hủy</option>
+        </select>
+      </div>
+
       {/* Alert Messages */}
       {exportError && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
@@ -482,24 +522,25 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                     Đang tải...
                   </td>
                 </tr>
               ) : requests.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                     Không có dữ liệu
                   </td>
                 </tr>
               ) : (
-                requests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((request, index) => (
+                requests.map((request, index) => (
                   <tr
                     key={request.id}
                     className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -507,7 +548,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                     }`}
                   >
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {(currentPage - 1) * itemsPerPage + index + 1}
+                      {(currentPage - 1) * limit + index + 1}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                       {formatDate(request.ngayYeuCau)}
@@ -524,12 +565,12 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                       <div className="text-xs text-gray-500">{request.maKhachHang}</div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {(request as any).items && (request as any).items.length > 0 ? (
+                      {request.items && request.items.length > 0 ? (
                         <div>
-                          <div className="font-medium">{(request as any).items.length} sản phẩm</div>
+                          <div className="font-medium">{request.items.length} sản phẩm</div>
                           <div className="text-xs text-gray-500">
-                            {(request as any).items[0].tenSanPham}
-                            {(request as any).items.length > 1 && ` +${(request as any).items.length - 1}`}
+                            {request.items[0].tenSanPham}
+                            {request.items.length > 1 && ` +${request.items.length - 1}`}
                           </div>
                         </div>
                       ) : (
@@ -537,13 +578,16 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                      {(request as any).items && (request as any).items.length > 0 ? (
+                      {request.items && request.items.length > 0 ? (
                         <div>
-                          {(request as any).items.reduce((sum: number, item: any) => sum + item.soLuong, 0)} {(request as any).items[0].donViTinh}
+                          {request.items.reduce((sum, item) => sum + item.soLuong, 0)} {request.items[0].donViTinh}
                         </div>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
+                    </td>
+                    <td className="px-6 py-4 text-sm border-r border-gray-200">
+                      {renderStatusBadge((request as any).status)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-3">
@@ -589,14 +633,22 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
           </table>
         </div>
 
-      {(() => {
-        const totalItems = requests.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        return totalPages > 1 ? (
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
+      {/* Server-side pagination + page-size selector */}
+      {totalItems > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
+          <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+              Hiển thị {(currentPage - 1) * limit + 1}–{Math.min(currentPage * limit, totalItems)} / {totalItems} mục
             </span>
+            <select
+              value={limit}
+              onChange={(e) => { setLimit(Number(e.target.value)); setCurrentPage(1); }}
+              className="text-sm border border-gray-300 rounded-md px-2 py-1"
+            >
+              {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}/trang</option>)}
+            </select>
+          </div>
+          {totalPages > 1 && (
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -626,9 +678,9 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                 Sau
               </button>
             </div>
-          </div>
-        ) : null;
-      })()}
+          )}
+        </div>
+      )}
 
       {/* Create/Edit Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
@@ -1028,9 +1080,9 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                 {/* Danh sách sản phẩm */}
                 <div className="border-t border-b border-gray-200 py-4">
                   <label className="block text-sm font-medium text-gray-700 mb-3">Danh sách sản phẩm</label>
-                  {(selectedRequest as any).items && (selectedRequest as any).items.length > 0 ? (
+                  {selectedRequest.items && selectedRequest.items.length > 0 ? (
                     <div className="space-y-3">
-                      {(selectedRequest as any).items.map((item: any, index: number) => (
+                      {selectedRequest.items.map((item, index) => (
                         <div key={index} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
                           <h4 className="font-medium text-gray-700 mb-2">Sản phẩm {index + 1}</h4>
                           <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1130,6 +1182,15 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
         onClose={() => setShowQuotationModal(false)}
         quotationRequest={quotationRequest}
         onSuccess={handleQuotationSuccess}
+      />
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title="Xác nhận xóa"
+        message={confirmMessage}
+        onConfirm={() => confirmAction && confirmAction()}
+        onCancel={() => setConfirmOpen(false)}
       />
     </div>
   );

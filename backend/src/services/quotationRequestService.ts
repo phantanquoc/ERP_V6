@@ -1,9 +1,14 @@
 import prisma from '@config/database';
+import { QuotationRequestStatus as PrismaQRStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
+import { advanceQuotationRequestStatus } from '@utils/statusTransitions';
+import { recordAudit } from '@utils/auditLog';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
 
 export class QuotationRequestService {
   async generateQuotationRequestCode(): Promise<string> {
@@ -18,19 +23,38 @@ export class QuotationRequestService {
 
   async getAllQuotationRequests(
     page: number = 1,
-    limit: number = 10,
+    limit: number = 20,
     search?: string,
-    customerType?: string // "Quốc tế" hoặc "Nội địa"
+    customerType?: string, // "Quốc tế" hoặc "Nội địa"
+    status?: PrismaQRStatus,
+    dateFrom?: string,
+    dateTo?: string
   ): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
     const where: any = {};
+
+    // Filter by status
+    if (status) {
+      where.status = status;
+    }
 
     // Filter by customerType (Quốc tế / Nội địa)
     if (customerType === 'Quốc tế') {
       where.customer = { quocGia: { not: null } };
     } else if (customerType === 'Nội địa') {
       where.customer = { tinhThanh: { not: null } };
+    }
+
+    // Date range filter on ngayYeuCau
+    if (dateFrom || dateTo) {
+      where.ngayYeuCau = {};
+      if (dateFrom) where.ngayYeuCau.gte = new Date(dateFrom);
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        where.ngayYeuCau.lte = end;
+      }
     }
 
     // Search filter
@@ -144,7 +168,7 @@ export class QuotationRequestService {
     return request;
   }
 
-  async createQuotationRequest(data: any): Promise<any> {
+  async createQuotationRequest(data: any, actorId?: string, actorRole?: string): Promise<any> {
     // Generate quotation request code if not provided
     if (!data.maYeuCauBaoGia) {
       data.maYeuCauBaoGia = await this.generateQuotationRequestCode();
@@ -227,6 +251,7 @@ export class QuotationRequestService {
         cangDen: data.cangDen,
         tiGiaUSD: data.tiGiaUSD,
         ghiChu: data.ghiChu,
+        status: PrismaQRStatus.CHO_XU_LY,
         items: {
           create: itemsData,
         },
@@ -252,14 +277,51 @@ export class QuotationRequestService {
       },
     });
 
+    // Fire-and-forget: audit log (task 5.4)
+    recordAudit({
+      entityType: 'QuotationRequest',
+      entityId: request.id,
+      action: 'CREATE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      after: request,
+    });
+
+    // Fire-and-forget: YCBG create notification (task 6.2)
+    try {
+      await notificationService.notify(NotificationEvent.QUOTATION_REQUEST_CREATED, {
+        entityId: request.id,
+        actorUserId: actorId,
+        metadata: {
+          tenKhachHang: request.tenKhachHang,
+          nguoiTao: request.tenNhanVien,
+          subDepartmentId: request.employee?.subDepartmentId ?? undefined,
+        },
+      });
+    } catch {}
+
     return request;
   }
 
-  async updateQuotationRequest(id: string, data: any): Promise<any> {
+  async updateQuotationRequest(id: string, data: any, actorRole?: string, actorId?: string): Promise<any> {
     // Check if quotation request exists
-    await this.getQuotationRequestById(id);
+    const existing = await this.getQuotationRequestById(id);
 
     const updateData: any = {};
+
+    // Handle status transition if requested
+    if (data.status !== undefined) {
+      const currentStatus = existing.status as PrismaQRStatus;
+      const nextStatus = data.status as PrismaQRStatus;
+      const bypass = actorRole === 'ADMIN';
+      // Map Prisma enum values to string-literal union for the helper
+      advanceQuotationRequestStatus(
+        currentStatus as any,
+        nextStatus as any,
+        { bypass }
+      );
+      updateData.status = nextStatus;
+    }
 
     // If updating customer, get new customer info
     if (data.customerId) {
@@ -350,14 +412,111 @@ export class QuotationRequestService {
       },
     });
 
+    // Fire-and-forget: audit log (task 5.4)
+    recordAudit({
+      entityType: 'QuotationRequest',
+      entityId: id,
+      action: updateData.status ? 'STATUS_CHANGE' : 'UPDATE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      before: existing,
+      after: request,
+    });
+
     return request;
   }
 
-  async deleteQuotationRequest(id: string): Promise<void> {
-    await this.getQuotationRequestById(id);
+  async cancelQuotationRequest(id: string, actorRole?: string, actorId?: string): Promise<any> {
+    const existing = await this.getQuotationRequestById(id);
+    const currentStatus = existing.status as PrismaQRStatus;
+    const bypass = actorRole === 'ADMIN';
+    // Validate the HUY transition
+    advanceQuotationRequestStatus(currentStatus as any, 'HUY', { bypass });
+
+    const request = await prisma.quotationRequest.update({
+      where: { id },
+      data: { status: PrismaQRStatus.HUY },
+      include: {
+        employee: {
+          include: { user: { select: { firstName: true, lastName: true, email: true } } },
+        },
+        customer: true,
+        items: { include: { product: true } },
+      },
+    });
+
+    // Fire-and-forget: audit log (task 5.4)
+    recordAudit({
+      entityType: 'QuotationRequest',
+      entityId: id,
+      action: 'STATUS_CHANGE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      before: { status: existing.status },
+      after: { status: 'HUY' },
+    });
+
+    return request;
+  }
+
+  /**
+   * Mark a quotation request as DANG_BAO_GIA (in-progress).
+   * Called when a user opens the "Tạo báo giá" popup for a CHO_XU_LY request.
+   * Forward-only single-step transition; no-op if already DANG_BAO_GIA or terminal.
+   */
+  async markInProgress(id: string, actorId?: string, actorRole?: string): Promise<any> {
+    const existing = await this.getQuotationRequestById(id);
+    const currentStatus = existing.status as PrismaQRStatus;
+
+    // No-op: already at or past DANG_BAO_GIA
+    if (currentStatus !== PrismaQRStatus.CHO_XU_LY) {
+      return existing;
+    }
+
+    // Single forward step — bypass: false enforces forward-only
+    advanceQuotationRequestStatus(currentStatus as any, 'DANG_BAO_GIA', { bypass: false });
+
+    const request = await prisma.quotationRequest.update({
+      where: { id },
+      data: { status: PrismaQRStatus.DANG_BAO_GIA },
+      include: {
+        employee: {
+          include: { user: { select: { firstName: true, lastName: true, email: true } } },
+        },
+        customer: true,
+        items: { include: { product: true } },
+      },
+    });
+
+    // Fire-and-forget: audit log
+    recordAudit({
+      entityType: 'QuotationRequest',
+      entityId: id,
+      action: 'STATUS_CHANGE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      before: { status: 'CHO_XU_LY' },
+      after: { status: 'DANG_BAO_GIA' },
+    });
+
+    return request;
+  }
+
+  async deleteQuotationRequest(id: string, actorId?: string, actorRole?: string): Promise<void> {
+    const existing = await this.getQuotationRequestById(id);
 
     await prisma.quotationRequest.delete({
       where: { id },
+    });
+
+    // Fire-and-forget: audit log (task 5.4)
+    recordAudit({
+      entityType: 'QuotationRequest',
+      entityId: id,
+      action: 'DELETE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      before: existing,
     });
   }
 

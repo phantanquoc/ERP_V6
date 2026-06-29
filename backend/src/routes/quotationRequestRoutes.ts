@@ -231,5 +231,20 @@ router.delete(
   quotationRequestController.deleteQuotationRequest
 );
 
+// Cancel action — POST /:id/cancel
+router.post(
+  '/:id/cancel',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  quotationRequestController.cancelQuotationRequest
+);
+
+// Mark in-progress — POST /:id/mark-in-progress
+// Advances CHO_XU_LY → DANG_BAO_GIA when user opens the create-quotation popup
+router.post(
+  '/:id/mark-in-progress',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  quotationRequestController.markInProgress
+);
+
 export default router;
 

@@ -1,6 +1,25 @@
 import apiClient from './apiClient';
 import { API_BASE_URL } from '../config/api';
 
+export interface QuotationRequestItem {
+  id: string;
+  quotationRequestId: string;
+  productId: string;
+  maSanPham: string;
+  tenSanPham: string;
+  moTaSanPham?: string;
+  yeuCauSanPham?: string;
+  quyDongGoi?: string;
+  soLuong: number;
+  donViTinh: string;
+  giaDoiThuBan?: number;
+  giaBanGanNhat?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type QuotationRequestStatus = 'CHO_XU_LY' | 'DANG_BAO_GIA' | 'DA_BAO_GIA' | 'HUY';
+
 export interface QuotationRequest {
   id: string;
   maYeuCauBaoGia: string;
@@ -11,23 +30,16 @@ export interface QuotationRequest {
   customerId: string;
   maKhachHang: string;
   tenKhachHang: string;
-  productId: string;
-  maSanPham: string;
-  tenSanPham: string;
-  moTaSanPham?: string;
-  yeuCauSanPham?: string;
-  quyDongGoi?: string;
-  soLuong: number;
-  donViTinh: string;
   hinhThucVanChuyen?: string;
   hinhThucThanhToan?: string;
   quocGia?: string;
   cangDen?: string;
-  giaDoiThuBan?: number;
-  giaBanGanNhat?: number;
+  tiGiaUSD?: number;
   ghiChu?: string;
+  status: QuotationRequestStatus;
   createdAt: string;
   updatedAt: string;
+  items: QuotationRequestItem[];
 }
 
 export interface CreateQuotationRequestData {
@@ -35,34 +47,40 @@ export interface CreateQuotationRequestData {
   ngayYeuCau?: string;
   employeeId: string;
   customerId: string;
-  productId: string;
-  yeuCauSanPham?: string;
-  quyDongGoi?: string;
-  soLuong: number;
-  donViTinh: string;
   hinhThucVanChuyen?: string;
   hinhThucThanhToan?: string;
   quocGia?: string;
   cangDen?: string;
-  giaDoiThuBan?: number;
-  giaBanGanNhat?: number;
+  tiGiaUSD?: number;
   ghiChu?: string;
+  items: Array<{
+    productId: string;
+    yeuCauSanPham?: string;
+    quyDongGoi?: string;
+    soLuong: number;
+    donViTinh: string;
+    giaDoiThuBan?: number;
+    giaBanGanNhat?: number;
+  }>;
 }
 
 export interface UpdateQuotationRequestData {
   customerId?: string;
-  productId?: string;
-  yeuCauSanPham?: string;
-  quyDongGoi?: string;
-  soLuong?: number;
-  donViTinh?: string;
   hinhThucVanChuyen?: string;
   hinhThucThanhToan?: string;
   quocGia?: string;
   cangDen?: string;
-  giaDoiThuBan?: number;
-  giaBanGanNhat?: number;
+  tiGiaUSD?: number;
   ghiChu?: string;
+  items?: Array<{
+    productId: string;
+    yeuCauSanPham?: string;
+    quyDongGoi?: string;
+    soLuong: number;
+    donViTinh: string;
+    giaDoiThuBan?: number;
+    giaBanGanNhat?: number;
+  }>;
 }
 
 export interface PaginatedResponse {
@@ -90,10 +108,13 @@ export interface GenerateCodeResponse {
 }
 
 export const quotationRequestService = {
-  async getAllQuotationRequests(page: number = 1, limit: number = 10, search?: string, customerType?: string): Promise<PaginatedResponse> {
+  async getAllQuotationRequests(page: number = 1, limit: number = 20, search?: string, customerType?: string, status?: string, dateFrom?: string, dateTo?: string): Promise<PaginatedResponse> {
     const params: Record<string, any> = { page, limit };
     if (search) params.search = search;
     if (customerType) params.customerType = customerType;
+    if (status) params.status = status;
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
 
     const response = await apiClient.get('/quotation-requests', { params });
     return response as unknown as PaginatedResponse;
@@ -121,6 +142,16 @@ export const quotationRequestService = {
 
   async deleteQuotationRequest(id: string): Promise<void> {
     await apiClient.delete(`/quotation-requests/${id}`);
+  },
+
+  async cancelQuotationRequest(id: string): Promise<SingleResponse> {
+    const response = await apiClient.post(`/quotation-requests/${id}/cancel`, {});
+    return response as unknown as SingleResponse;
+  },
+
+  async markInProgress(id: string): Promise<SingleResponse> {
+    const response = await apiClient.post(`/quotation-requests/${id}/mark-in-progress`, {});
+    return response as unknown as SingleResponse;
   },
 
   async generateQuotationRequestCode(): Promise<GenerateCodeResponse> {
