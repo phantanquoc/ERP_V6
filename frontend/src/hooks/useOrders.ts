@@ -17,15 +17,17 @@ interface OrderFilters {
   search?: string;
   customerType?: string;
   status?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 // Hook to get all orders with filters
 export const useOrders = (filters: OrderFilters = {}) => {
-  const { page = 1, limit = 10, search, customerType, status } = filters;
-  
+  const { page = 1, limit = 20, search, customerType, status, dateFrom, dateTo } = filters;
+
   return useQuery({
-    queryKey: orderKeys.list({ page, limit, search, customerType, status }),
-    queryFn: () => orderService.getAllOrders(page, limit, search, customerType),
+    queryKey: orderKeys.list({ page, limit, search, customerType, status, dateFrom, dateTo }),
+    queryFn: () => orderService.getAllOrders(page, limit, search, customerType, status, dateFrom, dateTo),
   });
 };
 

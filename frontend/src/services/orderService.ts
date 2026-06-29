@@ -68,10 +68,13 @@ class OrderService {
   }
 
   // Get all orders
-  async getAllOrders(page: number = 1, limit: number = 10, search?: string, customerType?: string) {
+  async getAllOrders(page: number = 1, limit: number = 20, search?: string, customerType?: string, status?: string, dateFrom?: string, dateTo?: string) {
     const params: any = { page, limit };
     if (search) params.search = search;
     if (customerType) params.customerType = customerType;
+    if (status) params.status = status;
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
 
     const response = await apiClient.get('/orders', { params });
     return response;
