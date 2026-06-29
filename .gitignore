@@ -19,6 +19,7 @@ build/
 
 # Claude Code
 .claude/settings.local.json
+.claude/worktrees/
 
 # OS
 .DS_Store
@@ -53,3 +54,6 @@ __pycache__/
 # AI service build artifacts
 ai-service/wheels/
 docs/chatbot-test-results.json
+
+# Prisma local backups (chứa snapshot dữ liệu thật)
+backend/prisma/backups/
