@@ -39,6 +39,12 @@ export interface Quotation {
   tenNhanVien?: string;
   tinhTrang: 'DRAFT' | 'DANG_CHO_PHAN_HOI' | 'DANG_CHO_GUI_DON_HANG' | 'DA_DAT_HANG' | 'KHONG_DAT_HANG' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
   ghiChu?: string;
+  // Price lock fields (task 10.1)
+  priceLocked?: boolean;
+  priceLockedAt?: string;
+  priceLockedBy?: string;
+  // Aging field (task 12.1)
+  daysOpen?: number;
   createdAt: string;
   updatedAt: string;
   items?: QuotationItem[];
@@ -96,10 +102,13 @@ interface GenerateCodeResponse {
 }
 
 export const quotationService = {
-  async getAllQuotations(page: number = 1, limit: number = 10, search?: string, customerType?: string): Promise<PaginatedResponse> {
+  async getAllQuotations(page: number = 1, limit: number = 20, search?: string, customerType?: string, status?: string, dateFrom?: string, dateTo?: string): Promise<PaginatedResponse> {
     const params: Record<string, any> = { page, limit };
     if (search) params.search = search;
     if (customerType) params.customerType = customerType;
+    if (status) params.status = status;
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
 
     const response = await apiClient.get('/quotations', { params });
     return response as unknown as PaginatedResponse;
@@ -147,6 +156,28 @@ export const quotationService = {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
+  },
+};
+
+// Aging warnings (task 12.2)
+export interface QuotationAgingEntry extends Quotation {
+  daysOpen: number;
+  band: 'yellow' | 'red';
+}
+
+export interface QuotationAgingWarningsResponse {
+  success: boolean;
+  data: QuotationAgingEntry[];
+  warningBands: {
+    yellow: number;
+    red: number;
+  };
+}
+
+export const quotationAgingService = {
+  async getAgingWarnings(threshold = 7): Promise<QuotationAgingWarningsResponse> {
+    const response = await apiClient.get('/quotations/aging-warnings', { params: { threshold } });
+    return response as unknown as QuotationAgingWarningsResponse;
   },
 };
 
