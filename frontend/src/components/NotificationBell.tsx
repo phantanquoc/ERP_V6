@@ -179,7 +179,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       setSelectedOvertimePlanId(planId);
       setIsOvertimePlanModalOpen(true);
     } else if (['SUPPLY_REQUEST', 'SUPPLY_REQUEST_PROCESSING', 'SUPPLY_REQUEST_APPROVED', 'SUPPLY_REQUEST_FULFILLED'].includes(notification.type)) {
-      navigate('/production/warehouse');
+      const srId = (notification.metadata as any)?.supplyRequestId;
+      navigate(srId ? `/production/warehouse?tab=supplyRequest&supplyRequestId=${srId}` : '/production/warehouse?tab=supplyRequest');
     } else if (notification.type === 'REPAIR_REQUEST') {
       navigate('/technical/quality?tab=repairRequests');
     } else if (notification.type === 'PRIVATE_FEEDBACK') {
