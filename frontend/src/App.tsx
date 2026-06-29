@@ -68,6 +68,9 @@ const FaceKioskPageV2 = React.lazy(() => import('./pages/face/FaceKioskPageV2'))
 // Documentation
 const DocumentationGuide = React.lazy(() => import('./pages/DocumentationGuide'));
 
+// My History
+const MyHistory = React.lazy(() => import('./pages/MyHistory'));
+
 function PageTitleUpdater() {
   usePageTitle();
   return null;
@@ -264,6 +267,9 @@ function App() {
 
             {/* Documentation Guide */}
             <Route path="/huong-dan" element={<DocumentationGuide />} />
+
+            {/* My History */}
+            <Route path="/my-history" element={<MyHistory />} />
           </Route>
         </Routes>
         </Suspense>

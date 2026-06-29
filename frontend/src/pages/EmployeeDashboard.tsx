@@ -12,7 +12,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  History,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useSystemSettings } from "../contexts/SystemSettingsContext";
 import { getDepartmentDisplayName } from "../utils/permissions";
@@ -95,6 +97,13 @@ const getQuickActions = () => {
       icon: <User className="w-6 h-6" />,
       color: "bg-purple-500",
       action: "profile"
+    },
+    {
+      title: "Lịch sử của tôi",
+      description: "Xem lịch sử hoạt động cá nhân",
+      icon: <History className="w-6 h-6" />,
+      color: "bg-teal-500",
+      action: "history"
     }
   ];
 };
@@ -145,12 +154,14 @@ const QuickActionCard: React.FC<{
   onAttendanceClick?: () => void;
   onLeaveRequestClick?: () => void;
   onDailyReportClick?: () => void;
-}> = ({ action, onProfileClick, onAttendanceClick, onLeaveRequestClick, onDailyReportClick }) => {
+  onHistoryClick?: () => void;
+}> = ({ action, onProfileClick, onAttendanceClick, onLeaveRequestClick, onDailyReportClick, onHistoryClick }) => {
   const handleClick = () => {
     if (action.action === 'profile' && onProfileClick) onProfileClick();
     else if (action.action === 'attendance' && onAttendanceClick) onAttendanceClick();
     else if (action.action === 'leave' && onLeaveRequestClick) onLeaveRequestClick();
     else if (action.action === 'report' && onDailyReportClick) onDailyReportClick();
+    else if (action.action === 'history' && onHistoryClick) onHistoryClick();
   };
 
   return (
@@ -431,6 +442,7 @@ const AttendanceMiniCalendar: React.FC<AttendanceMiniCalendarProps> = ({ employe
 
 const EmployeeDashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isAttendanceHistoryModalOpen, setIsAttendanceHistoryModalOpen] = useState(false);
   const [isLeaveRequestModalOpen, setIsLeaveRequestModalOpen] = useState(false);
@@ -536,6 +548,7 @@ const EmployeeDashboard: React.FC = () => {
                   onAttendanceClick={() => setIsAttendanceHistoryModalOpen(true)}
                   onLeaveRequestClick={() => setIsLeaveRequestModalOpen(true)}
                   onDailyReportClick={() => setIsDailyReportModalOpen(true)}
+                  onHistoryClick={() => navigate('/my-history')}
                 />
               ))}
             </div>
