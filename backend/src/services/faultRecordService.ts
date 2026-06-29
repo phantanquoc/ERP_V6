@@ -41,6 +41,8 @@ interface CreateFaultRecordData {
   fileDinhKem?: string;
   // Task 3.1: userRole for canMutate gate
   userRole?: string;
+  // userId for createdById tracking
+  userId?: string;
   // Task 3.2: repairSteps for auto-create scenario
   repairSteps?: RepairStepInput[];
 }
@@ -286,6 +288,7 @@ class FaultRecordService {
             nguoiPhatHien: data.nguoiPhatHien,
             ngayPhatHien: data.ngayPhatHien ?? new Date(),
             fileDinhKem: data.fileDinhKem ?? null,
+            createdById: data.userId ?? null,
           },
           include: faultRecordInclude,
         });
@@ -314,6 +317,7 @@ class FaultRecordService {
         nguoiPhatHien: data.nguoiPhatHien,
         ngayPhatHien: data.ngayPhatHien ?? new Date(),
         fileDinhKem: data.fileDinhKem,
+        createdById: data.userId ?? null,
       },
       include: faultRecordInclude,
     });

@@ -65,7 +65,7 @@ export class InternalInspectionService {
     }
   }
 
-  async createInspection(data: any): Promise<any> {
+  async createInspection(data: any, userId?: string): Promise<any> {
     try {
       // Generate inspection code
       const year = new Date().getFullYear();
@@ -95,6 +95,7 @@ export class InternalInspectionService {
           verifiedBy2Code: data.verifiedBy2Code || '',
           status: data.status || 'PENDING',
           notes: data.notes || '',
+          createdById: userId ?? null,
         },
       });
 

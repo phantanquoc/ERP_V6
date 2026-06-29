@@ -102,7 +102,7 @@ class TaxReportService {
   }
 
   // Create tax report from order
-  async createTaxReportFromOrder(orderId: string, input?: Partial<CreateTaxReportInput>) {
+  async createTaxReportFromOrder(orderId: string, input?: Partial<CreateTaxReportInput>, userId?: string) {
     // Get order with items
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -142,6 +142,7 @@ class TaxReportService {
         trangThai: input?.trangThai || TaxReportStatus.CHUA_BAO_CAO,
         ghiChi: input?.ghiChi,
         fileDinhKem: input?.fileDinhKem,
+        createdById: userId ?? null,
       },
       include: {
         order: {

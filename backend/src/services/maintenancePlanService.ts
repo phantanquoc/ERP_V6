@@ -35,6 +35,7 @@ export interface CreateMaintenancePlanData {
   trangThai?: string;
   fileDinhKem?: string;
   items?: PlanItemData[];
+  userId?: string;
 }
 
 export interface UpdateMaintenancePlanData {
@@ -146,6 +147,7 @@ class MaintenancePlanService {
           ghiChu: data.ghiChu,
           trangThai: data.trangThai ?? 'Đang thực hiện',
           fileDinhKem: data.fileDinhKem,
+          createdById: data.userId ?? null,
         },
       });
 

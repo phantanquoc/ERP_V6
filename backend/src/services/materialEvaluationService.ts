@@ -75,7 +75,7 @@ export class MaterialEvaluationService {
     return nextYearlyCode(last?.maPhieuXuat ?? null, 'PX', year);
   }
 
-  async createMaterialEvaluation(data: any) {
+  async createMaterialEvaluation(data: any, userId?: string) {
     // Validate maChien uniqueness
     const existing = await prisma.materialEvaluation.findUnique({
       where: { maChien: data.maChien },
@@ -95,7 +95,7 @@ export class MaterialEvaluationService {
 
     // If lotProductId is provided, run the transactional create with WarehouseIssue
     if (data.lotProductId) {
-      return this.createWithWarehouseLink(data, thoiGianChien);
+      return this.createWithWarehouseLink(data, thoiGianChien, userId);
     }
 
     // Legacy create without warehouse link
@@ -115,13 +115,14 @@ export class MaterialEvaluationService {
         danhGiaSauNgam: data.danhGiaSauNgam,
         fileDinhKem: data.fileDinhKem,
         nguoiThucHien: data.nguoiThucHien,
+        createdById: userId ?? null,
       },
     });
 
     return evaluation;
   }
 
-  private async createWithWarehouseLink(data: any, thoiGianChien: Date) {
+  private async createWithWarehouseLink(data: any, thoiGianChien: Date, userId?: string) {
     const khoiLuong = parseFloat(data.khoiLuong);
 
     // Generate WarehouseIssue code BEFORE the transaction (uses a query)
@@ -215,6 +216,7 @@ export class MaterialEvaluationService {
           nguoiThucHien: data.nguoiThucHien,
           lotProductId: lotProduct.id,
           warehouseIssueId: warehouseIssue.id,
+          createdById: userId ?? null,
         },
       });
 

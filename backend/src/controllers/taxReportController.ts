@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import taxReportService from '../services/taxReportService';
 import { getFileUrl } from '../middlewares/upload';
+import type { AuthenticatedRequest } from '@types';
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
@@ -84,7 +85,7 @@ export class TaxReportController {
         input.fileDinhKem = getFileUrl('tax-reports', req.file.filename);
       }
 
-      const taxReport = await taxReportService.createTaxReportFromOrder(orderId, input);
+      const taxReport = await taxReportService.createTaxReportFromOrder(orderId, input, (req as unknown as AuthenticatedRequest).user?.id);
 
       return res.status(201).json({
         success: true,

@@ -31,6 +31,7 @@ export interface CreateMaintenanceRecordData {
   ngayThucHien: Date;
   nguoiThucHien: string;
   fileDinhKem?: string;
+  userId?: string;
 }
 
 export type UpdateMaintenanceRecordData = Partial<CreateMaintenanceRecordData>;
@@ -110,6 +111,7 @@ class MaintenanceRecordService {
         ngayThucHien: new Date(data.ngayThucHien),
         nguoiThucHien: data.nguoiThucHien,
         fileDinhKem: data.fileDinhKem,
+        createdById: data.userId ?? null,
       },
       include: recordInclude,
     });

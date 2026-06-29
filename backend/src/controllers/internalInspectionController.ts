@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import internalInspectionService from '@services/internalInspectionService';
+import type { AuthenticatedRequest } from '@types';
 
 export class InternalInspectionController {
   async exportToExcel(_req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -57,8 +58,9 @@ export class InternalInspectionController {
   async createInspection(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = req.body;
+      const authReq = req as unknown as AuthenticatedRequest;
 
-      const inspection = await internalInspectionService.createInspection(data);
+      const inspection = await internalInspectionService.createInspection(data, authReq.user?.id);
 
       res.status(201).json({
         success: true,

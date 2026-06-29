@@ -160,6 +160,7 @@ export class FinishedProductService {
         vunNhoTiLe: calculatePercentage(data.vunNhoKhoiLuong || 0),
         phePhamTiLe: calculatePercentage(data.phePhamKhoiLuong || 0),
         uotTiLe: calculatePercentage(data.uotKhoiLuong || 0),
+        createdById: userId ?? null,
       },
     });
 

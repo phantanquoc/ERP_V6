@@ -23,6 +23,7 @@ interface CreateAcceptanceHandoverRequest {
   fileDinhKem?: string;
   ghiChu?: string;
   items?: AcceptanceHandoverItemRequest[];
+  userId?: string;
 }
 
 interface UpdateAcceptanceHandoverRequest {
@@ -203,6 +204,7 @@ class AcceptanceHandoverService {
           nguoiNhanId: data.nguoiNhanId,
           fileDinhKem: data.fileDinhKem,
           ghiChu: data.ghiChu,
+          createdById: data.userId ?? null,
         },
       });
 

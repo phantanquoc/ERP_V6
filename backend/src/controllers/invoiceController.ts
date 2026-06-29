@@ -42,7 +42,7 @@ export class InvoiceController {
 
   async createInvoice(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const invoice = await invoiceService.createInvoice(req.body);
+      const invoice = await invoiceService.createInvoice(req.body, req.user?.id);
 
       res.status(201).json({
         success: true,

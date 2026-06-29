@@ -46,6 +46,7 @@ class MaintenancePlanController {
         nam: parseInt(req.body.nam, 10),
         items,
         fileDinhKem: req.file ? getFileUrl('maintenance-plans', req.file.filename) : undefined,
+        userId: req.user?.id,
       });
       res.status(201).json({ success: true, data: plan, message: 'Tạo kế hoạch bảo dưỡng thành công' });
     } catch (error) {
