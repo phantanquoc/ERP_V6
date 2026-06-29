@@ -481,6 +481,9 @@ export class FinishedProductService {
       });
       let lastCode: string | null = lastExisting?.maPhieuNhap ?? null;
 
+      // Cache base product loaiSanPham by tenHangHoa (populated inside the loop below)
+      const loaiSanPhamCache = new Map<string, string | null>();
+
       // Build receipt rows per maChien and accumulate
       const receiptInputs: Array<{
         maPhieuNhap: string;
@@ -492,6 +495,7 @@ export class FinishedProductService {
         lotId: string;
         tenLo: string;
         tenSanPham: string;
+        tenHangHoaBase: string;
         soLuongNhap: number;
         donViTinh: string;
         ghiChu: string;
@@ -509,6 +513,15 @@ export class FinishedProductService {
         // Use first FP's tenHangHoa for the SKU prefix
         const tenHangHoa = fps[0].tenHangHoa;
 
+        // Populate loaiSanPham cache for this base product (once per tenHangHoa)
+        if (!loaiSanPhamCache.has(tenHangHoa)) {
+          const baseProduct = await tx.internationalProduct.findFirst({
+            where: { tenSanPham: { equals: tenHangHoa, mode: 'insensitive' } },
+            select: { loaiSanPham: true },
+          });
+          loaiSanPhamCache.set(tenHangHoa, baseProduct?.loaiSanPham ?? null);
+        }
+
         // Build rows, skip grades with sum = 0
         for (const field of GRADE_FIELDS) {
           const weight = sums[field];
@@ -525,6 +538,7 @@ export class FinishedProductService {
             lotId,
             tenLo: lot.tenLo,
             tenSanPham: `${tenHangHoa} - ${GRADE_LABELS[field]}`,
+            tenHangHoaBase: tenHangHoa,
             soLuongNhap: weight,
             donViTinh: 'Kg',
             ghiChu: `Nhập kho thành phẩm từ mẻ chiên ${maChien} (tổng các máy)`,
@@ -549,8 +563,10 @@ export class FinishedProductService {
           // Simple increment: SP001 -> SP002
           const lastNum = lastProduct ? parseInt(lastProduct.maSanPham.replace('SP', ''), 10) : 0;
           const maSanPham = `SP${String(lastNum + 1).padStart(3, '0')}`;
+          const cachedLoai = loaiSanPhamCache.get(input.tenHangHoaBase);
+          const loaiSanPham = cachedLoai ? cachedLoai : 'Thành phẩm';
           lotProduct = await tx.internationalProduct.create({
-            data: { maSanPham, tenSanPham: input.tenSanPham, donViTinh: 'Kg' },
+            data: { maSanPham, tenSanPham: input.tenSanPham, donViTinh: 'Kg', loaiSanPham },
           });
         }
 
