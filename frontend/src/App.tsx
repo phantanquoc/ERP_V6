@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { SystemSettingsProvider } from './contexts/SystemSettingsContext';
 import ProtectedLayout from './components/ProtectedLayout';
@@ -268,6 +269,7 @@ function App() {
         </Suspense>
         </SystemSettingsProvider>
       </AuthProvider>
+      <Toaster position="top-right" />
     </Router>
   );
 }

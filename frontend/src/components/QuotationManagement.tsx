@@ -1,18 +1,37 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Eye, Edit, Trash2, ShoppingCart, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import Modal from './Modal';
+import ConfirmDialog from './common/ConfirmDialog';
 import TableFilter, { FilterField } from './TableFilter';
 import { quotationService, Quotation } from '../services/quotationService';
 import { orderService } from '../services/orderService';
 import { useQuotations, quotationKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseNumberInputStr } from '../utils/numberInput';
+import { useAuth } from '../contexts/AuthContext';
+import { canEditQuotation, canDeleteQuotation } from '../utils/permissions';
+import { UserRole } from '../types/auth';
+import { useAuditLogs } from '../hooks/useAuditLogs';
+import AuditTimeline from './quotation/AuditTimeline';
+
+// Aging badge thresholds (task 12.3)
+const AGING_THRESHOLD = 7;
+const NON_TERMINAL_STATUSES = ['DRAFT', 'DANG_CHO_PHAN_HOI', 'DANG_CHO_GUI_DON_HANG'];
+
+const getAgingBand = (daysOpen?: number, status?: string): 'yellow' | 'red' | null => {
+  if (!daysOpen || !status || !NON_TERMINAL_STATUSES.includes(status)) return null;
+  if (daysOpen >= 14) return 'red';
+  if (daysOpen >= AGING_THRESHOLD) return 'yellow';
+  return null;
+};
 
 interface QuotationManagementProps {
   customerType?: 'Quốc tế' | 'Nội địa' | 'all';
 }
 
 const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType }) => {
+  const { user } = useAuth();
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
     _search: '',
     maBaoGia: '',
@@ -20,9 +39,21 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
     tenNhanVien: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  // Detail tab navigation (task 11.3)
+  const [detailActiveTab, setDetailActiveTab] = useState<'info' | 'audit'>('info');
+  // Audit log data (task 11.3)
+  const [auditPage, setAuditPage] = useState(1);
+  const { data: auditData } = useAuditLogs(
+    { entityType: 'Quotation', entityId: selectedQuotation?.id ?? '', page: auditPage, limit: 10 },
+    !!selectedQuotation?.id && detailActiveTab === 'audit'
+  );
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string>('');
   const [exportSuccess, setExportSuccess] = useState<string>('');
@@ -33,39 +64,30 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
     tinhTrang: '',
     ghiChu: '',
   });
+  // Price lock (task 10.3–10.4)
+  // Derived: disable price inputs when locked and current user is not ADMIN (spec W2).
+  // ADMIN can edit locked prices directly; backend records a PRICE_UNLOCK audit entry.
+  const priceInputsDisabled = !!(selectedQuotation?.priceLocked && user?.role !== UserRole.ADMIN);
 
-  const itemsPerPage = 10;
+  const itemsPerPage = limit;
   const queryClient = useQueryClient();
 
   const filterCustomerType = customerType === 'all' ? undefined : customerType;
   const { data: quotationsData, isLoading: loading } = useQuotations({
-    page: 1,
-    limit: 1000,
+    page: currentPage,
+    limit,
     search: filterValues._search || undefined,
     customerType: filterCustomerType,
   });
-  const rawQuotations = quotationsData?.data || [];
+  const quotations = quotationsData?.data || [];
+  const totalItems = quotationsData?.pagination?.total ?? 0;
+  const totalPages = quotationsData?.pagination?.totalPages ?? 1;
 
   const quotationFilterFields: FilterField[] = [
     { key: 'maBaoGia', label: 'Mã BG', type: 'text' },
     { key: 'tenKhachHang', label: 'Khách hàng', type: 'text' },
     { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
   ];
-
-  const quotations = useMemo(() => {
-    return rawQuotations.filter((q: any) => {
-      const search = (filterValues._search || '').toLowerCase();
-      const matchSearch = !search ||
-        (q.maBaoGia || '').toLowerCase().includes(search) ||
-        (q.tenKhachHang || '').toLowerCase().includes(search) ||
-        (q.tenNhanVien || '').toLowerCase().includes(search) ||
-        (q.tenSanPham || '').toLowerCase().includes(search);
-      const matchMa = !filterValues.maBaoGia || (q.maBaoGia || '').toLowerCase().includes(filterValues.maBaoGia.toLowerCase());
-      const matchKH = !filterValues.tenKhachHang || (q.tenKhachHang || '').toLowerCase().includes(filterValues.tenKhachHang.toLowerCase());
-      const matchNV = !filterValues.tenNhanVien || (q.tenNhanVien || '').toLowerCase().includes(filterValues.tenNhanVien.toLowerCase());
-      return matchSearch && matchMa && matchKH && matchNV;
-    });
-  }, [rawQuotations, filterValues]);
 
   const handleFilterChange = (newValues: Record<string, string>) => {
     setFilterValues(newValues);
@@ -74,6 +96,8 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
 
   const handleView = (quotation: Quotation) => {
     setSelectedQuotation(quotation);
+    setDetailActiveTab('info');
+    setAuditPage(1);
     setShowViewModal(true);
   };
 
@@ -112,43 +136,45 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
       }
 
       await quotationService.updateQuotation(selectedQuotation.id, updateData);
-      alert('Cập nhật báo giá thành công!');
+      toast.success('Cập nhật báo giá thành công!');
       setShowEditModal(false);
       queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
     } catch (error: any) {
       console.error('Error updating quotation:', error);
-      alert(error.response?.data?.message || 'Lỗi khi cập nhật báo giá');
+      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật báo giá');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa báo giá này?')) {
-      return;
-    }
-
-    try {
-      await quotationService.deleteQuotation(id);
-      alert('Xóa báo giá thành công!');
-      queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
-    } catch (error: any) {
-      console.error('Error deleting quotation:', error);
-      alert(error.response?.data?.message || 'Lỗi khi xóa báo giá');
-    }
+    setConfirmMessage('Bạn có chắc chắn muốn xóa báo giá này?');
+    setConfirmAction(() => async () => {
+      setConfirmOpen(false);
+      try {
+        await quotationService.deleteQuotation(id);
+        toast.success('Xóa báo giá thành công!');
+        queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
+      } catch (error: any) {
+        console.error('Error deleting quotation:', error);
+        toast.error(error.response?.data?.message || 'Lỗi khi xóa báo giá');
+      }
+    });
+    setConfirmOpen(true);
   };
 
   const handleCreateOrder = async (quotationId: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn tạo đơn hàng từ báo giá này?')) {
-      return;
-    }
-
-    try {
-      await orderService.createOrderFromQuotation(quotationId);
-      alert('Tạo đơn hàng thành công!');
-      queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
-    } catch (error: any) {
-      console.error('Error creating order:', error);
-      alert(error.response?.data?.message || 'Lỗi khi tạo đơn hàng');
-    }
+    setConfirmMessage('Bạn có chắc chắn muốn tạo đơn hàng từ báo giá này?');
+    setConfirmAction(() => async () => {
+      setConfirmOpen(false);
+      try {
+        await orderService.createOrderFromQuotation(quotationId);
+        toast.success('Tạo đơn hàng thành công!');
+        queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
+      } catch (error: any) {
+        console.error('Error creating order:', error);
+        toast.error(error.response?.data?.message || 'Lỗi khi tạo đơn hàng');
+      }
+    });
+    setConfirmOpen(true);
   };
 
   const handleExportExcel = async () => {
@@ -267,7 +293,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                 </td>
               </tr>
             ) : (
-              quotations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((quotation, index) => (
+              quotations.map((quotation, index) => (
                 <tr
                   key={quotation.id}
                   className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -322,7 +348,24 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                     {quotation.tenNhanVien || '-'}
                   </td>
                   <td className="px-6 py-4 border-r border-gray-200">
-                    {getStatusBadge(quotation.tinhTrang)}
+                    <div className="flex flex-col gap-1">
+                      {getStatusBadge(quotation.tinhTrang)}
+                      {(quotation as any).priceLocked && user?.role !== UserRole.ADMIN && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200 w-fit">
+                          Đã khóa giá
+                        </span>
+                      )}
+                      {(() => {
+                        const band = getAgingBand((quotation as any).daysOpen, quotation.tinhTrang);
+                        if (!band) return null;
+                        const daysOpen = (quotation as any).daysOpen as number;
+                        return (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium w-fit ${band === 'red' ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>
+                            {daysOpen} ngày chờ
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate border-r border-gray-200">
                     {quotation.ghiChu || '-'}
@@ -336,13 +379,15 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                       >
                         <Eye className="w-5 h-5" />
                       </button>
-                      <button
-                        onClick={() => handleEdit(quotation)}
-                        className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
+                      {canEditQuotation(user?.role) && (
+                        <button
+                          onClick={() => handleEdit(quotation)}
+                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleCreateOrder(quotation.id)}
                         className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
@@ -350,13 +395,15 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                       >
                         <ShoppingCart className="w-5 h-5" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(quotation.id)}
-                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      {canDeleteQuotation(user?.role) && (
+                        <button
+                          onClick={() => handleDelete(quotation.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -366,14 +413,22 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
         </table>
       </div>
 
-      {(() => {
-        const totalItems = quotations.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        return totalPages > 1 ? (
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
+      {/* Server-side pagination + page-size selector */}
+      {totalItems > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
+          <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+              Hiển thị {(currentPage - 1) * limit + 1}–{Math.min(currentPage * limit, totalItems)} / {totalItems} mục
             </span>
+            <select
+              value={limit}
+              onChange={(e) => { setLimit(Number(e.target.value)); setCurrentPage(1); }}
+              className="text-sm border border-gray-300 rounded-md px-2 py-1"
+            >
+              {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}/trang</option>)}
+            </select>
+          </div>
+          {totalPages > 1 && (
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -403,9 +458,9 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                 Sau
               </button>
             </div>
-          </div>
-        ) : null;
-      })()}
+          )}
+        </div>
+      )}
 
       {/* Modal Xem Chi Tiết */}
       <Modal isOpen={showViewModal && !!selectedQuotation} onClose={() => setShowViewModal(false)} showBackdrop closeOnBackdrop={true}>
@@ -424,6 +479,49 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
 
             <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-6">
               {selectedQuotation && (<>
+
+              {/* Tab navigation (task 9.3 + 11.3) */}
+              <div className="flex border-b border-gray-200">
+                <button
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${detailActiveTab === 'info' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => setDetailActiveTab('info')}
+                >
+                  Thông tin
+                </button>
+                {(user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD) && (
+                  <button
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${detailActiveTab === 'audit' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    onClick={() => setDetailActiveTab('audit')}
+                  >
+                    Lịch sử hoạt động
+                  </button>
+                )}
+              </div>
+
+              {/* Audit log tab content (task 11.3) */}
+              {detailActiveTab === 'audit' && (
+                <div>
+                  <AuditTimeline entries={auditData?.data ?? []} />
+                  {auditData && auditData.pagination.totalPages > 1 && (
+                    <div className="flex justify-center gap-2 mt-4">
+                      <button
+                        disabled={auditPage <= 1}
+                        onClick={() => setAuditPage(p => p - 1)}
+                        className="px-2 py-1 text-xs border rounded disabled:opacity-40"
+                      >Trước</button>
+                      <span className="text-xs self-center">{auditPage}/{auditData.pagination.totalPages}</span>
+                      <button
+                        disabled={auditPage >= auditData.pagination.totalPages}
+                        onClick={() => setAuditPage(p => p + 1)}
+                        className="px-2 py-1 text-xs border rounded disabled:opacity-40"
+                      >Sau</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Main info tab */}
+              {detailActiveTab === 'info' && (<>
               {/* Thông tin cơ bản */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -542,6 +640,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                 </div>
               </div>
               </>)}
+              </>)}
             </div>
 
             <div className="bg-gray-50 px-4 sm:px-6 py-4 flex justify-end rounded-b-xl border-t shrink-0">
@@ -601,6 +700,15 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
               <div className="space-y-4">
                 <h3 className="font-semibold text-gray-700">Thông tin có thể chỉnh sửa</h3>
 
+                {/* Price lock banner — hidden for ADMIN (ADMIN bypasses lock entirely) */}
+                {(selectedQuotation as any).priceLocked && user?.role !== UserRole.ADMIN && (
+                  <div className="flex items-center gap-3 rounded-lg px-4 py-3 bg-orange-50 border border-orange-200">
+                    <span className="text-sm font-medium text-orange-800">
+                      Báo giá đã khóa giá — không thể sửa giá. Liên hệ ADMIN nếu cần thay đổi.
+                    </span>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Giá báo khách (VNĐ/KG) <span className="text-red-500">*</span>
@@ -611,7 +719,8 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                     min="0"
                     value={editFormData.giaBaoKhach}
                     onChange={(e) => setEditFormData({ ...editFormData, giaBaoKhach: parseNumberInputStr(e.target.value) })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    disabled={priceInputsDisabled}
+                    className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent${priceInputsDisabled ? ' bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
                     placeholder="Nhập giá báo khách"
                   />
                 </div>
@@ -693,6 +802,15 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
             </div>
           </div>
         </Modal>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title="Xác nhận"
+        message={confirmMessage}
+        onConfirm={() => confirmAction && confirmAction()}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 };
