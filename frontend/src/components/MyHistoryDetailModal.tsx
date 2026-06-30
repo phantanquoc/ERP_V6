@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, ExternalLink, Clock, Tag, User, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { HistoryItem } from '../services/myHistoryService';
@@ -11,6 +11,54 @@ import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 import FeedbackListModal from './FeedbackListModal';
 
+// ---- useFocusTrap hook (~25 lines, co-located per design decision #12) --
+function useFocusTrap(
+  containerRef: React.RefObject<HTMLElement | null>,
+  active: boolean,
+  onEscape: () => void
+) {
+  useEffect(() => {
+    if (!active) return;
+
+    const el = containerRef.current;
+    if (!el) return;
+
+    const getFocusable = () =>
+      Array.from(
+        el.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((n) => n.offsetParent !== null);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onEscape();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [active, containerRef, onEscape]);
+}
+
 // ---- status display ---------------------------------------------------
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Chờ xử lý',
@@ -19,15 +67,29 @@ const STATUS_LABEL: Record<string, string> = {
   APPROVED: 'Đã duyệt',
   REJECTED: 'Từ chối',
   CANCELLED: 'Đã hủy',
+  CHO_DUYET: 'Chờ duyệt',
+  DA_DUYET: 'Đã duyệt',
+  HOAN_THANH: 'Hoàn thành',
+  DA_HUY: 'Đã hủy',
+  DANG_XU_LY: 'Đang xử lý',
+  MOI_TAO: 'Mới tạo',
+  TU_CHOI: 'Từ chối',
 };
 
 const STATUS_COLOR: Record<string, string> = {
   PENDING: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  CHO_DUYET: 'bg-yellow-50 text-yellow-700 border-yellow-200',
   IN_PROGRESS: 'bg-blue-50 text-blue-700 border-blue-200',
+  DANG_XU_LY: 'bg-blue-50 text-blue-700 border-blue-200',
   COMPLETED: 'bg-green-50 text-green-700 border-green-200',
+  HOAN_THANH: 'bg-green-50 text-green-700 border-green-200',
   APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  DA_DUYET: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   REJECTED: 'bg-red-50 text-red-700 border-red-200',
+  TU_CHOI: 'bg-red-50 text-red-700 border-red-200',
   CANCELLED: 'bg-gray-100 text-gray-500 border-gray-200',
+  DA_HUY: 'bg-gray-100 text-gray-500 border-gray-200',
+  MOI_TAO: 'bg-slate-50 text-slate-600 border-slate-200',
 };
 
 // Entity types that have a dedicated list/detail modal (no route to navigate)
@@ -71,11 +133,32 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
   const userIsAdmin = user?.role === 'admin';
   const isDepartmentHead = user?.role === 'department_head';
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
   // Child modal state — only one open at a time
   const [openModal, setOpenModal] = useState<{
     type: string;
     entityId: string;
   } | null>(null);
+
+  const isOpen = item !== null;
+
+  // Focus close button when modal opens
+  useEffect(() => {
+    if (isOpen && closeButtonRef.current) {
+      // Small delay to ensure the DOM is painted
+      const t = setTimeout(() => closeButtonRef.current?.focus(), 10);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen]);
+
+  const handleClose = useCallback(() => {
+    onClose();
+  }, [onClose]);
+
+  // Focus trap + Escape
+  useFocusTrap(dialogRef as React.RefObject<HTMLElement | null>, isOpen, handleClose);
 
   if (!item && !openModal) return null;
 
@@ -96,11 +179,9 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
 
   const handleChildModalClose = () => setOpenModal(null);
 
-  // Determine button label — list-modal entities don't have per-item detail page
   const openButtonLabel =
     item && MODAL_ENTITY_TYPES.has(item.entityType) ? 'Xem trong danh sách' : 'Mở ở trang gốc';
 
-  // Build metadata rows — only show non-null, non-empty entries
   const metaEntries =
     item && item.metadata ? Object.entries(item.metadata).filter(([, v]) => v != null && v !== '') : [];
 
@@ -113,12 +194,20 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
     <>
       {/* Detail modal */}
       {item && (
-        <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          onClick={onClose}
-        >
+        <>
+          {/* Backdrop — aria-hidden so screen readers skip it */}
           <div
-            className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col"
+            className="fixed inset-0 bg-black/40 z-50"
+            aria-hidden="true"
+            onClick={handleClose}
+          />
+          {/* Dialog — sibling of backdrop, NOT a descendant of aria-hidden */}
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+          >
+          <div
+            ref={dialogRef}
+            className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col pointer-events-auto"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -139,9 +228,10 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
                 )}
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
-                onClick={onClose}
-                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                onClick={handleClose}
+                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 aria-label="Đóng"
               >
                 <X className="w-5 h-5" />
@@ -206,8 +296,8 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
             <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={handleClose}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Đóng
               </button>
@@ -215,7 +305,7 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
                 <button
                   type="button"
                   onClick={handleOpenOriginal}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   <ExternalLink className="w-4 h-4" />
                   {openButtonLabel}
@@ -223,7 +313,8 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
               )}
             </div>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Child modals — opened on "Xem trong danh sách" for modal-only entity types */}
