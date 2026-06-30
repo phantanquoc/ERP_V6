@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, FileText, Eye, Clock, User, Users, Flag, AlertCircle, Download, Edit2, Trash2, RefreshCw, Search } from 'lucide-react';
-import { WorkPlan, WorkPlanPriority, WorkPlanStatus } from '../services/workPlanService';
+import workPlanService, { WorkPlan, WorkPlanPriority, WorkPlanStatus } from '../services/workPlanService';
 import { useWorkPlans, useMyWorkPlans, useDeleteWorkPlan, useUpdateWorkPlan } from '../hooks/useWorkPlans';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from './Modal';
@@ -12,9 +12,10 @@ interface WorkPlanListModalProps {
   onClose: () => void;
   isAdmin?: boolean;
   embedded?: boolean;
+  initialItemId?: string;
 }
 
-const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, isAdmin = false, embedded = false }) => {
+const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, isAdmin = false, embedded = false, initialItemId }) => {
   const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
@@ -62,6 +63,21 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
       setSearch('');
     }
   }, [isOpen]);
+
+  // Auto-open detail view when initialItemId is provided
+  useEffect(() => {
+    if (!isOpen || !initialItemId) return;
+    let cancelled = false;
+    workPlanService
+      .getWorkPlanById(initialItemId)
+      .then((plan) => {
+        if (!cancelled && plan) setViewPlan(plan);
+      })
+      .catch((err) => console.error('Error loading work plan from notification:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, initialItemId]);
 
   const getPriorityBadge = (priority: WorkPlanPriority) => {
     const badges: Record<string, { label: string; class: string }> = {

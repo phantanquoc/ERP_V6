@@ -6,9 +6,10 @@ import Modal from './Modal';
 interface FeedbackListModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialItemId?: string;
 }
 
-const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }) => {
+const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose, initialItemId }) => {
   const [feedbacks, setFeedbacks] = useState<PrivateFeedback[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'GOP_Y' | 'NEU_KHO_KHAN'>('all');
@@ -19,6 +20,20 @@ const FeedbackListModal: React.FC<FeedbackListModalProps> = ({ isOpen, onClose }
       loadFeedbacks();
     }
   }, [isOpen, activeTab]);
+
+  useEffect(() => {
+    if (!isOpen || !initialItemId) return;
+    let cancelled = false;
+    privateFeedbackService
+      .getById(initialItemId)
+      .then((response) => {
+        if (!cancelled && response?.data) setSelectedFeedback(response.data);
+      })
+      .catch((err) => console.error('Error loading feedback from notification:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, initialItemId]);
 
   const loadFeedbacks = async () => {
     try {
