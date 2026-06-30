@@ -252,21 +252,12 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
             <span className={`relative text-gray-500 ${collapsed ? '' : 'mr-3'}`}>
               <Bell size={20} />
               {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[10px] font-bold px-0.5">
-                  {unreadCount > 99 ? '99+' : unreadCount}
+                <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
+                  {unreadCount}
                 </span>
               )}
             </span>
-            {!collapsed && (
-              <span className="flex items-center gap-2 font-medium">
-                Thông báo của tôi
-                {unreadCount > 0 && (
-                  <span className="inline-flex items-center justify-center min-w-[18px] h-4.5 rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
-                )}
-              </span>
-            )}
+            {!collapsed && <span className="font-medium">Thông báo của tôi</span>}
           </Link>
 
           <Link
