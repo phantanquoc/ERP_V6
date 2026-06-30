@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Edit, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
@@ -302,6 +303,18 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   // openRecordModal is a stable inline function — intentionally omitted from deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingViewId, pendingViewQuery.data]);
+
+  // Auto-open view modal when ?faultRecordId= is in URL (deep-link from notifications)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const faultRecordId = searchParams.get('faultRecordId');
+    if (!faultRecordId) return;
+    setPendingViewId(faultRecordId);
+    const next = new URLSearchParams(searchParams);
+    next.delete('faultRecordId');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('faultRecordId')]);
 
   // 6.1: close typeahead dropdown on outside click
   useEffect(() => {

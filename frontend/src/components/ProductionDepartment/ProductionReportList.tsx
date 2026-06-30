@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, Eye } from 'lucide-react';
 import productionReportService, { ProductionReport } from '../../services/productionReportService';
 import ProductionReportModal from './ProductionReportModal';
@@ -70,6 +71,26 @@ const ProductionReportList: React.FC = () => {
     setIsViewMode(true);
     setIsModalOpen(true);
   };
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const reportId = searchParams.get('reportId');
+    if (!reportId) return;
+    let cancelled = false;
+    productionReportService.getById(reportId).then((report) => {
+      if (cancelled) return;
+      if (report && (report as any).id) {
+        handleView(report);
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete('reportId');
+      setSearchParams(next, { replace: true });
+    }).catch((err) => {
+      console.error('Error loading production report from URL:', err);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('reportId')]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa báo cáo này?')) {

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Eye, Edit, Trash2, ShoppingCart, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Modal from './Modal';
@@ -100,6 +101,27 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
     setAuditPage(1);
     setShowViewModal(true);
   };
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const quotationId = searchParams.get('quotationId');
+    if (!quotationId) return;
+    let cancelled = false;
+    quotationService.getQuotationById(quotationId).then((res: any) => {
+      if (cancelled) return;
+      const quotation = res?.data ?? res;
+      if (quotation && quotation.id) {
+        handleView(quotation as Quotation);
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete('quotationId');
+      setSearchParams(next, { replace: true });
+    }).catch((err) => {
+      console.error('Error loading quotation from URL:', err);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('quotationId')]);
 
   const handleEdit = (quotation: Quotation) => {
     setSelectedQuotation(quotation);

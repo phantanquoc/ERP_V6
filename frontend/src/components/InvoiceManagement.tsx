@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Edit, Eye, Trash2, Plus, X, Download, AlertCircle, CheckCircle, Upload, FileText } from 'lucide-react';
 import Modal from './Modal';
 import invoiceService, { Invoice } from '../services/invoiceService';
@@ -296,6 +297,32 @@ const InvoiceManagement: React.FC = () => {
     setSelectedInvoice(invoice);
     setIsViewModalOpen(true);
   };
+
+  // Auto-open view modal when ?invoiceId= is in URL (deep-link from notifications)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const invoiceId = searchParams.get('invoiceId');
+    if (!invoiceId) return;
+    let cancelled = false;
+    invoiceService
+      .getInvoiceById(invoiceId)
+      .then((invoice) => {
+        if (cancelled) return;
+        if (invoice && (invoice as any).id) {
+          handleViewClick(invoice);
+        }
+        const next = new URLSearchParams(searchParams);
+        next.delete('invoiceId');
+        setSearchParams(next, { replace: true });
+      })
+      .catch((err) => {
+        console.error('Error loading invoice from URL:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('invoiceId')]);
 
   const handleDeleteClick = async (invoice: Invoice) => {
     if (window.confirm(`Bạn có chắc muốn xóa hóa đơn ${invoice.soHoaDon}?`)) {
