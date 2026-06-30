@@ -18,6 +18,39 @@ export interface AppNotification {
   updatedAt: string;
 }
 
+// ---- My Notifications Page types ----------------------------------------
+
+export interface MyNotificationsParams {
+  types?: string[];
+  isRead?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort?: 'newest' | 'oldest';
+}
+
+export interface MyNotificationsResponse {
+  items: AppNotification[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface MyNotificationsStatsParams {
+  types?: string[];
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface MyNotificationsStats {
+  total: number;
+  unread: number;
+  today: number;
+  byType: Record<string, number>;
+}
+
 class NotificationService {
   async getEmployeeNotifications(limit: number = 10, since?: string): Promise<AppNotification[]> {
     try {
@@ -98,6 +131,37 @@ class NotificationService {
       console.error('Error deleting notification:', error);
       throw error;
     }
+  }
+
+  // ---- My Notifications Page methods ------------------------------------
+
+  async getMyNotifications(params: MyNotificationsParams): Promise<MyNotificationsResponse> {
+    const searchParams = new URLSearchParams();
+    if (params.types && params.types.length > 0) {
+      params.types.forEach((t) => searchParams.append('types', t));
+    }
+    if (params.isRead !== undefined) searchParams.set('isRead', String(params.isRead));
+    if (params.dateFrom) searchParams.set('dateFrom', params.dateFrom);
+    if (params.dateTo) searchParams.set('dateTo', params.dateTo);
+    if (params.search) searchParams.set('search', params.search);
+    if (params.page !== undefined) searchParams.set('page', String(params.page));
+    if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params.sort) searchParams.set('sort', params.sort);
+
+    const response = await apiClient.get(`/notifications?${searchParams.toString()}`);
+    return response.data as MyNotificationsResponse;
+  }
+
+  async getMyNotificationsStats(params: MyNotificationsStatsParams): Promise<MyNotificationsStats> {
+    const searchParams = new URLSearchParams();
+    if (params.types && params.types.length > 0) {
+      params.types.forEach((t) => searchParams.append('types', t));
+    }
+    if (params.dateFrom) searchParams.set('dateFrom', params.dateFrom);
+    if (params.dateTo) searchParams.set('dateTo', params.dateTo);
+
+    const response = await apiClient.get(`/notifications/stats?${searchParams.toString()}`);
+    return response.data as MyNotificationsStats;
   }
 }
 

@@ -71,6 +71,9 @@ const DocumentationGuide = React.lazy(() => import('./pages/DocumentationGuide')
 // My History
 const MyHistory = React.lazy(() => import('./pages/MyHistory'));
 
+// My Notifications
+const MyNotifications = React.lazy(() => import('./pages/MyNotifications'));
+
 function PageTitleUpdater() {
   usePageTitle();
   return null;
@@ -270,6 +273,9 @@ function App() {
 
             {/* My History */}
             <Route path="/my-history" element={<MyHistory />} />
+
+            {/* My Notifications */}
+            <Route path="/my-notifications" element={<MyNotifications />} />
           </Route>
         </Routes>
         </Suspense>
