@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Eye, Edit, Trash2, Package, Calculator, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import TableFilter, { FilterField } from './TableFilter';
@@ -154,6 +155,33 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
     setOrderAuditPage(1);
     setShowViewModal(true);
   };
+
+  // Auto-open view modal when ?orderId= is in URL (deep-link from notifications)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const orderId = searchParams.get('orderId');
+    if (!orderId) return;
+    let cancelled = false;
+    orderService
+      .getOrderById(orderId)
+      .then((res: any) => {
+        if (cancelled) return;
+        const order = res?.data ?? res;
+        if (order && order.id) {
+          handleView(order as Order);
+        }
+        const next = new URLSearchParams(searchParams);
+        next.delete('orderId');
+        setSearchParams(next, { replace: true });
+      })
+      .catch((err) => {
+        console.error('Error loading order from URL:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('orderId')]);
 
   const handleEdit = (order: Order) => {
     setSelectedOrder(order);

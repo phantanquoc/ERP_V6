@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { CheckCircle, Edit, Eye, Plus, Search, Trash2, Wrench, X } from 'lucide-react';
 import { getFileUrl } from '../config/api';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
@@ -132,6 +133,33 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
       noiDungLoi: item.noiDungLoi,
     })) : [emptyItem(lockedMachineSystemId)]);
   };
+
+  // Auto-open view modal when ?repairRequestId= is in URL (deep-link from notifications)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const repairRequestId = searchParams.get('repairRequestId');
+    if (!repairRequestId) return;
+    let cancelled = false;
+    repairRequestService
+      .getById(repairRequestId)
+      .then((res) => {
+        if (cancelled) return;
+        const record = res?.data;
+        if (record && record.id) {
+          openModal('view', record);
+        }
+        const next = new URLSearchParams(searchParams);
+        next.delete('repairRequestId');
+        setSearchParams(next, { replace: true });
+      })
+      .catch((err) => {
+        console.error('Error loading repair request from URL:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('repairRequestId')]);
 
   const patchItem = (index: number, patch: Partial<ItemDraft>) => {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));

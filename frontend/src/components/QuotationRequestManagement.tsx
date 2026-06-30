@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, Eye, X, FileText, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import TableFilter, { FilterField } from './TableFilter';
@@ -380,6 +381,27 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     setSelectedRequest(request);
     setShowDetailModal(true);
   };
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const quotationRequestId = searchParams.get('quotationRequestId');
+    if (!quotationRequestId) return;
+    let cancelled = false;
+    quotationRequestService.getQuotationRequestById(quotationRequestId).then((res: any) => {
+      if (cancelled) return;
+      const request = res?.data ?? res;
+      if (request && request.id) {
+        openDetailModal(request as QuotationRequest);
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete('quotationRequestId');
+      setSearchParams(next, { replace: true });
+    }).catch((err) => {
+      console.error('Error loading quotation request from URL:', err);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('quotationRequestId')]);
 
   const resetForm = () => {
     setFormData({

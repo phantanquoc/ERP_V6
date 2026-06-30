@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Download, Edit, Eye, Trash2, FileText, Upload } from 'lucide-react';
 import debtService, { Debt, DebtSummary } from '../services/debtService';
 import { useSupplierOptions } from '../hooks/useSuppliers';
@@ -101,6 +102,33 @@ const DebtManagement: React.FC = () => {
     setSelectedDebt(debt);
     setIsViewModalOpen(true);
   };
+
+  // Auto-open view modal when ?debtId= is in URL (deep-link from notifications)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const debtId = searchParams.get('debtId');
+    if (!debtId) return;
+    let cancelled = false;
+    debtService
+      .getDebtById(debtId)
+      .then((res: any) => {
+        if (cancelled) return;
+        const debt = res?.data ?? res;
+        if (debt && debt.id) {
+          handleView(debt as Debt);
+        }
+        const next = new URLSearchParams(searchParams);
+        next.delete('debtId');
+        setSearchParams(next, { replace: true });
+      })
+      .catch((err) => {
+        console.error('Error loading debt from URL:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('debtId')]);
 
   const handleEdit = (debt: Debt) => {
     setSelectedDebt(debt);
