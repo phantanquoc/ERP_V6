@@ -266,6 +266,149 @@ export class NotificationService {
     });
   }
 
+  /* ─── Filter + Stats API (My Notifications Page) ────────────────────────── */
+
+  /**
+   * Build a Prisma `where` clause for notification filters.
+   * Shared between getFilteredNotificationsForEmployee and getNotificationStatsForEmployee.
+   */
+  private buildNotificationFilterWhere(
+    employeeId: string,
+    filters: {
+      types?: string[];
+      isRead?: boolean;
+      dateFrom?: Date;
+      dateTo?: Date;
+      search?: string;
+    }
+  ) {
+    // Default date range: last 30 days when both bounds are absent
+    const now = new Date();
+    const defaultFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const gte = filters.dateFrom ?? defaultFrom;
+    const lte = filters.dateTo ?? now;
+
+    const where: any = {
+      employeeId,
+      createdAt: { gte, lte },
+    };
+
+    if (filters.types && filters.types.length > 0) {
+      where.type = { in: filters.types };
+    }
+
+    if (filters.isRead !== undefined) {
+      where.isRead = filters.isRead;
+    }
+
+    if (filters.search) {
+      where.OR = [
+        { title: { contains: filters.search, mode: 'insensitive' } },
+        { message: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    return where;
+  }
+
+  /**
+   * Paginated filtered list of notifications for the My Notifications page.
+   * Returns { items, total, page, totalPages }.
+   */
+  async getFilteredNotificationsForEmployee(
+    employeeId: string,
+    filters: {
+      types?: string[];
+      isRead?: boolean;
+      dateFrom?: Date;
+      dateTo?: Date;
+      search?: string;
+      page?: number;
+      limit?: number;
+      sort?: 'newest' | 'oldest';
+    }
+  ): Promise<{ items: any[]; total: number; page: number; totalPages: number }> {
+    const page = Math.max(1, filters.page ?? 1);
+    const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
+    const dir = filters.sort === 'oldest' ? 'asc' : 'desc';
+    const skip = (page - 1) * limit;
+
+    const where = this.buildNotificationFilterWhere(employeeId, filters);
+
+    const [items, total] = await Promise.all([
+      prisma.notification.findMany({
+        where,
+        orderBy: [{ createdAt: dir }, { id: dir }],
+        skip,
+        take: limit,
+      }),
+      prisma.notification.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return { items, total, page, totalPages };
+  }
+
+  /**
+   * Aggregate stats for the My Notifications page stats card.
+   * Returns { total, unread, today, byType } — byType strips zero counts.
+   */
+  async getNotificationStatsForEmployee(
+    employeeId: string,
+    filters: {
+      types?: string[];
+      dateFrom?: Date;
+      dateTo?: Date;
+    }
+  ): Promise<{ total: number; unread: number; today: number; byType: Record<string, number> }> {
+    const now = new Date();
+    const defaultFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const gte = filters.dateFrom ?? defaultFrom;
+    const lte = filters.dateTo ?? now;
+
+    // Start-of-today in Asia/Ho_Chi_Minh (+07:00)
+    const todayUTC = new Date();
+    // Offset Asia/Ho_Chi_Minh = UTC+7; compute start of local day in UTC
+    const vietOffsetMs = 7 * 60 * 60 * 1000;
+    const localMs = todayUTC.getTime() + vietOffsetMs;
+    const localMidnightMs = localMs - (localMs % (24 * 60 * 60 * 1000));
+    const startOfToday = new Date(localMidnightMs - vietOffsetMs);
+
+    const baseWhere: any = { employeeId, createdAt: { gte, lte } };
+    if (filters.types && filters.types.length > 0) {
+      baseWhere.type = { in: filters.types };
+    }
+
+    const [total, unread, today, groupByResult] = await Promise.all([
+      prisma.notification.count({ where: baseWhere }),
+      prisma.notification.count({ where: { ...baseWhere, isRead: false } }),
+      prisma.notification.count({
+        where: {
+          employeeId,
+          createdAt: { gte: startOfToday },
+          ...(filters.types && filters.types.length > 0 ? { type: { in: filters.types } } : {}),
+        },
+      }),
+      prisma.notification.groupBy({
+        by: ['type'],
+        where: baseWhere,
+        _count: { type: true },
+      }),
+    ]);
+
+    const byType: Record<string, number> = {};
+    for (const item of groupByResult) {
+      if (item._count.type > 0) {
+        byType[item.type] = item._count.type;
+      }
+    }
+
+    return { total, unread, today, byType };
+  }
+
   async getLatestEvaluationNotification(employeeId: string): Promise<any | null> {
     const notification = await prisma.notification.findFirst({
       where: {

@@ -17,15 +17,58 @@ export class NotificationController {
       const employeeId = await getEmployeeId(userId);
       if (!employeeId) { res.json({ success: true, data: [] }); return; }
 
-      const cursor = req.query.cursor as string | undefined;
+      const { cursor, types, isRead, dateFrom, dateTo, search, page, sort } = req.query;
 
-      if (cursor !== undefined || req.query.limit !== undefined) {
-        const rawLimit = Number(req.query.limit) || 20;
-        const result = await notificationService.getEmployeeNotificationsCursor(employeeId, cursor || undefined, rawLimit);
-        res.json({ success: true, data: result.data, nextCursor: result.nextCursor, hasMore: result.hasMore });
+      // Determine mode: filter mode takes priority when any filter param is present
+      const hasFilterParams = types !== undefined || isRead !== undefined ||
+        dateFrom !== undefined || dateTo !== undefined ||
+        search !== undefined || page !== undefined || sort !== undefined;
+
+      if (hasFilterParams) {
+        // Filter mode — paginated + filterable response
+        const rawTypes = Array.isArray(types)
+          ? (types as string[])
+          : types
+          ? [types as string]
+          : undefined;
+
+        let parsedIsRead: boolean | undefined;
+        if (isRead === 'true') parsedIsRead = true;
+        else if (isRead === 'false') parsedIsRead = false;
+
+        const parsedDateFrom = dateFrom ? new Date(dateFrom as string) : undefined;
+        const parsedDateTo = dateTo ? new Date(dateTo as string) : undefined;
+        const parsedPage = page ? Math.max(1, parseInt(page as string, 10) || 1) : 1;
+        const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+        const parsedLimit = Math.min(100, Math.max(1, isNaN(rawLimit) ? 20 : rawLimit));
+        const parsedSort = sort === 'oldest' ? 'oldest' : 'newest';
+
+        const result = await notificationService.getFilteredNotificationsForEmployee(employeeId, {
+          types: rawTypes,
+          isRead: parsedIsRead,
+          dateFrom: parsedDateFrom,
+          dateTo: parsedDateTo,
+          search: search as string | undefined,
+          page: parsedPage,
+          limit: parsedLimit,
+          sort: parsedSort,
+        });
+
+        res.json({ success: true, data: result });
         return;
       }
 
+      // Cursor mode — used by AllNotificationsModal
+      if (cursor !== undefined || (req.query.limit !== undefined && !hasFilterParams)) {
+        if (cursor !== undefined) {
+          const rawLimit = Number(req.query.limit) || 20;
+          const result = await notificationService.getEmployeeNotificationsCursor(employeeId, cursor as string || undefined, rawLimit);
+          res.json({ success: true, data: result.data, nextCursor: result.nextCursor, hasMore: result.hasMore });
+          return;
+        }
+      }
+
+      // Legacy mode — used by NotificationBell (limit + since, or no params)
       const rawLimit = Number(req.query.limit) || 10;
       const limit = Math.min(Math.max(1, rawLimit), 200);
       const sinceParam = req.query.since as string | undefined;
@@ -33,6 +76,40 @@ export class NotificationController {
 
       const notifications = await notificationService.getEmployeeNotifications(employeeId, limit, since);
       res.json({ success: true, data: notifications });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMyNotificationsStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
+
+      const employeeId = await getEmployeeId(userId);
+      if (!employeeId) {
+        res.json({ success: true, data: { total: 0, unread: 0, today: 0, byType: {} } });
+        return;
+      }
+
+      const { types, dateFrom, dateTo } = req.query;
+
+      const rawTypes = Array.isArray(types)
+        ? (types as string[])
+        : types
+        ? [types as string]
+        : undefined;
+
+      const parsedDateFrom = dateFrom ? new Date(dateFrom as string) : undefined;
+      const parsedDateTo = dateTo ? new Date(dateTo as string) : undefined;
+
+      const stats = await notificationService.getNotificationStatsForEmployee(employeeId, {
+        types: rawTypes,
+        dateFrom: parsedDateFrom,
+        dateTo: parsedDateTo,
+      });
+
+      res.json({ success: true, data: stats });
     } catch (error) {
       next(error);
     }

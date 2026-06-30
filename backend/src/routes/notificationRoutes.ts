@@ -51,6 +51,17 @@ router.get(
 );
 
 /**
+ * GET /api/notifications/stats
+ * Aggregate stats for the My Notifications page (total, unread, today, byType).
+ * NOTE: must be registered BEFORE /:notificationId to avoid Express capturing "stats" as a param.
+ */
+router.get(
+  '/stats',
+  authenticate,
+  notificationController.getMyNotificationsStats
+);
+
+/**
  * @swagger
  * /api/notifications/unread:
  *   get:
