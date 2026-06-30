@@ -181,7 +181,7 @@ export const privateFeedbackService = {
         : 'Nhân viên';
       await notificationService.notify(NotificationEvent.PRIVATE_FEEDBACK_SUBMITTED, {
         actorUserId: data.userId,
-        metadata: { employeeName },
+        metadata: { entityId: feedback.id, employeeName },
       });
     } catch (error) {
       logger.error('Error sending admin feedback notification:', error);

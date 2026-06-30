@@ -115,7 +115,7 @@ class WorkPlanService {
           await notificationService.notify(NotificationEvent.WORK_PLAN_ASSIGNED, {
             actorUserId: nguoiTaoId,
             targetEmployeeIds: supervisorEmployees.map(e => e.id),
-            metadata: { tieuDe: data.tieuDe },
+            metadata: { entityId: workPlan.id, tieuDe: data.tieuDe },
           });
         }
       }
