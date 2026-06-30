@@ -211,100 +211,97 @@ export interface NotificationForLink {
   metadata?: Record<string, unknown>;
   entityId?: string;
   period?: string;
+  supplyRequestId?: string;
+  leaveRequestId?: string;
+  acceptanceHandoverId?: string;
+  taskId?: string;
+  evaluationId?: string;
 }
 
 /**
  * Resolve a notification to a route string, or null if no deep-link exists.
- * PASSWORD_RESET always returns null.
- * Types with no entityId that require one return null.
+ * Mirrors the navigation logic in NotificationBell.handleNotificationClick.
+ * Returns null for types whose detail is only accessible via modal (TASK,
+ * EVALUATION, PAYROLL, ACCEPTANCE_HANDOVER, LEAVE_REQUEST, OVERTIME_PLAN,
+ * WORK_PLAN, PRIVATE_FEEDBACK, DAILY_WORK_REPORT, PASSWORD_RESET) — the
+ * detail modal hides the "Mở chi tiết" button in those cases.
  */
 export function resolveDeepLink(notification: NotificationForLink): string | null {
-  const { type, metadata, entityId, period } = notification;
-  // entityId may come from the notification or from metadata
-  const id = entityId ?? (metadata?.entityId as string | undefined);
+  const { type, metadata } = notification;
+  const meta = (metadata ?? {}) as Record<string, unknown>;
 
   switch (type) {
+    // Module pages with tab/query routing — mirror NotificationBell navigate() calls
+
+    case 'SUPPLY_REQUEST':
+    case 'SUPPLY_REQUEST_PROCESSING':
+    case 'SUPPLY_REQUEST_APPROVED':
+    case 'SUPPLY_REQUEST_FULFILLED': {
+      const srId = (meta.supplyRequestId as string | undefined) ?? notification.supplyRequestId;
+      return srId
+        ? `/production/warehouse?tab=supplyRequest&supplyRequestId=${srId}`
+        : '/production/warehouse?tab=supplyRequest';
+    }
+
+    case 'PURCHASE_REQUEST': {
+      const prId = meta.purchaseRequestId as string | undefined;
+      return prId
+        ? `/purchasing/materials?purchaseRequestId=${prId}`
+        : '/purchasing/materials';
+    }
+
+    case 'REPAIR_REQUEST':
+      return '/technical/quality?tab=repairRequests';
+
+    case 'ORDER':
+      return '/business/international';
+
+    case 'WAREHOUSE':
+      return '/production/warehouse';
+
+    case 'INVOICE':
+      return '/accounting/admin?tab=invoices';
+
+    case 'DEBT':
+      return '/accounting/admin?tab=debts';
+
+    case 'PRODUCTION_REPORT':
+      return '/production/management?tab=productionReport';
+
+    case 'PROJECT_APPROVAL': {
+      const projectId = meta.entityId as string | undefined;
+      return projectId
+        ? `/technical/projects?projectId=${projectId}`
+        : '/technical/projects';
+    }
+
+    case 'FAULT_RECORD':
+      return '/technical/mechanical?tab=faultRecords';
+
+    case 'PRICING':
+      return '/general/pricing';
+
+    // Types whose detail is reachable only via modal in NotificationBell — link to history
+    case 'PRIVATE_FEEDBACK':
+    case 'DAILY_WORK_REPORT':
+      return '/my-history';
+
+    // Modal-only types in NotificationBell — no standalone route exists yet.
+    // Returning null hides the "Mở chi tiết" button in MyNotificationsDetailModal.
     case 'TASK':
     case 'TASK_ADMIN':
     case 'WORK_PLAN':
-      if (!id) return null;
-      return `/tasks?id=${id}`;
-
     case 'EVALUATION':
     case 'EVALUATION_SUPERVISOR1':
     case 'EVALUATION_SUPERVISOR1_COMPLETED':
     case 'EVALUATION_SUPERVISOR2':
     case 'EVALUATION_COMPLETED':
-      return id ? `/evaluations/${id}` : '/evaluations';
-
+    case 'PAYROLL':
+    case 'ACCEPTANCE_HANDOVER':
     case 'LEAVE_REQUEST':
     case 'LEAVE_REQUEST_RESPONSE':
-      if (!id) return null;
-      return `/leave-requests?id=${id}`;
-
     case 'OVERTIME_PLAN':
     case 'OVERTIME_PLAN_APPROVAL':
-      if (!id) return null;
-      return `/overtime-plans?id=${id}`;
-
-    case 'SUPPLY_REQUEST':
-    case 'SUPPLY_REQUEST_PROCESSING':
-    case 'SUPPLY_REQUEST_APPROVED':
-    case 'SUPPLY_REQUEST_FULFILLED':
-    case 'PURCHASE_REQUEST':
-      if (!id) return null;
-      return `/supply-requests?id=${id}`;
-
-    case 'PAYROLL': {
-      const p = period ?? (metadata?.period as string | undefined);
-      if (!p) return null;
-      return `/payroll?period=${p}`;
-    }
-
-    case 'ACCEPTANCE_HANDOVER':
-      if (!id) return null;
-      return `/acceptance-handovers?id=${id}`;
-
-    case 'REPAIR_REQUEST':
-      if (!id) return null;
-      return `/repair-requests?id=${id}`;
-
-    case 'ORDER':
-      if (!id) return null;
-      return `/orders?id=${id}`;
-
-    case 'WAREHOUSE':
-      if (!id) return null;
-      return `/warehouse?id=${id}`;
-
-    case 'INVOICE':
-      if (!id) return null;
-      return `/invoices?id=${id}`;
-
-    case 'DEBT':
-      if (!id) return null;
-      return `/debts?id=${id}`;
-
-    case 'PRODUCTION_REPORT':
-      if (!id) return null;
-      return `/production-reports?id=${id}`;
-
-    case 'FAULT_RECORD':
-      if (!id) return null;
-      return `/fault-records?id=${id}`;
-
-    case 'PRIVATE_FEEDBACK':
-    case 'DAILY_WORK_REPORT':
-      return '/my-history';
-
-    case 'PROJECT_APPROVAL':
-      if (!id) return null;
-      return `/project-approvals?id=${id}`;
-
-    case 'PRICING':
-      if (!id) return null;
-      return `/pricing?id=${id}`;
-
     case 'PASSWORD_RESET':
       return null;
 
