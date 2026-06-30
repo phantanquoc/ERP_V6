@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   FileText,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Modal from './Modal';
 import { DailyWorkReport } from '../services/dailyWorkReportService';
+import dailyWorkReportService from '../services/dailyWorkReportService';
 import {
   useAllDailyWorkReports,
   useMyDailyWorkReports,
@@ -27,18 +28,34 @@ interface DailyWorkReportListModalProps {
   isOpen: boolean;
   onClose: () => void;
   isAdmin?: boolean;
+  initialItemId?: string;
 }
 
 const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
   isOpen,
   onClose,
   isAdmin = false,
+  initialItemId,
 }) => {
   const [page, setPage] = useState(1);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<DailyWorkReport | null>(null);
   const [viewReport, setViewReport] = useState<DailyWorkReport | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+
+  useEffect(() => {
+    if (!isOpen || !initialItemId) return;
+    let cancelled = false;
+    dailyWorkReportService
+      .getReportById(initialItemId)
+      .then((report) => {
+        if (!cancelled && report) setViewReport(report);
+      })
+      .catch((err) => console.error('Error loading report from notification:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, initialItemId]);
 
   // TanStack Query hooks
   const allReportsQuery = useAllDailyWorkReports({ page, limit: 5, status: filterStatus }, isOpen && isAdmin);
