@@ -27,7 +27,9 @@ const GeneralPricing = () => {
   useEffect(() => {
     const currentTab = searchParams.get('tab');
     if (currentTab !== activeTab) {
-      setSearchParams({ tab: activeTab }, { replace: true });
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', activeTab);
+      setSearchParams(next, { replace: true });
     }
   }, [activeTab]);
 
