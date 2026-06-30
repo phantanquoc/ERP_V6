@@ -9,9 +9,17 @@ import {
   NotificationModalKind,
 } from './myNotificationsUtils';
 import { useMarkNotificationAsRead } from '../hooks/useMyNotifications';
+import { useAuth } from '../contexts/AuthContext';
 import DailyWorkReportListModal from './DailyWorkReportListModal';
 import FeedbackListModal from './FeedbackListModal';
 import WorkPlanListModal from './WorkPlanListModal';
+import TaskListModal from './TaskListModal';
+import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
+import EmployeePayrollModal from './EmployeePayrollModal';
+import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
+import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
+import OvertimePlanListModal from './OvertimePlanListModal';
+import AdminResetPasswordModal from './AdminResetPasswordModal';
 
 // ---- focus trap hook ---------------------------------------------------
 function useFocusTrap(
@@ -81,6 +89,8 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
   onClose,
 }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userIsAdmin = user?.role === 'admin';
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const isOpen = item !== null;
@@ -238,19 +248,70 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
         </div>
       </div>
 
-      {/* In-place list modals for modal-only notification types */}
+      {/* In-place detail/list modals for modal-only notification types */}
       <DailyWorkReportListModal
         isOpen={activeModalKind === 'dailyWorkReport'}
         onClose={handleInnerModalClose}
+        initialItemId={item.metadata?.entityId as string | undefined}
       />
       <FeedbackListModal
         isOpen={activeModalKind === 'feedback'}
         onClose={handleInnerModalClose}
+        initialItemId={item.metadata?.entityId as string | undefined}
       />
       <WorkPlanListModal
         isOpen={activeModalKind === 'workPlan'}
         onClose={handleInnerModalClose}
+        initialItemId={item.metadata?.entityId as string | undefined}
       />
+      <TaskListModal
+        isOpen={activeModalKind === 'task'}
+        onClose={handleInnerModalClose}
+        isAdmin={userIsAdmin}
+      />
+      <EmployeeSelfEvaluationModal
+        isOpen={activeModalKind === 'evaluation'}
+        onClose={handleInnerModalClose}
+        evaluationId={item.evaluationId ?? null}
+        notificationId={item.id}
+        evaluationPeriod={item.period}
+        employeeId={user?.employeeId || null}
+        month={new Date().getMonth() + 1}
+        year={new Date().getFullYear()}
+      />
+      <EmployeePayrollModal
+        isOpen={activeModalKind === 'payroll'}
+        onClose={handleInnerModalClose}
+        period={item.period}
+      />
+      <AcceptanceHandoverViewModal
+        isOpen={activeModalKind === 'acceptanceHandover'}
+        onClose={handleInnerModalClose}
+        acceptanceHandoverId={item.acceptanceHandoverId ?? null}
+        notificationMessage={item.message}
+      />
+      <LeaveRequestApprovalModal
+        isOpen={activeModalKind === 'leaveRequest'}
+        onClose={handleInnerModalClose}
+        leaveRequestId={item.leaveRequestId ?? null}
+        notificationMessage={item.message}
+      />
+      <OvertimePlanListModal
+        isOpen={activeModalKind === 'overtimePlan'}
+        onClose={handleInnerModalClose}
+        isAdmin={userIsAdmin}
+        canViewAll={userIsAdmin}
+        canCreate={userIsAdmin || user?.role === 'department_head'}
+        highlightPlanId={(item.metadata?.planId as string | undefined) ?? undefined}
+      />
+      {activeModalKind === 'passwordReset' && (
+        <AdminResetPasswordModal
+          userId={(item.metadata?.targetUserId as string) || ''}
+          employeeName={item.message}
+          metadata={item.metadata}
+          onClose={handleInnerModalClose}
+        />
+      )}
     </>
   );
 };

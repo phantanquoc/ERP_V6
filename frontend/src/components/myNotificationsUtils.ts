@@ -357,16 +357,34 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
 /**
  * Modal kinds that MyNotificationsDetailModal can open in place when no
  * standalone deep-link route exists for the notification type. Each kind
- * maps 1:1 to an existing list-modal component:
+ * maps 1:1 to a detail or list modal component:
  *
- * - dailyWorkReport → DailyWorkReportListModal
- * - feedback       → FeedbackListModal
- * - workPlan       → WorkPlanListModal
+ * - dailyWorkReport   → DailyWorkReportListModal (auto-opens detail by entityId)
+ * - feedback          → FeedbackListModal (auto-opens detail by entityId)
+ * - workPlan          → WorkPlanListModal (auto-opens detail by entityId)
+ * - task              → TaskListModal (no per-item focus yet — opens list)
+ * - evaluation        → EmployeeSelfEvaluationModal (by evaluationId + period)
+ * - payroll           → EmployeePayrollModal (by period)
+ * - acceptanceHandover→ AcceptanceHandoverViewModal (by acceptanceHandoverId)
+ * - leaveRequest      → LeaveRequestApprovalModal (by leaveRequestId)
+ * - overtimePlan      → OvertimePlanListModal (auto-opens detail by planId)
+ * - passwordReset     → AdminResetPasswordModal (by targetUserId in metadata)
  */
-export type NotificationModalKind = 'dailyWorkReport' | 'feedback' | 'workPlan' | null;
+export type NotificationModalKind =
+  | 'dailyWorkReport'
+  | 'feedback'
+  | 'workPlan'
+  | 'task'
+  | 'evaluation'
+  | 'payroll'
+  | 'acceptanceHandover'
+  | 'leaveRequest'
+  | 'overtimePlan'
+  | 'passwordReset'
+  | null;
 
 /**
- * Decide whether the notification should open an in-place list modal.
+ * Decide whether the notification should open an in-place detail/list modal.
  * Returns null for types that either deep-link to a route (resolveDeepLink
  * returns a string) or have no detail surface implemented yet.
  */
@@ -378,6 +396,27 @@ export function resolveModalKind(type: string): NotificationModalKind {
       return 'feedback';
     case 'WORK_PLAN':
       return 'workPlan';
+    case 'TASK':
+    case 'TASK_ADMIN':
+      return 'task';
+    case 'EVALUATION':
+    case 'EVALUATION_SUPERVISOR1':
+    case 'EVALUATION_SUPERVISOR1_COMPLETED':
+    case 'EVALUATION_SUPERVISOR2':
+    case 'EVALUATION_COMPLETED':
+      return 'evaluation';
+    case 'PAYROLL':
+      return 'payroll';
+    case 'ACCEPTANCE_HANDOVER':
+      return 'acceptanceHandover';
+    case 'LEAVE_REQUEST':
+    case 'LEAVE_REQUEST_RESPONSE':
+      return 'leaveRequest';
+    case 'OVERTIME_PLAN':
+    case 'OVERTIME_PLAN_APPROVAL':
+      return 'overtimePlan';
+    case 'PASSWORD_RESET':
+      return 'passwordReset';
     default:
       return null;
   }
