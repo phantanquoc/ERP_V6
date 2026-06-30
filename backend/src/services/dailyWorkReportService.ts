@@ -202,7 +202,7 @@ export class DailyWorkReportService {
       const reportDateStr = new Date(report.reportDate).toLocaleDateString('vi-VN');
       await notificationService.notify(NotificationEvent.DAILY_WORK_REPORT_SUBMITTED, {
         actorUserId: report.employee?.user?.id,
-        metadata: { employeeName, reportDate: reportDateStr },
+        metadata: { entityId: report.id, employeeName, reportDate: reportDateStr },
       });
     } catch (error) {
       logger.error('Error sending admin daily report notification:', error);
