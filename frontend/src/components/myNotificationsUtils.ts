@@ -250,23 +250,43 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
         : '/purchasing/materials';
     }
 
-    case 'REPAIR_REQUEST':
-      return '/technical/quality?tab=repairRequests';
+    case 'REPAIR_REQUEST': {
+      const repairRequestId = meta.entityId as string | undefined;
+      return repairRequestId
+        ? `/technical/quality?tab=repairRequests&repairRequestId=${repairRequestId}`
+        : '/technical/quality?tab=repairRequests';
+    }
 
-    case 'ORDER':
-      return '/business/international';
+    case 'ORDER': {
+      const orderId = meta.entityId as string | undefined;
+      return orderId
+        ? `/business/international?orderId=${orderId}`
+        : '/business/international';
+    }
 
     case 'WAREHOUSE':
       return '/production/warehouse';
 
-    case 'INVOICE':
-      return '/accounting/admin?tab=invoices';
+    case 'INVOICE': {
+      const invoiceId = meta.entityId as string | undefined;
+      return invoiceId
+        ? `/accounting/admin?tab=invoices&invoiceId=${invoiceId}`
+        : '/accounting/admin?tab=invoices';
+    }
 
-    case 'DEBT':
-      return '/accounting/admin?tab=debts';
+    case 'DEBT': {
+      const debtId = meta.entityId as string | undefined;
+      return debtId
+        ? `/accounting/admin?tab=debts&debtId=${debtId}`
+        : '/accounting/admin?tab=debts';
+    }
 
-    case 'PRODUCTION_REPORT':
-      return '/production/management?tab=productionReport';
+    case 'PRODUCTION_REPORT': {
+      const reportId = meta.entityId as string | undefined;
+      return reportId
+        ? `/production/management?tab=productionReport&reportId=${reportId}`
+        : '/production/management?tab=productionReport';
+    }
 
     case 'PROJECT_APPROVAL': {
       const projectId = meta.entityId as string | undefined;
@@ -275,11 +295,34 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
         : '/technical/projects';
     }
 
-    case 'FAULT_RECORD':
-      return '/technical/mechanical?tab=faultRecords';
+    case 'FAULT_RECORD': {
+      const faultRecordId = meta.entityId as string | undefined;
+      return faultRecordId
+        ? `/technical/mechanical?tab=faultRecords&faultRecordId=${faultRecordId}`
+        : '/technical/mechanical?tab=faultRecords';
+    }
 
-    case 'PRICING':
+    case 'PRICING': {
+      const entityId = meta.entityId as string | undefined;
+      const event = meta.event as string | undefined;
+      // Route to the correct tab based on the originating event
+      if (event === 'QUOTATION_REQUEST_CREATED') {
+        return entityId
+          ? `/general/pricing?tab=requests&quotationRequestId=${entityId}`
+          : '/general/pricing?tab=requests';
+      }
+      if (event === 'QUOTATION_WON' || event === 'QUOTATION_LOST' || event === 'QUOTATION_PRICE_UNLOCKED') {
+        return entityId
+          ? `/general/pricing?tab=quotes&quotationId=${entityId}`
+          : '/general/pricing?tab=quotes';
+      }
+      if (event === 'ORDER_DELIVERED') {
+        return entityId
+          ? `/general/pricing?tab=orders&orderId=${entityId}`
+          : '/general/pricing?tab=orders';
+      }
       return '/general/pricing';
+    }
 
     // Types whose detail is reachable only via modal in NotificationBell — link to history
     case 'PRIVATE_FEEDBACK':
