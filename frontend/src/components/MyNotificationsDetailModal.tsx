@@ -1,9 +1,17 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { X, ExternalLink, Clock, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppNotification } from '../services/notificationService';
-import { NOTIFICATION_TYPE_LABELS, resolveDeepLink } from './myNotificationsUtils';
+import {
+  NOTIFICATION_TYPE_LABELS,
+  resolveDeepLink,
+  resolveModalKind,
+  NotificationModalKind,
+} from './myNotificationsUtils';
 import { useMarkNotificationAsRead } from '../hooks/useMyNotifications';
+import DailyWorkReportListModal from './DailyWorkReportListModal';
+import FeedbackListModal from './FeedbackListModal';
+import WorkPlanListModal from './WorkPlanListModal';
 
 // ---- focus trap hook ---------------------------------------------------
 function useFocusTrap(
@@ -76,6 +84,7 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const isOpen = item !== null;
+  const [activeModalKind, setActiveModalKind] = useState<NotificationModalKind>(null);
 
   const markAsRead = useMarkNotificationAsRead();
 
@@ -88,6 +97,7 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
     }
     if (!isOpen) {
       hasMarkedRef.current = false;
+      setActiveModalKind(null);
     }
   }, [isOpen, item]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -112,15 +122,28 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
     period: item.period,
   });
 
+  const modalKind: NotificationModalKind = !deepLink ? resolveModalKind(item.type) : null;
+  const canOpenDetail = Boolean(deepLink) || modalKind !== null;
+
   const typeLabel = NOTIFICATION_TYPE_LABELS[item.type] ?? item.type;
   const metaEntries = item.metadata
     ? Object.entries(item.metadata).filter(([k, v]) => v != null && v !== '' && k !== 'entityId' && k !== 'event')
     : [];
 
   const handleOpenDetail = () => {
-    if (!deepLink) return;
+    if (deepLink) {
+      onClose();
+      navigate(deepLink);
+      return;
+    }
+    if (modalKind) {
+      setActiveModalKind(modalKind);
+    }
+  };
+
+  const handleInnerModalClose = () => {
+    setActiveModalKind(null);
     onClose();
-    navigate(deepLink);
   };
 
   return (
@@ -201,7 +224,7 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
             >
               Đóng
             </button>
-            {deepLink && (
+            {canOpenDetail && (
               <button
                 type="button"
                 onClick={handleOpenDetail}
@@ -214,6 +237,20 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* In-place list modals for modal-only notification types */}
+      <DailyWorkReportListModal
+        isOpen={activeModalKind === 'dailyWorkReport'}
+        onClose={handleInnerModalClose}
+      />
+      <FeedbackListModal
+        isOpen={activeModalKind === 'feedback'}
+        onClose={handleInnerModalClose}
+      />
+      <WorkPlanListModal
+        isOpen={activeModalKind === 'workPlan'}
+        onClose={handleInnerModalClose}
+      />
     </>
   );
 };

@@ -221,10 +221,11 @@ export interface NotificationForLink {
 /**
  * Resolve a notification to a route string, or null if no deep-link exists.
  * Mirrors the navigation logic in NotificationBell.handleNotificationClick.
- * Returns null for types whose detail is only accessible via modal (TASK,
+ * Returns null for types whose detail is only accessible via a modal (TASK,
  * EVALUATION, PAYROLL, ACCEPTANCE_HANDOVER, LEAVE_REQUEST, OVERTIME_PLAN,
  * WORK_PLAN, PRIVATE_FEEDBACK, DAILY_WORK_REPORT, PASSWORD_RESET) — the
- * detail modal hides the "Mở chi tiết" button in those cases.
+ * MyNotificationsDetailModal handles those by opening the corresponding
+ * list-modal in place (see resolveModalKind).
  */
 export function resolveDeepLink(notification: NotificationForLink): string | null {
   const { type, metadata } = notification;
@@ -324,16 +325,14 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
       return '/general/pricing';
     }
 
-    // Types whose detail is reachable only via modal in NotificationBell — link to history
-    case 'PRIVATE_FEEDBACK':
-    case 'DAILY_WORK_REPORT':
-      return '/my-history';
-
     // Modal-only types in NotificationBell — no standalone route exists yet.
-    // Returning null hides the "Mở chi tiết" button in MyNotificationsDetailModal.
+    // Returning null hides the standalone navigation; MyNotificationsDetailModal
+    // calls resolveModalKind() to decide whether to render an in-place list modal.
     case 'TASK':
     case 'TASK_ADMIN':
     case 'WORK_PLAN':
+    case 'PRIVATE_FEEDBACK':
+    case 'DAILY_WORK_REPORT':
     case 'EVALUATION':
     case 'EVALUATION_SUPERVISOR1':
     case 'EVALUATION_SUPERVISOR1_COMPLETED':
@@ -348,6 +347,37 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
     case 'PASSWORD_RESET':
       return null;
 
+    default:
+      return null;
+  }
+}
+
+// ---- Modal kind resolver -------------------------------------------------
+
+/**
+ * Modal kinds that MyNotificationsDetailModal can open in place when no
+ * standalone deep-link route exists for the notification type. Each kind
+ * maps 1:1 to an existing list-modal component:
+ *
+ * - dailyWorkReport → DailyWorkReportListModal
+ * - feedback       → FeedbackListModal
+ * - workPlan       → WorkPlanListModal
+ */
+export type NotificationModalKind = 'dailyWorkReport' | 'feedback' | 'workPlan' | null;
+
+/**
+ * Decide whether the notification should open an in-place list modal.
+ * Returns null for types that either deep-link to a route (resolveDeepLink
+ * returns a string) or have no detail surface implemented yet.
+ */
+export function resolveModalKind(type: string): NotificationModalKind {
+  switch (type) {
+    case 'DAILY_WORK_REPORT':
+      return 'dailyWorkReport';
+    case 'PRIVATE_FEEDBACK':
+      return 'feedback';
+    case 'WORK_PLAN':
+      return 'workPlan';
     default:
       return null;
   }
