@@ -1,4 +1,4 @@
-import { QuotationStatus, OrderProductionStatus } from '@prisma/client';
+import { QuotationStatus, OrderProductionStatus, RepairRequestStatus, FaultRecordStatus } from '@prisma/client';
 import { ValidationError } from '@utils/errors';
 
 // ─── QuotationRequest status (string-literal union — enum lives in Prisma schema) ─
@@ -166,5 +166,107 @@ export function advanceOrderProductionStatus(
 
   throw new ValidationError(
     `Không thể chuyển trạng thái sản xuất từ ${current} sang ${next}`
+  );
+}
+
+// ─── RepairRequest status chain (forward order) ───────────────────────────────
+
+export const REPAIR_REQUEST_STATUS_ORDER: RepairRequestStatus[] = [
+  RepairRequestStatus.CHO_XU_LY,
+  RepairRequestStatus.DANG_SUA_CHUA,
+  RepairRequestStatus.HOAN_THANH,
+];
+
+// Terminal statuses — no further forward transitions allowed from these
+export const REPAIR_REQUEST_TERMINAL_STATUSES = new Set<RepairRequestStatus>([
+  RepairRequestStatus.HOAN_THANH,
+  RepairRequestStatus.DA_HUY,
+]);
+
+// Cancel targets — any non-terminal status may move to one of these
+export const REPAIR_REQUEST_CANCEL_TARGETS = new Set<RepairRequestStatus>([
+  RepairRequestStatus.DA_HUY,
+]);
+
+/**
+ * Validate and return the next RepairRequest status.
+ *
+ * Rules (applied in order):
+ *  1. bypass=true → accept any enum value (ADMIN override)
+ *  2. next === current → no-op, return current
+ *  3. current is terminal → reject
+ *  4. next is a cancel target (DA_HUY) and current is non-terminal → accept
+ *  5. next must be the immediate successor in REPAIR_REQUEST_STATUS_ORDER → accept
+ *  6. anything else → ValidationError
+ */
+export function advanceRepairRequestStatus(
+  current: RepairRequestStatus,
+  next: RepairRequestStatus,
+  opts?: { bypass?: boolean }
+): RepairRequestStatus {
+  if (opts?.bypass) return next;
+  if (next === current) return current;
+
+  if (REPAIR_REQUEST_TERMINAL_STATUSES.has(current)) {
+    throw new ValidationError(
+      `Không thể chuyển trạng thái yêu cầu sửa chữa từ ${current} sang ${next}`
+    );
+  }
+
+  if (REPAIR_REQUEST_CANCEL_TARGETS.has(next)) {
+    return next;
+  }
+
+  const currentIndex = REPAIR_REQUEST_STATUS_ORDER.indexOf(current);
+  const nextIndex = REPAIR_REQUEST_STATUS_ORDER.indexOf(next);
+
+  if (currentIndex !== -1 && nextIndex === currentIndex + 1) {
+    return next;
+  }
+
+  throw new ValidationError(
+    `Không thể chuyển trạng thái yêu cầu sửa chữa từ ${current} sang ${next}`
+  );
+}
+
+// ─── FaultRecord status transitions ───────────────────────────────────────────
+// Allowed transitions (non-linear, cyclic):
+//   DANG_THEO_DOI → DA_XU_LY  (mark resolved)
+//   DA_XU_LY      → TAI_PHAT   (mark recurred)
+//   TAI_PHAT      → DA_XU_LY   (resolve again)
+
+type FaultRecordTransition = [FaultRecordStatus, FaultRecordStatus];
+
+const FAULT_RECORD_ALLOWED_TRANSITIONS: FaultRecordTransition[] = [
+  [FaultRecordStatus.DANG_THEO_DOI, FaultRecordStatus.DA_XU_LY],
+  [FaultRecordStatus.DA_XU_LY, FaultRecordStatus.TAI_PHAT],
+  [FaultRecordStatus.TAI_PHAT, FaultRecordStatus.DA_XU_LY],
+];
+
+/**
+ * Validate and return the next FaultRecord status.
+ *
+ * Rules (applied in order):
+ *  1. bypass=true → accept any enum value (ADMIN override)
+ *  2. next === current → no-op, return current
+ *  3. transition must be in FAULT_RECORD_ALLOWED_TRANSITIONS → accept
+ *  4. anything else → ValidationError with Vietnamese message
+ */
+export function advanceFaultRecordStatus(
+  current: FaultRecordStatus,
+  next: FaultRecordStatus,
+  opts?: { bypass?: boolean }
+): FaultRecordStatus {
+  if (opts?.bypass) return next;
+  if (next === current) return current;
+
+  const isAllowed = FAULT_RECORD_ALLOWED_TRANSITIONS.some(
+    ([from, to]) => from === current && to === next
+  );
+
+  if (isAllowed) return next;
+
+  throw new ValidationError(
+    `Không thể chuyển trạng thái sự cố từ ${current} sang ${next}`
   );
 }

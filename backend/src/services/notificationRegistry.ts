@@ -404,6 +404,21 @@ const entries: NotificationEventDef[] = [
       return [...new Set([...technical, ...admins])];
     },
   },
+  {
+    event: NotificationEvent.REPAIR_REQUEST_COMPLETED,
+    notificationType: NotificationType.REPAIR_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu sửa chữa đã hoàn thành',
+      message: `Yêu cầu sửa chữa ${ctx.metadata?.maYeuCau ?? ''} đã được nghiệm thu đầy đủ.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      // Notify: creator of the repair request + technical dept + admins
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      const directRecipients = ctx.targetEmployeeIds ?? [];
+      return [...new Set([...directRecipients, ...technical, ...admins])];
+    },
+  },
 
   // ── Order ──
   {
@@ -533,6 +548,34 @@ const entries: NotificationEventDef[] = [
     buildMessage: (ctx) => ({
       title: 'Lỗi tái phát nhiều lần',
       message: `Lỗi "${ctx.metadata?.tenLoi ?? ''}" đã xảy ra ${ctx.metadata?.count ?? 0} lần trên thiết bị. Vui lòng kiểm tra.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+
+  // ── Fault Record Lifecycle ──
+  {
+    event: NotificationEvent.FAULT_RECORD_RESOLVED,
+    notificationType: NotificationType.FAULT_RECORD,
+    buildMessage: (_ctx) => ({
+      title: 'Sự cố đã xử lý',
+      message: 'Một bản ghi sự cố đã được đánh dấu là đã xử lý.',
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.FAULT_RECORD_RECURRED,
+    notificationType: NotificationType.FAULT_RECORD,
+    buildMessage: (_ctx) => ({
+      title: 'Sự cố tái phát',
+      message: 'Một bản ghi sự cố đã được đánh dấu là tái phát.',
     }),
     resolveRecipients: async (ctx) => {
       const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');

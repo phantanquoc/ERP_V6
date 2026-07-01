@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import faultRecordService from '@services/faultRecordService';
 import { getFileUrl } from '@middlewares/upload';
+import { FaultRecordStatus } from '@prisma/client';
 
 class FaultRecordController {
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -50,13 +51,11 @@ class FaultRecordController {
         machineSystemDetailId: req.body.machineSystemDetailId,
         faultTemplateId: req.body.faultTemplateId,
         mucDo: req.body.mucDo,
-        trangThai: req.body.trangThai,
+        // trangThai intentionally excluded — server defaults to DANG_THEO_DOI
         nguoiPhatHien: req.body.nguoiPhatHien,
         ngayPhatHien: req.body.ngayPhatHien ? new Date(req.body.ngayPhatHien) : undefined,
         fileDinhKem: req.file ? getFileUrl('fault-records', req.file.filename) : undefined,
-        // Task 4.3: pass userRole for auto-create gate
         userRole: req.user?.role,
-        // pass userId for createdById tracking
         userId: req.user?.id,
         repairSteps: req.body.repairSteps
           ? (typeof req.body.repairSteps === 'string' ? JSON.parse(req.body.repairSteps) : req.body.repairSteps)
@@ -72,6 +71,7 @@ class FaultRecordController {
 
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      // Task 4.2: pass body to service unchanged (service drops trangThai with warn)
       const data: Record<string, unknown> = {
         tenLoi: req.body.tenLoi,
         moTa: req.body.moTa,
@@ -80,7 +80,7 @@ class FaultRecordController {
         machineSystemDetailId: req.body.machineSystemDetailId,
         faultTemplateId: req.body.faultTemplateId,
         mucDo: req.body.mucDo,
-        trangThai: req.body.trangThai,
+        trangThai: req.body.trangThai, // forwarded so service can warn+drop
         nguoiPhatHien: req.body.nguoiPhatHien,
         ngayPhatHien: req.body.ngayPhatHien ? new Date(req.body.ngayPhatHien) : undefined,
       };
@@ -128,7 +128,6 @@ class FaultRecordController {
       const machineSystemDetailId = req.query.machineSystemDetailId as string | undefined;
       const tenLoi = req.query.tenLoi as string | undefined;
 
-      // Validation moved to service; pass all three params
       const data = await faultRecordService.checkRecurrence({ faultTemplateId, machineSystemDetailId, tenLoi });
       res.json({ success: true, data });
     } catch (error) {
@@ -150,6 +149,64 @@ class FaultRecordController {
     try {
       const machineSystemId = req.query.machineSystemId as string | undefined;
       const data = await faultRecordService.getHeatmap(machineSystemId ? { machineSystemId } : undefined);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ── Task 4.1: New lifecycle handlers ──────────────────────────────────────
+
+  async markResolved(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const actorId = req.user?.id ?? null;
+      const reason = req.body.reason as string | undefined;
+
+      await faultRecordService.markResolved(id, actorId, reason);
+      res.json({ success: true, message: 'Đã đánh dấu sự cố là đã xử lý' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async markRecurred(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const actorId = req.user?.id ?? null;
+      const auto = req.body.auto === true;
+      const reason = req.body.reason as string | undefined;
+
+      await faultRecordService.markRecurred(id, actorId, { auto, reason });
+      res.json({ success: true, message: 'Đã đánh dấu sự cố là tái phát' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getStatusHistory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      const result = await faultRecordService.getStatusHistory(id, { page, limit });
+      res.json({ success: true, data: result.data, pagination: result.pagination });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getForTypeahead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const search = req.query.search as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const trangThaiRaw = req.query.trangThai as string | undefined;
+      const trangThai = trangThaiRaw
+        ? (trangThaiRaw.split(',').filter((v) => Object.values(FaultRecordStatus).includes(v as FaultRecordStatus)) as FaultRecordStatus[])
+        : undefined;
+
+      const data = await faultRecordService.getForTypeahead({ trangThai, search, limit });
       res.json({ success: true, data });
     } catch (error) {
       next(error);

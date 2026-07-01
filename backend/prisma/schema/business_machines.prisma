@@ -209,27 +209,29 @@ model RepairStep {
 }
 
 model FaultRecord {
-  id                    String   @id @default(cuid())
-  maLoi                 String   @unique // VD: LI-2026-001
+  id                    String             @id @default(cuid())
+  maLoi                 String             @unique // VD: LI-2026-001
   tenLoi                String
-  moTa                  String   @db.Text
+  moTa                  String             @db.Text
   maHeThong             String? // soft ref tới MachineSystem.maHeThong
   machineSystemId       String?
   machineSystemDetailId String?
   faultTemplateId       String?
   mucDo                 String // Nghiêm trọng / Trung bình / Nhẹ
-  trangThai             String   @default("Đang theo dõi") // Đang theo dõi / Đã xử lý / Tái phát
+  trangThai             FaultRecordStatus  @default(DANG_THEO_DOI)
   nguoiPhatHien         String
-  ngayPhatHien          DateTime @default(now())
+  ngayPhatHien          DateTime           @default(now())
   ngayXuLy              DateTime?
   fileDinhKem           String?
   createdById           String? // soft ref to auth.User.id — no FK constraint
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
   machineSystem       MachineSystem?       @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
   machineSystemDetail MachineSystemDetail? @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
   faultTemplate       FaultTemplate?       @relation(fields: [faultTemplateId], references: [id], onDelete: SetNull)
+  repairRequestItems  RepairRequestItem[]
+  statusLogs          FaultRecordStatusLog[]
 
   @@index([maLoi])
   @@index([machineSystemId])
@@ -578,5 +580,52 @@ model ProjectApproval {
 
   @@index([projectId])
   @@map("project_approvals")
+  @@schema("business")
+}
+
+// ─── Repair Request Status Log ────────────────────────────────────────────────
+
+model RepairRequestStatusLog {
+  id              String              @id @default(cuid())
+  repairRequestId Int
+  repairRequest   RepairRequest       @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+  oldStatus       RepairRequestStatus
+  newStatus       RepairRequestStatus
+  actorId         String?
+  actorRole       String?
+  reason          String?
+  createdAt       DateTime            @default(now())
+
+  @@index([repairRequestId])
+  @@index([createdAt])
+  @@map("repair_request_status_logs")
+  @@schema("business")
+}
+
+// ─── FaultRecord status enum ─────────────────────────────────────────────────
+
+enum FaultRecordStatus {
+  DANG_THEO_DOI // Đang theo dõi
+  DA_XU_LY      // Đã xử lý
+  TAI_PHAT      // Tái phát
+
+  @@schema("business")
+}
+
+// ─── FaultRecord Status Log ───────────────────────────────────────────────────
+
+model FaultRecordStatusLog {
+  id            String            @id @default(cuid()) @db.VarChar(30)
+  faultRecordId String
+  faultRecord   FaultRecord       @relation(fields: [faultRecordId], references: [id], onDelete: Cascade)
+  oldStatus     FaultRecordStatus?
+  newStatus     FaultRecordStatus
+  actorId       String?
+  reason        String?           @db.Text
+  source        String            @default("manual") @db.VarChar(64)
+  createdAt     DateTime          @default(now())
+
+  @@index([faultRecordId, createdAt(sort: Desc)])
+  @@map("fault_record_status_logs")
   @@schema("business")
 }
