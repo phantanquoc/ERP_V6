@@ -1,9 +1,11 @@
-import { QuotationStatus, OrderProductionStatus } from '@prisma/client';
+import { QuotationStatus, OrderProductionStatus, RepairRequestStatus, FaultRecordStatus } from '@prisma/client';
 import { ValidationError } from '@utils/errors';
 import {
   advanceQuotationStatus,
   advanceOrderProductionStatus,
   advanceQuotationRequestStatus,
+  advanceRepairRequestStatus,
+  advanceFaultRecordStatus,
   QUOTATION_STATUS_ORDER,
   QUOTATION_TERMINAL_STATUSES,
   QUOTATION_CANCEL_TARGETS,
@@ -11,6 +13,9 @@ import {
   QUOTATION_REQUEST_STATUS_ORDER,
   QUOTATION_REQUEST_TERMINAL_STATUSES,
   QUOTATION_REQUEST_CANCEL_TARGETS,
+  REPAIR_REQUEST_STATUS_ORDER,
+  REPAIR_REQUEST_TERMINAL_STATUSES,
+  REPAIR_REQUEST_CANCEL_TARGETS,
 } from '@utils/statusTransitions';
 
 // ─── Exports sanity ────────────────────────────────────────────────────────────
@@ -331,5 +336,226 @@ describe('advanceQuotationRequestStatus', () => {
   it('bypass allows jump: CHO_XU_LY → DA_BAO_GIA', () => {
     const result = advanceQuotationRequestStatus('CHO_XU_LY', 'DA_BAO_GIA', { bypass: true });
     expect(result).toBe('DA_BAO_GIA');
+  });
+});
+
+// ─── RepairRequest status transitions ─────────────────────────────────────────
+
+describe('REPAIR_REQUEST_STATUS_ORDER', () => {
+  it('starts with CHO_XU_LY and ends with HOAN_THANH', () => {
+    expect(REPAIR_REQUEST_STATUS_ORDER[0]).toBe(RepairRequestStatus.CHO_XU_LY);
+    expect(REPAIR_REQUEST_STATUS_ORDER[REPAIR_REQUEST_STATUS_ORDER.length - 1]).toBe(RepairRequestStatus.HOAN_THANH);
+  });
+
+  it('has exactly 3 forward steps', () => {
+    expect(REPAIR_REQUEST_STATUS_ORDER).toHaveLength(3);
+  });
+});
+
+describe('REPAIR_REQUEST_TERMINAL_STATUSES', () => {
+  it('contains HOAN_THANH and DA_HUY', () => {
+    expect(REPAIR_REQUEST_TERMINAL_STATUSES.has(RepairRequestStatus.HOAN_THANH)).toBe(true);
+    expect(REPAIR_REQUEST_TERMINAL_STATUSES.has(RepairRequestStatus.DA_HUY)).toBe(true);
+  });
+
+  it('does not contain CHO_XU_LY or DANG_SUA_CHUA', () => {
+    expect(REPAIR_REQUEST_TERMINAL_STATUSES.has(RepairRequestStatus.CHO_XU_LY)).toBe(false);
+    expect(REPAIR_REQUEST_TERMINAL_STATUSES.has(RepairRequestStatus.DANG_SUA_CHUA)).toBe(false);
+  });
+});
+
+describe('REPAIR_REQUEST_CANCEL_TARGETS', () => {
+  it('contains only DA_HUY', () => {
+    expect(REPAIR_REQUEST_CANCEL_TARGETS.has(RepairRequestStatus.DA_HUY)).toBe(true);
+    expect(REPAIR_REQUEST_CANCEL_TARGETS.size).toBe(1);
+  });
+});
+
+describe('advanceRepairRequestStatus', () => {
+  // Single-step forward transitions
+  it('CHO_XU_LY → DANG_SUA_CHUA (valid single step)', () => {
+    expect(advanceRepairRequestStatus(
+      RepairRequestStatus.CHO_XU_LY,
+      RepairRequestStatus.DANG_SUA_CHUA
+    )).toBe(RepairRequestStatus.DANG_SUA_CHUA);
+  });
+
+  it('DANG_SUA_CHUA → HOAN_THANH (valid single step)', () => {
+    expect(advanceRepairRequestStatus(
+      RepairRequestStatus.DANG_SUA_CHUA,
+      RepairRequestStatus.HOAN_THANH
+    )).toBe(RepairRequestStatus.HOAN_THANH);
+  });
+
+  // No-op: next === current
+  it('no-op: CHO_XU_LY → CHO_XU_LY returns current', () => {
+    expect(advanceRepairRequestStatus(
+      RepairRequestStatus.CHO_XU_LY,
+      RepairRequestStatus.CHO_XU_LY
+    )).toBe(RepairRequestStatus.CHO_XU_LY);
+  });
+
+  it('no-op: DANG_SUA_CHUA → DANG_SUA_CHUA returns current', () => {
+    expect(advanceRepairRequestStatus(
+      RepairRequestStatus.DANG_SUA_CHUA,
+      RepairRequestStatus.DANG_SUA_CHUA
+    )).toBe(RepairRequestStatus.DANG_SUA_CHUA);
+  });
+
+  // Cancel from each non-terminal status
+  it('cancel from CHO_XU_LY → DA_HUY is allowed', () => {
+    expect(advanceRepairRequestStatus(
+      RepairRequestStatus.CHO_XU_LY,
+      RepairRequestStatus.DA_HUY
+    )).toBe(RepairRequestStatus.DA_HUY);
+  });
+
+  it('cancel from DANG_SUA_CHUA → DA_HUY is allowed', () => {
+    expect(advanceRepairRequestStatus(
+      RepairRequestStatus.DANG_SUA_CHUA,
+      RepairRequestStatus.DA_HUY
+    )).toBe(RepairRequestStatus.DA_HUY);
+  });
+
+  // Rejection: skip-step forward
+  it('rejects skip: CHO_XU_LY → HOAN_THANH (skips DANG_SUA_CHUA)', () => {
+    expect(() =>
+      advanceRepairRequestStatus(RepairRequestStatus.CHO_XU_LY, RepairRequestStatus.HOAN_THANH)
+    ).toThrow(ValidationError);
+  });
+
+  // Rejection: backward transition
+  it('rejects backward: DANG_SUA_CHUA → CHO_XU_LY', () => {
+    expect(() =>
+      advanceRepairRequestStatus(RepairRequestStatus.DANG_SUA_CHUA, RepairRequestStatus.CHO_XU_LY)
+    ).toThrow(ValidationError);
+  });
+
+  // Rejection: transition from terminal HOAN_THANH
+  it('rejects any transition from terminal HOAN_THANH', () => {
+    expect(() =>
+      advanceRepairRequestStatus(RepairRequestStatus.HOAN_THANH, RepairRequestStatus.CHO_XU_LY)
+    ).toThrow(ValidationError);
+  });
+
+  it('rejects any transition from terminal HOAN_THANH to DA_HUY', () => {
+    expect(() =>
+      advanceRepairRequestStatus(RepairRequestStatus.HOAN_THANH, RepairRequestStatus.DA_HUY)
+    ).toThrow(ValidationError);
+  });
+
+  // Rejection: transition from terminal DA_HUY
+  it('rejects any transition from terminal DA_HUY', () => {
+    expect(() =>
+      advanceRepairRequestStatus(RepairRequestStatus.DA_HUY, RepairRequestStatus.CHO_XU_LY)
+    ).toThrow(ValidationError);
+  });
+
+  // ADMIN bypass
+  it('bypass allows skip: CHO_XU_LY → HOAN_THANH', () => {
+    expect(advanceRepairRequestStatus(
+      RepairRequestStatus.CHO_XU_LY,
+      RepairRequestStatus.HOAN_THANH,
+      { bypass: true }
+    )).toBe(RepairRequestStatus.HOAN_THANH);
+  });
+
+  it('bypass allows any transition from terminal HOAN_THANH', () => {
+    expect(advanceRepairRequestStatus(
+      RepairRequestStatus.HOAN_THANH,
+      RepairRequestStatus.CHO_XU_LY,
+      { bypass: true }
+    )).toBe(RepairRequestStatus.CHO_XU_LY);
+  });
+
+  it('bypass allows cancel from terminal DA_HUY', () => {
+    expect(advanceRepairRequestStatus(
+      RepairRequestStatus.DA_HUY,
+      RepairRequestStatus.DANG_SUA_CHUA,
+      { bypass: true }
+    )).toBe(RepairRequestStatus.DANG_SUA_CHUA);
+  });
+});
+
+// ─── advanceFaultRecordStatus ─────────────────────────────────────────────────
+
+describe('advanceFaultRecordStatus', () => {
+  // Scenario 1: Single-step advance from DANG_THEO_DOI to DA_XU_LY
+  it('allows DANG_THEO_DOI → DA_XU_LY', () => {
+    expect(advanceFaultRecordStatus(
+      FaultRecordStatus.DANG_THEO_DOI,
+      FaultRecordStatus.DA_XU_LY
+    )).toBe(FaultRecordStatus.DA_XU_LY);
+  });
+
+  // Scenario 2: DA_XU_LY to TAI_PHAT is allowed (reopen)
+  it('allows DA_XU_LY → TAI_PHAT', () => {
+    expect(advanceFaultRecordStatus(
+      FaultRecordStatus.DA_XU_LY,
+      FaultRecordStatus.TAI_PHAT
+    )).toBe(FaultRecordStatus.TAI_PHAT);
+  });
+
+  // Scenario 3: TAI_PHAT to DA_XU_LY is allowed (resolve again)
+  it('allows TAI_PHAT → DA_XU_LY', () => {
+    expect(advanceFaultRecordStatus(
+      FaultRecordStatus.TAI_PHAT,
+      FaultRecordStatus.DA_XU_LY
+    )).toBe(FaultRecordStatus.DA_XU_LY);
+  });
+
+  // Scenario 4: No-op returns unchanged
+  it('accepts no-op: DANG_THEO_DOI → DANG_THEO_DOI', () => {
+    expect(advanceFaultRecordStatus(
+      FaultRecordStatus.DANG_THEO_DOI,
+      FaultRecordStatus.DANG_THEO_DOI
+    )).toBe(FaultRecordStatus.DANG_THEO_DOI);
+  });
+
+  it('accepts no-op: DA_XU_LY → DA_XU_LY', () => {
+    expect(advanceFaultRecordStatus(
+      FaultRecordStatus.DA_XU_LY,
+      FaultRecordStatus.DA_XU_LY
+    )).toBe(FaultRecordStatus.DA_XU_LY);
+  });
+
+  // Scenario 5: Skip step from DANG_THEO_DOI to TAI_PHAT is rejected
+  it('rejects skip: DANG_THEO_DOI → TAI_PHAT', () => {
+    expect(() =>
+      advanceFaultRecordStatus(FaultRecordStatus.DANG_THEO_DOI, FaultRecordStatus.TAI_PHAT)
+    ).toThrow(ValidationError);
+  });
+
+  it('rejects backward: DA_XU_LY → DANG_THEO_DOI', () => {
+    expect(() =>
+      advanceFaultRecordStatus(FaultRecordStatus.DA_XU_LY, FaultRecordStatus.DANG_THEO_DOI)
+    ).toThrow(ValidationError);
+  });
+
+  it('throws ValidationError with Vietnamese message on illegal transition', () => {
+    try {
+      advanceFaultRecordStatus(FaultRecordStatus.DANG_THEO_DOI, FaultRecordStatus.TAI_PHAT);
+      fail('Expected ValidationError');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).message).toMatch(/Không thể chuyển trạng thái sự cố/);
+    }
+  });
+
+  // Scenario 6: Bypass accepts any in-enum value
+  it('bypass allows DANG_THEO_DOI → TAI_PHAT without throwing', () => {
+    expect(advanceFaultRecordStatus(
+      FaultRecordStatus.DANG_THEO_DOI,
+      FaultRecordStatus.TAI_PHAT,
+      { bypass: true }
+    )).toBe(FaultRecordStatus.TAI_PHAT);
+  });
+
+  it('bypass allows any enum value', () => {
+    expect(advanceFaultRecordStatus(
+      FaultRecordStatus.DA_XU_LY,
+      FaultRecordStatus.DANG_THEO_DOI,
+      { bypass: true }
+    )).toBe(FaultRecordStatus.DANG_THEO_DOI);
   });
 });

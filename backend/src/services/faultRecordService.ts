@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, FaultRecordStatus } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError, ValidationError } from '@utils/errors';
@@ -7,18 +7,19 @@ import ExcelJS from 'exceljs';
 import notificationService from '@services/notificationService';
 import { NotificationEvent } from '@types';
 import logger from '@config/logger';
+import { advanceFaultRecordStatus } from '@utils/statusTransitions';
 
 // Threshold for recurrence-threshold notification
 const RECURRENCE_NOTIFICATION_THRESHOLD = 3;
 
 const SEVERITY_KEYS = ['Nghiêm trọng', 'Trung bình', 'Nhẹ'] as const;
-const STATUS_KEYS = ['Đang theo dõi', 'Đã xử lý', 'Tái phát'] as const;
+const STATUS_KEYS = [FaultRecordStatus.DANG_THEO_DOI, FaultRecordStatus.DA_XU_LY, FaultRecordStatus.TAI_PHAT] as const;
 
 // Roles allowed to auto-create templates (canMutate gate)
 const CAN_MUTATE_ROLES = ['ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'];
 
 type SeverityKey = typeof SEVERITY_KEYS[number];
-type StatusKey = typeof STATUS_KEYS[number];
+type StatusKey = FaultRecordStatus;
 
 export interface RepairStepInput {
   moTa: string;
@@ -35,7 +36,7 @@ interface CreateFaultRecordData {
   machineSystemDetailId?: string;
   faultTemplateId?: string;
   mucDo?: string;
-  trangThai?: string;
+  // trangThai is intentionally omitted — server always defaults to DANG_THEO_DOI
   nguoiPhatHien: string;
   ngayPhatHien?: Date;
   fileDinhKem?: string;
@@ -55,7 +56,8 @@ interface UpdateFaultRecordData {
   machineSystemDetailId?: string | null;
   faultTemplateId?: string | null;
   mucDo?: string;
-  trangThai?: string;
+  // trangThai is intentionally omitted — use mark-resolved / mark-recurred endpoints
+  trangThai?: string; // accepted but dropped silently (3.1)
   nguoiPhatHien?: string;
   ngayPhatHien?: Date;
   fileDinhKem?: string;
@@ -86,6 +88,7 @@ const faultRecordListSelect = {
   trangThai: true,
   nguoiPhatHien: true,
   ngayPhatHien: true,
+  ngayXuLy: true,
   fileDinhKem: true,
   createdAt: true,
   updatedAt: true,
@@ -284,7 +287,7 @@ class FaultRecordService {
             machineSystemDetailId: data.machineSystemDetailId ?? null,
             faultTemplateId: template.id,
             mucDo,
-            trangThai: data.trangThai ?? 'Đang theo dõi',
+            // trangThai defaults to DANG_THEO_DOI via Prisma schema default
             nguoiPhatHien: data.nguoiPhatHien,
             ngayPhatHien: data.ngayPhatHien ?? new Date(),
             fileDinhKem: data.fileDinhKem ?? null,
@@ -313,7 +316,7 @@ class FaultRecordService {
         machineSystemDetailId: context.machineSystemDetail?.id,
         faultTemplateId: context.template?.id,
         mucDo,
-        trangThai: data.trangThai ?? 'Đang theo dõi',
+        // trangThai defaults to DANG_THEO_DOI via Prisma schema default
         nguoiPhatHien: data.nguoiPhatHien,
         ngayPhatHien: data.ngayPhatHien ?? new Date(),
         fileDinhKem: data.fileDinhKem,
@@ -347,10 +350,18 @@ class FaultRecordService {
       }
     }
 
+    // Task 3.7/3.8: Detect recurrence on new fault record creation (fire-and-forget, never throws)
+    await this.detectRecurrenceOnCreate(record, data.userId ?? null);
+
     return record;
   }
 
   async updateFaultRecord(id: string, data: UpdateFaultRecordData) {
+    // Task 3.1: Drop trangThai silently with warning — status changes go through mark-resolved / mark-recurred
+    if (data.trangThai !== undefined) {
+      console.warn(`[FaultRecordService] updateFaultRecord: trangThai in body for record ${id} — dropped silently`);
+    }
+
     const existing = await this.getFaultRecordById(id);
     const needsContext =
       data.faultTemplateId !== undefined ||
@@ -367,15 +378,8 @@ class FaultRecordService {
         })
       : null;
 
-    // D8: ngayXuLy side-effect on status transition
-    let ngayXuLyUpdate: { ngayXuLy: Date | null } | Record<string, never> = {};
-    if (data.trangThai !== undefined && data.trangThai !== existing.trangThai) {
-      if (data.trangThai === 'Đã xử lý' && existing.trangThai !== 'Đã xử lý') {
-        ngayXuLyUpdate = { ngayXuLy: new Date() };
-      } else if (data.trangThai !== 'Đã xử lý' && existing.trangThai === 'Đã xử lý') {
-        ngayXuLyUpdate = { ngayXuLy: null };
-      }
-    }
+    // Ensure existing record variable is used (suppress unused warning)
+    void existing;
 
     return prisma.faultRecord.update({
       where: { id },
@@ -387,11 +391,10 @@ class FaultRecordService {
         machineSystemDetailId: needsContext ? context?.machineSystemDetail?.id ?? null : undefined,
         faultTemplateId: needsContext ? context?.template?.id ?? null : undefined,
         mucDo: data.mucDo ?? (context?.template ? context.template.mucDo : undefined),
-        trangThai: data.trangThai,
+        // trangThai deliberately NOT written here
         nguoiPhatHien: data.nguoiPhatHien,
         ngayPhatHien: data.ngayPhatHien,
         fileDinhKem: data.fileDinhKem,
-        ...ngayXuLyUpdate,
       },
       include: faultRecordInclude,
     });
@@ -400,6 +403,251 @@ class FaultRecordService {
   async deleteFaultRecord(id: string) {
     await this.getFaultRecordById(id);
     return prisma.faultRecord.delete({ where: { id } });
+  }
+
+  // ── Task 3.2: markResolved ─────────────────────────────────────────────────
+  // Concurrency-safe: uses conditional updateMany (where trangThai=expected) inside
+  // the transaction. If another request already transitioned this record, updateMany
+  // returns count=0 and the log insert is skipped → idempotent under button spam.
+  async markResolved(id: string, actorId: string | null, reason?: string) {
+    const record = await prisma.faultRecord.findUnique({ where: { id } });
+    if (!record) throw new NotFoundError('Không tìm thấy bản ghi lỗi');
+
+    const newStatus = advanceFaultRecordStatus(record.trangThai, FaultRecordStatus.DA_XU_LY);
+    if (newStatus === record.trangThai) return { transitioned: false as const };
+
+    const transitioned = await prisma.$transaction(async (tx) => {
+      const result = await tx.faultRecord.updateMany({
+        where: { id, trangThai: record.trangThai },
+        data: { trangThai: newStatus, ngayXuLy: new Date() },
+      });
+      if (result.count === 0) return false;
+      await tx.faultRecordStatusLog.create({
+        data: {
+          faultRecordId: id,
+          oldStatus: record.trangThai,
+          newStatus,
+          actorId: actorId ?? null,
+          reason: reason ?? null,
+          source: 'manual',
+        },
+      });
+      return true;
+    });
+
+    if (transitioned) {
+      try {
+        await notificationService.notify(NotificationEvent.FAULT_RECORD_RESOLVED, {
+          entityId: id,
+          metadata: { faultRecordId: id, actorId },
+        });
+      } catch (err) {
+        logger.error('[FaultRecordService] markResolved notification failed', err);
+      }
+    }
+
+    return { transitioned };
+  }
+
+  // ── Task 3.3: markResolvedFromRepair ─────────────────────────────────────────
+  // Never throws — errors are logged. Called from within another transaction that must not roll back.
+  // Concurrency-safe: conditional updateMany prevents double-logging when the same
+  // RepairRequest cascade fires twice (e.g., idempotent handover retries).
+  async markResolvedFromRepair(id: string, repairRequestId: number, actorId: string | null) {
+    try {
+      const record = await prisma.faultRecord.findUnique({
+        where: { id },
+        select: { id: true, trangThai: true },
+      });
+      if (!record) return; // already deleted — no-op
+      if (record.trangThai === FaultRecordStatus.DA_XU_LY) return;
+
+      const repairRequest = await prisma.repairRequest.findUnique({
+        where: { id: repairRequestId },
+        select: { maYeuCau: true },
+      });
+
+      const newStatus = advanceFaultRecordStatus(record.trangThai, FaultRecordStatus.DA_XU_LY, { bypass: true });
+
+      await prisma.$transaction(async (tx) => {
+        const result = await tx.faultRecord.updateMany({
+          where: { id, trangThai: record.trangThai },
+          data: { trangThai: newStatus, ngayXuLy: new Date() },
+        });
+        if (result.count === 0) return;
+        await tx.faultRecordStatusLog.create({
+          data: {
+            faultRecordId: id,
+            oldStatus: record.trangThai,
+            newStatus,
+            actorId: actorId ?? null,
+            reason: repairRequest
+              ? `Tự động từ yêu cầu sửa chữa: ${repairRequest.maYeuCau}`
+              : `Tự động từ yêu cầu sửa chữa #${repairRequestId}`,
+            source: 'auto_from_repair',
+          },
+        });
+      });
+    } catch (err) {
+      logger.error(`[FaultRecordService] markResolvedFromRepair failed for id=${id}`, err);
+    }
+  }
+
+  // ── Task 3.4: markRecurred ─────────────────────────────────────────────────
+  // Concurrency-safe: same conditional-updateMany pattern as markResolved.
+  // Only the caller that wins the row-lock race inserts a status log + notification.
+  async markRecurred(id: string, actorId: string | null, opts: { auto?: boolean; reason?: string } = {}) {
+    const record = await prisma.faultRecord.findUnique({ where: { id } });
+    if (!record) throw new NotFoundError('Không tìm thấy bản ghi lỗi');
+
+    const newStatus = advanceFaultRecordStatus(record.trangThai, FaultRecordStatus.TAI_PHAT);
+    if (newStatus === record.trangThai) return { transitioned: false as const };
+
+    const transitioned = await prisma.$transaction(async (tx) => {
+      const result = await tx.faultRecord.updateMany({
+        where: { id, trangThai: record.trangThai },
+        data: { trangThai: newStatus, ngayXuLy: null },
+      });
+      if (result.count === 0) return false;
+      await tx.faultRecordStatusLog.create({
+        data: {
+          faultRecordId: id,
+          oldStatus: record.trangThai,
+          newStatus,
+          actorId: actorId ?? null,
+          reason: opts.reason ?? null,
+          source: opts.auto ? 'recurrence_detected_manual_confirm' : 'manual',
+        },
+      });
+      return true;
+    });
+
+    if (transitioned) {
+      try {
+        await notificationService.notify(NotificationEvent.FAULT_RECORD_RECURRED, {
+          entityId: id,
+          metadata: { faultRecordId: id, actorId },
+        });
+      } catch (err) {
+        logger.error('[FaultRecordService] markRecurred notification failed', err);
+      }
+    }
+
+    return { transitioned };
+  }
+
+  // ── Task 3.5: getStatusHistory ────────────────────────────────────────────
+  // Hydrates actorName from auth.User for UI display (log rows only store actorId).
+  async getStatusHistory(id: string, opts: { page?: number; limit?: number } = {}) {
+    const page = opts.page ?? 1;
+    const limit = opts.limit ?? 20;
+    const { skip, limit: limitNum } = getPaginationParams(page, limit);
+
+    const [rows, total] = await Promise.all([
+      prisma.faultRecordStatusLog.findMany({
+        where: { faultRecordId: id },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+      }),
+      prisma.faultRecordStatusLog.count({ where: { faultRecordId: id } }),
+    ]);
+
+    const actorIds = [...new Set(rows.map((row) => row.actorId).filter(Boolean))] as string[];
+    const actorNames = new Map<string, string>();
+    if (actorIds.length > 0) {
+      const users = await prisma.user.findMany({
+        where: { id: { in: actorIds } },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      users.forEach((user) => {
+        actorNames.set(user.id, `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim());
+      });
+    }
+
+    const data = rows.map((row) => ({
+      ...row,
+      actorName: row.actorId ? (actorNames.get(row.actorId) ?? null) : null,
+    }));
+
+    return {
+      data,
+      pagination: { page, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+    };
+  }
+
+  // ── Task 3.6: getForTypeahead ──────────────────────────────────────────────
+  async getForTypeahead(filters: {
+    trangThai?: FaultRecordStatus[];
+    search?: string;
+    limit?: number;
+  }) {
+    const limit = Math.min(filters.limit ?? 10, 20);
+    const where: Prisma.FaultRecordWhereInput = {};
+    if (filters.trangThai && filters.trangThai.length > 0) {
+      where.trangThai = { in: filters.trangThai };
+    }
+    if (filters.search) {
+      where.OR = [
+        { maLoi: { contains: filters.search, mode: 'insensitive' } },
+        { tenLoi: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    return prisma.faultRecord.findMany({
+      where,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        maLoi: true,
+        tenLoi: true,
+        trangThai: true,
+        mucDo: true,
+        machineSystemDetailId: true,
+      },
+    });
+  }
+
+  // ── Task 3.7: detectRecurrenceOnCreate ─────────────────────────────────────
+  // Log-only: finds prior DA_XU_LY record with same machineSystemDetailId+tenLoi within 90 days.
+  // Inserts a log row on the OLD record. Never changes status. Never throws.
+  async detectRecurrenceOnCreate(
+    newRecord: { id: string; maLoi: string; machineSystemDetailId: string | null; tenLoi: string },
+    actorId: string | null
+  ) {
+    try {
+      if (!newRecord.machineSystemDetailId) return;
+
+      const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+      const priorRecord = await prisma.faultRecord.findFirst({
+        where: {
+          id: { not: newRecord.id },
+          machineSystemDetailId: newRecord.machineSystemDetailId,
+          tenLoi: newRecord.tenLoi,
+          trangThai: FaultRecordStatus.DA_XU_LY,
+          createdAt: { gte: ninetyDaysAgo },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+
+      if (!priorRecord) return;
+
+      await prisma.faultRecordStatusLog.create({
+        data: {
+          faultRecordId: priorRecord.id,
+          oldStatus: null,
+          newStatus: FaultRecordStatus.DA_XU_LY, // status unchanged — this is a signal log
+          actorId: actorId ?? null,
+          reason: `Phát hiện tái phát tương tự: ${newRecord.maLoi}`,
+          source: 'recurrence_detected',
+        },
+      });
+    } catch (err) {
+      logger.error('[FaultRecordService] detectRecurrenceOnCreate failed', err);
+    }
   }
 
   async checkRecurrence(params: {
@@ -560,12 +808,12 @@ class FaultRecordService {
         ? prisma.$queryRaw<[{ mttr: number | null }]>`
             SELECT ROUND(AVG(EXTRACT(EPOCH FROM ("ngayXuLy" - "ngayPhatHien")) / 86400)::numeric, 1)::float AS mttr
             FROM "business"."fault_records"
-            WHERE "ngayXuLy" IS NOT NULL AND "trangThai" = 'Đã xử lý' AND "machineSystemId" = ${machineSystemId}
+            WHERE "ngayXuLy" IS NOT NULL AND "trangThai" = 'DA_XU_LY'::"business"."FaultRecordStatus" AND "machineSystemId" = ${machineSystemId}
           `
         : prisma.$queryRaw<[{ mttr: number | null }]>`
             SELECT ROUND(AVG(EXTRACT(EPOCH FROM ("ngayXuLy" - "ngayPhatHien")) / 86400)::numeric, 1)::float AS mttr
             FROM "business"."fault_records"
-            WHERE "ngayXuLy" IS NOT NULL AND "trangThai" = 'Đã xử lý'
+            WHERE "ngayXuLy" IS NOT NULL AND "trangThai" = 'DA_XU_LY'::"business"."FaultRecordStatus"
           `,
     ]);
 

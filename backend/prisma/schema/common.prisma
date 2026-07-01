@@ -861,9 +861,9 @@ enum HalfDayPeriod {
 }
 
 model RepairRequest {
-  id               Int      @id @default(autoincrement())
-  ngayThang        DateTime @default(now())
-  maYeuCau         String   @unique
+  id               Int                  @id @default(autoincrement())
+  ngayThang        DateTime             @default(now())
+  maYeuCau         String               @unique
   // @deprecated — kept for backward compatibility, use items relation instead
   tenHeThong       String? // Tên hệ thống/thiết bị
   // @deprecated — kept for backward compatibility, use items relation instead
@@ -872,19 +872,29 @@ model RepairRequest {
   loaiLoi          String? // Loại lỗi
   mucDoUuTien      String // Mức độ ưu tiên
   // @deprecated — kept for backward compatibility, use items relation instead
-  noiDungLoi       String?  @db.Text // Nội dung lỗi
-  ghiChu           String?  @db.Text
-  trangThai        String   @default("Chờ xử lý") // Trạng thái
+  noiDungLoi       String?              @db.Text // Nội dung lỗi
+  ghiChu           String?              @db.Text
+  trangThai        RepairRequestStatus  @default(CHO_XU_LY) // Trạng thái
   fileDinhKem      String? // File đính kèm
   createdById      String? // soft ref to auth.User.id — no FK constraint
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
   items               RepairRequestItem[]
   acceptanceHandovers AcceptanceHandover[]
+  repairRequestStatusLogs RepairRequestStatusLog[]
 
   @@index([createdById])
   @@map("repair_requests")
+  @@schema("common")
+}
+
+enum RepairRequestStatus {
+  CHO_XU_LY    // Chờ xử lý
+  DANG_SUA_CHUA // Đang sửa chữa
+  HOAN_THANH   // Hoàn thành
+  DA_HUY       // Đã hủy
+
   @@schema("common")
 }
 
@@ -893,6 +903,7 @@ model RepairRequestItem {
   repairRequestId       Int
   machineSystemId       String?
   machineSystemDetailId String?
+  faultRecordId         String?                  @db.VarChar(30) // optional link to FaultRecord
   tenHeThong            String // Tên hệ thống/thiết bị
   tinhTrangThietBi      String // Khu vực sử dụng / tình trạng
   loaiLoi               String // Loại lỗi (Lỗi mới / Lỗi lặp lại)
@@ -902,11 +913,13 @@ model RepairRequestItem {
   repairRequest         RepairRequest            @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
   machineSystem         MachineSystem?           @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
   machineSystemDetail   MachineSystemDetail?     @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
+  faultRecord           FaultRecord?             @relation(fields: [faultRecordId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   handoverItems         AcceptanceHandoverItem[]
 
   @@index([repairRequestId])
   @@index([machineSystemId])
   @@index([machineSystemDetailId])
+  @@index([faultRecordId])
   @@map("repair_request_items")
   @@schema("common")
 }
