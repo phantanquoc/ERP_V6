@@ -1,5 +1,9 @@
-## Requirements
+# fault-records Specification
 
+## Purpose
+
+Defines the FaultRecord capability: creating, reading, updating, and deleting fault records across departments; fault template management; recurrence detection; aggregate statistics and heatmap; and lifecycle status management via dedicated business-event endpoints.
+## Requirements
 ### Requirement: Production users SHALL be able to create fault records
 
 Authenticated users from any department SHALL be able to read the fault records list and create new fault records. Production line operators must be able to log faults they observe without involving the technical team. Edit and delete operations SHALL remain restricted to ADMIN and the technical mechanical sub-department.
@@ -250,22 +254,27 @@ The system SHALL expose `GET /api/fault-records/heatmap` returning an array of `
 
 ### Requirement: System SHALL capture resolution timestamp on status transition to Đã xử lý
 
-The system SHALL store `ngayXuLy: DateTime?` on `business.FaultRecord`. When `faultRecordService.updateFaultRecord` receives a payload that transitions `trangThai` from a non-`Đã xử lý` value to `Đã xử lý`, the service SHALL set `ngayXuLy = now()`. When the payload transitions `trangThai` away from `Đã xử lý` to any other status, the service SHALL clear `ngayXuLy = null`. The system SHALL NOT expose a generic `PATCH /status` endpoint.
+The system SHALL store `ngayXuLy: DateTime?` on `business.FaultRecord`. Status transitions SHALL flow exclusively through the dedicated endpoints `POST /api/fault-records/:id/mark-resolved` and `POST /api/fault-records/:id/mark-recurred` (see the `fault-record-lifecycle` capability) — the generic `PUT /api/fault-records/:id` endpoint SHALL ignore any `trangThai` field in the request body. When `faultRecordService.markResolved` (or the cascade `markResolvedFromRepair` triggered by RepairRequest completion) advances `trangThai` to `DA_XU_LY`, the service SHALL set `ngayXuLy = now()`. When `faultRecordService.markRecurred` advances `trangThai` to `TAI_PHAT`, the service SHALL clear `ngayXuLy = null`. The system SHALL NOT expose a generic `PATCH /status` endpoint.
 
-#### Scenario: Service sets ngayXuLy on transition into Đã xử lý
+#### Scenario: mark-resolved sets ngayXuLy
 
-- **WHEN** an authorized user updates a `FaultRecord` whose current `trangThai` is `Đang theo dõi` or `Tái phát` with payload `{ trangThai: 'Đã xử lý' }`
-- **THEN** the service writes `ngayXuLy = now()` together with the new `trangThai`
+- **WHEN** an authorized user calls `POST /api/fault-records/:id/mark-resolved` on a record whose current `trangThai` is `DANG_THEO_DOI` or `TAI_PHAT`
+- **THEN** the service writes `ngayXuLy = now()` together with `trangThai = DA_XU_LY`
 
-#### Scenario: Service clears ngayXuLy on transition out of Đã xử lý
+#### Scenario: mark-recurred clears ngayXuLy
 
-- **WHEN** an authorized user updates a `FaultRecord` whose current `trangThai` is `Đã xử lý` with payload `{ trangThai: 'Đang theo dõi' }` or `{ trangThai: 'Tái phát' }`
-- **THEN** the service writes `ngayXuLy = null` together with the new `trangThai`
+- **WHEN** an authorized user calls `POST /api/fault-records/:id/mark-recurred` on a record whose current `trangThai` is `DA_XU_LY`
+- **THEN** the service writes `ngayXuLy = null` together with `trangThai = TAI_PHAT`
 
-#### Scenario: Service leaves ngayXuLy untouched when status does not change
+#### Scenario: PUT ignores trangThai and leaves ngayXuLy untouched
 
-- **WHEN** an authorized user updates a `FaultRecord` without supplying `trangThai` in the payload, or with a `trangThai` value equal to the existing one
-- **THEN** the service does not write to `ngayXuLy`
+- **WHEN** an authorized user calls `PUT /api/fault-records/:id` with a body containing `trangThai` (any value) but valid other fields
+- **THEN** the service updates the other fields, ignores `trangThai` with a warning log, and does not write to `ngayXuLy`
+
+#### Scenario: Auto cascade from RepairRequest completion sets ngayXuLy
+
+- **WHEN** the RepairRequest cascade calls `faultRecordService.markResolvedFromRepair(id, repairRequestId, actorId)` on a linked FaultRecord currently at `DANG_THEO_DOI` or `TAI_PHAT`
+- **THEN** the service writes `ngayXuLy = now()` together with `trangThai = DA_XU_LY` and inserts a status log row with `source = 'auto_from_repair'`
 
 ### Requirement: System SHALL notify technical subscribers when recurrence threshold is reached
 
@@ -390,3 +399,4 @@ The system SHALL display a detail drawer/modal when a user clicks on a template 
 
 - **WHEN** the template detail drawer opens for a template with repair steps
 - **THEN** the drawer displays a "Quy trình sửa" section with ordered repair steps showing stepNumber, moTa, thoiGianUocTinh, and dungCu
+
