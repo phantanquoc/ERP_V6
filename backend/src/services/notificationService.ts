@@ -24,7 +24,41 @@ export class NotificationService {
       return;
     }
 
-    const recipientEmployeeIds = await def.resolveRecipients(ctx);
+    let recipientEmployeeIds = await def.resolveRecipients(ctx);
+    if (recipientEmployeeIds.length === 0) return;
+
+    // Filter out employees whose user has muted this notification type
+    try {
+      const mutedPrefs = await prisma.notificationPreference.findMany({
+        where: {
+          notificationType: def.notificationType,
+          muted: true,
+          user: {
+            employees: {
+              id: { in: recipientEmployeeIds },
+            },
+          },
+        },
+        select: { userId: true },
+      });
+
+      if (mutedPrefs.length > 0) {
+        const mutedUserIds = mutedPrefs.map((p) => p.userId);
+        const mutedEmployees = await prisma.employee.findMany({
+          where: { userId: { in: mutedUserIds } },
+          select: { id: true },
+        });
+        const mutedEmployeeIdSet = new Set(mutedEmployees.map((e) => e.id));
+        recipientEmployeeIds = recipientEmployeeIds.filter(
+          (id) => !mutedEmployeeIdSet.has(id)
+        );
+      }
+    } catch (err) {
+      logger.warn(
+        `[NotificationService] Preference filter failed for event ${event}, falling back to all recipients: ${err}`
+      );
+    }
+
     if (recipientEmployeeIds.length === 0) return;
 
     const { title, message } = def.buildMessage(ctx);

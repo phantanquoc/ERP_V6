@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import notificationController from '@controllers/notificationController';
+import notificationPreferencesController from '@controllers/notificationPreferencesController';
 import { authenticate } from '@middlewares/auth';
 
 const router = Router();
@@ -121,6 +122,24 @@ router.patch(
   '/read-all',
   authenticate,
   notificationController.markAllAsRead
+);
+
+/**
+ * GET  /api/notifications/preferences
+ * PATCH /api/notifications/preferences
+ * Per-user notification mute preferences.
+ * NOTE: must be registered BEFORE /:notificationId routes.
+ */
+router.get(
+  '/preferences',
+  authenticate,
+  notificationPreferencesController.getPreferences
+);
+
+router.patch(
+  '/preferences',
+  authenticate,
+  notificationPreferencesController.updatePreferences
 );
 
 /**
