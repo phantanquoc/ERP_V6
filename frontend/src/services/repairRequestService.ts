@@ -2,12 +2,35 @@ import apiClient, { ApiResponse } from './apiClient';
 import { API_BASE_URL } from '../config/api';
 import type { MachineSystem, MachineSystemDetail } from './machineSystemService';
 
+// 7.1 Typed enum matching the Prisma enum on the backend
+export type RepairRequestStatus = 'CHO_XU_LY' | 'DANG_SUA_CHUA' | 'HOAN_THANH' | 'DA_HUY';
+
+export const STATUS_LABELS: Record<RepairRequestStatus, { label: string; tone: 'gray' | 'blue' | 'green' | 'red' }> = {
+  CHO_XU_LY: { label: 'Chờ xử lý', tone: 'gray' },
+  DANG_SUA_CHUA: { label: 'Đang sửa chữa', tone: 'blue' },
+  HOAN_THANH: { label: 'Hoàn thành', tone: 'green' },
+  DA_HUY: { label: 'Đã hủy', tone: 'red' },
+};
+
+export interface RepairRequestStatusLogEntry {
+  id: string;
+  repairRequestId: number;
+  oldStatus: RepairRequestStatus;
+  newStatus: RepairRequestStatus;
+  actorId: string | null;
+  actorRole: string | null;
+  actorName: string | null;
+  reason: string | null;
+  createdAt: string;
+}
+
 export interface RepairRequestItem {
   id: string;
   repairRequestId: number;
   machineSystemId?: string | null;
   machineSystemDetailId?: string | null;
   machineId?: string | null;
+  faultRecordId?: string | null;
   tenHeThong: string;
   tinhTrangThietBi: string;
   loaiLoi: string;
@@ -17,6 +40,7 @@ export interface RepairRequestItem {
   machineSystem?: MachineSystem | null;
   machineSystemDetail?: MachineSystemDetail | null;
   machine?: { id: string; maMay: string; tenMay: string; trangThai: string } | null;
+  faultRecord?: { id: string; maLoi: string; tenLoi: string } | null;
 }
 
 export interface AcceptanceHandoverSummary {
@@ -40,7 +64,7 @@ export interface RepairRequest {
   mucDoUuTien: string;
   noiDungLoi?: string | null;
   ghiChu?: string | null;
-  trangThai: string;
+  trangThai: RepairRequestStatus;
   fileDinhKem?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -51,6 +75,7 @@ export interface RepairRequest {
 export interface RepairRequestItemInput {
   machineSystemId?: string;
   machineSystemDetailId?: string;
+  faultRecordId?: string | null;
   tenHeThong: string;
   tinhTrangThietBi: string;
   loaiLoi: string;
@@ -66,7 +91,6 @@ export interface CreateRepairRequestRequest {
   mucDoUuTien: string;
   noiDungLoi?: string;
   ghiChu?: string;
-  trangThai?: string;
   items?: RepairRequestItemInput[];
 }
 
@@ -76,7 +100,51 @@ export interface RepairRequestFilters {
   page?: number;
   limit?: number;
   search?: string;
-  trangThai?: string;
+  trangThai?: RepairRequestStatus;
+}
+
+// 9.1: Stats types matching backend getStats response shape
+export interface RepairRequestStatsFilters {
+  dateFrom?: string; // ISO date string
+  dateTo?: string;   // ISO date string
+  machineSystemId?: string;
+}
+
+export interface RepairRequestStatsMachine {
+  machineSystemId: string | null;
+  tenHeThong: string | null;
+  count: number;
+}
+
+export interface RepairRequestStatsRecurring {
+  machineSystemDetailId: string | null;
+  tenChiTiet: string | null;
+  count: number;
+  latestMaYeuCau: string | null;
+}
+
+export interface RepairRequestStatsRecentlyCreated {
+  id: number;
+  maYeuCau: string;
+  tenHeThongThietBi: string | null;
+  trangThai: RepairRequestStatus;
+  createdAt: string;
+  itemCount: number;
+}
+
+export interface RepairRequestStatsResponse {
+  total: number;
+  byStatus: Record<string, number>;
+  avgCompletionHours: number | null;
+  delta: {
+    total: number;
+    byStatus: Record<string, number>;
+    avgCompletionHours: number | null;
+  };
+  topMachines: RepairRequestStatsMachine[];
+  recurringItems: RepairRequestStatsRecurring[];
+  monthlyTrend: Array<{ month: string; total: number; hoanThanh: number }>;
+  recentlyCreated: RepairRequestStatsRecentlyCreated[];
 }
 
 const appendFormFields = (formData: FormData, data: Record<string, unknown>) => {
@@ -145,6 +213,29 @@ class RepairRequestService {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  // 7.2 New business-event methods
+
+  async startRepair(id: number | string): Promise<ApiResponse<RepairRequest>> {
+    return apiClient.post<RepairRequest>(`/repair-requests/${id}/start-repair`, {});
+  }
+
+  async cancel(id: number | string, reason?: string): Promise<ApiResponse<RepairRequest>> {
+    return apiClient.post<RepairRequest>(`/repair-requests/${id}/cancel`, { reason });
+  }
+
+  async getStatusHistory(id: number | string): Promise<ApiResponse<RepairRequestStatusLogEntry[]>> {
+    return apiClient.get<RepairRequestStatusLogEntry[]>(`/repair-requests/${id}/status-history`);
+  }
+
+  // 9.1: Stats endpoint
+  async getStats(filters?: RepairRequestStatsFilters): Promise<ApiResponse<RepairRequestStatsResponse>> {
+    const params: Record<string, string> = {};
+    if (filters?.dateFrom) params.dateFrom = filters.dateFrom;
+    if (filters?.dateTo) params.dateTo = filters.dateTo;
+    if (filters?.machineSystemId) params.machineSystemId = filters.machineSystemId;
+    return apiClient.get<RepairRequestStatsResponse>('/repair-requests/stats', { params });
   }
 }
 

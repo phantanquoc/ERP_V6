@@ -3,6 +3,8 @@ import { API_BASE_URL } from '../config/api';
 import type { FaultTemplate, RepairStepInput } from './faultTemplateService';
 import type { MachineSystem, MachineSystemDetail, SortOrder } from './machineSystemService';
 
+export type FaultRecordStatus = 'DANG_THEO_DOI' | 'DA_XU_LY' | 'TAI_PHAT';
+
 export interface FaultRecord {
   id: string;
   maLoi: string;
@@ -14,9 +16,10 @@ export interface FaultRecord {
   machineId?: string | null;
   faultTemplateId?: string | null;
   mucDo: string;
-  trangThai: string;
+  trangThai: FaultRecordStatus;
   nguoiPhatHien: string;
   ngayPhatHien: string;
+  ngayXuLy?: string | null;
   fileDinhKem?: string;
   createdAt: string;
   updatedAt: string;
@@ -92,7 +95,7 @@ export interface CreateFaultRecordRequest {
   machineId?: string;
   faultTemplateId?: string;
   mucDo?: string;
-  trangThai?: string;
+  /** Server defaults new records to DANG_THEO_DOI — do not send trangThai on create */
   nguoiPhatHien: string;
   ngayPhatHien?: string;
   repairSteps?: RepairStepInput[];
@@ -108,6 +111,26 @@ export interface CreateFaultRecordFromTemplateRequest {
   tenLoi?: string;
   moTa?: string;
   mucDo?: string;
+}
+
+export interface FaultStatusLog {
+  id: string;
+  faultRecordId: string;
+  oldStatus: FaultRecordStatus | null;
+  newStatus: FaultRecordStatus;
+  actorId: string | null;
+  actorName: string | null;
+  reason: string | null;
+  source: string;
+  createdAt: string;
+}
+
+export interface FaultTypeaheadItem {
+  id: string;
+  maLoi: string;
+  tenLoi: string;
+  trangThai: FaultRecordStatus;
+  machineSystemDetailId: string | null;
 }
 
 export interface FaultRecordFilters {
@@ -264,6 +287,43 @@ class FaultRecordService {
       window.URL.revokeObjectURL(url);
     } catch (error: unknown) {
       throw new Error(getErrorMessage(error, 'Lỗi khi xuất Excel'));
+    }
+  }
+  async markResolved(id: string, reason?: string): Promise<ApiResponse<void>> {
+    try {
+      return await apiClient.post<void>(`/fault-records/${id}/mark-resolved`, { reason });
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi đánh dấu đã xử lý'));
+    }
+  }
+
+  async markRecurred(id: string, opts?: { auto?: boolean; reason?: string }): Promise<ApiResponse<void>> {
+    try {
+      return await apiClient.post<void>(`/fault-records/${id}/mark-recurred`, opts ?? {});
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi đánh dấu tái phát'));
+    }
+  }
+
+  async getStatusHistory(id: string, page = 1, limit = 20): Promise<ApiResponse<FaultStatusLog[]>> {
+    try {
+      return await apiClient.get<FaultStatusLog[]>(`/fault-records/${id}/status-history`, {
+        params: { page, limit },
+      });
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi lấy lịch sử trạng thái'));
+    }
+  }
+
+  async getForTypeahead(params: { trangThai?: FaultRecordStatus[]; search?: string; limit?: number }): Promise<ApiResponse<FaultTypeaheadItem[]>> {
+    try {
+      const queryParams: Record<string, string> = {};
+      if (params.trangThai?.length) queryParams.trangThai = params.trangThai.join(',');
+      if (params.search) queryParams.search = params.search;
+      if (params.limit) queryParams.limit = String(params.limit);
+      return await apiClient.get<FaultTypeaheadItem[]>('/fault-records/typeahead', { params: queryParams });
+    } catch (error: unknown) {
+      throw new Error(getErrorMessage(error, 'Lỗi khi tìm bản ghi lỗi'));
     }
   }
 }

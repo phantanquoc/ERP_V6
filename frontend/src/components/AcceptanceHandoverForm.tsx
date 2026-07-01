@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Plus, Trash2, X } from 'lucide-react';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
 import { useAuth } from '../contexts/AuthContext';
@@ -53,8 +53,23 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
 
   const requestItems = useMemo(() => repairRequest.items?.filter((item) => !!item.id) ?? [], [repairRequest.items]);
   const allowedItemIds = useMemo(() => new Set(requestItems.map((item) => item.id)), [requestItems]);
-  const firstItem = requestItems[0];
-  const [handoverItems, setHandoverItems] = useState<HandoverDraft[]>(firstItem ? [emptyHandoverItem(firstItem)] : []);
+  // Prefill with EVERY item on the parent so users can see the full coverage picture and only need to fill "sau sửa".
+  const [handoverItems, setHandoverItems] = useState<HandoverDraft[]>(
+    requestItems.length ? requestItems.map((item) => emptyHandoverItem(item)) : []
+  );
+
+  // 9.2 Coverage progress — dedupe by repairRequestItemId so 2 rows on the same item don't inflate the count.
+  const totalItems = requestItems.length;
+  const distinctCoveredIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of handoverItems) {
+      if (item.repairRequestItemId && allowedItemIds.has(item.repairRequestItemId)) set.add(item.repairRequestItemId);
+    }
+    return set;
+  }, [handoverItems, allowedItemIds]);
+  const coveredInThisForm = distinctCoveredIds.size;
+  const missingItemsCount = Math.max(totalItems - coveredInThisForm, 0);
+  const willBeFullCoverage = totalItems > 0 && coveredInThisForm >= totalItems;
   const deviceNames = requestItems.length
     ? requestItems.map(itemContext).join('; ')
     : repairRequest.tenHeThong ?? '';
@@ -101,6 +116,14 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
     if (unused) setHandoverItems((items) => [...items, emptyHandoverItem(unused)]);
   };
 
+  const fillAllMissingItems = () => {
+    setHandoverItems((items) => {
+      const covered = new Set(items.map((draft) => draft.repairRequestItemId));
+      const missing = requestItems.filter((item) => !covered.has(item.id)).map((item) => emptyHandoverItem(item));
+      return missing.length ? [...items, ...missing] : items;
+    });
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
@@ -128,6 +151,12 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
     if (crossRequestItem) {
       setError('Dòng nghiệm thu không thuộc yêu cầu sửa chữa hiện tại');
       return;
+    }
+
+    // 9.3 Pre-submit hint when full coverage
+    if (willBeFullCoverage) {
+      const confirmed = confirm('Số hạng mục nghiệm thu bằng tổng hạng mục yêu cầu. Yêu cầu sửa chữa sẽ được đánh dấu hoàn thành sau khi lưu. Tiếp tục?');
+      if (!confirmed) return;
     }
 
     const payload: CreateAcceptanceHandoverRequest = {
@@ -170,6 +199,37 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
         <form onSubmit={submit} className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
           {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{error}</div>}
 
+          {totalItems > 0 && (
+            willBeFullCoverage ? (
+              <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-green-800">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="text-xs leading-relaxed">
+                  <div className="font-medium">Nghiệm thu đủ {totalItems}/{totalItems} hạng mục.</div>
+                  <div>Sau khi lưu, yêu cầu sửa chữa sẽ tự động chuyển sang <b>Hoàn thành</b>.</div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="text-xs leading-relaxed">
+                    <div className="font-medium">Còn {missingItemsCount}/{totalItems} hạng mục chưa nghiệm thu.</div>
+                    <div>Yêu cầu vẫn ở trạng thái <b>Đang sửa chữa</b> đến khi tất cả hạng mục được nghiệm thu.</div>
+                  </div>
+                </div>
+                {missingItemsCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={fillAllMissingItems}
+                    className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100"
+                  >
+                    Thêm {missingItemsCount} hạng mục còn thiếu
+                  </button>
+                )}
+              </div>
+            )
+          )}
+
           <div className="grid gap-3 md:grid-cols-4">
             <label className="space-y-1">
               <span className="font-medium text-gray-700">Mã yêu cầu</span>
@@ -211,63 +271,114 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
             </label>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1">
-              <span className="font-medium text-gray-700">Snapshot hệ thống/thiết bị</span>
-              <textarea value={formData.tenHeThongThietBi} disabled rows={2} className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2" />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-gray-700">Tình trạng trước sửa chữa</span>
-              <textarea value={formData.tinhTrangTruocSuaChua} disabled rows={2} className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2" />
-            </label>
-          </div>
-
           {requestItems.length > 0 ? (
-            <div className="rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between border-b px-3 py-2">
-                <div className="font-medium text-gray-800">Nghiệm thu theo thiết bị lỗi</div>
-                <button type="button" onClick={addItem} disabled={handoverItems.length >= requestItems.length} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs disabled:opacity-40">
-                  <Plus className="h-3.5 w-3.5" /> Thêm dòng
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-800">Nghiệm thu theo thiết bị lỗi</span>
+                  {totalItems > 0 && (
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${coveredInThisForm >= totalItems ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {coveredInThisForm}/{totalItems} hạng mục
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={addItem}
+                  disabled={handoverItems.length >= requestItems.length}
+                  className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-40"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Thêm hạng mục
                 </button>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-sm">
-                  <thead className="bg-gray-50 text-xs uppercase text-gray-600">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Thiết bị lỗi</th>
-                      <th className="px-3 py-2 text-left">Trước sửa</th>
-                      <th className="px-3 py-2 text-left">Sau sửa</th>
-                      <th className="px-3 py-2 text-left">Ghi chú</th>
-                      <th className="px-3 py-2 text-right">Xóa</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {handoverItems.map((item) => (
-                      <tr key={item.rowId}>
-                        <td className="px-3 py-2">
-                          <select value={item.repairRequestItemId} onChange={(event) => selectRepairItem(item.rowId, event.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-1.5">
+
+              <div className="space-y-3">
+                {handoverItems.map((item, index) => {
+                  const repairItem = requestItems.find((candidate) => candidate.id === item.repairRequestItemId);
+                  return (
+                    <div key={item.rowId} className="rounded-lg border border-gray-200 bg-white shadow-sm">
+                      <div className="flex items-start justify-between gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2.5">
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                            {index + 1}
+                          </span>
+                          <select
+                            value={item.repairRequestItemId}
+                            onChange={(event) => selectRepairItem(item.rowId, event.target.value)}
+                            className="min-w-0 flex-1 truncate rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-800"
+                          >
                             <option value="">Chọn thiết bị lỗi</option>
-                            {requestItems.map((repairItem) => (
-                              <option key={repairItem.id} value={repairItem.id}>{itemContext(repairItem)}</option>
+                            {requestItems.map((option) => (
+                              <option key={option.id} value={option.id}>{itemContext(option)}</option>
                             ))}
                           </select>
-                        </td>
-                        <td className="px-3 py-2"><textarea required rows={2} value={item.tinhTrangTruocSuaChua} onChange={(event) => patchItem(item.rowId, { tinhTrangTruocSuaChua: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5" /></td>
-                        <td className="px-3 py-2"><textarea required rows={2} value={item.tinhTrangSauSuaChua} onChange={(event) => patchItem(item.rowId, { tinhTrangSauSuaChua: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5" /></td>
-                        <td className="px-3 py-2"><input value={item.ghiChu ?? ''} onChange={(event) => patchItem(item.rowId, { ghiChu: event.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5" /></td>
-                        <td className="px-3 py-2 text-right">
-                          {handoverItems.length > 1 && <button type="button" title="Xóa dòng" onClick={() => setHandoverItems((items) => items.filter((draft) => draft.rowId !== item.rowId))} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                        {handoverItems.length > 1 && (
+                          <button
+                            type="button"
+                            title="Xóa hạng mục"
+                            onClick={() => setHandoverItems((items) => items.filter((draft) => draft.rowId !== item.rowId))}
+                            className="shrink-0 rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid gap-4 p-4 md:grid-cols-2">
+                        <label className="space-y-1.5">
+                          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                            <span className="inline-block h-2 w-2 rounded-full bg-red-400"></span>
+                            Trước sửa chữa
+                          </span>
+                          <textarea
+                            required
+                            rows={4}
+                            value={item.tinhTrangTruocSuaChua}
+                            onChange={(event) => patchItem(item.rowId, { tinhTrangTruocSuaChua: event.target.value })}
+                            placeholder={repairItem ? `Ví dụ: ${repairItem.tinhTrangThietBi} - ${repairItem.noiDungLoi}` : 'Mô tả tình trạng trước khi sửa chữa'}
+                            className="w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm leading-relaxed focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          />
+                        </label>
+                        <label className="space-y-1.5">
+                          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                            <span className="inline-block h-2 w-2 rounded-full bg-green-500"></span>
+                            Sau sửa chữa
+                          </span>
+                          <textarea
+                            required
+                            rows={4}
+                            value={item.tinhTrangSauSuaChua}
+                            onChange={(event) => patchItem(item.rowId, { tinhTrangSauSuaChua: event.target.value })}
+                            placeholder="Mô tả kết quả sau khi hoàn tất sửa chữa"
+                            className="w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm leading-relaxed focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          />
+                        </label>
+                        <label className="space-y-1.5 md:col-span-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Ghi chú hạng mục</span>
+                          <input
+                            value={item.ghiChu ?? ''}
+                            onChange={(event) => patchItem(item.rowId, { ghiChu: event.target.value })}
+                            placeholder="Tùy chọn - vật tư thay thế, thời gian sửa, người thực hiện..."
+                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
             <label className="block space-y-1">
               <span className="font-medium text-gray-700">Tình trạng sau sửa chữa</span>
-              <textarea required rows={3} value={formData.tinhTrangSauSuaChua} onChange={(event) => setFormData((current) => ({ ...current, tinhTrangSauSuaChua: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" />
+              <textarea
+                required
+                rows={5}
+                value={formData.tinhTrangSauSuaChua}
+                onChange={(event) => setFormData((current) => ({ ...current, tinhTrangSauSuaChua: event.target.value }))}
+                className="w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm leading-relaxed"
+              />
             </label>
           )}
 
