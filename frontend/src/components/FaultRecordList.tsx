@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Edit, Eye, Plus, Power, Search, Trash2, X } from 'lucide-react';
+import { CheckCircle, Edit, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
 import FaultTemplateDetail from './FaultTemplateDetail';
@@ -9,14 +9,18 @@ import RepairStepForm from './RepairStepForm';
 import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
 import FaultTrendChart from './FaultTrendChart';
 import FaultHeatmap from './FaultHeatmap';
+import { StatusBadge, SeverityBadge, CollapsibleSection, StatCard } from './shared';
 import {
   useCreateFaultRecord,
   useCreateFaultRecordFromTemplate,
   useDeleteFaultRecord,
   useFaultRecord,
+  useFaultRecordStatusHistory,
   useFaultRecordStats,
   useFaultRecurrence,
   useFaultRecords,
+  useMarkResolved,
+  useMarkRecurred,
   useUpdateFaultRecord,
 } from '../hooks/useFaultRecords';
 import {
@@ -28,7 +32,7 @@ import {
   useUpdateFaultTemplate,
 } from '../hooks/useFaultTemplates';
 import { useMachineSystemDetails, useMachineSystems } from '../hooks/useMachineSystemDetails';
-import type { FaultRecord, CreateFaultRecordRequest } from '../services/faultRecordService';
+import type { FaultRecord, CreateFaultRecordRequest, FaultRecordStatus } from '../services/faultRecordService';
 import type { FaultTemplate, CreateFaultTemplateRequest, RepairStepInput } from '../services/faultTemplateService';
 import type { FaultRecordFilters } from '../services/faultRecordService';
 import type { FaultTemplateFilters } from '../services/faultTemplateService';
@@ -37,36 +41,96 @@ type ViewMode = 'records' | 'templates';
 type ModalMode = 'create' | 'edit' | 'view';
 
 const SEVERITIES = ['Nghiêm trọng', 'Trung bình', 'Nhẹ'];
-const RECORD_STATUSES = ['Đang theo dõi', 'Đã xử lý', 'Tái phát'];
 const TEMPLATE_STATUSES = ['Đang áp dụng', 'Tạm dừng'];
 
-// A1: short severity labels for badges
-const severityLabel = (value: string): string => {
-  if (value === 'Nghiêm trọng') return 'Nghiêm';
-  if (value === 'Trung bình') return 'TB';
-  return 'Nhẹ';
+// 8.8: enum → Vietnamese display label
+const FAULT_STATUS_LABEL: Record<FaultRecordStatus, string> = {
+  DANG_THEO_DOI: 'Đang theo dõi',
+  DA_XU_LY: 'Đã xử lý',
+  TAI_PHAT: 'Tái phát',
 };
 
-// A1: colored dot class per severity
-const severityDotClass = (value: string): string => {
-  if (value === 'Nghiêm trọng') return 'bg-red-500';
-  if (value === 'Trung bình') return 'bg-yellow-400';
-  return 'bg-green-500';
+// 8.8: enum → badge tone
+const FAULT_STATUS_TONE: Record<FaultRecordStatus, 'yellow' | 'green' | 'red'> = {
+  DANG_THEO_DOI: 'yellow',
+  DA_XU_LY: 'green',
+  TAI_PHAT: 'red',
 };
 
-const severityBadge = (value: string) => {
-  if (value === 'Nghiêm trọng') return 'bg-red-100 text-red-700 border-red-200';
-  if (value === 'Trung bình') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-  return 'bg-green-100 text-green-700 border-green-200';
-};
+// Enum values used for filter params
+const RECORD_STATUS_VALUES: FaultRecordStatus[] = ['DANG_THEO_DOI', 'DA_XU_LY', 'TAI_PHAT'];
 
-const statusBadge = (value: string) => {
-  if (value === 'Đã xử lý' || value === 'Đang áp dụng') return 'bg-green-100 text-green-700 border-green-200';
-  if (value === 'Đang theo dõi') return 'bg-blue-100 text-blue-700 border-blue-200';
+// Template status badge helper (template statuses are still free-form strings)
+const templateStatusBadge = (value: string) => {
+  if (value === 'Đang áp dụng') return 'bg-green-100 text-green-700 border-green-200';
   return 'bg-gray-100 text-gray-700 border-gray-200';
 };
 
 const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  return `${d.toLocaleDateString('vi-VN')} ${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+};
+
+// Task 3.5: label + tone helpers for the log source column
+const STATUS_LOG_SOURCE_LABEL: Record<string, string> = {
+  manual: 'Thủ công',
+  auto_from_repair: 'Từ sửa chữa',
+  recurrence_detected: 'Hệ thống phát hiện',
+  recurrence_detected_manual_confirm: 'Xác nhận tái phát',
+  legacy_migration_fallback: 'Chuyển đổi cũ',
+};
+
+const STATUS_LOG_SOURCE_TONE: Record<string, 'blue' | 'gray' | 'yellow' | 'green'> = {
+  manual: 'blue',
+  auto_from_repair: 'green',
+  recurrence_detected: 'yellow',
+  recurrence_detected_manual_confirm: 'yellow',
+  legacy_migration_fallback: 'gray',
+};
+
+// Task 3.5: status history sub-component. Extracted to keep hook call rules simple —
+// hook only fires when this section actually renders (view mode with a valid record).
+function FaultStatusHistorySection({ faultRecordId }: { faultRecordId: string }) {
+  const historyQuery = useFaultRecordStatusHistory(faultRecordId);
+  const logs = historyQuery.data?.data ?? [];
+
+  return (
+    <CollapsibleSection title="Lịch sử trạng thái" defaultOpen={false}>
+      {historyQuery.isLoading ? (
+        <p className="px-2 py-3 text-sm text-gray-400">Đang tải...</p>
+      ) : logs.length === 0 ? (
+        <p className="px-2 py-3 text-sm text-gray-400">Chưa có thay đổi trạng thái nào được ghi nhận.</p>
+      ) : (
+        <ol className="space-y-2">
+          {logs.map((log) => {
+            const from = log.oldStatus ? FAULT_STATUS_LABEL[log.oldStatus] ?? log.oldStatus : '—';
+            const to = FAULT_STATUS_LABEL[log.newStatus] ?? log.newStatus;
+            const toTone = FAULT_STATUS_TONE[log.newStatus] ?? 'gray';
+            const sourceLabel = STATUS_LOG_SOURCE_LABEL[log.source] ?? log.source;
+            const sourceTone = STATUS_LOG_SOURCE_TONE[log.source] ?? 'gray';
+            return (
+              <li key={log.id} className="rounded-md border border-gray-100 bg-white p-2.5">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-xs text-gray-500">{from}</span>
+                  <span className="text-gray-400">→</span>
+                  <StatusBadge label={to} tone={toTone} size="sm" />
+                  <StatusBadge label={sourceLabel} tone={sourceTone} size="sm" />
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500">
+                  <span>{formatDateTime(log.createdAt)}</span>
+                  {log.actorName && <span>Người thao tác: {log.actorName}</span>}
+                </div>
+                {log.reason && <p className="mt-1 text-xs text-gray-600">Lý do: {log.reason}</p>}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </CollapsibleSection>
+  );
+}
 
 // B5: compute days since a date string
 const daysSince = (iso?: string | null): number | null => {
@@ -83,7 +147,6 @@ const emptyRecordForm = (nguoiPhatHien = '', machineSystemId = ''): CreateFaultR
   machineSystemDetailId: '',
   faultTemplateId: '',
   mucDo: 'Trung bình',
-  trangThai: 'Đang theo dõi',
   nguoiPhatHien,
   ngayPhatHien: new Date().toISOString().split('T')[0],
 });
@@ -157,38 +220,6 @@ const RecurrenceBanner = ({ faultTemplateId, machineSystemDetailId, onMarkRecurr
   );
 };
 
-// Sub-component: collapsible section wrapper
-interface CollapsibleSectionProps {
-  title: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-  onExpand?: () => void;
-}
-
-const CollapsibleSection = ({ title, defaultOpen = false, children, onExpand }: CollapsibleSectionProps) => {
-  const [open, setOpen] = useState(defaultOpen);
-
-  const toggle = () => {
-    const next = !open;
-    setOpen(next);
-    if (next && onExpand) onExpand();
-  };
-
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white">
-      <button
-        type="button"
-        onClick={toggle}
-        className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50"
-      >
-        <span>{title}</span>
-        {open ? <ChevronDown className="h-4 w-4 text-gray-500" /> : <ChevronRight className="h-4 w-4 text-gray-500" />}
-      </button>
-      {open && <div className="border-t border-gray-100 px-4 py-3">{children}</div>}
-    </div>
-  );
-};
-
 interface FaultRecordListProps {
   lockedMachineSystemId?: string;
 }
@@ -229,6 +260,8 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   const createRecordFromTemplate = useCreateFaultRecordFromTemplate();
   const updateRecord = useUpdateFaultRecord();
   const deleteRecord = useDeleteFaultRecord();
+  const markResolved = useMarkResolved();
+  const markRecurred = useMarkRecurred();
   const createTemplate = useCreateFaultTemplate();
   const updateTemplate = useUpdateFaultTemplate();
   const deactivateTemplate = useDeactivateFaultTemplate();
@@ -288,7 +321,6 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
       machineSystemDetailId: record.machineSystemDetailId ?? '',
       faultTemplateId: record.faultTemplateId ?? '',
       mucDo: record.mucDo,
-      trangThai: record.trangThai,
       nguoiPhatHien: record.nguoiPhatHien,
       ngayPhatHien: record.ngayPhatHien?.split('T')[0] ?? '',
     } : emptyRecordForm(reporter, lockedMachineSystemId ?? ''));
@@ -404,7 +436,6 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
             faultTemplateId: payload.faultTemplateId,
             nguoiPhatHien: payload.nguoiPhatHien,
             ngayPhatHien: payload.ngayPhatHien,
-            trangThai: payload.trangThai,
             tenLoi: payload.tenLoi,
             moTa: payload.moTa,
             mucDo: payload.mucDo,
@@ -456,55 +487,41 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
     );
   };
 
-  // B2: delta arrow for Tổng card
-  const renderDelta = () => {
-    if (!stats || stats.prevMonth === 0) return null;
-    const diff = stats.thisMonth - stats.prevMonth;
-    if (diff === 0) return null;
-    const pct = Math.round(Math.abs(diff / stats.prevMonth) * 100);
-    const isUp = diff > 0;
-    return (
-      <span className={`text-xs font-medium ${isUp ? 'text-red-600' : 'text-green-600'}`}>
-        {isUp ? '↑' : '↓'} {pct}%
-      </span>
-    );
+  // B2: delta for Tổng card (thisMonth vs prevMonth)
+  const totalDelta = stats ? stats.thisMonth - stats.prevMonth : null;
+
+  // A2: severity sub-counts for StatCard subCounts prop
+  const severitySubCounts = (statusKey: FaultRecordStatus | 'ALL') => {
+    if (!stats) return undefined;
+    return SEVERITIES.map((s) => {
+      const count = statusKey === 'ALL'
+        ? (stats.bySeverity?.[s] ?? 0)
+        : (stats.bySeverityByStatus?.[statusKey]?.[s] ?? 0);
+      const tone: 'red' | 'yellow' | 'gray' =
+        s === 'Nghiêm trọng' ? 'red' : s === 'Trung bình' ? 'yellow' : 'gray';
+      return { label: s, count, tone };
+    });
   };
 
-  // A2: severity sub-counts for a given status (or total bySeverity for Tổng card)
-  const renderSeveritySubcounts = (cardLabel: string) => {
-    if (!stats) return null;
-    return (
-      <div className="mt-1.5 flex flex-wrap gap-1">
-        {SEVERITIES.map((s) => {
-          const count = cardLabel === 'Tổng'
-            ? (stats.bySeverity?.[s] ?? 0)
-            : (stats.bySeverityByStatus?.[cardLabel]?.[s] ?? 0);
-          return (
-            <span key={s} className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${severityBadge(s)}`}>
-              {/* A1: colored dot + short label */}
-              <span className={`h-1.5 w-1.5 rounded-full ${severityDotClass(s)}`} />
-              {severityLabel(s)}: {count}
-            </span>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // A7: status-card click handler
-  const handleCardClick = (cardLabel: string) => {
-    if (cardLabel === 'Tổng') {
+  // 8.8: enum-aware status-card click handler
+  const handleCardClick = (status: FaultRecordStatus | 'ALL') => {
+    if (status === 'ALL') {
       setRecordFilters((f) => ({ ...f, trangThai: undefined, page: 1 }));
     } else {
-      setRecordFilters((f) => ({ ...f, trangThai: cardLabel, page: 1 }));
+      setRecordFilters((f) => ({ ...f, trangThai: status, page: 1 }));
     }
   };
 
-  const cardData = [
-    { label: 'Tổng', count: stats?.total ?? null, color: 'border-blue-200 bg-blue-50', labelColor: 'text-blue-700', countColor: 'text-blue-800' },
-    { label: 'Đang theo dõi', count: stats?.byStatus?.['Đang theo dõi'] ?? null, color: 'border-yellow-200 bg-yellow-50', labelColor: 'text-yellow-700', countColor: 'text-yellow-800' },
-    { label: 'Đã xử lý', count: stats?.byStatus?.['Đã xử lý'] ?? null, color: 'border-green-200 bg-green-50', labelColor: 'text-green-700', countColor: 'text-green-800' },
-    { label: 'Tái phát', count: stats?.byStatus?.['Tái phát'] ?? null, color: 'border-red-200 bg-red-50', labelColor: 'text-red-700', countColor: 'text-red-800' },
+  const cardData: Array<{
+    label: string;
+    status: FaultRecordStatus | 'ALL';
+    count: number | null;
+    tone: 'blue' | 'yellow' | 'green' | 'red';
+  }> = [
+    { label: 'Tổng', status: 'ALL', count: stats?.total ?? null, tone: 'blue' },
+    { label: FAULT_STATUS_LABEL.DANG_THEO_DOI, status: 'DANG_THEO_DOI', count: stats?.byStatus?.['DANG_THEO_DOI'] ?? null, tone: 'yellow' },
+    { label: FAULT_STATUS_LABEL.DA_XU_LY, status: 'DA_XU_LY', count: stats?.byStatus?.['DA_XU_LY'] ?? null, tone: 'green' },
+    { label: FAULT_STATUS_LABEL.TAI_PHAT, status: 'TAI_PHAT', count: stats?.byStatus?.['TAI_PHAT'] ?? null, tone: 'red' },
   ];
 
   return (
@@ -526,46 +543,46 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
       {/* Summary stat cards — only shown in records view */}
       {view === 'records' && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {cardData.map((card) => (
-            /* A7: clickable card sets status filter */
-            <button
-              key={card.label}
-              type="button"
-              onClick={() => handleCardClick(card.label)}
-              className={`rounded-lg border px-4 py-3 text-left transition-shadow hover:shadow-md ${card.color} ${recordFilters.trangThai === card.label || (card.label === 'Tổng' && !recordFilters.trangThai) ? 'ring-2 ring-blue-400' : ''}`}
-            >
-              <p className={`text-xs font-medium ${card.labelColor}`}>{card.label}</p>
-              <p className={`mt-1 text-2xl font-semibold ${card.countColor}`}>
-                {card.count === null
-                  ? <span className="block h-7 w-10 animate-pulse rounded bg-current opacity-20" />
-                  : card.count}
-              </p>
-              {/* B2: delta arrow on Tổng card */}
-              {card.label === 'Tổng' && stats && renderDelta()}
-              {/* C1: mttrDays sub-metric on Đã xử lý card */}
-              {card.label === 'Đã xử lý' && stats?.mttrDays !== null && stats?.mttrDays !== undefined && (
-                <p className={`text-[10px] mt-0.5 ${card.labelColor}`}>Tb. {stats.mttrDays} ngày xử lý</p>
-              )}
-              {/* A2: severity sub-counts */}
-              {renderSeveritySubcounts(card.label)}
-            </button>
-          ))}
+          {cardData.map((card) => {
+            const isActive = card.status === 'ALL'
+              ? !recordFilters.trangThai
+              : recordFilters.trangThai === card.status;
+            const delta = card.status === 'ALL' ? totalDelta : undefined;
+            const deltaLabel = card.status === 'ALL' ? 'tháng này' : undefined;
+            const extraSubCounts = card.status === 'DA_XU_LY' && stats?.mttrDays != null
+              ? [{ label: `Tb. ${stats.mttrDays} ngày xử lý`, count: 0 as number, tone: 'green' as const }]
+              : [];
+            const subCounts = [...(severitySubCounts(card.status) ?? []), ...extraSubCounts];
+            return (
+              <StatCard
+                key={card.status}
+                label={card.label}
+                value={card.count}
+                delta={delta}
+                deltaLabel={deltaLabel}
+                subCounts={subCounts.length > 0 ? subCounts : undefined}
+                onClick={() => handleCardClick(card.status)}
+                className={isActive ? 'ring-2 ring-blue-400' : ''}
+              />
+            );
+          })}
         </div>
       )}
 
       {/* A6: quick-filter chip row */}
       {view === 'records' && (
         <div className="flex flex-wrap gap-2">
-          {(['Tất cả', ...RECORD_STATUSES] as const).map((chip) => {
-            const isActive = chip === 'Tất cả' ? !recordFilters.trangThai : recordFilters.trangThai === chip;
+          {(['ALL' as const, ...RECORD_STATUS_VALUES]).map((chip) => {
+            const isActive = chip === 'ALL' ? !recordFilters.trangThai : recordFilters.trangThai === chip;
+            const label = chip === 'ALL' ? 'Tất cả' : FAULT_STATUS_LABEL[chip];
             return (
               <button
                 key={chip}
                 type="button"
-                onClick={() => setRecordFilters((f) => ({ ...f, trangThai: chip === 'Tất cả' ? undefined : chip, page: 1 }))}
+                onClick={() => setRecordFilters((f) => ({ ...f, trangThai: chip === 'ALL' ? undefined : chip, page: 1 }))}
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${isActive ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
               >
-                {chip}
+                {label}
               </button>
             );
           })}
@@ -704,9 +721,9 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                 <option value="">Mức độ</option>
                 {SEVERITIES.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
-              <select value={recordFilters.trangThai ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, trangThai: event.target.value || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <select value={recordFilters.trangThai ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, trangThai: (event.target.value as FaultRecordStatus) || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
                 <option value="">Trạng thái</option>
-                {RECORD_STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
+                {RECORD_STATUS_VALUES.map((item) => <option key={item} value={item}>{FAULT_STATUS_LABEL[item]}</option>)}
               </select>
             </div>
           </div>
@@ -741,22 +758,36 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                       {record.machineSystemDetail && <div className="text-[11px] text-gray-400 mt-0.5">{record.machineSystemDetail.tenChiTiet}</div>}
                     </td>
                     <td className="px-3 py-2.5">
-                      {/* A1: short label + colored dot */}
-                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${severityBadge(record.mucDo)}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${severityDotClass(record.mucDo)}`} />
-                        {severityLabel(record.mucDo)}
-                      </span>
+                      {/* 8.3: use shared SeverityBadge */}
+                      <SeverityBadge value={record.mucDo} />
                     </td>
-                    <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(record.trangThai)}`}>{record.trangThai}</span></td>
+                    <td className="px-3 py-2.5">
+                      {/* 8.3/8.8: use shared StatusBadge with enum→label+tone mapping */}
+                      <StatusBadge
+                        label={FAULT_STATUS_LABEL[record.trangThai] ?? record.trangThai}
+                        tone={FAULT_STATUS_TONE[record.trangThai] ?? 'gray'}
+                      />
+                    </td>
                     <td className="px-3 py-2.5">
                       <div className="text-gray-700 text-xs">{formatDate(record.ngayPhatHien)}</div>
                       <div className="text-[11px] text-gray-400 mt-0.5">{record.nguoiPhatHien}</div>
+                      {record.trangThai === 'DA_XU_LY' && record.ngayXuLy && (
+                        <div className="text-[11px] text-green-600 mt-1">Xử lý: {formatDateTime(record.ngayXuLy)}</div>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
                       <ResponsiveRowActions
                         actions={[
                           { key: 'view', label: 'Xem bản ghi', icon: <Eye className="h-4 w-4" />, onClick: () => openRecordModal('view', record), tone: 'primary' },
                           ...(canMutate ? [{ key: 'edit', label: 'Sửa bản ghi', icon: <Edit className="h-4 w-4" />, onClick: () => openRecordModal('edit', record), tone: 'success' } satisfies RowAction] : []),
+                          // 8.7: mark-resolved — visible when not DA_XU_LY, role ADMIN/DEPT_HEAD/TEAM_LEAD
+                          ...((user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead') && record.trangThai !== 'DA_XU_LY'
+                            ? [{ key: 'mark-resolved', label: 'Đánh dấu đã xử lý', icon: <CheckCircle className="h-4 w-4" />, onClick: () => markResolved.mutate({ id: record.id }), tone: 'success', disabled: markResolved.isPending } satisfies RowAction]
+                            : []),
+                          // 8.7: mark-recurred — visible only when DA_XU_LY, role ADMIN/DEPT_HEAD
+                          ...((user?.role === 'admin' || user?.role === 'department_head') && record.trangThai === 'DA_XU_LY'
+                            ? [{ key: 'mark-recurred', label: 'Đánh dấu tái phát', icon: <RefreshCw className="h-4 w-4" />, onClick: () => markRecurred.mutate({ id: record.id }), tone: 'warning', disabled: markRecurred.isPending } satisfies RowAction]
+                            : []),
                           ...(canMutate ? [{ key: 'delete', label: 'Xóa bản ghi', icon: <Trash2 className="h-4 w-4" />, onClick: () => deleteRecord.mutate(record.id), tone: 'danger' } satisfies RowAction] : []),
                         ]}
                       />
@@ -832,12 +863,9 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                       {template.machineSystemDetail && <div className="text-[11px] text-gray-400 mt-0.5">{template.machineSystemDetail.tenChiTiet}</div>}
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${severityBadge(template.mucDo)}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${severityDotClass(template.mucDo)}`} />
-                        {severityLabel(template.mucDo)}
-                      </span>
+                      <SeverityBadge value={template.mucDo} />
                     </td>
-                    <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(template.hoatDong ? template.trangThai : 'Dừng')}`}>{template.hoatDong ? template.trangThai : 'Dừng'}</span></td>
+                    <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${templateStatusBadge(template.hoatDong ? template.trangThai : 'Dừng')}`}>{template.hoatDong ? template.trangThai : 'Dừng'}</span></td>
                     <td className="px-3 py-2.5 text-center">
                       <span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-gray-100 text-xs font-medium text-gray-600">{template._count?.faultRecords ?? 0}</span>
                     </td>
@@ -875,7 +903,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
               <RecurrenceBanner
                 faultTemplateId={createFaultTemplateId}
                 machineSystemDetailId={createMachineSystemDetailId}
-                onMarkRecurrence={() => setRecordForm((f) => ({ ...f, trangThai: 'Tái phát' }))}
+                onMarkRecurrence={() => {/* server handles status — banner is informational only */}}
                 onOpenRecord={(id) => {
                   setRecordModal(null);
                   setPendingViewId(id);
@@ -957,7 +985,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                                   <span className="ml-1.5 font-mono text-xs text-gray-400">{t.maMauLoi}</span>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
-                                  <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${severityBadge(t.mucDo)}`}>{t.mucDo}</span>
+                                  <SeverityBadge value={t.mucDo} size="sm" />
                                   {t._count && (
                                     <span className="text-[11px] text-gray-400">{t._count.faultRecords} lần</span>
                                   )}
@@ -1028,14 +1056,30 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                 <span className="font-medium text-gray-700">Mức độ</span>
                 <select disabled={recordModal?.mode === 'view'} value={recordForm.mucDo ?? 'Trung bình'} onChange={(event) => setRecordForm((form) => ({ ...form, mucDo: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">{SEVERITIES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
               </label>
-              <label className="space-y-1">
-                <span className="font-medium text-gray-700">Trạng thái</span>
-                <select disabled={recordModal?.mode === 'view'} value={recordForm.trangThai ?? 'Đang theo dõi'} onChange={(event) => setRecordForm((form) => ({ ...form, trangThai: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">{RECORD_STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-              </label>
+              {/* 8.6: trangThai is readonly — shown in view mode only; create/edit do not expose the field */}
+              {recordModal?.mode === 'view' && recordModal.record && (
+                <label className="space-y-1">
+                  <span className="font-medium text-gray-700">Trạng thái</span>
+                  <div className="flex items-center pt-1">
+                    <StatusBadge
+                      label={FAULT_STATUS_LABEL[recordModal.record.trangThai] ?? recordModal.record.trangThai}
+                      tone={FAULT_STATUS_TONE[recordModal.record.trangThai] ?? 'gray'}
+                    />
+                  </div>
+                </label>
+              )}
               <label className="space-y-1">
                 <span className="font-medium text-gray-700">Ngày phát hiện</span>
                 <input type="date" disabled={recordModal?.mode === 'view'} value={recordForm.ngayPhatHien ?? ''} onChange={(event) => setRecordForm((form) => ({ ...form, ngayPhatHien: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
               </label>
+              {recordModal?.mode === 'view' && recordModal.record?.ngayXuLy && (
+                <label className="space-y-1">
+                  <span className="font-medium text-gray-700">Thời điểm xử lý</span>
+                  <div className="flex items-center pt-1 text-sm text-gray-800">
+                    {formatDateTime(recordModal.record.ngayXuLy)}
+                  </div>
+                </label>
+              )}
               <label className="space-y-1 md:col-span-2">
                 <span className="font-medium text-gray-700">Mô tả</span>
                 <textarea required disabled={recordModal?.mode === 'view'} rows={3} value={recordForm.moTa ?? ''} onChange={(event) => setRecordForm((form) => ({ ...form, moTa: event.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" />
@@ -1046,6 +1090,12 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                 <div className="md:col-span-2 space-y-1">
                   <span className="font-medium text-gray-700 text-sm">Các bước sửa chữa (tùy chọn)</span>
                   <RepairStepForm steps={recordRepairSteps} onChange={setRecordRepairSteps} />
+                </div>
+              )}
+              {/* Task 3.5: Status history — visible in view mode only */}
+              {recordModal?.mode === 'view' && recordModal.record && (
+                <div className="md:col-span-2">
+                  <FaultStatusHistorySection faultRecordId={recordModal.record.id} />
                 </div>
               )}
               {/* 7.4: Repair steps read-only in view modal when linked template has steps */}

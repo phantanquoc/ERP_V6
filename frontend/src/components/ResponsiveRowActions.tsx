@@ -11,6 +11,7 @@ export interface RowAction {
   icon: ReactNode;
   onClick: () => void;
   tone?: RowActionTone;
+  disabled?: boolean;
 }
 
 const toneClasses: Record<RowActionTone, { inline: string; menu: string }> = {
@@ -36,7 +37,7 @@ const toneClasses: Record<RowActionTone, { inline: string; menu: string }> = {
   },
 };
 
-const ResponsiveRowActions = ({ actions, menuLabel = 'Thao tác' }: { actions: RowAction[]; menuLabel?: string }) => {
+const ResponsiveRowActions = ({ actions, menuLabel = 'Thao tác', alwaysMenu = false }: { actions: RowAction[]; menuLabel?: string; alwaysMenu?: boolean }) => {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -83,22 +84,25 @@ const ResponsiveRowActions = ({ actions, menuLabel = 'Thao tác' }: { actions: R
 
   return (
     <div ref={wrapperRef} className="relative flex justify-end">
-      <div className="hidden justify-end gap-0.5 lg:flex">
-        {actions.map((action) => (
-          <button
-            key={action.key}
-            type="button"
-            title={action.label}
-            aria-label={action.label}
-            onClick={action.onClick}
-            className={`rounded-md p-1.5 transition-colors ${toneClasses[action.tone ?? 'default'].inline}`}
-          >
-            {action.icon}
-          </button>
-        ))}
-      </div>
+      {!alwaysMenu && (
+        <div className="hidden justify-end gap-0.5 lg:flex">
+          {actions.map((action) => (
+            <button
+              key={action.key}
+              type="button"
+              title={action.label}
+              aria-label={action.label}
+              onClick={action.onClick}
+              disabled={action.disabled}
+              className={`rounded-md p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent ${toneClasses[action.tone ?? 'default'].inline}`}
+            >
+              {action.icon}
+            </button>
+          ))}
+        </div>
+      )}
 
-      <div className="lg:hidden">
+      <div className={alwaysMenu ? '' : 'lg:hidden'}>
         <button
           ref={triggerRef}
           type="button"
@@ -107,10 +111,14 @@ const ResponsiveRowActions = ({ actions, menuLabel = 'Thao tác' }: { actions: R
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
-          className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={
+            alwaysMenu
+              ? 'inline-flex items-center rounded-md border border-gray-300 bg-white p-1.5 text-gray-600 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500'
+              : 'inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500'
+          }
         >
           <MoreHorizontal className="h-4 w-4" />
-          {menuLabel}
+          {!alwaysMenu && menuLabel}
         </button>
 
         {open && createPortal(
@@ -125,11 +133,12 @@ const ResponsiveRowActions = ({ actions, menuLabel = 'Thao tác' }: { actions: R
                 key={action.key}
                 type="button"
                 role="menuitem"
+                disabled={action.disabled}
                 onClick={() => {
                   setOpen(false);
                   action.onClick();
                 }}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${toneClasses[action.tone ?? 'default'].menu}`}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent ${toneClasses[action.tone ?? 'default'].menu}`}
               >
                 <span className="shrink-0">{action.icon}</span>
                 <span>{action.label}</span>
