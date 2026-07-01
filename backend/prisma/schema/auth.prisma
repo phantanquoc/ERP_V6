@@ -15,9 +15,10 @@ model User {
   loginHistory         LoginHistory[]
   refreshTokens        RefreshToken[]
   userRoles            UserRoleAssignment[]
-  employees            Employee?
-  privateFeedbacks     PrivateFeedback[]
-  pushSubscriptions    PushSubscription[]
+  employees                 Employee?
+  privateFeedbacks          PrivateFeedback[]
+  pushSubscriptions         PushSubscription[]
+  notificationPreferences   NotificationPreference[]
   secondaryDepartments UserSecondaryDepartment[]
 
   @@map("users")
