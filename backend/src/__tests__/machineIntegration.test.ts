@@ -168,7 +168,6 @@ describe('FaultRecordService — machineSystemId support', () => {
       tenLoi: 'Lỗi bơm',
       moTa: 'Bơm rò rỉ',
       mucDo: 'Nghiêm trọng',
-      trangThai: 'Đang theo dõi',
       nguoiPhatHien: 'Nguyễn Văn A',
       ngayPhatHien: new Date('2026-06-01'),
       machineSystemId: 'sys-1',
@@ -186,7 +185,6 @@ describe('FaultRecordService — machineSystemId support', () => {
       tenLoi: 'Lỗi khác',
       moTa: 'Mô tả',
       mucDo: 'Nhẹ',
-      trangThai: 'Đang theo dõi',
       nguoiPhatHien: 'Trần B',
       ngayPhatHien: new Date('2026-06-01'),
     });

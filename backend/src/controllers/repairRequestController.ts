@@ -2,6 +2,8 @@ import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import repairRequestService from '@services/repairRequestService';
 import { getFileUrl } from '@middlewares/upload';
+import { RepairRequestStatus } from '@prisma/client';
+import logger from '@config/logger';
 
 class RepairRequestController {
   async getAllRepairRequests(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -9,7 +11,18 @@ class RepairRequestController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
 
-      const result = await repairRequestService.getAllRepairRequests(page, limit);
+      const filters: { search?: string; trangThai?: RepairRequestStatus } = {};
+      if (req.query.search) {
+        filters.search = req.query.search as string;
+      }
+      if (req.query.trangThai) {
+        const raw = req.query.trangThai as string;
+        if (Object.values(RepairRequestStatus).includes(raw as RepairRequestStatus)) {
+          filters.trangThai = raw as RepairRequestStatus;
+        }
+      }
+
+      const result = await repairRequestService.getAllRepairRequests(page, limit, filters);
 
       res.json({
         success: true,
@@ -54,11 +67,14 @@ class RepairRequestController {
         mucDoUuTien: req.body.mucDoUuTien,
         noiDungLoi: req.body.noiDungLoi,
         ghiChu: req.body.ghiChu,
-        trangThai: req.body.trangThai,
         fileDinhKem: req.file ? getFileUrl('repair-requests', req.file.filename) : undefined,
         ...(items !== undefined && { items }),
         userId: req.user?.id,
       };
+
+      if (req.body.trangThai !== undefined) {
+        logger.warn(`Controller: ignoring client-supplied trangThai on create (user=${req.user?.id})`);
+      }
 
       const request = await repairRequestService.createRepairRequest(data);
 
@@ -91,9 +107,12 @@ class RepairRequestController {
         mucDoUuTien: req.body.mucDoUuTien,
         noiDungLoi: req.body.noiDungLoi,
         ghiChu: req.body.ghiChu,
-        trangThai: req.body.trangThai,
         ...(items !== undefined && { items }),
       };
+
+      if (req.body.trangThai !== undefined) {
+        logger.warn(`Controller: ignoring client-supplied trangThai on update (id=${id}, user=${req.user?.id})`);
+      }
 
       if (req.body.ngayThang) {
         data.ngayThang = new Date(req.body.ngayThang);
@@ -131,8 +150,14 @@ class RepairRequestController {
 
   async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const filters: any = {};
+      const filters: { search?: string; trangThai?: RepairRequestStatus } = {};
       if (req.query.search) filters.search = req.query.search as string;
+      if (req.query.trangThai) {
+        const raw = req.query.trangThai as string;
+        if (Object.values(RepairRequestStatus).includes(raw as RepairRequestStatus)) {
+          filters.trangThai = raw as RepairRequestStatus;
+        }
+      }
       const buffer = await repairRequestService.exportToExcel(filters);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=danh-sach-yeu-cau-sua-chua-${Date.now()}.xlsx`);
@@ -148,6 +173,86 @@ class RepairRequestController {
       res.json({
         success: true,
         data: { code },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /:id/start-repair
+   * CHO_XU_LY → DANG_SUA_CHUA
+   */
+  async startRepair(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = parseInt(req.params.id as string, 10);
+      const actor = { actorId: req.user?.id, actorRole: req.user?.role };
+      const result = await repairRequestService.startRepair(id, actor);
+
+      res.json({
+        success: true,
+        data: result,
+        message: 'Bắt đầu sửa chữa thành công',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /:id/cancel
+   * any non-terminal → DA_HUY
+   */
+  async cancel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = parseInt(req.params.id as string, 10);
+      const actor = { actorId: req.user?.id, actorRole: req.user?.role };
+      const reason = req.body.reason as string | undefined;
+      const result = await repairRequestService.cancel(id, actor, { reason });
+
+      res.json({
+        success: true,
+        data: result,
+        message: 'Hủy yêu cầu sửa chữa thành công',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /stats — dashboard aggregates
+   * Parses ISO date query params and delegates to service.
+   */
+  async getStats(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
+      const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : undefined;
+      const machineSystemId = req.query.machineSystemId as string | undefined;
+
+      const data = await repairRequestService.getStats(
+        dateFrom || dateTo || machineSystemId
+          ? { dateFrom, dateTo, machineSystemId }
+          : undefined
+      );
+
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /:id/status-history
+   */
+  async getStatusHistory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = parseInt(req.params.id as string, 10);
+      const logs = await repairRequestService.getStatusHistory(id);
+
+      res.json({
+        success: true,
+        data: logs,
       });
     } catch (error) {
       next(error);

@@ -79,6 +79,11 @@ router.get('/export/excel', authenticate, repairRequestController.exportToExcel)
 router.get('/generate-code', authenticate, repairRequestController.generateCode);
 
 /**
+ * GET /stats — dashboard aggregates, any authenticated user
+ */
+router.get('/stats', authenticate, repairRequestController.getStats.bind(repairRequestController));
+
+/**
  * @swagger
  * /api/repair-requests/{id}:
  *   get:
@@ -190,6 +195,21 @@ router.put('/:id', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_H
  *         description: Không tìm thấy yêu cầu sửa chữa
  */
 router.delete('/:id', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), repairRequestController.deleteRepairRequest);
+
+/**
+ * POST /:id/start-repair — CHO_XU_LY → DANG_SUA_CHUA
+ */
+router.post('/:id/start-repair', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), repairRequestController.startRepair);
+
+/**
+ * POST /:id/cancel — any non-terminal → DA_HUY
+ */
+router.post('/:id/cancel', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE), repairRequestController.cancel);
+
+/**
+ * GET /:id/status-history — audit log
+ */
+router.get('/:id/status-history', authenticate, repairRequestController.getStatusHistory);
 
 export default router;
 
