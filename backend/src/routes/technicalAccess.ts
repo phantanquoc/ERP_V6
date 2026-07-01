@@ -68,3 +68,25 @@ export const requireTechnicalAccess = (...allowedSubDepartmentCodes: string[]) =
     }
   };
 };
+
+/**
+ * Middleware factory that enforces role membership before delegating to technical access check.
+ * ADMIN always bypasses both checks.
+ */
+export const requireTechnicalAccessWithRoles = (
+  allowedRoles: UserRole[],
+  ...allowedSubDepartmentCodes: string[]
+) => {
+  const technicalCheck = requireTechnicalAccess(...allowedSubDepartmentCodes);
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Chưa xác thực' });
+      return;
+    }
+    if (req.user.role !== UserRole.ADMIN && !allowedRoles.includes(req.user.role as UserRole)) {
+      res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Không đủ quyền' });
+      return;
+    }
+    return technicalCheck(req, res, next);
+  };
+};

@@ -1,10 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import acceptanceHandoverService from '@services/acceptanceHandoverService';
 import { getFileUrl } from '@middlewares/upload';
-import { NotificationService } from '@services/notificationService';
 import type { AuthenticatedRequest } from '@types';
-
-const notificationService = new NotificationService();
 
 const parseItems = (value: unknown) => {
   if (value === undefined) return undefined;
@@ -55,24 +52,10 @@ class AcceptanceHandoverController {
         items: parseItems(req.body.items),
         fileDinhKem: file ? getFileUrl('acceptance-handovers', file.filename) : undefined,
         userId: authReq.user?.id,
+        actorRole: authReq.user?.role,
       };
 
       const handover = await acceptanceHandoverService.createAcceptanceHandover(data);
-
-      // Gửi thông báo đến người nhận
-      if (data.nguoiNhanId) {
-        try {
-          await notificationService.createAcceptanceHandoverNotification(
-            data.nguoiNhanId,
-            handover.maNghiemThu,
-            data.tenHeThongThietBi,
-            data.nguoiBanGiao,
-            handover.id
-          );
-        } catch (notifError) {
-          console.error('Lỗi gửi thông báo nghiệm thu:', notifError);
-        }
-      }
 
       return res.status(201).json({
         success: true,
@@ -100,11 +83,14 @@ class AcceptanceHandoverController {
   async updateAcceptanceHandover(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
+      const authReq = req as unknown as AuthenticatedRequest;
 
       // Parse repairRequestId to number if it exists
       const data = {
         ...req.body,
         items: parseItems(req.body.items),
+        actorRole: authReq.user?.role,
+        actorId: authReq.user?.id,
       };
       if (req.body.repairRequestId) {
         data.repairRequestId = parseInt(req.body.repairRequestId, 10);
@@ -141,7 +127,12 @@ class AcceptanceHandoverController {
   async deleteAcceptanceHandover(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-      const result = await acceptanceHandoverService.deleteAcceptanceHandover(id);
+      const authReq = req as unknown as AuthenticatedRequest;
+      const result = await acceptanceHandoverService.deleteAcceptanceHandover(
+        id,
+        authReq.user?.role,
+        authReq.user?.id,
+      );
 
       return res.json({
         success: true,

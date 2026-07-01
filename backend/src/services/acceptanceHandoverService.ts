@@ -1,8 +1,12 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, RepairRequestStatus, FaultRecordStatus } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
+import { advanceRepairRequestStatus } from '@utils/statusTransitions';
+import { NotificationEvent } from '@types';
+import notificationService from './notificationService';
+import logger from '@config/logger';
 
 interface AcceptanceHandoverItemRequest {
   repairRequestItemId: string;
@@ -24,6 +28,8 @@ interface CreateAcceptanceHandoverRequest {
   ghiChu?: string;
   items?: AcceptanceHandoverItemRequest[];
   userId?: string;
+  /** Role of the user performing the action — used for ADMIN bypass on status guard */
+  actorRole?: string;
 }
 
 interface UpdateAcceptanceHandoverRequest {
@@ -38,6 +44,9 @@ interface UpdateAcceptanceHandoverRequest {
   fileDinhKem?: string;
   ghiChu?: string;
   items?: AcceptanceHandoverItemRequest[];
+  /** Role of the user performing the action — used for ADMIN bypass on status guard */
+  actorRole?: string;
+  actorId?: string;
 }
 
 const handoverInclude = {
@@ -182,45 +191,154 @@ class AcceptanceHandoverService {
 
   async createAcceptanceHandover(data: CreateAcceptanceHandoverRequest) {
     const maNghiemThu = await this.generateAcceptanceHandoverCode();
+    const isAdmin = data.actorRole === 'ADMIN';
 
-    const handover = await prisma.$transaction(async (tx) => {
-      const repairRequest = await tx.repairRequest.findUnique({
-        where: { id: data.repairRequestId },
-        select: { id: true, maYeuCau: true },
-      });
-      if (!repairRequest) throw new ValidationError('Yêu cầu sửa chữa không hợp lệ');
-
-      const resolvedItems = await this.resolveHandoverItems(data.repairRequestId, data.items, tx);
-      const created = await tx.acceptanceHandover.create({
-        data: {
-          maNghiemThu,
-          repairRequestId: repairRequest.id,
-          maYeuCauSuaChua: data.maYeuCauSuaChua || repairRequest.maYeuCau,
-          tenHeThongThietBi: data.tenHeThongThietBi,
-          tinhTrangTruocSuaChua: data.tinhTrangTruocSuaChua,
-          tinhTrangSauSuaChua: data.tinhTrangSauSuaChua,
-          nguoiBanGiao: data.nguoiBanGiao,
-          nguoiNhan: data.nguoiNhan,
-          nguoiNhanId: data.nguoiNhanId,
-          fileDinhKem: data.fileDinhKem,
-          ghiChu: data.ghiChu,
-          createdById: data.userId ?? null,
-        },
-      });
-
-      if (resolvedItems.length > 0) {
-        await tx.acceptanceHandoverItem.createMany({
-          data: resolvedItems.map((item) => ({
-            acceptanceHandoverId: created.id,
-            ...item,
-          })),
+    const { handover, autoCompleted, repairRequestId: completedRepairId, maYeuCau: completedMaYeuCau } =
+      await prisma.$transaction(async (tx) => {
+        // 6.1 Load parent and guard status
+        const repairRequest = await tx.repairRequest.findUnique({
+          where: { id: data.repairRequestId },
+          select: { id: true, maYeuCau: true, trangThai: true },
         });
-      }
+        if (!repairRequest) throw new ValidationError('Yêu cầu sửa chữa không hợp lệ');
 
-      const handoverWithItems = await tx.acceptanceHandover.findUnique({ where: { id: created.id }, include: handoverInclude });
-      if (!handoverWithItems) throw new NotFoundError('Không tìm thấy nghiệm thu bàn giao');
-      return handoverWithItems;
-    });
+        if (repairRequest.trangThai !== RepairRequestStatus.DANG_SUA_CHUA && !isAdmin) {
+          throw new ValidationError(
+            `Chỉ có thể tạo nghiệm thu bàn giao khi yêu cầu sửa chữa đang ở trạng thái Đang sửa chữa`
+          );
+        }
+
+        const resolvedItems = await this.resolveHandoverItems(data.repairRequestId, data.items, tx);
+        const created = await tx.acceptanceHandover.create({
+          data: {
+            maNghiemThu,
+            repairRequestId: repairRequest.id,
+            maYeuCauSuaChua: data.maYeuCauSuaChua || repairRequest.maYeuCau,
+            tenHeThongThietBi: data.tenHeThongThietBi,
+            tinhTrangTruocSuaChua: data.tinhTrangTruocSuaChua,
+            tinhTrangSauSuaChua: data.tinhTrangSauSuaChua,
+            nguoiBanGiao: data.nguoiBanGiao,
+            nguoiNhan: data.nguoiNhan,
+            nguoiNhanId: data.nguoiNhanId,
+            fileDinhKem: data.fileDinhKem,
+            ghiChu: data.ghiChu,
+            createdById: data.userId ?? null,
+          },
+        });
+
+        if (resolvedItems.length > 0) {
+          await tx.acceptanceHandoverItem.createMany({
+            data: resolvedItems.map((item) => ({
+              acceptanceHandoverId: created.id,
+              ...item,
+            })),
+          });
+        }
+
+        // 6.2 Coverage computation: total items on parent vs covered across all handovers
+        const total = await tx.repairRequestItem.count({
+          where: { repairRequestId: data.repairRequestId },
+        });
+
+        let autoCompleted = false;
+        if (total > 0 && repairRequest.trangThai === RepairRequestStatus.DANG_SUA_CHUA) {
+          // Collect all distinct repairRequestItemIds covered across every handover of this parent
+          // Filter to only items that have a repairRequestItemId (non-null)
+          const allHandoverItems = await tx.acceptanceHandoverItem.findMany({
+            where: {
+              acceptanceHandover: { repairRequestId: data.repairRequestId },
+            },
+            select: { repairRequestItemId: true },
+          });
+          const coveredSet = new Set(allHandoverItems.map((i) => i.repairRequestItemId).filter(Boolean));
+          const covered = coveredSet.size;
+
+          // 6.3 Auto-complete when full coverage
+          if (covered >= total) {
+            const nextStatus = advanceRepairRequestStatus(
+              repairRequest.trangThai,
+              RepairRequestStatus.HOAN_THANH,
+              { bypass: isAdmin }
+            );
+            await tx.repairRequest.update({
+              where: { id: data.repairRequestId },
+              data: { trangThai: nextStatus },
+            });
+            await tx.repairRequestStatusLog.create({
+              data: {
+                repairRequestId: data.repairRequestId,
+                oldStatus: repairRequest.trangThai,
+                newStatus: nextStatus,
+                actorId: data.userId ?? null,
+                actorRole: data.actorRole ?? null,
+                reason: 'auto_complete_full_coverage',
+              },
+            });
+
+            // 5.1–5.3 Cascade-close linked FaultRecords (D2: inside same transaction, per-item try/catch)
+            const linkedItems = await tx.repairRequestItem.findMany({
+              where: { repairRequestId: data.repairRequestId, faultRecordId: { not: null } },
+              select: { faultRecordId: true },
+            });
+
+            for (const item of linkedItems) {
+              if (!item.faultRecordId) continue;
+              try {
+                const fr = await tx.faultRecord.findUnique({
+                  where: { id: item.faultRecordId },
+                  select: { id: true, trangThai: true },
+                });
+                if (!fr || fr.trangThai === FaultRecordStatus.DA_XU_LY) continue;
+
+                await tx.faultRecord.update({
+                  where: { id: fr.id },
+                  data: { trangThai: FaultRecordStatus.DA_XU_LY, ngayXuLy: new Date() },
+                });
+                await tx.faultRecordStatusLog.create({
+                  data: {
+                    faultRecordId: fr.id,
+                    oldStatus: fr.trangThai,
+                    newStatus: FaultRecordStatus.DA_XU_LY,
+                    actorId: data.userId ?? null,
+                    reason: `Tự động từ yêu cầu sửa chữa: ${repairRequest.maYeuCau}`,
+                    source: 'auto_from_repair',
+                  },
+                });
+              } catch (cascadeErr) {
+                logger.error(`[AcceptanceHandoverService] cascade FaultRecord close failed for id=${item.faultRecordId}`, cascadeErr);
+              }
+            }
+
+            autoCompleted = true;
+          }
+        }
+
+        const handoverWithItems = await tx.acceptanceHandover.findUnique({
+          where: { id: created.id },
+          include: handoverInclude,
+        });
+        if (!handoverWithItems) throw new NotFoundError('Không tìm thấy nghiệm thu bàn giao');
+
+        return {
+          handover: handoverWithItems,
+          autoCompleted,
+          repairRequestId: repairRequest.id,
+          maYeuCau: repairRequest.maYeuCau,
+        };
+      });
+
+    // 6.4 Post-commit notifications (both wrapped in try/catch — errors must not bubble)
+    notificationService.notify(NotificationEvent.ACCEPTANCE_HANDOVER_CREATED, {
+      entityId: handover.id,
+      metadata: { maNghiemThu: handover.maNghiemThu, maYeuCauSuaChua: handover.maYeuCauSuaChua },
+    }).catch(() => {});
+
+    if (autoCompleted) {
+      notificationService.notify(NotificationEvent.REPAIR_REQUEST_COMPLETED, {
+        entityId: String(completedRepairId),
+        metadata: { maYeuCau: completedMaYeuCau },
+      }).catch(() => {});
+    }
 
     return handover;
   }
@@ -232,13 +350,21 @@ class AcceptanceHandoverService {
   async updateAcceptanceHandover(id: string, data: UpdateAcceptanceHandoverRequest) {
     const existingHandover = await prisma.acceptanceHandover.findUnique({
       where: { id },
+      include: { repairRequest: { select: { id: true, trangThai: true, maYeuCau: true } } },
     });
 
     if (!existingHandover) {
       throw new NotFoundError('Không tìm thấy nghiệm thu bàn giao');
     }
 
-    const { items, ...scalarData } = data;
+    const isAdmin = data.actorRole === 'ADMIN';
+
+    // 6.5 Guard: block edits when parent is HOAN_THANH, unless ADMIN
+    if (existingHandover.repairRequest?.trangThai === RepairRequestStatus.HOAN_THANH && !isAdmin) {
+      throw new ValidationError('Không thể chỉnh sửa nghiệm thu bàn giao khi yêu cầu sửa chữa đã hoàn thành');
+    }
+
+    const { items, actorRole: _actorRole, actorId, ...scalarData } = data;
 
     const handover = await prisma.$transaction(async (tx) => {
       const repairRequestId = scalarData.repairRequestId ?? existingHandover.repairRequestId;
@@ -263,6 +389,20 @@ class AcceptanceHandoverService {
         }
       }
 
+      // ADMIN override audit log
+      if (isAdmin && existingHandover.repairRequest?.trangThai === RepairRequestStatus.HOAN_THANH) {
+        await tx.repairRequestStatusLog.create({
+          data: {
+            repairRequestId: existingHandover.repairRequestId,
+            oldStatus: RepairRequestStatus.HOAN_THANH,
+            newStatus: RepairRequestStatus.HOAN_THANH,
+            actorId: actorId ?? null,
+            actorRole: 'ADMIN',
+            reason: 'admin_override:edit',
+          },
+        });
+      }
+
       return tx.acceptanceHandover.update({
         where: { id },
         data: scalarData,
@@ -273,17 +413,39 @@ class AcceptanceHandoverService {
     return handover;
   }
 
-  async deleteAcceptanceHandover(id: string) {
+  async deleteAcceptanceHandover(id: string, actorRole?: string, actorId?: string) {
     const existingHandover = await prisma.acceptanceHandover.findUnique({
       where: { id },
+      include: { repairRequest: { select: { id: true, trangThai: true, maYeuCau: true } } },
     });
 
     if (!existingHandover) {
       throw new NotFoundError('Không tìm thấy nghiệm thu bàn giao');
     }
 
-    await prisma.acceptanceHandover.delete({
-      where: { id },
+    const isAdmin = actorRole === 'ADMIN';
+
+    // 6.5 Guard: block deletes when parent is HOAN_THANH, unless ADMIN
+    if (existingHandover.repairRequest?.trangThai === RepairRequestStatus.HOAN_THANH && !isAdmin) {
+      throw new ValidationError('Không thể xóa nghiệm thu bàn giao khi yêu cầu sửa chữa đã hoàn thành');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // ADMIN override audit log
+      if (isAdmin && existingHandover.repairRequest?.trangThai === RepairRequestStatus.HOAN_THANH) {
+        await tx.repairRequestStatusLog.create({
+          data: {
+            repairRequestId: existingHandover.repairRequestId,
+            oldStatus: RepairRequestStatus.HOAN_THANH,
+            newStatus: RepairRequestStatus.HOAN_THANH,
+            actorId: actorId ?? null,
+            actorRole: 'ADMIN',
+            reason: 'admin_override:delete',
+          },
+        });
+      }
+
+      await tx.acceptanceHandover.delete({ where: { id } });
     });
 
     return { message: 'Xóa nghiệm thu bàn giao thành công' };
