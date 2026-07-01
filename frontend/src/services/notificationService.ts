@@ -51,6 +51,22 @@ export interface MyNotificationsStats {
   byType: Record<string, number>;
 }
 
+// ---- Notification Preferences types -------------------------------------
+
+export interface NotificationPreference {
+  id: string;
+  userId: string;
+  notificationType: string;
+  muted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationPreferenceItem {
+  notificationType: string;
+  muted: boolean;
+}
+
 class NotificationService {
   async getEmployeeNotifications(limit: number = 10, since?: string): Promise<AppNotification[]> {
     try {
@@ -162,6 +178,20 @@ class NotificationService {
 
     const response = await apiClient.get(`/notifications/stats?${searchParams.toString()}`);
     return response.data as MyNotificationsStats;
+  }
+
+  // ---- Notification Preferences methods ----------------------------------
+
+  async getNotificationPreferences(): Promise<NotificationPreference[]> {
+    const response = await apiClient.get('/notifications/preferences');
+    return response.data as NotificationPreference[];
+  }
+
+  async updateNotificationPreferences(
+    items: NotificationPreferenceItem[]
+  ): Promise<NotificationPreference[]> {
+    const response = await apiClient.patch('/notifications/preferences', { items });
+    return response.data as NotificationPreference[];
   }
 }
 
