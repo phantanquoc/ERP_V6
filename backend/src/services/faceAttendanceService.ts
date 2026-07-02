@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { EmployeeStatus } from '@prisma/client';
 import attendanceService from './attendanceService';
+import workShiftService from './workShiftService';
 import { getTodayInAppTz } from '@utils/dateUtils';
 import { getCursorPaginationParams, encodeCursor } from '@utils/helpers';
 import type { CursorPaginatedResponse } from '@types';
@@ -84,59 +85,14 @@ const MAX_ADAPTIVE_EMBEDDINGS  = 20;
 const LATE_GRACE_MINUTES = 5; // cho phép trễ 5 phút trước khi tính muộn
 
 /**
- * Tính số phút đi muộn so với ca làm gần nhất.
- * Dùng checkInTime thực tế (thời điểm record được tạo) thay vì wall-clock hiện tại,
- * để tránh false-positive do processing delay.
- * Trả về số phút dương nếu muộn, 0 nếu đúng giờ hoặc không tìm thấy ca.
+ * Wrapper trên workShiftService.getLateMinutes để giữ shape { lateMinutes, shiftName }
+ * và áp dụng grace period 5 phút.
  */
 async function getLateMinutes(checkInTime: Date): Promise<{ lateMinutes: number; shiftName: string | null }> {
-  const shifts = await prisma.workShift.findMany({ where: { isActive: true } });
-  if (shifts.length === 0) return { lateMinutes: 0, shiftName: null };
-
-  // Dùng giờ từ checkInTime thực tế, convert sang timezone app
-  const vnTime = new Date(checkInTime.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
-  const checkInMinutes = vnTime.getHours() * 60 + vnTime.getMinutes();
-
-  let bestShift: { name: string; startMinutes: number } | null = null;
-  let bestDiff = Infinity;
-
-  for (const shift of shifts) {
-    const [sh, sm] = shift.startTime.split(':').map(Number);
-    const [eh, em] = shift.endTime.split(':').map(Number);
-    const startMin = sh * 60 + sm;
-    const endMin   = eh * 60 + em;
-
-    // Dùng buffer giống determineShift — cho phép check-in sớm 30 phút vẫn match ca
-    const bufferedStart = (startMin - 30 + 1440) % 1440;
-
-    let inShift: boolean;
-    if (endMin > startMin) {
-      if (bufferedStart < endMin) {
-        inShift = checkInMinutes >= bufferedStart && checkInMinutes < endMin;
-      } else {
-        inShift = checkInMinutes >= bufferedStart || checkInMinutes < endMin;
-      }
-    } else {
-      inShift = checkInMinutes >= bufferedStart || checkInMinutes < endMin;
-    }
-
-    if (inShift) {
-      const raw = (checkInMinutes - startMin + 1440) % 1440;
-      // Subtract 1 for early arrivals to give tiebreaker preference —
-      // employees almost always arrive early, not late.
-      const diff = raw <= 720 ? raw : 1440 - raw - 1;
-      if (diff < bestDiff) { bestDiff = diff; bestShift = { name: shift.name, startMinutes: startMin }; }
-    }
-  }
-
-  if (!bestShift) return { lateMinutes: 0, shiftName: null };
-
-  // Chỉ tính muộn nếu checkIn SAU giờ bắt đầu ca + grace
-  const rawLate = (checkInMinutes - bestShift.startMinutes + 1440) % 1440;
-  // Nếu rawLate > 720 → check-in TRƯỚC ca (sớm), không phải muộn
-  if (rawLate > 720) return { lateMinutes: 0, shiftName: bestShift.name };
-  const lateMinutes = rawLate > LATE_GRACE_MINUTES ? rawLate : 0;
-  return { lateMinutes, shiftName: bestShift.name };
+  const info = await workShiftService.getLateMinutes(checkInTime);
+  if (!info) return { lateMinutes: 0, shiftName: null };
+  const lateMinutes = info.lateMinutes > LATE_GRACE_MINUTES ? info.lateMinutes : 0;
+  return { lateMinutes, shiftName: info.shiftName };
 }
 
 function normalizeVec(v: number[]): number[] {
@@ -593,6 +549,10 @@ export class FaceAttendanceService {
    * 3. AI dùng vectorized cosine similarity với opencv detector (10x nhanh hơn retinaface)
    */
   async verifyAndRecord(imageB64: string, frames: string[] = [], deviceId?: string, ipAddress?: string) {
+    // Capture ONCE at entry so downstream shift-detection & attendance rows
+    // see the same instant. Avoids drift when AI + DB writes take a few seconds.
+    const capturedAt = new Date();
+
     const cachedProfiles = await getEmbeddingCache();
 
     if (cachedProfiles.length === 0) {
@@ -692,25 +652,64 @@ export class FaceAttendanceService {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${employee.id}))`;
 
       const today = getTodayInAppTz();
-      // Only consider regular attendance for kiosk check-in/out decisions.
-      // Overtime records (auto-created from approved plans, or via overtimeCheckIn)
-      // must not block a regular shift check-in on the same day.
-      const todaysAttendances = await tx.attendance.findMany({
-        where: { employeeId: employee.id, attendanceDate: today, isOvertime: false },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, checkInTime: true, checkOutTime: true },
+      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+      // Include yesterday to properly handle:
+      //   1. Ca 3 (cross-midnight): worker scans out next morning — legitimate CHECK_OUT.
+      //   2. Forgot-to-check-out: yesterday's record left open — mark it as forgotten,
+      //      then create today's CHECK_IN so the current scan is not lost.
+      // Only consider regular attendance (isOvertime=false) — overtime records must
+      // not block a regular shift check-in on the same day.
+      const recentAttendances = await tx.attendance.findMany({
+        where: {
+          employeeId: employee.id,
+          attendanceDate: { in: [today, yesterday] },
+          isOvertime: false,
+        },
+        orderBy: [{ attendanceDate: 'desc' }, { createdAt: 'desc' }],
+        select: { id: true, attendanceDate: true, checkInTime: true, checkOutTime: true },
       });
-      const openAttendance = todaysAttendances.find(item => item.checkInTime && !item.checkOutTime) ?? null;
+
+      const todaysAttendances = recentAttendances.filter(
+        r => r.attendanceDate.getTime() === today.getTime()
+      );
+      const yesterdaysAttendances = recentAttendances.filter(
+        r => r.attendanceDate.getTime() === yesterday.getTime()
+      );
+
+      const openToday = todaysAttendances.find(item => item.checkInTime && !item.checkOutTime) ?? null;
+      const openYesterday = yesterdaysAttendances.find(item => item.checkInTime && !item.checkOutTime) ?? null;
 
       let txAction: 'CHECK_IN' | 'CHECK_OUT' | 'ALREADY_RECORDED';
       let txAttendanceId: string | null = null;
+      let txForgotten = false;
 
-      if (openAttendance) {
-        const attendance = await attendanceService.checkOut(employee.id, new Date(), tx);
+      if (openToday) {
+        // Ca hôm nay đang mở → chấm ra bình thường
+        const attendance = await attendanceService.checkOut(employee.id, capturedAt, tx);
         txAction = 'CHECK_OUT';
         txAttendanceId = attendance.id;
+      } else if (openYesterday && openYesterday.checkInTime) {
+        // Có ca hôm qua đang mở — phân biệt "Ca 3 đóng hợp lệ" vs "Quên chấm ra"
+        const yesterdayCheckIn = openYesterday.checkInTime;
+        const isCrossMidnight = await workShiftService.isCrossMidnightShiftAt(yesterdayCheckIn);
+        const deltaHours = (capturedAt.getTime() - yesterdayCheckIn.getTime()) / (1000 * 60 * 60);
+        // Ca 3 tiêu chuẩn ~8h; nới ra [4, 14] để bao gồm tăng giờ / trễ về sớm.
+        const legitCa3Close = isCrossMidnight && deltaHours >= 4 && deltaHours <= 14;
+
+        if (legitCa3Close) {
+          const attendance = await attendanceService.checkOut(employee.id, capturedAt, tx);
+          txAction = 'CHECK_OUT';
+          txAttendanceId = attendance.id;
+        } else {
+          // Quên chấm ra hôm qua → đánh dấu record cũ, tạo CHECK_IN mới cho hôm nay
+          await attendanceService.markForgotten(openYesterday.id, tx);
+          const attendance = await attendanceService.checkIn(employee.id, capturedAt, tx);
+          txAction = 'CHECK_IN';
+          txAttendanceId = attendance.id;
+          txForgotten = true;
+        }
       } else if (todaysAttendances.length === 0) {
-        const attendance = await attendanceService.checkIn(employee.id, new Date(), tx);
+        const attendance = await attendanceService.checkIn(employee.id, capturedAt, tx);
         txAction = 'CHECK_IN';
         txAttendanceId = attendance.id;
       } else {
@@ -722,10 +721,10 @@ export class FaceAttendanceService {
         await setCooldown(employee.id, tx);
       }
 
-      return { txAction, txAttendanceId, todaysAttendances };
+      return { txAction, txAttendanceId, todaysAttendances, txForgotten };
     });
 
-    const { txAction, txAttendanceId, todaysAttendances } = txResult;
+    const { txAction, txAttendanceId, todaysAttendances, txForgotten } = txResult;
 
     if (txAction === 'ALREADY_RECORDED') {
       await prisma.faceAttendanceLog.create({
@@ -773,14 +772,15 @@ export class FaceAttendanceService {
       adaptiveEnroll(matchedCached.id, imageB64).catch(() => {});
     }
 
-    // Tính đi muộn khi CHECK_IN
+    // Tính đi muộn khi CHECK_IN — dùng capturedAt để trùng với row đã ghi
     let lateMinutes = 0;
     if (action === 'CHECK_IN') {
-      const lateInfo = await getLateMinutes(new Date());
+      const lateInfo = await getLateMinutes(capturedAt);
       lateMinutes = lateInfo.lateMinutes;
     }
 
     const baseMessage = action === 'CHECK_IN' ? 'Chấm công vào thành công' : 'Chấm công ra thành công';
+    const forgottenSuffix = txForgotten ? ' — Đã đánh dấu ca hôm qua "quên chấm ra"' : '';
     return {
       matched: true,
       action,
@@ -794,10 +794,11 @@ export class FaceAttendanceService {
       livenessPassed: true,
       livenessScore: aiResult.liveness_score,
       lateMinutes,
+      forgottenPreviousShift: txForgotten,
       topK,
       message: lateMinutes > 0
-        ? `${baseMessage} — Đi muộn ${lateMinutes} phút`
-        : baseMessage,
+        ? `${baseMessage} — Đi muộn ${lateMinutes} phút${forgottenSuffix}`
+        : `${baseMessage}${forgottenSuffix}`,
     };
   }
 

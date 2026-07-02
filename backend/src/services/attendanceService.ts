@@ -1,33 +1,28 @@
 import prisma from '@config/database';
-import { AuthorizationError, NotFoundError } from '@utils/errors';
+import { AuthorizationError, NotFoundError, ValidationError } from '@utils/errors';
 import { AttendanceStatus, Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import workShiftService from './workShiftService';
 import { getTodayInAppTz } from '@utils/dateUtils';
 
+const MAX_SHIFT_HOURS = 20;
+
 export class AttendanceService {
   /**
    * Tính số giờ làm việc giữa checkIn và checkOut.
-   * Dùng cùng ngày calendar (local) để tránh lệch 24h do timezone.
+   * Hỗ trợ ca cross-midnight (Ca 3): tính đầy đủ giờ trước và sau nửa đêm.
+   * Reject nếu > MAX_SHIFT_HOURS (chấm công ra quá muộn — probably wrong data).
    */
   private calculateWorkHours(checkInTime: Date | null, checkOutTime: Date): number {
     if (!checkInTime) return 0;
 
-    // Đảm bảo so sánh cùng ngày: lấy giờ/phút/giây local
-    const inDate = new Date(checkInTime);
-    const outDate = new Date(checkOutTime);
+    const diffMs = checkOutTime.getTime() - checkInTime.getTime();
+    if (diffMs <= 0) return 0;
 
-    // Nếu checkIn và checkOut khác ngày calendar (local), chỉ tính từ 00:00 ngày checkOut
-    const sameDay =
-      inDate.getFullYear() === outDate.getFullYear() &&
-      inDate.getMonth() === outDate.getMonth() &&
-      inDate.getDate() === outDate.getDate();
+    const hours = diffMs / (1000 * 60 * 60);
+    if (hours > MAX_SHIFT_HOURS) return 0;
 
-    const effectiveCheckIn = sameDay ? inDate : new Date(outDate.getFullYear(), outDate.getMonth(), outDate.getDate(), 0, 0, 0, 0);
-
-    const diffMs = outDate.getTime() - effectiveCheckIn.getTime();
-    const hours = Math.max(0, diffMs / (1000 * 60 * 60));
-    return Math.round(hours * 100) / 100; // Round to 2 decimal places
+    return Math.round(hours * 100) / 100;
   }
 
   async getAttendanceByDateRange(startDate: Date, endDate: Date): Promise<any[]> {
@@ -256,16 +251,18 @@ export class AttendanceService {
   async checkOut(employeeId: string, checkOutTime: Date, tx?: Prisma.TransactionClient): Promise<any> {
     const db = tx ?? prisma;
     const today = getTodayInAppTz();
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
 
-    // Tìm ca đang mở (chưa checkout) trong ngày
+    // Tìm ca đang mở (chưa checkout) — bao gồm cả hôm qua để hỗ trợ Ca 3
+    // (nhân viên vào 22:00 đêm hôm trước, quẹt ra 06:00 sáng hôm sau).
     const attendance = await db.attendance.findFirst({
       where: {
         employeeId,
-        attendanceDate: today,
+        attendanceDate: { in: [today, yesterday] },
         isOvertime: false,
         checkOutTime: null,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { checkInTime: 'desc' },
     });
 
     if (!attendance) {
@@ -284,8 +281,45 @@ export class AttendanceService {
     });
   }
 
+  /**
+   * Đánh dấu một attendance record là "quên chấm ra": prepend note cảnh báo,
+   * set workHours = 0, giữ nguyên checkOutTime = null (không có giờ ra thực).
+   * Dùng khi phát hiện record cũ đã mở từ ngày trước mà nhân viên chấm công
+   * vào lại — tránh nhầm với ca cross-midnight hợp lệ (Ca 3).
+   */
+  async markForgotten(id: string, tx?: Prisma.TransactionClient): Promise<any> {
+    const db = tx ?? prisma;
+    const existing = await db.attendance.findUnique({
+      where: { id },
+      select: { notes: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundError('Không tìm thấy bản ghi chấm công');
+    }
+
+    const marker = '⚠ Quên chấm ra';
+    const already = existing.notes?.includes(marker) ?? false;
+    const newNotes = already
+      ? existing.notes
+      : existing.notes && existing.notes.trim().length > 0
+        ? `${marker} · ${existing.notes}`
+        : marker;
+
+    return await db.attendance.update({
+      where: { id },
+      data: {
+        notes: newNotes,
+        workHours: 0,
+      },
+    });
+  }
+
   async overtimeCheckIn(employeeId: string, checkInTime: Date): Promise<any> {
     const today = getTodayInAppTz();
+
+    const shiftName = await workShiftService.determineShift(checkInTime);
+    const noteText = shiftName ? `Tăng ca — ${shiftName}` : 'Tăng ca';
 
     // Tìm ca tăng ca đang mở (chưa checkout)
     const openAttendance = await prisma.attendance.findFirst({
@@ -299,17 +333,16 @@ export class AttendanceService {
     });
 
     if (openAttendance) {
-      // Cập nhật ca tăng ca đang mở
       return await prisma.attendance.update({
         where: { id: openAttendance.id },
         data: {
           checkInTime,
           status: AttendanceStatus.OVERTIME,
+          notes: openAttendance.notes ?? noteText,
         },
       });
     }
 
-    // Tạo ca tăng ca mới
     return await prisma.attendance.create({
       data: {
         employeeId,
@@ -317,22 +350,24 @@ export class AttendanceService {
         checkInTime,
         isOvertime: true,
         status: AttendanceStatus.OVERTIME,
+        notes: noteText,
       },
     });
   }
 
   async overtimeCheckOut(employeeId: string, checkOutTime: Date): Promise<any> {
     const today = getTodayInAppTz();
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
 
-    // Tìm ca tăng ca đang mở (chưa checkout)
+    // Include yesterday để tăng ca cross-midnight vẫn khớp
     const attendance = await prisma.attendance.findFirst({
       where: {
         employeeId,
-        attendanceDate: today,
+        attendanceDate: { in: [today, yesterday] },
         isOvertime: true,
         checkOutTime: null,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { checkInTime: 'desc' },
     });
 
     if (!attendance) {
@@ -374,9 +409,17 @@ export class AttendanceService {
         ? this.calculateWorkHours(data.checkInTime, data.checkOutTime)
         : 0);
 
+    // Auto-note với shift name nếu caller không cung cấp và có checkInTime
+    let notes = data.notes;
+    if (!notes && data.checkInTime) {
+      const shiftName = await workShiftService.determineShift(data.checkInTime);
+      if (shiftName) notes = shiftName;
+    }
+
     const attendance = await prisma.attendance.create({
       data: {
         ...data,
+        notes,
         workHours,
       },
       include: {
@@ -427,8 +470,12 @@ export class AttendanceService {
       const finalCheckOut = data.checkOutTime ?? attendance.checkOutTime;
 
       if (finalCheckIn && finalCheckOut) {
-        const diffMs = new Date(finalCheckOut).getTime() - new Date(finalCheckIn).getTime();
-        data.workHours = diffMs / (1000 * 60 * 60);
+        const inDate = new Date(finalCheckIn);
+        const outDate = new Date(finalCheckOut);
+        if (outDate.getTime() < inDate.getTime()) {
+          throw new ValidationError('Giờ ra phải sau giờ vào');
+        }
+        data.workHours = this.calculateWorkHours(inDate, outDate);
       }
     }
 

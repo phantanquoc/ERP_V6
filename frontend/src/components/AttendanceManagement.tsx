@@ -3,6 +3,7 @@ import { Plus, Edit2, Trash2, Download, Settings, Table, Calendar, ChevronLeft, 
 import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
 import { useDepartments } from '../hooks/useDepartments';
+import { useWorkShifts } from '../hooks/useWorkShifts';
 import { useQueryClient } from '@tanstack/react-query';
 import DatePicker from './DatePicker';
 import WorkShiftSettingsModal from './WorkShiftSettingsModal';
@@ -179,6 +180,9 @@ const AttendanceManagement: React.FC = () => {
   // Departments for filter
   const { data: departments = [] } = useDepartments();
 
+  // Work shifts for quick-fill in edit modal
+  const { data: workShifts = [] } = useWorkShifts();
+
   // Use React Query for attendance data
   const queryClient = useQueryClient();
   const { data: attendances = [], isLoading: loading } = useAttendanceByDateRange(startDate, endDate);
@@ -292,6 +296,15 @@ const AttendanceManagement: React.FC = () => {
     setShowModal(true);
   };
 
+  // Nếu checkOut < checkIn (theo "HH:mm") → coi như ca đêm, checkOut rơi vào ngày kế tiếp.
+  const resolveCheckOutDate = (baseDate: string, checkIn: string, checkOut: string): string => {
+    if (!checkIn || !checkOut) return baseDate;
+    if (checkOut >= checkIn) return baseDate;
+    const d = new Date(`${baseDate}T00:00:00`);
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
   const handleSave = async () => {
     try {
       console.log('Form data:', formData);
@@ -304,9 +317,10 @@ const AttendanceManagement: React.FC = () => {
       if (editingId && editEntries.length > 0) {
         // Update each record individually
         for (const entry of editEntries) {
+          const outDate = resolveCheckOutDate(formData.attendanceDate, entry.checkInTime, entry.checkOutTime);
           const updateData = {
             checkInTime: entry.checkInTime ? `${formData.attendanceDate}T${entry.checkInTime}:00` : undefined,
-            checkOutTime: entry.checkOutTime ? `${formData.attendanceDate}T${entry.checkOutTime}:00` : undefined,
+            checkOutTime: entry.checkOutTime ? `${outDate}T${entry.checkOutTime}:00` : undefined,
             status: entry.status,
             notes: entry.notes || undefined,
           };
@@ -322,11 +336,12 @@ const AttendanceManagement: React.FC = () => {
           return;
         }
 
+        const outDate = resolveCheckOutDate(formData.attendanceDate, formData.checkInTime, formData.checkOutTime);
         const createData = {
           employeeId: selectedEmployee.id,
           attendanceDate: formData.attendanceDate,
           checkInTime: formData.checkInTime ? `${formData.attendanceDate}T${formData.checkInTime}:00` : undefined,
-          checkOutTime: formData.checkOutTime ? `${formData.attendanceDate}T${formData.checkOutTime}:00` : undefined,
+          checkOutTime: formData.checkOutTime ? `${outDate}T${formData.checkOutTime}:00` : undefined,
           status: formData.status,
           notes: formData.notes || undefined,
         };
@@ -370,6 +385,52 @@ const AttendanceManagement: React.FC = () => {
         hour12: false
       });
     }).join(', ');
+  };
+
+  // Format từng mốc giờ kèm ngày ngắn "HH:mm (Tx, dd/MM)".
+  const formatTimesWithDate = (times: string[]) => {
+    if (!times || times.length === 0) return '-';
+    const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    return times.map(t => {
+      const date = new Date(t);
+      const hhmm = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const wd = weekdays[date.getDay()];
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      return `${hhmm} (${wd}, ${dd}/${mm})`;
+    }).join(', ');
+  };
+
+  // Kiểm tra ca chấm công có vắt qua đêm không (checkOut > checkIn theo local date).
+  const isCrossMidnight = (checkIns?: string[], checkOuts?: string[]): boolean => {
+    if (!checkIns?.length || !checkOuts?.length) return false;
+    const inDate = new Date(checkIns[0]);
+    const outDate = new Date(checkOuts[checkOuts.length - 1]);
+    const inKey = `${inDate.getFullYear()}-${inDate.getMonth()}-${inDate.getDate()}`;
+    const outKey = `${outDate.getFullYear()}-${outDate.getMonth()}-${outDate.getDate()}`;
+    return inKey !== outKey;
+  };
+
+  // "Quên chấm ra": có giờ vào, KHÔNG có giờ ra, và ngày đã qua (< hôm nay).
+  // Kết hợp với marker note "⚠ Quên chấm ra" từ backend (khi verifyAndRecord auto-detect).
+  const isIncomplete = (record: {
+    attendanceDate?: string;
+    regularCheckInTimes?: string[];
+    regularCheckOutTimes?: string[];
+    checkInTimes?: string[];
+    checkOutTimes?: string[];
+    notes?: string | null;
+  }): boolean => {
+    if (record.notes?.includes('⚠ Quên chấm ra')) return true;
+    const ins = record.regularCheckInTimes ?? record.checkInTimes ?? [];
+    const outs = record.regularCheckOutTimes ?? record.checkOutTimes ?? [];
+    if (ins.length === 0 || outs.length > 0) return false;
+    if (!record.attendanceDate) return false;
+    const d = new Date(record.attendanceDate);
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return dateKey < todayKey;
   };
 
   const formatDateWithWeekday = (dateStr: string) => {
@@ -660,7 +721,29 @@ const AttendanceManagement: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedAttendances.map((record, index) => (
+                    {paginatedAttendances.map((record, index) => {
+                      const rowIns = record.regularStatus ? (record.regularCheckInTimes ?? record.checkInTimes) : (record.overtimeCheckInTimes ?? []);
+                      const rowOuts = record.regularStatus ? (record.regularCheckOutTimes ?? record.checkOutTimes) : (record.overtimeCheckOutTimes ?? []);
+                      const rowCrossMidnight = isCrossMidnight(rowIns, rowOuts);
+                      const rowIncomplete = record.regularStatus ? isIncomplete({
+                        attendanceDate: record.attendanceDate,
+                        regularCheckInTimes: record.regularCheckInTimes,
+                        regularCheckOutTimes: record.regularCheckOutTimes,
+                        checkInTimes: record.checkInTimes,
+                        checkOutTimes: record.checkOutTimes,
+                        notes: record.notes,
+                      }) : false;
+                      const outTooltip = rowIncomplete
+                        ? 'Quên chấm ra — ca này đã bị đánh dấu, giờ làm tính 0'
+                        : rowCrossMidnight && rowOuts.length ? (() => {
+                        const last = new Date(rowOuts[rowOuts.length - 1]);
+                        const wds = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+                        const dd = String(last.getDate()).padStart(2, '0');
+                        const mm = String(last.getMonth() + 1).padStart(2, '0');
+                        const hhmm = last.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+                        return `Ra ngày kế: ${wds[last.getDay()]}, ${dd}/${mm} ${hhmm} (Ca đêm)`;
+                      })() : undefined;
+                      return (
                       <React.Fragment key={record.id}>
                         <tr
                           className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -675,10 +758,31 @@ const AttendanceManagement: React.FC = () => {
                             {formatDateWithWeekday(record.attendanceDate)}
                           </td>
                           <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
-                            {formatTimes(record.regularStatus ? (record.regularCheckInTimes ?? record.checkInTimes) : (record.overtimeCheckInTimes ?? []))}
+                            {formatTimes(rowIns)}
                           </td>
-                          <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
-                            {formatTimes(record.regularStatus ? (record.regularCheckOutTimes ?? record.checkOutTimes) : (record.overtimeCheckOutTimes ?? []))}
+                          <td
+                            className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200"
+                            title={outTooltip}
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              {rowIncomplete ? <span className="text-red-600 font-medium">—</span> : formatTimes(rowOuts)}
+                              {rowIncomplete && (
+                                <span
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                  aria-label="Quên chấm ra"
+                                >
+                                  ⚠ Quên ra
+                                </span>
+                              )}
+                              {!rowIncomplete && rowCrossMidnight && (
+                                <span
+                                  className="inline-flex items-center px-1 py-0.5 text-[10px] font-bold rounded bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-help"
+                                  aria-label="Ca đêm — ra ngày kế"
+                                >
+                                  ⁺¹
+                                </span>
+                              )}
+                            </span>
                           </td>
                           <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
                             {(record.regularStatus ? (record.regularHours ?? record.workHours) : (record.overtimeHours ?? record.workHours)).toFixed(2)}
@@ -748,7 +852,8 @@ const AttendanceManagement: React.FC = () => {
                           </tr>
                         )}
                       </React.Fragment>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -852,6 +957,18 @@ const AttendanceManagement: React.FC = () => {
 
                             // Determine what to render for this cell
                             const isSplit = !!(record?.hasOvertime && record?.regularStatus);
+                            const cellCrossMidnight = !!(record && isCrossMidnight(
+                              record.regularCheckInTimes ?? record.checkInTimes,
+                              record.regularCheckOutTimes ?? record.checkOutTimes,
+                            ));
+                            const cellIncomplete = !!(record && record.regularStatus && isIncomplete({
+                              attendanceDate: record.attendanceDate,
+                              regularCheckInTimes: record.regularCheckInTimes,
+                              regularCheckOutTimes: record.regularCheckOutTimes,
+                              checkInTimes: record.checkInTimes,
+                              checkOutTimes: record.checkOutTimes,
+                              notes: record.notes,
+                            }));
                             let letter = '';
                             let cellClass = '';
                             let regularColor = '';
@@ -873,10 +990,21 @@ const AttendanceManagement: React.FC = () => {
                                   letter = 'T'; cellClass = 'bg-purple-100 text-purple-700'; regularColor = '#f3e8ff'; regularTextColor = '#7e22ce'; presentDays++; break;
                               }
                             }
+                            // Tooltip: prioritise "quên chấm ra" over cross-midnight if both apply.
+                            const cellTitle = (() => {
+                              if (cellIncomplete) return 'Quên chấm ra — ca này đã bị đánh dấu, giờ làm tính 0';
+                              if (!record || !cellCrossMidnight) return undefined;
+                              const ins = record.regularCheckInTimes ?? record.checkInTimes;
+                              const outs = record.regularCheckOutTimes ?? record.checkOutTimes;
+                              if (!ins?.length || !outs?.length) return 'Ca đêm (vắt qua ngày kế)';
+                              const fmt = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+                              return `CA 3 · ${fmt(ins[0])} → ${fmt(outs[outs.length - 1])}⁺¹`;
+                            })();
                             return (
                               <td
                                 key={day.toISOString()}
                                 className={`px-1 py-1 text-center border-r border-gray-100 cursor-pointer ${record ? 'hover:bg-gray-100' : 'hover:bg-gray-50'}`}
+                                title={cellTitle}
                                 onClick={() => {
                                   if (record) {
                                     setCalendarModal({ type: 'cell', employee: emp, day, record });
@@ -906,10 +1034,20 @@ const AttendanceManagement: React.FC = () => {
                                   >
                                     <span className="absolute top-0 left-0.5 text-[9px] font-bold leading-none" style={{ color: regularTextColor }}>{letter}</span>
                                     <span className="absolute bottom-0 right-0.5 text-[9px] font-bold leading-none text-purple-700">T</span>
+                                    {cellIncomplete ? (
+                                      <span className="absolute -top-0.5 -right-0.5 text-[9px] font-bold text-white bg-red-600 rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none" aria-label="Quên chấm ra">!</span>
+                                    ) : cellCrossMidnight && (
+                                      <span className="absolute -top-0.5 -right-0.5 text-[8px] font-bold text-indigo-700 bg-white/80 rounded-full px-0.5 leading-none" aria-label="Ca đêm vắt sang ngày kế">⁺¹</span>
+                                    )}
                                   </span>
                                 ) : letter ? (
-                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded text-xs font-medium ${cellClass}`}>
+                                  <span className={`relative inline-flex items-center justify-center w-6 h-6 rounded text-xs font-medium ${cellClass}`}>
                                     {letter}
+                                    {cellIncomplete ? (
+                                      <span className="absolute -top-1 -right-1 text-[9px] font-bold text-white bg-red-600 rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none border border-white" aria-label="Quên chấm ra">!</span>
+                                    ) : cellCrossMidnight && (
+                                      <span className="absolute -top-1 -right-1 text-[8px] font-bold text-indigo-700 bg-white rounded-full px-0.5 leading-none border border-indigo-200" aria-label="Ca đêm vắt sang ngày kế">⁺¹</span>
+                                    )}
                                   </span>
                                 ) : null}
                               </td>
@@ -1025,6 +1163,31 @@ const AttendanceManagement: React.FC = () => {
                           <span className={`text-sm font-semibold ${entry.status === 'OVERTIME' ? 'text-purple-600' : 'text-blue-600'}`}>
                             {entry.status === 'OVERTIME' ? `Tăng ca ${index + 1}` : `Ca ${index + 1}`}
                           </span>
+                          {workShifts.length > 0 && entry.status !== 'OVERTIME' && (
+                            <select
+                              value=""
+                              onChange={(e) => {
+                                const shift = workShifts.find(s => s.id === e.target.value);
+                                if (!shift) return;
+                                const updated = [...editEntries];
+                                updated[index] = {
+                                  ...updated[index],
+                                  checkInTime: shift.startTime,
+                                  checkOutTime: shift.endTime,
+                                };
+                                setEditEntries(updated);
+                              }}
+                              className="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                              title="Chọn ca để tự điền giờ vào/ra"
+                            >
+                              <option value="">Chọn ca…</option>
+                              {workShifts.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name} ({s.startTime}-{s.endTime})
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </div>
                         <div className="grid grid-cols-2 gap-3 mb-2">
                           <div>
@@ -1095,6 +1258,34 @@ const AttendanceManagement: React.FC = () => {
               ) : (
                 /* Add mode: single entry */
                 <>
+                  {workShifts.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Chọn ca <span className="text-xs text-gray-400 font-normal">(tự động điền giờ vào/ra)</span>
+                      </label>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const shift = workShifts.find(s => s.id === e.target.value);
+                          if (!shift) return;
+                          setFormData({
+                            ...formData,
+                            checkInTime: shift.startTime,
+                            checkOutTime: shift.endTime,
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">— Chọn ca để tự điền —</option>
+                        {workShifts.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.startTime} - {s.endTime})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Giờ vào</label>
@@ -1178,25 +1369,52 @@ const AttendanceManagement: React.FC = () => {
             </div>
             <div className="p-6 space-y-4">
               {/* Section 1: Regular shift */}
-              {calendarModal.record.regularStatus && (
+              {calendarModal.record.regularStatus && (() => {
+                const ins = calendarModal.record.regularCheckInTimes ?? calendarModal.record.checkInTimes;
+                const outs = calendarModal.record.regularCheckOutTimes ?? calendarModal.record.checkOutTimes;
+                const crossMidnight = isCrossMidnight(ins, outs);
+                const incomplete = isIncomplete({
+                  attendanceDate: calendarModal.record.attendanceDate,
+                  regularCheckInTimes: calendarModal.record.regularCheckInTimes,
+                  regularCheckOutTimes: calendarModal.record.regularCheckOutTimes,
+                  checkInTimes: calendarModal.record.checkInTimes,
+                  checkOutTimes: calendarModal.record.checkOutTimes,
+                  notes: calendarModal.record.notes,
+                });
+                return (
                 <div className="space-y-3">
                   {calendarModal.record.hasOvertime && (
                     <h4 className="text-sm font-semibold text-gray-700 border-b pb-1">Ca bình thường</h4>
                   )}
-                  <div className="flex items-center gap-2">
+                  {incomplete && (
+                    <div className="flex items-start gap-2 p-2.5 rounded-md bg-red-50 border border-red-200 text-red-800 text-sm">
+                      <span aria-hidden className="mt-0.5">⚠</span>
+                      <div>
+                        <div className="font-semibold">Quên chấm ra</div>
+                        <div className="text-xs mt-0.5">Nhân viên đã chấm vào nhưng không chấm ra trong ngày này. Số giờ làm tự động tính 0. Vào &quot;Chỉnh sửa&quot; để cập nhật giờ ra thực tế.</div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[calendarModal.record.regularStatus] || ''}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[calendarModal.record.regularStatus] || ''}`}></span>
                       {STATUS_LABELS[calendarModal.record.regularStatus]}
                     </span>
+                    {crossMidnight && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <span aria-hidden>🌙</span>
+                        Ca đêm
+                      </span>
+                    )}
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-600">Giờ vào:</span>
-                    <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.regularCheckInTimes ?? calendarModal.record.checkInTimes)}</span>
+                    <span className="ml-2 text-sm text-gray-900">{crossMidnight ? formatTimesWithDate(ins) : formatTimes(ins)}</span>
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-600">Giờ ra:</span>
-                    <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.regularCheckOutTimes ?? calendarModal.record.checkOutTimes)}</span>
+                    <span className="ml-2 text-sm text-gray-900">{crossMidnight ? formatTimesWithDate(outs) : formatTimes(outs)}</span>
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-600">Số giờ:</span>
@@ -1209,24 +1427,35 @@ const AttendanceManagement: React.FC = () => {
                     </div>
                   )}
                 </div>
-              )}
+                );
+              })()}
               {/* Show plain view for records without regularStatus split (pure overtime or old data) */}
-              {!calendarModal.record.regularStatus && !calendarModal.record.hasOvertime && (
+              {!calendarModal.record.regularStatus && !calendarModal.record.hasOvertime && (() => {
+                const ins = calendarModal.record.checkInTimes;
+                const outs = calendarModal.record.checkOutTimes;
+                const crossMidnight = isCrossMidnight(ins, outs);
+                return (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[calendarModal.record.status] || ''}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[calendarModal.record.status] || ''}`}></span>
                       {STATUS_LABELS[calendarModal.record.status]}
                     </span>
+                    {crossMidnight && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <span aria-hidden>🌙</span>
+                        Ca đêm
+                      </span>
+                    )}
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-600">Giờ vào:</span>
-                    <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.checkInTimes)}</span>
+                    <span className="ml-2 text-sm text-gray-900">{crossMidnight ? formatTimesWithDate(ins) : formatTimes(ins)}</span>
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-600">Giờ ra:</span>
-                    <span className="ml-2 text-sm text-gray-900">{formatTimes(calendarModal.record.checkOutTimes)}</span>
+                    <span className="ml-2 text-sm text-gray-900">{crossMidnight ? formatTimesWithDate(outs) : formatTimes(outs)}</span>
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-600">Tổng giờ làm:</span>
@@ -1239,7 +1468,8 @@ const AttendanceManagement: React.FC = () => {
                     </div>
                   )}
                 </div>
-              )}
+                );
+              })()}
               {/* Section 2: Overtime */}
               {calendarModal.record.hasOvertime && (
                 <div className="space-y-3 border-t pt-3">
