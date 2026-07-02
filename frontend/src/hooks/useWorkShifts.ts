@@ -6,6 +6,8 @@ export interface WorkShift {
   name: string;
   startTime: string; // "HH:mm"
   endTime: string; // "HH:mm"
+  checkInWindowStart?: string | null; // "HH:mm"
+  checkInWindowEnd?: string | null;   // "HH:mm"
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

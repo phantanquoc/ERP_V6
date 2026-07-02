@@ -13,6 +13,8 @@ interface ShiftForm {
   name: string;
   startTime: string;
   endTime: string;
+  checkInWindowStart: string;
+  checkInWindowEnd: string;
 }
 
 const WorkShiftSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
@@ -30,7 +32,14 @@ const WorkShiftSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setLoading(true);
     try {
       const data = await workShiftService.getAll();
-      setShifts(data.map(s => ({ id: s.id, name: s.name, startTime: s.startTime, endTime: s.endTime })));
+      setShifts(data.map(s => ({
+        id: s.id,
+        name: s.name,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        checkInWindowStart: s.checkInWindowStart ?? '',
+        checkInWindowEnd: s.checkInWindowEnd ?? '',
+      })));
     } catch (error) {
       console.error('Error loading shifts:', error);
     } finally {
@@ -39,7 +48,13 @@ const WorkShiftSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   };
 
   const addShift = () => {
-    setShifts([...shifts, { name: `Ca ${shifts.length + 1}`, startTime: '06:00', endTime: '14:00' }]);
+    setShifts([...shifts, {
+      name: `Ca ${shifts.length + 1}`,
+      startTime: '06:00',
+      endTime: '14:00',
+      checkInWindowStart: '05:30',
+      checkInWindowEnd: '06:30',
+    }]);
   };
 
   const removeShift = (index: number) => {
@@ -77,10 +92,17 @@ const WorkShiftSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
       // Create or update shifts
       for (const shift of shifts) {
+        const payload = {
+          name: shift.name,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          checkInWindowStart: shift.checkInWindowStart || null,
+          checkInWindowEnd: shift.checkInWindowEnd || null,
+        };
         if (shift.id && existingIds.includes(shift.id)) {
-          await workShiftService.update(shift.id, { name: shift.name, startTime: shift.startTime, endTime: shift.endTime });
+          await workShiftService.update(shift.id, payload);
         } else {
-          await workShiftService.create({ name: shift.name, startTime: shift.startTime, endTime: shift.endTime });
+          await workShiftService.create(payload);
         }
       }
 
@@ -98,7 +120,7 @@ const WorkShiftSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
         <div className="bg-blue-600 px-6 py-4 flex justify-between items-center rounded-t-lg shrink-0">
           <h3 className="text-xl font-bold text-white">Cài đặt ca làm việc</h3>
           <button onClick={onClose} className="text-white hover:text-gray-200">
@@ -112,45 +134,74 @@ const WorkShiftSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-gray-600">
-                Cài đặt thời gian cho các ca làm việc. Khi nhân viên điểm danh, hệ thống sẽ tự động xác định ca dựa trên giờ vào.
+                Cài đặt thời gian cho các ca làm việc. <strong>Giờ ca</strong> là khung giờ tính công.
+                <strong> Cửa sổ chấm công</strong> là khoảng giờ máy chấm gán vào ca này (bao lấy giờ bắt đầu, thường sớm 30 phút và trễ sau giờ vào 30 phút — dùng khoảng nửa mở <code>[Từ, Đến)</code>). Bỏ trống nếu muốn dùng mặc định.
               </p>
 
               {shifts.map((shift, index) => (
-                <div key={index} className="flex items-end gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Tên ca</label>
-                    <input
-                      type="text"
-                      value={shift.name}
-                      onChange={(e) => updateShiftField(index, 'name', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                <div key={index} className="p-3 bg-gray-50 rounded-lg space-y-2">
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Tên ca</label>
+                      <input
+                        type="text"
+                        value={shift.name}
+                        onChange={(e) => updateShiftField(index, 'name', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Từ</label>
+                      <input
+                        type="time"
+                        value={shift.startTime}
+                        onChange={(e) => updateShiftField(index, 'startTime', e.target.value)}
+                        className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Đến</label>
+                      <input
+                        type="time"
+                        value={shift.endTime}
+                        onChange={(e) => updateShiftField(index, 'endTime', e.target.value)}
+                        className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <button
+                      onClick={() => removeShift(index)}
+                      className="p-2 text-red-500 hover:bg-red-100 rounded-md transition-colors"
+                      title="Xóa ca"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="w-28">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Từ</label>
-                    <input
-                      type="time"
-                      value={shift.startTime}
-                      onChange={(e) => updateShiftField(index, 'startTime', e.target.value)}
-                      className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Cửa sổ chấm công (khoảng giờ máy chấm gán vào ca này)
+                      </label>
+                    </div>
+                    <div className="w-28">
+                      <input
+                        type="time"
+                        value={shift.checkInWindowStart}
+                        onChange={(e) => updateShiftField(index, 'checkInWindowStart', e.target.value)}
+                        placeholder="Từ"
+                        className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="w-28">
+                      <input
+                        type="time"
+                        value={shift.checkInWindowEnd}
+                        onChange={(e) => updateShiftField(index, 'checkInWindowEnd', e.target.value)}
+                        placeholder="Đến"
+                        className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="w-9" />
                   </div>
-                  <div className="w-28">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Đến</label>
-                    <input
-                      type="time"
-                      value={shift.endTime}
-                      onChange={(e) => updateShiftField(index, 'endTime', e.target.value)}
-                      className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <button
-                    onClick={() => removeShift(index)}
-                    className="p-2 text-red-500 hover:bg-red-100 rounded-md transition-colors"
-                    title="Xóa ca"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               ))}
 

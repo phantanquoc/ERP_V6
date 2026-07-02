@@ -21,14 +21,24 @@ export function getTodayInAppTz(): Date {
  * Used for late detection (compare against shift start time).
  */
 export function nowInAppTz(): { hour: number; minute: number } {
-  const now = new Date();
+  return dateInAppTz(new Date());
+}
+
+/**
+ * Convert any Date to { hour, minute } in the application timezone.
+ * Use this to determine the shift for a specific captured timestamp
+ * (avoids drift when the caller captured `new Date()` earlier).
+ */
+export function dateInAppTz(d: Date): { hour: number; minute: number } {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: APP_TZ,
     hour: 'numeric',
     minute: 'numeric',
     hour12: false,
-  }).formatToParts(now);
-  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+  }).formatToParts(d);
+  const rawHour = parts.find(p => p.type === 'hour')?.value || '0';
+  // Intl may return "24" for midnight in some locales; normalize to 0
+  const hour = parseInt(rawHour, 10) % 24;
   const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
   return { hour, minute };
 }
