@@ -95,7 +95,7 @@ Xem `openspec/changes/` để biết định dạng spec đầy đủ cho featur
 ### AI Service
 - **Single LLM**: OpenRouter/DeepSeek (`deepseek/deepseek-chat-v3-0324`) cho cả agent và chatbot — xem `config.py`. Không thêm LLM provider khác.
 - **AI modules độc lập**: `face/` không import `chat/`. `agent/` chỉ import `chat/` cho RAG search.
-- **Tool registry**: 66 tools trong `agent/registry.py`. Intent classifier lọc còn ~10-15 tools/request. Write actions (`is_write: True`) yêu cầu user confirm trước khi execute.
+- **Tool registry**: 72 tools trong `agent/registry.py`. Intent classifier lọc còn ~10-15 tools/request. Write actions (`is_write: True`) yêu cầu user confirm trước khi execute.
 - **Face attendance**: transaction + advisory lock cho concurrent scans, DB-backed cooldown cho multi-instance.
 
 ---
@@ -200,7 +200,7 @@ Với regression: `git bisect` để tìm commit gây lỗi trước khi đoán.
 - **Never** gọi Prisma trực tiếp từ controller — phải qua service
 - **Never** thêm LLM provider — giữ OpenRouter là provider duy nhất
 - **Never** skip Prisma migration khi thay đổi schema
-- **Never** sửa `agent/registry.py` mà không cập nhật test count trong `test_registry.py` (hiện tại: 66 tools)
+- **Never** sửa `agent/registry.py` mà không cập nhật test count trong `test_registry.py` (hiện tại: 72 tools)
 - **Never** expose `PATCH /status` endpoint chung — status chỉ thay đổi qua business events
 - **Never** store secrets trong code — dùng env vars qua docker-compose
 - **Never** commit mà không chạy `tsc --noEmit` và tests trước
