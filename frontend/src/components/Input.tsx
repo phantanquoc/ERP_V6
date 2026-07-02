@@ -61,7 +61,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           {showPasswordToggle && (
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center rounded-r-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               onClick={onTogglePassword}
             >
               {showPassword ? (
