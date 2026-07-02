@@ -5,7 +5,17 @@ export interface WorkShift {
   name: string;
   startTime: string;
   endTime: string;
+  checkInWindowStart?: string | null;
+  checkInWindowEnd?: string | null;
   isActive: boolean;
+}
+
+export interface WorkShiftInput {
+  name: string;
+  startTime: string;
+  endTime: string;
+  checkInWindowStart?: string | null;
+  checkInWindowEnd?: string | null;
 }
 
 class WorkShiftService {
@@ -19,7 +29,7 @@ class WorkShiftService {
     }
   }
 
-  async create(data: { name: string; startTime: string; endTime: string }): Promise<WorkShift> {
+  async create(data: WorkShiftInput): Promise<WorkShift> {
     try {
       const response = await apiClient.post('/work-shifts', data);
       return response.data;

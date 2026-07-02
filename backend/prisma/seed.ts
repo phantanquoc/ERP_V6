@@ -774,6 +774,30 @@ async function main(): Promise<void> {
     console.log(`✅ Employee ${i + 1}/20 created: ${emp.firstName} ${emp.lastName} (${empEmail})`);
   }
 
+  // Seed 5 work shifts với check-in windows
+  console.log('\n🕐 Creating work shifts...');
+  const shifts = [
+    { name: 'Ca 1',       startTime: '06:00', endTime: '14:00', checkInWindowStart: '05:30', checkInWindowEnd: '06:30' },
+    { name: 'Hành chính', startTime: '07:00', endTime: '16:00', checkInWindowStart: '06:30', checkInWindowEnd: '07:30' },
+    { name: 'Văn phòng',  startTime: '08:00', endTime: '17:00', checkInWindowStart: '07:30', checkInWindowEnd: '08:30' },
+    { name: 'Ca 2',       startTime: '14:00', endTime: '22:00', checkInWindowStart: '13:30', checkInWindowEnd: '14:30' },
+    { name: 'Ca 3',       startTime: '22:00', endTime: '06:00', checkInWindowStart: '21:00', checkInWindowEnd: '22:30' },
+  ];
+  for (const s of shifts) {
+    await prisma.workShift.upsert({
+      where: { name: s.name },
+      update: {
+        startTime: s.startTime,
+        endTime: s.endTime,
+        checkInWindowStart: s.checkInWindowStart,
+        checkInWindowEnd: s.checkInWindowEnd,
+        isActive: true,
+      },
+      create: s,
+    });
+    console.log(`✅ Shift: ${s.name} (${s.startTime}-${s.endTime}, window ${s.checkInWindowStart}-${s.checkInWindowEnd})`);
+  }
+
   console.log('✨ Database seeding completed!');
 }
 

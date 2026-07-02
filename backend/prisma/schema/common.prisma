@@ -506,14 +506,16 @@ model Attendance {
 }
 
 model WorkShift {
-  id            String            @id @default(cuid())
-  name          String // e.g. "Ca 1", "Ca 2", "Ca 3"
-  startTime     String // format "HH:mm" e.g. "06:00"
-  endTime       String // format "HH:mm" e.g. "14:00"
-  isActive      Boolean           @default(true)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  overtimeItems OvertimePlanItem[]
+  id                  String             @id @default(cuid())
+  name                String             @unique // e.g. "Ca 1", "Ca 2", "Ca 3", "Hành chính", "Văn phòng"
+  startTime           String // "HH:mm" — shift start (e.g. "06:00")
+  endTime             String // "HH:mm" — shift end (e.g. "14:00"); may be < startTime for overnight shifts
+  checkInWindowStart  String? // "HH:mm" — earliest scan accepted for this shift; null → fallback (startTime - 30m)
+  checkInWindowEnd    String? // "HH:mm" — latest scan accepted, half-open [start, end); null → fallback endTime
+  isActive            Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  overtimeItems       OvertimePlanItem[]
 
   @@map("work_shifts")
   @@schema("common")
