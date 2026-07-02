@@ -5,6 +5,7 @@ import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks
 import { useDepartments } from '../hooks/useDepartments';
 import { useWorkShifts } from '../hooks/useWorkShifts';
 import { useQueryClient } from '@tanstack/react-query';
+import { toAppTzIso, formatTimeInAppTz, formatDateInAppTz, todayInAppTz, APP_TZ } from '../utils/dateUtils';
 import DatePicker from './DatePicker';
 import WorkShiftSettingsModal from './WorkShiftSettingsModal';
 import TableFilter, { FilterField } from './TableFilter';
@@ -114,8 +115,9 @@ const AttendanceManagement: React.FC = () => {
     },
   ];
   const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() };
+    const today = todayInAppTz();
+    const [y, m] = today.split('-').map(Number);
+    return { year: y, month: m - 1 };
   });
   const startDate = useMemo(() => {
     const d = new Date(selectedMonth.year, selectedMonth.month, 1);
@@ -154,7 +156,7 @@ const AttendanceManagement: React.FC = () => {
   const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState(false);
   const [formData, setFormData] = useState({
     employeeCode: '',
-    attendanceDate: new Date().toISOString().split('T')[0],
+    attendanceDate: todayInAppTz(),
     checkInTime: '',
     checkOutTime: '',
     status: 'PRESENT' as const,
@@ -228,13 +230,10 @@ const AttendanceManagement: React.FC = () => {
     setEmployeeSearch(record.employeeName);
     setIsEmployeeDropdownOpen(false);
 
-    // Convert UTC time to local time for editing
+    // Convert UTC time to APP_TZ HH:mm string for time input
     const getLocalTimeString = (dateTimeString: string | null | undefined) => {
       if (!dateTimeString) return '';
-      const date = new Date(dateTimeString);
-      const hours = date.getHours().toString().padStart(2, '0');
-      const minutes = date.getMinutes().toString().padStart(2, '0');
-      return `${hours}:${minutes}`;
+      return formatTimeInAppTz(dateTimeString);
     };
 
     // Build entries by mapping regular IDs to regular times, overtime IDs to overtime times
@@ -300,9 +299,9 @@ const AttendanceManagement: React.FC = () => {
   const resolveCheckOutDate = (baseDate: string, checkIn: string, checkOut: string): string => {
     if (!checkIn || !checkOut) return baseDate;
     if (checkOut >= checkIn) return baseDate;
-    const d = new Date(`${baseDate}T00:00:00`);
-    d.setDate(d.getDate() + 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const [y, m, d] = baseDate.split('-').map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d + 1));
+    return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`;
   };
 
   const handleSave = async () => {
@@ -319,8 +318,8 @@ const AttendanceManagement: React.FC = () => {
         for (const entry of editEntries) {
           const outDate = resolveCheckOutDate(formData.attendanceDate, entry.checkInTime, entry.checkOutTime);
           const updateData = {
-            checkInTime: entry.checkInTime ? `${formData.attendanceDate}T${entry.checkInTime}:00` : undefined,
-            checkOutTime: entry.checkOutTime ? `${outDate}T${entry.checkOutTime}:00` : undefined,
+            checkInTime: entry.checkInTime ? toAppTzIso(formData.attendanceDate, entry.checkInTime) : undefined,
+            checkOutTime: entry.checkOutTime ? toAppTzIso(outDate, entry.checkOutTime) : undefined,
             status: entry.status,
             notes: entry.notes || undefined,
           };
@@ -340,8 +339,8 @@ const AttendanceManagement: React.FC = () => {
         const createData = {
           employeeId: selectedEmployee.id,
           attendanceDate: formData.attendanceDate,
-          checkInTime: formData.checkInTime ? `${formData.attendanceDate}T${formData.checkInTime}:00` : undefined,
-          checkOutTime: formData.checkOutTime ? `${outDate}T${formData.checkOutTime}:00` : undefined,
+          checkInTime: formData.checkInTime ? toAppTzIso(formData.attendanceDate, formData.checkInTime) : undefined,
+          checkOutTime: formData.checkOutTime ? toAppTzIso(outDate, formData.checkOutTime) : undefined,
           status: formData.status,
           notes: formData.notes || undefined,
         };
@@ -380,6 +379,7 @@ const AttendanceManagement: React.FC = () => {
     return times.map(t => {
       const date = new Date(t);
       return date.toLocaleTimeString('vi-VN', {
+        timeZone: APP_TZ,
         hour: '2-digit',
         minute: '2-digit',
         hour12: false
@@ -393,22 +393,29 @@ const AttendanceManagement: React.FC = () => {
     const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     return times.map(t => {
       const date = new Date(t);
-      const hhmm = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
-      const wd = weekdays[date.getDay()];
-      const dd = String(date.getDate()).padStart(2, '0');
-      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const hhmm = date.toLocaleTimeString('vi-VN', {
+        timeZone: APP_TZ, hour: '2-digit', minute: '2-digit', hour12: false,
+      });
+      // Weekday + dd/MM theo APP_TZ (không dùng getDay/getDate = browser TZ)
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: APP_TZ, weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).formatToParts(date);
+      const weekdayShort = parts.find(p => p.type === 'weekday')?.value || '';
+      // Map en-CA short weekday (Sun/Mon/...) → CN/T2...
+      const enToVn: Record<string, string> = {
+        Sun: 'CN', Mon: 'T2', Tue: 'T3', Wed: 'T4', Thu: 'T5', Fri: 'T6', Sat: 'T7',
+      };
+      const wd = enToVn[weekdayShort] ?? weekdays[date.getDay()];
+      const dd = parts.find(p => p.type === 'day')?.value || '01';
+      const mm = parts.find(p => p.type === 'month')?.value || '01';
       return `${hhmm} (${wd}, ${dd}/${mm})`;
     }).join(', ');
   };
 
-  // Kiểm tra ca chấm công có vắt qua đêm không (checkOut > checkIn theo local date).
+  // Kiểm tra ca chấm công có vắt qua đêm không (checkOut > checkIn theo APP_TZ date).
   const isCrossMidnight = (checkIns?: string[], checkOuts?: string[]): boolean => {
     if (!checkIns?.length || !checkOuts?.length) return false;
-    const inDate = new Date(checkIns[0]);
-    const outDate = new Date(checkOuts[checkOuts.length - 1]);
-    const inKey = `${inDate.getFullYear()}-${inDate.getMonth()}-${inDate.getDate()}`;
-    const outKey = `${outDate.getFullYear()}-${outDate.getMonth()}-${outDate.getDate()}`;
-    return inKey !== outKey;
+    return formatDateInAppTz(checkIns[0]) !== formatDateInAppTz(checkOuts[checkOuts.length - 1]);
   };
 
   // "Quên chấm ra": có giờ vào, KHÔNG có giờ ra, và ngày đã qua (< hôm nay).
@@ -426,32 +433,36 @@ const AttendanceManagement: React.FC = () => {
     const outs = record.regularCheckOutTimes ?? record.checkOutTimes ?? [];
     if (ins.length === 0 || outs.length > 0) return false;
     if (!record.attendanceDate) return false;
-    const d = new Date(record.attendanceDate);
-    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const now = new Date();
-    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const dateKey = formatDateInAppTz(record.attendanceDate);
+    const todayKey = todayInAppTz();
     return dateKey < todayKey;
   };
 
   const formatDateWithWeekday = (dateStr: string) => {
     const date = new Date(dateStr);
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: APP_TZ,
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).formatToParts(date);
+    const wdEn = parts.find(p => p.type === 'weekday')?.value || 'Sun';
+    const wdIdx = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(wdEn);
     const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-    const weekday = weekdays[date.getDay()];
-    const formatted = date.toLocaleDateString('vi-VN');
-    return `${weekday}, ${formatted}`;
+    const weekday = weekdays[wdIdx >= 0 ? wdIdx : 0];
+    const dd = parts.find(p => p.type === 'day')?.value || '01';
+    const mm = parts.find(p => p.type === 'month')?.value || '01';
+    const yyyy = parts.find(p => p.type === 'year')?.value || '1970';
+    return `${weekday}, ${dd}/${mm}/${yyyy}`;
   };
 
   const toLocalDateKey = (date: Date) => {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return formatDateInAppTz(date);
   };
 
   const formatDateObj = (date: Date) => {
-    const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-    const weekday = weekdays[date.getDay()];
-    const dd = date.getDate().toString().padStart(2, '0');
-    const mm = (date.getMonth() + 1).toString().padStart(2, '0');
-    const yyyy = date.getFullYear();
-    return `${weekday}, ${dd}/${mm}/${yyyy}`;
+    return formatDateWithWeekday(date.toISOString());
   };
 
   const filteredAttendances = attendances.filter(item => {
@@ -482,15 +493,15 @@ const AttendanceManagement: React.FC = () => {
   const calendarData = useMemo(() => {
     if (viewMode !== 'calendar') return { employees: [], days: [], records: new Map() };
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const [sy, sm, sd] = startDate.split('-').map(Number);
+    const [ey, em, ed] = endDate.split('-').map(Number);
+    const startMs = Date.UTC(sy, sm - 1, sd);
+    const endMs = Date.UTC(ey, em - 1, ed);
+    const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)) + 1;
 
     const days: Date[] = [];
     for (let i = 0; i < diffDays; i++) {
-      const d = new Date(start);
-      d.setDate(d.getDate() + i);
-      days.push(d);
+      days.push(new Date(startMs + i * 24 * 60 * 60 * 1000));
     }
 
     // Build record lookup from ALL attendance data (not department-filtered)
@@ -736,12 +747,22 @@ const AttendanceManagement: React.FC = () => {
                       const outTooltip = rowIncomplete
                         ? 'Quên chấm ra — ca này đã bị đánh dấu, giờ làm tính 0'
                         : rowCrossMidnight && rowOuts.length ? (() => {
-                        const last = new Date(rowOuts[rowOuts.length - 1]);
+                        const lastIso = rowOuts[rowOuts.length - 1];
+                        const last = new Date(lastIso);
                         const wds = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-                        const dd = String(last.getDate()).padStart(2, '0');
-                        const mm = String(last.getMonth() + 1).padStart(2, '0');
-                        const hhmm = last.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
-                        return `Ra ngày kế: ${wds[last.getDay()]}, ${dd}/${mm} ${hhmm} (Ca đêm)`;
+                        const parts = new Intl.DateTimeFormat('en-CA', {
+                          timeZone: APP_TZ,
+                          weekday: 'short',
+                          day: '2-digit',
+                          month: '2-digit',
+                        }).formatToParts(last);
+                        const wdEn = parts.find(p => p.type === 'weekday')?.value || 'Sun';
+                        const wdIdx = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(wdEn);
+                        const wd = wds[wdIdx >= 0 ? wdIdx : 0];
+                        const dd = parts.find(p => p.type === 'day')?.value || '01';
+                        const mm = parts.find(p => p.type === 'month')?.value || '01';
+                        const hhmm = formatTimeInAppTz(lastIso);
+                        return `Ra ngày kế: ${wd}, ${dd}/${mm} ${hhmm} (Ca đêm)`;
                       })() : undefined;
                       return (
                       <React.Fragment key={record.id}>
@@ -923,7 +944,7 @@ const AttendanceManagement: React.FC = () => {
                     <tr className="bg-gray-50">
                       <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 min-w-[150px]">Nhân viên</th>
                       {calendarData.days.map((day) => {
-                        const dayNum = day.getDate();
+                        const dayNum = day.getUTCDate();
                         const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
                         return (
                           <th
@@ -931,7 +952,7 @@ const AttendanceManagement: React.FC = () => {
                             className="px-1 py-2 text-center font-medium text-gray-700 border-r border-gray-200 min-w-[32px] cursor-pointer hover:bg-blue-50 transition-colors"
                             onClick={() => setCalendarModal({ type: 'column', day })}
                           >
-                            <div>{weekdays[day.getDay()]}</div>
+                            <div>{weekdays[day.getUTCDay()]}</div>
                             <div>{dayNum}</div>
                           </th>
                         );
@@ -997,8 +1018,7 @@ const AttendanceManagement: React.FC = () => {
                               const ins = record.regularCheckInTimes ?? record.checkInTimes;
                               const outs = record.regularCheckOutTimes ?? record.checkOutTimes;
                               if (!ins?.length || !outs?.length) return 'Ca đêm (vắt qua ngày kế)';
-                              const fmt = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
-                              return `CA 3 · ${fmt(ins[0])} → ${fmt(outs[outs.length - 1])}⁺¹`;
+                              return `CA 3 · ${formatTimeInAppTz(ins[0])} → ${formatTimeInAppTz(outs[outs.length - 1])}⁺¹`;
                             })();
                             return (
                               <td
