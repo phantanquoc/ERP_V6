@@ -528,7 +528,7 @@ const EmployeeManagement: React.FC = () => {
                           ? 'bg-green-100 text-green-700 border border-green-300'
                           : 'bg-red-100 text-red-700 border border-red-300'
                       }`}>
-                        {emp.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE'}
+                        {emp.status === 'ACTIVE' ? 'Đang làm việc' : 'Ngừng làm việc'}
                       </span>
                     </td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4">
