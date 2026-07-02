@@ -7,6 +7,7 @@ import { pushNotification } from './wsManager';
 import { notificationRegistry } from './notificationRegistry';
 import { NotFoundError } from '@utils/errors';
 import { getCursorPaginationParams, encodeCursor } from '@utils/helpers';
+import { getTodayInAppTz } from '@utils/dateUtils';
 
 export class NotificationService {
 
@@ -403,13 +404,8 @@ export class NotificationService {
     const gte = filters.dateFrom ?? defaultFrom;
     const lte = filters.dateTo ?? now;
 
-    // Start-of-today in Asia/Ho_Chi_Minh (+07:00)
-    const todayUTC = new Date();
-    // Offset Asia/Ho_Chi_Minh = UTC+7; compute start of local day in UTC
-    const vietOffsetMs = 7 * 60 * 60 * 1000;
-    const localMs = todayUTC.getTime() + vietOffsetMs;
-    const localMidnightMs = localMs - (localMs % (24 * 60 * 60 * 1000));
-    const startOfToday = new Date(localMidnightMs - vietOffsetMs);
+    // Start-of-today in APP_TZ (shared helper — không tự tính offset ở đây).
+    const startOfToday = getTodayInAppTz();
 
     const baseWhere: any = { employeeId, createdAt: { gte, lte } };
     if (filters.types && filters.types.length > 0) {
