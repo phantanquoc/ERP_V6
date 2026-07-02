@@ -60,7 +60,7 @@ interface IpRateLimitEntry {
 const ipRateLimiter = new Map<string, IpRateLimitEntry>();
 
 const IP_MAX_ATTEMPTS = 5;
-const IP_LOCK_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+const IP_LOCK_DURATION_MS = 3 * 60 * 1000; // 3 minutes
 
 // Custom error class for IP lock so controller can return lockedUntil
 export class IpLockedError extends Error {
