@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, ExternalLink, Clock, Tag, User, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { HistoryItem } from '../services/myHistoryService';
+import { HistoryItem, getEntityDetailEndpoint } from '../services/myHistoryService';
 import { useAuth } from '../contexts/AuthContext';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import TaskListModal from './TaskListModal';
 import WorkPlanListModal from './WorkPlanListModal';
 import DailyWorkReportListModal from './DailyWorkReportListModal';
@@ -10,54 +11,7 @@ import OvertimePlanListModal from './OvertimePlanListModal';
 import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 import FeedbackListModal from './FeedbackListModal';
-
-// ---- useFocusTrap hook (~25 lines, co-located per design decision #12) --
-function useFocusTrap(
-  containerRef: React.RefObject<HTMLElement | null>,
-  active: boolean,
-  onEscape: () => void
-) {
-  useEffect(() => {
-    if (!active) return;
-
-    const el = containerRef.current;
-    if (!el) return;
-
-    const getFocusable = () =>
-      Array.from(
-        el.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((n) => n.offsetParent !== null);
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onEscape();
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const focusable = getFocusable();
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [active, containerRef, onEscape]);
-}
+import HistoryEntityDetailModal from './HistoryEntityDetailModal';
 
 // ---- status display ---------------------------------------------------
 const STATUS_LABEL: Record<string, string> = {
@@ -142,6 +96,14 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
     entityId: string;
   } | null>(null);
 
+  // Generic read-only entity detail modal state
+  const [openEntityDetail, setOpenEntityDetail] = useState<{
+    entityType: string;
+    entityId: string;
+    routeHint: string | null;
+    displayTitle: string;
+  } | null>(null);
+
   const isOpen = item !== null;
 
   // Focus close button when modal opens
@@ -160,17 +122,31 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
   // Focus trap + Escape
   useFocusTrap(dialogRef as React.RefObject<HTMLElement | null>, isOpen, handleClose);
 
-  if (!item && !openModal) return null;
+  if (!item && !openModal && !openEntityDetail) return null;
 
   const handleOpenOriginal = () => {
     if (!item) return;
 
+    // 7 loại entity đã có list-modal riêng — giữ nguyên
     if (MODAL_ENTITY_TYPES.has(item.entityType)) {
       setOpenModal({ type: item.entityType, entityId: item.entityId });
       onClose();
       return;
     }
 
+    // Entity có endpoint detail → mở HistoryEntityDetailModal (không đá sang trang module)
+    if (getEntityDetailEndpoint(item.entityType)) {
+      setOpenEntityDetail({
+        entityType: item.entityType,
+        entityId: item.entityId,
+        routeHint: item.routeHint ?? null,
+        displayTitle: item.title,
+      });
+      onClose();
+      return;
+    }
+
+    // Fallback: navigate như hiện tại
     if (item.routeHint) {
       onClose();
       navigate(item.routeHint);
@@ -179,8 +155,11 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
 
   const handleChildModalClose = () => setOpenModal(null);
 
-  const openButtonLabel =
-    item && MODAL_ENTITY_TYPES.has(item.entityType) ? 'Xem trong danh sách' : 'Mở ở trang gốc';
+  const openButtonLabel = item
+    ? (MODAL_ENTITY_TYPES.has(item.entityType)
+      ? 'Xem trong danh sách'
+      : (getEntityDetailEndpoint(item.entityType) ? 'Xem chi tiết' : 'Mở ở trang gốc'))
+    : 'Mở ở trang gốc';
 
   const metaEntries =
     item && item.metadata ? Object.entries(item.metadata).filter(([, v]) => v != null && v !== '') : [];
@@ -301,7 +280,7 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
               >
                 Đóng
               </button>
-              {(item.routeHint || MODAL_ENTITY_TYPES.has(item.entityType)) && (
+              {(item.routeHint || MODAL_ENTITY_TYPES.has(item.entityType) || getEntityDetailEndpoint(item.entityType)) && (
                 <button
                   type="button"
                   onClick={handleOpenOriginal}
@@ -360,6 +339,15 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
       <FeedbackListModal
         isOpen={openModal?.type === 'private-feedback'}
         onClose={handleChildModalClose}
+      />
+
+      <HistoryEntityDetailModal
+        isOpen={openEntityDetail !== null}
+        onClose={() => setOpenEntityDetail(null)}
+        entityType={openEntityDetail?.entityType ?? null}
+        entityId={openEntityDetail?.entityId ?? null}
+        routeHint={openEntityDetail?.routeHint ?? null}
+        displayTitle={openEntityDetail?.displayTitle}
       />
     </>
   );
