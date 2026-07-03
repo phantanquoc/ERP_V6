@@ -465,7 +465,16 @@ const AttendanceManagement: React.FC = () => {
     return formatDateWithWeekday(date.toISOString());
   };
 
+  const adminEmployeeCodes = useMemo(() => {
+    return new Set(
+      employees
+        .filter(emp => emp.user?.role === 'ADMIN')
+        .map(emp => emp.employeeCode)
+    );
+  }, [employees]);
+
   const filteredAttendances = attendances.filter(item => {
+    if (adminEmployeeCodes.has(item.employeeCode)) return false;
     const matchesSearch =
       item.employeeCode.toLowerCase().includes(filterValues._search.toLowerCase()) ||
       item.employeeName.toLowerCase().includes(filterValues._search.toLowerCase());
@@ -517,6 +526,7 @@ const AttendanceManagement: React.FC = () => {
 
     if (employees.length > 0) {
       calendarEmployees = employees
+        .filter(emp => emp.user?.role !== 'ADMIN')
         .filter(emp => {
           if (selectedDepartment) {
             const deptViaSubDept = emp.subDepartment?.departmentId || null;

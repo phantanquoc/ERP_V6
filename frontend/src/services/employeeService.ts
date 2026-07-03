@@ -49,6 +49,7 @@ export interface Employee {
     firstName: string;
     lastName: string;
     departmentId?: string;
+    role?: string;
   };
   position?: {
     id: string;
