@@ -15,6 +15,7 @@ export interface EmployeeAssignmentFull {
   lastName: string;
   employeeCode: string;
   department: string;
+  positionId: string | null;
   status: string;
 }
 
@@ -68,6 +69,7 @@ export const useAllEmployeesForAssignment = () => {
           lastName: emp.user?.lastName || '',
           employeeCode: emp.employeeCode,
           department: (emp as any).departmentName || (emp as any).subDepartmentName || emp.subDepartment?.name || 'Chưa xác định',
+          positionId: emp.positionId ?? null,
           status: (emp as any).status || '',
         }));
 

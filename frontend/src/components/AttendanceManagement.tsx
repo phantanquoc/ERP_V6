@@ -3,6 +3,7 @@ import { Plus, Edit2, Trash2, Download, Settings, Table, Calendar, ChevronLeft, 
 import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
 import { useDepartments } from '../hooks/useDepartments';
+import { usePositions } from '../hooks/usePositions';
 import { useWorkShifts } from '../hooks/useWorkShifts';
 import { useQueryClient } from '@tanstack/react-query';
 import { toAppTzIso, formatTimeInAppTz, formatDateInAppTz, todayInAppTz, APP_TZ } from '../utils/dateUtils';
@@ -21,6 +22,7 @@ interface AttendanceRecord {
   overtimeIds?: string[];
   employeeCode: string;
   employeeName: string;
+  positionId: string | null;
   positionName: string;
   departmentId: string | null;
   departmentName: string | null;
@@ -99,6 +101,7 @@ const AttendanceManagement: React.FC = () => {
 
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', status: '' });
   const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedPosition, setSelectedPosition] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const filterFields: FilterField[] = [
     {
@@ -181,6 +184,9 @@ const AttendanceManagement: React.FC = () => {
 
   // Departments for filter
   const { data: departments = [] } = useDepartments();
+
+  // Positions for filter
+  const { data: positionsList = [] } = usePositions();
 
   // Work shifts for quick-fill in edit modal
   const { data: workShifts = [] } = useWorkShifts();
@@ -480,7 +486,8 @@ const AttendanceManagement: React.FC = () => {
       item.employeeName.toLowerCase().includes(filterValues._search.toLowerCase());
     const matchesStatus = !filterValues.status || item.status === filterValues.status;
     const matchesDepartment = !selectedDepartment || item.departmentId === selectedDepartment;
-    return matchesSearch && matchesStatus && matchesDepartment;
+    const matchesPosition = !selectedPosition || item.positionId === selectedPosition;
+    return matchesSearch && matchesStatus && matchesDepartment && matchesPosition;
   });
 
   // KPI counts computed from ALL filtered records (not just current page)
@@ -533,6 +540,7 @@ const AttendanceManagement: React.FC = () => {
             const deptViaUser = emp.user?.departmentId || null;
             if (deptViaSubDept !== selectedDepartment && deptViaUser !== selectedDepartment) return false;
           }
+          if (selectedPosition && emp.positionId !== selectedPosition) return false;
           if (filterValues._search) {
             const fullName = `${emp.user?.lastName || ''} ${emp.user?.firstName || ''}`.trim().toLowerCase();
             return fullName.includes(filterValues._search.toLowerCase())
@@ -565,7 +573,7 @@ const AttendanceManagement: React.FC = () => {
       days,
       records: recordMap,
     };
-  }, [attendances, startDate, endDate, viewMode, employees, selectedDepartment, filterValues._search]);
+  }, [attendances, startDate, endDate, viewMode, employees, selectedDepartment, selectedPosition, filterValues._search]);
 
   const totalItems = filteredAttendances.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -679,6 +687,19 @@ const AttendanceManagement: React.FC = () => {
             <option value="">Tất cả phòng ban</option>
             {departments.map((dept) => (
               <option key={dept.id} value={dept.id}>{dept.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex-1 min-w-[160px]">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Chức vụ</label>
+          <select
+            value={selectedPosition}
+            onChange={(e) => { setSelectedPosition(e.target.value); setCurrentPage(1); }}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          >
+            <option value="">Tất cả chức vụ</option>
+            {positionsList.map((pos) => (
+              <option key={pos.id} value={pos.id}>{pos.name}</option>
             ))}
           </select>
         </div>
