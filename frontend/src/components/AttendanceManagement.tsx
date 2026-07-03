@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Download, Settings, Table, Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Plus, Edit2, Trash2, Download, Settings, Table, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
 import { useDepartments } from '../hooks/useDepartments';
@@ -151,19 +151,6 @@ const AttendanceManagement: React.FC = () => {
   const itemsPerPage = 10;
   const [showModal, setShowModal] = useState(false);
   const [showShiftSettings, setShowShiftSettings] = useState(false);
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!isExportMenuOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
-        setIsExportMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isExportMenuOpen]);
   const [calendarModal, setCalendarModal] = useState<CalendarModalData>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editEntries, setEditEntries] = useState<EditEntry[]>([]);
@@ -606,56 +593,26 @@ const AttendanceManagement: React.FC = () => {
             <Settings className="w-4 h-4" />
             Cài đặt ca
           </button>
-          <div ref={exportMenuRef} className="relative w-full sm:w-auto">
-            <button
-              onClick={() => setIsExportMenuOpen((prev) => !prev)}
-              className="flex w-full items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors sm:w-auto"
-            >
-              <Download size={18} />
-              Xuất Excel
-              <ChevronDown size={16} className={`transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {isExportMenuOpen && (
-              <div className="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-lg">
-                <button
-                  onClick={async () => {
-                    setIsExportMenuOpen(false);
-                    try {
-                      await attendanceService.exportToExcel({ search: filterValues._search || undefined });
-                    } catch (err) {
-                      console.error('Error exporting to Excel:', err);
-                      alert('Không thể xuất file Excel');
-                    }
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg"
-                >
-                  <Table className="w-4 h-4 text-gray-500" />
-                  Dạng bảng
-                </button>
-                <button
-                  onClick={async () => {
-                    setIsExportMenuOpen(false);
-                    try {
-                      await attendanceService.exportToExcelCalendar({
-                        startDate,
-                        endDate,
-                        search: filterValues._search || undefined,
-                        departmentId: selectedDepartment || undefined,
-                        positionId: selectedPosition || undefined,
-                      });
-                    } catch (err) {
-                      console.error('Error exporting calendar Excel:', err);
-                      alert('Không thể xuất file Excel');
-                    }
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg border-t border-gray-100"
-                >
-                  <Calendar className="w-4 h-4 text-gray-500" />
-                  Dạng lịch
-                </button>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={async () => {
+              try {
+                await attendanceService.exportToExcelCalendar({
+                  startDate,
+                  endDate,
+                  search: filterValues._search || undefined,
+                  departmentId: selectedDepartment || undefined,
+                  positionId: selectedPosition || undefined,
+                });
+              } catch (err) {
+                console.error('Error exporting calendar Excel:', err);
+                alert('Không thể xuất file Excel');
+              }
+            }}
+            className="flex w-full items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors sm:w-auto"
+          >
+            <Download size={18} />
+            Xuất Excel
+          </button>
           <button
             onClick={handleAddNew}
             className="flex w-full items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 sm:w-auto"

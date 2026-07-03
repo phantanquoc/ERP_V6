@@ -35,40 +35,6 @@ router.get('/date-range', authenticate, (req, res, next) => attendanceController
 
 /**
  * @swagger
- * /api/attendances/export/excel:
- *   get:
- *     tags: [Attendances]
- *     summary: Xuất Excel chấm công
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date
- *         description: Ngày bắt đầu
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date
- *         description: Ngày kết thúc
- *     responses:
- *       200:
- *         description: Xuất Excel thành công
- *         content:
- *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
- *             schema:
- *               type: string
- *               format: binary
- *       401:
- *         description: Không có quyền truy cập
- */
-router.get('/export/excel', authenticate, (req, res, next) => attendanceController.exportToExcel(req, res, next));
-
-/**
- * @swagger
  * /api/attendances/export/excel/calendar:
  *   get:
  *     tags: [Attendances]
