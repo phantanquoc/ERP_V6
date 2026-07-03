@@ -465,16 +465,16 @@ const AttendanceManagement: React.FC = () => {
     return formatDateWithWeekday(date.toISOString());
   };
 
-  const adminEmployeeCodes = useMemo(() => {
+  const excludedEmployeeCodes = useMemo(() => {
     return new Set(
       employees
-        .filter(emp => emp.user?.role === 'ADMIN')
+        .filter(emp => emp.user?.role === 'ADMIN' || emp.status !== 'ACTIVE')
         .map(emp => emp.employeeCode)
     );
   }, [employees]);
 
   const filteredAttendances = attendances.filter(item => {
-    if (adminEmployeeCodes.has(item.employeeCode)) return false;
+    if (excludedEmployeeCodes.has(item.employeeCode)) return false;
     const matchesSearch =
       item.employeeCode.toLowerCase().includes(filterValues._search.toLowerCase()) ||
       item.employeeName.toLowerCase().includes(filterValues._search.toLowerCase());
@@ -526,7 +526,7 @@ const AttendanceManagement: React.FC = () => {
 
     if (employees.length > 0) {
       calendarEmployees = employees
-        .filter(emp => emp.user?.role !== 'ADMIN')
+        .filter(emp => emp.user?.role !== 'ADMIN' && emp.status === 'ACTIVE')
         .filter(emp => {
           if (selectedDepartment) {
             const deptViaSubDept = emp.subDepartment?.departmentId || null;

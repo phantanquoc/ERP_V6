@@ -69,9 +69,7 @@ export const useAllEmployeesForAssignment = () => {
           employeeCode: emp.employeeCode,
           department: (emp as any).departmentName || (emp as any).subDepartmentName || emp.subDepartment?.name || 'Chưa xác định',
           status: (emp as any).status || '',
-        }))
-        .filter((emp) => emp.status === 'ACTIVE')
-        .filter((emp) => !emp.department.toLowerCase().includes('admin'));
+        }));
 
       const departments = Array.from(new Set(employees.map((e) => e.department).filter(Boolean)));
 
