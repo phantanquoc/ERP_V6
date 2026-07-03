@@ -219,13 +219,6 @@ class AttendanceService {
     }
   }
 
-  async exportToExcel(filters?: { search?: string }): Promise<void> {
-    const params = new URLSearchParams();
-    if (filters?.search) params.append('search', filters.search);
-    const url = `${API_BASE_URL}/attendances/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
-    await downloadFile(url, `bang-cham-cong-${Date.now()}.xlsx`);
-  }
-
   async exportToExcelCalendar(filters: {
     startDate: string;
     endDate: string;
