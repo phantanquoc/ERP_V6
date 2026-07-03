@@ -64,7 +64,8 @@ export class EmployeeService {
       filters.search,
       subDepartmentId,
       filters.positionName,
-      filters.positionCode
+      filters.positionCode,
+      { excludeAdmin: true, excludeInactive: true }
     );
   }
 
@@ -424,7 +425,10 @@ export class EmployeeService {
   }
 
   async exportToExcel(filters?: any): Promise<Buffer> {
-    const where: any = {};
+    const where: any = {
+      status: 'ACTIVE',
+      user: { role: { not: 'ADMIN' } },
+    };
 
     if (filters?.search) {
       const exportSearchConditions: any[] = [
