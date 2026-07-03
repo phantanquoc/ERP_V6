@@ -1535,6 +1535,30 @@ const AttendanceManagement: React.FC = () => {
                 </div>
               )}
             </div>
+            <div className="px-6 py-3 border-t border-gray-200 flex justify-end gap-2 bg-gray-50 rounded-b-lg">
+              <button
+                onClick={() => {
+                  const r = calendarModal.record;
+                  setCalendarModal(null);
+                  handleEdit(r);
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              >
+                <Edit2 className="w-4 h-4" />
+                Chỉnh sửa
+              </button>
+              <button
+                onClick={async () => {
+                  const id = calendarModal.record.id;
+                  await handleDelete(id);
+                  setCalendarModal(null);
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Xoá
+              </button>
+            </div>
           </div>
         </Modal>
       )}
@@ -1589,6 +1613,7 @@ const AttendanceManagement: React.FC = () => {
                           <th className="px-3 py-2 text-left font-semibold text-gray-700">Giờ ra</th>
                           <th className="px-3 py-2 text-right font-semibold text-gray-700">Số giờ</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-700">Ghi chú</th>
+                          <th className="px-3 py-2 text-right font-semibold text-gray-700">Thao tác</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1638,6 +1663,18 @@ const AttendanceManagement: React.FC = () => {
                                 {hasBoth && record.overtimeNotes && (
                                   <div className="text-xs text-purple-600 italic">{record.overtimeNotes}</div>
                                 )}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <button
+                                  onClick={() => {
+                                    setCalendarModal(null);
+                                    handleEdit(record);
+                                  }}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                                  title="Chỉnh sửa"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
                               </td>
                             </tr>
                           );
