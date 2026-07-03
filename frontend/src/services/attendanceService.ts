@@ -225,6 +225,23 @@ class AttendanceService {
     const url = `${API_BASE_URL}/attendances/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     await downloadFile(url, `bang-cham-cong-${Date.now()}.xlsx`);
   }
+
+  async exportToExcelCalendar(filters: {
+    startDate: string;
+    endDate: string;
+    search?: string;
+    departmentId?: string;
+    positionId?: string;
+  }): Promise<void> {
+    const params = new URLSearchParams();
+    params.append('startDate', filters.startDate);
+    params.append('endDate', filters.endDate);
+    if (filters.search) params.append('search', filters.search);
+    if (filters.departmentId) params.append('departmentId', filters.departmentId);
+    if (filters.positionId) params.append('positionId', filters.positionId);
+    const url = `${API_BASE_URL}/attendances/export/excel/calendar?${params.toString()}`;
+    await downloadFile(url, `lich-cham-cong-${Date.now()}.xlsx`);
+  }
 }
 
 export default new AttendanceService();

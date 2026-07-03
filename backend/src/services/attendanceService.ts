@@ -611,6 +611,276 @@ export class AttendanceService {
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as any;
   }
+
+  async exportToExcelCalendar(filters: {
+    startDate: string;
+    endDate: string;
+    search?: string;
+    departmentId?: string;
+    positionId?: string;
+  }): Promise<Buffer> {
+    const startDate = new Date(filters.startDate);
+    const endDate = new Date(filters.endDate);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      throw new ValidationError('Ngày không hợp lệ');
+    }
+
+    // Build day list (YYYY-MM-DD) inclusive
+    const days: string[] = [];
+    {
+      const cursor = new Date(startDate);
+      while (cursor.getTime() <= endDate.getTime()) {
+        days.push(cursor.toISOString().split('T')[0]);
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+
+    // Query attendance rows with filters + ADMIN excluded
+    const employeeWhere: any = {
+      status: 'ACTIVE',
+      user: { role: { not: 'ADMIN' } },
+    };
+
+    if (filters.positionId) {
+      employeeWhere.positionId = filters.positionId;
+    }
+
+    if (filters.departmentId) {
+      employeeWhere.OR = [
+        { user: { departmentId: filters.departmentId } },
+        { subDepartment: { departmentId: filters.departmentId } },
+      ];
+    }
+
+    if (filters.search) {
+      const searchConds: any[] = [
+        { employeeCode: { contains: filters.search, mode: 'insensitive' } },
+        { user: { firstName: { contains: filters.search, mode: 'insensitive' } } },
+        { user: { lastName: { contains: filters.search, mode: 'insensitive' } } },
+      ];
+      if (employeeWhere.OR) {
+        employeeWhere.AND = [{ OR: employeeWhere.OR }, { OR: searchConds }];
+        delete employeeWhere.OR;
+      } else {
+        employeeWhere.OR = searchConds;
+      }
+    }
+
+    const attendances = await prisma.attendance.findMany({
+      where: {
+        attendanceDate: { gte: startDate, lte: endDate },
+        employee: employeeWhere,
+      },
+      include: {
+        employee: {
+          include: {
+            user: true,
+            position: true,
+            subDepartment: { include: { department: true } },
+          },
+        },
+      },
+      orderBy: [
+        { employee: { employeeCode: 'asc' } },
+        { attendanceDate: 'asc' },
+      ],
+    });
+
+    // Also fetch all matching employees so those with 0 records still appear
+    const allEmployees = await prisma.employee.findMany({
+      where: employeeWhere,
+      include: {
+        user: true,
+        position: true,
+        subDepartment: { include: { department: true } },
+      },
+      orderBy: { employeeCode: 'asc' },
+    });
+
+    // Build per-employee per-day map
+    type DayCell = {
+      regularHours: number;
+      overtimeHours: number;
+      regularStatus: AttendanceStatus | null;
+      hasOvertime: boolean;
+    };
+
+    type EmployeeRow = {
+      employeeCode: string;
+      fullName: string;
+      positionName: string;
+      departmentName: string;
+      cells: Map<string, DayCell>;
+      totalDays: number;
+      totalOvertimeHours: number;
+    };
+
+    const rowMap = new Map<string, EmployeeRow>();
+
+    for (const emp of allEmployees) {
+      rowMap.set(emp.id, {
+        employeeCode: emp.employeeCode,
+        fullName: `${emp.user.lastName} ${emp.user.firstName}`.trim(),
+        positionName: emp.position?.name || '',
+        departmentName: emp.subDepartment?.department?.name || '',
+        cells: new Map(),
+        totalDays: 0,
+        totalOvertimeHours: 0,
+      });
+    }
+
+    for (const att of attendances) {
+      const row = rowMap.get(att.employeeId);
+      if (!row) continue;
+      const dayKey = att.attendanceDate.toISOString().split('T')[0];
+      const cell = row.cells.get(dayKey) ?? {
+        regularHours: 0,
+        overtimeHours: 0,
+        regularStatus: null,
+        hasOvertime: false,
+      };
+
+      if (att.isOvertime) {
+        cell.overtimeHours += att.workHours || 0;
+        cell.hasOvertime = true;
+      } else {
+        cell.regularHours += att.workHours || 0;
+        if (!cell.regularStatus) cell.regularStatus = att.status;
+      }
+
+      row.cells.set(dayKey, cell);
+    }
+
+    // Compute totals per employee
+    for (const row of rowMap.values()) {
+      for (const cell of row.cells.values()) {
+        const isWorkingDay =
+          cell.regularStatus === 'PRESENT' ||
+          cell.regularStatus === 'LATE' ||
+          (cell.hasOvertime && !cell.regularStatus);
+        if (isWorkingDay) row.totalDays += 1;
+        row.totalOvertimeHours += cell.overtimeHours;
+      }
+      row.totalOvertimeHours = Math.round(row.totalOvertimeHours * 100) / 100;
+    }
+
+    // Build Excel workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Lịch chấm công');
+
+    const fixedColumns = [
+      { header: 'Mã NV', key: 'employeeCode', width: 12 },
+      { header: 'Họ tên', key: 'fullName', width: 25 },
+      { header: 'Chức vụ', key: 'position', width: 20 },
+      { header: 'Bộ phận', key: 'department', width: 20 },
+    ];
+
+    const dayColumns = days.map((d) => {
+      const [_, m, day] = d.split('-');
+      return { header: `${day}/${m}`, key: `day_${d}`, width: 8 };
+    });
+
+    const totalColumns = [
+      { header: 'Tổng ngày làm việc', key: 'totalDays', width: 18 },
+      { header: 'Tổng giờ tăng ca', key: 'totalOvertimeHours', width: 18 },
+    ];
+
+    worksheet.columns = [...fixedColumns, ...dayColumns, ...totalColumns];
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    // Status → ARGB fill map (matches UI palette in AttendanceManagement.tsx)
+    const statusColor = (cell: DayCell): string | null => {
+      if (cell.regularStatus === 'PRESENT') return 'FFDCFCE7'; // green-100
+      if (cell.regularStatus === 'LATE') return 'FFFEF3C7';    // amber-100
+      if (cell.regularStatus === 'ABSENT') return 'FFFEE2E2';  // red-100
+      if (cell.regularStatus === 'ON_LEAVE') return 'FFDBEAFE'; // blue-100
+      if (cell.hasOvertime) return 'FFF3E8FF';                 // purple-100 (OT-only day)
+      return null;
+    };
+
+    const rows = Array.from(rowMap.values()).sort((a, b) =>
+      a.employeeCode.localeCompare(b.employeeCode)
+    );
+
+    rows.forEach((row) => {
+      const rowData: Record<string, any> = {
+        employeeCode: row.employeeCode,
+        fullName: row.fullName,
+        position: row.positionName,
+        department: row.departmentName,
+        totalDays: row.totalDays,
+        totalOvertimeHours: row.totalOvertimeHours,
+      };
+
+      days.forEach((d) => {
+        const cell = row.cells.get(d);
+        if (cell) {
+          const total = cell.regularHours + cell.overtimeHours;
+          rowData[`day_${d}`] = total > 0 ? Math.round(total * 100) / 100 : '';
+        } else {
+          rowData[`day_${d}`] = '';
+        }
+      });
+
+      const excelRow = worksheet.addRow(rowData);
+      excelRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+      // Apply status colors to day cells
+      days.forEach((d, idx) => {
+        const cell = row.cells.get(d);
+        if (!cell) return;
+        const color = statusColor(cell);
+        if (!color) return;
+        const cellRef = excelRow.getCell(fixedColumns.length + idx + 1);
+        cellRef.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: color },
+        };
+      });
+
+      // Left-align text columns
+      excelRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+      excelRow.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
+      excelRow.getCell(3).alignment = { horizontal: 'left', vertical: 'middle' };
+      excelRow.getCell(4).alignment = { horizontal: 'left', vertical: 'middle' };
+    });
+
+    // Add legend rows at the bottom
+    worksheet.addRow([]);
+    const legendHeader = worksheet.addRow(['Chú thích màu:']);
+    legendHeader.font = { bold: true };
+
+    const legendItems: Array<{ label: string; argb: string }> = [
+      { label: 'Đúng giờ', argb: 'FFDCFCE7' },
+      { label: 'Đi muộn', argb: 'FFFEF3C7' },
+      { label: 'Vắng mặt', argb: 'FFFEE2E2' },
+      { label: 'Nghỉ phép', argb: 'FFDBEAFE' },
+      { label: 'Tăng ca', argb: 'FFF3E8FF' },
+    ];
+
+    legendItems.forEach((item) => {
+      const legendRow = worksheet.addRow(['', item.label]);
+      const colorCell = legendRow.getCell(1);
+      colorCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: item.argb },
+      };
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as any;
+  }
 }
 
 export default new AttendanceService();

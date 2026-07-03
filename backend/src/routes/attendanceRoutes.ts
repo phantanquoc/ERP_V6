@@ -69,6 +69,47 @@ router.get('/export/excel', authenticate, (req, res, next) => attendanceControll
 
 /**
  * @swagger
+ * /api/attendances/export/excel/calendar:
+ *   get:
+ *     tags: [Attendances]
+ *     summary: Xuất Excel chấm công dạng lịch (matrix employee × ngày)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: departmentId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: positionId
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Xuất Excel dạng lịch thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ */
+router.get('/export/excel/calendar', authenticate, (req, res, next) => attendanceController.exportToExcelCalendar(req, res, next));
+
+/**
+ * @swagger
  * /api/attendances/employee/{employeeId}:
  *   get:
  *     tags: [Attendances]
