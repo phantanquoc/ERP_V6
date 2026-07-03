@@ -1012,24 +1012,25 @@ const AttendanceManagement: React.FC = () => {
             <>
               {/* Legend */}
               <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap gap-3 text-xs">
-                <span className="inline-flex items-center gap-1"><span className="w-5 h-5 rounded flex items-center justify-center bg-green-100 text-green-700 font-medium">Đ</span> Đúng giờ</span>
-                <span className="inline-flex items-center gap-1"><span className="w-5 h-5 rounded flex items-center justify-center bg-amber-100 text-amber-700 font-medium">M</span> Muộn</span>
+                <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-green-100 text-green-700 font-medium text-[10px]">8.0</span> Đúng giờ (số giờ)</span>
+                <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-amber-100 text-amber-700 font-medium text-[10px]">7.5</span> Muộn (số giờ)</span>
                 <span className="inline-flex items-center gap-1"><span className="w-5 h-5 rounded flex items-center justify-center bg-red-100 text-red-700 font-medium">V</span> Vắng</span>
                 <span className="inline-flex items-center gap-1"><span className="w-5 h-5 rounded flex items-center justify-center bg-blue-100 text-blue-700 font-medium">N</span> Nghỉ phép</span>
-                <span className="inline-flex items-center gap-1"><span className="w-5 h-5 rounded flex items-center justify-center bg-purple-100 text-purple-700 font-medium">T</span> Tăng ca</span>
+                <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-purple-100 text-purple-700 font-medium text-[10px]">3.0</span> Tăng ca (số giờ)</span>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
                 <table className="w-full min-w-[1180px] border-collapse text-xs">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 min-w-[150px]">Nhân viên</th>
+                      <th className="sticky left-0 top-0 z-30 bg-gray-50 px-3 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 min-w-[150px]">Nhân viên</th>
                       {calendarData.days.map((day) => {
                         const dayNum = day.getUTCDate();
                         const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+                        const isSunday = day.getUTCDay() === 0;
                         return (
                           <th
                             key={day.toISOString()}
-                            className="px-1 py-2 text-center font-medium text-gray-700 border-r border-gray-200 min-w-[32px] cursor-pointer hover:bg-blue-50 transition-colors"
+                            className={`sticky top-0 z-20 px-1 py-2 text-center font-medium text-gray-700 border-r border-gray-200 min-w-[32px] cursor-pointer transition-colors ${isSunday ? 'bg-gray-200 hover:bg-blue-100' : 'bg-gray-50 hover:bg-blue-50'}`}
                             onClick={() => setCalendarModal({ type: 'column', day })}
                           >
                             <div>{weekdays[day.getUTCDay()]}</div>
@@ -1037,8 +1038,8 @@ const AttendanceManagement: React.FC = () => {
                           </th>
                         );
                       })}
-                      <th className="px-3 py-2 text-center font-semibold text-gray-900 min-w-[60px]">Tổng</th>
-                      <th className="px-3 py-2 text-center font-semibold text-gray-900 min-w-[80px]">Tổng OT (h)</th>
+                      <th className="sticky top-0 z-20 bg-gray-50 px-3 py-2 text-center font-semibold text-gray-900 min-w-[60px]">Tổng</th>
+                      <th className="sticky top-0 z-20 bg-gray-50 px-3 py-2 text-center font-semibold text-gray-900 min-w-[80px]">Tổng OT (h)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1057,6 +1058,7 @@ const AttendanceManagement: React.FC = () => {
                           {calendarData.days.map((day) => {
                             const dateKey = toLocalDateKey(day);
                             const record = calendarData.records.get(`${emp.code}_${dateKey}`);
+                            const isSunday = day.getUTCDay() === 0;
 
                             if (record?.overtimeHours) {
                               totalOvertimeHours += record.overtimeHours;
@@ -1076,26 +1078,35 @@ const AttendanceManagement: React.FC = () => {
                               checkOutTimes: record.checkOutTimes,
                               notes: record.notes,
                             }));
-                            let letter = '';
+                            let display = '';
+                            let overtimeDisplay = '';
                             let cellClass = '';
                             let regularColor = '';
                             let regularTextColor = '';
                             const overtimeColor = '#f3e8ff'; // purple-100
 
+                            const formatHours = (h?: number | null) => {
+                              if (!h || h <= 0) return '0';
+                              return h.toFixed(1);
+                            };
+
                             if (record) {
                               const effectiveStatus = record.regularStatus ?? record.status;
+                              const regularHoursValue = record.regularHours ?? record.workHours;
+                              const overtimeHoursValue = record.overtimeHours ?? record.workHours;
                               switch (effectiveStatus) {
                                 case 'PRESENT':
-                                  letter = 'Đ'; cellClass = 'bg-green-100 text-green-700'; regularColor = '#dcfce7'; regularTextColor = '#15803d'; presentDays++; break;
+                                  display = formatHours(regularHoursValue); cellClass = 'bg-green-100 text-green-700'; regularColor = '#dcfce7'; regularTextColor = '#15803d'; presentDays++; break;
                                 case 'LATE':
-                                  letter = 'M'; cellClass = 'bg-amber-100 text-amber-700'; regularColor = '#fef3c7'; regularTextColor = '#b45309'; presentDays++; break;
+                                  display = formatHours(regularHoursValue); cellClass = 'bg-amber-100 text-amber-700'; regularColor = '#fef3c7'; regularTextColor = '#b45309'; presentDays++; break;
                                 case 'ABSENT':
-                                  letter = 'V'; cellClass = 'bg-red-100 text-red-700'; regularColor = '#fee2e2'; regularTextColor = '#b91c1c'; break;
+                                  display = 'V'; cellClass = 'bg-red-100 text-red-700'; regularColor = '#fee2e2'; regularTextColor = '#b91c1c'; break;
                                 case 'ON_LEAVE':
-                                  letter = 'N'; cellClass = 'bg-blue-100 text-blue-700'; regularColor = '#dbeafe'; regularTextColor = '#1d4ed8'; break;
+                                  display = 'N'; cellClass = 'bg-blue-100 text-blue-700'; regularColor = '#dbeafe'; regularTextColor = '#1d4ed8'; break;
                                 case 'OVERTIME':
-                                  letter = 'T'; cellClass = 'bg-purple-100 text-purple-700'; regularColor = '#f3e8ff'; regularTextColor = '#7e22ce'; presentDays++; break;
+                                  display = formatHours(overtimeHoursValue); cellClass = 'bg-purple-100 text-purple-700'; regularColor = '#f3e8ff'; regularTextColor = '#7e22ce'; presentDays++; break;
                               }
+                              overtimeDisplay = formatHours(record.overtimeHours);
                             }
                             // Tooltip: prioritise "quên chấm ra" over cross-midnight if both apply.
                             const cellTitle = (() => {
@@ -1109,7 +1120,7 @@ const AttendanceManagement: React.FC = () => {
                             return (
                               <td
                                 key={day.toISOString()}
-                                className={`px-1 py-1 text-center border-r border-gray-100 cursor-pointer ${record ? 'hover:bg-gray-100' : 'hover:bg-gray-50'}`}
+                                className={`px-1 py-1 text-center border-r border-gray-100 cursor-pointer ${isSunday ? 'bg-gray-100' : ''} ${record ? 'hover:bg-gray-200' : 'hover:bg-gray-50'}`}
                                 title={cellTitle}
                                 onClick={() => {
                                   if (record) {
@@ -1133,22 +1144,22 @@ const AttendanceManagement: React.FC = () => {
                                 }}
                               >
                                 {record && isSplit ? (
-                                  // Split diagonal: top-left = regular color, bottom-right = overtime purple
+                                  // Split diagonal: top-left = regular hours, bottom-right = overtime hours
                                   <span
                                     className="inline-flex items-center justify-center w-7 h-7 rounded text-xs font-medium relative overflow-hidden border border-gray-300"
                                     style={{ background: `linear-gradient(to bottom right, ${regularColor} 50%, ${overtimeColor} 50%)` }}
                                   >
-                                    <span className="absolute top-0 left-0.5 text-[9px] font-bold leading-none" style={{ color: regularTextColor }}>{letter}</span>
-                                    <span className="absolute bottom-0 right-0.5 text-[9px] font-bold leading-none text-purple-700">T</span>
+                                    <span className="absolute top-0 left-0.5 text-[9px] font-bold leading-none" style={{ color: regularTextColor }}>{display}</span>
+                                    <span className="absolute bottom-0 right-0.5 text-[9px] font-bold leading-none text-purple-700">{overtimeDisplay}</span>
                                     {cellIncomplete ? (
                                       <span className="absolute -top-0.5 -right-0.5 text-[9px] font-bold text-white bg-red-600 rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none" aria-label="Quên chấm ra">!</span>
                                     ) : cellCrossMidnight && (
                                       <span className="absolute -top-0.5 -right-0.5 text-[8px] font-bold text-indigo-700 bg-white/80 rounded-full px-0.5 leading-none" aria-label="Ca đêm vắt sang ngày kế">⁺¹</span>
                                     )}
                                   </span>
-                                ) : letter ? (
+                                ) : display ? (
                                   <span className={`relative inline-flex items-center justify-center w-6 h-6 rounded text-xs font-medium ${cellClass}`}>
-                                    {letter}
+                                    {display}
                                     {cellIncomplete ? (
                                       <span className="absolute -top-1 -right-1 text-[9px] font-bold text-white bg-red-600 rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none border border-white" aria-label="Quên chấm ra">!</span>
                                     ) : cellCrossMidnight && (
