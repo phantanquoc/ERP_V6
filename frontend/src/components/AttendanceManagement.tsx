@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Download, Settings, Table, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Plus, Edit2, Trash2, Download, Settings, Table, Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
 import { useDepartments } from '../hooks/useDepartments';
@@ -151,6 +151,19 @@ const AttendanceManagement: React.FC = () => {
   const itemsPerPage = 10;
   const [showModal, setShowModal] = useState(false);
   const [showShiftSettings, setShowShiftSettings] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isExportMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isExportMenuOpen]);
   const [calendarModal, setCalendarModal] = useState<CalendarModalData>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editEntries, setEditEntries] = useState<EditEntry[]>([]);
@@ -593,20 +606,56 @@ const AttendanceManagement: React.FC = () => {
             <Settings className="w-4 h-4" />
             Cài đặt ca
           </button>
-          <button
-            onClick={async () => {
-              try {
-                await attendanceService.exportToExcel({ search: filterValues._search || undefined });
-              } catch (err) {
-                console.error('Error exporting to Excel:', err);
-                alert('Không thể xuất file Excel');
-              }
-            }}
-            className="flex w-full items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors sm:w-auto"
-          >
-            <Download size={18} />
-            Xuất Excel
-          </button>
+          <div ref={exportMenuRef} className="relative w-full sm:w-auto">
+            <button
+              onClick={() => setIsExportMenuOpen((prev) => !prev)}
+              className="flex w-full items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors sm:w-auto"
+            >
+              <Download size={18} />
+              Xuất Excel
+              <ChevronDown size={16} className={`transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isExportMenuOpen && (
+              <div className="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-lg">
+                <button
+                  onClick={async () => {
+                    setIsExportMenuOpen(false);
+                    try {
+                      await attendanceService.exportToExcel({ search: filterValues._search || undefined });
+                    } catch (err) {
+                      console.error('Error exporting to Excel:', err);
+                      alert('Không thể xuất file Excel');
+                    }
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg"
+                >
+                  <Table className="w-4 h-4 text-gray-500" />
+                  Dạng bảng
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsExportMenuOpen(false);
+                    try {
+                      await attendanceService.exportToExcelCalendar({
+                        startDate,
+                        endDate,
+                        search: filterValues._search || undefined,
+                        departmentId: selectedDepartment || undefined,
+                        positionId: selectedPosition || undefined,
+                      });
+                    } catch (err) {
+                      console.error('Error exporting calendar Excel:', err);
+                      alert('Không thể xuất file Excel');
+                    }
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg border-t border-gray-100"
+                >
+                  <Calendar className="w-4 h-4 text-gray-500" />
+                  Dạng lịch
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={handleAddNew}
             className="flex w-full items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 sm:w-auto"
@@ -989,11 +1038,13 @@ const AttendanceManagement: React.FC = () => {
                         );
                       })}
                       <th className="px-3 py-2 text-center font-semibold text-gray-900 min-w-[60px]">Tổng</th>
+                      <th className="px-3 py-2 text-center font-semibold text-gray-900 min-w-[80px]">Tổng OT (h)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {calendarData.employees.map((emp) => {
                       let presentDays = 0;
+                      let totalOvertimeHours = 0;
                       const totalDays = calendarData.days.length;
                       return (
                         <tr key={emp.code} className="border-b border-gray-100 hover:bg-gray-50">
@@ -1006,6 +1057,10 @@ const AttendanceManagement: React.FC = () => {
                           {calendarData.days.map((day) => {
                             const dateKey = toLocalDateKey(day);
                             const record = calendarData.records.get(`${emp.code}_${dateKey}`);
+
+                            if (record?.overtimeHours) {
+                              totalOvertimeHours += record.overtimeHours;
+                            }
 
                             // Determine what to render for this cell
                             const isSplit = !!(record?.hasOvertime && record?.regularStatus);
@@ -1106,6 +1161,9 @@ const AttendanceManagement: React.FC = () => {
                           })}
                           <td className="px-3 py-2 text-center font-medium text-gray-900">
                             {presentDays}/{totalDays}
+                          </td>
+                          <td className="px-3 py-2 text-center font-medium text-purple-700">
+                            {totalOvertimeHours > 0 ? (Math.round(totalOvertimeHours * 100) / 100).toString() : '—'}
                           </td>
                         </tr>
                       );
@@ -1594,6 +1652,7 @@ const AttendanceManagement: React.FC = () => {
           })
           .filter((item): item is { day: Date; record: AttendanceRecord } => item.record !== null);
         const counts = { PRESENT: 0, LATE: 0, ABSENT: 0, ON_LEAVE: 0, OVERTIME: 0 };
+        let totalOvertimeHours = 0;
         empRecords.forEach(({ record }) => {
           // Count overtime separately from regular status
           if (record.hasOvertime) counts.OVERTIME++;
@@ -1603,7 +1662,9 @@ const AttendanceManagement: React.FC = () => {
             // Fallback for records without split fields (old data)
             counts[record.status]++;
           }
+          if (record.overtimeHours) totalOvertimeHours += record.overtimeHours;
         });
+        const totalWorkingDays = counts.PRESENT + counts.LATE + counts.OVERTIME;
         return (
           <Modal isOpen onClose={() => setCalendarModal(null)} showBackdrop closeOnBackdrop>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
@@ -1620,6 +1681,12 @@ const AttendanceManagement: React.FC = () => {
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">Vắng: {counts.ABSENT}</span>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">Nghỉ phép: {counts.ON_LEAVE}</span>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">Tăng ca: {counts.OVERTIME}</span>
+                </div>
+                <div className="flex flex-wrap gap-3 text-sm">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-800 border border-gray-300 font-medium">Tổng ngày làm việc: {totalWorkingDays}</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-300 font-medium">
+                    Tổng giờ tăng ca: {totalOvertimeHours > 0 ? (Math.round(totalOvertimeHours * 100) / 100).toString() : '0'}h
+                  </span>
                 </div>
                 {empRecords.length === 0 ? (
                   <div className="text-center text-gray-500 py-4">Không có dữ liệu điểm danh</div>

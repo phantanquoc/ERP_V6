@@ -217,6 +217,30 @@ export class AttendanceController {
       next(error);
     }
   }
+
+  async exportToExcelCalendar(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { startDate, endDate, search, departmentId, positionId } = req.query;
+
+      if (!startDate || !endDate) {
+        throw new ValidationError('startDate and endDate are required');
+      }
+
+      const buffer = await attendanceService.exportToExcelCalendar({
+        startDate: startDate as string,
+        endDate: endDate as string,
+        search: search ? (search as string) : undefined,
+        departmentId: departmentId ? (departmentId as string) : undefined,
+        positionId: positionId ? (positionId as string) : undefined,
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=lich-cham-cong-${Date.now()}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new AttendanceController();
