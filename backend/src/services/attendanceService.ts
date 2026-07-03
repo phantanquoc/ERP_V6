@@ -536,6 +536,11 @@ export class AttendanceService {
           { user: { firstName: { contains: filters.search, mode: 'insensitive' } } },
           { user: { lastName: { contains: filters.search, mode: 'insensitive' } } },
         ],
+        user: { role: { not: 'ADMIN' } },
+      };
+    } else {
+      where.employee = {
+        user: { role: { not: 'ADMIN' } },
       };
     }
 
