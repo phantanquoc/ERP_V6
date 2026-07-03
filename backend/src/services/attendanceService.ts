@@ -614,6 +614,20 @@ export class AttendanceService {
       orderBy: { employeeCode: 'asc' },
     });
 
+    // User.departmentId is a raw FK (no @relation) — build id→name map to resolve
+    // department name for employees who have User.departmentId but no subDepartment.
+    const userDeptIds = allEmployees
+      .map(e => e.user?.departmentId)
+      .filter((id): id is string => !!id);
+    const departmentNameById = new Map<string, string>();
+    if (userDeptIds.length > 0) {
+      const departments = await prisma.department.findMany({
+        where: { id: { in: Array.from(new Set(userDeptIds)) } },
+        select: { id: true, name: true },
+      });
+      departments.forEach(d => departmentNameById.set(d.id, d.name));
+    }
+
     // Build per-employee per-day map
     type DayCell = {
       regularHours: number;
@@ -639,7 +653,9 @@ export class AttendanceService {
         employeeCode: emp.employeeCode,
         fullName: `${emp.user.lastName} ${emp.user.firstName}`.trim(),
         positionName: emp.position?.name || '',
-        departmentName: emp.subDepartment?.department?.name || '',
+        departmentName:
+          emp.subDepartment?.department?.name
+          || (emp.user?.departmentId ? departmentNameById.get(emp.user.departmentId) ?? '' : ''),
         cells: new Map(),
         totalDays: 0,
         totalOvertimeHours: 0,
@@ -723,9 +739,31 @@ export class AttendanceService {
       return null;
     };
 
-    const rows = Array.from(rowMap.values()).sort((a, b) =>
-      a.employeeCode.localeCompare(b.employeeCode)
-    );
+    // Regular-hours text color (matches UI). OT is always purple.
+    const regularTextArgb = (status: AttendanceStatus | null): string => {
+      if (status === 'PRESENT') return 'FF166534';   // green-800
+      if (status === 'LATE') return 'FF92400E';      // amber-800
+      if (status === 'ABSENT') return 'FF991B1B';    // red-800
+      if (status === 'ON_LEAVE') return 'FF1E40AF';  // blue-800
+      return 'FF374151';                             // gray-700
+    };
+    const overtimeTextArgb = 'FF6B21A8'; // purple-800
+
+    const roundHours = (h: number) => Math.round(h * 100) / 100;
+
+    // Sort by department (empty last), then by full name, then employee code
+    const rows = Array.from(rowMap.values()).sort((a, b) => {
+      const aDept = a.departmentName || '';
+      const bDept = b.departmentName || '';
+      if (aDept !== bDept) {
+        if (!aDept) return 1;
+        if (!bDept) return -1;
+        return aDept.localeCompare(bDept, 'vi');
+      }
+      const nameCmp = a.fullName.localeCompare(b.fullName, 'vi');
+      if (nameCmp !== 0) return nameCmp;
+      return a.employeeCode.localeCompare(b.employeeCode);
+    });
 
     rows.forEach((row) => {
       const rowData: Record<string, any> = {
@@ -740,28 +778,75 @@ export class AttendanceService {
       days.forEach((d) => {
         const cell = row.cells.get(d);
         if (cell) {
-          const total = cell.regularHours + cell.overtimeHours;
-          rowData[`day_${d}`] = total > 0 ? Math.round(total * 100) / 100 : '';
+          const reg = roundHours(cell.regularHours);
+          const ot = roundHours(cell.overtimeHours);
+          // Numeric value stored is the total (regular + OT). Display is overridden
+          // below with rich text when both regular and OT exist.
+          const total = roundHours(reg + ot);
+          rowData[`day_${d}`] = total > 0 ? total : '';
         } else {
           rowData[`day_${d}`] = '';
         }
       });
 
       const excelRow = worksheet.addRow(rowData);
-      excelRow.alignment = { vertical: 'middle', horizontal: 'center' };
+      excelRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
 
-      // Apply status colors to day cells
+      // Apply status colors + rich text split for regular/OT
       days.forEach((d, idx) => {
         const cell = row.cells.get(d);
         if (!cell) return;
-        const color = statusColor(cell);
-        if (!color) return;
+
         const cellRef = excelRow.getCell(fixedColumns.length + idx + 1);
-        cellRef.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: color },
-        };
+        const color = statusColor(cell);
+        if (color) {
+          cellRef.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: color },
+          };
+        }
+
+        const reg = roundHours(cell.regularHours);
+        const ot = roundHours(cell.overtimeHours);
+        const isSplit = cell.hasOvertime && cell.regularStatus !== null && reg > 0 && ot > 0;
+
+        if (isSplit) {
+          // Two lines: regular hours in status color, OT in purple below.
+          cellRef.value = {
+            richText: [
+              {
+                text: `${reg}`,
+                font: { color: { argb: regularTextArgb(cell.regularStatus) }, bold: true },
+              },
+              { text: '\n', font: {} },
+              {
+                text: `+${ot} OT`,
+                font: { color: { argb: overtimeTextArgb }, bold: true, size: 10 },
+              },
+            ],
+          };
+        } else if (ot > 0 && reg === 0) {
+          // OT-only day
+          cellRef.value = {
+            richText: [
+              {
+                text: `${ot} OT`,
+                font: { color: { argb: overtimeTextArgb }, bold: true },
+              },
+            ],
+          };
+        } else if (reg > 0) {
+          // Regular-only day — color the text to match status
+          cellRef.value = {
+            richText: [
+              {
+                text: `${reg}`,
+                font: { color: { argb: regularTextArgb(cell.regularStatus) }, bold: true },
+              },
+            ],
+          };
+        }
       });
 
       // Left-align text columns
