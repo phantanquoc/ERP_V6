@@ -95,7 +95,13 @@ export class EmployeeEvaluationService {
 
     // Get employees with their position and evaluation data
     const employees = await prisma.employee.findMany({
-      where: conditions.length > 0 ? { OR: conditions } : {},
+      where: {
+        AND: [
+          { status: 'ACTIVE' },
+          { user: { role: { not: 'ADMIN' } } },
+          ...(conditions.length > 0 ? [{ OR: conditions }] : []),
+        ],
+      },
       include: {
         user: { select: { firstName: true, lastName: true, email: true, role: true } },
         position: { select: { id: true, name: true } },
