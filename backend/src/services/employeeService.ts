@@ -75,12 +75,21 @@ export class EmployeeService {
     search?: string,
     subDepartmentId?: string,
     positionName?: string,
-    positionCode?: string
+    positionCode?: string,
+    options: { excludeAdmin?: boolean; excludeInactive?: boolean } = {}
   ): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
     // Build where conditions
     const conditions: any[] = [];
+
+    if (options.excludeAdmin) {
+      conditions.push({ user: { role: { not: 'ADMIN' } } });
+    }
+
+    if (options.excludeInactive) {
+      conditions.push({ status: 'ACTIVE' });
+    }
 
     // Filter theo sub-department via User relation (Employee.subDepartmentId is rarely set; User.subDepartmentId is the canonical field)
     if (subDepartmentId) {
