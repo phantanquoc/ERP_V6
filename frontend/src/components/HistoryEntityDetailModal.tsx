@@ -255,7 +255,17 @@ const PRIORITY_FIELDS = [
 
 // Fields that should never be rendered as generic rows.
 const HIDDEN_FIELD_PATTERN = /Id$/;
-const HIDDEN_FIELDS = new Set(['id']);
+const HIDDEN_FIELDS = new Set(['id', 'stt']);
+
+// Secondary relation arrays that are side-effects of an entity (e.g. generated
+// purchase requests / warehouse documents) rather than its own content.
+// `items` (the request's line items) must stay visible, so it's intentionally excluded.
+const HIDDEN_RELATION_ARRAYS = new Set([
+  'purchaseRequests',
+  'warehouseReceipts',
+  'warehouseIssues',
+  'warehouseIssue',
+]);
 
 function getFieldLabel(key: string): string {
   if (FIELD_LABELS[key]) return FIELD_LABELS[key];
@@ -505,7 +515,8 @@ const HistoryEntityDetailModal: React.FC<HistoryEntityDetailModalProps> = ({
   const statusColor = status ? (STATUS_COLOR[status] ?? 'bg-gray-100 text-gray-500 border-gray-200') : '';
 
   const title = data?.title || data?.name || data?.code || displayTitle || 'Chi tiết';
-  const code = data?.code || data?.id;
+  // Prefer business-facing codes; never fall back to the raw CUID `data.id`.
+  const code = data?.code || data?.maYeuCau || data?.maYeuCauBaoGia || data?.maPhieu || null;
 
   const module = getEntityModule(entityType);
   const canOpenOriginal =
@@ -520,9 +531,20 @@ const HistoryEntityDetailModal: React.FC<HistoryEntityDetailModalProps> = ({
     navigate(routeHint);
   };
 
+  // When the payload already includes the `employee` relation (rendered nicely via
+  // resolvePersonDisplay), the scalar snapshot fields maNhanVien/tenNhanVien are pure
+  // duplicates and should be hidden. If there's no `employee` relation, keep them as
+  // the only source of employee info (fallback).
+  const dedupHiddenKeys = new Set<string>();
+  if (data && data.employee && typeof data.employee === 'object') {
+    dedupHiddenKeys.add('maNhanVien');
+    dedupHiddenKeys.add('tenNhanVien');
+  }
+
   // Priority fields (shown first), in the defined order, only if present in data.
   const priorityEntries: [string, unknown][] = PRIORITY_FIELDS
     .filter((key) => data && Object.prototype.hasOwnProperty.call(data, key))
+    .filter((key) => !dedupHiddenKeys.has(key) && !HIDDEN_RELATION_ARRAYS.has(key))
     .map((key) => [key, data[key]] as [string, unknown]);
 
   const priorityKeys = new Set(priorityEntries.map(([key]) => key));
@@ -535,6 +557,8 @@ const HistoryEntityDetailModal: React.FC<HistoryEntityDetailModalProps> = ({
     ? Object.entries(data).filter(([key]) => {
         if (HIDDEN_FIELDS.has(key)) return false;
         if (HIDDEN_FIELD_PATTERN.test(key)) return false; // createdById, updatedById, ...
+        if (dedupHiddenKeys.has(key)) return false;
+        if (HIDDEN_RELATION_ARRAYS.has(key)) return false;
         if (priorityKeys.has(key)) return false;
         if (key === 'createdAt' || key === 'updatedAt') return false;
         return true;
