@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Plus, Trash2, PlusCircle, Users, Package } from 'lucide-react';
+import { X, Plus, Trash2, PlusCircle, Users, Package, FileText, Printer } from 'lucide-react';
 import DatePicker from '../DatePicker';
 import { QuotationRequest } from '../../services/quotationRequestService';
 import { parseNumberInputStr } from '../../utils/numberInput';
@@ -9,6 +9,7 @@ import { formatNumberWithDots, parseNumberFromDots, handleNumericInput } from '.
 import InventoryCheckPopup from './InventoryCheckPopup';
 import CreateQuotationSubModal from './CreateQuotationSubModal';
 import ProductSelectionModal from './ProductSelectionModal';
+import { SERVER_BASE_URL } from '../../config/api';
 
 interface QuotationCalculatorModalProps {
   isOpen: boolean;
@@ -67,6 +68,26 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
     handleSubmit, handleSaveOrderSummaryData, clearSavedData, handleCreateQuotation,
     getItems,
   } = useQuotationCalculator(isOpen, quotationRequest, onClose, onSuccess);
+
+  const [previewFileUrl, setPreviewFileUrl] = React.useState<string | null>(null);
+
+  const getFullFileUrl = (url: string) => {
+    if (url.startsWith('http')) return url;
+    return `${SERVER_BASE_URL}${url}`;
+  };
+
+  const getFileName = (url: string) => {
+    const parts = url.split('/');
+    const filename = parts[parts.length - 1];
+    return decodeURIComponent(filename.replace(/-\d+-\d+(?=\.)/, ''));
+  };
+
+  const handlePrintFile = (url: string) => {
+    const printWindow = window.open(getFullFileUrl(url), '_blank');
+    if (printWindow) {
+      printWindow.onload = () => printWindow.print();
+    }
+  };
 
   if (!isOpen || !quotationRequest || tabsData.length === 0) return null;
 
@@ -1085,6 +1106,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>STT</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>PHÂN ĐOẠN</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>NỘI DUNG CÔNG VIỆC</th>
+                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>BIỂU MẪU</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>LOẠI CHI PHÍ</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>TÊN CHI PHÍ</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>ĐVT</th>
@@ -1115,6 +1137,26 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                                   <td className="border border-gray-400 px-3 py-2 text-center font-medium" rowSpan={sectionRowSpan}>{sectionIndex + 1}</td>
                                   <td className="border border-gray-400 px-3 py-2 text-center" rowSpan={sectionRowSpan}>{section.phanDoan}</td>
                                   <td className="border border-gray-400 px-3 py-2" rowSpan={sectionRowSpan}>{section.noiDungCongViec}</td>
+                                  <td className="border border-gray-400 px-3 py-2 text-center" rowSpan={sectionRowSpan}>
+                                    {((section as any).files && (section as any).files.length > 0) ? (
+                                      <div className="flex flex-col items-center gap-1">
+                                        {(section as any).files.map((file: any, fileIdx: number) => (
+                                          <div key={fileIdx} className="flex flex-col items-center gap-0.5">
+                                            <span className="text-xs text-gray-500">{fileIdx + 1}.</span>
+                                            <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs hover:bg-blue-100"><FileText className="w-3 h-3" />Xem</button>
+                                            <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-600 rounded text-xs hover:bg-green-100"><Printer className="w-3 h-3" />In</button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : section.fileUrl ? (
+                                      <div className="flex flex-col items-center gap-1">
+                                        <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs hover:bg-blue-100"><FileText className="w-3 h-3" />Xem</button>
+                                        <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-600 rounded text-xs hover:bg-green-100"><Printer className="w-3 h-3" />In</button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-400 text-xs">-</span>
+                                    )}
+                                  </td>
                                 </>
                               )}
                               <td className="border border-gray-400 px-3 py-2 text-center">{cost.loaiChiPhi}</td>
@@ -1140,7 +1182,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           ));
                         })}
                         <tr className="bg-blue-100 font-bold">
-                          <td colSpan={13} className="border border-gray-400 px-3 py-3 text-right text-sm">Tổng cộng</td>
+                          <td colSpan={14} className="border border-gray-400 px-3 py-3 text-right text-sm">Tổng cộng</td>
                           <td className="border border-gray-400 px-3 py-3 text-center text-sm">{(() => { const total = currentAdditionalTab.selectedProcess.flowchart.sections.reduce((sum, section) => { return sum + section.costs.reduce((costSum, cost) => { const gia = cost.giaKeHoach || 0; const soLuong = cost.soLuongKeHoach || 0; return costSum + (gia * soLuong); }, 0); }, 0); return total.toLocaleString('vi-VN') + ' VNĐ'; })()}</td>
                           <td className="border border-gray-400 px-3 py-3 bg-gray-100"></td>
                           <td className="border border-gray-400 px-3 py-3 text-center text-sm">{(() => { const total = currentAdditionalTab.selectedProcess.flowchart.sections.reduce((sum, section) => { return sum + section.costs.reduce((costSum, cost) => { const gia = cost.giaThucTe || 0; const soLuong = cost.soLuongThucTe || 0; return costSum + (gia * soLuong); }, 0); }, 0); return total.toLocaleString('vi-VN') + ' VNĐ'; })()}</td>
@@ -1545,6 +1587,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>STT</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>PHÂN ĐOẠN</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>NỘI DUNG CÔNG VIỆC</th>
+                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>BIỂU MẪU</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>LOẠI CHI PHÍ</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>TÊN CHI PHÍ</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>ĐVT</th>
@@ -1575,6 +1618,26 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               <td className="border border-gray-400 px-3 py-2 text-center font-medium" rowSpan={sectionRowSpan}>{sectionIndex + 1}</td>
                               <td className="border border-gray-400 px-3 py-2 text-center" rowSpan={sectionRowSpan}>{section.phanDoan}</td>
                               <td className="border border-gray-400 px-3 py-2" rowSpan={sectionRowSpan}>{section.noiDungCongViec}</td>
+                              <td className="border border-gray-400 px-3 py-2 text-center" rowSpan={sectionRowSpan}>
+                                {((section as any).files && (section as any).files.length > 0) ? (
+                                  <div className="flex flex-col items-center gap-1">
+                                    {(section as any).files.map((file: any, fileIdx: number) => (
+                                      <div key={fileIdx} className="flex flex-col items-center gap-0.5">
+                                        <span className="text-xs text-gray-500">{fileIdx + 1}.</span>
+                                        <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs hover:bg-blue-100"><FileText className="w-3 h-3" />Xem</button>
+                                        <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-600 rounded text-xs hover:bg-green-100"><Printer className="w-3 h-3" />In</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : section.fileUrl ? (
+                                  <div className="flex flex-col items-center gap-1">
+                                    <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs hover:bg-blue-100"><FileText className="w-3 h-3" />Xem</button>
+                                    <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-600 rounded text-xs hover:bg-green-100"><Printer className="w-3 h-3" />In</button>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400 text-xs">-</span>
+                                )}
+                              </td>
                             </>
                           )}
                           <td className="border border-gray-400 px-3 py-2 text-center">{cost.loaiChiPhi}</td>
@@ -1600,7 +1663,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       ));
                     })}
                     <tr className="bg-blue-100 font-bold">
-                      <td colSpan={13} className="border border-gray-400 px-3 py-3 text-right text-sm">Tổng cộng</td>
+                      <td colSpan={14} className="border border-gray-400 px-3 py-3 text-right text-sm">Tổng cộng</td>
                       <td className="border border-gray-400 px-3 py-3 text-center text-sm">{(() => { const total = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => { return sum + section.costs.reduce((costSum, cost) => { const gia = cost.giaKeHoach || 0; const soLuong = cost.soLuongKeHoach || 0; return costSum + (gia * soLuong); }, 0); }, 0); return total.toLocaleString('vi-VN') + ' VNĐ'; })()}</td>
                       <td className="border border-gray-400 px-3 py-3 bg-gray-100"></td>
                       <td className="border border-gray-400 px-3 py-3 text-center text-sm">{(() => { const total = currentTab.selectedProcess.flowchart.sections.reduce((sum, section) => { return sum + section.costs.reduce((costSum, cost) => { const gia = cost.giaThucTe || 0; const soLuong = cost.soLuongThucTe || 0; return costSum + (gia * soLuong); }, 0); }, 0); return total.toLocaleString('vi-VN') + ' VNĐ'; })()}</td>
@@ -1680,6 +1743,49 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       inventoryCheckResult={inventoryCheckResult}
       onClose={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))}
     />
+
+    {/* File Preview Modal */}
+    <Modal isOpen={!!previewFileUrl} onClose={() => setPreviewFileUrl(null)} showBackdrop closeOnBackdrop={true}>
+      {previewFileUrl && (
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl flex flex-col h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
+            <h3 className="text-sm font-medium text-gray-700 truncate flex-1">{getFileName(previewFileUrl)}</h3>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handlePrintFile(previewFileUrl)}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                <Printer className="w-4 h-4" />In
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewFileUrl(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 min-h-0">
+            {previewFileUrl.toLowerCase().endsWith('.pdf') ? (
+              <iframe src={`${getFullFileUrl(previewFileUrl)}#toolbar=0`} className="w-full h-full border-0" title="PDF Preview" />
+            ) : previewFileUrl.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+              <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
+                <img src={getFullFileUrl(previewFileUrl)} alt="Preview" className="max-w-full max-h-full object-contain" onContextMenu={(e) => e.preventDefault()} draggable={false} />
+              </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center">
+                  <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">Không thể xem trước file này</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
   </>
   );
 };

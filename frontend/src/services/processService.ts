@@ -20,14 +20,26 @@ export interface ProcessFlowchartCost {
   thanhTienThucTe?: number;   // Thành tiền (VNĐ) - Thực tế
 }
 
+export interface SectionFile {
+  id?: string;
+  url: string;
+  fileName?: string;
+  description?: string;
+  order: number;
+  uploadedById?: string | null;
+  uploadedBy?: { id: string; hoTen: string } | null;
+  uploadedAt?: string;
+}
+
 export interface ProcessFlowchartSection {
   id?: string;
   phanDoan: string;
   tenPhanDoan?: string;
   noiDungCongViec?: string;
-  fileUrl?: string;    // File đính kèm cho phân đoạn
+  fileUrl?: string;    // File đính kèm cho phân đoạn (legacy, kept for backward compat)
   stt?: number;
   costs: ProcessFlowchartCost[];
+  files?: SectionFile[];
 }
 
 export interface ProcessFlowchart {

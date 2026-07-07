@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Eye, X, RefreshCw, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, RefreshCw, Download, FileText, Printer } from 'lucide-react';
 import Modal from './Modal';
+import FileUpload from './FileUpload';
 import productionProcessService, { ProductionProcess, CreateProductionProcessData, ProductionFlowchartCost, ProductionFlowchartSection } from '../services/productionProcessService';
 import processService, { Process } from '../services/processService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import { SERVER_BASE_URL } from '../config/api';
 
 type ProductionCostColumn = {
   key: keyof ProductionFlowchartCost;
@@ -70,6 +72,69 @@ const ProductionProcessManagement: React.FC = () => {
     tongNguyenLieuCanSanXuat: 0,
     soGioLamTrong1Ngay: 0,
   });
+  const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
+
+  const getFullFileUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${SERVER_BASE_URL}${url}`;
+  };
+
+  const getFileName = (url: string) => {
+    if (!url) return '';
+    const parts = url.split('/');
+    const filename = parts[parts.length - 1];
+    return decodeURIComponent(filename.replace(/-\d+-\d+(?=\.)/, ''));
+  };
+
+  const handlePrintFile = (url: string) => {
+    const printWindow = window.open(getFullFileUrl(url), '_blank');
+    if (printWindow) {
+      printWindow.onload = () => printWindow.print();
+    }
+  };
+
+  const handleSectionFileUpload = async (sectionIndex: number, files: File[]) => {
+    try {
+      const uploadResults = await Promise.all(
+        files.map(file => productionProcessService.uploadSectionFile(file).then(res => ({ res, file })))
+      );
+      setFlowchartSections(prev => {
+        const next = [...prev];
+        const section = { ...next[sectionIndex] } as any;
+        const currentFiles = [...(section.files || [])];
+        for (const { res, file } of uploadResults) {
+          if (res.success) {
+            const { fileUrl, fileName } = res.data;
+            currentFiles.push({ url: fileUrl, fileName: fileName || file.name, order: currentFiles.length, description: '' });
+          }
+        }
+        section.files = currentFiles;
+        if (currentFiles.length > 0 && !section.fileUrl) {
+          section.fileUrl = currentFiles[0].url;
+        }
+        next[sectionIndex] = section;
+        return next;
+      });
+    } catch (error) {
+      console.error('Error uploading section file:', error);
+      alert('Lỗi khi tải file biểu mẫu');
+    }
+  };
+
+  const handleSectionFileRemove = (sectionIndex: number, fileIndex?: number) => {
+    setFlowchartSections(prev => {
+      const next = [...prev];
+      if (fileIndex !== undefined) {
+        const currentFiles = [...((next[sectionIndex] as any).files || [])];
+        currentFiles.splice(fileIndex, 1);
+        next[sectionIndex] = { ...next[sectionIndex], files: currentFiles.map((f: any, i: number) => ({ ...f, order: i })) } as any;
+      } else {
+        next[sectionIndex] = { ...next[sectionIndex], fileUrl: '' };
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     loadProductionProcesses();
@@ -147,6 +212,7 @@ const ProductionProcessManagement: React.FC = () => {
           noiDungCongViec: section.noiDungCongViec,
           fileUrl: section.fileUrl,
           stt: section.stt,
+          files: section.files || [],
           costs: section.costs.map((cost: any) => ({
             loaiChiPhi: cost.loaiChiPhi,
             tenChiPhi: cost.tenChiPhi,
@@ -754,6 +820,7 @@ const ProductionProcessManagement: React.FC = () => {
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">STT</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">PHÂN ĐOẠN</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">NỘI DUNG CÔNG VIỆC</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 w-40">BIỂU MẪU</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">LOẠI CHI PHÍ</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">TÊN CHI PHÍ</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐVT</th>
@@ -764,6 +831,7 @@ const ProductionProcessManagement: React.FC = () => {
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
                       </tr>
                       <tr className="bg-gray-50">
+                        <th className="border border-gray-200 px-3 py-2"></th>
                         <th className="border border-gray-200 px-3 py-2"></th>
                         <th className="border border-gray-200 px-3 py-2"></th>
                         <th className="border border-gray-200 px-3 py-2"></th>
@@ -794,6 +862,35 @@ const ProductionProcessManagement: React.FC = () => {
                                   </td>
                                   <td className="border border-gray-200 px-3 py-2 text-sm" rowSpan={section.costs.length}>
                                     {section.noiDungCongViec || '-'}
+                                  </td>
+                                  <td className="border border-gray-200 px-3 py-2 align-top" rowSpan={section.costs.length}>
+                                    <div className="space-y-2">
+                                      <FileUpload
+                                        files={[]}
+                                        onChange={(selectedFiles) => {
+                                          if (selectedFiles.length > 0) handleSectionFileUpload(sectionIndex, selectedFiles);
+                                        }}
+                                        multiple
+                                        compact
+                                      />
+                                      {((section as any).files || []).map((file: any, fileIdx: number) => (
+                                        <div key={fileIdx} className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded">
+                                          <span className="text-xs text-gray-500">{fileIdx + 1}.</span>
+                                          <span className="text-xs text-gray-700 truncate flex-1">{file.fileName || getFileName(file.url)}</span>
+                                          <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
+                                          <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                          <button type="button" onClick={() => handleSectionFileRemove(sectionIndex, fileIdx)} className="text-red-500 hover:text-red-700 ml-auto"><X className="w-3.5 h-3.5" /></button>
+                                        </div>
+                                      ))}
+                                      {section.fileUrl && !((section as any).files || []).some((f: any) => f.url === section.fileUrl) && (
+                                        <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded">
+                                          <span className="text-xs text-gray-700 truncate flex-1">{getFileName(section.fileUrl)}</span>
+                                          <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
+                                          <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                          <button type="button" onClick={() => handleSectionFileRemove(sectionIndex)} className="text-red-500 hover:text-red-700 ml-auto"><X className="w-3.5 h-3.5" /></button>
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                 </>
                               )}
@@ -857,7 +954,36 @@ const ProductionProcessManagement: React.FC = () => {
                           <tr key={sectionIndex}>
                             <td className="border border-gray-200 px-3 py-2 text-center">{section.stt}</td>
                             <td className="border border-gray-200 px-3 py-2">{section.phanDoan}</td>
-                            <td className="border border-gray-200 px-3 py-2" colSpan={10}>Không có chi phí</td>
+                            <td className="border border-gray-200 px-3 py-2">{section.noiDungCongViec || '-'}</td>
+                            <td className="border border-gray-200 px-3 py-2 align-top">
+                              <div className="space-y-2">
+                                <FileUpload
+                                  files={[]}
+                                  onChange={(files) => {
+                                    if (files[0]) handleSectionFileUpload(sectionIndex, files[0]);
+                                  }}
+                                  compact
+                                />
+                                {((section as any).files || []).map((file: any, fileIdx: number) => (
+                                  <div key={fileIdx} className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded">
+                                    <span className="text-xs text-gray-500">{fileIdx + 1}.</span>
+                                    <span className="text-xs text-gray-700 truncate flex-1">{file.fileName || getFileName(file.url)}</span>
+                                    <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
+                                    <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                    <button type="button" onClick={() => handleSectionFileRemove(sectionIndex, fileIdx)} className="text-red-500 hover:text-red-700 ml-auto"><X className="w-3.5 h-3.5" /></button>
+                                  </div>
+                                ))}
+                                {section.fileUrl && !((section as any).files || []).some((f: any) => f.url === section.fileUrl) && (
+                                  <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded">
+                                    <span className="text-xs text-gray-700 truncate flex-1">{getFileName(section.fileUrl)}</span>
+                                    <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
+                                    <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                    <button type="button" onClick={() => handleSectionFileRemove(sectionIndex)} className="text-red-500 hover:text-red-700 ml-auto"><X className="w-3.5 h-3.5" /></button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="border border-gray-200 px-3 py-2 text-center text-gray-400" colSpan={9}>Không có chi phí</td>
                           </tr>
                         )
                       )}
@@ -989,7 +1115,7 @@ const ProductionProcessManagement: React.FC = () => {
                   const visibleCostColumns = getVisibleProductionCostColumns(viewingProcess.flowchart!.sections);
                   const regularCostColumns = visibleCostColumns.filter(column => column.group !== 'laborQuantity');
                   const laborQuantityColumns = visibleCostColumns.filter(column => column.group === 'laborQuantity');
-                  const baseColumnCount = 3;
+                  const baseColumnCount = 4;
 
                   return (
                 <div className="overflow-x-auto">
@@ -999,6 +1125,7 @@ const ProductionProcessManagement: React.FC = () => {
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">STT</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">PHÂN ĐOẠN</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">NỘI DUNG CÔNG VIỆC</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 w-28">BIỂU MẪU</th>
                         {regularCostColumns.map(column => (
                           <th key={column.key} className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">
                             {column.label}
@@ -1038,6 +1165,26 @@ const ProductionProcessManagement: React.FC = () => {
                                   <td className="border border-gray-200 px-3 py-2 text-sm" rowSpan={section.costs.length}>
                                     {section.noiDungCongViec || '-'}
                                   </td>
+                                  <td className="border border-gray-200 px-3 py-2 text-center align-top" rowSpan={section.costs.length}>
+                                    {((section as any).files && (section as any).files.length > 0) ? (
+                                      <div className="flex flex-col items-center gap-1">
+                                        {(section as any).files.map((file: any, fileIdx: number) => (
+                                          <div key={fileIdx} className="flex items-center gap-1">
+                                            <span className="text-xs text-gray-600">{fileIdx + 1}.</span>
+                                            <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
+                                            <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : section.fileUrl ? (
+                                      <div className="flex items-center justify-center gap-2">
+                                        <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
+                                        <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-400 text-xs">-</span>
+                                    )}
+                                  </td>
                                 </>
                               )}
                               {visibleCostColumns.map(column => (
@@ -1052,6 +1199,26 @@ const ProductionProcessManagement: React.FC = () => {
                             <td className="border border-gray-200 px-3 py-2 text-center">{section.stt}</td>
                             <td className="border border-gray-200 px-3 py-2">{section.phanDoan}</td>
                             <td className="border border-gray-200 px-3 py-2">{section.noiDungCongViec || '-'}</td>
+                            <td className="border border-gray-200 px-3 py-2 text-center">
+                              {((section as any).files && (section as any).files.length > 0) ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  {(section as any).files.map((file: any, fileIdx: number) => (
+                                    <div key={fileIdx} className="flex items-center gap-1">
+                                      <span className="text-xs text-gray-600">{fileIdx + 1}.</span>
+                                      <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
+                                      <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : section.fileUrl ? (
+                                <div className="flex items-center justify-center gap-2">
+                                  <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
+                                  <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">-</span>
+                              )}
+                            </td>
                             {visibleCostColumns.length > 0 && (
                               <td className="border border-gray-200 px-3 py-2 text-center text-gray-400" colSpan={visibleCostColumns.length}>
                                 Không có chi phí
@@ -1088,6 +1255,56 @@ const ProductionProcessManagement: React.FC = () => {
                 Chỉnh sửa
               </button>
             </div>
+          </div>
+        </Modal>
+
+        {/* File Preview Modal */}
+        <Modal isOpen={!!previewFileUrl} onClose={() => setPreviewFileUrl(null)} showBackdrop closeOnBackdrop={true}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {previewFileUrl && (
+              <>
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-700 truncate flex-1">
+                    {getFileName(previewFileUrl)}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handlePrintFile(previewFileUrl)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                      <Printer className="w-4 h-4" />
+                      In
+                    </button>
+                    <button
+                      onClick={() => setPreviewFileUrl(null)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  {previewFileUrl.toLowerCase().endsWith('.pdf') ? (
+                    <iframe
+                      src={`${getFullFileUrl(previewFileUrl)}#toolbar=0`}
+                      className="w-full h-full border-0"
+                      title="PDF Preview"
+                    />
+                  ) : previewFileUrl.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+                    <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
+                      <img src={getFullFileUrl(previewFileUrl)} alt="Preview" className="max-w-full max-h-full object-contain" onContextMenu={(e) => e.preventDefault()} draggable={false} />
+                    </div>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <div className="text-center">
+                        <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-600">Không thể xem trước file này</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </Modal>
     </div>
