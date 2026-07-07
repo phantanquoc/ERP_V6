@@ -129,6 +129,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
     fileUrl: '',
     stt,
     costs: [],
+    files: [],
   });
 
   const createEmptyCost = (): ProcessFlowchartCost => ({
@@ -356,12 +357,29 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
     setFlowchartSections(newSections);
   };
 
-  const handleSectionFileUpload = async (sectionIndex: number, file: File) => {
+  const handleSectionFileUpload = async (sectionIndex: number, files: File[]) => {
     try {
-      const response = await processService.uploadSectionFile(file);
-      if (response.success) {
-        handleSectionChange(sectionIndex, 'fileUrl', response.data.fileUrl);
-      }
+      const uploadResults = await Promise.all(
+        files.map(file => processService.uploadSectionFile(file).then(res => ({ res, file })))
+      );
+      setFlowchartSections(prev => {
+        const newSections = [...prev];
+        const section = { ...newSections[sectionIndex] };
+        const currentFiles = [...(section.files || [])];
+        for (const { res, file } of uploadResults) {
+          if (res.success) {
+            const { fileUrl, fileName } = res.data;
+            currentFiles.push({ url: fileUrl, fileName: fileName || file.name, order: currentFiles.length, description: '' });
+          }
+        }
+        section.files = currentFiles;
+        // Backward compat: set fileUrl to first file
+        if (currentFiles.length > 0 && !section.fileUrl) {
+          section.fileUrl = currentFiles[0].url;
+        }
+        newSections[sectionIndex] = section;
+        return newSections;
+      });
     } catch (error) {
       console.error('Error uploading file:', error);
       alert('Lỗi khi tải file lên');
@@ -957,18 +975,113 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                           </div>
                         </div>
 
-                        {/* File đính kèm */}
+                        {/* Biểu mẫu (multi-file) */}
                         <div className="grid grid-cols-4 gap-4">
-                          <div className="col-span-1 font-medium text-gray-700">File đính kèm</div>
-                          <div className="col-span-3">
+                          <div className="col-span-1 font-medium text-gray-700">Biểu mẫu</div>
+                          <div className="col-span-3 space-y-2">
                             <FileUpload
                               files={[]}
-                              onChange={(files) => {
-                                if (files[0]) handleSectionFileUpload(sectionIndex, files[0]);
+                              onChange={(selectedFiles) => {
+                                if (selectedFiles.length > 0) handleSectionFileUpload(sectionIndex, selectedFiles);
                               }}
+                              multiple
                               compact
-                              existingFileName={section.fileUrl ? section.fileUrl.split('/').pop() : undefined}
                             />
+                            {(section.files || []).map((file: any, fileIndex: number) => (
+                              <div key={fileIndex} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md">
+                                <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                <span className="text-sm text-gray-700 truncate flex-1">{file.fileName || getFileName(file.url)}</span>
+                                <input
+                                  type="text"
+                                  placeholder="Mô tả..."
+                                  value={file.description || ''}
+                                  onChange={(e) => {
+                                    const newFiles = [...(section.files || [])];
+                                    newFiles[fileIndex] = { ...newFiles[fileIndex], description: e.target.value };
+                                    handleSectionChange(sectionIndex, 'files', newFiles);
+                                  }}
+                                  className="text-xs border border-gray-300 rounded px-2 py-1 w-32"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))}
+                                  className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                >
+                                  Xem
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintFile(getFullFileUrl(file.url))}
+                                  className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                >
+                                  In
+                                </button>
+                                {fileIndex > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newFiles = [...(section.files || [])];
+                                      [newFiles[fileIndex - 1], newFiles[fileIndex]] = [newFiles[fileIndex], newFiles[fileIndex - 1]];
+                                      handleSectionChange(sectionIndex, 'files', newFiles.map((f: any, i: number) => ({ ...f, order: i })));
+                                    }}
+                                    className="text-gray-500 hover:text-gray-700 text-xs"
+                                  >
+                                    ↑
+                                  </button>
+                                )}
+                                {fileIndex < (section.files || []).length - 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newFiles = [...(section.files || [])];
+                                      [newFiles[fileIndex], newFiles[fileIndex + 1]] = [newFiles[fileIndex + 1], newFiles[fileIndex]];
+                                      handleSectionChange(sectionIndex, 'files', newFiles.map((f: any, i: number) => ({ ...f, order: i })));
+                                    }}
+                                    className="text-gray-500 hover:text-gray-700 text-xs"
+                                  >
+                                    ↓
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newFiles = (section.files || []).filter((_: any, i: number) => i !== fileIndex);
+                                    handleSectionChange(sectionIndex, 'files', newFiles.map((f: any, i: number) => ({ ...f, order: i })));
+                                  }}
+                                  className="text-red-500 hover:text-red-700"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                            {/* Legacy single file display */}
+                            {section.fileUrl && !(section.files || []).some((f: any) => f.url === section.fileUrl) && (
+                              <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md">
+                                <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                <span className="text-sm text-gray-700 truncate flex-1">{getFileName(section.fileUrl)}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))}
+                                  className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                >
+                                  Xem
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))}
+                                  className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                >
+                                  In
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSectionChange(sectionIndex, 'fileUrl', '')}
+                                  className="text-red-500 hover:text-red-700"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1177,7 +1290,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                     const visibleCostColumns = getVisibleProcessCostColumns(viewingProcess.flowchart!.sections, mode);
                     const regularCostColumns = visibleCostColumns.filter(column => column.group !== 'laborQuantity');
                     const laborQuantityColumns = visibleCostColumns.filter(column => column.group === 'laborQuantity');
-                    const baseColumnCount = 3;
+                    const baseColumnCount = 4;
 
                     return (
                   <div className="overflow-x-auto">
@@ -1187,6 +1300,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                           <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-12">STT</th>
                           <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">PHÂN ĐOẠN</th>
                           <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">NỘI DUNG CÔNG VIỆC</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-28">BIỂU MẪU</th>
                           {regularCostColumns.map(column => (
                             <th key={column.key} className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">{column.label}</th>
                           ))}
@@ -1227,24 +1341,59 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                     {section.tenPhanDoan && (
                                       <div className="text-sm">{section.tenPhanDoan}</div>
                                     )}
-                                    {section.fileUrl && (
-                                      <div className="mt-2">
-                                        <a
-                                          href={section.fileUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-blue-600 hover:text-blue-800 underline text-xs"
-                                        >
-                                          📎 Xem file
-                                        </a>
-                                      </div>
-                                    )}
                                   </td>
                                 )}
                                 {/* NỘI DUNG CÔNG VIỆC - chỉ hiển thị ở row đầu tiên */}
                                 {costIndex === 0 && (
                                   <td className="border border-gray-400 px-3 py-2 align-top whitespace-pre-wrap" rowSpan={costsCount}>
                                     {section.noiDungCongViec || '-'}
+                                  </td>
+                                )}
+                                {/* BIỂU MẪU - section-level, chỉ hiển thị ở row đầu tiên */}
+                                {costIndex === 0 && (
+                                  <td className="border border-gray-400 px-3 py-2 align-top text-center" rowSpan={costsCount}>
+                                    {(section.files && section.files.length > 0) ? (
+                                      <div className="flex flex-col items-center gap-1">
+                                        {section.files.map((file: any, fileIdx: number) => (
+                                          <div key={fileIdx} className="flex items-center gap-1">
+                                            <span className="text-xs text-gray-600">{fileIdx + 1}.</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))}
+                                              className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                            >
+                                              Xem
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handlePrintFile(getFullFileUrl(file.url))}
+                                              className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                            >
+                                              In
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : section.fileUrl ? (
+                                      <div className="flex items-center justify-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))}
+                                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                        >
+                                          Xem
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))}
+                                          className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                        >
+                                          In
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-400 text-xs">-</span>
+                                    )}
                                   </td>
                                 )}
                                 {visibleCostColumns.map(column => (
@@ -1264,21 +1413,53 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                 {section.tenPhanDoan && (
                                   <div className="text-sm">{section.tenPhanDoan}</div>
                                 )}
-                                {section.fileUrl && (
-                                  <div className="mt-2">
-                                    <a
-                                      href={section.fileUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 hover:text-blue-800 underline text-xs"
-                                    >
-                                      📎 Xem file
-                                    </a>
-                                  </div>
-                                )}
                               </td>
                               <td className="border border-gray-400 px-3 py-2 whitespace-pre-wrap">
                                 {section.noiDungCongViec || '-'}
+                              </td>
+                              <td className="border border-gray-400 px-3 py-2 text-center">
+                                {(section.files && section.files.length > 0) ? (
+                                  <div className="flex flex-col items-center gap-1">
+                                    {section.files.map((file: any, fileIdx: number) => (
+                                      <div key={fileIdx} className="flex items-center gap-1">
+                                        <span className="text-xs text-gray-600">{fileIdx + 1}.</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))}
+                                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                        >
+                                          Xem
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handlePrintFile(getFullFileUrl(file.url))}
+                                          className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                        >
+                                          In
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : section.fileUrl ? (
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))}
+                                      className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                    >
+                                      Xem
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))}
+                                      className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                    >
+                                      In
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400 text-xs">-</span>
+                                )}
                               </td>
                               {visibleCostColumns.length > 0 && (
                                 <td className="border border-gray-400 px-3 py-2 text-center text-gray-400" colSpan={visibleCostColumns.length}>
@@ -1374,6 +1555,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                       <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-12">STT</th>
                       <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">PHÂN ĐOẠN</th>
                       <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">NỘI DUNG CÔNG VIỆC</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-28">BIỂU MẪU</th>
                       <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">LOẠI CHI PHÍ</th>
                       <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-40">TÊN CHI PHÍ</th>
                       <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-20">ĐVT</th>
@@ -1389,6 +1571,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                     </tr>
                     {mode === 'production' && (
                       <tr className="bg-blue-50">
+                        <th className="border border-gray-400 px-3 py-2"></th>
                         <th className="border border-gray-400 px-3 py-2"></th>
                         <th className="border border-gray-400 px-3 py-2"></th>
                         <th className="border border-gray-400 px-3 py-2"></th>
@@ -1426,6 +1609,52 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                             {costIndex === 0 && (
                               <td className="border border-gray-400 px-3 py-2 align-top whitespace-pre-wrap bg-gray-100" rowSpan={costsCount}>
                                 {section.noiDungCongViec || '-'}
+                              </td>
+                            )}
+                            {costIndex === 0 && (
+                              <td className="border border-gray-400 px-3 py-2 align-top text-center bg-gray-100" rowSpan={costsCount}>
+                                {(section.files && section.files.length > 0) ? (
+                                  <div className="flex flex-col items-center gap-1">
+                                    {section.files.map((file: any, fileIdx: number) => (
+                                      <div key={fileIdx} className="flex items-center gap-1">
+                                        <span className="text-xs text-gray-600">{fileIdx + 1}.</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))}
+                                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                        >
+                                          Xem
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handlePrintFile(getFullFileUrl(file.url))}
+                                          className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                        >
+                                          In
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : section.fileUrl ? (
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))}
+                                      className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                    >
+                                      Xem
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))}
+                                      className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                    >
+                                      In
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400 text-xs">-</span>
+                                )}
                               </td>
                             )}
                             <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100">
@@ -1538,6 +1767,50 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                           </td>
                           <td className="border border-gray-400 px-3 py-2 whitespace-pre-wrap bg-gray-100">
                             {section.noiDungCongViec || '-'}
+                          </td>
+                          <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100">
+                            {(section.files && section.files.length > 0) ? (
+                              <div className="flex flex-col items-center gap-1">
+                                {section.files.map((file: any, fileIdx: number) => (
+                                  <div key={fileIdx} className="flex items-center gap-1">
+                                    <span className="text-xs text-gray-600">{fileIdx + 1}.</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))}
+                                      className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                    >
+                                      Xem
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePrintFile(getFullFileUrl(file.url))}
+                                      className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                    >
+                                      In
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : section.fileUrl ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))}
+                                  className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                >
+                                  Xem
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))}
+                                  className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                >
+                                  In
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-xs">-</span>
+                            )}
                           </td>
                           <td className="border border-gray-400 px-3 py-2 text-center text-gray-400 bg-gray-100">-</td>
                           <td className="border border-gray-400 px-3 py-2 text-gray-400 bg-gray-100">-</td>

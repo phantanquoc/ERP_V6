@@ -19,6 +19,17 @@ export interface ProductionFlowchartCost {
   thanhTienThucTe?: number;
 }
 
+export interface ProductionSectionFile {
+  id?: string;
+  url: string;
+  fileName?: string;
+  description?: string;
+  order: number;
+  uploadedById?: string | null;
+  uploadedBy?: { id: string; hoTen: string } | null;
+  uploadedAt?: string;
+}
+
 export interface ProductionFlowchartSection {
   id?: string;
   phanDoan: string;
@@ -27,6 +38,7 @@ export interface ProductionFlowchartSection {
   fileUrl?: string;
   stt: number;
   costs: ProductionFlowchartCost[];
+  files?: ProductionSectionFile[];
 }
 
 export interface ProductionFlowchart {

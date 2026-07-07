@@ -279,6 +279,50 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
                     </div>
                     {section.tenPhanDoan && <div className="text-xs text-gray-600 mb-1"><span className="font-medium">Tên phân đoạn:</span> {section.tenPhanDoan}</div>}
                     {section.noiDungCongViec && <div className="text-xs text-gray-600 mb-2"><span className="font-medium">Nội dung công việc:</span> {section.noiDungCongViec}</div>}
+                    {/* Multi-file biểu mẫu */}
+                    {((section as any).files && (section as any).files.length > 0) ? (
+                      <div className="mb-2">
+                        <div className="text-xs font-medium text-gray-700 mb-1">Biểu mẫu:</div>
+                        {(section as any).files.map((file: any, fileIdx: number) => (
+                          <div key={fileIdx} className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-2 rounded-md mb-1">
+                            <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                            <span className="text-xs text-gray-700 truncate flex-1">{file.fileName || getFileName(file.url)}</span>
+                            <button
+                              onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))}
+                              className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                            >
+                              Xem
+                            </button>
+                            <button
+                              onClick={() => handlePrintFile(getFullFileUrl(file.url))}
+                              className="text-green-600 hover:text-green-800 text-xs font-medium"
+                            >
+                              In
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : section.fileUrl && (
+                      <div className="mb-2">
+                        <div className="text-xs font-medium text-gray-700 mb-1">Biểu mẫu:</div>
+                        <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-2 rounded-md">
+                          <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                          <span className="text-xs text-gray-700 truncate flex-1">{getFileName(section.fileUrl)}</span>
+                          <button
+                            onClick={() => setPreviewFileUrl(section.fileUrl!)}
+                            className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                          >
+                            Xem
+                          </button>
+                          <button
+                            onClick={() => handlePrintFile(section.fileUrl!)}
+                            className="text-green-600 hover:text-green-800 text-xs font-medium"
+                          >
+                            In
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {section.costs && section.costs.length > 0 && (() => {
                       const visibleColumns = flowchartCostColumns.filter(column =>
                         section.costs.some(cost => column.hasValue ? column.hasValue(cost) : hasDisplayValue(cost[column.key as keyof typeof cost]))
