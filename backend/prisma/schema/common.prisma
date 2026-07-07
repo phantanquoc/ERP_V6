@@ -286,19 +286,37 @@ model ProcessFlowchart {
 }
 
 model ProcessFlowchartSection {
-  id              String                 @id @default(cuid())
+  id              String                        @id @default(cuid())
   flowchartId     String
   phanDoan        String
   tenPhanDoan     String?
   noiDungCongViec String?
   fileUrl         String?
   stt             Int
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
   costs           ProcessFlowchartCost[]
-  flowchart       ProcessFlowchart       @relation(fields: [flowchartId], references: [id], onDelete: Cascade)
+  files           ProcessFlowchartSectionFile[]
+  flowchart       ProcessFlowchart              @relation(fields: [flowchartId], references: [id], onDelete: Cascade)
 
   @@map("process_flowchart_sections")
+  @@schema("common")
+}
+
+model ProcessFlowchartSectionFile {
+  id           String                  @id @default(cuid())
+  sectionId    String
+  url          String
+  fileName     String?
+  description  String?
+  order        Int                     @default(0)
+  uploadedById String?
+  uploadedAt   DateTime                @default(now())
+  section      ProcessFlowchartSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  uploadedBy   User?                   @relation("ProcessFlowchartSectionFileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([sectionId, order])
+  @@map("process_flowchart_section_files")
   @@schema("common")
 }
 
@@ -366,19 +384,37 @@ model ProductionFlowchart {
 }
 
 model ProductionFlowchartSection {
-  id              String                    @id @default(cuid())
+  id              String                           @id @default(cuid())
   flowchartId     String
   phanDoan        String
   tenPhanDoan     String?
   noiDungCongViec String?
   fileUrl         String?
   stt             Int
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
+  createdAt       DateTime                         @default(now())
+  updatedAt       DateTime                         @updatedAt
   costs           ProductionFlowchartCost[]
-  flowchart       ProductionFlowchart       @relation(fields: [flowchartId], references: [id], onDelete: Cascade)
+  files           ProductionFlowchartSectionFile[]
+  flowchart       ProductionFlowchart              @relation(fields: [flowchartId], references: [id], onDelete: Cascade)
 
   @@map("production_flowchart_sections")
+  @@schema("common")
+}
+
+model ProductionFlowchartSectionFile {
+  id           String                     @id @default(cuid())
+  sectionId    String
+  url          String
+  fileName     String?
+  description  String?
+  order        Int                        @default(0)
+  uploadedById String?
+  uploadedAt   DateTime                   @default(now())
+  section      ProductionFlowchartSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  uploadedBy   User?                      @relation("ProductionFlowchartSectionFileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([sectionId, order])
+  @@map("production_flowchart_section_files")
   @@schema("common")
 }
 

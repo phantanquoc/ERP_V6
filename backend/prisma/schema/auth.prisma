@@ -20,6 +20,8 @@ model User {
   pushSubscriptions         PushSubscription[]
   notificationPreferences   NotificationPreference[]
   secondaryDepartments UserSecondaryDepartment[]
+  processFlowchartSectionFiles    ProcessFlowchartSectionFile[]    @relation("ProcessFlowchartSectionFileUploader")
+  productionFlowchartSectionFiles ProductionFlowchartSectionFile[] @relation("ProductionFlowchartSectionFileUploader")
 
   @@map("users")
   @@schema("auth")
