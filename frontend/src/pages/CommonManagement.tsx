@@ -203,7 +203,7 @@ const CommonManagement = () => {
         isOpen={isOvertimePlanListOpen}
         onClose={() => setIsOvertimePlanListOpen(false)}
         isAdmin={user?.role === 'admin'}
-        canViewAll={user?.role === 'admin'}
+        canViewAll={user?.role === 'admin' || user?.role === 'department_head' || user?.department === 'general' || user?.department === 'quality'}
         canCreate={isManagerOrAdmin}
       />
       <PrivateFeedbackModal
