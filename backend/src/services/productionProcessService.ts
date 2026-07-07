@@ -34,6 +34,15 @@ interface CreateProductionProcessData {
         soLuongKeHoach?: number;
         soLuongThucTe?: number;
       }>;
+      files?: Array<{
+        id?: string;
+        url: string;
+        fileName?: string;
+        description?: string;
+        order?: number;
+        uploadedById?: string | null;
+        uploadedAt?: string;
+      }>;
     }>;
   };
 }
@@ -87,6 +96,7 @@ class ProductionProcessService {
             sections: {
               include: {
                 costs: true,
+                files: { orderBy: { order: 'asc' } },
               },
               orderBy: {
                 stt: 'asc',
@@ -179,6 +189,16 @@ class ProductionProcessService {
                     soLuongThucTe: cost.soLuongThucTe,
                   })),
                 },
+                files: {
+                  create: section.files?.map((file, fileIndex) => ({
+                    url: file.url,
+                    fileName: file.fileName,
+                    description: file.description,
+                    order: fileIndex,
+                    uploadedById: file.uploadedById || null,
+                    uploadedAt: file.uploadedAt ? new Date(file.uploadedAt) : new Date(),
+                  })) || [],
+                },
               })),
             },
           },
@@ -191,6 +211,7 @@ class ProductionProcessService {
             sections: {
               include: {
                 costs: true,
+                files: { orderBy: { order: 'asc' } },
               },
             },
           },
@@ -256,6 +277,16 @@ class ProductionProcessService {
                     soLuongThucTe: cost.soLuongThucTe,
                   })),
                 },
+                files: {
+                  create: section.files?.map((file, fileIndex) => ({
+                    url: file.url,
+                    fileName: file.fileName,
+                    description: file.description,
+                    order: fileIndex,
+                    uploadedById: file.uploadedById || null,
+                    uploadedAt: file.uploadedAt ? new Date(file.uploadedAt) : new Date(),
+                  })) || [],
+                },
               })),
             },
           },
@@ -268,6 +299,7 @@ class ProductionProcessService {
             sections: {
               include: {
                 costs: true,
+                files: { orderBy: { order: 'asc' } },
               },
             },
           },
@@ -290,7 +322,7 @@ class ProductionProcessService {
         flowchart: {
           include: {
             sections: {
-              include: { costs: true },
+              include: { costs: true, files: { orderBy: { order: 'asc' } } },
               orderBy: { stt: 'asc' },
             },
           },
@@ -555,6 +587,16 @@ class ProductionProcessService {
                       };
                     }),
                   },
+                  files: {
+                    create: (section as any).files?.map((file: any, fileIndex: number) => ({
+                      url: file.url,
+                      fileName: file.fileName,
+                      description: file.description,
+                      order: fileIndex,
+                      uploadedById: file.uploadedById || null,
+                      uploadedAt: file.uploadedAt ? new Date(file.uploadedAt) : new Date(),
+                    })) || [],
+                  },
                 };
               }),
             },
@@ -573,6 +615,7 @@ class ProductionProcessService {
             sections: {
               include: {
                 costs: true,
+                files: { orderBy: { order: 'asc' } },
               },
               orderBy: {
                 stt: 'asc',
