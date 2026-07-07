@@ -367,7 +367,7 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
  * - payroll           → EmployeePayrollModal (by period)
  * - acceptanceHandover→ AcceptanceHandoverViewModal (by acceptanceHandoverId)
  * - leaveRequest      → LeaveRequestApprovalModal (by leaveRequestId)
- * - overtimePlan      → OvertimePlanListModal (auto-opens detail by planId)
+ * - overtimePlan      → OvertimePlanDetailModal (fetches detail directly by planId)
  * - passwordReset     → AdminResetPasswordModal (by targetUserId in metadata)
  */
 export type NotificationModalKind =
