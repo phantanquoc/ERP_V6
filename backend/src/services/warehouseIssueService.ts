@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { nextYearlyCode, yearlyCodeWhere } from '../utils/codeGenerator';
+import reorderRuleService from './reorderRuleService';
 
 interface CreateIssueInput {
   maPhieuXuat: string;
@@ -73,6 +74,11 @@ class WarehouseIssueService {
         data: { soLuong: soLuongSau },
       }),
     ]);
+
+    // Trigger reorder-rule check (fire-and-forget; swallows its own errors)
+    reorderRuleService.checkAndNotify(lotProduct.internationalProductId).catch((err) => {
+      console.error('reorderRuleService.checkAndNotify failed:', err);
+    });
 
     return warehouseIssue;
   }
