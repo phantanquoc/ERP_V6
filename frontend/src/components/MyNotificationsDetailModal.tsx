@@ -18,7 +18,7 @@ import EmployeeSelfEvaluationModal from './EmployeeSelfEvaluationModal';
 import EmployeePayrollModal from './EmployeePayrollModal';
 import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
-import OvertimePlanListModal from './OvertimePlanListModal';
+import OvertimePlanDetailModal from './OvertimePlanDetailModal';
 import AdminResetPasswordModal from './AdminResetPasswordModal';
 
 // ---- focus trap hook ---------------------------------------------------
@@ -296,13 +296,10 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
         leaveRequestId={item.leaveRequestId ?? null}
         notificationMessage={item.message}
       />
-      <OvertimePlanListModal
+      <OvertimePlanDetailModal
         isOpen={activeModalKind === 'overtimePlan'}
         onClose={handleInnerModalClose}
-        isAdmin={userIsAdmin}
-        canViewAll={userIsAdmin}
-        canCreate={userIsAdmin || user?.role === 'department_head'}
-        highlightPlanId={(item.metadata?.planId as string | undefined) ?? undefined}
+        planId={(item.metadata?.planId as string | undefined) ?? undefined}
       />
       {activeModalKind === 'passwordReset' && (
         <AdminResetPasswordModal

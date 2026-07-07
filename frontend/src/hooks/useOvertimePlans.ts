@@ -34,6 +34,15 @@ export function useMyOvertimePlans(params: OvertimePlanParams = {}, enabled = tr
   });
 }
 
+// Hook to get a single overtime plan by ID (detail-only view, e.g. notification click)
+export function useOvertimePlanDetail(id: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: overtimePlanKeys.detail(id!),
+    queryFn: () => overtimePlanService.getById(id!),
+    enabled: enabled && !!id,
+  });
+}
+
 // Hook to create an overtime plan
 export function useCreateOvertimePlan() {
   const queryClient = useQueryClient();

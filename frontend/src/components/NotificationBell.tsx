@@ -13,7 +13,7 @@ import AllNotificationsModal from './AllNotificationsModal';
 import EmployeePayrollModal from './EmployeePayrollModal';
 import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
-import OvertimePlanListModal from './OvertimePlanListModal';
+import OvertimePlanDetailModal from './OvertimePlanDetailModal';
 import FeedbackListModal from './FeedbackListModal';
 import DailyWorkReportListModal from './DailyWorkReportListModal';
 import WorkPlanListModal from './WorkPlanListModal';
@@ -487,15 +487,13 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         notificationMessage={selectedLeaveRequestMessage}
       />
 
-      {/* Overtime Plan Modal - opened when clicking OVERTIME_PLAN notification */}
-      {/* #3 Fix: Pass isAdmin prop so admin sees all plans with approve buttons */}
-      <OvertimePlanListModal
+      {/* Overtime Plan Detail Modal - opened when clicking OVERTIME_PLAN notification */}
+      {/* Fetches the specific plan directly by ID — does not depend on list/pagination or canViewAll,
+          so DEPARTMENT_HEAD users can view department-wide-broadcast plans too */}
+      <OvertimePlanDetailModal
         isOpen={isOvertimePlanModalOpen}
         onClose={() => { setIsOvertimePlanModalOpen(false); setSelectedOvertimePlanId(null); }}
-        isAdmin={userIsAdmin}
-        canViewAll={userIsAdmin}
-        canCreate={userIsAdmin || user?.role === 'department_head'}
-        highlightPlanId={selectedOvertimePlanId || undefined}
+        planId={selectedOvertimePlanId}
       />
 
       {/* Feedback List Modal - opened when clicking PRIVATE_FEEDBACK notification */}
