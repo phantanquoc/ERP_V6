@@ -1,5 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
-import supplyRequestService from '../services/supplyRequestService';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import supplyRequestService, {
+  PartialFulfillPayload,
+} from '../services/supplyRequestService';
 
 export const supplyRequestKeys = {
   all: ['supply-requests'] as const,
@@ -7,6 +9,7 @@ export const supplyRequestKeys = {
   list: (page: number, limit: number, search?: string) =>
     [...supplyRequestKeys.lists(), { page, limit, search }] as const,
   detail: (id: string) => [...supplyRequestKeys.all, 'detail', id] as const,
+  decisions: (id: string) => [...supplyRequestKeys.all, 'decisions', id] as const,
 };
 
 export const useSupplyRequests = (
@@ -23,6 +26,38 @@ export const useSupplyRequests = (
         search
       );
       return response;
+    },
+  });
+};
+
+export const useSupplyRequestDecisions = (supplyRequestId: string | undefined) => {
+  return useQuery({
+    queryKey: supplyRequestKeys.decisions(supplyRequestId ?? ''),
+    queryFn: async () => {
+      if (!supplyRequestId) return { data: [] };
+      const response = await supplyRequestService.getDecisionHistory(supplyRequestId);
+      return response;
+    },
+    enabled: !!supplyRequestId,
+  });
+};
+
+export const usePartialFulfillItem = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      itemId,
+      payload,
+    }: {
+      itemId: string;
+      payload: PartialFulfillPayload;
+    }) => {
+      const response = await supplyRequestService.partialFulfillItem(itemId, payload);
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: supplyRequestKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: supplyRequestKeys.all });
     },
   });
 };
