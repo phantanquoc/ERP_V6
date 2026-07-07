@@ -8,8 +8,42 @@ export interface SupplyRequestItem {
   tenGoi: string;
   soLuong: number;
   donViTinh: string;
+  fulfilledQty?: number;
+  fulfillmentStatus?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SupplyRequestDecision {
+  id: string;
+  supplyRequestItemId: string;
+  decision: string;
+  fulfilledQty: number;
+  shortageQty: number;
+  reason?: string;
+  decidedByEmployeeId: string;
+  decidedAt: string;
+  triggeredPurchaseRequestId?: string;
+  createdAt: string;
+  updatedAt: string;
+  item?: {
+    id: string;
+    tenGoi: string;
+    phanLoai: string;
+    soLuong: number;
+    donViTinh: string;
+  };
+}
+
+export interface PartialFulfillPayload {
+  fulfilledQty: number;
+  reason?: string;
+  decidedByEmployeeId: string;
+  routeShortageToPurchase?: boolean;
+  lotProductId?: string;
+  warehouseId?: string;
+  lotId?: string;
+  autoCreateProduct?: boolean;
 }
 
 export interface SupplyRequest {
@@ -90,6 +124,19 @@ class SupplyRequestService {
 
   async markMuaNhanhAsPurchased(id: string, soTien?: number) {
     const response = await apiClient.patch(`/supply-requests/${id}/mark-purchased`, { soTien });
+    return response;
+  }
+
+  async partialFulfillItem(itemId: string, payload: PartialFulfillPayload) {
+    const response = await apiClient.patch(
+      `/supply-requests/items/${itemId}/partial-fulfill`,
+      payload
+    );
+    return response;
+  }
+
+  async getDecisionHistory(supplyRequestId: string) {
+    const response = await apiClient.get(`/supply-requests/${supplyRequestId}/decisions`);
     return response;
   }
 

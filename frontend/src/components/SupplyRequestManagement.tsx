@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Eye, Edit, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus } from 'lucide-react';
+import { Trash2, Eye, Edit, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
 import CreatePurchaseRequestModal from './CreatePurchaseRequestModal';
 import CreateWarehouseReceiptModal from './CreateWarehouseReceiptModal';
+import PartialFulfillmentModal from './PartialFulfillmentModal';
+import type { SupplyRequestItem } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import warehouseService from '../services/warehouseService';
 import TableFilter, { FilterField } from './TableFilter';
@@ -46,6 +48,20 @@ const getStatusColor = (status: string) => {
   }
 };
 
+const getFulfillmentStatusColor = (status?: string) => {
+  switch (status) {
+    case 'Đã cấp đủ':
+      return 'text-green-700 bg-green-100';
+    case 'Đã cấp một phần':
+      return 'text-orange-700 bg-orange-100';
+    case 'Chuyển thu mua':
+      return 'text-blue-700 bg-blue-100';
+    case 'Chờ xử lý':
+    default:
+      return 'text-gray-700 bg-gray-100';
+  }
+};
+
 const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -81,6 +97,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const [showWarehouseIssueModal, setShowWarehouseIssueModal] = useState(false);
   const [showPurchaseRequestModal, setShowPurchaseRequestModal] = useState(false);
   const [showWarehouseReceiptModal, setShowWarehouseReceiptModal] = useState(false);
+  const [partialFulfillItem, setPartialFulfillItem] = useState<SupplyRequestItem | null>(null);
   const [inventoryCheckResult, setInventoryCheckResult] = useState<{
     show: boolean;
     loading: boolean;
@@ -499,30 +516,63 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                   <div>
                     <h3 className="text-sm font-medium text-gray-700 mb-2">Danh sách sản phẩm</h3>
                     <div className="border border-gray-200 rounded-md overflow-x-auto">
-                      <table className="w-full min-w-[560px] text-sm">
+                      <table className="w-full min-w-[820px] text-sm">
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phân loại</th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên gọi</th>
-                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Số lượng</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Yêu cầu</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Đã cấp</th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Đơn vị</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                            {canEdit && (
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+                            )}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {selectedRequest.items && selectedRequest.items.length > 0 ? (
-                            selectedRequest.items.map((item, idx) => (
-                              <tr key={item.id} className="hover:bg-gray-50">
-                                <td className="px-3 py-2 text-gray-500">{idx + 1}</td>
-                                <td className="px-3 py-2">{item.phanLoai}</td>
-                                <td className="px-3 py-2 font-medium">{item.tenGoi}</td>
-                                <td className="px-3 py-2 text-right">{item.soLuong.toLocaleString('vi-VN')}</td>
-                                <td className="px-3 py-2">{item.donViTinh}</td>
-                              </tr>
-                            ))
+                            selectedRequest.items.map((item, idx) => {
+                              const fulfilledQty = item.fulfilledQty ?? 0;
+                              const fulfillmentStatus = item.fulfillmentStatus ?? 'Chờ xử lý';
+                              const isDone = fulfillmentStatus === 'Đã cấp đủ' || fulfillmentStatus === 'Chuyển thu mua';
+                              return (
+                                <tr key={item.id} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2 text-gray-500">{idx + 1}</td>
+                                  <td className="px-3 py-2">{item.phanLoai}</td>
+                                  <td className="px-3 py-2 font-medium">{item.tenGoi}</td>
+                                  <td className="px-3 py-2 text-right">{item.soLuong.toLocaleString('vi-VN')}</td>
+                                  <td className="px-3 py-2 text-right text-blue-700 font-medium">
+                                    {fulfilledQty.toLocaleString('vi-VN')}
+                                  </td>
+                                  <td className="px-3 py-2">{item.donViTinh}</td>
+                                  <td className="px-3 py-2">
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getFulfillmentStatusColor(fulfillmentStatus)}`}>
+                                      {fulfillmentStatus}
+                                    </span>
+                                  </td>
+                                  {canEdit && (
+                                    <td className="px-3 py-2 text-center">
+                                      {!isDone && fulfilledQty < item.soLuong && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setPartialFulfillItem(item)}
+                                          className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
+                                          title="Cấp một phần"
+                                        >
+                                          <PackageCheck className="h-3 w-3" />
+                                          Cấp một phần
+                                        </button>
+                                      )}
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })
                           ) : (
                             <tr>
-                              <td colSpan={5} className="px-3 py-4 text-center text-gray-400 italic">Không có sản phẩm</td>
+                              <td colSpan={canEdit ? 8 : 7} className="px-3 py-4 text-center text-gray-400 italic">Không có sản phẩm</td>
                             </tr>
                           )}
                         </tbody>
@@ -751,6 +801,23 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
         supplyRequest={selectedRequest}
         onSuccess={() => {
           fetchRequests();
+        }}
+      />
+
+      <PartialFulfillmentModal
+        isOpen={!!partialFulfillItem}
+        onClose={() => setPartialFulfillItem(null)}
+        item={partialFulfillItem}
+        onSuccess={async () => {
+          await fetchRequests();
+          if (selectedRequest?.id) {
+            try {
+              const res = await supplyRequestService.getSupplyRequestById(selectedRequest.id);
+              if (res.data) setSelectedRequest(res.data);
+            } catch (err) {
+              console.error('Refresh selected supply request failed:', err);
+            }
+          }
         }}
       />
 
