@@ -67,6 +67,7 @@ export class ProcessService {
             sections: {
               include: {
                 costs: true,
+                files: { orderBy: { order: 'asc' } },
               },
               orderBy: {
                 stt: 'asc',
@@ -202,6 +203,7 @@ export class ProcessService {
         sections: {
           include: {
             costs: true,
+            files: { orderBy: { order: 'asc' } },
           },
           orderBy: {
             stt: 'asc',
@@ -260,6 +262,16 @@ export class ProcessService {
                 thanhTienThucTe: cost.thanhTienThucTe,
               })) || [],
             },
+            files: {
+              create: section.files?.map((file: any, fileIndex: number) => ({
+                url: file.url,
+                fileName: file.fileName,
+                description: file.description,
+                order: fileIndex,
+                uploadedById: file.uploadedById || null,
+                uploadedAt: file.uploadedAt ? new Date(file.uploadedAt) : new Date(),
+              })) || [],
+            },
           })),
         },
       },
@@ -267,6 +279,7 @@ export class ProcessService {
         sections: {
           include: {
             costs: true,
+            files: { orderBy: { order: 'asc' } },
           },
         },
       },
@@ -275,7 +288,7 @@ export class ProcessService {
     return flowchart;
   }
 
-  async updateFlowchart(processId: string, sections: any[]) {
+  async updateFlowchart(processId: string, sections: any[], uploadedById?: string) {
     // Check if flowchart exists
     const existingFlowchart = await prisma.processFlowchart.findUnique({
       where: { processId },
@@ -283,6 +296,7 @@ export class ProcessService {
         sections: {
           include: {
             costs: true,
+            files: true,
           },
         },
       },
@@ -292,12 +306,20 @@ export class ProcessService {
       throw new NotFoundError('Flowchart not found');
     }
 
-    // Delete all existing sections and costs (cascade will handle costs)
+    // Build map of old files by id to preserve uploadedById/uploadedAt
+    const oldFilesMap = new Map<string, { uploadedById: string | null; uploadedAt: Date }>();
+    for (const section of existingFlowchart.sections) {
+      for (const file of section.files) {
+        oldFilesMap.set(file.id, { uploadedById: file.uploadedById, uploadedAt: file.uploadedAt });
+      }
+    }
+
+    // Delete all existing sections and costs (cascade will handle costs + files)
     await prisma.processFlowchartSection.deleteMany({
       where: { flowchartId: existingFlowchart.id },
     });
 
-    // Create new sections with costs
+    // Create new sections with costs and files
     const updatedFlowchart = await prisma.processFlowchart.update({
       where: { id: existingFlowchart.id },
       data: {
@@ -325,6 +347,19 @@ export class ProcessService {
                 thanhTienThucTe: cost.thanhTienThucTe,
               })) || [],
             },
+            files: {
+              create: section.files?.map((file: any, fileIndex: number) => {
+                const oldMeta = file.id ? oldFilesMap.get(file.id) : null;
+                return {
+                  url: file.url,
+                  fileName: file.fileName,
+                  description: file.description,
+                  order: fileIndex,
+                  uploadedById: oldMeta ? oldMeta.uploadedById : (uploadedById || null),
+                  uploadedAt: oldMeta ? oldMeta.uploadedAt : new Date(),
+                };
+              }) || [],
+            },
           })),
         },
       },
@@ -332,6 +367,7 @@ export class ProcessService {
         sections: {
           include: {
             costs: true,
+            files: { orderBy: { order: 'asc' } },
           },
           orderBy: {
             stt: 'asc',
