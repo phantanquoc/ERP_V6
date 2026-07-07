@@ -187,5 +187,23 @@ router.patch(
   supplyRequestController.markMuaNhanhAsPurchased
 );
 
+/**
+ * Partial fulfillment of a supply request item.
+ * Body: { fulfilledQty, reason?, decidedByEmployeeId, routeShortageToPurchase? }
+ */
+router.patch(
+  '/items/:itemId/partial-fulfill',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  supplyRequestController.partialFulfillItem
+);
+
+/**
+ * Decision history for a supply request (all decisions across its items).
+ */
+router.get(
+  '/:id/decisions',
+  supplyRequestController.getDecisionHistory
+);
+
 export default router;
 

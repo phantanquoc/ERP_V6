@@ -71,6 +71,7 @@ const ROUTE_MAP: Record<string, string> = {
   maintenancePlan: '/api/maintenance-plans',
   maintenanceRecord: '/api/maintenance-records',
   auditLog: '/api/audit-logs',
+  reorderRule: '/api/reorder-rules',
   myHistory: '/api',
 };
 

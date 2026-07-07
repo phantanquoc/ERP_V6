@@ -29,6 +29,9 @@ interface CreatePurchaseRequestRequest {
   nhaCungCapId?: string;
   giaDuKien?: number;
   ghiChuMuaHang?: string;
+  isQuickPurchase?: boolean;
+  // 'MANUAL' | 'SHORTAGE' | 'REORDER' | 'QUICK'
+  sourceType?: string;
 }
 
 class PurchaseRequestService {
@@ -141,6 +144,7 @@ class PurchaseRequestService {
     const maYeuCau = await this.generatePurchaseRequestCode();
 
     const purchaseRequest = await prisma.$transaction(async (tx) => {
+      const isQuick = data.isQuickPurchase ?? false;
       const created = await tx.purchaseRequest.create({
         data: {
           maYeuCau,
@@ -155,6 +159,12 @@ class PurchaseRequestService {
           nhaCungCapId: data.nhaCungCapId,
           giaDuKien: data.giaDuKien,
           ghiChuMuaHang: data.ghiChuMuaHang,
+          isQuickPurchase: isQuick,
+          sourceType: data.sourceType ?? 'MANUAL',
+          // Quick purchases skip the approval step; land directly in "Đã duyệt" so purchasing can act.
+          trangThai: isQuick ? 'Đã duyệt' : 'Chờ duyệt',
+          nguoiDuyet: isQuick ? 'Hệ thống (Tự động)' : undefined,
+          ngayDuyet: isQuick ? new Date() : undefined,
         },
       });
 

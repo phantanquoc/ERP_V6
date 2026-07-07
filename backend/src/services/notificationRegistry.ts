@@ -303,6 +303,31 @@ const entries: NotificationEventDef[] = [
     }),
     resolveRecipients: resolveDirectRecipients,
   },
+  {
+    event: NotificationEvent.SUPPLY_REQUEST_PARTIAL_FULFILLED,
+    notificationType: NotificationType.SUPPLY_REQUEST_PARTIAL_FULFILLED,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu cung cấp được cấp một phần',
+      message: `Kho đã cấp một phần yêu cầu ${ctx.metadata?.maYeuCau ?? ''}${
+        ctx.metadata?.tenGoi ? ` — ${ctx.metadata.tenGoi}` : ''
+      }. Phần còn thiếu đã được chuyển sang yêu cầu thu mua.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.LOW_STOCK_ALERT,
+    notificationType: NotificationType.LOW_STOCK_ALERT,
+    buildMessage: (ctx) => ({
+      title: 'Cảnh báo tồn kho thấp',
+      message: `Sản phẩm ${ctx.metadata?.tenSanPham ?? ''} đang dưới ngưỡng tồn kho tối thiểu (còn ${ctx.metadata?.currentStock ?? 0} ${ctx.metadata?.donViTinh ?? ''}).`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const warehouse = await getEmployeeIdsBySubDeptCode('SUBDEPT_PRODUCTION_WAREHOUSE');
+      const purchasing = await getEmployeeIdsByDeptCode('DEPT_PURCHASING');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...warehouse, ...purchasing, ...admins])];
+    },
+  },
 
   // ── Auth ──
   {

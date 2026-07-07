@@ -35,6 +35,17 @@ interface UpdateSupplyRequestRequest {
   fileKemTheo?: string;
 }
 
+interface PartialFulfillRequest {
+  fulfilledQty: number;
+  reason?: string;
+  decidedByEmployeeId: string;
+  routeShortageToPurchase?: boolean;
+  lotProductId?: string;
+  warehouseId?: string;
+  lotId?: string;
+  autoCreateProduct?: boolean;
+}
+
 // Status sequence for advancement checks
 const STATUS_SEQUENCE = ['Chưa cung cấp', 'Đang xử lý', 'Đã duyệt mua', 'Đã mua hàng', 'Đã cung cấp'];
 // Mua nhanh skips to Đã mua hàng directly
@@ -212,7 +223,240 @@ class SupplyRequestService {
       console.error('Error sending supply request notifications:', error);
     }
 
+    // Auto-create hidden purchase request when SR is "Mua nhanh"
+    // (bypasses warehouse — SR requester bought outside and warehouse just records)
+    if (data.loaiYeuCau === 'Mua nhanh' && supplyRequest) {
+      try {
+        // Lazy require to avoid circular dependency
+        const purchaseRequestService = (await import('./purchaseRequestService')).default;
+        await purchaseRequestService.createPurchaseRequest({
+          employeeId: data.employeeId,
+          maNhanVien: data.maNhanVien,
+          tenNhanVien: data.tenNhanVien,
+          mucDichYeuCau: `Mua nhanh — tự động tạo từ yêu cầu ${supplyRequest.maYeuCau}`,
+          mucDoUuTien: data.mucDoUuTien,
+          ghiChu: data.ghiChu,
+          fileKemTheo: data.fileKemTheo,
+          supplyRequestId: supplyRequest.id,
+          giaDuKien: data.soTien,
+          isQuickPurchase: true,
+          sourceType: 'QUICK',
+          items: data.items.map((item) => ({
+            phanLoai: item.phanLoai,
+            tenHangHoa: item.tenGoi,
+            soLuong: item.soLuong,
+            donViTinh: item.donViTinh,
+          })),
+        });
+      } catch (autoPRError) {
+        console.error('Error auto-creating quick purchase request:', autoPRError);
+      }
+    }
+
     return supplyRequest;
+  }
+
+  /**
+   * Warehouse decides fulfillment for a single supply request item.
+   * - Records SupplyRequestDecision (audit trail).
+   * - Updates item fulfilledQty + fulfillmentStatus.
+   * - If shortage and `routeShortageToPurchase` is true, auto-creates a purchase request
+   *   for the shortage (linked back to the parent SupplyRequest).
+   * - Advances parent SR status and notifies requester.
+   */
+  async partialFulfill(itemId: string, req: PartialFulfillRequest) {
+    if (req.fulfilledQty < 0) {
+      throw new ValidationError('Số lượng cấp không thể âm.');
+    }
+
+    const item = await prisma.supplyRequestItem.findUnique({
+      where: { id: itemId },
+      include: { supplyRequest: true },
+    });
+
+    if (!item) {
+      throw new NotFoundError('Không tìm thấy dòng yêu cầu cung cấp.');
+    }
+
+    const alreadyFulfilled = item.fulfilledQty ?? 0;
+    const remaining = Math.max(0, item.soLuong - alreadyFulfilled);
+    if (req.fulfilledQty > remaining) {
+      throw new ValidationError(
+        `Số lượng cấp (${req.fulfilledQty}) vượt phần còn lại (${remaining}).`
+      );
+    }
+
+    const newFulfilled = alreadyFulfilled + req.fulfilledQty;
+    const shortage = Math.max(0, item.soLuong - newFulfilled);
+    let fulfillmentStatus: string;
+    let decision: string;
+    if (newFulfilled === 0) {
+      fulfillmentStatus = 'Không cấp';
+      decision = 'Không cấp';
+    } else if (shortage === 0) {
+      fulfillmentStatus = 'Đã cấp đủ';
+      decision = 'Cấp đủ';
+    } else {
+      fulfillmentStatus = 'Đã cấp một phần';
+      decision = 'Cấp một phần';
+    }
+
+    // Auto-create shortage PR (outside transaction to avoid nested $transaction complexity)
+    let shortagePRId: string | null = null;
+    if (shortage > 0 && req.routeShortageToPurchase !== false) {
+      try {
+        const purchaseRequestService = (await import('./purchaseRequestService')).default;
+        const createdPR = await purchaseRequestService.createPurchaseRequest({
+          employeeId: req.decidedByEmployeeId,
+          maNhanVien: '',
+          tenNhanVien: 'Kho (Tự động)',
+          mucDichYeuCau: `Bổ sung tồn kho từ yêu cầu ${item.supplyRequest.maYeuCau}`,
+          mucDoUuTien: item.supplyRequest.mucDoUuTien,
+          ghiChu: req.reason ?? undefined,
+          supplyRequestId: item.supplyRequestId,
+          sourceType: 'SHORTAGE',
+          isQuickPurchase: false,
+          items: [
+            {
+              phanLoai: item.phanLoai,
+              tenHangHoa: item.tenGoi,
+              soLuong: shortage,
+              donViTinh: item.donViTinh,
+            },
+          ],
+        });
+        shortagePRId = (createdPR as { id?: string })?.id ?? null;
+      } catch (prError) {
+        console.error('Error creating shortage purchase request:', prError);
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.supplyRequestItem.update({
+        where: { id: itemId },
+        data: {
+          fulfilledQty: newFulfilled,
+          fulfillmentStatus,
+        },
+      });
+
+      await tx.supplyRequestDecision.create({
+        data: {
+          supplyRequestItemId: itemId,
+          decision: shortagePRId ? 'Chuyển thu mua' : decision,
+          fulfilledQty: req.fulfilledQty,
+          shortageQty: shortage,
+          reason: req.reason,
+          decidedByEmployeeId: req.decidedByEmployeeId,
+          triggeredPurchaseRequestId: shortagePRId,
+        },
+      });
+    });
+
+    // Auto-create warehouse issue when qty > 0 and warehouse/lot are provided
+    if (req.fulfilledQty > 0 && req.warehouseId && req.lotId) {
+      try {
+        const warehouseIssueService = (await import('./warehouseIssueService')).default;
+
+        // Resolve lotProductId: prefer client-selected, else auto-create if flag set
+        let resolvedLotProductId = req.lotProductId;
+        if (!resolvedLotProductId && req.autoCreateProduct) {
+          const warehouseReceiptService = (await import('./warehouseReceiptService')).default;
+          const created = await warehouseReceiptService.resolveOrCreateLotProduct(
+            req.lotId,
+            item.tenGoi,
+            item.donViTinh,
+            item.phanLoai
+          );
+          resolvedLotProductId = created.id;
+        }
+
+        if (resolvedLotProductId) {
+          const issueCode = await warehouseIssueService.generateCode();
+
+          // Fetch employee, warehouse, lot info for complete issue record
+          const [employee, warehouse, lot] = await Promise.all([
+            prisma.employee.findUnique({ where: { id: req.decidedByEmployeeId }, select: { employeeCode: true, user: { select: { firstName: true, lastName: true } } } }),
+            prisma.warehouses.findUnique({ where: { id: req.warehouseId }, select: { tenKho: true } }),
+            prisma.lot.findUnique({ where: { id: req.lotId }, select: { tenLo: true } }),
+          ]);
+
+          await warehouseIssueService.create({
+            maPhieuXuat: issueCode,
+            employeeId: req.decidedByEmployeeId,
+            maNhanVien: employee?.employeeCode ?? '',
+            tenNhanVien: employee?.user ? `${employee.user.lastName} ${employee.user.firstName}` : '',
+            warehouseId: req.warehouseId,
+            tenKho: warehouse?.tenKho ?? '',
+            lotId: req.lotId,
+            tenLo: lot?.tenLo ?? '',
+            lotProductId: resolvedLotProductId,
+            tenSanPham: item.tenGoi,
+            soLuongXuat: req.fulfilledQty,
+            donViTinh: item.donViTinh,
+            ghiChu: `Xuất kho tự động từ cấp phát YC ${item.supplyRequest.maYeuCau}`,
+            supplyRequestId: item.supplyRequestId,
+          });
+        }
+      } catch (issueErr) {
+        console.error('Auto warehouse issue creation failed:', issueErr);
+      }
+    }
+
+    // Recompute parent SR aggregate status
+    const siblings = await prisma.supplyRequestItem.findMany({
+      where: { supplyRequestId: item.supplyRequestId },
+      select: { soLuong: true, fulfilledQty: true, fulfillmentStatus: true },
+    });
+
+    const allDone = siblings.every((s) => (s.fulfilledQty ?? 0) >= s.soLuong);
+    const anyFulfilled = siblings.some((s) => (s.fulfilledQty ?? 0) > 0);
+
+    try {
+      if (allDone) {
+        await this.onWarehouseDocumentCreated(item.supplyRequestId);
+      } else if (anyFulfilled) {
+        // Notify requester about partial fulfillment
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PARTIAL_FULFILLED, {
+          targetEmployeeIds: [item.supplyRequest.employeeId],
+          entityId: item.supplyRequestId,
+          metadata: {
+            maYeuCau: item.supplyRequest.maYeuCau,
+            tenGoi: item.tenGoi,
+            supplyRequestId: item.supplyRequestId,
+          },
+        });
+      }
+    } catch (notifError) {
+      console.error('Error in partialFulfill notification:', notifError);
+    }
+
+    return prisma.supplyRequestItem.findUnique({
+      where: { id: itemId },
+      include: { decisions: { orderBy: { decidedAt: 'desc' } } },
+    });
+  }
+
+  /**
+   * List decisions for a supply request (all items).
+   */
+  async getDecisionHistory(supplyRequestId: string) {
+    const request = await prisma.supplyRequest.findUnique({
+      where: { id: supplyRequestId },
+      select: { id: true },
+    });
+    if (!request) {
+      throw new NotFoundError('Supply request not found');
+    }
+    return prisma.supplyRequestDecision.findMany({
+      where: { supplyRequestItem: { supplyRequestId } },
+      orderBy: { decidedAt: 'desc' },
+      include: {
+        supplyRequestItem: {
+          select: { id: true, tenGoi: true, phanLoai: true, soLuong: true, donViTinh: true },
+        },
+      },
+    });
   }
 
   async updateSupplyRequest(id: string, data: UpdateSupplyRequestRequest) {

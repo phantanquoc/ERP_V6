@@ -98,7 +98,7 @@ class WarehouseReceiptService {
     return results;
   }
 
-  private async resolveOrCreateLotProduct(lotId: string, tenSanPham: string, donViTinh?: string, loaiSanPham?: string) {
+  async resolveOrCreateLotProduct(lotId: string, tenSanPham: string, donViTinh?: string, loaiSanPham?: string) {
     let product = await prisma.internationalProduct.findFirst({
       where: { tenSanPham: { equals: tenSanPham, mode: 'insensitive' } },
     });

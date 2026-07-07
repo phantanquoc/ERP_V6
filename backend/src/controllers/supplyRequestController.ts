@@ -108,6 +108,45 @@ class SupplyRequestController {
       return next(error);
     }
   }
+
+  async partialFulfillItem(req: Request, res: Response, next: NextFunction) {
+    try {
+      const itemId = req.params.itemId as string;
+      const { fulfilledQty, reason, decidedByEmployeeId, routeShortageToPurchase, lotProductId, warehouseId, lotId, autoCreateProduct } = req.body ?? {};
+
+      const result = await supplyRequestService.partialFulfill(itemId, {
+        fulfilledQty: Number(fulfilledQty),
+        reason,
+        decidedByEmployeeId,
+        routeShortageToPurchase,
+        lotProductId,
+        warehouseId,
+        lotId,
+        autoCreateProduct,
+      });
+
+      return res.json({
+        success: true,
+        data: result,
+        message: 'Đã cập nhật fulfillment',
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getDecisionHistory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const decisions = await supplyRequestService.getDecisionHistory(id);
+      return res.json({
+        success: true,
+        data: decisions,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export default new SupplyRequestController();
