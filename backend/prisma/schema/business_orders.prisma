@@ -86,11 +86,35 @@ model InternationalProduct {
   orderItems            OrderItem[]
   quotationRequestItems QuotationRequestItem[]
   finishedProducts      FinishedProduct[]
+  reorderRule           ProductReorderRule?
 
   @@index([tenSanPham])
   @@index([loaiSanPham])
   @@index([createdAt])
   @@map("international_products")
+  @@schema("business")
+}
+
+// Reorder rule — triggers a low-stock alert / auto purchase request when inventory drops below minStock
+model ProductReorderRule {
+  id                     String               @id @default(cuid())
+  internationalProductId String               @unique
+  // Minimum stock threshold — when total qty <= this value, trigger alert
+  minStock               Float                @default(0)
+  // Suggested reorder quantity when alert fires
+  reorderQty             Float                @default(0)
+  // Preferred supplier (optional) — used to prefill auto-generated purchase request
+  preferredSupplierId    String?
+  active                 Boolean              @default(true)
+  // Cooldown to prevent duplicate alerts (in hours). 0 = alert every issue that crosses threshold.
+  cooldownHours          Int                  @default(24)
+  lastAlertedAt          DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  internationalProduct   InternationalProduct @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
+
+  @@index([active])
+  @@map("product_reorder_rules")
   @@schema("business")
 }
 

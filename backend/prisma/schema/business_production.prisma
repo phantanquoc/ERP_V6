@@ -47,17 +47,46 @@ model SupplyRequest {
 }
 
 model SupplyRequestItem {
-  id              String        @id @default(cuid())
-  supplyRequestId String
-  phanLoai        String
-  tenGoi          String
-  soLuong         Float
-  donViTinh       String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  supplyRequest   SupplyRequest @relation(fields: [supplyRequestId], references: [id], onDelete: Cascade)
+  id                 String                    @id @default(cuid())
+  supplyRequestId    String
+  phanLoai           String
+  tenGoi             String
+  soLuong            Float
+  donViTinh          String
+  // Fulfillment tracking — how much has actually been delivered to requester (from warehouse issues)
+  fulfilledQty       Float                     @default(0)
+  // Per-item status: "Chờ xử lý" | "Đủ tồn kho" | "Thiếu tồn kho" | "Đã cấp một phần" | "Đã cấp đủ" | "Đã hủy"
+  fulfillmentStatus  String                    @default("Chờ xử lý")
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  supplyRequest      SupplyRequest             @relation(fields: [supplyRequestId], references: [id], onDelete: Cascade)
+  decisions          SupplyRequestDecision[]
 
   @@map("supply_request_items")
+  @@schema("business")
+}
+
+// Audit trail — every warehouse decision on an internal supply request item
+model SupplyRequestDecision {
+  id                    String            @id @default(cuid())
+  supplyRequestItemId   String
+  // "Cấp đủ" | "Cấp một phần" | "Không cấp" | "Chuyển thu mua"
+  decision              String
+  fulfilledQty          Float             @default(0)
+  shortageQty           Float             @default(0)
+  reason                String?
+  // Employee (warehouse staff) who made the decision
+  decidedByEmployeeId   String
+  decidedAt             DateTime          @default(now())
+  // Optional link to auto-created purchase request when decision routes shortage to procurement
+  triggeredPurchaseRequestId String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  supplyRequestItem     SupplyRequestItem @relation(fields: [supplyRequestItemId], references: [id], onDelete: Cascade)
+
+  @@index([supplyRequestItemId])
+  @@index([decidedByEmployeeId])
+  @@map("supply_request_decisions")
   @@schema("business")
 }
 
@@ -88,6 +117,10 @@ model PurchaseRequest {
   nhaCungCapId    String?
   giaDuKien       Float?
   ghiChuMuaHang   String?
+  // Quick purchase = auto-generated or urgent procurement, skips normal approval workflow
+  isQuickPurchase Boolean               @default(false)
+  // Source of this PR: "MANUAL" | "SHORTAGE" (from SR partial fulfill) | "REORDER" (from low-stock alert) | "QUICK" (Mua nhanh SR)
+  sourceType      String                @default("MANUAL")
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   employee        Employee              @relation(fields: [employeeId], references: [id])
