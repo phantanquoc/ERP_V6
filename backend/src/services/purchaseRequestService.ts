@@ -145,6 +145,17 @@ class PurchaseRequestService {
 
     const purchaseRequest = await prisma.$transaction(async (tx) => {
       const isQuick = data.isQuickPurchase ?? false;
+      const sourceType = data.sourceType ?? 'MANUAL';
+      // Status matrix:
+      // - QUICK: skip approval → 'Đã duyệt' immediately
+      // - SHORTAGE / REORDER: auto-created, needs purchasing to quote → 'Chờ báo giá'
+      // - MANUAL: user-submitted with all info → 'Chờ duyệt'
+      let trangThai = 'Chờ duyệt';
+      if (isQuick) {
+        trangThai = 'Đã duyệt';
+      } else if (sourceType === 'SHORTAGE' || sourceType === 'REORDER') {
+        trangThai = 'Chờ báo giá';
+      }
       const created = await tx.purchaseRequest.create({
         data: {
           maYeuCau,
@@ -155,14 +166,13 @@ class PurchaseRequestService {
           mucDoUuTien: data.mucDoUuTien,
           ghiChu: data.ghiChu,
           fileKemTheo: data.fileKemTheo,
-          supplyRequestId: data.supplyRequestId,
-          nhaCungCapId: data.nhaCungCapId,
-          giaDuKien: data.giaDuKien,
+          supplyRequestId: data.supplyRequestId || null,
+          nhaCungCapId: data.nhaCungCapId || null,
+          giaDuKien: data.giaDuKien ?? null,
           ghiChuMuaHang: data.ghiChuMuaHang,
           isQuickPurchase: isQuick,
-          sourceType: data.sourceType ?? 'MANUAL',
-          // Quick purchases skip the approval step; land directly in "Đã duyệt" so purchasing can act.
-          trangThai: isQuick ? 'Đã duyệt' : 'Chờ duyệt',
+          sourceType,
+          trangThai,
           nguoiDuyet: isQuick ? 'Hệ thống (Tự động)' : undefined,
           ngayDuyet: isQuick ? new Date() : undefined,
         },
@@ -207,41 +217,17 @@ class PurchaseRequestService {
       }
     }
 
-    // Send notification to purchasing + admin users about the new purchase request
+    // Notify purchasing department about the new PR (registry handles recipients)
     try {
-      const purchasingEmployees = await prisma.employee.findMany({
-        where: {
-          subDepartment: {
-            department: {
-              code: 'DEPT_PURCHASING',
-            },
-          },
+      await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_CREATED, {
+        metadata: {
+          maYeuCau,
+          purchaseRequestId: purchaseRequest?.id,
+          supplyRequestId: data.supplyRequestId,
+          sourceType: data.sourceType ?? 'MANUAL',
+          employeeName: data.tenNhanVien,
         },
-        select: { id: true },
       });
-
-      const adminEmployees = await prisma.employee.findMany({
-        where: {
-          user: {
-            role: 'ADMIN',
-          },
-        },
-        select: { id: true },
-      });
-
-      const allRecipients = [
-        ...new Set([
-          ...purchasingEmployees.map((e) => e.id),
-          ...adminEmployees.map((e) => e.id),
-        ]),
-      ];
-
-      if (allRecipients.length > 0) {
-        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_CREATED, {
-          targetEmployeeIds: allRecipients,
-          metadata: { employeeName: data.tenNhanVien, maYeuCau, supplyRequestId: data.supplyRequestId },
-        });
-      }
     } catch (notifError) {
       console.error('Error sending purchase request notifications:', notifError);
     }
@@ -301,6 +287,13 @@ class PurchaseRequestService {
     if (updateData.ngayDuyet) {
       updateData.ngayDuyet = new Date(updateData.ngayDuyet);
     }
+    // Sanitize empty-string foreign keys → null (Prisma throws P2003 otherwise)
+    if (updateData.nhaCungCapId === '') updateData.nhaCungCapId = null;
+    if (updateData.supplyRequestId === '') updateData.supplyRequestId = null;
+    // Coerce numeric fields sent as strings from FormData
+    if (typeof updateData.giaDuKien === 'string') {
+      updateData.giaDuKien = updateData.giaDuKien === '' ? null : parseFloat(updateData.giaDuKien);
+    }
 
     let purchaseRequest;
 
@@ -308,15 +301,24 @@ class PurchaseRequestService {
       purchaseRequest = await prisma.$transaction(async (tx) => {
         await tx.purchaseRequestItem.deleteMany({ where: { purchaseRequestId: id } });
         await tx.purchaseRequestItem.createMany({
-          data: items.map((item: PurchaseRequestItemInput) => ({
-            purchaseRequestId: id,
-            phanLoai: item.phanLoai,
-            tenHangHoa: item.tenHangHoa,
-            soLuong: item.soLuong,
-            donViTinh: item.donViTinh,
-            nhaCungCapId: item.nhaCungCapId || null,
-            giaDuKien: item.giaDuKien ?? null,
-          })),
+          data: items.map((item: PurchaseRequestItemInput) => {
+            const rawGia = (item as any).giaDuKien;
+            const giaDuKien =
+              rawGia === '' || rawGia === undefined || rawGia === null
+                ? null
+                : typeof rawGia === 'string'
+                ? parseFloat(rawGia) || null
+                : rawGia;
+            return {
+              purchaseRequestId: id,
+              phanLoai: item.phanLoai,
+              tenHangHoa: item.tenHangHoa,
+              soLuong: typeof item.soLuong === 'string' ? parseFloat(item.soLuong) : item.soLuong,
+              donViTinh: item.donViTinh,
+              nhaCungCapId: item.nhaCungCapId || null,
+              giaDuKien,
+            };
+          }),
         });
         return tx.purchaseRequest.update({
           where: { id },
@@ -547,6 +549,62 @@ class PurchaseRequestService {
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as any;
+  }
+
+  /**
+   * Purchasing submits a "Chờ báo giá" PR for admin approval.
+   * Validates that every item has supplier + unit price, changes status to "Chờ duyệt",
+   * and notifies admins.
+   */
+  async submitForApproval(id: string) {
+    const request = await prisma.purchaseRequest.findUnique({
+      where: { id },
+      include: { items: { include: { supplier: true } } },
+    });
+
+    if (!request) {
+      throw new NotFoundError('Không tìm thấy yêu cầu mua hàng');
+    }
+
+    if (request.trangThai !== 'Chờ báo giá') {
+      throw new ValidationError(
+        `Chỉ có thể gửi duyệt yêu cầu ở trạng thái "Chờ báo giá". Trạng thái hiện tại: ${request.trangThai}`
+      );
+    }
+
+    const missing = request.items.filter(
+      (it) => !it.nhaCungCapId || it.giaDuKien === null || it.giaDuKien === undefined || it.giaDuKien <= 0
+    );
+    if (missing.length > 0) {
+      throw new ValidationError(
+        `Vui lòng nhập nhà cung cấp và đơn giá cho ${missing.length} sản phẩm trước khi gửi duyệt`
+      );
+    }
+
+    const updated = await prisma.purchaseRequest.update({
+      where: { id },
+      data: { trangThai: 'Chờ duyệt' },
+      include: { items: { include: { supplier: true } } },
+    });
+
+    const tongTien = request.items.reduce(
+      (sum, it) => sum + (it.soLuong ?? 0) * (it.giaDuKien ?? 0),
+      0
+    );
+
+    try {
+      await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_SUBMITTED_FOR_APPROVAL, {
+        metadata: {
+          maYeuCau: request.maYeuCau,
+          purchaseRequestId: id,
+          tongTien: tongTien.toLocaleString('vi-VN') + ' đ',
+        },
+      });
+    } catch (notifError) {
+      console.error('Error sending submit-for-approval notification:', notifError);
+    }
+
+    return updated;
   }
 }
 

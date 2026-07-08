@@ -113,6 +113,20 @@ class PurchaseRequestController {
     }
   }
 
+  async submitForApproval(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const request = await purchaseRequestService.submitForApproval(id);
+      return res.json({
+        success: true,
+        data: request,
+        message: 'Đã gửi yêu cầu mua hàng lên admin phê duyệt',
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   async deletePurchaseRequest(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
