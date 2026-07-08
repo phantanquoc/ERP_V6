@@ -373,6 +373,36 @@ const entries: NotificationEventDef[] = [
     resolveRecipients: resolveDirectRecipients,
   },
 
+  // ── Purchase Request — auto-created from SR shortage / reorder rule → notify purchasing ──
+  {
+    event: NotificationEvent.PURCHASE_REQUEST_CREATED,
+    notificationType: NotificationType.PURCHASE_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu mua hàng mới cần báo giá',
+      message: `Yêu cầu mua hàng ${ctx.metadata?.maYeuCau ?? ''} vừa được tạo${
+        ctx.metadata?.sourceType === 'SHORTAGE'
+          ? ' từ yêu cầu cung cấp bị thiếu tồn kho'
+          : ctx.metadata?.sourceType === 'REORDER'
+          ? ' từ cảnh báo tồn kho thấp'
+          : ''
+      }. Vui lòng bổ sung nhà cung cấp, đơn giá và gửi duyệt.`,
+    }),
+    resolveRecipients: async () => {
+      return getEmployeeIdsByDeptCode('DEPT_PURCHASING');
+    },
+  },
+  // ── Purchase Request submitted by purchasing → notify admins to approve ──
+  {
+    event: NotificationEvent.PURCHASE_REQUEST_SUBMITTED_FOR_APPROVAL,
+    notificationType: NotificationType.PURCHASE_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu mua hàng chờ phê duyệt',
+      message: `Bộ phận thu mua đã hoàn tất báo giá yêu cầu ${ctx.metadata?.maYeuCau ?? ''}${
+        ctx.metadata?.tongTien ? ` (Tổng: ${ctx.metadata.tongTien})` : ''
+      }. Vui lòng phê duyệt.`,
+    }),
+    resolveRecipients: async (ctx) => getAdminEmployeeIds(ctx.actorUserId),
+  },
   // ── Purchase Request (notify requester) ──
   {
     event: NotificationEvent.PURCHASE_REQUEST_APPROVED,

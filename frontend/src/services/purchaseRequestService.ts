@@ -104,7 +104,15 @@ class PurchaseRequestService {
     nhaCungCapId?: string;
     giaDuKien?: number;
     ghiChuMuaHang?: string;
-    items?: { phanLoai: string; tenHangHoa: string; soLuong: number; donViTinh: string }[];
+    items?: {
+      id?: string;
+      phanLoai: string;
+      tenHangHoa: string;
+      soLuong: number;
+      donViTinh: string;
+      nhaCungCapId?: string | null;
+      giaDuKien?: number | null;
+    }[];
     file?: File;
   }) {
     // If file is present, use FormData
@@ -133,6 +141,11 @@ class PurchaseRequestService {
   async deletePurchaseRequest(id: string) {
      const response = await apiClient.delete(`/purchase-requests/${id}`);
      return response;
+  }
+
+  async submitForApproval(id: string) {
+    const response = await apiClient.post(`/purchase-requests/${id}/submit-approval`, {});
+    return response;
   }
 
   async exportToExcel(filters?: { search?: string }): Promise<void> {

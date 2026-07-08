@@ -197,5 +197,14 @@ router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.
  */
 router.delete('/:id', authorize(UserRole.ADMIN), purchaseRequestController.deletePurchaseRequest);
 
+/**
+ * Purchasing submits a PR (in 'Chờ báo giá' status) to admin for approval.
+ */
+router.post(
+  '/:id/submit-approval',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  purchaseRequestController.submitForApproval
+);
+
 export default router;
 
