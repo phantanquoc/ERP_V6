@@ -22,6 +22,41 @@ export interface EmployeeFaceProfile {
   } | null;
 }
 
+export interface FaceProfileImage {
+  id: string;
+  imagePath: string;
+  createdAt: string;
+}
+
+export interface FaceProfileImagesResponse {
+  employeeId: string;
+  fullName: string;
+  isActive: boolean;
+  enrolledAt: string;
+  totalCount: number;
+  missingFileCount: number;
+  images: FaceProfileImage[];
+}
+
+export interface FaceProfileStats {
+  employeeId: string;
+  fullName: string;
+  enrolledAt: string;
+  totals: { total: number; enrolled: number; adaptive: number; cap: number };
+  qualityDistribution: { unknown: number; low: number; mid: number; high: number };
+  ageDistribution: { fresh: number; recent: number; mid: number; old: number };
+  hourCoverage: Record<string, number>;
+  adaptiveEvents30d: Record<string, number>;
+  flags: string[];
+  recentEvents: { eventType: string; reason: string | null; createdAt: string }[];
+}
+
+export interface AdaptiveMetrics {
+  days: number;
+  totals: Record<string, number>;
+  reasons: Record<string, number>;
+}
+
 export interface FaceAttendanceLog {
   id: string;
   employeeId: string;
@@ -72,6 +107,18 @@ const faceAttendanceService = {
   listProfiles: () =>
     apiClient.get<EmployeeFaceProfile[]>(`${BASE}/profiles`),
 
+  /** Danh sách ảnh gốc của 1 employee — dùng để hiển thị thumbnail */
+  listProfileImages: (employeeId: string) =>
+    apiClient.get<FaceProfileImagesResponse>(`${BASE}/profiles/${employeeId}/images`),
+
+  /** Gallery health stats — quality/age/hour distribution + adaptive events */
+  getProfileStats: (employeeId: string) =>
+    apiClient.get<FaceProfileStats>(`${BASE}/profiles/${employeeId}/stats`),
+
+  /** System-wide adaptive metrics */
+  getAdaptiveMetrics: (days = 7) =>
+    apiClient.get<AdaptiveMetrics>(`${BASE}/adaptive-metrics`, { params: { days } }),
+
   enrollFace: (employeeId: string, images: string[]) =>
     apiClient.post<{ id: string }>(`${BASE}/profiles/${employeeId}/enroll`, { images }),
 
@@ -105,7 +152,7 @@ const faceAttendanceService = {
     };
   },
 
-  async kioskVerify(image: string, frames: string[], deviceKey: string, deviceId?: string) {
+  async kioskVerify(image: string, frames: string[], deviceKey: string, deviceId?: string, mode?: 'strict' | 'relaxed') {
     const response = await fetch(`${API_BASE_URL}${BASE}/kiosk/verify`, {
       method: 'POST',
       headers: {
@@ -113,7 +160,7 @@ const faceAttendanceService = {
         'x-device-key': deviceKey,
         ...(deviceId ? { 'x-device-id': deviceId } : {}),
       },
-      body: JSON.stringify({ image, frames }),
+      body: JSON.stringify({ image, frames, ...(mode ? { mode } : {}) }),
     });
 
     const data = await response.json();
@@ -125,8 +172,8 @@ const faceAttendanceService = {
   },
 
   /** Dev-only kiosk verify (no device key required) */
-  kioskVerifyDev: (image: string, frames: string[]) =>
-    apiClient.post<VerifyResult>(`${BASE}/kiosk/verify-dev`, { image, frames }),
+  kioskVerifyDev: (image: string, frames: string[], mode?: 'strict' | 'relaxed') =>
+    apiClient.post<VerifyResult>(`${BASE}/kiosk/verify-dev`, { image, frames, ...(mode ? { mode } : {}) }),
 
   /** Admin tạo kiosk session key */
   createKioskSession: () =>
