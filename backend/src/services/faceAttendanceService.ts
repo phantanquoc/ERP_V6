@@ -413,6 +413,7 @@ interface GallerySlot {
   isAdaptive: boolean;
   rotatedAt: Date;
   capturedHour: number | null;
+  imagePath: string;
 }
 
 function computeHourBucket(hour: number): number {
@@ -548,7 +549,17 @@ async function adaptiveEnroll(profileId: string, imageB64: string): Promise<void
       return;
     }
 
-    // 3. Load gallery
+    // 3. Load gallery + employee id để lưu ảnh vào folder faces/{employeeId}
+    const profile = await prisma.faceProfile.findUnique({
+      where: { id: profileId },
+      select: { employeeId: true },
+    });
+    if (!profile) {
+      logger.warn(`Adaptive enroll: profile ${profileId} không tồn tại`);
+      return;
+    }
+    const employeeId = profile.employeeId;
+
     const images = await prisma.faceImage.findMany({
       where: { faceProfileId: profileId },
       select: { id: true, embedding: true, qualityScore: true, imagePath: true, rotatedAt: true, capturedHour: true },
@@ -561,6 +572,7 @@ async function adaptiveEnroll(profileId: string, imageB64: string): Promise<void
         isAdaptive: img.imagePath === '',
         rotatedAt: img.rotatedAt,
         capturedHour: img.capturedHour,
+        imagePath: img.imagePath,
       }))
       .filter((s): s is GallerySlot => s.emb !== null);
 
@@ -605,12 +617,24 @@ async function adaptiveEnroll(profileId: string, imageB64: string): Promise<void
     const newHour = nowDate.getHours();
     const newHourBucket = computeHourBucket(newHour);
 
+    // Lưu ảnh xuống faces/{employeeId}/ với prefix "adaptive_" để phân biệt với ảnh admin enroll
+    const uploadDir = path.join(env.UPLOAD_DIR, 'faces', employeeId);
+    const filename = `adaptive_${nowDate.getTime()}.jpg`;
+    const newImagePath = `faces/${employeeId}/${filename}`;
+    try {
+      saveBase64Image(imageB64, uploadDir, filename);
+    } catch (err) {
+      logger.warn(`Adaptive save ảnh fail cho ${profileId}: ${err}`);
+      // Vẫn tiếp tục — imagePath rỗng, embedding vẫn hoạt động cho recognition
+    }
+    const savedPath = fs.existsSync(path.join(uploadDir, filename)) ? newImagePath : '';
+
     // 6a. Chưa đạt cap → insert
     if (gallery.length < MAX_ADAPTIVE_EMBEDDINGS) {
       await prisma.faceImage.create({
         data: {
           faceProfileId: profileId,
-          imagePath: '',
+          imagePath: savedPath,
           embedding: encryptText(JSON.stringify(newEmb)),
           qualityScore: newQuality,
           poseYaw: newYaw,
@@ -620,7 +644,7 @@ async function adaptiveEnroll(profileId: string, imageB64: string): Promise<void
         },
       });
       await logAdaptiveEvent({ profileId, eventType: 'inserted', reason: `total=${gallery.length + 1}`, newQuality, distToCentroid });
-      logger.info(`Adaptive INSERTED ${profileId}: dist=${distToCentroid.toFixed(4)}, quality=${newQuality.toFixed(3)}, total=${gallery.length + 1}`);
+      logger.info(`Adaptive INSERTED ${profileId}: dist=${distToCentroid.toFixed(4)}, quality=${newQuality.toFixed(3)}, total=${gallery.length + 1}, file=${savedPath}`);
       invalidateEmbeddingCache(profileId);
       return;
     }
@@ -628,18 +652,25 @@ async function adaptiveEnroll(profileId: string, imageB64: string): Promise<void
     // 6b. Đạt cap → chọn slot replace theo priority
     const target = selectReplaceSlot(gallery, newQuality, newHourBucket);
     if (!target) {
+      // Rollback: xóa ảnh vừa lưu vì không dùng
+      if (savedPath) {
+        try { fs.unlinkSync(path.join(uploadDir, filename)); } catch { /* ignore */ }
+      }
       await logAdaptiveEvent({ profileId, eventType: 'rejected', reason: 'no_slot_worth_replacing', newQuality, distToCentroid });
       logger.debug(`Adaptive replace skipped ${profileId}: no slot worth replacing (quality=${newQuality.toFixed(3)})`);
       return;
     }
 
-    // 7. Atomic replace
+    // 7. Atomic replace — chỉ xóa file cũ nếu là adaptive prefix (giữ nguyên ảnh admin enroll)
+    const oldFilePath = target.slot.imagePath;
+    const shouldDeleteOldFile = oldFilePath && oldFilePath.includes('/adaptive_');
+
     await prisma.$transaction([
       prisma.faceImage.delete({ where: { id: target.slot.id } }),
       prisma.faceImage.create({
         data: {
           faceProfileId: profileId,
-          imagePath: '',
+          imagePath: savedPath,
           embedding: encryptText(JSON.stringify(newEmb)),
           qualityScore: newQuality,
           poseYaw: newYaw,
@@ -649,6 +680,16 @@ async function adaptiveEnroll(profileId: string, imageB64: string): Promise<void
         },
       }),
     ]);
+
+    // Sau khi transaction OK, xóa file cũ nếu là adaptive
+    if (shouldDeleteOldFile) {
+      try {
+        const absOldPath = path.join(env.UPLOAD_DIR, oldFilePath.replace(/^\/?uploads\//, ''));
+        if (fs.existsSync(absOldPath)) fs.unlinkSync(absOldPath);
+      } catch (err) {
+        logger.warn(`Xóa ảnh adaptive cũ ${oldFilePath} fail: ${err}`);
+      }
+    }
 
     await logAdaptiveEvent({
       profileId, eventType: 'replaced', reason: target.reason,
@@ -1029,8 +1070,9 @@ export class FaceAttendanceService {
       ? cachedProfiles.find(p => p.id === aiResult.profile_id) ?? null
       : null;
     const bestConfidence = aiResult.confidence;
-    const snapshotOwnerId = matchedCached?.employeeId ?? undefined;
-    const snapshotPath = this.saveSnapshot(imageB64, snapshotOwnerId);
+    // Snapshot chỉ lưu khi adaptive INSERT/REPLACE, không lưu mỗi lần chấm nữa
+    // (giảm disk usage, tránh tích lũy hàng nghìn file không cần thiết)
+    const snapshotPath: string | null = null;
 
     if (!aiResult.liveness_passed) {
       await prisma.faceAttendanceLog.create({
@@ -1333,28 +1375,6 @@ export class FaceAttendanceService {
   }
 
   // ─── Private ───────────────────────────────────────────────────────────
-
-  private saveSnapshot(imageB64: string, employeeId?: string): string {
-    try {
-      let dir: string;
-      if (employeeId) {
-        dir = path.join(env.UPLOAD_DIR, 'snapshots', employeeId);
-        const filename = `snapshot_${Date.now()}.jpg`;
-        saveBase64Image(imageB64, dir, filename);
-        return `snapshots/${employeeId}/${filename}`;
-      } else {
-        // Unrecognized face: store under snapshots/unknown/YYYYMMDD/
-        const today = getTodayInAppTz();
-        const dateFolder = today.toISOString().slice(0, 10).replace(/-/g, '');
-        dir = path.join(env.UPLOAD_DIR, 'snapshots', 'unknown', dateFolder);
-        const filename = `snapshot_${Date.now()}.jpg`;
-        saveBase64Image(imageB64, dir, filename);
-        return `snapshots/unknown/${dateFolder}/${filename}`;
-      }
-    } catch {
-      return '';
-    }
-  }
 
   private async hydrateTopK(aiTopK: AiTopKMatch[], cachedProfiles: CachedProfile[]): Promise<HydratedTopKMatch[]> {
     if (aiTopK.length === 0) return [];
