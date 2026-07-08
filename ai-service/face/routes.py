@@ -15,6 +15,7 @@ from face.models import (
 from face.helpers import (
     base64_to_image, get_embedding, cosine_distance_batch,
     top_k_vote, _required_votes,
+    _detect_liveness_face, _frame_quality, compute_pose, pose_score,
 )
 from face.liveness import analyze_liveness_frames
 
@@ -41,17 +42,45 @@ def enroll(req: EnrollRequest):
         raise HTTPException(status_code=400, detail="No images provided")
 
     embeddings = []
+    quality_scores = []
+    yaws = []
+    pitches = []
     skipped = []
 
     for i, img_b64 in enumerate(req.images):
         try:
-            emb, face_conf = get_embedding(base64_to_image(img_b64), detector=ENROLL_DETECTOR)
+            frame = base64_to_image(img_b64)
+            emb, face_conf = get_embedding(frame, detector=ENROLL_DETECTOR)
             if face_conf < ENROLL_MIN_CONF:
                 skipped.append(f"Ảnh {i+1}: chất lượng thấp ({face_conf:.2f} < {ENROLL_MIN_CONF})")
                 logger.warning(f"Skipped image {i+1}: face_conf={face_conf:.2f}")
                 continue
+
+            # Compute quality (pose-aware) + pose angles
+            quality = 0.0
+            yaw, pitch = 0.0, 0.0
+            try:
+                face = _detect_liveness_face(frame)
+                base_q, _ = _frame_quality(frame, face.bbox)
+                # uniface RetinaFace exposes 5-point landmarks as `landmarks`
+                # (uniface Face object không có `kps`, dùng `landmarks` là ndarray shape (5,2))
+                kps = getattr(face, 'landmarks', None)
+                if kps is None:
+                    kps = getattr(face, 'kps', None)
+                if kps is not None:
+                    yaw, pitch = compute_pose(kps, face.bbox)
+                p_score = pose_score(yaw, pitch)
+                # pose-aware combined: 40% blur/brightness/area + 60% pose
+                # pose weight cao vì ảnh nghiêng distort embedding mạnh dù độ nét OK
+                quality = 0.40 * base_q + 0.60 * p_score
+            except Exception as qexc:
+                logger.warning(f"Quality/pose fallback for image {i+1}: {qexc}")
+
             embeddings.append(emb.tolist())
-            logger.info(f"Enrolled image {i+1}/{len(req.images)}, conf={face_conf:.2f}")
+            quality_scores.append(round(float(quality), 4))
+            yaws.append(round(float(yaw), 4))
+            pitches.append(round(float(pitch), 4))
+            logger.info(f"Enrolled image {i+1}/{len(req.images)}, conf={face_conf:.2f}, quality={quality:.3f}, yaw={yaw:.3f}, pitch={pitch:.3f}")
         except Exception as e:
             skipped.append(f"Ảnh {i+1}: {str(e)}")
             logger.warning(f"Failed to enroll image {i+1}: {e}")
@@ -63,6 +92,9 @@ def enroll(req: EnrollRequest):
     return EnrollResponse(
         success=True,
         embeddings=embeddings,
+        quality_scores=quality_scores,
+        pose_yaws=yaws,
+        pose_pitches=pitches,
         count=len(embeddings),
         message=f"Enrolled {len(embeddings)}/{len(req.images)} images"
                 + (f" — skipped {len(skipped)}" if skipped else ""),
@@ -128,10 +160,11 @@ def verify_batch(req: BatchVerifyRequest):
             "score": round(float(score), 4),
         })
 
+        min_score_gate = req.min_score if req.min_score is not None else MATCH_MIN_SCORE
         candidate_eligible = (
             votes >= required_votes and
             min_dist <= MATCH_MAX_DISTANCE and
-            score >= MATCH_MIN_SCORE
+            score >= min_score_gate
         )
 
         if candidate_eligible and (score > best_score or
@@ -153,10 +186,11 @@ def verify_batch(req: BatchVerifyRequest):
     if len(top_k_matches) > 1:
         margin = float(top_k_matches[0]["confidence"] - top_k_matches[1]["confidence"])
 
-    if candidate_matched and margin < MATCH_MIN_MARGIN:
+    min_margin_gate = req.min_margin if req.min_margin is not None else MATCH_MIN_MARGIN
+    if candidate_matched and margin < min_margin_gate:
         logger.info(
             "BatchVerify rejected by margin: profile=%s confidence=%.4f margin=%.4f required=%.4f",
-            best_id, confidence, margin, MATCH_MIN_MARGIN,
+            best_id, confidence, margin, min_margin_gate,
         )
         candidate_matched = False
 

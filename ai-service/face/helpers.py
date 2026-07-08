@@ -223,6 +223,46 @@ def _frame_quality(image: np.ndarray, bbox: Any) -> tuple[float, str]:
     return 0.45 * brightness_score + 0.35 * blur_score + 0.20 * area_score, "OK"
 
 
+def compute_pose(face_kps: Any, bbox: Any) -> tuple[float, float]:
+    """
+    Tính yaw/pitch từ 5 keypoints InsightFace: [left_eye, right_eye, nose, mouth_left, mouth_right].
+    yaw < 0 = nghiêng trái, > 0 = nghiêng phải. pitch < 0 = ngẩng lên, > 0 = cúi.
+    Trả về (yaw, pitch) tính bằng radian ước tính (không phải chính xác Euler nhưng ổn định).
+    """
+    try:
+        kps = np.array(face_kps, dtype=np.float32)
+        if kps.shape[0] < 5:
+            return 0.0, 0.0
+        left_eye, right_eye, nose_tip, mouth_l, mouth_r = kps[0], kps[1], kps[2], kps[3], kps[4]
+
+        eye_center_x = (left_eye[0] + right_eye[0]) / 2
+        eye_center_y = (left_eye[1] + right_eye[1]) / 2
+        eye_width = abs(right_eye[0] - left_eye[0])
+        if eye_width < 5:
+            return 0.0, 0.0
+
+        # Yaw: normalized horizontal offset of nose from eye center
+        yaw = -(nose_tip[0] - eye_center_x) / eye_width
+
+        # Pitch: ratio (eye→nose) vs (nose→mouth) — frontal ≈ 0, up = negative, down = positive
+        mouth_center_y = (mouth_l[1] + mouth_r[1]) / 2
+        eye_to_nose = nose_tip[1] - eye_center_y
+        nose_to_mouth = mouth_center_y - nose_tip[1]
+        total_v = eye_to_nose + nose_to_mouth
+        pitch = (eye_to_nose - nose_to_mouth) / total_v if total_v > 0 else 0.0
+
+        return float(yaw), float(pitch)
+    except Exception:
+        return 0.0, 0.0
+
+
+def pose_score(yaw: float, pitch: float) -> float:
+    """Score 0-1: 1.0 = frontal (yaw=0, pitch=0), 0.0 = severely angled."""
+    yaw_penalty  = _clamp01(abs(yaw) / 0.35)   # 0.35 rad ≈ 20° max
+    pitch_penalty = _clamp01(abs(pitch) / 0.35)
+    return _clamp01(1.0 - 0.6 * yaw_penalty - 0.4 * pitch_penalty)
+
+
 def _crop_aligned_face(image: np.ndarray, bbox: Any) -> np.ndarray:
     h, w = image.shape[:2]
     x1, y1, x2, y2 = [float(v) for v in bbox[:4]]
