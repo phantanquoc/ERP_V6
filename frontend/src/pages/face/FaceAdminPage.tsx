@@ -1,6 +1,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { CheckCircle, XCircle, RefreshCw, ToggleLeft, ToggleRight, User, Loader2, ScanFace, Contact, Glasses, Camera, Play } from 'lucide-react';
-import faceAttendanceService, { EmployeeFaceProfile } from '../../services/faceAttendanceService';
+import { CheckCircle, XCircle, RefreshCw, ToggleLeft, ToggleRight, User, Loader2, ScanFace, Contact, Glasses, Camera, Play, ImageIcon, X, Activity, AlertTriangle } from 'lucide-react';
+import faceAttendanceService, { EmployeeFaceProfile, FaceProfileImage, FaceProfileStats } from '../../services/faceAttendanceService';
+import { SERVER_BASE_URL } from '../../config/api';
 import { loadFaceMesh } from '../../utils/loadFaceMesh';
 import { useAuth } from '../../contexts/AuthContext';
 import { isAdmin } from '../../utils/permissions';
@@ -141,6 +142,37 @@ function checkPoseMatch(poseIdx: number, m: PoseMetrics): { ok: boolean; hint: s
 type EnrollState = 'idle' | 'capturing' | 'submitting' | 'done' | 'error';
 type OvalState   = 'waiting' | 'detecting' | 'wrong-pose' | 'stable' | 'flash';
 
+function flagLabel(flag: string): string {
+  const map: Record<string, string> = {
+    empty: 'Chưa có ảnh nào',
+    quality_inflation_stale: 'Tất cả slot đã > 90 ngày — gallery quá cũ, nên re-enroll',
+    legacy_no_quality: '>50% ảnh chưa đo chất lượng (legacy) — sẽ được thay dần khi user chấm mới',
+    hour_skew: '>60% ảnh cùng khoảng giờ — gallery bị lệch theo thời điểm chấm phổ biến',
+    high_rejection_rate: 'Adaptive từ chối nhiều hơn accept — có thể do drift hoặc ánh sáng thay đổi',
+  };
+  return map[flag] ?? flag;
+}
+
+const StatBlock: React.FC<{ title: string; items: { label: string; value: number; color: string }[]; total: number }> = ({ title, items, total }) => (
+  <div>
+    <p className="text-xs font-semibold text-gray-700 mb-2">{title}</p>
+    <div className="space-y-1">
+      {items.map(it => {
+        const pct = total > 0 ? (it.value / total) * 100 : 0;
+        return (
+          <div key={it.label} className="flex items-center gap-2 text-xs">
+            <span className="w-32 text-gray-600 shrink-0">{it.label}</span>
+            <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+              <div className={`h-full ${it.color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+            </div>
+            <span className="w-14 text-right font-mono text-gray-700">{it.value} ({pct.toFixed(0)}%)</span>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
 const FaceAdminPage: React.FC = () => {
   const { user } = useAuth();
   const videoRef    = useRef<HTMLVideoElement>(null);
@@ -169,6 +201,21 @@ const FaceAdminPage: React.FC = () => {
   const [poseFeedback,    setPoseFeedback]    = useState('');
   const [showKioskMenu,   setShowKioskMenu]   = useState(false);
 
+  // Gallery modal state
+  const [galleryOpen,     setGalleryOpen]     = useState(false);
+  const [galleryLoading,  setGalleryLoading]  = useState(false);
+  const [galleryImages,   setGalleryImages]   = useState<FaceProfileImage[]>([]);
+  const [galleryError,    setGalleryError]    = useState<string | null>(null);
+  const [previewIndex,    setPreviewIndex]    = useState<number | null>(null);
+  const [galleryMissing,  setGalleryMissing]  = useState(0);
+  const [brokenImages,    setBrokenImages]    = useState<Set<string>>(new Set());
+
+  // Health stats modal
+  const [statsOpen,       setStatsOpen]       = useState(false);
+  const [statsLoading,    setStatsLoading]    = useState(false);
+  const [statsData,       setStatsData]       = useState<FaceProfileStats | null>(null);
+  const [statsError,      setStatsError]      = useState<string | null>(null);
+
   const capturedImagesRef = useRef<string[]>([]);
   const currentPoseRef  = useRef(0);
   const currentFaceBox  = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -180,6 +227,49 @@ const FaceAdminPage: React.FC = () => {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { loadEmployees(); }, [loadEmployees]);
+
+  // ─── Gallery — xem thumbnail ảnh gốc ─────────────────────────────────────
+  const openGallery = useCallback(async (employeeId: string) => {
+    setGalleryOpen(true);
+    setGalleryLoading(true);
+    setGalleryError(null);
+    setGalleryImages([]);
+    setGalleryMissing(0);
+    setBrokenImages(new Set());
+    setPreviewIndex(null);
+    try {
+      const r = await faceAttendanceService.listProfileImages(employeeId);
+      setGalleryImages(r.data?.images || []);
+      setGalleryMissing(r.data?.missingFileCount || 0);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Không tải được ảnh';
+      setGalleryError(msg);
+    } finally {
+      setGalleryLoading(false);
+    }
+  }, []);
+
+  const closeGallery = useCallback(() => {
+    setGalleryOpen(false);
+    setPreviewIndex(null);
+  }, []);
+
+  const openStats = useCallback(async (employeeId: string) => {
+    setStatsOpen(true);
+    setStatsLoading(true);
+    setStatsError(null);
+    setStatsData(null);
+    try {
+      const r = await faceAttendanceService.getProfileStats(employeeId);
+      setStatsData(r.data ?? null);
+    } catch (err) {
+      setStatsError(err instanceof Error ? err.message : 'Không tải được stats');
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  const closeStats = useCallback(() => { setStatsOpen(false); }, []);
 
   useEffect(() => {
     return () => { stopCamera(); };
@@ -643,12 +733,36 @@ const FaceAdminPage: React.FC = () => {
                     {selected.faceProfile && (
                       <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" />
-                        Đã đăng ký {selected.faceProfile.imageCount} ảnh —{' '}
-                        {selected.faceProfile.isActive ? 'Đang hoạt động' : 'Đã vô hiệu'}
+                        <button
+                          type="button"
+                          onClick={() => openGallery(selected.employeeId)}
+                          className="underline decoration-dotted underline-offset-2 hover:text-green-800"
+                          title="Xem ảnh gốc đã đăng ký"
+                        >
+                          Đã đăng ký {selected.faceProfile.imageCount} ảnh
+                        </button>
+                        <span>—</span>
+                        <span>{selected.faceProfile.isActive ? 'Đang hoạt động' : 'Đã vô hiệu'}</span>
                       </p>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {selected.faceProfile && (
+                      <button
+                        onClick={() => openGallery(selected.employeeId)}
+                        className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition flex items-center gap-1"
+                      >
+                        <ImageIcon className="w-3 h-3" /> Xem ảnh
+                      </button>
+                    )}
+                    {selected.faceProfile && (
+                      <button
+                        onClick={() => openStats(selected.employeeId)}
+                        className="text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition flex items-center gap-1"
+                      >
+                        <Activity className="w-3 h-3" /> Health
+                      </button>
+                    )}
                     {selected.faceProfile && enrollState === 'idle' && !cameraOn && (
                       <button
                         onClick={() => { setEnrollMode('variation'); startCamera(); }}
@@ -845,6 +959,26 @@ const FaceAdminPage: React.FC = () => {
                   <p className="text-xs text-gray-400 font-normal">Nhận diện nhanh, không cần chớp mắt</p>
                 </div>
               </button>
+              <div className="border-t border-gray-100" />
+              <button
+                onClick={async () => {
+                  setShowKioskMenu(false);
+                  try {
+                    const res = await faceAttendanceService.createKioskSession();
+                    const key = res.data?.key;
+                    if (key) window.open(`/diemdanh/nhanvien-v3?key=${key}`, '_blank');
+                  } catch (e) {
+                    alert('Không thể tạo phiên chấm công: ' + (e as Error).message);
+                  }
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left text-sm font-medium text-gray-700 transition-colors"
+              >
+                <ScanFace className="w-4 h-4 text-cyan-600" />
+                <div>
+                  <p>Chấm công V3</p>
+                  <p className="text-xs text-gray-400 font-normal">Instant — đưa mặt vào là chấm ngay</p>
+                </div>
+              </button>
             </div>
           )}
           <button
@@ -854,6 +988,229 @@ const FaceAdminPage: React.FC = () => {
             <ScanFace className="w-5 h-5" />
             Tiến hành chấm công
           </button>
+        </div>
+      )}
+
+      {galleryOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={closeGallery}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+              <div className="flex items-center gap-2 flex-wrap">
+                <ImageIcon className="w-5 h-5 text-blue-600" />
+                <h3 className="text-base font-semibold text-gray-900">
+                  Ảnh đã đăng ký{selected ? ` — ${selected.fullName}` : ''}
+                </h3>
+                {!galleryLoading && (
+                  <span className="text-xs text-gray-500">({galleryImages.length} ảnh)</span>
+                )}
+                {!galleryLoading && galleryMissing > 0 && (
+                  <span className="text-xs px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded" title="Embedding vẫn hoạt động, chỉ mất file ảnh gốc">
+                    ⚠ {galleryMissing} ảnh không có file
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={closeGallery}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                aria-label="Đóng"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {galleryLoading ? (
+                <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+                  <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                  <p className="text-sm">Đang tải ảnh…</p>
+                </div>
+              ) : galleryError ? (
+                <div className="flex flex-col items-center justify-center h-64 text-red-600">
+                  <XCircle className="w-8 h-8 mb-2" />
+                  <p className="text-sm">{galleryError}</p>
+                </div>
+              ) : galleryImages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                  <ImageIcon className="w-10 h-10 mb-2" />
+                  <p className="text-sm">Chưa có ảnh nào</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {galleryImages.map((img, idx) => {
+                    const isBroken = brokenImages.has(img.id);
+                    return (
+                      <button
+                        key={img.id}
+                        type="button"
+                        onClick={() => !isBroken && setPreviewIndex(idx)}
+                        disabled={isBroken}
+                        className={`group relative aspect-square rounded-lg overflow-hidden border transition ${
+                          isBroken
+                            ? 'bg-red-50 border-red-200 cursor-not-allowed'
+                            : 'bg-gray-100 border-gray-200 hover:border-blue-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-300'
+                        }`}
+                        title={isBroken ? 'File không đọc được' : new Date(img.createdAt).toLocaleString('vi-VN')}
+                      >
+                        {isBroken ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center text-red-500 text-xs gap-1 p-2">
+                            <XCircle className="w-6 h-6" />
+                            <span>File lỗi</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={`${SERVER_BASE_URL}${img.imagePath}`}
+                            alt={`Ảnh #${idx + 1}`}
+                            loading="lazy"
+                            onError={() => setBrokenImages(prev => new Set(prev).add(img.id))}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        )}
+                        <span className="absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 bg-black/60 text-white rounded">
+                          #{idx + 1}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {statsOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeStats}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-purple-600" />
+                <h3 className="text-base font-semibold text-gray-900">
+                  Gallery health{statsData ? ` — ${statsData.fullName}` : ''}
+                </h3>
+              </div>
+              <button onClick={closeStats} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {statsLoading ? (
+                <div className="flex items-center justify-center h-40 text-gray-500"><Loader2 className="w-6 h-6 animate-spin mr-2" /> Đang tải...</div>
+              ) : statsError ? (
+                <div className="text-center text-red-600 py-8">{statsError}</div>
+              ) : statsData ? (
+                <div className="space-y-4">
+                  {statsData.flags.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                      <div className="text-xs">
+                        <p className="font-medium text-amber-800">Cần chú ý:</p>
+                        <ul className="mt-1 text-amber-700 space-y-0.5">
+                          {statsData.flags.map(f => <li key={f}>• {flagLabel(f)}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-2xl font-bold text-gray-900">{statsData.totals.total}</p>
+                      <p className="text-xs text-gray-500">Tổng embedding</p>
+                    </div>
+                    <div className="bg-emerald-50 rounded-lg p-3">
+                      <p className="text-2xl font-bold text-emerald-700">{statsData.totals.enrolled}</p>
+                      <p className="text-xs text-emerald-600">Ảnh gốc admin đăng ký</p>
+                    </div>
+                    <div className="bg-cyan-50 rounded-lg p-3">
+                      <p className="text-2xl font-bold text-cyan-700">{statsData.totals.adaptive}/{statsData.totals.cap}</p>
+                      <p className="text-xs text-cyan-600">Adaptive (auto học)</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-3">
+                      <p className="text-2xl font-bold text-purple-700">{statsData.adaptiveEvents30d.replaced ?? 0}</p>
+                      <p className="text-xs text-purple-600">Đã replace (30 ngày)</p>
+                    </div>
+                  </div>
+
+                  <StatBlock title="Chất lượng ảnh (quality score)" items={[
+                    { label: 'Cao (≥0.7)', value: statsData.qualityDistribution.high, color: 'bg-emerald-500' },
+                    { label: 'Trung bình (0.5-0.7)', value: statsData.qualityDistribution.mid, color: 'bg-amber-500' },
+                    { label: 'Thấp (<0.5)', value: statsData.qualityDistribution.low, color: 'bg-red-500' },
+                    { label: 'Chưa đo (legacy)', value: statsData.qualityDistribution.unknown, color: 'bg-gray-400' },
+                  ]} total={statsData.totals.total} />
+
+                  <StatBlock title="Tuổi ảnh (từ lần rotate gần nhất)" items={[
+                    { label: '< 7 ngày', value: statsData.ageDistribution.fresh, color: 'bg-emerald-500' },
+                    { label: '7-30 ngày', value: statsData.ageDistribution.recent, color: 'bg-cyan-500' },
+                    { label: '30-90 ngày', value: statsData.ageDistribution.mid, color: 'bg-amber-500' },
+                    { label: '> 90 ngày', value: statsData.ageDistribution.old, color: 'bg-red-500' },
+                  ]} total={statsData.totals.total} />
+
+                  <StatBlock title="Phân bố giờ chấm công đã học" items={
+                    Object.entries(statsData.hourCoverage).map(([bucket, count], i) => ({
+                      label: `${bucket}h`, value: count as number,
+                      color: ['bg-indigo-500', 'bg-blue-500', 'bg-cyan-500', 'bg-teal-500'][i],
+                    }))
+                  } total={statsData.totals.total} />
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Sự kiện adaptive (30 ngày qua)</p>
+                    <div className="flex gap-4 text-xs">
+                      <span className="text-emerald-700">✓ Inserted: {statsData.adaptiveEvents30d.inserted ?? 0}</span>
+                      <span className="text-cyan-700">↻ Replaced: {statsData.adaptiveEvents30d.replaced ?? 0}</span>
+                      <span className="text-gray-600">✗ Rejected: {statsData.adaptiveEvents30d.rejected ?? 0}</span>
+                    </div>
+                  </div>
+
+                  {statsData.recentEvents.length > 0 && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer font-medium text-gray-700">Lịch sử event gần nhất ({statsData.recentEvents.length})</summary>
+                      <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                        {statsData.recentEvents.map((e, i) => (
+                          <div key={i} className="flex gap-2 text-gray-600">
+                            <span className={
+                              e.eventType === 'inserted' ? 'text-emerald-600' :
+                              e.eventType === 'replaced' ? 'text-cyan-600' : 'text-gray-500'
+                            }>{e.eventType}</span>
+                            <span>{e.reason ?? '-'}</span>
+                            <span className="ml-auto">{new Date(e.createdAt).toLocaleString('vi-VN')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {galleryOpen && previewIndex !== null && galleryImages[previewIndex] && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setPreviewIndex(null)}
+        >
+          <button
+            onClick={() => setPreviewIndex(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white"
+            aria-label="Đóng preview"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <div className="max-w-5xl max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <img
+              src={`${SERVER_BASE_URL}${galleryImages[previewIndex].imagePath}`}
+              alt={`Preview ${previewIndex + 1}`}
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            />
+            <p className="text-center text-white/70 text-xs mt-2">
+              #{previewIndex + 1} / {galleryImages.length} · {new Date(galleryImages[previewIndex].createdAt).toLocaleString('vi-VN')}
+            </p>
+          </div>
         </div>
       )}
     </>
