@@ -64,6 +64,7 @@ const SystemSettingsPage = React.lazy(() => import('./pages/SystemSettingsPage')
 const FaceAdminPage = React.lazy(() => import('./pages/face/FaceAdminPage'));
 const FaceKioskPage = React.lazy(() => import('./pages/face/FaceKioskPage'));
 const FaceKioskPageV2 = React.lazy(() => import('./pages/face/FaceKioskPageV2'));
+const FaceKioskPageV3 = React.lazy(() => import('./pages/face/FaceKioskPageV3'));
 
 // Documentation
 const DocumentationGuide = React.lazy(() => import('./pages/DocumentationGuide'));
@@ -92,6 +93,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/diemdanh/nhanvien" element={<FaceKioskPage />} />
           <Route path="/diemdanh/nhanvien-v2" element={<FaceKioskPageV2 />} />
+          <Route path="/diemdanh/nhanvien-v3" element={<FaceKioskPageV3 />} />
 
           {/* Protected Routes — single Layout instance, never unmounts */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
