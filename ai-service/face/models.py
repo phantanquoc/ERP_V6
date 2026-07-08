@@ -11,6 +11,9 @@ class EnrollRequest(BaseModel):
 class EnrollResponse(BaseModel):
     success: bool
     embeddings: list[list[float]]
+    quality_scores: list[float] = []  # 0-1 pose-aware combined score
+    pose_yaws: list[float] = []       # radians per embedding
+    pose_pitches: list[float] = []    # radians per embedding
     count: int
     message: str
     skipped: list[str]
@@ -34,6 +37,8 @@ class BatchVerifyRequest(BaseModel):
     frames: list[str] = []
     profiles: list[ProfileEmbeddings]
     require_liveness: bool = True
+    min_score: Optional[float] = None
+    min_margin: Optional[float] = None
 
 
 class BatchVerifyResponse(BaseModel):
