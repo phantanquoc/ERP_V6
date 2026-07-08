@@ -483,9 +483,14 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       </div>
 
       {/* Modal Edit/View */}
-      <Modal isOpen={showModal && !!selectedRequest} onClose={() => setShowModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="p-6 overflow-y-auto flex-1">
+      <Modal
+        isOpen={showModal && !!selectedRequest}
+        onClose={() => setShowModal(false)}
+        showBackdrop
+        closeOnBackdrop={modalMode === 'view'}
+      >
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl md:max-w-5xl lg:max-w-6xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="p-4 md:p-6 overflow-y-auto flex-1">
             {selectedRequest && (<>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">
