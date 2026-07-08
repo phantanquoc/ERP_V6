@@ -53,3 +53,16 @@ export const getAllWarehouseIssues = async (_req: Request, res: Response, next: 
     next(error);
   }
 };
+
+export const getWarehouseIssueById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const issue = await warehouseIssueService.getById(req.params.id);
+    res.status(200).json({ success: true, data: issue });
+  } catch (error: any) {
+    if (error.status === 404) {
+      res.status(404).json({ success: false, message: error.message });
+      return;
+    }
+    next(error);
+  }
+};

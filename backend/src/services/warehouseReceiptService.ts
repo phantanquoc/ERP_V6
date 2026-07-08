@@ -36,6 +36,14 @@ class WarehouseReceiptService {
     });
   }
 
+  async getById(id: string) {
+    const receipt = await prisma.warehouseReceipt.findUnique({ where: { id } });
+    if (!receipt) {
+      throw Object.assign(new Error('Không tìm thấy phiếu nhập kho'), { status: 404 });
+    }
+    return receipt;
+  }
+
   async create(input: CreateReceiptInput) {
     const soLuongNhapFloat = parseFloat(input.soLuongNhap.toString());
     let resolvedLotProductId = input.lotProductId;
