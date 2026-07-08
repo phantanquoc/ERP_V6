@@ -20,6 +20,36 @@ export class FaceAttendanceController {
     }
   }
 
+  async listProfileImages(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { employeeId } = req.params;
+      const data = await faceAttendanceService.listProfileImages(employeeId);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getProfileStats(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { employeeId } = req.params;
+      const data = await faceAttendanceService.getProfileStats(employeeId);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getAdaptiveMetrics(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const days = Math.min(90, Math.max(1, parseInt(req.query.days as string) || 7));
+      const data = await faceAttendanceService.getAdaptiveMetrics(days);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async enrollFace(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { employeeId } = req.params;
@@ -140,13 +170,13 @@ export class FaceAttendanceController {
         return;
       }
 
-      const { image, frames } = req.body as { image?: string; frames?: string[] };
+      const { image, frames, mode } = req.body as { image?: string; frames?: string[]; mode?: 'strict' | 'relaxed' };
       const normalizedFrames = Array.isArray(frames) ? frames.filter(Boolean) : [];
       const primaryImage = image || normalizedFrames[Math.floor(normalizedFrames.length / 2)];
       if (!primaryImage) throw new ValidationError('Cần truyền image hoặc frames (base64)');
 
       const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '';
-      const result = await faceAttendanceService.verifyAndRecord(primaryImage, normalizedFrames, valid.id, ipAddress);
+      const result = await faceAttendanceService.verifyAndRecord(primaryImage, normalizedFrames, valid.id, ipAddress, mode);
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -163,11 +193,11 @@ export class FaceAttendanceController {
         res.status(404).json({ success: false, message: 'Not found' });
         return;
       }
-      const { image, frames } = req.body as { image?: string; frames?: string[] };
+      const { image, frames, mode } = req.body as { image?: string; frames?: string[]; mode?: 'strict' | 'relaxed' };
       const normalizedFrames = Array.isArray(frames) ? frames.filter(Boolean) : [];
       const primaryImage = image || normalizedFrames[Math.floor(normalizedFrames.length / 2)];
       if (!primaryImage) throw new ValidationError('Cần truyền image hoặc frames (base64)');
-      const result = await faceAttendanceService.verifyAndRecord(primaryImage, normalizedFrames, 'dev-kiosk', 'localhost');
+      const result = await faceAttendanceService.verifyAndRecord(primaryImage, normalizedFrames, 'dev-kiosk', 'localhost', mode);
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);

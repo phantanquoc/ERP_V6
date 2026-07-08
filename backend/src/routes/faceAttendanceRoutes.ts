@@ -9,6 +9,15 @@ const router = Router();
 /** GET /api/face-attendance/profiles — danh sách nhân viên + trạng thái khuôn mặt */
 router.get('/profiles', authenticate, authorize('ADMIN'), faceAttendanceController.listProfiles.bind(faceAttendanceController));
 
+/** GET /api/face-attendance/profiles/:employeeId/images — list ảnh gốc để admin xem thumbnail */
+router.get('/profiles/:employeeId/images', authenticate, authorize('ADMIN'), faceAttendanceController.listProfileImages.bind(faceAttendanceController));
+
+/** GET /api/face-attendance/profiles/:employeeId/stats — health stats gallery */
+router.get('/profiles/:employeeId/stats', authenticate, authorize('ADMIN'), faceAttendanceController.getProfileStats.bind(faceAttendanceController));
+
+/** GET /api/face-attendance/adaptive-metrics?days=7 — system-wide adaptive metrics */
+router.get('/adaptive-metrics', authenticate, authorize('ADMIN'), faceAttendanceController.getAdaptiveMetrics.bind(faceAttendanceController));
+
 /** POST /api/face-attendance/profiles/:employeeId/enroll — đăng ký khuôn mặt */
 router.post('/profiles/:employeeId/enroll', authenticate, authorize('ADMIN'), faceAttendanceController.enrollFace.bind(faceAttendanceController));
 

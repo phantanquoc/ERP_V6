@@ -24,9 +24,14 @@ interface CachedProfile {
   embeddings: number[][];  // pre-parsed, pre-normalized unit vectors
 }
 
-let embeddingCache: CachedProfile[] | null = null;
-let cacheTimestamp = 0;
-const CACHE_TTL_MS = 30 * 1000; // 30 seconds (reduced from 5 min for faster cross-instance propagation)
+// Per-profile cache: mỗi profile có TTL riêng, invalidate targeted không phải global
+interface CachedProfileEntry {
+  data: CachedProfile;
+  expiresAt: number;
+}
+const profileCache = new Map<string, CachedProfileEntry>();
+let profileListCache: { ids: string[]; expiresAt: number } | null = null;
+const CACHE_TTL_MS = 30 * 1000; // 30 seconds per profile
 const PROFILE_CLUSTER_DISTANCE = 0.48;
 const MIN_PROFILE_EMBEDDINGS = 2;
 const LOW_PROFILE_EMBEDDINGS_WARNING = 3;
@@ -80,6 +85,12 @@ const ADAPTIVE_MIN_CONFIDENCE  = 0.60;  // trigger khi nhận diện được (c
 const ADAPTIVE_MIN_DISTANCE    = 0.08;  // không lưu nếu quá giống embedding cũ (duplicate)
 const ADAPTIVE_MAX_DISTANCE    = 0.42;  // không lưu nếu quá khác (uncertain)
 const MAX_ADAPTIVE_EMBEDDINGS  = 20;
+const ADAPTIVE_MIN_QUALITY     = 0.55;  // ảnh dưới ngưỡng này không đủ tốt cho adaptive
+const ADAPTIVE_REPLACE_MARGIN  = 0.05;  // replace chỉ khi ảnh mới HƠN slot thấp nhất ≥ 0.05 (tránh flip-flop)
+const ADAPTIVE_TTL_DAYS        = 180;   // slot > 6 tháng bắt buộc rotate — chống quality inflation deadlock
+const ADAPTIVE_POISON_DISTANCE = 0.35;  // nếu newEmb gần profile khác < 0.35 → reject để chống cross-contamination
+const ADAPTIVE_HOUR_COVERAGE_MAX = 0.40; // không cho > 40% gallery cùng bucket 6h → chống overfit theo giờ chấm phổ biến
+const ADAPTIVE_HOUR_BUCKET_SIZE = 6;    // bucket 4 khoảng: 0-5, 6-11, 12-17, 18-23
 
 // ─── Late detection ───────────────────────────────────────────────────────────
 const LATE_GRACE_MINUTES = 5; // cho phép trễ 5 phút trước khi tính muộn
@@ -184,40 +195,70 @@ function filterEmbeddingOutliers(embeddings: number[][]): number[][] {
   return indices.map(index => normalized[index]);
 }
 
-async function getEmbeddingCache(): Promise<CachedProfile[]> {
-  if (embeddingCache && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
-    return embeddingCache;
+function buildCachedProfile(p: {
+  id: string;
+  employeeId: string;
+  images: { embedding: string | null }[];
+}): CachedProfile | null {
+  const parsedEmbeddings = p.images
+    .map(img => img.embedding ? JSON.parse(decryptText(img.embedding)) as number[] : null)
+    .filter((e): e is number[] => e !== null);
+  const filteredEmbeddings = filterEmbeddingOutliers(parsedEmbeddings);
+  if (parsedEmbeddings.length !== filteredEmbeddings.length) {
+    logger.warn(
+      `Filtered face embedding outliers for profile ${p.id}: ${parsedEmbeddings.length} -> ${filteredEmbeddings.length}`
+    );
   }
-  const profiles = await prisma.faceProfile.findMany({
-    where: { isActive: true },
-    include: {
-      images: { select: { embedding: true } },
-    },
-  });
-  embeddingCache = profiles
-    .map(p => {
-      const parsedEmbeddings = p.images
-        .map(img => img.embedding ? JSON.parse(decryptText(img.embedding)) as number[] : null)
-        .filter((e): e is number[] => e !== null);
-      const filteredEmbeddings = filterEmbeddingOutliers(parsedEmbeddings);
-      if (parsedEmbeddings.length !== filteredEmbeddings.length) {
-        logger.warn(
-          `Filtered face embedding outliers for profile ${p.id}: ${parsedEmbeddings.length} -> ${filteredEmbeddings.length}`
-        );
-      }
-      if (filteredEmbeddings.length <= LOW_PROFILE_EMBEDDINGS_WARNING) {
-        logger.warn(`Face profile ${p.id} has only ${filteredEmbeddings.length} usable embeddings; re-enrollment recommended`);
-      }
-      return {
-        id: p.id,
-        employeeId: p.employeeId,
-        embeddings: filteredEmbeddings,
-      };
-    })
-    .filter(p => p.embeddings.length >= MIN_PROFILE_EMBEDDINGS);
-  cacheTimestamp = Date.now();
-  logger.info(`Embedding cache refreshed: ${embeddingCache.length} profiles`);
-  return embeddingCache;
+  if (filteredEmbeddings.length <= LOW_PROFILE_EMBEDDINGS_WARNING) {
+    logger.warn(`Face profile ${p.id} has only ${filteredEmbeddings.length} usable embeddings; re-enrollment recommended`);
+  }
+  if (filteredEmbeddings.length < MIN_PROFILE_EMBEDDINGS) return null;
+  return { id: p.id, employeeId: p.employeeId, embeddings: filteredEmbeddings };
+}
+
+/**
+ * Cache toàn bộ active profile với TTL PER-PROFILE.
+ * Khi adaptiveEnroll invalidate 1 profile → chỉ profile đó reload, không kéo full DB.
+ * profileListCache track danh sách active ids để phát hiện add/remove profile.
+ */
+async function getEmbeddingCache(): Promise<CachedProfile[]> {
+  const now = Date.now();
+
+  // Refresh profile list nếu hết TTL
+  if (!profileListCache || now >= profileListCache.expiresAt) {
+    const activeProfiles = await prisma.faceProfile.findMany({
+      where: { isActive: true },
+      select: { id: true },
+    });
+    const activeIds = new Set(activeProfiles.map(p => p.id));
+    profileListCache = { ids: [...activeIds], expiresAt: now + CACHE_TTL_MS };
+    // Purge profile bị disable/xóa khỏi cache
+    for (const cachedId of profileCache.keys()) {
+      if (!activeIds.has(cachedId)) profileCache.delete(cachedId);
+    }
+  }
+
+  // Find profile chưa cache hoặc expired
+  const staleIds: string[] = [];
+  for (const id of profileListCache.ids) {
+    const entry = profileCache.get(id);
+    if (!entry || now >= entry.expiresAt) staleIds.push(id);
+  }
+
+  if (staleIds.length > 0) {
+    const refreshed = await prisma.faceProfile.findMany({
+      where: { id: { in: staleIds }, isActive: true },
+      include: { images: { select: { embedding: true } } },
+    });
+    for (const p of refreshed) {
+      const built = buildCachedProfile(p);
+      if (built) profileCache.set(p.id, { data: built, expiresAt: now + CACHE_TTL_MS });
+      else profileCache.delete(p.id);
+    }
+    logger.info(`Embedding cache: refreshed ${refreshed.length}/${staleIds.length} stale profiles (${profileCache.size} total)`);
+  }
+
+  return Array.from(profileCache.values()).map(e => e.data);
 }
 
 // ─── LISTEN/NOTIFY notifier ───────────────────────────────────────────────────
@@ -229,9 +270,13 @@ export function setPgNotifier(fn: () => Promise<void>) {
   _pgNotify = fn;
 }
 
-export function invalidateEmbeddingCache() {
-  embeddingCache = null;
-  cacheTimestamp = 0;
+export function invalidateEmbeddingCache(profileId?: string) {
+  if (profileId) {
+    profileCache.delete(profileId);
+  } else {
+    profileCache.clear();
+    profileListCache = null;
+  }
   // Broadcast to all instances via Postgres NOTIFY (fire-and-forget)
   if (_pgNotify) {
     _pgNotify().catch(err => logger.warn('NOTIFY face_profile_changed failed:', err));
@@ -239,17 +284,25 @@ export function invalidateEmbeddingCache() {
 }
 
 /**
- * Reset only the local cache without re-broadcasting NOTIFY.
- * Called by the LISTEN handler in index.ts when a notification arrives from another instance.
+ * Reset local cache without re-broadcasting NOTIFY.
+ * Called by LISTEN handler khi nhận notification từ instance khác.
+ * Full reset vì không biết instance kia thay đổi profile nào.
  */
 export function resetLocalEmbeddingCache() {
-  embeddingCache = null;
-  cacheTimestamp = 0;
+  profileCache.clear();
+  profileListCache = null;
 }
 
 // ─── AI Service Helpers ──────────────────────────────────────────────────────
 
-async function callAiEnroll(images: string[]): Promise<number[][]> {
+interface AiEnrollResult {
+  embeddings: number[][];
+  qualityScores: number[];
+  poseYaws: number[];
+  posePitches: number[];
+}
+
+async function callAiEnroll(images: string[]): Promise<AiEnrollResult> {
   const res = await fetch(`${AI_URL}/enroll`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -259,8 +312,18 @@ async function callAiEnroll(images: string[]): Promise<number[][]> {
     const err = await res.text();
     throw new ValidationError(`AI service enroll failed: ${err}`);
   }
-  const data = await res.json() as { embeddings: number[][] };
-  return data.embeddings;
+  const data = await res.json() as {
+    embeddings: number[][];
+    quality_scores?: number[];
+    pose_yaws?: number[];
+    pose_pitches?: number[];
+  };
+  return {
+    embeddings: data.embeddings,
+    qualityScores: data.quality_scores ?? [],
+    poseYaws: data.pose_yaws ?? [],
+    posePitches: data.pose_pitches ?? [],
+  };
 }
 
 interface AiBatchVerifyResult {
@@ -299,12 +362,16 @@ interface HydratedTopKMatch {
 async function callAiBatchVerify(
   imageFaceCrop: string,
   profiles: Array<{ profile_id: string; embeddings: number[][] }>,
-  frames: string[] = []
+  frames: string[] = [],
+  thresholds?: { min_score?: number; min_margin?: number }
 ): Promise<AiBatchVerifyResult> {
+  const body: Record<string, unknown> = { image: imageFaceCrop, frames, profiles, require_liveness: true };
+  if (thresholds?.min_score !== undefined) body.min_score = thresholds.min_score;
+  if (thresholds?.min_margin !== undefined) body.min_margin = thresholds.min_margin;
   const res = await fetch(`${AI_URL}/verify-batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: imageFaceCrop, frames, profiles, require_liveness: true }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const err = await res.text();
@@ -324,63 +391,276 @@ async function callAiBatchVerify(
  *    (không quá gần — tránh duplicate, không quá xa — tránh poisoning)
  * 4. Cập nhật DB và invalidate cache
  */
+// ─── Adaptive Enrollment ───────────────────────────────────────────────────
+//
+// Selection order khi chọn slot để replace (cap reached):
+//   1. Slot cùng bucket 6h với ảnh mới NẾU bucket đó đã > ADAPTIVE_HOUR_COVERAGE_MAX
+//      → chống overfit theo giờ chấm phổ biến
+//   2. Slot có rotatedAt > ADAPTIVE_TTL_DAYS (stale, chống quality inflation deadlock)
+//   3. Slot quality thấp nhất (base case)
+//
+// Guards:
+//   - Quality gate: newQuality >= ADAPTIVE_MIN_QUALITY
+//   - Distance: ADAPTIVE_MIN_DISTANCE < dist < ADAPTIVE_MAX_DISTANCE
+//   - Cross-profile poison: newEmb không được gần profile khác < ADAPTIVE_POISON_DISTANCE
+//   - Không đụng slot enrolled (imagePath không rỗng — admin đăng ký ban đầu)
+//   - Replace margin: newQuality > oldQuality + ADAPTIVE_REPLACE_MARGIN (chống flip-flop)
+
+interface GallerySlot {
+  id: string;
+  emb: number[];
+  quality: number | null;
+  isAdaptive: boolean;
+  rotatedAt: Date;
+  capturedHour: number | null;
+}
+
+function computeHourBucket(hour: number): number {
+  return Math.floor(hour / ADAPTIVE_HOUR_BUCKET_SIZE);
+}
+
+async function logAdaptiveEvent(params: {
+  profileId: string;
+  eventType: 'inserted' | 'replaced' | 'rejected';
+  reason?: string;
+  newQuality?: number;
+  replacedId?: string;
+  replacedQuality?: number | null;
+  distToCentroid?: number;
+}) {
+  try {
+    await prisma.faceAdaptiveEvent.create({
+      data: {
+        faceProfileId: params.profileId,
+        eventType: params.eventType,
+        reason: params.reason,
+        newQuality: params.newQuality,
+        replacedId: params.replacedId,
+        replacedQuality: params.replacedQuality,
+        distToCentroid: params.distToCentroid,
+      },
+    });
+  } catch (err) {
+    logger.warn(`FaceAdaptiveEvent log failed for ${params.profileId}: ${err}`);
+  }
+}
+
+/**
+ * Cross-profile poison check: newEmb không được gần centroid của profile KHÁC.
+ * Dùng cho case anh em ruột giống nhau hoặc detect nhầm mặt lẫn vào frame.
+ */
+function checkCrossProfilePoisoning(
+  newEmb: number[],
+  currentProfileId: string,
+  allProfiles: CachedProfile[]
+): { risk: boolean; nearestProfile?: string; distance?: number } {
+  let nearestDist = Infinity;
+  let nearestId: string | undefined;
+
+  for (const p of allProfiles) {
+    if (p.id === currentProfileId) continue;
+    if (p.embeddings.length === 0) continue;
+
+    // Centroid của profile khác
+    const c = normalizeVec(
+      p.embeddings[0].map((_, i) =>
+        p.embeddings.reduce((s, v) => s + v[i], 0) / p.embeddings.length
+      )
+    );
+    const d = cosineDistance(newEmb, c);
+    if (d < nearestDist) { nearestDist = d; nearestId = p.id; }
+  }
+
+  return {
+    risk: nearestDist < ADAPTIVE_POISON_DISTANCE,
+    nearestProfile: nearestId,
+    distance: nearestDist,
+  };
+}
+
+/**
+ * Chọn slot để replace theo priority order:
+ *   1. Coverage-based: nếu bucket của ảnh mới đã > 40% → replace slot cũ CÙNG bucket
+ *   2. TTL-based: slot rotatedAt > 6 tháng
+ *   3. Quality-based: slot quality thấp nhất
+ * Trả về null nếu không tìm được slot nào phù hợp để replace.
+ */
+function selectReplaceSlot(
+  gallery: GallerySlot[],
+  newQuality: number,
+  newHourBucket: number | null
+): { slot: GallerySlot; reason: string } | null {
+  const adaptiveSlots = gallery.filter(g => g.isAdaptive);
+  if (adaptiveSlots.length === 0) return null;
+
+  const now = Date.now();
+  const ttlThresholdMs = ADAPTIVE_TTL_DAYS * 24 * 60 * 60 * 1000;
+
+  // Priority 1: Coverage guard
+  if (newHourBucket !== null) {
+    const bucketCounts = new Map<number, GallerySlot[]>();
+    for (const g of gallery) {
+      if (g.capturedHour === null) continue;
+      const bucket = computeHourBucket(g.capturedHour);
+      if (!bucketCounts.has(bucket)) bucketCounts.set(bucket, []);
+      bucketCounts.get(bucket)!.push(g);
+    }
+    const sameBucketSlots = (bucketCounts.get(newHourBucket) ?? []).filter(g => g.isAdaptive);
+    const bucketRatio = sameBucketSlots.length / gallery.length;
+    if (bucketRatio >= ADAPTIVE_HOUR_COVERAGE_MAX && sameBucketSlots.length > 0) {
+      const lowest = sameBucketSlots.reduce((min, g) => ((g.quality ?? 0) < (min.quality ?? 0) ? g : min));
+      return { slot: lowest, reason: `hour_coverage: bucket=${newHourBucket} ratio=${bucketRatio.toFixed(2)}` };
+    }
+  }
+
+  // Priority 2: TTL — slot cũ nhất nếu > TTL
+  const staleSlots = adaptiveSlots.filter(g => now - g.rotatedAt.getTime() > ttlThresholdMs);
+  if (staleSlots.length > 0) {
+    const oldest = staleSlots.reduce((min, g) => (g.rotatedAt < min.rotatedAt ? g : min));
+    const ageDays = ((now - oldest.rotatedAt.getTime()) / (24 * 60 * 60 * 1000)).toFixed(0);
+    return { slot: oldest, reason: `ttl_expired: age=${ageDays}d` };
+  }
+
+  // Priority 3: Quality — slot thấp nhất, chỉ replace nếu new hơn đáng kể
+  const lowest = adaptiveSlots.reduce((min, g) => ((g.quality ?? 0) < (min.quality ?? 0) ? g : min));
+  const lowestQ = lowest.quality ?? 0;
+  if (newQuality > lowestQ + ADAPTIVE_REPLACE_MARGIN) {
+    return { slot: lowest, reason: `quality: ${lowestQ.toFixed(3)}→${newQuality.toFixed(3)}` };
+  }
+
+  return null;
+}
+
 async function adaptiveEnroll(profileId: string, imageB64: string): Promise<void> {
   try {
-    // Extract embedding mới từ AI service
-    const newEmbeddings = await callAiEnroll([imageB64]);
-    if (!newEmbeddings || newEmbeddings.length === 0) return;
-    const newEmb = normalizeVec(newEmbeddings[0]);
+    // 1. Extract embedding + quality + pose
+    const aiResult = await callAiEnroll([imageB64]);
+    if (!aiResult.embeddings || aiResult.embeddings.length === 0) return;
+    const newEmb = normalizeVec(aiResult.embeddings[0]);
+    const newQuality = aiResult.qualityScores[0] ?? 0;
+    const newYaw = aiResult.poseYaws[0] ?? null;
+    const newPitch = aiResult.posePitches[0] ?? null;
 
-    // Load embedding gallery hiện tại của profile
+    // 2. Quality gate
+    if (newQuality < ADAPTIVE_MIN_QUALITY) {
+      await logAdaptiveEvent({ profileId, eventType: 'rejected', reason: 'low_quality', newQuality });
+      logger.debug(`Adaptive rejected ${profileId}: quality ${newQuality.toFixed(3)} < ${ADAPTIVE_MIN_QUALITY}`);
+      return;
+    }
+
+    // 3. Load gallery
     const images = await prisma.faceImage.findMany({
       where: { faceProfileId: profileId },
-      select: { embedding: true },
+      select: { id: true, embedding: true, qualityScore: true, imagePath: true, rotatedAt: true, capturedHour: true },
     });
-    const gallery = images
-      .map(img => img.embedding ? JSON.parse(decryptText(img.embedding)) as number[] : null)
-      .filter((e): e is number[] => e !== null);
+    const gallery: GallerySlot[] = images
+      .map(img => ({
+        id: img.id,
+        emb: img.embedding ? JSON.parse(decryptText(img.embedding)) as number[] : null,
+        quality: img.qualityScore,
+        isAdaptive: img.imagePath === '',
+        rotatedAt: img.rotatedAt,
+        capturedHour: img.capturedHour,
+      }))
+      .filter((s): s is GallerySlot => s.emb !== null);
 
     if (gallery.length === 0) return;
 
-    const filteredGallery = filterEmbeddingOutliers(gallery);
-    if (filteredGallery.length === 0) return;
-
-    // Tính centroid của gallery (L2-normalized vectors → centroid normalized lại)
-    const centroid = normalizeVec(
-      filteredGallery[0].map((_, i) =>
-        filteredGallery.reduce((s, v) => s + v[i], 0) / filteredGallery.length
+    // 4. Distance gate against own centroid
+    const filteredGalleryEmbs = filterEmbeddingOutliers(gallery.map(g => g.emb));
+    if (filteredGalleryEmbs.length === 0) return;
+    const ownCentroid = normalizeVec(
+      filteredGalleryEmbs[0].map((_, i) =>
+        filteredGalleryEmbs.reduce((s, v) => s + v[i], 0) / filteredGalleryEmbs.length
       )
     );
+    const distToCentroid = cosineDistance(newEmb, ownCentroid);
 
-    const distToCentroid = cosineDistance(newEmb, centroid);
     if (distToCentroid < ADAPTIVE_MIN_DISTANCE) {
-      logger.debug(`Adaptive enroll skipped for ${profileId}: too similar to centroid (d=${distToCentroid.toFixed(4)})`);
+      await logAdaptiveEvent({ profileId, eventType: 'rejected', reason: 'too_similar', newQuality, distToCentroid });
       return;
     }
     if (distToCentroid > ADAPTIVE_MAX_DISTANCE) {
-      logger.debug(`Adaptive enroll skipped for ${profileId}: too different from gallery (d=${distToCentroid.toFixed(4)})`);
+      await logAdaptiveEvent({ profileId, eventType: 'rejected', reason: 'too_different', newQuality, distToCentroid });
       return;
     }
 
-    // Giới hạn số embedding
-    if (gallery.length >= MAX_ADAPTIVE_EMBEDDINGS) {
-      logger.debug(`Adaptive enroll skipped for ${profileId}: max embeddings reached (${gallery.length})`);
+    // 5. Cross-profile poison check
+    const allProfiles = await getEmbeddingCache();
+    const poisonCheck = checkCrossProfilePoisoning(newEmb, profileId, allProfiles);
+    if (poisonCheck.risk) {
+      await logAdaptiveEvent({
+        profileId, eventType: 'rejected',
+        reason: `poison_risk: near=${poisonCheck.nearestProfile} dist=${poisonCheck.distance?.toFixed(4)}`,
+        newQuality, distToCentroid,
+      });
+      logger.warn(
+        `Adaptive REJECTED ${profileId}: cross-profile risk — new emb gần profile ${poisonCheck.nearestProfile} ` +
+        `(dist=${poisonCheck.distance?.toFixed(4)} < ${ADAPTIVE_POISON_DISTANCE})`
+      );
       return;
     }
 
-    // Lưu embedding mới — imagePath để trống vì adaptive không lưu ảnh gốc
-    await prisma.faceImage.create({
-      data: {
-        faceProfileId: profileId,
-        imagePath: '',
-        embedding: encryptText(JSON.stringify(newEmb)),
-      },
+    const nowDate = new Date();
+    const newHour = nowDate.getHours();
+    const newHourBucket = computeHourBucket(newHour);
+
+    // 6a. Chưa đạt cap → insert
+    if (gallery.length < MAX_ADAPTIVE_EMBEDDINGS) {
+      await prisma.faceImage.create({
+        data: {
+          faceProfileId: profileId,
+          imagePath: '',
+          embedding: encryptText(JSON.stringify(newEmb)),
+          qualityScore: newQuality,
+          poseYaw: newYaw,
+          posePitch: newPitch,
+          capturedHour: newHour,
+          rotatedAt: nowDate,
+        },
+      });
+      await logAdaptiveEvent({ profileId, eventType: 'inserted', reason: `total=${gallery.length + 1}`, newQuality, distToCentroid });
+      logger.info(`Adaptive INSERTED ${profileId}: dist=${distToCentroid.toFixed(4)}, quality=${newQuality.toFixed(3)}, total=${gallery.length + 1}`);
+      invalidateEmbeddingCache(profileId);
+      return;
+    }
+
+    // 6b. Đạt cap → chọn slot replace theo priority
+    const target = selectReplaceSlot(gallery, newQuality, newHourBucket);
+    if (!target) {
+      await logAdaptiveEvent({ profileId, eventType: 'rejected', reason: 'no_slot_worth_replacing', newQuality, distToCentroid });
+      logger.debug(`Adaptive replace skipped ${profileId}: no slot worth replacing (quality=${newQuality.toFixed(3)})`);
+      return;
+    }
+
+    // 7. Atomic replace
+    await prisma.$transaction([
+      prisma.faceImage.delete({ where: { id: target.slot.id } }),
+      prisma.faceImage.create({
+        data: {
+          faceProfileId: profileId,
+          imagePath: '',
+          embedding: encryptText(JSON.stringify(newEmb)),
+          qualityScore: newQuality,
+          poseYaw: newYaw,
+          posePitch: newPitch,
+          capturedHour: newHour,
+          rotatedAt: nowDate,
+        },
+      }),
+    ]);
+
+    await logAdaptiveEvent({
+      profileId, eventType: 'replaced', reason: target.reason,
+      newQuality, replacedId: target.slot.id, replacedQuality: target.slot.quality, distToCentroid,
     });
-
-    logger.info(`Adaptive enrolled new embedding for profile ${profileId}: dist=${distToCentroid.toFixed(4)}, total=${gallery.length + 1}`);
-    invalidateEmbeddingCache();
+    logger.info(
+      `Adaptive REPLACED ${profileId}: reason=[${target.reason}] ` +
+      `slot=${target.slot.id.slice(-8)} q ${(target.slot.quality ?? 0).toFixed(3)}→${newQuality.toFixed(3)}, ` +
+      `dist=${distToCentroid.toFixed(4)}`
+    );
+    invalidateEmbeddingCache(profileId);
   } catch (err) {
-    // Fire-and-forget — không ảnh hưởng gì nếu thất bại
     logger.warn(`Adaptive enroll failed for profile ${profileId}: ${err}`);
   }
 }
@@ -426,6 +706,155 @@ export class FaceAttendanceService {
     }));
   }
 
+  /** Danh sách ảnh gốc đã enroll cho 1 employee — dùng cho admin gallery */
+  async listProfileImages(employeeId: string) {
+    const profile = await prisma.faceProfile.findUnique({
+      where: { employeeId },
+      select: {
+        id: true,
+        isActive: true,
+        enrolledAt: true,
+        employee: { include: { user: { select: { firstName: true, lastName: true } } } },
+        images: {
+          where: { imagePath: { not: '' } },
+          select: { id: true, imagePath: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+        _count: { select: { images: true } },
+      },
+    });
+
+    if (!profile) {
+      throw new NotFoundError('Nhân viên chưa đăng ký khuôn mặt');
+    }
+
+    const totalCount = profile._count.images;
+    const withFileCount = profile.images.length;
+
+    return {
+      employeeId,
+      fullName: `${profile.employee.user.lastName} ${profile.employee.user.firstName}`,
+      isActive: profile.isActive,
+      enrolledAt: profile.enrolledAt,
+      totalCount,
+      missingFileCount: totalCount - withFileCount,
+      images: profile.images.map(img => ({
+        ...img,
+        imagePath: img.imagePath.startsWith('/') ? img.imagePath : `/uploads/${img.imagePath}`,
+      })),
+    };
+  }
+
+  /** Gallery health stats: quality/age/hour distribution + last 30d adaptive events */
+  async getProfileStats(employeeId: string) {
+    const profile = await prisma.faceProfile.findUnique({
+      where: { employeeId },
+      select: {
+        id: true,
+        enrolledAt: true,
+        employee: { include: { user: { select: { firstName: true, lastName: true } } } },
+        images: {
+          select: {
+            id: true,
+            imagePath: true,
+            qualityScore: true,
+            poseYaw: true,
+            posePitch: true,
+            capturedHour: true,
+            rotatedAt: true,
+            createdAt: true,
+          },
+          orderBy: { rotatedAt: 'desc' },
+        },
+      },
+    });
+    if (!profile) throw new NotFoundError('Nhân viên chưa đăng ký khuôn mặt');
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const enrolledCount = profile.images.filter(i => i.imagePath !== '').length;
+    const adaptiveCount = profile.images.filter(i => i.imagePath === '').length;
+
+    // Quality distribution buckets
+    const qualityBuckets = { unknown: 0, low: 0, mid: 0, high: 0 }; // <0.5, 0.5-0.7, >0.7
+    for (const img of profile.images) {
+      if (img.qualityScore === null) qualityBuckets.unknown++;
+      else if (img.qualityScore < 0.5) qualityBuckets.low++;
+      else if (img.qualityScore < 0.7) qualityBuckets.mid++;
+      else qualityBuckets.high++;
+    }
+
+    // Age distribution based on rotatedAt
+    const ageBuckets = { fresh: 0, recent: 0, mid: 0, old: 0 }; // <7d, 7-30d, 30-90d, >90d
+    for (const img of profile.images) {
+      const ageDays = (now - img.rotatedAt.getTime()) / dayMs;
+      if (ageDays < 7) ageBuckets.fresh++;
+      else if (ageDays < 30) ageBuckets.recent++;
+      else if (ageDays < 90) ageBuckets.mid++;
+      else ageBuckets.old++;
+    }
+
+    // Hour bucket coverage (6h buckets)
+    const hourCoverage: Record<string, number> = { '0-5': 0, '6-11': 0, '12-17': 0, '18-23': 0 };
+    for (const img of profile.images) {
+      if (img.capturedHour === null) continue;
+      if (img.capturedHour < 6) hourCoverage['0-5']++;
+      else if (img.capturedHour < 12) hourCoverage['6-11']++;
+      else if (img.capturedHour < 18) hourCoverage['12-17']++;
+      else hourCoverage['18-23']++;
+    }
+
+    // Adaptive events last 30 days
+    const events30d = await prisma.faceAdaptiveEvent.findMany({
+      where: { faceProfileId: profile.id, createdAt: { gte: new Date(now - 30 * dayMs) } },
+      select: { eventType: true, reason: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const eventCounts: Record<string, number> = { inserted: 0, replaced: 0, rejected: 0 };
+    for (const e of events30d) eventCounts[e.eventType] = (eventCounts[e.eventType] ?? 0) + 1;
+
+    // Health flags — signal khi profile cần attention
+    const flags: string[] = [];
+    if (profile.images.length === 0) flags.push('empty');
+    if (adaptiveCount >= MAX_ADAPTIVE_EMBEDDINGS && ageBuckets.old === profile.images.length) flags.push('quality_inflation_stale');
+    if (qualityBuckets.unknown > profile.images.length / 2) flags.push('legacy_no_quality');
+    const dominantBucketCount = Math.max(...Object.values(hourCoverage));
+    if (dominantBucketCount / Math.max(1, profile.images.length) > 0.6) flags.push('hour_skew');
+    if (eventCounts.rejected > eventCounts.inserted + eventCounts.replaced) flags.push('high_rejection_rate');
+
+    return {
+      employeeId,
+      fullName: `${profile.employee.user.lastName} ${profile.employee.user.firstName}`,
+      enrolledAt: profile.enrolledAt,
+      totals: { total: profile.images.length, enrolled: enrolledCount, adaptive: adaptiveCount, cap: MAX_ADAPTIVE_EMBEDDINGS },
+      qualityDistribution: qualityBuckets,
+      ageDistribution: ageBuckets,
+      hourCoverage,
+      adaptiveEvents30d: eventCounts,
+      flags,
+      recentEvents: events30d.slice(0, 20),
+    };
+  }
+
+  /** System-wide adaptive metrics — dùng cho dashboard admin */
+  async getAdaptiveMetrics(days = 7) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const events = await prisma.faceAdaptiveEvent.groupBy({
+      by: ['eventType', 'reason'],
+      where: { createdAt: { gte: since } },
+      _count: true,
+    });
+    const totals: Record<string, number> = { inserted: 0, replaced: 0, rejected: 0 };
+    const reasons: Record<string, number> = {};
+    for (const e of events) {
+      totals[e.eventType] = (totals[e.eventType] ?? 0) + e._count;
+      const key = `${e.eventType}:${e.reason ?? 'none'}`;
+      reasons[key] = (reasons[key] ?? 0) + e._count;
+    }
+    return { days, totals, reasons };
+  }
+
   /** Enroll face cho nhân viên: nhận ảnh base64, gọi AI lấy embeddings, lưu DB + disk */
   async enrollFace(employeeId: string, images: string[]) {
     if (!images || images.length === 0) {
@@ -437,10 +866,17 @@ export class FaceAttendanceService {
 
     // Gọi AI service lấy embeddings
     logger.info(`Enrolling face for employee ${employeeId}, ${images.length} images`);
-    const rawEmbeddings = await callAiEnroll(images);
+    const aiResult = await callAiEnroll(images);
+    const rawEmbeddings = aiResult.embeddings;
+    const rawQualities = aiResult.qualityScores;
+    const rawYaws = aiResult.poseYaws;
+    const rawPitches = aiResult.posePitches;
     const normalizedEmbeddings = rawEmbeddings.map(normalizeVec);
     const keepIndices = pairwiseCohesiveSubsetIndices(normalizedEmbeddings);
     const embeddings = keepIndices.map((index: number) => normalizedEmbeddings[index]);
+    const keptQualities = keepIndices.map((index: number) => rawQualities[index] ?? null);
+    const keptYaws = keepIndices.map((index: number) => rawYaws[index] ?? null);
+    const keptPitches = keepIndices.map((index: number) => rawPitches[index] ?? null);
     const keptImages = keepIndices.map((index: number) => images[index]);
     if (embeddings.length < MIN_PROFILE_EMBEDDINGS) {
       throw new ValidationError('Ảnh đăng ký khuôn mặt không nhất quán, vui lòng đăng ký lại với nhiều góc rõ mặt hơn');
@@ -460,6 +896,7 @@ export class FaceAttendanceService {
     await prisma.faceImage.deleteMany({ where: { faceProfileId: profile.id } });
 
     const uploadDir = path.join(env.UPLOAD_DIR, 'faces', employeeId);
+    const enrollHour = new Date().getHours();
     const created = await Promise.all(
       embeddings.map(async (emb, i) => {
         const filename = `face_${Date.now()}_${i}.jpg`;
@@ -469,13 +906,17 @@ export class FaceAttendanceService {
             faceProfileId: profile.id,
             imagePath: `faces/${employeeId}/${filename}`,
             embedding: encryptText(JSON.stringify(emb)),
+            qualityScore: keptQualities[i],
+            poseYaw: keptYaws[i],
+            posePitch: keptPitches[i],
+            capturedHour: enrollHour,
           },
         });
       })
     );
 
     logger.info(`Enrolled ${created.length} face images for employee ${employeeId}`);
-    invalidateEmbeddingCache();
+    invalidateEmbeddingCache(profile.id);
     return { profileId: profile.id, imageCount: created.length };
   }
 
@@ -489,18 +930,26 @@ export class FaceAttendanceService {
     if (!profile) throw new NotFoundError('Nhân viên chưa đăng ký khuôn mặt, hãy đăng ký lần đầu trước');
 
     logger.info(`Adding face variation for employee ${employeeId}, ${images.length} images`);
-    const rawEmbeddings = await callAiEnroll(images);
+    const aiResult = await callAiEnroll(images);
+    const rawEmbeddings = aiResult.embeddings;
+    const rawQualities = aiResult.qualityScores;
+    const rawYaws = aiResult.poseYaws;
+    const rawPitches = aiResult.posePitches;
     const normalizedEmbeddings = rawEmbeddings.map(normalizeVec);
     const keepIndices = rawEmbeddings.length >= MIN_PROFILE_EMBEDDINGS
       ? pairwiseCohesiveSubsetIndices(normalizedEmbeddings)
       : normalizedEmbeddings.map((_, index: number) => index);
     const embeddings = keepIndices.map((index: number) => normalizedEmbeddings[index]);
+    const keptQualities = keepIndices.map((index: number) => rawQualities[index] ?? null);
+    const keptYaws = keepIndices.map((index: number) => rawYaws[index] ?? null);
+    const keptPitches = keepIndices.map((index: number) => rawPitches[index] ?? null);
     const keptImages = keepIndices.map((index: number) => images[index]);
     if (embeddings.length !== rawEmbeddings.length) {
       logger.warn(`Variation enrollment filtered outlier images for employee ${employeeId}: ${rawEmbeddings.length} -> ${embeddings.length}`);
     }
 
     const uploadDir = path.join(env.UPLOAD_DIR, 'faces', employeeId);
+    const varHour = new Date().getHours();
     const created = await Promise.all(
       embeddings.map(async (emb, i) => {
         const filename = `face_var_${Date.now()}_${i}.jpg`;
@@ -510,6 +959,10 @@ export class FaceAttendanceService {
             faceProfileId: profile.id,
             imagePath: `faces/${employeeId}/${filename}`,
             embedding: encryptText(JSON.stringify(emb)),
+            qualityScore: keptQualities[i],
+            poseYaw: keptYaws[i],
+            posePitch: keptPitches[i],
+            capturedHour: varHour,
           },
         });
       })
@@ -517,7 +970,7 @@ export class FaceAttendanceService {
 
     const total = await prisma.faceImage.count({ where: { faceProfileId: profile.id } });
     logger.info(`Added ${created.length} variation images for employee ${employeeId}, total=${total}`);
-    invalidateEmbeddingCache();
+    invalidateEmbeddingCache(profile.id);
     return { profileId: profile.id, addedCount: created.length, totalCount: total };
   }
 
@@ -530,7 +983,7 @@ export class FaceAttendanceService {
       where: { id: profileId },
       data: { isActive: !profile.isActive },
     });
-    invalidateEmbeddingCache();
+    invalidateEmbeddingCache(profileId);
     return result;
   }
 
@@ -539,7 +992,7 @@ export class FaceAttendanceService {
     const profile = await prisma.faceProfile.findUnique({ where: { employeeId } });
     if (!profile) throw new NotFoundError('Face profile không tồn tại');
     await prisma.faceProfile.delete({ where: { id: profile.id } });
-    invalidateEmbeddingCache();
+    invalidateEmbeddingCache(profile.id);
   }
 
   /**
@@ -548,7 +1001,7 @@ export class FaceAttendanceService {
    * 2. Gọi AI service 1 lần duy nhất với TẤT CẢ profiles (batch)
    * 3. AI dùng vectorized cosine similarity với opencv detector (10x nhanh hơn retinaface)
    */
-  async verifyAndRecord(imageB64: string, frames: string[] = [], deviceId?: string, ipAddress?: string) {
+  async verifyAndRecord(imageB64: string, frames: string[] = [], deviceId?: string, ipAddress?: string, mode?: 'strict' | 'relaxed') {
     // Capture ONCE at entry so downstream shift-detection & attendance rows
     // see the same instant. Avoids drift when AI + DB writes take a few seconds.
     const capturedAt = new Date();
@@ -559,11 +1012,16 @@ export class FaceAttendanceService {
       return { matched: false, message: 'Chưa có nhân viên nào đăng ký khuôn mặt' };
     }
 
+    const thresholds = mode === 'relaxed'
+      ? { min_score: 0.52, min_margin: 0.04 }
+      : undefined;
+
     // Single batch call: AI extracts probe embedding once, compares against all profiles
     const aiResult = await callAiBatchVerify(
       imageB64,
       cachedProfiles.map(p => ({ profile_id: p.id, embeddings: p.embeddings })),
-      frames
+      frames,
+      thresholds
     );
 
     const topK = await this.hydrateTopK(aiResult.top_k_matches ?? [], cachedProfiles);
