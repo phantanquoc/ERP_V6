@@ -78,7 +78,17 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
     const selectedProduct = products.find(p => p.tenSanPham === tenSanPham);
     updateItem(index, {
       tenGoi: tenSanPham,
-      donViTinh: selectedProduct?.donViTinh || items[index].donViTinh,
+      donViTinh: selectedProduct?.donViTinh || 'Kg',
+    });
+  };
+
+  const handleCustomNameChange = (index: number, tenGoi: string) => {
+    const matched = products.find(
+      p => p.tenSanPham.trim().toLowerCase() === tenGoi.trim().toLowerCase()
+    );
+    updateItem(index, {
+      tenGoi,
+      ...(matched?.donViTinh ? { donViTinh: matched.donViTinh } : {}),
     });
   };
 
@@ -237,7 +247,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                               <input
                                 type="text"
                                 value={row.tenGoi}
-                                onChange={(e) => updateItem(index, { tenGoi: e.target.value })}
+                                onChange={(e) => handleCustomNameChange(index, e.target.value)}
                                 required
                                 className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
                                 placeholder="Nhập tên hàng hóa"
