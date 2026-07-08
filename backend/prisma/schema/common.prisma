@@ -1109,11 +1109,35 @@ model FaceImage {
   faceProfileId String
   imagePath     String // relative path under uploads/faces/
   embedding     String? // JSON array from AI service
+  qualityScore  Float? // 0-1 combined score (blur+brightness+area+pose). null=legacy
+  poseYaw       Float? // radians, |yaw| < 0.25 = frontal
+  posePitch     Float? // radians, |pitch| < 0.28 = level
+  capturedHour  Int? // 0-23, cho coverage guard (tránh gallery lệch giờ)
+  rotatedAt     DateTime    @default(now()) // update mỗi lần replace, dùng cho TTL 6 tháng
   createdAt     DateTime    @default(now())
   faceProfile   FaceProfile @relation(fields: [faceProfileId], references: [id], onDelete: Cascade)
 
   @@index([faceProfileId])
+  @@index([faceProfileId, rotatedAt])
   @@map("face_images")
+  @@schema("common")
+}
+
+// Event log cho adaptive replacement — observability
+model FaceAdaptiveEvent {
+  id            String    @id @default(cuid())
+  faceProfileId String
+  eventType     String // "inserted" | "replaced" | "rejected"
+  reason        String? // detail reason (low_quality, poison_risk, cap_reached, etc)
+  newQuality    Float?
+  replacedId    String? // FaceImage.id nếu là replace
+  replacedQuality Float?
+  distToCentroid Float?
+  createdAt     DateTime  @default(now())
+
+  @@index([faceProfileId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("face_adaptive_events")
   @@schema("common")
 }
 
