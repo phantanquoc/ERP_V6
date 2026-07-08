@@ -34,6 +34,14 @@ class WarehouseIssueService {
     return prisma.warehouseIssue.findMany({ orderBy: { ngayXuat: 'desc' } });
   }
 
+  async getById(id: string) {
+    const issue = await prisma.warehouseIssue.findUnique({ where: { id } });
+    if (!issue) {
+      throw Object.assign(new Error('Không tìm thấy phiếu xuất kho'), { status: 404 });
+    }
+    return issue;
+  }
+
   async create(input: CreateIssueInput) {
     const lotProduct = await prisma.lotProduct.findUnique({ where: { id: input.lotProductId } });
 

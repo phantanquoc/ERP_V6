@@ -4,6 +4,7 @@ import {
   createWarehouseReceipt,
   batchCreateWarehouseReceipts,
   getAllWarehouseReceipts,
+  getWarehouseReceiptById,
 } from '../controllers/warehouseReceiptController';
 import { authenticate, authorize } from '@middlewares/auth';
 import { UserRole } from '@types';
@@ -18,6 +19,7 @@ router.post('/batch', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRo
 router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), createWarehouseReceipt);
 
 router.get('/', getAllWarehouseReceipts);
+router.get('/:id', getWarehouseReceiptById);
 
 export default router;
 

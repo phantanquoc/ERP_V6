@@ -57,6 +57,19 @@ export const getAllWarehouseReceipts = async (_req: Request, res: Response, next
   }
 };
 
+export const getWarehouseReceiptById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const receipt = await warehouseReceiptService.getById(req.params.id);
+    res.status(200).json({ success: true, data: receipt });
+  } catch (error: any) {
+    if (error.status === 404) {
+      res.status(404).json({ success: false, message: error.message });
+      return;
+    }
+    next(error);
+  }
+};
+
 export const batchCreateWarehouseReceipts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { items, supplyRequestId } = req.body;
