@@ -1,15 +1,28 @@
 import apiClient from './apiClient';
 
+export type PositionCategory = 'PRODUCTION' | 'OFFICE' | 'MANAGEMENT';
+
+export const POSITION_CATEGORY_LABEL: Record<PositionCategory, string> = {
+  PRODUCTION: 'Sản xuất',
+  OFFICE: 'Văn phòng',
+  MANAGEMENT: 'Quản lý',
+};
+
 export interface Position {
   id: string;
   code: string;
   name: string;
   description?: string;
+  category?: PositionCategory;
   level?: string;
   createdAt?: string;
   updatedAt?: string;
   employees?: any[];
   responsibilities?: any[];
+  _count?: {
+    levels?: number;
+    responsibilities?: number;
+  };
 }
 
 class PositionService {
@@ -52,6 +65,24 @@ class PositionService {
   async deletePosition(id: string): Promise<void> {
     try {
       await apiClient.delete(`/positions/${id}`);
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async getPositionUsage(id: string): Promise<{ employeeCount: number; levelCount: number; responsibilityCount: number }> {
+    try {
+      const response = await apiClient.get(`/positions/${id}/usage`);
+      return response.data as { employeeCount: number; levelCount: number; responsibilityCount: number };
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async bulkUpdateCategory(positionIds: string[], category: string): Promise<{ count: number }> {
+    try {
+      const response = await apiClient.patch('/positions/bulk-category', { positionIds, category });
+      return response.data as { count: number };
     } catch (error) {
       throw this.handleError(error);
     }

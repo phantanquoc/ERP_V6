@@ -39,6 +39,7 @@ interface Employee {
 const QualityPersonnel = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const positionIdParam = searchParams.get('positionId') || undefined;
   // /api/employees now allows EMPLOYEE (read-only) + ADMIN | DEPARTMENT_HEAD | TEAM_LEAD
   const canViewEmployees = user?.role === UserRole.ADMIN
     || user?.role === UserRole.DEPARTMENT_HEAD
@@ -61,8 +62,15 @@ const QualityPersonnel = () => {
 
   useEffect(() => {
     const currentTab = searchParams.get('tab');
+    const currentPosId = searchParams.get('positionId');
     if (currentTab !== activeTab) {
-      setSearchParams({ tab: activeTab }, { replace: true });
+      // Keep positionId if the new tab was triggered by a cross-link (positionId present)
+      // but clear it when the user manually clicks a tab (no positionId in current params)
+      const params: Record<string, string> = { tab: activeTab };
+      if (currentPosId && currentTab !== activeTab) {
+        // Don't carry positionId across manual tab switches
+      }
+      setSearchParams(params, { replace: true });
     }
   }, [activeTab]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -311,7 +319,11 @@ const QualityPersonnel = () => {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    // Clear positionId when user manually clicks a tab
+                    setSearchParams({ tab: tab.id }, { replace: true });
+                  }}
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
@@ -337,17 +349,17 @@ const QualityPersonnel = () => {
 
           {/* QUẢN LÝ VỊ TRÍ */}
           {activeTab === 'positions' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><PositionManagement /></div></div>
+            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><PositionManagement initialPositionId={positionIdParam} /></div></div>
           )}
 
           {/* QUẢN LÝ CẤP ĐỘ & LƯƠNG */}
           {activeTab === 'levels' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><PositionLevelManagement /></div></div>
+            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><PositionLevelManagement initialPositionId={positionIdParam} /></div></div>
           )}
 
           {/* DANH SÁCH TRÁCH NHIỆM */}
           {activeTab === 'responsibilities' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><ResponsibilityManagement /></div></div>
+            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><ResponsibilityManagement initialPositionId={positionIdParam} /></div></div>
           )}
 
           {/* ĐÁNH GIÁ NHÂN VIÊN */}

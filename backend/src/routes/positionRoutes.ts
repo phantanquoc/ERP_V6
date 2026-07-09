@@ -48,6 +48,12 @@ router.get('/',
   positionController.getAllPositions
 );
 
+// Export must come before /:id to avoid route param capture
+router.get('/export.xlsx',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  positionController.exportXlsx
+);
+
 /**
  * @swagger
  * /api/positions/{id}:
@@ -105,6 +111,16 @@ router.get('/:id',
  *         description: "Dữ liệu không hợp lệ"
  */
 router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), positionController.createPosition);
+
+router.patch('/bulk-category',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  positionController.bulkUpdateCategory
+);
+
+router.get('/:id/usage',
+  checkAccess({ allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD], checkDepartment: true }),
+  positionController.getPositionUsage
+);
 
 /**
  * @swagger

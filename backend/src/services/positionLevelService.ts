@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import ExcelJS from 'exceljs';
 
 export class PositionLevelService {
   async getAllLevels(): Promise<any[]> {
@@ -144,6 +145,59 @@ export class PositionLevelService {
     }
 
     await prisma.positionLevel.delete({ where: { id } });
+  }
+
+  async getLevelUsage(id: string): Promise<any> {
+    const level = await prisma.positionLevel.findUnique({
+      where: { id },
+      include: {
+        _count: { select: { employees: true } },
+      },
+    });
+    if (!level) throw new NotFoundError('Không tìm thấy bậc lương');
+    return { employeeCount: level._count.employees };
+  }
+
+  async exportLevels(positionId?: string): Promise<any> {
+    const where = positionId ? { positionId } : {};
+
+    const levels = await prisma.positionLevel.findMany({
+      where,
+      include: { position: { select: { code: true, name: true } } },
+      orderBy: [{ position: { name: 'asc' } }, { createdAt: 'asc' }],
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Bậc lương vị trí');
+
+    worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
+      { header: 'Mã vị trí', key: 'positionCode', width: 15 },
+      { header: 'Vị trí', key: 'positionName', width: 25 },
+      { header: 'Bậc', key: 'level', width: 15 },
+      { header: 'Lương cơ bản', key: 'baseSalary', width: 20 },
+      { header: 'Lương KPI', key: 'kpiSalary', width: 20 },
+    ];
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+    worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+    levels.forEach((lv, idx) => {
+      const row = worksheet.addRow({
+        stt: idx + 1,
+        positionCode: lv.position?.code ?? '',
+        positionName: lv.position?.name ?? '',
+        level: lv.level,
+        baseSalary: Number(lv.baseSalary),
+        kpiSalary: Number(lv.kpiSalary),
+      });
+      row.getCell('baseSalary').numFmt = '#,##0 "₫"';
+      row.getCell('kpiSalary').numFmt = '#,##0 "₫"';
+    });
+
+    return workbook.xlsx.writeBuffer();
   }
 }
 

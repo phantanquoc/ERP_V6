@@ -112,7 +112,14 @@ class ApiClient {
       const data: ApiResponse<T> = await response.json();
 
       if (!response.ok) {
-        throw new ApiError(response.status, data.message || `HTTP ${response.status}`);
+        let errorMessage = data.message || `HTTP ${response.status}`;
+        if (data.errors && typeof data.errors === 'object') {
+          const fieldErrors = Object.entries(data.errors as Record<string, string>)
+            .map(([field, msg]) => `${field}: ${msg}`)
+            .join('; ');
+          if (fieldErrors) errorMessage = fieldErrors;
+        }
+        throw new ApiError(response.status, errorMessage);
       }
 
       return data;
@@ -182,6 +189,44 @@ class ApiClient {
    */
   async delete<T>(endpoint: string, options?: RequestOptions): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
+  }
+
+  /**
+   * Download a file with authentication. Fetches the endpoint with the auth header,
+   * converts the response to a blob, and triggers a browser download.
+   */
+  async download(endpoint: string, filename: string): Promise<void> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers: Record<string, string> = {
+      ...this.getAuthHeader(),
+    };
+
+    let response = await fetch(url, { method: 'GET', headers });
+
+    if (response.status === 401) {
+      const newToken = await AuthService.refreshToken();
+      if (newToken) {
+        headers.Authorization = `Bearer ${newToken}`;
+        response = await fetch(url, { method: 'GET', headers });
+      } else {
+        window.location.href = '/login';
+        throw new Error('Session expired. Please login again.');
+      }
+    }
+
+    if (!response.ok) {
+      throw new ApiError(response.status, `Download failed: HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
   }
 }
 

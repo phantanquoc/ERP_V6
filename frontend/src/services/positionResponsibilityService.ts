@@ -68,6 +68,39 @@ class PositionResponsibilityService {
       throw this.handleError(error);
     }
   }
+
+  async copyResponsibilitiesFrom(
+    targetPositionId: string,
+    sourcePositionId: string
+  ): Promise<PositionResponsibility[]> {
+    try {
+      const response = await apiClient.post(
+        `/position-responsibilities/${targetPositionId}/responsibilities/copy-from/${sourcePositionId}`,
+        {}
+      );
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async rescaleResponsibilityWeights(positionId: string): Promise<PositionResponsibility[]> {
+    try {
+      const response = await apiClient.post(`/position-responsibilities/${positionId}/responsibilities/rescale`, {});
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async getResponsibilityUsage(id: string): Promise<{ evaluationDetailCount: number }> {
+    try {
+      const response = await apiClient.get(`/position-responsibilities/responsibility/${id}/usage`);
+      return response.data as { evaluationDetailCount: number };
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
 }
 
 export default new PositionResponsibilityService();
