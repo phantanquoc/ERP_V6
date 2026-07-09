@@ -17,9 +17,15 @@ import {
   RepairRequest,
   RepairRequestItemInput,
 } from '../services/repairRequestService';
+import type { MachineSystem, MachineSystemDetail } from '../services/machineSystemService';
 
 export type RepairRequestFormMode = 'create' | 'edit' | 'view';
-export type ItemDraft = RepairRequestItemInput & { id?: string; faultRecordSearch?: string };
+export type ItemDraft = RepairRequestItemInput & {
+  id?: string;
+  faultRecordSearch?: string;
+  machineSystem?: MachineSystem | null;
+  machineSystemDetail?: MachineSystemDetail | null;
+};
 
 export const PRIORITIES = ['Thấp', 'Trung bình', 'Cao', 'Khẩn cấp'];
 export const FAULT_TYPES = ['Lỗi mới', 'Lỗi lặp lại'];
@@ -201,6 +207,8 @@ const RepairRequestFormModal = ({
       tinhTrangThietBi: item.tinhTrangThietBi,
       loaiLoi: item.loaiLoi,
       noiDungLoi: item.noiDungLoi,
+      machineSystem: item.machineSystem ?? null,
+      machineSystemDetail: item.machineSystemDetail ?? null,
     })) : [emptyItem(lockedSystemIdStr)]);
     // generatedCode.data intentionally excluded: only used as the initial value at open time,
     // handled separately below so it doesn't clobber in-progress edits once it resolves late.
@@ -337,10 +345,24 @@ const RepairRequestFormModal = ({
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       {isView ? (
-                        <div className="space-y-1 md:col-span-2">
-                          <span className="text-xs font-medium text-gray-600">Thiết bị</span>
-                          <div className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-800">{item.tenHeThong || '—'}</div>
-                        </div>
+                        <>
+                          <div className="space-y-1 md:col-span-2">
+                            <span className="text-xs font-medium text-gray-600">Hệ thống</span>
+                            <div className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-800">
+                              {item.machineSystem
+                                ? `${item.machineSystem.maHeThong} - ${item.machineSystem.tenHeThong}`
+                                : item.tenHeThong || '—'}
+                            </div>
+                          </div>
+                          {item.machineSystemDetail && (
+                            <div className="space-y-1 md:col-span-2">
+                              <span className="text-xs font-medium text-gray-600">Chi tiết máy</span>
+                              <div className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-800">
+                                {`${item.machineSystemDetail.maChiTiet} - ${item.machineSystemDetail.tenChiTiet}`}
+                              </div>
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <>
                           <label className="space-y-1 md:col-span-2">
