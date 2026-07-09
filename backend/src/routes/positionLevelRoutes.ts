@@ -7,6 +7,9 @@ const router = Router();
 // All routes require authentication
 router.use(authenticate);
 
+// Export route (no role import from @types here, use string literals consistent with file)
+router.get('/export.xlsx', authorize('ADMIN', 'DEPARTMENT_HEAD'), positionLevelController.exportXlsx);
+
 /**
  * @swagger
  * /api/position-levels:
@@ -84,6 +87,10 @@ router.get('/:positionId/levels', positionLevelController.getAllLevelsByPosition
  *         description: "Không tìm thấy cấp bậc"
  */
 router.get('/level/:id', positionLevelController.getLevelById);
+
+router.get('/level/:id/usage',
+  positionLevelController.getLevelUsage
+);
 
 /**
  * @swagger

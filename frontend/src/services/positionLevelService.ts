@@ -56,6 +56,15 @@ class PositionLevelService {
     }
   }
 
+  async getLevelUsage(id: string): Promise<{ employeeCount: number }> {
+    try {
+      const response = await apiClient.get(`/position-levels/level/${id}/usage`);
+      return response.data as { employeeCount: number };
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   private handleError(error: any): Error {
     if (error instanceof Error) {
       const message = error.message;

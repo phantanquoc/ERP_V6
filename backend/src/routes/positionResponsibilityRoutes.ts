@@ -9,6 +9,12 @@ const router = Router();
 // All responsibility routes require authentication
 router.use(authenticate);
 
+// Export must come before any parameterized routes
+router.get('/export.xlsx',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  positionResponsibilityController.exportXlsx
+);
+
 /**
  * @swagger
  * /api/position-responsibilities/{positionId}/responsibilities:
@@ -69,6 +75,11 @@ router.get('/responsibility/:id',
   positionResponsibilityController.getResponsibilityById
 );
 
+router.get('/responsibility/:id/usage',
+  checkAccess({ allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD], checkDepartment: true }),
+  positionResponsibilityController.getResponsibilityUsage
+);
+
 /**
  * @swagger
  * /api/position-responsibilities/{positionId}/responsibilities:
@@ -105,6 +116,11 @@ router.get('/responsibility/:id',
 router.post('/:positionId/responsibilities',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
   positionResponsibilityController.createResponsibility
+);
+
+router.post('/:positionId/responsibilities/rescale',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  positionResponsibilityController.rescaleResponsibilityWeights
 );
 
 /**
@@ -170,6 +186,41 @@ router.patch('/responsibility/:id',
 router.delete('/responsibility/:id',
   authorize(UserRole.ADMIN),
   positionResponsibilityController.deleteResponsibility
+);
+
+/**
+ * @swagger
+ * /api/position-responsibilities/{positionId}/responsibilities/copy-from/{sourcePositionId}:
+ *   post:
+ *     tags: ["Position Responsibilities"]
+ *     summary: "Sao chép tiêu chí từ chức vụ nguồn"
+ *     description: "Sao chép toàn bộ tiêu chí đánh giá từ chức vụ nguồn sang chức vụ đích. Chỉ ADMIN. Chức vụ đích phải chưa có tiêu chí nào."
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: positionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: "ID chức vụ đích"
+ *       - in: path
+ *         name: sourcePositionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: "ID chức vụ nguồn"
+ *     responses:
+ *       201:
+ *         description: "Sao chép tiêu chí thành công"
+ *       404:
+ *         description: "Không tìm thấy chức vụ"
+ *       409:
+ *         description: "Chức vụ đích đã có tiêu chí đánh giá"
+ */
+router.post('/:positionId/responsibilities/copy-from/:sourcePositionId',
+  authorize(UserRole.ADMIN),
+  positionResponsibilityController.copyResponsibilitiesFrom
 );
 
 export default router;
