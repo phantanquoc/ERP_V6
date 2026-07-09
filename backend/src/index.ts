@@ -11,6 +11,7 @@ import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { globalLimiter } from '@middlewares/rateLimiter';
 import { registerRoutes } from '@routes/index';
 import { startSnapshotCleanup } from '@utils/snapshotCleanup';
+import { initEvaluationCron } from '@cron/evaluationCron';
 import { setPgNotifier, resetLocalEmbeddingCache } from '@services/faceAttendanceService';
 import { initWebSocket, shutdownWebSocket } from '@services/wsManager';
 
@@ -97,6 +98,7 @@ const server = app.listen(PORT, () => {
   logger.info(`Server is running on http://localhost:${PORT}`);
   logger.info(`Environment: ${env.NODE_ENV}`);
   startSnapshotCleanup();
+  initEvaluationCron();
   initWebSocket(server);
 });
 

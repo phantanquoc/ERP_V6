@@ -291,10 +291,14 @@ describe('updateEvaluationDetail — race condition guard', () => {
 // ─── finalizeEvaluation ───────────────────────────────────────────────────────
 
 describe('finalizeEvaluation', () => {
-  const makeEvaluation = (status: string, details: any[]) => ({
+  const makeEvaluation = (status: string, details: any[], mode = 'FULL') => ({
     id: 'eval-1',
     status,
+    mode,
     details,
+    employee: { userId: 'user-employee' },
+    goals: [{ id: 'goal-1' }],
+    idpItems: [{ id: 'idp-1' }],
   });
 
   const detailsWithAllScores = [
@@ -302,24 +306,38 @@ describe('finalizeEvaluation', () => {
       selfScore: 80,
       supervisorScore1: 85,
       supervisorScore2: 90,
+      notApplicable: false,
       positionResponsibility: { weight: 60 },
     },
     {
       selfScore: 70,
       supervisorScore1: 75,
       supervisorScore2: 80,
+      notApplicable: false,
       positionResponsibility: { weight: 40 },
     },
   ];
+
+  beforeEach(() => {
+    (mockedPrisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
+      const txPrisma = {
+        ...mockedPrisma,
+        evaluation: { ...mockedPrisma.evaluation, update: jest.fn().mockResolvedValue({ id: 'eval-1', status: 'COMPLETED' }) },
+        evaluationAuditLog: { create: jest.fn().mockResolvedValue({}) },
+      };
+      return fn(txPrisma);
+    });
+  });
 
   it('throws ValidationError when status is SELF_PENDING', async () => {
     (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
       makeEvaluation(EvaluationStatus.SELF_PENDING, detailsWithAllScores)
     );
+    (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: 'ADMIN' });
 
-    await expect(service.finalizeEvaluation('eval-1')).rejects.toThrow(ValidationError);
-    await expect(service.finalizeEvaluation('eval-1')).rejects.toThrow(
-      'chưa hoàn tất tất cả bước đánh giá'
+    await expect(service.finalizeEvaluation('eval-1', 'user-admin')).rejects.toThrow(ValidationError);
+    await expect(service.finalizeEvaluation('eval-1', 'user-admin')).rejects.toThrow(
+      'chờ cấp trên 2'
     );
   });
 
@@ -327,84 +345,58 @@ describe('finalizeEvaluation', () => {
     (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
       makeEvaluation(EvaluationStatus.SUPERVISOR1_PENDING, detailsWithAllScores)
     );
+    (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: 'ADMIN' });
 
-    await expect(service.finalizeEvaluation('eval-1')).rejects.toThrow(ValidationError);
+    await expect(service.finalizeEvaluation('eval-1', 'user-admin')).rejects.toThrow(ValidationError);
   });
 
-  it('throws ValidationError when no scores have been entered', async () => {
-    const emptyDetails = [
-      { selfScore: null, supervisorScore1: null, supervisorScore2: null, positionResponsibility: { weight: 100 } },
-    ];
-    (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
-      makeEvaluation(EvaluationStatus.COMPLETED, emptyDetails)
-    );
-
-    await expect(service.finalizeEvaluation('eval-1')).rejects.toThrow(ValidationError);
-  });
-
-  it('throws ValidationError when status is SUPERVISOR2_PENDING', async () => {
+  it('throws AuthorizationError when caller is not ADMIN or assigned supervisor2', async () => {
     (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
       makeEvaluation(EvaluationStatus.SUPERVISOR2_PENDING, detailsWithAllScores)
     );
+    (mockedPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: 'EMPLOYEE' })
+      .mockResolvedValueOnce({ supervisor2Id: 'user-sup2' });
 
-    await expect(service.finalizeEvaluation('eval-1')).rejects.toThrow(ValidationError);
-    await expect(service.finalizeEvaluation('eval-1')).rejects.toThrow(
-      'chưa hoàn tất tất cả bước đánh giá'
-    );
+    const { AuthorizationError } = require('@utils/errors');
+    await expect(service.finalizeEvaluation('eval-1', 'user-wrong')).rejects.toThrow(AuthorizationError);
   });
 
-  it('calculates weighted average score correctly when all score types present', async () => {
+  it('transitions to COMPLETED when status is SUPERVISOR2_PENDING and caller is ADMIN', async () => {
     (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
-      makeEvaluation(EvaluationStatus.COMPLETED, detailsWithAllScores)
+      makeEvaluation(EvaluationStatus.SUPERVISOR2_PENDING, detailsWithAllScores)
     );
-    (mockedPrisma.evaluation.update as jest.Mock).mockResolvedValue({ id: 'eval-1', score: 0 });
+    (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: 'ADMIN' });
 
-    await service.finalizeEvaluation('eval-1');
-
-    const updateCall = (mockedPrisma.evaluation.update as jest.Mock).mock.calls[0][0];
-    expect(updateCall.data.status).toBe(EvaluationStatus.COMPLETED);
-
-    // selfScore weighted: (80*60 + 70*40)/100 = (4800+2800)/100 = 76
-    // supervisorScore1 weighted: (85*60 + 75*40)/100 = (5100+3000)/100 = 81
-    // supervisorScore2 weighted: (90*60 + 80*40)/100 = (5400+3200)/100 = 86
-    // average = (76 + 81 + 86) / 3 = 81
-    expect(updateCall.data.score).toBeCloseTo(81, 0);
-  });
-
-  it('calculates score using only filled score types (partial supervisor)', async () => {
-    const partialDetails = [
-      {
-        selfScore: 80,
-        supervisorScore1: null,
-        supervisorScore2: null,
-        positionResponsibility: { weight: 100 },
-      },
-    ];
-    (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
-      makeEvaluation(EvaluationStatus.COMPLETED, partialDetails)
-    );
-    (mockedPrisma.evaluation.update as jest.Mock).mockResolvedValue({ id: 'eval-1', score: 0 });
-
-    await service.finalizeEvaluation('eval-1');
-
-    const updateCall = (mockedPrisma.evaluation.update as jest.Mock).mock.calls[0][0];
-    // Only selfScore filled: (80*100)/100 = 80, average of [80] = 80
-    expect(updateCall.data.score).toBeCloseTo(80, 1);
-  });
-
-  it('allows finalize when status is already COMPLETED (recalculate)', async () => {
-    (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(
-      makeEvaluation(EvaluationStatus.COMPLETED, detailsWithAllScores)
-    );
-    (mockedPrisma.evaluation.update as jest.Mock).mockResolvedValue({ id: 'eval-1', score: 81 });
-
-    await expect(service.finalizeEvaluation('eval-1')).resolves.not.toThrow();
+    await expect(service.finalizeEvaluation('eval-1', 'user-admin')).resolves.not.toThrow();
   });
 
   it('throws NotFoundError when evaluation does not exist', async () => {
     (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(null);
 
-    await expect(service.finalizeEvaluation('bad-id')).rejects.toThrow(NotFoundError);
+    await expect(service.finalizeEvaluation('bad-id', 'user-admin')).rejects.toThrow(NotFoundError);
+  });
+
+  it('throws ValidationError for FULL mode with no goals (without override)', async () => {
+    const evalNoGoals = makeEvaluation(EvaluationStatus.SUPERVISOR2_PENDING, detailsWithAllScores, 'FULL');
+    evalNoGoals.goals = [];
+    (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(evalNoGoals);
+    (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: 'TEAM_LEAD' });
+    // supervisor2 = caller
+    (mockedPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ role: 'TEAM_LEAD' })
+      .mockResolvedValueOnce({ supervisor2Id: 'user-sup2' });
+
+    await expect(service.finalizeEvaluation('eval-1', 'user-sup2')).rejects.toThrow(ValidationError);
+  });
+
+  it('bypasses goal guardrail when overrideEmptyGoals=true', async () => {
+    const evalNoGoals = makeEvaluation(EvaluationStatus.SUPERVISOR2_PENDING, detailsWithAllScores, 'FULL');
+    evalNoGoals.goals = [];
+    (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(evalNoGoals);
+    (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: 'ADMIN' });
+
+    await expect(service.finalizeEvaluation('eval-1', 'user-admin', { overrideEmptyGoals: true })).resolves.not.toThrow();
   });
 });
 
@@ -580,9 +572,13 @@ describe('updateEvaluationDetail — auto-finalize score calculation', () => {
           update: jest.fn().mockResolvedValue({}),
         },
         evaluationDetail: {
-          count: jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(1),
+          // Three count calls: filledCount=1, totalCount=1, naCount=0
+          count: jest.fn()
+            .mockResolvedValueOnce(1)  // filledCount
+            .mockResolvedValueOnce(1)  // totalCount
+            .mockResolvedValueOnce(0), // naCount
           findMany: jest.fn().mockResolvedValue([
-            { selfScore: 90, supervisorScore1: null, supervisorScore2: null, positionResponsibility: { weight: 100 } },
+            { selfScore: 90, supervisorScore1: null, supervisorScore2: null, notApplicable: false, positionResponsibility: { weight: 100 } },
           ]),
         },
         employee: {
@@ -591,6 +587,7 @@ describe('updateEvaluationDetail — auto-finalize score calculation', () => {
           }),
         },
         user: { findUnique: jest.fn() },
+        evaluationAuditLog: { create: jest.fn().mockResolvedValue({}) },
       };
       await fn(txPrisma);
       return undefined;
@@ -727,117 +724,147 @@ describe('createBulkEvaluations', () => {
 // ─── syncEvaluationDetails ────────────────────────────────────────────────────
 
 describe('syncEvaluationDetails', () => {
-  const makeEval = (id: string, existingRespIds: string[], allResps: any[]) => ({
-    id,
-    details: existingRespIds.map(rid => ({ positionResponsibilityId: rid })),
-    employee: {
-      position: { responsibilities: allResps },
-    },
-  });
-
-  it('returns synced=0 skipped=0 when no evaluations exist for period', async () => {
-    (mockedPrisma.evaluation.findMany as jest.Mock).mockResolvedValue([]);
-
-    const result = await service.syncEvaluationDetails(5, 2026);
-
-    expect(result).toEqual({ synced: 0, skipped: 0 });
-    expect(mockedPrisma.evaluationDetail.createMany).not.toHaveBeenCalled();
-  });
-
-  it('skips evaluation when all responsibilities already have details', async () => {
-    const eval1 = makeEval('eval-1', ['resp-1', 'resp-2'], [
-      { id: 'resp-1' },
-      { id: 'resp-2' },
-    ]);
-    (mockedPrisma.evaluation.findMany as jest.Mock).mockResolvedValue([eval1]);
-
-    const result = await service.syncEvaluationDetails(5, 2026);
-
-    expect(result).toEqual({ synced: 0, skipped: 1 });
-    expect(mockedPrisma.evaluationDetail.createMany).not.toHaveBeenCalled();
-  });
-
-  it('creates missing details and returns synced=1 when one responsibility is missing', async () => {
-    const eval1 = makeEval('eval-1', ['resp-1'], [
-      { id: 'resp-1' },
-      { id: 'resp-2' },
-    ]);
-    (mockedPrisma.evaluation.findMany as jest.Mock).mockResolvedValue([eval1]);
-    (mockedPrisma.evaluationDetail.createMany as jest.Mock).mockResolvedValue({ count: 1 });
-
-    const result = await service.syncEvaluationDetails(5, 2026);
-
-    expect(result).toEqual({ synced: 1, skipped: 0 });
-    expect(mockedPrisma.evaluationDetail.createMany).toHaveBeenCalledWith({
-      data: [{ evaluationId: 'eval-1', positionResponsibilityId: 'resp-2' }],
+  beforeEach(() => {
+    (mockedPrisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
+      const txPrisma = {
+        ...mockedPrisma,
+        evaluationDetail: {
+          ...mockedPrisma.evaluationDetail,
+          createMany: jest.fn().mockResolvedValue({ count: 1 }),
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
+      };
+      return fn(txPrisma);
     });
   });
 
-  it('handles employee with no position (skips without crashing)', async () => {
-    const evalNoPos = {
-      id: 'eval-2',
-      details: [],
-      employee: { position: null },
-    };
-    (mockedPrisma.evaluation.findMany as jest.Mock).mockResolvedValue([evalNoPos]);
+  it('returns added=0, removed=0 when evaluation already in sync', async () => {
+    (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue({
+      id: 'eval-1',
+      employee: { position: { responsibilities: [{ id: 'resp-1' }] } },
+      details: [{ positionResponsibilityId: 'resp-1' }],
+    });
 
-    const result = await service.syncEvaluationDetails(5, 2026);
+    const result = await service.syncEvaluationDetails('eval-1');
 
-    expect(result).toEqual({ synced: 0, skipped: 1 });
-    expect(mockedPrisma.evaluationDetail.createMany).not.toHaveBeenCalled();
+    expect(result).toEqual({ added: 0, removed: 0 });
   });
 
-  it('handles multiple evaluations — some needing sync, some skipped', async () => {
-    const eval1 = makeEval('eval-1', ['resp-1'], [{ id: 'resp-1' }, { id: 'resp-2' }]); // missing resp-2
-    const eval2 = makeEval('eval-2', ['resp-3'], [{ id: 'resp-3' }]);                    // already complete
-    (mockedPrisma.evaluation.findMany as jest.Mock).mockResolvedValue([eval1, eval2]);
-    (mockedPrisma.evaluationDetail.createMany as jest.Mock).mockResolvedValue({ count: 1 });
+  it('adds missing responsibilities', async () => {
+    (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue({
+      id: 'eval-1',
+      employee: { position: { responsibilities: [{ id: 'resp-1' }, { id: 'resp-2' }] } },
+      details: [{ positionResponsibilityId: 'resp-1' }],
+    });
 
-    const result = await service.syncEvaluationDetails(5, 2026);
+    const result = await service.syncEvaluationDetails('eval-1');
 
-    expect(result).toEqual({ synced: 1, skipped: 1 });
-    expect(mockedPrisma.evaluationDetail.createMany).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ added: 1, removed: 0 });
   });
 
-  it('queries with correct period format (YYYY-MM)', async () => {
-    (mockedPrisma.evaluation.findMany as jest.Mock).mockResolvedValue([]);
+  it('throws NotFoundError when evaluation does not exist', async () => {
+    (mockedPrisma.evaluation.findUnique as jest.Mock).mockResolvedValue(null);
 
-    await service.syncEvaluationDetails(3, 2026);
-
-    expect(mockedPrisma.evaluation.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { period: '2026-03' } })
-    );
+    await expect(service.syncEvaluationDetails('bad-id')).rejects.toThrow(NotFoundError);
   });
 });
 
 // ─── getPendingEvaluationCount ────────────────────────────────────────────────
 
 describe('getPendingEvaluationCount', () => {
-  it('returns 0 when user has no subordinates', async () => {
+  it('returns total=0 when user has no subordinates', async () => {
+    (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: 'EMPLOYEE', employees: { id: 'emp-1' } });
     (mockedPrisma.user.findMany as jest.Mock).mockResolvedValue([]);
 
-    const count = await service.getPendingEvaluationCount('user-1', 5, 2026);
+    const result = await service.getPendingEvaluationCount('user-1');
 
-    expect(count).toBe(0);
+    expect(result).toEqual({ total: 0 });
     expect(mockedPrisma.evaluation.count).not.toHaveBeenCalled();
   });
 
-  it('counts non-completed evaluations for subordinates', async () => {
+  it('returns pending evaluation count for subordinates', async () => {
+    (mockedPrisma.user.findUnique as jest.Mock).mockResolvedValue({ role: 'TEAM_LEAD', employees: { id: 'emp-lead' } });
     (mockedPrisma.user.findMany as jest.Mock).mockResolvedValue([
       { employees: { id: 'emp-1' } },
       { employees: { id: 'emp-2' } },
     ]);
     (mockedPrisma.evaluation.count as jest.Mock).mockResolvedValue(2);
 
-    const count = await service.getPendingEvaluationCount('user-1', 5, 2026);
+    const result = await service.getPendingEvaluationCount('user-1');
 
-    expect(count).toBe(2);
-    expect(mockedPrisma.evaluation.count).toHaveBeenCalledWith({
-      where: {
-        employeeId: { in: ['emp-1', 'emp-2'] },
-        period: '2026-05',
-        status: { not: 'COMPLETED' },
-      },
-    });
+    expect(result).toEqual({ total: 2 });
+    expect(mockedPrisma.evaluation.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          employeeId: { in: ['emp-1', 'emp-2'] },
+        }),
+      })
+    );
   });
 });
+
+// ─── getEmployeeEvaluations — BS1 per-row masking ─────────────────────────────
+
+describe('getEmployeeEvaluations — BS1 per-row masking', () => {
+  // DEPT_HEAD is sup2 for employee A (selfScore visible) and sup1 for employee B (selfScore masked)
+  const CALLER_ID = 'dept-head-user';
+  const CALLER_ROLE = 'DEPARTMENT_HEAD';
+
+  const makeEmpRow = (empId: string, userId: string, sup1Id: string | null, sup2Id: string | null, status: string, hasSup1Score: boolean) => ({
+    id: empId,
+    employeeCode: empId,
+    status: 'ACTIVE',
+    user: {
+      firstName: 'First',
+      lastName: 'Last',
+      email: 'e@e.com',
+      role: 'EMPLOYEE',
+      supervisor1Id: sup1Id,
+      supervisor2Id: sup2Id,
+    },
+    userId,
+    position: { id: 'pos-1', name: 'Staff' },
+    evaluations: [
+      {
+        id: `eval-${empId}`,
+        status,
+        selfScorePercentage: 85,
+        sup1Percentage: null,
+        sup2Percentage: null,
+        details: [
+          {
+            supervisorScore1: hasSup1Score ? 80 : null,
+            supervisorScore2: null,
+            selfScore: 85,
+            notApplicable: false,
+            positionResponsibility: { weight: 100 },
+          },
+        ],
+      },
+    ],
+  });
+
+  beforeEach(() => {
+    (mockedPrisma.employee.findMany as jest.Mock).mockResolvedValue([
+      // Employee A: DEPT_HEAD is sup2 (not sup1) — self-score should NOT be masked
+      makeEmpRow('emp-A', 'user-A', 'other-sup1', CALLER_ID, EvaluationStatus.SUPERVISOR1_PENDING, false),
+      // Employee B: DEPT_HEAD is sup1 — self-score SHOULD be masked (no sup1 scores yet)
+      makeEmpRow('emp-B', 'user-B', CALLER_ID, null, EvaluationStatus.SUPERVISOR1_PENDING, false),
+    ]);
+  });
+
+  it('does not mask selfScore for employee where caller is sup2, not sup1', async () => {
+    const result = await service.getEmployeeEvaluations(7, 2026, undefined, undefined, CALLER_ID, CALLER_ROLE);
+    const empA = result.find((r: any) => r.id === 'emp-A');
+    expect(empA).toBeDefined();
+    expect(empA.selfScore).not.toBeNull();
+  });
+
+  it('masks selfScore for employee where caller is the specific sup1 and SUPERVISOR1_PENDING with no scores', async () => {
+    const result = await service.getEmployeeEvaluations(7, 2026, undefined, undefined, CALLER_ID, CALLER_ROLE);
+    const empB = result.find((r: any) => r.id === 'emp-B');
+    expect(empB).toBeDefined();
+    expect(empB.selfScore).toBeNull();
+  });
+});
+

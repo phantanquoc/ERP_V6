@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { X, Save, AlertCircle, CheckCircle, Info, Copy, Lock, MinusCircle, FileText } from 'lucide-react';
 import { parseNumberInput } from '../utils/numberInput';
-import employeeEvaluationService, { EvaluationDetail, EvaluationDetailsResponse } from '../services/employeeEvaluationService';
+import employeeEvaluationService, { EvaluationDetail, EvaluationDetailsResponse, EvaluationMode } from '../services/employeeEvaluationService';
 import notificationService from '../services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
 import SubordinateEvaluationList from './SubordinateEvaluationList';
 import Modal from './Modal';
+import GoalsForm from './GoalsForm';
+import IDPForm from './IDPForm';
+import EvidenceUpload from './EvidenceUpload';
+import PayrollImpactPanel from './PayrollImpactPanel';
+import { usePayrollPreview, useCopyFromPreviousMonth, useUpdateEvaluationComment, useToggleNotApplicable } from '../hooks/useEmployeeEvaluation';
 
 interface EmployeeSelfEvaluationModalProps {
   isOpen: boolean;
@@ -72,6 +77,20 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
   const [showRubric, setShowRubric] = useState(false);
   const [subordinateComments, setSubordinateComments] = useState<{ [key: string]: string }>({});
   const [previousPeriodScore, setPreviousPeriodScore] = useState<number | null>(null);
+  // Mode-aware state
+  const [evaluationMode, setEvaluationMode] = useState<EvaluationMode>('FULL');
+  const [resolvedEvalId, setResolvedEvalId] = useState<string | null>(null);
+  const [overallComment, setOverallComment] = useState('');
+  const [fullModeTab, setFullModeTab] = useState<'eval' | 'goals' | 'idp' | 'evidence' | 'payroll'>('eval');
+  const [detailComments, setDetailComments] = useState<Record<string, string>>({});
+  const [naToggles, setNaToggles] = useState<Record<string, boolean>>({});
+
+  const copyFromPrevious = useCopyFromPreviousMonth();
+  const updateComment = useUpdateEvaluationComment();
+  const toggleNa = useToggleNotApplicable();
+  const { data: payrollPreview, isLoading: payrollLoading } = usePayrollPreview(
+    fullModeTab === 'payroll' && evaluationMode === 'FULL' && resolvedEvalId ? resolvedEvalId : ''
+  );
 
   useEffect(() => {
     if (isOpen && (evaluationId || (employeeId && month && year))) {
@@ -89,6 +108,11 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
       setError('');
       setSuccess('');
       setPreviousPeriodScore(null);
+      setOverallComment('');
+      setFullModeTab('eval');
+      setDetailComments({});
+      setNaToggles({});
+      setResolvedEvalId(null);
     }
   }, [isOpen]);
 
@@ -123,6 +147,8 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
       return;
     }
 
+    setResolvedEvalId(currentEvalId);
+
     try {
       setLoading(true);
       setError('');
@@ -136,6 +162,19 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
       if (detailsData.period) {
         setEvaluationPeriodState(detailsData.period);
       }
+      // Capture mode and pre-populate comments/N/A toggles
+      setEvaluationMode((detailsData.mode as EvaluationMode) || 'FULL');
+      setOverallComment(detailsData.commentEmployee || '');
+      const initComments: Record<string, string> = {};
+      const initNa: Record<string, boolean> = {};
+      (detailsData.details || []).forEach(d => {
+        if (d.detailId) {
+          initComments[d.detailId] = d.commentEmployee || '';
+          initNa[d.detailId] = d.notApplicable || false;
+        }
+      });
+      setDetailComments(initComments);
+      setNaToggles(initNa);
 
       // Load evaluation history
       const historyData = await employeeEvaluationService.getEvaluationHistory(currentEvalId);
@@ -159,12 +198,48 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
 
   const getDetailKey = (detail: EvaluationDetail) => detail.detailId ?? detail.responsibilityId;
 
+  const handleCopyFromPreviousMonth = async () => {
+    if (!resolvedEvalId) return;
+    try {
+      const result = await copyFromPrevious.mutateAsync(resolvedEvalId);
+      if (result.copiedCount > 0) {
+        setSuccess(`Đã sao chép ${result.copiedCount} điểm từ kỳ ${result.sourcePeriod}`);
+        await loadEvaluationData();
+        setTimeout(() => setSuccess(''), 4000);
+      } else {
+        setError('Không tìm thấy kỳ trước để sao chép');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lỗi sao chép điểm');
+    }
+  };
+
+  const handleToggleNa = async (detailId: string) => {
+    const current = naToggles[detailId] || false;
+    setNaToggles(prev => ({ ...prev, [detailId]: !current }));
+    try {
+      await toggleNa.mutateAsync({ detailId, notApplicable: !current });
+    } catch {
+      setNaToggles(prev => ({ ...prev, [detailId]: current }));
+    }
+  };
+
   const handleScoreChange = (detailKey: string, score: number) => {
     if (score < 0 || score > 100) return;
     setEditingScores(prev => ({
       ...prev,
       [detailKey]: score,
     }));
+  };
+
+  const handleDetailCommentBlur = async (detailId: string, comment: string) => {
+    try {
+      await employeeEvaluationService.updateEvaluationDetail(
+        detailId, undefined, undefined, undefined, false, comment
+      );
+    } catch {
+      // non-blocking
+    }
   };
 
   const handleSubordinateScoreChange = (
@@ -392,13 +467,93 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
               {/* Tab Content */}
               {activeTab === 'self' && (
                 <>
-                  {/* SUGGESTION fix: show locked message when status is past SELF_PENDING */}
-                  {selfEvalLocked && (
-                    <div className="mb-3 sm:mb-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2 sm:gap-3">
-                      <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs sm:text-sm text-blue-700">Bạn đã hoàn thành tự đánh giá. Điểm không thể thay đổi.</p>
+                  {/* Mode badge + Quick-mode controls */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
+                        evaluationMode === 'QUICK'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-indigo-100 text-indigo-800'
+                      }`}>
+                        {evaluationMode === 'QUICK' ? 'Quick' : 'Full'}
+                      </span>
+                    </div>
+                    {!selfEvalLocked && evaluationMode === 'QUICK' && (
+                      <button
+                        onClick={handleCopyFromPreviousMonth}
+                        disabled={copyFromPrevious.isPending}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700 disabled:opacity-50"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        {copyFromPrevious.isPending ? 'Đang sao chép...' : 'Copy điểm tháng trước'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Full-mode sub-tabs */}
+                  {evaluationMode === 'FULL' && (
+                    <div className="flex gap-1 mb-4 border-b border-gray-100 overflow-x-auto">
+                      {(['eval', 'goals', 'idp', 'evidence', 'payroll'] as const).map((tab) => {
+                        const labels: Record<string, string> = {
+                          eval: 'Đánh giá',
+                          goals: 'Mục tiêu',
+                          idp: 'Kế hoạch PT',
+                          evidence: 'Bằng chứng',
+                          payroll: 'Ảnh hưởng lương',
+                        };
+                        return (
+                          <button
+                            key={tab}
+                            onClick={() => setFullModeTab(tab)}
+                            className={`px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                              fullModeTab === tab
+                                ? 'text-blue-600 border-b-2 border-blue-600'
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            {labels[tab]}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
+
+                  {/* Full-mode: Goals tab */}
+                  {evaluationMode === 'FULL' && fullModeTab === 'goals' && resolvedEvalId && (
+                    <GoalsForm evaluationId={resolvedEvalId} readOnly={selfEvalLocked} />
+                  )}
+
+                  {/* Full-mode: IDP tab */}
+                  {evaluationMode === 'FULL' && fullModeTab === 'idp' && resolvedEvalId && (
+                    <IDPForm evaluationId={resolvedEvalId} readOnly={selfEvalLocked} />
+                  )}
+
+                  {/* Full-mode: Evidence tab */}
+                  {evaluationMode === 'FULL' && fullModeTab === 'evidence' && (
+                    <div className="space-y-4">
+                      {details.map(d => d.detailId && (
+                        <div key={d.detailId} className="border border-gray-100 rounded-lg p-3">
+                          <p className="text-xs font-medium text-gray-700 mb-2">{d.title}</p>
+                          <EvidenceUpload detailId={d.detailId} readOnly={selfEvalLocked} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Full-mode: Payroll tab */}
+                  {evaluationMode === 'FULL' && fullModeTab === 'payroll' && (
+                    <PayrollImpactPanel preview={payrollPreview} isLoading={payrollLoading} />
+                  )}
+
+                  {/* Evaluation detail tab (both modes show this, Full-mode only when fullModeTab === 'eval') */}
+                  {(evaluationMode === 'QUICK' || fullModeTab === 'eval') && (
+                    <>
+                    {selfEvalLocked && (
+                      <div className="mb-3 sm:mb-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2 sm:gap-3">
+                        <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs sm:text-sm text-blue-700">Bạn đã hoàn thành tự đánh giá. Điểm không thể thay đổi.</p>
+                      </div>
+                    )}
 
                   {/* Acknowledge button when status is COMPLETED */}
                   {evaluationStatus === 'COMPLETED' && (
@@ -489,40 +644,77 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                      <>
                        {/* Mobile: Card layout */}
                        <div className="sm:hidden space-y-3">
-                         {details.map((detail, index) => (
-                           <div key={detail.detailId ?? detail.responsibilityId ?? `detail-${index}`} className="border border-gray-200 rounded-lg p-3 bg-white">
+                         {details.map((detail, index) => {
+                           const detailKey = getDetailKey(detail);
+                           const isNa = naToggles[detail.detailId ?? ''] || detail.notApplicable || false;
+                           const isMasked = detail.masked;
+                           return (
+                           <div key={detail.detailId ?? detail.responsibilityId ?? `detail-${index}`} className={`border rounded-lg p-3 bg-white ${isNa ? 'opacity-60 border-gray-200' : 'border-gray-200'}`}>
                              <div className="flex items-start justify-between gap-2 mb-2">
                                <div className="flex-1 min-w-0">
                                  <p className="text-sm font-medium text-gray-900">{index + 1}. {detail.title}</p>
                                  {detail.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{detail.description}</p>}
                                </div>
-                               <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">{detail.weight}%</span>
+                               <div className="flex items-center gap-1.5 shrink-0">
+                                 <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{detail.weight}%</span>
+                                 {!selfEvalLocked && detail.detailId && (
+                                   <button
+                                     type="button"
+                                     onClick={() => handleToggleNa(detail.detailId!)}
+                                     title={isNa ? 'Bỏ đánh dấu N/A' : 'Đánh dấu không áp dụng (N/A)'}
+                                     className={`p-0.5 rounded ${isNa ? 'text-orange-500' : 'text-gray-300 hover:text-orange-400'}`}
+                                   >
+                                     <MinusCircle className="w-4 h-4" />
+                                   </button>
+                                 )}
+                               </div>
                              </div>
-                             <div className="flex items-center gap-3">
-                               <label className="text-xs text-gray-600 shrink-0">Điểm:</label>
-                               <input
-                                 type="number"
-                                 min="0"
-                                 max="100"
-                                 disabled={selfEvalLocked}
-                                 value={editingScores[getDetailKey(detail)] ?? detail.selfScore ?? ''}
-                                 onChange={(e) => handleScoreChange(getDetailKey(detail), parseNumberInput(e.target.value))}
-                                 className={`w-16 px-2 py-1 border rounded text-sm text-center ${
-                                   selfEvalLocked
-                                     ? 'border-gray-200 bg-gray-100 cursor-not-allowed text-gray-500'
-                                     : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500'
-                                 }`}
-                                 placeholder="0-100"
+                             {isNa ? (
+                               <p className="text-xs text-orange-600 font-medium">N/A — không áp dụng</p>
+                             ) : (
+                               <div className="flex items-center gap-3">
+                                 <label className="text-xs text-gray-600 shrink-0">Điểm:</label>
+                                 <input
+                                   type="number"
+                                   min="0"
+                                   max="100"
+                                   disabled={selfEvalLocked}
+                                   value={editingScores[detailKey] ?? detail.selfScore ?? ''}
+                                   onChange={(e) => handleScoreChange(detailKey, parseNumberInput(e.target.value))}
+                                   className={`w-16 px-2 py-1 border rounded text-sm text-center ${
+                                     selfEvalLocked
+                                       ? 'border-gray-200 bg-gray-100 cursor-not-allowed text-gray-500'
+                                       : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500'
+                                   }`}
+                                   placeholder="0-100"
+                                 />
+                                 {details.some(d => d.supervisorScore1 != null || d.masked) && (
+                                   <span className="text-xs text-gray-500">
+                                     CT1: {isMasked ? (
+                                       <span className="inline-flex items-center gap-0.5 text-gray-400">
+                                         <Lock className="w-3 h-3" />
+                                       </span>
+                                     ) : (detail.supervisorScore1 ?? '-')}
+                                   </span>
+                                 )}
+                                 {details.some(d => d.supervisorScore2 != null) && (
+                                   <span className="text-xs text-gray-500">CT2: {detail.supervisorScore2 ?? '-'}</span>
+                                 )}
+                               </div>
+                             )}
+                             {evaluationMode === 'FULL' && !selfEvalLocked && detail.detailId && (
+                               <textarea
+                                 rows={1}
+                                 value={detailComments[detail.detailId] ?? ''}
+                                 onChange={(e) => setDetailComments(prev => ({ ...prev, [detail.detailId!]: e.target.value }))}
+                                 onBlur={(e) => handleDetailCommentBlur(detail.detailId!, e.target.value)}
+                                 placeholder="Nhận xét chi tiết (tùy chọn)"
+                                 className="mt-2 w-full px-2 py-1 border border-gray-200 rounded text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-700"
                                />
-                               {details.some(d => d.supervisorScore1 != null) && (
-                                 <span className="text-xs text-gray-500">CT1: {detail.supervisorScore1 ?? '-'}</span>
-                               )}
-                               {details.some(d => d.supervisorScore2 != null) && (
-                                 <span className="text-xs text-gray-500">CT2: {detail.supervisorScore2 ?? '-'}</span>
-                               )}
-                             </div>
+                             )}
                            </div>
-                         ))}
+                           );
+                         })}
                        </div>
 
                        {/* Desktop: Table layout */}
@@ -532,9 +724,9 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                              <tr className="bg-gray-50 border-b border-gray-200">
                                <th className="px-4 py-3 text-left font-semibold text-gray-700">STT</th>
                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Tiêu chí đánh giá</th>
-                               <th className="px-4 py-3 text-left font-semibold text-gray-700">Trọng số</th>
+                               <th className="px-3 py-3 text-center font-semibold text-gray-700">Trọng số</th>
                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Tự đánh giá</th>
-                               {details.some(d => d.supervisorScore1 != null) && (
+                               {details.some(d => d.supervisorScore1 != null || d.masked) && (
                                  <th className="px-4 py-3 text-center font-semibold text-gray-700">
                                    {supervisor1Name || 'Cấp trên 1'}
                                  </th>
@@ -544,38 +736,70 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                                    {supervisor2Name || 'Cấp trên 2'}
                                  </th>
                                )}
+                               {evaluationMode === 'FULL' && !selfEvalLocked && (
+                                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Nhận xét</th>
+                               )}
                              </tr>
                            </thead>
                            <tbody>
-                             {details.map((detail, index) => (
-                               <tr key={detail.detailId ?? detail.responsibilityId ?? `detail-${index}`} className="border-b border-gray-200 hover:bg-gray-50">
+                             {details.map((detail, index) => {
+                               const detailKey = getDetailKey(detail);
+                               const isNa = naToggles[detail.detailId ?? ''] || detail.notApplicable || false;
+                               const isMasked = detail.masked;
+                               return (
+                               <tr key={detail.detailId ?? detail.responsibilityId ?? `detail-${index}`} className={`border-b border-gray-200 ${isNa ? 'bg-gray-50' : 'hover:bg-gray-50'}`}>
                                  <td className="px-4 py-3 text-gray-700">{index + 1}</td>
                                  <td className="px-4 py-3">
                                    <div>
-                                     <p className="font-medium text-gray-900">{detail.title}</p>
-                                     <p className="text-xs text-gray-600 mt-1">{detail.description}</p>
+                                     <p className={`font-medium ${isNa ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{detail.title}</p>
+                                     <p className="text-xs text-gray-500 mt-1">{detail.description}</p>
                                    </div>
                                  </td>
-                                 <td className="px-4 py-3 text-gray-700">{detail.weight}%</td>
-                                 <td className="px-4 py-3">
-                                   <input
-                                     type="number"
-                                     min="0"
-                                     max="100"
-                                     disabled={selfEvalLocked}
-                                     value={editingScores[getDetailKey(detail)] ?? detail.selfScore ?? ''}
-                                     onChange={(e) => handleScoreChange(getDetailKey(detail), parseNumberInput(e.target.value))}
-                                     className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                       selfEvalLocked
-                                         ? 'border-gray-200 bg-gray-100 cursor-not-allowed text-gray-500'
-                                         : 'border-gray-300'
-                                     }`}
-                                     placeholder="0-100"
-                                   />
+                                 <td className="px-3 py-3 text-center text-gray-700">
+                                   <div className="flex items-center justify-center gap-1">
+                                     <span>{detail.weight}%</span>
+                                     {!selfEvalLocked && detail.detailId && (
+                                       <button
+                                         type="button"
+                                         onClick={() => handleToggleNa(detail.detailId!)}
+                                         title={isNa ? 'Bỏ N/A' : 'Đánh dấu N/A'}
+                                         className={`p-0.5 rounded transition-colors ${isNa ? 'text-orange-500' : 'text-gray-300 hover:text-orange-400'}`}
+                                       >
+                                         <MinusCircle className="w-3.5 h-3.5" />
+                                       </button>
+                                     )}
+                                   </div>
                                  </td>
-                                 {details.some(d => d.supervisorScore1 != null) && (
+                                 <td className="px-4 py-3">
+                                   {isNa ? (
+                                     <span className="text-xs text-orange-600 font-medium">N/A</span>
+                                   ) : (
+                                     <input
+                                       type="number"
+                                       min="0"
+                                       max="100"
+                                       disabled={selfEvalLocked}
+                                       value={editingScores[detailKey] ?? detail.selfScore ?? ''}
+                                       onChange={(e) => handleScoreChange(detailKey, parseNumberInput(e.target.value))}
+                                       className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                         selfEvalLocked
+                                           ? 'border-gray-200 bg-gray-100 cursor-not-allowed text-gray-500'
+                                           : 'border-gray-300'
+                                       }`}
+                                       placeholder="0-100"
+                                     />
+                                   )}
+                                 </td>
+                                 {details.some(d => d.supervisorScore1 != null || d.masked) && (
                                    <td className="px-4 py-3 text-center text-gray-700">
-                                     {detail.supervisorScore1 != null ? detail.supervisorScore1 : '-'}
+                                     {isMasked ? (
+                                       <span className="inline-flex items-center gap-1 text-xs text-gray-400" title="Sẽ hiện sau khi bạn chấm 1 tiêu chí đầu tiên">
+                                         <Lock className="w-3.5 h-3.5" />
+                                         <span className="hidden lg:inline">Ẩn</span>
+                                       </span>
+                                     ) : (
+                                       detail.supervisorScore1 != null ? detail.supervisorScore1 : '-'
+                                     )}
                                    </td>
                                  )}
                                  {details.some(d => d.supervisorScore2 != null) && (
@@ -583,14 +807,60 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                                      {detail.supervisorScore2 != null ? detail.supervisorScore2 : '-'}
                                    </td>
                                  )}
+                                 {evaluationMode === 'FULL' && !selfEvalLocked && (
+                                   <td className="px-4 py-3">
+                                     {detail.detailId ? (
+                                       <textarea
+                                         rows={2}
+                                         value={detailComments[detail.detailId] ?? ''}
+                                         onChange={(e) => setDetailComments(prev => ({ ...prev, [detail.detailId!]: e.target.value }))}
+                                         onBlur={(e) => handleDetailCommentBlur(detail.detailId!, e.target.value)}
+                                         placeholder="Nhận xét (tùy chọn)"
+                                         className="w-full px-2 py-1 border border-gray-300 rounded text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                       />
+                                     ) : null}
+                                   </td>
+                                 )}
                                </tr>
-                             ))}
+                               );
+                             })}
                            </tbody>
                          </table>
                        </div>
                      </>
                      )}
                    </div>
+
+                   {/* Overall comment textarea */}
+                   {!selfEvalLocked && (
+                     <div className="mb-4">
+                       <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                         Nhận xét chung {evaluationMode === 'QUICK' ? '' : '(tùy chọn)'}
+                       </label>
+                       <textarea
+                         rows={3}
+                         value={overallComment}
+                         onChange={(e) => setOverallComment(e.target.value)}
+                         onBlur={async () => {
+                           if (!resolvedEvalId) return;
+                           try {
+                             await updateComment.mutateAsync({
+                               evaluationId: resolvedEvalId,
+                               body: { role: 'employee', comment: overallComment },
+                             });
+                           } catch { /* non-blocking */ }
+                         }}
+                         placeholder="Thêm nhận xét chung về kỳ đánh giá này..."
+                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       />
+                     </div>
+                   )}
+                   {selfEvalLocked && overallComment && (
+                     <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                       <p className="text-xs font-medium text-gray-500 mb-1">Nhận xét chung</p>
+                       <p className="text-sm text-gray-700">{overallComment}</p>
+                     </div>
+                   )}
 
                    {/* Summary + Save All */}
                    {!selfEvalLocked && (
@@ -608,6 +878,9 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                        </button>
                      </div>
                    )}
+                    </>
+                  )}
+
                 </>
               )}
 
@@ -910,7 +1183,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                               <div className="flex justify-between">
                                 <span className="text-gray-500">Tự ĐG:</span>
-                                <span className="font-bold text-blue-600">{item.selfScore.toFixed(1)}</span>
+                                <span className="font-bold text-blue-600">{item.selfScore != null ? item.selfScore.toFixed(1) : '-'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-500">Tổng:</span>
@@ -964,7 +1237,11 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                                 <p className="text-xs text-gray-500">{new Date(item.updatedAt).toLocaleDateString('vi-VN')}</p>
                               </td>
                               <td className="px-4 py-3 text-center">
-                                <span className="text-lg font-bold text-blue-600">{item.selfScore.toFixed(1)}</span>
+                                {item.selfScore != null ? (
+                                  <span className="text-lg font-bold text-blue-600">{item.selfScore.toFixed(1)}</span>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
                               </td>
                               {history.some(h => h.supervisorScore1 != null) && (
                                 <td className="px-4 py-3 text-center">

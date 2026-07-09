@@ -159,6 +159,7 @@ Copy `.env.production.example` → `.env` ở root. Dev local chỉ cần `DATAB
 | `backend/prisma/schema.prisma` | Migration conflicts, data loss | Backup DB trước khi migrate prod |
 | `frontend/src/components/ChatWidget.tsx` | Agent action parsing, streaming state | Test với cả write và read actions |
 | `backend/src/routes/index.ts` (ROUTE_MAP) | Route bị bỏ sót, silently ignored | Verify route mới xuất hiện trong server logs |
+| `backend/src/services/employeeEvaluationService.ts` | BS1 masking / audit invariants / N/A math / appeal window / mode branching | Chạy `npx jest src/__tests__/employeeEvaluationService.test.ts --runInBand` sau mỗi thay đổi; kiểm tra masking + audit + N/A rule vẫn hoạt động (change: enhance-employee-evaluation) |
 
 ---
 

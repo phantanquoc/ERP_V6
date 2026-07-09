@@ -204,3 +204,71 @@ export type CreateQuotationRequestInput = z.infer<typeof createQuotationRequestS
 export type CreateQuotationInput = z.infer<typeof createQuotationSchema>;
 export type CreateSystemOperationInput = z.infer<typeof createSystemOperationSchema>;
 
+// ==================== EMPLOYEE EVALUATION SCHEMAS ====================
+
+export const updateEvaluationCommentSchema = z.object({
+  role: z.enum(['employee', 'sup1', 'sup2']),
+  comment: z.string().max(4000, 'Nhận xét không được quá 4000 ký tự'),
+});
+
+export const toggleNotApplicableSchema = z.object({
+  notApplicable: z.boolean(),
+});
+
+export const submitAppealSchema = z.object({
+  appealComment: z.string()
+    .min(1, 'Nội dung khiếu nại là bắt buộc')
+    .max(4000, 'Nội dung khiếu nại không được quá 4000 ký tự'),
+});
+
+export const replyAppealSchema = z.object({
+  appealResponse: z.string()
+    .min(1, 'Nội dung phản hồi là bắt buộc')
+    .max(4000, 'Nội dung phản hồi không được quá 4000 ký tự'),
+});
+
+export const createGoalSchema = z.object({
+  title: z.string().min(1, 'Tiêu đề mục tiêu là bắt buộc').max(500),
+  description: z.string().max(2000).optional(),
+  targetPeriod: z.string().min(1, 'Kỳ mục tiêu là bắt buộc').max(20),
+});
+
+export const updateGoalSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  description: z.string().max(2000).optional().nullable(),
+  targetPeriod: z.string().min(1).max(20).optional(),
+});
+
+export const createIdpItemSchema = z.object({
+  skill: z.string().min(1, 'Kỹ năng là bắt buộc').max(500),
+  action: z.string().min(1, 'Hành động là bắt buộc').max(2000),
+  deadline: z.string().min(1, 'Deadline là bắt buộc'),
+});
+
+export const updateIdpItemSchema = z.object({
+  skill: z.string().min(1).max(500).optional(),
+  action: z.string().min(1).max(2000).optional(),
+  deadline: z.string().optional(),
+});
+
+export const invitePeersSchema = z.object({
+  inviteeUserIds: z.array(z.string().min(1)).min(2, 'Cần ít nhất 2 người').max(3, 'Tối đa 3 người'),
+});
+
+export const submitPeerFeedbackSchema = z.object({
+  strength: z.string().min(1, 'Điểm mạnh là bắt buộc').max(2000),
+  weakness: z.string().min(1, 'Điểm yếu là bắt buộc').max(2000),
+  suggestion: z.string().max(2000).optional(),
+});
+
+export type UpdateEvaluationCommentInput = z.infer<typeof updateEvaluationCommentSchema>;
+export type ToggleNotApplicableInput = z.infer<typeof toggleNotApplicableSchema>;
+export type SubmitAppealInput = z.infer<typeof submitAppealSchema>;
+export type ReplyAppealInput = z.infer<typeof replyAppealSchema>;
+export type CreateGoalInput = z.infer<typeof createGoalSchema>;
+export type UpdateGoalInput = z.infer<typeof updateGoalSchema>;
+export type CreateIdpItemInput = z.infer<typeof createIdpItemSchema>;
+export type UpdateIdpItemInput = z.infer<typeof updateIdpItemSchema>;
+export type InvitePeersInput = z.infer<typeof invitePeersSchema>;
+export type SubmitPeerFeedbackInput = z.infer<typeof submitPeerFeedbackSchema>;
+

@@ -1,10 +1,11 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, ClipboardList, ShieldCheck, Briefcase, Calculator, ShoppingCart, Factory, Wrench, Settings, ChevronDown, ChevronRight, ChevronLeft, ScanFace, BookOpen, History, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, ShieldCheck, Briefcase, Calculator, ShoppingCart, Factory, Wrench, Settings, ChevronDown, ChevronRight, ChevronLeft, ScanFace, BookOpen, History, Bell, BarChart2 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { hasModuleAccess, hasSubModuleAccess, isAdmin } from '../utils/permissions';
 import { useQuery } from '@tanstack/react-query';
 import notificationService from '../services/notificationService';
+import { UserRole } from '../types/auth';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -272,6 +273,21 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
             <span className={`text-gray-500 ${collapsed ? '' : 'mr-3'}`}><BookOpen size={20} /></span>
             {!collapsed && <span className="font-medium">Hướng dẫn</span>}
           </Link>
+
+          {user && (user.role === UserRole.ADMIN || user.role === UserRole.DEPARTMENT_HEAD) && (
+            <Link
+              to="/dashboard/evaluation-calibration"
+              className={`flex items-center px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
+                location.pathname === '/dashboard/evaluation-calibration'
+                  ? 'bg-gray-800 text-white'
+                  : 'text-gray-400 hover:bg-gray-800/50 hover:text-white'
+              }`}
+              title={collapsed ? 'Phân bố điểm đánh giá' : ''}
+            >
+              <span className={`text-gray-500 ${collapsed ? '' : 'mr-3'}`}><BarChart2 size={20} /></span>
+              {!collapsed && <span className="font-medium">Phân bố điểm</span>}
+            </Link>
+          )}
 
           {user && isAdmin(user.department) && (
             <>
