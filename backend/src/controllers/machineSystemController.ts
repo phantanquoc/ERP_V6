@@ -213,7 +213,10 @@ class MachineSystemController {
 
   /**
    * GET /api/machine-systems/active-production
-   * Returns machines with loaiHeThong ∈ {SAN_XUAT, DONG_GOI, BAO_QUAN} and trangThai = HOAT_DONG.
+   * Returns machines with loaiHeThong = SAN_XUAT (nồi chiên chân không) and trangThai = HOAT_DONG.
+   * SystemOperation only stores frying-specific parameters (maChien, thoiGianChien,
+   * khoiLuongDauVao, 4 giai đoạn thời gian/nhiệt độ/áp suất), which are meaningless for
+   * DONG_GOI/BAO_QUAN machines — so the "Dữ liệu sản xuất" tabs are scoped to SAN_XUAT only.
    * This is the single source of truth for the "active fryer machine" set used by the
    * frontend (replaces the old regex-based filter).
    */
@@ -221,8 +224,6 @@ class MachineSystemController {
     try {
       const productionCategories: MachineSystemCategory[] = [
         MachineSystemCategory.SAN_XUAT,
-        MachineSystemCategory.DONG_GOI,
-        MachineSystemCategory.BAO_QUAN,
       ];
       const data = await machineSystemService.getActiveProductionMachines(productionCategories);
       res.json({ success: true, data });

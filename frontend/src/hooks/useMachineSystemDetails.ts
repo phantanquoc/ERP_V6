@@ -36,7 +36,7 @@ export const useMachineSystems = (filters: MachineSystemFilters = {}) =>
 
 /**
  * Returns machines eligible for system operations.
- * Uses the unified backend endpoint: loaiHeThong ∈ {SAN_XUAT, DONG_GOI, BAO_QUAN} + trangThai = HOAT_DONG.
+ * Uses the unified backend endpoint: loaiHeThong = SAN_XUAT (nồi chiên chân không) + trangThai = HOAT_DONG.
  * This replaces the old regex-based filter on the frontend.
  */
 export const useActiveFryerMachineSystems = () =>

@@ -62,11 +62,10 @@ export class SystemOperationService {
       throw new ValidationError(`Mã chiên "${maChien}" đã tồn tại. Mỗi mã chiên chỉ được tạo thông số vận hành 1 lần duy nhất.`);
     }
 
-    // Get active machine systems that belong to production categories (SAN_XUAT, DONG_GOI, BAO_QUAN)
+    // Get active machine systems that belong to the production category (SAN_XUAT only —
+    // SystemOperation stores frying-specific parameters, not meaningful for DONG_GOI/BAO_QUAN)
     const productionCategories: MachineSystemCategory[] = [
       MachineSystemCategory.SAN_XUAT,
-      MachineSystemCategory.DONG_GOI,
-      MachineSystemCategory.BAO_QUAN,
     ];
     const machineSystems = await prisma.machineSystem.findMany({
       where: {
