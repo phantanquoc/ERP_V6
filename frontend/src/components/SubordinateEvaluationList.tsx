@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, CheckCircle, Clock, ChevronDown, ChevronRight, Search, ClipboardEdit } from 'lucide-react';
-import employeeEvaluationService, { EvaluationDetailsResponse } from '@services/employeeEvaluationService';
+import { Eye, CheckCircle, Clock, ChevronDown, ChevronRight, Search, ClipboardEdit, Zap, Lock } from 'lucide-react';
+import employeeEvaluationService, { EvaluationDetailsResponse, EvaluationMode } from '@services/employeeEvaluationService';
 
 interface Subordinate {
   userId: string;
@@ -10,12 +10,13 @@ interface Subordinate {
   positionName: string;
   evaluationId: string;
   period: string;
-  selfScorePercentage: number;
-  supervisorScore1Percentage: number;
-  supervisorScore2Percentage: number;
+  selfScorePercentage: number | null;
+  supervisorScore1Percentage: number | null;
+  supervisorScore2Percentage: number | null;
   status: string;
   isSupervisor1: boolean;
   isSupervisor2: boolean;
+  mode?: EvaluationMode;
 }
 
 interface SubordinateEvaluationListProps {
@@ -70,6 +71,30 @@ function getWaitingFor(s: Subordinate): string {
   return statusMap[s.status] || s.status;
 }
 
+function getModeBadge(mode?: EvaluationMode) {
+  if (!mode) return null;
+  return mode === 'QUICK' ? (
+    <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-800">Quick</span>
+  ) : (
+    <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-indigo-100 text-indigo-800">Full</span>
+  );
+}
+
+function renderScore(value: number | null) {
+  if (value === null || value === undefined) {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 text-gray-400"
+        title="Điểm bị ẩn (BS1 — sẽ hiện sau khi bạn chấm 1 tiêu chí đầu tiên)"
+      >
+        <Lock className="w-3 h-3" />
+        <span>–</span>
+      </span>
+    );
+  }
+  return <span>{value.toFixed(1)}%</span>;
+}
+
 interface SectionProps {
   title: string;
   count: number;
@@ -105,6 +130,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterOption>('all');
   const [actionError, setActionError] = useState('');
+  const [bulkQuickModalOpen, setBulkQuickModalOpen] = useState(false);
 
   useEffect(() => {
     loadSubordinates();
@@ -275,12 +301,27 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
           defaultOpen={true}
           accentClass="bg-blue-50 text-blue-800"
         >
+          {grouped.mine.some(s => s.mode === 'QUICK') && (
+            <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+              <span className="text-xs text-amber-700">
+                {grouped.mine.filter(s => s.mode === 'QUICK').length} nhân viên Quick mode
+              </span>
+              <button
+                onClick={() => setBulkQuickModalOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-800 bg-amber-100 border border-amber-300 rounded-md hover:bg-amber-200 transition-colors"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Chấm nhanh Quick
+              </button>
+            </div>
+          )}
           <table className="w-full">
             <thead className="bg-blue-50 border-b border-blue-100">
               <tr>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">MNV</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tên NV</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Vị trí</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Mode</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Tự ĐG</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Vai trò</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Hành động</th>
@@ -292,7 +333,8 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                   <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
                   <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
-                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{s.selfScorePercentage.toFixed(1)}%</td>
+                  <td className="px-4 py-2.5 text-center">{getModeBadge(s.mode)}</td>
+                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{renderScore(s.selfScorePercentage)}</td>
                   <td className="px-4 py-2.5 text-center">{getRoleBadge(s)}</td>
                   <td className="px-4 py-2.5 text-center">
                     <button
@@ -323,6 +365,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">MNV</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tên NV</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Vị trí</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Mode</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Vai trò</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Trạng thái</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Hành động</th>
@@ -334,6 +377,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                   <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
                   <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
+                  <td className="px-4 py-2.5 text-center">{getModeBadge(s.mode)}</td>
                   <td className="px-4 py-2.5 text-center">{getRoleBadge(s)}</td>
                   <td className="px-4 py-2.5 text-center">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -370,6 +414,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">MNV</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tên NV</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Vị trí</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Mode</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Vai trò</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Đang chờ</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Hành động</th>
@@ -381,6 +426,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                   <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
                   <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
+                  <td className="px-4 py-2.5 text-center">{getModeBadge(s.mode)}</td>
                   <td className="px-4 py-2.5 text-center">{getRoleBadge(s)}</td>
                   <td className="px-4 py-2.5 text-center">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
@@ -417,6 +463,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">MNV</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tên NV</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Vị trí</th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Mode</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Vai trò</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">Tự ĐG</th>
                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-600">CT1</th>
@@ -430,10 +477,11 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                   <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
                   <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
+                  <td className="px-4 py-2.5 text-center">{getModeBadge(s.mode)}</td>
                   <td className="px-4 py-2.5 text-center">{getRoleBadge(s)}</td>
-                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{s.selfScorePercentage.toFixed(1)}%</td>
-                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{s.supervisorScore1Percentage.toFixed(1)}%</td>
-                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{s.supervisorScore2Percentage.toFixed(1)}%</td>
+                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{renderScore(s.selfScorePercentage)}</td>
+                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{renderScore(s.supervisorScore1Percentage)}</td>
+                  <td className="px-4 py-2.5 text-center text-sm text-gray-700">{renderScore(s.supervisorScore2Percentage)}</td>
                   <td className="px-4 py-2.5 text-center">
                     <button
                       onClick={() => handleViewEvaluation(s)}
@@ -450,6 +498,63 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
           </table>
         </Section>
       </div>
+
+      {/* Bulk Quick Score Modal */}
+      {bulkQuickModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setBulkQuickModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500" />
+                Chấm nhanh Quick mode
+              </h3>
+              <button
+                onClick={() => setBulkQuickModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Danh sách nhân viên Quick mode cần bạn đánh giá. Bấm <strong>Đánh giá</strong> để chấm từng người.
+            </p>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {grouped.mine.filter(s => s.mode === 'QUICK').map(s => (
+                <div key={s.employeeId} className="flex items-center justify-between p-2.5 border border-gray-200 rounded-md hover:bg-gray-50">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{s.employeeName}</p>
+                    <p className="text-xs text-gray-500">{s.employeeCode} · {s.positionName}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setBulkQuickModalOpen(false);
+                      handleViewEvaluation(s);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                  >
+                    <ClipboardEdit className="w-3.5 h-3.5" />
+                    Đánh giá
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setBulkQuickModalOpen(false)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

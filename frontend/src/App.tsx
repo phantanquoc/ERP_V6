@@ -69,6 +69,9 @@ const FaceKioskPageV3 = React.lazy(() => import('./pages/face/FaceKioskPageV3'))
 // Documentation
 const DocumentationGuide = React.lazy(() => import('./pages/DocumentationGuide'));
 
+// Evaluation Calibration
+const EvaluationCalibrationPage = React.lazy(() => import('./pages/EvaluationCalibrationPage'));
+
 // My History
 const MyHistory = React.lazy(() => import('./pages/MyHistory'));
 
@@ -278,6 +281,9 @@ function App() {
 
             {/* My Notifications */}
             <Route path="/my-notifications" element={<MyNotifications />} />
+
+            {/* Evaluation Calibration — ADMIN and DEPARTMENT_HEAD only */}
+            <Route path="/dashboard/evaluation-calibration" element={<EvaluationCalibrationPage />} />
           </Route>
         </Routes>
         </Suspense>

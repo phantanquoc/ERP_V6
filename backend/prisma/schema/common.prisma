@@ -31,6 +31,7 @@ model Position {
   code             String                   @unique
   name             String                   @unique
   description      String?
+  category         PositionCategory         @default(OFFICE)
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
   employees        Employee[]
@@ -156,20 +157,38 @@ model Responsibility {
 }
 
 model Evaluation {
-  id             String             @id @default(cuid())
-  employeeId     String
-  period         String
-  score          Float
-  comment        String?
-  status         String             @default("SELF_PENDING")
-  evaluatedBy1Id String?            @db.VarChar(30)
-  evaluatedBy2Id String?            @db.VarChar(30)
-  acknowledgedAt DateTime?
-  acknowledgedBy String?            @db.VarChar(30)
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  details        EvaluationDetail[]
-  employee       Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id                    String                  @id @default(cuid())
+  employeeId            String
+  period                String
+  score                 Float
+  comment               String?
+  status                String                  @default("SELF_PENDING")
+  evaluatedBy1Id        String?                 @db.VarChar(30)
+  evaluatedBy2Id        String?                 @db.VarChar(30)
+  acknowledgedAt        DateTime?
+  acknowledgedBy        String?                 @db.VarChar(30)
+  // New fields (enhance-employee-evaluation)
+  mode                  EvaluationMode          @default(FULL)
+  commentEmployee       String?
+  commentSup1           String?
+  commentSup2           String?
+  selfScorePercentage   Float?
+  sup1Percentage        Float?
+  sup2Percentage        Float?
+  appealComment         String?
+  appealResponse        String?
+  appealedAt            DateTime?
+  appealRespondedAt     DateTime?
+  appealResponderId     String?                 @db.VarChar(30)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  details               EvaluationDetail[]
+  employee              Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  goals                 EvaluationGoal[]
+  idpItems              EvaluationIdpItem[]
+  auditLogs             EvaluationAuditLog[]
+  peerInvites           PeerFeedbackInvite[]
+  peerFeedbacks         EvaluationPeerFeedback[]
 
   @@unique([employeeId, period])
   @@map("evaluations")
@@ -183,11 +202,19 @@ model EvaluationDetail {
   selfScore                Float?
   supervisorScore1         Float?
   supervisorScore2         Float?
-  comment                  String?
+  // Legacy 'comment' renamed to commentSup1 (migrate: rename column)
+  commentSup1              String?
+  // New per-role comment fields
+  commentEmployee          String?
+  commentSup2              String?
+  // N/A flag — excluded from weighted average when true
+  notApplicable            Boolean                @default(false)
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   evaluation               Evaluation             @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   positionResponsibility   PositionResponsibility @relation(fields: [positionResponsibilityId], references: [id], onDelete: Cascade)
+  evidences                EvaluationEvidence[]
+  auditLogs                EvaluationAuditLog[]
 
   @@unique([evaluationId, positionResponsibilityId])
   @@map("evaluation_details")
@@ -1204,5 +1231,149 @@ model AuditLog {
   @@index([actorId])
   @@index([createdAt])
   @@map("audit_logs")
+  @@schema("common")
+}
+
+// ─── Evaluation enhancement models ───────────────────────────────────────────
+
+model EvaluationEvidence {
+  id                 String           @id @default(cuid())
+  evaluationDetailId String
+  uploadedByUserId   String
+  fileName           String
+  filePath           String
+  mimeType           String
+  fileSize           Int
+  createdAt          DateTime         @default(now())
+  evaluationDetail   EvaluationDetail @relation(fields: [evaluationDetailId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationDetailId])
+  @@map("evaluation_evidences")
+  @@schema("common")
+}
+
+model EvaluationGoal {
+  id           String     @id @default(cuid())
+  evaluationId String
+  orderIndex   Int
+  title        String
+  description  String?
+  targetPeriod String     // YYYY-MM — the next period this goal applies to
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationId, orderIndex])
+  @@map("evaluation_goals")
+  @@schema("common")
+}
+
+model EvaluationIdpItem {
+  id           String     @id @default(cuid())
+  evaluationId String
+  orderIndex   Int
+  skill        String
+  action       String
+  deadline     DateTime
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationId, orderIndex])
+  @@map("evaluation_idp_items")
+  @@schema("common")
+}
+
+model EvaluationAuditLog {
+  id                 String               @id @default(cuid())
+  evaluationId       String
+  evaluationDetailId String?
+  changedByUserId    String?
+  action             EvaluationAuditAction
+  field              String
+  oldValue           String?
+  newValue           String?
+  createdAt          DateTime             @default(now())
+  evaluation         Evaluation           @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  evaluationDetail   EvaluationDetail?    @relation(fields: [evaluationDetailId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationId, createdAt(sort: Desc)])
+  @@index([evaluationDetailId])
+  @@map("evaluation_audit_logs")
+  @@schema("common")
+}
+
+model PeerFeedbackInvite {
+  id             String          @id @default(cuid())
+  evaluationId   String
+  inviteeUserId  String
+  invitedByUserId String
+  status         PeerInviteStatus @default(PENDING)
+  token          String           @unique
+  createdAt      DateTime         @default(now())
+  respondedAt    DateTime?
+  evaluation     Evaluation       @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@unique([evaluationId, inviteeUserId])
+  @@index([token])
+  @@index([evaluationId])
+  @@map("peer_feedback_invites")
+  @@schema("common")
+}
+
+model EvaluationPeerFeedback {
+  id           String     @id @default(cuid())
+  evaluationId String
+  strength     String
+  weakness     String
+  suggestion   String
+  createdAt    DateTime   @default(now())
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationId])
+  @@map("evaluation_peer_feedbacks")
+  @@schema("common")
+}
+
+// ─── New enums ────────────────────────────────────────────────────────────────
+
+enum PositionCategory {
+  PRODUCTION
+  OFFICE
+  MANAGEMENT
+
+  @@schema("common")
+}
+
+enum EvaluationMode {
+  QUICK
+  FULL
+
+  @@schema("common")
+}
+
+enum EvaluationAuditAction {
+  SCORE_UPDATE
+  COMMENT_UPDATE
+  STATUS_TRANSITION
+  NA_TOGGLE
+  APPEAL_SUBMIT
+  APPEAL_REPLY
+  EVIDENCE_ADD
+  EVIDENCE_DELETE
+  GOAL_UPDATE
+  IDP_UPDATE
+  PEER_INVITE
+  PEER_SUBMIT
+
+  @@schema("common")
+}
+
+enum PeerInviteStatus {
+  PENDING
+  SUBMITTED
+  DECLINED
+  EXPIRED
+
   @@schema("common")
 }

@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import { computeKpiDeduction } from '@utils/payroll';
 import ExcelJS from 'exceljs';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
@@ -121,9 +122,7 @@ export class PayrollService {
           evaluation.details as any,
           'supervisorScore2'
         );
-        kpiDeduction = kpiBonus > 0
-          ? Math.round((kpiBonus * (100 - supervisorScore2Percentage)) / 100)
-          : 0;
+        kpiDeduction = computeKpiDeduction(kpiBonus, supervisorScore2Percentage);
         evaluationPending = false;
       }
 
@@ -313,9 +312,7 @@ export class PayrollService {
         evaluation.details as any,
         'supervisorScore2'
       );
-      kpiDeduction = kpiBonus > 0
-        ? Math.round((kpiBonus * (100 - supervisorScore2Percentage)) / 100)
-        : 0;
+      kpiDeduction = computeKpiDeduction(kpiBonus, supervisorScore2Percentage);
     }
 
     // Calculate total deductions
@@ -446,9 +443,7 @@ export class PayrollService {
         updateEvaluation.details as any,
         'supervisorScore2'
       );
-      kpiDeduction = kpiBonus > 0
-        ? Math.round((kpiBonus * (100 - supervisorScore2Percentage)) / 100)
-        : 0;
+      kpiDeduction = computeKpiDeduction(kpiBonus, supervisorScore2Percentage);
     }
 
     const totalDeductions =

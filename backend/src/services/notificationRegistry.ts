@@ -715,6 +715,25 @@ const entries: NotificationEventDef[] = [
     }),
     resolveRecipients: resolveDirectRecipients,
   },
+  // ─── Evaluation reminders ────────────────────────────────────────────────
+  {
+    event: NotificationEvent.EVALUATION_REMINDER_SELF_PENDING,
+    notificationType: NotificationType.EVALUATION,
+    buildMessage: (ctx) => ({
+      title: 'Nhắc nhở: Chưa hoàn thành tự đánh giá',
+      message: `Còn 7 ngày để hoàn thành tự đánh giá tháng ${ctx.metadata?.period ?? ''}. Vui lòng hoàn thành trước khi kết thúc tháng.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.EVALUATION_REMINDER_SUPERVISOR_PENDING,
+    notificationType: NotificationType.EVALUATION,
+    buildMessage: (ctx) => ({
+      title: 'Nhắc nhở: Còn nhân viên chờ đánh giá',
+      message: `Còn 3 ngày để hoàn thành đánh giá cấp dưới tháng ${ctx.metadata?.period ?? ''}. Vui lòng duyệt kịp thời.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
 ];
 
 /* ─── Build Registry Map ───────────────────────────────────────────────────── */

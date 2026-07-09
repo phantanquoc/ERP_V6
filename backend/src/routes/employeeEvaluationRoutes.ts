@@ -1,10 +1,50 @@
 import { Router } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import rateLimit from 'express-rate-limit';
 import employeeEvaluationController from '@controllers/employeeEvaluationController';
 import { authenticate, authorize } from '@middlewares/auth';
 import { checkAccess } from '@middlewares/rbacAbac';
 import { UserRole } from '@types';
 
 const router = Router();
+
+// ─── Multer config for evidence uploads ─────────────────────────────────────
+
+const uploadDir = path.resolve(process.cwd(), 'uploads', 'evaluation-evidence-tmp');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const evidenceStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+});
+
+const evidenceUpload = multer({
+  storage: evidenceStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB — service also validates
+});
+
+// ─── Rate limiter for PDF exports (20 req/min per user) ─────────────────────
+
+const pdfLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: (req: any) => req.user?.id ?? req.ip ?? 'unknown',
+  message: { success: false, message: 'Quá nhiều yêu cầu xuất PDF, vui lòng thử lại sau 1 phút' },
+});
+
+// Export route — must be registered before any parameterized routes
+router.get(
+  '/export.xlsx',
+  authenticate,
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  employeeEvaluationController.exportXlsx
+);
 
 /**
  * @swagger
@@ -433,6 +473,132 @@ router.get(
   authenticate,
   authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
   employeeEvaluationController.getSubordinatesForEvaluation
+);
+
+// ─── Comment update (eval-level) ──────────────────────────────────────────
+router.patch(
+  '/evaluations/:id/comment',
+  authenticate,
+  employeeEvaluationController.updateEvaluationComment
+);
+
+// ─── N/A toggle ───────────────────────────────────────────────────────────
+router.patch(
+  '/evaluations/details/:detailId/na',
+  authenticate,
+  employeeEvaluationController.toggleNotApplicable
+);
+
+// ─── Evidence ──────────────────────────────────────────────────────────────
+router.post(
+  '/evaluations/details/:detailId/evidence',
+  authenticate,
+  evidenceUpload.single('file'),
+  employeeEvaluationController.uploadEvidence
+);
+
+router.delete(
+  '/evaluations/evidence/:evidenceId',
+  authenticate,
+  employeeEvaluationController.deleteEvidence
+);
+
+router.get(
+  '/evaluations/details/:detailId/evidence',
+  authenticate,
+  employeeEvaluationController.listEvidence
+);
+
+// ─── Appeal ────────────────────────────────────────────────────────────────
+router.post(
+  '/evaluations/:id/appeal',
+  authenticate,
+  authorize('EMPLOYEE'),
+  employeeEvaluationController.submitAppeal
+);
+
+router.post(
+  '/evaluations/:id/appeal/reply',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
+  employeeEvaluationController.replyAppeal
+);
+
+// ─── Audit log ─────────────────────────────────────────────────────────────
+router.get(
+  '/evaluations/:id/audit-log',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  employeeEvaluationController.getAuditLog
+);
+
+// ─── Payroll preview ───────────────────────────────────────────────────────
+router.get(
+  '/evaluations/:id/payroll-preview',
+  authenticate,
+  employeeEvaluationController.getPayrollPreview
+);
+
+// ─── PDF export ────────────────────────────────────────────────────────────
+router.get(
+  '/evaluations/:id/pdf',
+  authenticate,
+  pdfLimiter,
+  employeeEvaluationController.getPdf
+);
+
+// ─── Calibration heatmap ───────────────────────────────────────────────────
+router.get(
+  '/calibration/heatmap',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  employeeEvaluationController.getCalibrationHeatmap
+);
+
+// ─── Copy from previous month ─────────────────────────────────────────────
+router.post(
+  '/evaluations/:id/copy-previous-month',
+  authenticate,
+  authorize('EMPLOYEE'),
+  employeeEvaluationController.copyFromPreviousMonth
+);
+
+// ─── Goals CRUD ────────────────────────────────────────────────────────────
+router.get('/evaluations/:id/goals', authenticate, employeeEvaluationController.listGoals);
+router.post('/evaluations/:id/goals', authenticate, employeeEvaluationController.createGoal);
+router.patch('/evaluations/:id/goals/:goalId', authenticate, employeeEvaluationController.updateGoal);
+router.delete('/evaluations/:id/goals/:goalId', authenticate, employeeEvaluationController.deleteGoal);
+
+// ─── IDP CRUD ──────────────────────────────────────────────────────────────
+router.get('/evaluations/:id/idp-items', authenticate, employeeEvaluationController.listIdpItems);
+router.post('/evaluations/:id/idp-items', authenticate, employeeEvaluationController.createIdpItem);
+router.patch('/evaluations/:id/idp-items/:idpItemId', authenticate, employeeEvaluationController.updateIdpItem);
+router.delete('/evaluations/:id/idp-items/:idpItemId', authenticate, employeeEvaluationController.deleteIdpItem);
+
+// ─── Peer feedback ─────────────────────────────────────────────────────────
+router.post(
+  '/evaluations/:id/peer-feedback/invite',
+  authenticate,
+  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
+  employeeEvaluationController.invitePeers
+);
+
+router.post(
+  '/peer-feedback/submit/:token',
+  authenticate,
+  employeeEvaluationController.submitPeerFeedback
+);
+
+router.post(
+  '/peer-feedback/decline/:token',
+  authenticate,
+  employeeEvaluationController.declinePeerFeedback
+);
+
+router.get(
+  '/evaluations/:id/peer-feedback/aggregate',
+  authenticate,
+  employeeEvaluationController.getPeerFeedbackAggregate
 );
 
 export default router;
