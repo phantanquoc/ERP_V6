@@ -17,6 +17,7 @@ const config: Config = {
     '^@types$': '<rootDir>/src/types',
     '^@schemas$': '<rootDir>/src/schemas',
     '^@schemas/(.*)$': '<rootDir>/src/schemas/$1',
+    '^@cron/(.*)$': '<rootDir>/src/cron/$1',
   },
   collectCoverageFrom: [
     'src/**/*.ts',
