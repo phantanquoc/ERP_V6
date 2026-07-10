@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { SystemSettingsProvider } from './contexts/SystemSettingsContext';
 import ProtectedLayout from './components/ProtectedLayout';
+import ProtectedRoute from './components/ProtectedRoute';
 import ProtectedSubRoute from './components/ProtectedSubRoute';
 import ProtectedModuleRoute from './components/ProtectedModuleRoute';
 import AdminRoute from './components/AdminRoute';
@@ -78,6 +79,9 @@ const MyHistory = React.lazy(() => import('./pages/MyHistory'));
 // My Notifications
 const MyNotifications = React.lazy(() => import('./pages/MyNotifications'));
 
+// Production Data Entry (tablet, full-screen)
+const ProductionDataEntry = React.lazy(() => import('./pages/production/ProductionDataEntry'));
+
 function PageTitleUpdater() {
   usePageTitle();
   return null;
@@ -97,6 +101,9 @@ function App() {
           <Route path="/diemdanh/nhanvien" element={<FaceKioskPage />} />
           <Route path="/diemdanh/nhanvien-v2" element={<FaceKioskPageV2 />} />
           <Route path="/diemdanh/nhanvien-v3" element={<FaceKioskPageV3 />} />
+
+          {/* Production Data Entry — authenticated but outside sidebar layout */}
+          <Route path="/production/nhap-lieu" element={<ProtectedRoute><ProductionDataEntry /></ProtectedRoute>} />
 
           {/* Protected Routes — single Layout instance, never unmounts */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
