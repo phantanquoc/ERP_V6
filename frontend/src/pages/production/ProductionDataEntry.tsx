@@ -1,5 +1,4 @@
-import React, { useState, useMemo } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useActiveFryerMachineSystems } from '../../hooks/useMachineSystemDetails';
 import {
   useFryBatchCodes,
@@ -8,8 +7,10 @@ import {
   useUpdateSystemOperationEntry,
   useUpdateFinishedProductEntry,
 } from '../../hooks/useProductionDataEntry';
+import { useProductionEmployees } from '../../hooks/useProductionEmployees';
+import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT } from '../../utils/kioskSession';
 import { parseNumberInput } from '../../utils/numberInput';
-import { Loader2, Save, CheckCircle } from 'lucide-react';
+import { Loader2, Save, CheckCircle, AlertTriangle, User, Eye, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import FryBatchPicker from '../../components/production/FryBatchPicker';
 
@@ -42,13 +43,232 @@ const NumericInput: React.FC<NumericInputProps> = ({ label, value, onChange, uni
   </div>
 );
 
-// ─── PLACEHOLDER_MAIN_CONTENT ────────────────────────────────────────────────
+// ─── Session guard screens ───────────────────────────────────────────────────
+
+const NotActivatedScreen: React.FC = () => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+    <div className="bg-white rounded-xl shadow-sm border p-8 max-w-md w-full text-center">
+      <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+      <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên chưa được kích hoạt</h2>
+      <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
+    </div>
+  </div>
+);
+
+const ExpiredScreen: React.FC = () => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+    <div className="bg-white rounded-xl shadow-sm border p-8 max-w-md w-full text-center">
+      <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+      <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên hết hạn</h2>
+      <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
+    </div>
+  </div>
+);
+
+// ─── Operator Selection Screen ───────────────────────────────────────────────
+
+interface OperatorSelectionProps {
+  onSelect: (name: string) => void;
+}
+
+const OperatorSelection: React.FC<OperatorSelectionProps> = ({ onSelect }) => {
+  const { data: employees, isLoading } = useProductionEmployees();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-lg mx-auto px-4 py-8">
+        <div className="text-center mb-6">
+          <User className="w-10 h-10 text-blue-600 mx-auto mb-3" />
+          <h1 className="text-xl font-semibold text-gray-800">Chọn người thực hiện</h1>
+          <p className="text-sm text-gray-500 mt-1">Chọn tên của bạn trước khi nhập liệu</p>
+        </div>
+        <div className="space-y-2">
+          {employees?.map((emp) => (
+            <button
+              key={emp.id}
+              onClick={() => onSelect(emp.name)}
+              className="w-full min-h-[52px] px-4 py-3 bg-white border border-gray-200 rounded-xl text-left hover:border-blue-400 hover:bg-blue-50 transition-colors"
+            >
+              <span className="text-base font-medium text-gray-800">{emp.name}</span>
+              <span className="text-sm text-gray-400 ml-2">({emp.employeeCode})</span>
+            </button>
+          ))}
+          {(!employees || employees.length === 0) && (
+            <p className="text-center text-gray-500 py-8">Không tìm thấy nhân viên sản xuất.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Preview components ──────────────────────────────────────────────────────
+
+interface OperationPreviewProps {
+  data: {
+    khoiLuongDauVao: number;
+    giaiDoan1: { thoiGian: number; nhietDo: number; apSuat: number };
+    giaiDoan2: { thoiGian: number; nhietDo: number; apSuat: number };
+    giaiDoan3: { thoiGian: number; nhietDo: number; apSuat: number };
+    giaiDoan4: { thoiGian: number; nhietDo: number; apSuat: number };
+    ghiChu: string;
+  };
+  nguoiThucHien: string;
+  onConfirm: () => void;
+  onEdit: () => void;
+  isPending: boolean;
+}
+
+// PLACEHOLDER_PREVIEW_COMPONENTS
+
+const OperationPreview: React.FC<OperationPreviewProps> = ({ data, nguoiThucHien, onConfirm, onEdit, isPending }) => (
+  <div className="max-w-3xl mx-auto px-4 py-6">
+    <div className="bg-white rounded-xl border p-6 space-y-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Eye className="w-5 h-5 text-blue-600" />
+        <h2 className="text-lg font-semibold text-gray-800">Xem lại thông số vận hành</h2>
+      </div>
+      <div className="text-sm space-y-2 text-gray-700">
+        <p><strong>Người thực hiện:</strong> {nguoiThucHien}</p>
+        <p><strong>Khối lượng đầu vào:</strong> {data.khoiLuongDauVao} kg</p>
+        {[1, 2, 3, 4].map((i) => {
+          const gd = data[`giaiDoan${i}` as keyof typeof data] as { thoiGian: number; nhietDo: number; apSuat: number };
+          return (
+            <div key={i} className="pl-3 border-l-2 border-blue-200">
+              <p className="font-medium">Giai đoạn {i}:</p>
+              <p className="pl-2">Thời gian: {gd.thoiGian} phút | Nhiệt độ: {gd.nhietDo} °C | Áp suất: {gd.apSuat}</p>
+            </div>
+          );
+        })}
+        {data.ghiChu && <p><strong>Ghi chú:</strong> {data.ghiChu}</p>}
+      </div>
+      <div className="flex gap-3 pt-4">
+        <button
+          onClick={onEdit}
+          className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Sửa lại
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={isPending}
+          className="flex-1 min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+        >
+          {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          Xác nhận
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+interface OutputPreviewProps {
+  data: {
+    aKhoiLuong: number;
+    bKhoiLuong: number;
+    bDauKhoiLuong: number;
+    cKhoiLuong: number;
+    vunLonKhoiLuong: number;
+    vunNhoKhoiLuong: number;
+    phePhamKhoiLuong: number;
+    uotKhoiLuong: number;
+  };
+  nguoiThucHien: string;
+  onConfirm: () => void;
+  onEdit: () => void;
+  isPending: boolean;
+}
+
+const OutputPreview: React.FC<OutputPreviewProps> = ({ data, nguoiThucHien, onConfirm, onEdit, isPending }) => {
+  const tongKhoiLuong =
+    data.aKhoiLuong + data.bKhoiLuong + data.bDauKhoiLuong +
+    data.cKhoiLuong + data.vunLonKhoiLuong + data.vunNhoKhoiLuong +
+    data.phePhamKhoiLuong + data.uotKhoiLuong;
+
+  const calcPercent = (val: number) => tongKhoiLuong === 0 ? 0 : Math.round((val / tongKhoiLuong) * 100 * 100) / 100;
+
+  const items = [
+    { label: 'Thành phẩm A', value: data.aKhoiLuong },
+    { label: 'Thành phẩm B', value: data.bKhoiLuong },
+    { label: 'Thành phẩm B Dầu', value: data.bDauKhoiLuong },
+    { label: 'Thành phẩm C', value: data.cKhoiLuong },
+    { label: 'Vụn lớn', value: data.vunLonKhoiLuong },
+    { label: 'Vụn nhỏ', value: data.vunNhoKhoiLuong },
+    { label: 'Phế phẩm', value: data.phePhamKhoiLuong },
+    { label: 'Ướt', value: data.uotKhoiLuong },
+  ];
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-6">
+      <div className="bg-white rounded-xl border p-6 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Eye className="w-5 h-5 text-blue-600" />
+          <h2 className="text-lg font-semibold text-gray-800">Xem lại thành phẩm đầu ra</h2>
+        </div>
+        <div className="text-sm space-y-2 text-gray-700">
+          <p><strong>Người thực hiện:</strong> {nguoiThucHien}</p>
+          <p><strong>Tổng khối lượng:</strong> {tongKhoiLuong.toFixed(2)} kg</p>
+          <div className="grid grid-cols-1 gap-1 pt-2">
+            {items.map(({ label, value }) => (
+              <div key={label} className="flex justify-between py-1 border-b border-gray-100">
+                <span>{label}</span>
+                <span className="font-medium">{value} kg ({calcPercent(value)}%)</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-3 pt-4">
+          <button
+            onClick={onEdit}
+            className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Sửa lại
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isPending}
+            className="flex-1 min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+          >
+            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            Xác nhận
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 
 const ProductionDataEntry: React.FC = () => {
-  const { user } = useAuth();
+  const [kioskExpired, setKioskExpired] = useState(false);
+  const [nguoiThucHien, setNguoiThucHien] = useState('');
   const [selectedMaChien, setSelectedMaChien] = useState('');
   const [selectedFryerId, setSelectedFryerId] = useState('');
   const [activeTab, setActiveTab] = useState<'operation' | 'output'>('operation');
+  const [previewMode, setPreviewMode] = useState<'none' | 'operation' | 'output'>('none');
+
+  // Mark this tab as kiosk on mount
+  useEffect(() => {
+    markTab();
+  }, []);
+
+  // Listen for kiosk-expired events from apiClient
+  useEffect(() => {
+    const handler = () => setKioskExpired(true);
+    window.addEventListener(KIOSK_EXPIRED_EVENT, handler);
+    return () => window.removeEventListener(KIOSK_EXPIRED_EVENT, handler);
+  }, []);
 
   // Data hooks
   const { data: batches, isLoading: batchesLoading } = useFryBatchCodes();
@@ -58,12 +278,6 @@ const ProductionDataEntry: React.FC = () => {
 
   const updateSystemOp = useUpdateSystemOperationEntry();
   const updateFinishedProd = useUpdateFinishedProductEntry();
-
-  // nguoiThucHien from auth
-  const nguoiThucHien = useMemo(() => {
-    if (!user) return '';
-    return `${user.lastName} ${user.firstName}`;
-  }, [user]);
 
   // ─── Operation form state ────────────────────────────────────────────────
   const [opForm, setOpForm] = useState({
@@ -88,7 +302,7 @@ const ProductionDataEntry: React.FC = () => {
   });
 
   // Sync form when systemOp loads
-  React.useEffect(() => {
+  useEffect(() => {
     if (systemOp) {
       setOpForm({
         khoiLuongDauVao: systemOp.khoiLuongDauVao ?? 0,
@@ -102,7 +316,7 @@ const ProductionDataEntry: React.FC = () => {
   }, [systemOp]);
 
   // Sync form when finishedProduct loads
-  React.useEffect(() => {
+  useEffect(() => {
     if (finishedProduct) {
       setOutputForm({
         aKhoiLuong: finishedProduct.aKhoiLuong ?? 0,
@@ -118,9 +332,18 @@ const ProductionDataEntry: React.FC = () => {
   }, [finishedProduct]);
 
   // Reset fryer when batch changes
-  React.useEffect(() => {
+  useEffect(() => {
     setSelectedFryerId('');
   }, [selectedMaChien]);
+
+  // ─── Reset to operator selection ─────────────────────────────────────────
+  const resetToOperatorSelection = useCallback(() => {
+    setNguoiThucHien('');
+    setSelectedMaChien('');
+    setSelectedFryerId('');
+    setActiveTab('operation');
+    setPreviewMode('none');
+  }, []);
 
   // ─── Validation ──────────────────────────────────────────────────────────
   const validateOpForm = (): boolean => {
@@ -143,11 +366,15 @@ const ProductionDataEntry: React.FC = () => {
     return true;
   };
 
-  // ─── Save handlers ───────────────────────────────────────────────────────
+  // ─── Save handlers (now show preview first) ──────────────────────────────
   const handleSaveOperation = () => {
     if (!systemOp) return;
     if (!validateOpForm()) return;
+    setPreviewMode('operation');
+  };
 
+  const handleConfirmOperation = () => {
+    if (!systemOp) return;
     updateSystemOp.mutate(
       {
         id: systemOp.id,
@@ -162,7 +389,10 @@ const ProductionDataEntry: React.FC = () => {
         },
       },
       {
-        onSuccess: () => toast.success('Đã lưu thông số vận hành'),
+        onSuccess: () => {
+          toast.success('Đã lưu thông số vận hành');
+          resetToOperatorSelection();
+        },
         onError: () => toast.error('Lỗi khi lưu thông số vận hành'),
       },
     );
@@ -171,6 +401,11 @@ const ProductionDataEntry: React.FC = () => {
   const handleSaveOutput = () => {
     if (!finishedProduct) return;
     if (!validateOutputForm()) return;
+    setPreviewMode('output');
+  };
+
+  const handleConfirmOutput = () => {
+    if (!finishedProduct) return;
 
     const tongKhoiLuong =
       outputForm.aKhoiLuong + outputForm.bKhoiLuong + outputForm.bDauKhoiLuong +
@@ -204,7 +439,10 @@ const ProductionDataEntry: React.FC = () => {
         },
       },
       {
-        onSuccess: () => toast.success('Đã lưu thành phẩm đầu ra'),
+        onSuccess: () => {
+          toast.success('Đã lưu thành phẩm đầu ra');
+          resetToOperatorSelection();
+        },
         onError: () => toast.error('Lỗi khi lưu thành phẩm đầu ra'),
       },
     );
@@ -223,7 +461,52 @@ const ProductionDataEntry: React.FC = () => {
   const isFormLoading = sysOpLoading || fpLoading;
   const showForm = !!selectedMaChien && !!selectedFryerId;
 
-  // ─── Render ──────────────────────────────────────────────────────────────
+  // ─── Session guards ──────────────────────────────────────────────────────
+  // Check if this tab is marked as kiosk; if not kiosk AND no session, show not-activated
+  if (!isKioskTab() && !hasKioskSession()) {
+    return <NotActivatedScreen />;
+  }
+
+  if (kioskExpired) {
+    return <ExpiredScreen />;
+  }
+
+  // After markTab, check kiosk session validity
+  if (isKioskTab() && !hasKioskSession()) {
+    return <NotActivatedScreen />;
+  }
+
+  // ─── Operator selection gate ─────────────────────────────────────────────
+  if (!nguoiThucHien) {
+    return <OperatorSelection onSelect={setNguoiThucHien} />;
+  }
+
+  // ─── Preview screens ─────────────────────────────────────────────────────
+  if (previewMode === 'operation') {
+    return (
+      <OperationPreview
+        data={opForm}
+        nguoiThucHien={nguoiThucHien}
+        onConfirm={handleConfirmOperation}
+        onEdit={() => setPreviewMode('none')}
+        isPending={updateSystemOp.isPending}
+      />
+    );
+  }
+
+  if (previewMode === 'output') {
+    return (
+      <OutputPreview
+        data={outputForm}
+        nguoiThucHien={nguoiThucHien}
+        onConfirm={handleConfirmOutput}
+        onEdit={() => setPreviewMode('none')}
+        isPending={updateFinishedProd.isPending}
+      />
+    );
+  }
+
+  // ─── Main form render ────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sticky top header */}
@@ -280,7 +563,7 @@ const ProductionDataEntry: React.FC = () => {
                     onClick={handleSaveOperation}
                     disabled={updateSystemOp.isPending}
                   >
-                    {updateSystemOp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <Save className="w-4 h-4" />
                     Lưu
                   </button>
                 )}
@@ -290,7 +573,7 @@ const ProductionDataEntry: React.FC = () => {
                     onClick={handleSaveOutput}
                     disabled={updateFinishedProd.isPending}
                   >
-                    {updateFinishedProd.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <Save className="w-4 h-4" />
                     Lưu
                   </button>
                 )}

@@ -4,7 +4,6 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { SystemSettingsProvider } from './contexts/SystemSettingsContext';
 import ProtectedLayout from './components/ProtectedLayout';
-import ProtectedRoute from './components/ProtectedRoute';
 import ProtectedSubRoute from './components/ProtectedSubRoute';
 import ProtectedModuleRoute from './components/ProtectedModuleRoute';
 import AdminRoute from './components/AdminRoute';
@@ -102,8 +101,8 @@ function App() {
           <Route path="/diemdanh/nhanvien-v2" element={<FaceKioskPageV2 />} />
           <Route path="/diemdanh/nhanvien-v3" element={<FaceKioskPageV3 />} />
 
-          {/* Production Data Entry — authenticated but outside sidebar layout */}
-          <Route path="/production/nhap-lieu" element={<ProtectedRoute><ProductionDataEntry /></ProtectedRoute>} />
+          {/* Production data entry kiosk — full-screen (tablet), public with self-guard */}
+          <Route path="/production/nhap-lieu" element={<ProductionDataEntry />} />
 
           {/* Protected Routes — single Layout instance, never unmounts */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

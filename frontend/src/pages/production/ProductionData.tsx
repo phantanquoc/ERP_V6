@@ -6,11 +6,14 @@ import {
   PackageCheck,
   Star,
   FlaskConical,
+  Tablet,
+  ExternalLink,
 } from 'lucide-react';
 import MaterialEvaluationManagement from '../../components/MaterialEvaluationManagement';
 import SystemOperationManagement from '../../components/SystemOperationManagement';
 import FinishedProductManagement from '../../components/FinishedProductManagement';
 import QualityEvaluationManagement from '../../components/QualityEvaluationManagement';
+import { activate as activateKiosk } from '../../utils/kioskSession';
 
 type Tab = 'materialEvaluation' | 'systemOperation' | 'finishedProduct' | 'qualityEvaluation';
 
@@ -53,14 +56,28 @@ const ProductionData = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <FlaskConical className="w-6 h-6 text-blue-600" />
-          Dữ liệu sản xuất
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Đánh giá nguyên liệu, thông số vận hành, thành phẩm và đánh giá chất lượng
-        </p>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <FlaskConical className="w-6 h-6 text-blue-600" />
+            Dữ liệu sản xuất
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Đánh giá nguyên liệu, thông số vận hành, thành phẩm và đánh giá chất lượng
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            activateKiosk();
+            window.open('/production/nhap-lieu', '_blank');
+          }}
+          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          title="Mở trang nhập liệu dành cho nhân viên trên tablet (tab mới)"
+        >
+          <Tablet className="w-4 h-4" />
+          Mở trang nhập liệu (Tablet)
+          <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+        </button>
       </div>
 
       {/* Tabs */}
