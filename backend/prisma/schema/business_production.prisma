@@ -285,6 +285,7 @@ model MaterialEvaluation {
   id                   String   @id @default(cuid())
   maChien              String   @unique
   thoiGianChien        DateTime
+  ca                   Int? // Production shift (1, 2, or 3); nullable for legacy rows
   tenHangHoa           String
   soLoKien             String
   khoiLuong            Float
