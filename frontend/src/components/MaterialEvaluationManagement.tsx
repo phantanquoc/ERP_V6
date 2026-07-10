@@ -577,6 +577,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
                   <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
                   <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
+                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Ca</th>
                   <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
                   <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (Kg)</th>
                   <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian ngâm (Phút)</th>
@@ -596,12 +597,12 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   });
                   if (loading) return (
                   <tr>
-                    <td colSpan={7} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Đang tải...</td>
+                    <td colSpan={8} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Đang tải...</td>
                   </tr>
                 );
                   if (filteredEvaluations.length === 0) return (
                   <tr>
-                    <td colSpan={7} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chưa có dữ liệu</td>
+                    <td colSpan={8} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chưa có dữ liệu</td>
                   </tr>
                 );
                   return filteredEvaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
@@ -614,6 +615,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{evaluation.maChien}</td>
                     <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">{formatDateTime(evaluation.thoiGianChien)}</td>
+                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.ca != null ? `Ca ${evaluation.ca}` : '-'}</td>
                     <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{evaluation.tenHangHoa}</td>
                     <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.khoiLuong}</td>
                     <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.thoiGianNgam}</td>
@@ -1261,6 +1263,10 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian chiên</label>
                   <p className="text-sm text-gray-900">{formatDateTime(selectedEvaluation.thoiGianChien)}</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ca</label>
+                  <p className="text-sm text-gray-900">{selectedEvaluation.ca != null ? `Ca ${selectedEvaluation.ca}` : '-'}</p>
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tên hàng hóa</label>
