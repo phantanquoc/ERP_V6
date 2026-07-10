@@ -14,65 +14,139 @@ The system SHALL expose a full-screen worker data-entry page at `/production/nha
 - **WHEN** a user opens `/production/nhap-lieu` without an activated kiosk session
 - **THEN** a "session not activated — ask admin to reopen from ERP" screen is shown instead of the entry form or a login redirect
 
-### Requirement: Fry-batch and fryer selection
-
-The page SHALL let the worker select a fry-batch code (`mã chiên`) from manager-created material evaluations, then select one fryer from the active `SAN_XUAT` machine list, before showing the entry form. The worker MUST select the fryer on each entry session (no pinning). The worker SHALL NOT be able to create a new fry-batch code from this page.
-
-#### Scenario: Selecting batch then fryer reveals the form
-
-- **WHEN** the worker selects a fry-batch code and then a fryer
-- **THEN** the two-step entry form is shown for that batch + fryer
-
-#### Scenario: Only manager-created batches are listed
-
-- **WHEN** the worker opens the fry-batch selector
-- **THEN** only existing fry-batch codes from material evaluations are listed, with no option to create a new one
-
-#### Scenario: Only active fryers are listed
-
-- **WHEN** the worker opens the fryer selector
-- **THEN** only active `SAN_XUAT` fryer machines are listed
-
-### Requirement: Load existing records for editing
-
-For the selected fry-batch and fryer, the page SHALL load the existing SystemOperation and FinishedProduct records and pre-fill the form fields with their current values so the worker sees and can edit prior input.
-
-#### Scenario: Existing values are pre-filled
-
-- **WHEN** the form is shown for a batch + fryer that already has records
-- **THEN** the current field values of those records are displayed in the inputs
-
-### Requirement: Two independent entry steps
-
-The page SHALL present a single screen with two steps/tabs — "Thông số vận hành" (SystemOperation) and "Thành phẩm đầu ra" (FinishedProduct) — each with its own Save button that persists only that step. Saving one step SHALL NOT require the other step to be filled.
-
-#### Scenario: Saving operating parameters independently
-
-- **WHEN** the worker fills the operating-parameters step and taps its Save button
-- **THEN** the system updates the SystemOperation record for that batch + fryer via PATCH and does not require the output step to be filled
-
-#### Scenario: Saving output products independently
-
-- **WHEN** the worker fills the output-products step and taps its Save button
-- **THEN** the system updates the FinishedProduct record for that batch + fryer via PATCH and does not require the operating-parameters step to be filled
-
 ### Requirement: Operator selection first
 
-On entry (with a valid kiosk session), the page SHALL first require the worker to select their name from a list filtered to the "Nhan vien san xuat" position. Batch and fryer selection SHALL NOT be available until a name is chosen. The chosen name SHALL be saved as `nguoiThucHien`, not the activating admin's name.
+On entry (with a valid kiosk session), the page SHALL first require the worker to select their name from a list filtered to the "Nhan vien san xuat" position. The chosen name SHALL be saved as `nguoiThucHien`, not the activating admin's name.
 
 #### Scenario: Name required before entry
 
 - **WHEN** the page loads with a valid session and no name chosen
-- **THEN** only the operator-selection screen is shown; batch/fryer selection is not available
+- **THEN** only the operator-selection screen is shown; shift selection is not available
 
 #### Scenario: Operator name is stamped on save
 
 - **WHEN** the worker selects their name and saves an entry
 - **THEN** the saved `nguoiThucHien` is the chosen name, not the activating admin's name
 
-### Requirement: Operating-parameters fields
+### Requirement: Shift selection step
 
-The operating-parameters step SHALL capture `khoiLuongDauVao` (kg), four stages each with time (minutes, integer), temperature (°C, float) and pressure (float), and an optional note. The `nguoiThucHien` field SHALL be set to the operator selected at the beginning of the session.
+After operator selection and before the board, the page SHALL present a shift selector with values Ca 1, Ca 2, Ca 3, using the same large-card UI as the name selector. A shift MUST be chosen before the board is shown.
+
+#### Scenario: Pick shift after name
+
+- **WHEN** the operator has chosen their name
+- **THEN** a shift selector (Ca 1/2/3, large cards) is shown, and the board appears only after a shift is chosen
+
+### Requirement: Output-products board only
+
+This page SHALL show only the "San pham dau ra" board; the "Thong so van hanh" (operating parameters) UI SHALL NOT be shown here. The operating-parameters service code MUST remain in the codebase.
+
+#### Scenario: No operating-parameters UI
+
+- **WHEN** the board is shown
+- **THEN** there is no operating-parameters entry UI on this page
+
+### Requirement: Production date with quick-today
+
+The board SHALL provide a "Ngay san xuat" field that defaults to today and offers a "Hom nay" quick button to reset to today.
+
+#### Scenario: Default and reset to today
+
+- **WHEN** the board loads
+- **THEN** the production date defaults to today; tapping "Hom nay" sets it back to today
+
+### Requirement: Six quality tabs
+
+The board SHALL present six quality tabs: Hang A, Hang B, Hang B dau, Hang C, Uot, Vun - Phe pham. The five non-waste tabs map to FinishedProduct weight fields: Hang A->aKhoiLuong, Hang B->bKhoiLuong, Hang B dau->bDauKhoiLuong, Hang C->cKhoiLuong, Uot->uotKhoiLuong.
+
+#### Scenario: Switching tabs changes the edited field
+
+- **WHEN** the worker selects the "Hang B" tab
+- **THEN** the matrix cells edit the `bKhoiLuong` field for each batch x machine
+
+### Requirement: Fry-batch matrix filtered by date and shift
+
+For each non-waste tab, the board SHALL show a matrix whose rows are the real fry-batches filtered by the selected shift (`ca`) and the local date of `thoiGianChien` equal to the production date, and whose columns are the 8 active fryers. Each row SHALL show STT, ma chien, thoi gian chien and ten hang hoa as auto-filled read-only values; only per-machine weight and a Ghi chu text field are editable. There SHALL be no operator column. If no fry-batch matches, a Vietnamese empty state SHALL be shown.
+
+#### Scenario: Rows match the shift and date
+
+- **WHEN** the production date and shift are set
+- **THEN** only fry-batches with that `ca` and that local `thoiGianChien` date appear as rows
+
+#### Scenario: Read-only batch metadata
+
+- **WHEN** a row is shown
+- **THEN** thoi gian chien and ten hang hoa are displayed read-only and cannot be edited
+
+#### Scenario: Empty shift/date
+
+- **WHEN** no fry-batch matches the shift and date
+- **THEN** a Vietnamese empty-state message is shown instead of an empty grid
+
+### Requirement: Waste tab shift-total distribution
+
+The "Vun - Phe pham" tab SHALL accept a single total for the whole shift (one input, not a matrix). On save, that total SHALL be split evenly across all cells (number of batches x 8 machines), and each cell's share SHALL be split evenly across the three fields `vunLonKhoiLuong`, `vunNhoKhoiLuong`, `phePhamKhoiLuong` (each = cell share / 3).
+
+#### Scenario: Even distribution
+
+- **WHEN** the worker enters a shift total on the waste tab and there are N batches
+- **THEN** each of the N x 8 cells receives total/(N x 8), and each cell's three waste fields each receive that share divided by 3
+
+### Requirement: Load existing values
+
+When the board or a tab is shown, the system SHALL load existing FinishedProduct values for the shift's batches x machines into the cells so the worker sees and can edit prior input.
+
+#### Scenario: Prior input visible
+
+- **WHEN** a batch x machine already has a saved weight for the tab's field
+- **THEN** that value is pre-filled in the cell
+
+### Requirement: Dirty-tracked safe save
+
+On confirm, the system SHALL PATCH only the FinishedProduct records whose cells the worker actually changed (differ from the loaded values). Untouched cells MUST NOT be sent. If nothing changed, confirm SHALL PATCH nothing.
+
+#### Scenario: Only changed cells are written
+
+- **WHEN** the worker changes one machine's weight and confirms
+- **THEN** only that batch's record is PATCHed; other records are not sent and keep their existing values
+
+#### Scenario: No change, no write
+
+- **WHEN** the worker confirms without changing any cell
+- **THEN** no PATCH request is made
+
+### Requirement: Draft auto-save
+
+Typing SHALL auto-save a draft to localStorage keyed by production date and shift, surviving reload and tab close, and switching tabs SHALL preserve the draft. The draft MUST NOT be written to the database until confirm.
+
+#### Scenario: Draft survives reload
+
+- **WHEN** the worker enters values and reloads the page for the same date and shift
+- **THEN** the entered values are restored from the draft
+
+#### Scenario: Tab switch keeps draft
+
+- **WHEN** the worker switches between quality tabs
+- **THEN** values entered on the previous tab are preserved
+
+### Requirement: Preview, confirm, and reset
+
+Tapping Save SHALL show a Vietnamese preview of all six quality categories (only changed/entered cells), and SHALL NOT write to the database. "Xac nhan" performs the dirty-only PATCH; "Sua lai" returns to the form keeping the draft. On PATCH, each record's percentage fields SHALL be recomputed (`round((weight/total)*100, 2)`, total 0 -> 0), `tongKhoiLuong` set to the sum of the eight weights, `nguoiThucHien` set to the chosen name, and `ghiChu` set when entered. After a confirmed save, the page SHALL reset to the name-selection screen and clear that date+shift draft.
+
+#### Scenario: Preview before persist
+
+- **WHEN** the worker taps Save
+- **THEN** a preview of all six categories' changed cells is shown and nothing is persisted yet
+
+#### Scenario: Confirm persists dirty cells and resets
+
+- **WHEN** the worker taps "Xac nhan"
+- **THEN** dirty records are PATCHed with recomputed percentages, total, operator name and notes, then the page returns to name selection and the draft is cleared
+
+#### Scenario: Edit again keeps draft
+
+- **WHEN** the worker taps "Sua lai" on the preview
+- **THEN** the form returns with entered values intact and nothing is persisted
 
 ### Requirement: Output-product weights with auto-computed percentages
 
@@ -161,31 +235,3 @@ When a kiosk request returns 401, the system SHALL refresh using `pdeRefreshToke
 
 - **WHEN** a kiosk request gets 401 and the dedicated refresh token is no longer valid
 - **THEN** the kiosk shows a session-expired screen and does not redirect to login
-
-### Requirement: Preview and confirm on save
-
-Tapping Save on either tab SHALL first show a readable Vietnamese preview of the just-entered values and SHALL NOT PATCH immediately. Only "Xac nhan" performs the PATCH; a "Sua lai" option returns to the form. Each tab confirms independently.
-
-#### Scenario: Preview before persisting
-
-- **WHEN** the worker taps Save on a tab
-- **THEN** a preview of the entered values is shown and no data is persisted yet
-
-#### Scenario: Confirm persists
-
-- **WHEN** the worker taps "Xac nhan" on the preview
-- **THEN** the data is PATCHed for that tab
-
-#### Scenario: Edit again cancels the save
-
-- **WHEN** the worker taps "Sua lai" on the preview
-- **THEN** the form returns with the entered values intact and nothing is persisted
-
-### Requirement: Return to operator selection after save
-
-After a confirmed save, the page SHALL reset the chosen name, batch, fryer, and active tab, returning to the operator-selection screen for the next shift's operator.
-
-#### Scenario: Reset after confirmed save
-
-- **WHEN** a save is confirmed
-- **THEN** the page returns to the operator-selection screen with name, batch, fryer, and tab cleared

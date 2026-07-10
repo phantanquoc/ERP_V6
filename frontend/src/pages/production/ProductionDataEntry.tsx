@@ -1,46 +1,97 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useActiveFryerMachineSystems } from '../../hooks/useMachineSystemDetails';
 import {
   useFryBatchCodes,
-  useSystemOperationByBatchAndFryer,
-  useFinishedProductByBatchAndFryer,
-  useUpdateSystemOperationEntry,
-  useUpdateFinishedProductEntry,
+  useAllFinishedProducts,
+  useBatchUpdateFinishedProducts,
+  filterBatchesByShiftAndDate,
+  indexFinishedProducts,
+  DirtyRecord,
 } from '../../hooks/useProductionDataEntry';
 import { useProductionEmployees } from '../../hooks/useProductionEmployees';
 import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT } from '../../utils/kioskSession';
 import { parseNumberInput } from '../../utils/numberInput';
-import { Loader2, Save, CheckCircle, AlertTriangle, User, Eye, ArrowLeft } from 'lucide-react';
+import { FinishedProduct } from '../../services/finishedProductService';
+import { Loader2, Save, CheckCircle, AlertTriangle, User, Eye, ArrowLeft, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
-import FryBatchPicker from '../../components/production/FryBatchPicker';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type QualityTab = 'A' | 'B' | 'B_DAU' | 'C' | 'UOT' | 'VUN_PHE';
+
+interface TabConfig {
+  key: QualityTab;
+  label: string;
+  field: keyof FinishedProduct | null; // null for waste tab
+}
+
+const QUALITY_TABS: TabConfig[] = [
+  { key: 'A', label: 'Hàng A', field: 'aKhoiLuong' },
+  { key: 'B', label: 'Hàng B', field: 'bKhoiLuong' },
+  { key: 'B_DAU', label: 'Hàng B dầu', field: 'bDauKhoiLuong' },
+  { key: 'C', label: 'Hàng C', field: 'cKhoiLuong' },
+  { key: 'UOT', label: 'Ướt', field: 'uotKhoiLuong' },
+  { key: 'VUN_PHE', label: 'Vụn - Phế phẩm', field: null },
+];
+
+// Cell key: `${maChien}|${machineSystemId}`
+type CellKey = string;
+// Board data: tab -> cellKey -> value (kg)
+type BoardData = Record<QualityTab, Record<CellKey, number>>;
+// Notes: cellKey -> ghiChu text
+type NotesData = Record<CellKey, string>;
+// Waste total for the shift
+type WasteTotal = number;
+
+// Draft stored in localStorage
+interface DraftData {
+  board: BoardData;
+  notes: NotesData;
+  wasteTotal: WasteTotal;
+}
+
+// Baseline: the loaded DB values per tab per cell
+type BaselineData = Record<QualityTab, Record<CellKey, number>>;
+
+const DRAFT_KEY_PREFIX = 'prod-output-draft';
+
+function getDraftKey(date: string, shift: number): string {
+  return `${DRAFT_KEY_PREFIX}|${date}|${shift}`;
+}
+
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatDateVN(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function formatTime(isoStr: string): string {
+  const d = new Date(isoStr);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 // ─── Numeric Input Component ─────────────────────────────────────────────────
 
 interface NumericInputProps {
-  label: string;
   value: number;
   onChange: (val: number) => void;
-  unit?: string;
-  isInteger?: boolean;
-  error?: string;
+  placeholder?: string;
+  className?: string;
 }
 
-const NumericInput: React.FC<NumericInputProps> = ({ label, value, onChange, unit, isInteger, error }) => (
-  <div className="flex flex-col gap-1">
-    <label className="text-sm font-medium text-gray-700">{label}</label>
-    <div className="flex items-center gap-2">
-      <input
-        type="number"
-        inputMode="decimal"
-        placeholder="0"
-        className={`w-full min-h-[44px] px-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-400' : 'border-gray-300'}`}
-        value={value === 0 ? '' : value}
-        onChange={(e) => onChange(parseNumberInput(e.target.value, !isInteger))}
-      />
-      {unit && <span className="text-sm text-gray-500 whitespace-nowrap">{unit}</span>}
-    </div>
-    {error && <span className="text-xs text-red-500">{error}</span>}
-  </div>
+const NumericInput: React.FC<NumericInputProps> = ({ value, onChange, placeholder, className }) => (
+  <input
+    type="number"
+    inputMode="decimal"
+    placeholder={placeholder || '0'}
+    className={`w-full min-h-[44px] px-2 py-1 border border-gray-300 rounded-lg text-base text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${className || ''}`}
+    value={value === 0 ? '' : value}
+    onChange={(e) => onChange(parseNumberInput(e.target.value))}
+  />
 );
 
 // ─── Session guard screens ───────────────────────────────────────────────────
@@ -110,123 +161,173 @@ const OperatorSelection: React.FC<OperatorSelectionProps> = ({ onSelect }) => {
   );
 };
 
-// ─── Preview components ──────────────────────────────────────────────────────
+// ─── Shift Selection Screen ──────────────────────────────────────────────────
 
-interface OperationPreviewProps {
-  data: {
-    khoiLuongDauVao: number;
-    giaiDoan1: { thoiGian: number; nhietDo: number; apSuat: number };
-    giaiDoan2: { thoiGian: number; nhietDo: number; apSuat: number };
-    giaiDoan3: { thoiGian: number; nhietDo: number; apSuat: number };
-    giaiDoan4: { thoiGian: number; nhietDo: number; apSuat: number };
-    ghiChu: string;
-  };
-  nguoiThucHien: string;
-  onConfirm: () => void;
-  onEdit: () => void;
-  isPending: boolean;
+interface ShiftSelectionProps {
+  onSelect: (shift: number) => void;
+  onBack: () => void;
+  operatorName: string;
 }
 
-// PLACEHOLDER_PREVIEW_COMPONENTS
-
-const OperationPreview: React.FC<OperationPreviewProps> = ({ data, nguoiThucHien, onConfirm, onEdit, isPending }) => (
-  <div className="max-w-3xl mx-auto px-4 py-6">
-    <div className="bg-white rounded-xl border p-6 space-y-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Eye className="w-5 h-5 text-blue-600" />
-        <h2 className="text-lg font-semibold text-gray-800">Xem lại thông số vận hành</h2>
+const ShiftSelection: React.FC<ShiftSelectionProps> = ({ onSelect, onBack, operatorName }) => (
+  <div className="min-h-screen bg-gray-50">
+    <div className="max-w-lg mx-auto px-4 py-8">
+      <div className="text-center mb-6">
+        <Calendar className="w-10 h-10 text-blue-600 mx-auto mb-3" />
+        <h1 className="text-xl font-semibold text-gray-800">Chọn ca làm việc</h1>
+        <p className="text-sm text-gray-500 mt-1">Người thực hiện: {operatorName}</p>
       </div>
-      <div className="text-sm space-y-2 text-gray-700">
-        <p><strong>Người thực hiện:</strong> {nguoiThucHien}</p>
-        <p><strong>Khối lượng đầu vào:</strong> {data.khoiLuongDauVao} kg</p>
-        {[1, 2, 3, 4].map((i) => {
-          const gd = data[`giaiDoan${i}` as keyof typeof data] as { thoiGian: number; nhietDo: number; apSuat: number };
-          return (
-            <div key={i} className="pl-3 border-l-2 border-blue-200">
-              <p className="font-medium">Giai đoạn {i}:</p>
-              <p className="pl-2">Thời gian: {gd.thoiGian} phút | Nhiệt độ: {gd.nhietDo} °C | Áp suất: {gd.apSuat}</p>
-            </div>
-          );
-        })}
-        {data.ghiChu && <p><strong>Ghi chú:</strong> {data.ghiChu}</p>}
+      <div className="space-y-3">
+        {[1, 2, 3].map((shift) => (
+          <button
+            key={shift}
+            onClick={() => onSelect(shift)}
+            className="w-full min-h-[64px] px-6 py-4 bg-white border border-gray-200 rounded-xl text-center hover:border-blue-400 hover:bg-blue-50 transition-colors"
+          >
+            <span className="text-lg font-semibold text-gray-800">Ca {shift}</span>
+          </button>
+        ))}
       </div>
-      <div className="flex gap-3 pt-4">
-        <button
-          onClick={onEdit}
-          className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Sửa lại
-        </button>
-        <button
-          onClick={onConfirm}
-          disabled={isPending}
-          className="flex-1 min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-        >
-          {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-          Xác nhận
-        </button>
-      </div>
+      <button
+        onClick={onBack}
+        className="mt-6 flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mx-auto"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Quay lại chọn người
+      </button>
     </div>
   </div>
 );
 
-interface OutputPreviewProps {
-  data: {
-    aKhoiLuong: number;
-    bKhoiLuong: number;
-    bDauKhoiLuong: number;
-    cKhoiLuong: number;
-    vunLonKhoiLuong: number;
-    vunNhoKhoiLuong: number;
-    phePhamKhoiLuong: number;
-    uotKhoiLuong: number;
-  };
+// ─── Full-Grid Editable Preview ─────────────────────────────────────────────
+
+interface FullGridPreviewProps {
+  board: BoardData;
+  baseline: BaselineData;
+  updateCell: (tab: QualityTab, cellKey: CellKey, value: number) => void;
+  filteredBatches: { maChien: string; thoiGianChien: string; tenHangHoa: string }[];
+  fryers: { id: string; maHeThong: string }[];
+  wasteTotal: number;
   nguoiThucHien: string;
   onConfirm: () => void;
   onEdit: () => void;
   isPending: boolean;
+  getMachineLabel: (maHeThong: string) => string;
 }
 
-const OutputPreview: React.FC<OutputPreviewProps> = ({ data, nguoiThucHien, onConfirm, onEdit, isPending }) => {
-  const tongKhoiLuong =
-    data.aKhoiLuong + data.bKhoiLuong + data.bDauKhoiLuong +
-    data.cKhoiLuong + data.vunLonKhoiLuong + data.vunNhoKhoiLuong +
-    data.phePhamKhoiLuong + data.uotKhoiLuong;
-
-  const calcPercent = (val: number) => tongKhoiLuong === 0 ? 0 : Math.round((val / tongKhoiLuong) * 100 * 100) / 100;
-
-  const items = [
-    { label: 'Thành phẩm A', value: data.aKhoiLuong },
-    { label: 'Thành phẩm B', value: data.bKhoiLuong },
-    { label: 'Thành phẩm B Dầu', value: data.bDauKhoiLuong },
-    { label: 'Thành phẩm C', value: data.cKhoiLuong },
-    { label: 'Vụn lớn', value: data.vunLonKhoiLuong },
-    { label: 'Vụn nhỏ', value: data.vunNhoKhoiLuong },
-    { label: 'Phế phẩm', value: data.phePhamKhoiLuong },
-    { label: 'Ướt', value: data.uotKhoiLuong },
+const FullGridPreview: React.FC<FullGridPreviewProps> = ({
+  board,
+  baseline,
+  updateCell,
+  filteredBatches,
+  fryers,
+  wasteTotal,
+  nguoiThucHien,
+  onConfirm,
+  onEdit,
+  isPending,
+  getMachineLabel,
+}) => {
+  const NON_WASTE_TABS: { key: QualityTab; label: string }[] = [
+    { key: 'A', label: 'Hàng A' },
+    { key: 'B', label: 'Hàng B' },
+    { key: 'B_DAU', label: 'Hàng B dầu' },
+    { key: 'C', label: 'Hàng C' },
+    { key: 'UOT', label: 'Ướt' },
   ];
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6">
-      <div className="bg-white rounded-xl border p-6 space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Eye className="w-5 h-5 text-blue-600" />
-          <h2 className="text-lg font-semibold text-gray-800">Xem lại thành phẩm đầu ra</h2>
-        </div>
-        <div className="text-sm space-y-2 text-gray-700">
-          <p><strong>Người thực hiện:</strong> {nguoiThucHien}</p>
-          <p><strong>Tổng khối lượng:</strong> {tongKhoiLuong.toFixed(2)} kg</p>
-          <div className="grid grid-cols-1 gap-1 pt-2">
-            {items.map(({ label, value }) => (
-              <div key={label} className="flex justify-between py-1 border-b border-gray-100">
-                <span>{label}</span>
-                <span className="font-medium">{value} kg ({calcPercent(value)}%)</span>
-              </div>
-            ))}
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-full mx-auto px-4 py-6 space-y-6">
+        {/* Header */}
+        <div className="bg-white rounded-xl border p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Eye className="w-5 h-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-gray-800">Xem lại sản lượng</h2>
           </div>
+          <p className="text-sm text-gray-600">
+            <strong>Người thực hiện:</strong> {nguoiThucHien}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Có thể nhập/sửa trực tiếp trong bảng bên dưới trước khi xác nhận.
+          </p>
         </div>
-        <div className="flex gap-3 pt-4">
+
+        {/* Grid tables for each non-waste tab */}
+        {NON_WASTE_TABS.map(({ key: tab, label }) => (
+          <div key={tab} className="bg-white rounded-xl border overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b">
+              <h3 className="text-sm font-semibold text-gray-700">{label}</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-100 border-b">
+                    <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[100px]">
+                    Mã chiên
+                    </th>
+                    {fryers.map((f) => (
+                      <th key={f.id} className="px-1 py-2 text-center font-semibold text-gray-700 border-r min-w-[70px]">
+                        {getMachineLabel(f.maHeThong)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredBatches.map((batch) => (
+                    <tr key={batch.maChien} className="border-b">
+                      <td className="px-2 py-1 text-gray-800 font-medium border-r">
+                        {batch.maChien}
+                      </td>
+                      {fryers.map((f) => {
+                        const cellKey = `${batch.maChien}|${f.id}`;
+                        const value = board[tab]?.[cellKey] ?? 0;
+                        const baselineVal = baseline[tab]?.[cellKey] ?? 0;
+                        const isDirty = value !== baselineVal;
+                        return (
+                          <td key={f.id} className="px-1 py-1 border-r">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              placeholder="0"
+                              className={`w-full min-h-[44px] px-2 py-1 rounded-lg text-base text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                isDirty
+                                  ? 'border-2 border-blue-400 bg-blue-50'
+                                  : 'border border-gray-200 bg-white'
+                              }`}
+                              value={value === 0 ? '' : value}
+                              onChange={(e) => updateCell(tab, cellKey, parseNumberInput(e.target.value))}
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+
+        {/* Waste summary (read-only distribution display) */}
+        <div className="bg-white rounded-xl border p-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Vụn - Phế phẩm</h3>
+          {wasteTotal > 0 && filteredBatches.length > 0 ? (
+            <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+              <p>
+                Tổng: {wasteTotal} kg (chia đều cho {filteredBatches.length} mã chiên x {fryers.length} máy = {filteredBatches.length * fryers.length} ô)
+              </p>
+              <p>
+                Mỗi ô: {(wasteTotal / (filteredBatches.length * fryers.length)).toFixed(3)} kg
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">Không có vụn/phế phẩm.</p>
+          )}
+        </div>
+
+        {/* Action buttons - sticky bottom */}
+        <div className="sticky bottom-0 bg-white border-t p-4 rounded-xl flex gap-3">
           <button
             onClick={onEdit}
             className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
@@ -249,14 +350,26 @@ const OutputPreview: React.FC<OutputPreviewProps> = ({ data, nguoiThucHien, onCo
 };
 
 // ─── Main Component ──────────────────────────────────────────────────────────
-
 const ProductionDataEntry: React.FC = () => {
   const [kioskExpired, setKioskExpired] = useState(false);
   const [nguoiThucHien, setNguoiThucHien] = useState('');
-  const [selectedMaChien, setSelectedMaChien] = useState('');
-  const [selectedFryerId, setSelectedFryerId] = useState('');
-  const [activeTab, setActiveTab] = useState<'operation' | 'output'>('operation');
-  const [previewMode, setPreviewMode] = useState<'none' | 'operation' | 'output'>('none');
+  const [selectedShift, setSelectedShift] = useState<number>(0);
+  const [productionDate, setProductionDate] = useState(todayStr());
+  const [activeTab, setActiveTab] = useState<QualityTab>('A');
+  const [showPreview, setShowPreview] = useState(false);
+
+  // Board state: weight values per tab per cell
+  const [board, setBoard] = useState<BoardData>(() => ({
+    A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {},
+  }));
+  const [notes, setNotes] = useState<NotesData>({});
+  const [wasteTotal, setWasteTotal] = useState<WasteTotal>(0);
+
+  // Baseline: loaded DB values (for dirty tracking)
+  const [baseline, setBaseline] = useState<BaselineData>(() => ({
+    A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {},
+  }));
+  const baselineLoaded = useRef(false);
 
   // Mark this tab as kiosk on mount
   useEffect(() => {
@@ -271,198 +384,281 @@ const ProductionDataEntry: React.FC = () => {
   }, []);
 
   // Data hooks
-  const { data: batches, isLoading: batchesLoading } = useFryBatchCodes();
-  const { data: fryers, isLoading: fryersLoading } = useActiveFryerMachineSystems();
-  const { data: systemOp, isLoading: sysOpLoading } = useSystemOperationByBatchAndFryer(selectedMaChien, selectedFryerId);
-  const { data: finishedProduct, isLoading: fpLoading } = useFinishedProductByBatchAndFryer(selectedMaChien, selectedFryerId);
+  const { data: allBatches, isLoading: batchesLoading } = useFryBatchCodes();
+  const { data: fryersResult, isLoading: fryersLoading } = useActiveFryerMachineSystems();
+  const { data: allFinishedProducts, isLoading: fpLoading } = useAllFinishedProducts();
+  const batchUpdate = useBatchUpdateFinishedProducts();
 
-  const updateSystemOp = useUpdateSystemOperationEntry();
-  const updateFinishedProd = useUpdateFinishedProductEntry();
+  const fryers = useMemo(() => fryersResult?.data ?? [], [fryersResult?.data]);
+  const fryerIds = useMemo(() => fryers.map((f) => f.id), [fryers]);
 
-  // ─── Operation form state ────────────────────────────────────────────────
-  const [opForm, setOpForm] = useState({
-    khoiLuongDauVao: 0,
-    giaiDoan1: { thoiGian: 0, nhietDo: 0, apSuat: 0 },
-    giaiDoan2: { thoiGian: 0, nhietDo: 0, apSuat: 0 },
-    giaiDoan3: { thoiGian: 0, nhietDo: 0, apSuat: 0 },
-    giaiDoan4: { thoiGian: 0, nhietDo: 0, apSuat: 0 },
-    ghiChu: '',
-  });
-
-  // ─── Output form state ───────────────────────────────────────────────────
-  const [outputForm, setOutputForm] = useState({
-    aKhoiLuong: 0,
-    bKhoiLuong: 0,
-    bDauKhoiLuong: 0,
-    cKhoiLuong: 0,
-    vunLonKhoiLuong: 0,
-    vunNhoKhoiLuong: 0,
-    phePhamKhoiLuong: 0,
-    uotKhoiLuong: 0,
-  });
-
-  // Sync form when systemOp loads
-  useEffect(() => {
-    if (systemOp) {
-      setOpForm({
-        khoiLuongDauVao: systemOp.khoiLuongDauVao ?? 0,
-        giaiDoan1: { ...systemOp.giaiDoan1 },
-        giaiDoan2: { ...systemOp.giaiDoan2 },
-        giaiDoan3: { ...systemOp.giaiDoan3 },
-        giaiDoan4: { ...systemOp.giaiDoan4 },
-        ghiChu: systemOp.ghiChu ?? '',
-      });
-    }
-  }, [systemOp]);
-
-  // Sync form when finishedProduct loads
-  useEffect(() => {
-    if (finishedProduct) {
-      setOutputForm({
-        aKhoiLuong: finishedProduct.aKhoiLuong ?? 0,
-        bKhoiLuong: finishedProduct.bKhoiLuong ?? 0,
-        bDauKhoiLuong: finishedProduct.bDauKhoiLuong ?? 0,
-        cKhoiLuong: finishedProduct.cKhoiLuong ?? 0,
-        vunLonKhoiLuong: finishedProduct.vunLonKhoiLuong ?? 0,
-        vunNhoKhoiLuong: finishedProduct.vunNhoKhoiLuong ?? 0,
-        phePhamKhoiLuong: finishedProduct.phePhamKhoiLuong ?? 0,
-        uotKhoiLuong: finishedProduct.uotKhoiLuong ?? 0,
-      });
-    }
-  }, [finishedProduct]);
-
-  // Reset fryer when batch changes
-  useEffect(() => {
-    setSelectedFryerId('');
-  }, [selectedMaChien]);
-
-  // ─── Reset to operator selection ─────────────────────────────────────────
-  const resetToOperatorSelection = useCallback(() => {
-    setNguoiThucHien('');
-    setSelectedMaChien('');
-    setSelectedFryerId('');
-    setActiveTab('operation');
-    setPreviewMode('none');
-  }, []);
-
-  // ─── Validation ──────────────────────────────────────────────────────────
-  const validateOpForm = (): boolean => {
-    if (opForm.khoiLuongDauVao < 0) { toast.error('Khối lượng đầu vào không được âm'); return false; }
-    for (let i = 1; i <= 4; i++) {
-      const gd = opForm[`giaiDoan${i}` as keyof typeof opForm] as { thoiGian: number; nhietDo: number; apSuat: number };
-      if (gd.thoiGian < 0 || gd.nhietDo < 0 || gd.apSuat < 0) {
-        toast.error(`Giai đoạn ${i}: giá trị không được âm`);
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const validateOutputForm = (): boolean => {
-    const fields = Object.entries(outputForm);
-    for (const [, val] of fields) {
-      if (val < 0) { toast.error('Khối lượng không được âm'); return false; }
-    }
-    return true;
-  };
-
-  // ─── Save handlers (now show preview first) ──────────────────────────────
-  const handleSaveOperation = () => {
-    if (!systemOp) return;
-    if (!validateOpForm()) return;
-    setPreviewMode('operation');
-  };
-
-  const handleConfirmOperation = () => {
-    if (!systemOp) return;
-    updateSystemOp.mutate(
-      {
-        id: systemOp.id,
-        data: {
-          khoiLuongDauVao: opForm.khoiLuongDauVao,
-          giaiDoan1: { thoiGian: Math.round(opForm.giaiDoan1.thoiGian), nhietDo: opForm.giaiDoan1.nhietDo, apSuat: opForm.giaiDoan1.apSuat },
-          giaiDoan2: { thoiGian: Math.round(opForm.giaiDoan2.thoiGian), nhietDo: opForm.giaiDoan2.nhietDo, apSuat: opForm.giaiDoan2.apSuat },
-          giaiDoan3: { thoiGian: Math.round(opForm.giaiDoan3.thoiGian), nhietDo: opForm.giaiDoan3.nhietDo, apSuat: opForm.giaiDoan3.apSuat },
-          giaiDoan4: { thoiGian: Math.round(opForm.giaiDoan4.thoiGian), nhietDo: opForm.giaiDoan4.nhietDo, apSuat: opForm.giaiDoan4.apSuat },
-          ghiChu: opForm.ghiChu || undefined,
-          nguoiThucHien,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast.success('Đã lưu thông số vận hành');
-          resetToOperatorSelection();
-        },
-        onError: () => toast.error('Lỗi khi lưu thông số vận hành'),
-      },
-    );
-  };
-
-  const handleSaveOutput = () => {
-    if (!finishedProduct) return;
-    if (!validateOutputForm()) return;
-    setPreviewMode('output');
-  };
-
-  const handleConfirmOutput = () => {
-    if (!finishedProduct) return;
-
-    const tongKhoiLuong =
-      outputForm.aKhoiLuong + outputForm.bKhoiLuong + outputForm.bDauKhoiLuong +
-      outputForm.cKhoiLuong + outputForm.vunLonKhoiLuong + outputForm.vunNhoKhoiLuong +
-      outputForm.phePhamKhoiLuong + outputForm.uotKhoiLuong;
-
-    const calcPercent = (val: number) => tongKhoiLuong === 0 ? 0 : Math.round((val / tongKhoiLuong) * 100 * 100) / 100;
-
-    updateFinishedProd.mutate(
-      {
-        id: finishedProduct.id,
-        data: {
-          aKhoiLuong: outputForm.aKhoiLuong,
-          aTiLe: calcPercent(outputForm.aKhoiLuong),
-          bKhoiLuong: outputForm.bKhoiLuong,
-          bTiLe: calcPercent(outputForm.bKhoiLuong),
-          bDauKhoiLuong: outputForm.bDauKhoiLuong,
-          bDauTiLe: calcPercent(outputForm.bDauKhoiLuong),
-          cKhoiLuong: outputForm.cKhoiLuong,
-          cTiLe: calcPercent(outputForm.cKhoiLuong),
-          vunLonKhoiLuong: outputForm.vunLonKhoiLuong,
-          vunLonTiLe: calcPercent(outputForm.vunLonKhoiLuong),
-          vunNhoKhoiLuong: outputForm.vunNhoKhoiLuong,
-          vunNhoTiLe: calcPercent(outputForm.vunNhoKhoiLuong),
-          phePhamKhoiLuong: outputForm.phePhamKhoiLuong,
-          phePhamTiLe: calcPercent(outputForm.phePhamKhoiLuong),
-          uotKhoiLuong: outputForm.uotKhoiLuong,
-          uotTiLe: calcPercent(outputForm.uotKhoiLuong),
-          tongKhoiLuong,
-          nguoiThucHien,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast.success('Đã lưu thành phẩm đầu ra');
-          resetToOperatorSelection();
-        },
-        onError: () => toast.error('Lỗi khi lưu thành phẩm đầu ra'),
-      },
-    );
-  };
-
-  // ─── Computed values for output ──────────────────────────────────────────
-  const tongKhoiLuongComputed = useMemo(() =>
-    outputForm.aKhoiLuong + outputForm.bKhoiLuong + outputForm.bDauKhoiLuong +
-    outputForm.cKhoiLuong + outputForm.vunLonKhoiLuong + outputForm.vunNhoKhoiLuong +
-    outputForm.phePhamKhoiLuong + outputForm.uotKhoiLuong,
-    [outputForm],
+  // Filter batches by shift + date (client-side, local date)
+  const filteredBatches = useMemo(
+    () => filterBatchesByShiftAndDate(allBatches, selectedShift, productionDate),
+    [allBatches, selectedShift, productionDate],
   );
 
-  // ─── Loading states ──────────────────────────────────────────────────────
-  const isSelectionLoading = batchesLoading || fryersLoading;
-  const isFormLoading = sysOpLoading || fpLoading;
-  const showForm = !!selectedMaChien && !!selectedFryerId;
+  // Index existing FinishedProduct by (maChien, machineSystemId)
+  const fpIndex = useMemo(
+    () => indexFinishedProducts(allFinishedProducts, filteredBatches, fryerIds),
+    [allFinishedProducts, filteredBatches, fryerIds],
+  );
+
+  // Load existing DB values into board + set baseline when data changes
+  useEffect(() => {
+    if (!selectedShift || filteredBatches.length === 0 || fpIndex.size === 0) {
+      baselineLoaded.current = false;
+      return;
+    }
+
+    const newBoard: BoardData = { A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} };
+    const newBaseline: BaselineData = { A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} };
+
+    for (const batch of filteredBatches) {
+      for (const fryerId of fryerIds) {
+        const cellKey = `${batch.maChien}|${fryerId}`;
+        const fp = fpIndex.get(cellKey);
+        if (fp) {
+          newBoard.A[cellKey] = fp.aKhoiLuong ?? 0;
+          newBoard.B[cellKey] = fp.bKhoiLuong ?? 0;
+          newBoard.B_DAU[cellKey] = fp.bDauKhoiLuong ?? 0;
+          newBoard.C[cellKey] = fp.cKhoiLuong ?? 0;
+          newBoard.UOT[cellKey] = fp.uotKhoiLuong ?? 0;
+          // Waste: sum of 3 waste fields for display
+          newBoard.VUN_PHE[cellKey] = (fp.vunLonKhoiLuong ?? 0) + (fp.vunNhoKhoiLuong ?? 0) + (fp.phePhamKhoiLuong ?? 0);
+
+          newBaseline.A[cellKey] = fp.aKhoiLuong ?? 0;
+          newBaseline.B[cellKey] = fp.bKhoiLuong ?? 0;
+          newBaseline.B_DAU[cellKey] = fp.bDauKhoiLuong ?? 0;
+          newBaseline.C[cellKey] = fp.cKhoiLuong ?? 0;
+          newBaseline.UOT[cellKey] = fp.uotKhoiLuong ?? 0;
+          newBaseline.VUN_PHE[cellKey] = (fp.vunLonKhoiLuong ?? 0) + (fp.vunNhoKhoiLuong ?? 0) + (fp.phePhamKhoiLuong ?? 0);
+        }
+      }
+    }
+
+    setBaseline(newBaseline);
+
+    // Load draft overlay (if exists for this date+shift)
+    const draftKey = getDraftKey(productionDate, selectedShift);
+    const savedDraft = localStorage.getItem(draftKey);
+    if (savedDraft) {
+      try {
+        const draft: DraftData = JSON.parse(savedDraft);
+        // Start with DB values, overlay draft for cells that have draft values
+        const merged: BoardData = { ...newBoard };
+        for (const tab of Object.keys(draft.board) as QualityTab[]) {
+          merged[tab] = { ...newBoard[tab] };
+          for (const [key, val] of Object.entries(draft.board[tab])) {
+            // Only overlay draft if the cell differs from baseline (i.e., user had entered something)
+            if (val !== (newBaseline[tab]?.[key] ?? 0)) {
+              merged[tab][key] = val;
+            }
+          }
+        }
+        setBoard(merged);
+        setNotes(draft.notes || {});
+        setWasteTotal(draft.wasteTotal || 0);
+      } catch {
+        setBoard(newBoard);
+      }
+    } else {
+      setBoard(newBoard);
+    }
+    baselineLoaded.current = true;
+  }, [selectedShift, productionDate, filteredBatches, fryerIds, fpIndex]);
+
+  // Auto-save draft to localStorage on board/notes/wasteTotal change
+  useEffect(() => {
+    if (!selectedShift || !baselineLoaded.current) return;
+    const draftKey = getDraftKey(productionDate, selectedShift);
+    const draft: DraftData = { board, notes, wasteTotal };
+    localStorage.setItem(draftKey, JSON.stringify(draft));
+  }, [board, notes, wasteTotal, productionDate, selectedShift]);
+
+  // ─── Cell update handler ─────────────────────────────────────────────────
+  const updateCell = useCallback((tab: QualityTab, cellKey: CellKey, value: number) => {
+    setBoard((prev) => ({
+      ...prev,
+      [tab]: { ...prev[tab], [cellKey]: value },
+    }));
+  }, []);
+
+  const updateNote = useCallback((cellKey: CellKey, value: string) => {
+    setNotes((prev) => ({ ...prev, [cellKey]: value }));
+  }, []);
+
+  // ─── Apply waste total evenly ────────────────────────────────────────────
+  const applyWasteDistribution = useCallback(() => {
+    if (filteredBatches.length === 0) return;
+    const totalCells = filteredBatches.length * fryerIds.length;
+    if (totalCells === 0) return;
+    const perCell = wasteTotal / totalCells;
+    // Each cell's 3 waste fields get perCell/3
+    // But in our board model we store total waste per cell for the VUN_PHE tab
+    const newWasteBoard: Record<CellKey, number> = {};
+    for (const batch of filteredBatches) {
+      for (const fryerId of fryerIds) {
+        const cellKey = `${batch.maChien}|${fryerId}`;
+        newWasteBoard[cellKey] = Math.round(perCell * 100) / 100;
+      }
+    }
+    setBoard((prev) => ({ ...prev, VUN_PHE: newWasteBoard }));
+  }, [filteredBatches, fryerIds, wasteTotal]);
+
+  // ─── Compute dirty records ───────────────────────────────────────────────
+  const computeDirtyRecords = useCallback((): DirtyRecord[] => {
+    const dirtyMap = new Map<CellKey, Partial<FinishedProduct>>();
+
+    // Check non-waste tabs
+    const nonWasteTabs: { tab: QualityTab; field: string }[] = [
+      { tab: 'A', field: 'aKhoiLuong' },
+      { tab: 'B', field: 'bKhoiLuong' },
+      { tab: 'B_DAU', field: 'bDauKhoiLuong' },
+      { tab: 'C', field: 'cKhoiLuong' },
+      { tab: 'UOT', field: 'uotKhoiLuong' },
+    ];
+
+    for (const { tab, field } of nonWasteTabs) {
+      for (const [cellKey, value] of Object.entries(board[tab])) {
+        const baselineVal = baseline[tab]?.[cellKey] ?? 0;
+        if (value !== baselineVal) {
+          const existing = dirtyMap.get(cellKey) || {};
+          (existing as Record<string, number>)[field] = value;
+          dirtyMap.set(cellKey, existing);
+        }
+      }
+    }
+
+    // Check waste tab
+    for (const [cellKey, value] of Object.entries(board.VUN_PHE)) {
+      const baselineVal = baseline.VUN_PHE?.[cellKey] ?? 0;
+      if (value !== baselineVal) {
+        const existing = dirtyMap.get(cellKey) || {};
+        // Split evenly into 3 waste fields
+        const perField = Math.round((value / 3) * 100) / 100;
+        existing.vunLonKhoiLuong = perField;
+        existing.vunNhoKhoiLuong = perField;
+        existing.phePhamKhoiLuong = perField;
+        dirtyMap.set(cellKey, existing);
+      }
+    }
+
+    // Convert to DirtyRecord[] with id + recomputed fields
+    const records: DirtyRecord[] = [];
+    for (const [cellKey, partialData] of dirtyMap) {
+      const fp = fpIndex.get(cellKey);
+      if (!fp) continue; // No record to patch
+
+      // Build the full record values for recomputing tongKhoiLuong + tiLe
+      const aVal = board.A[cellKey] ?? fp.aKhoiLuong ?? 0;
+      const bVal = board.B[cellKey] ?? fp.bKhoiLuong ?? 0;
+      const bDauVal = board.B_DAU[cellKey] ?? fp.bDauKhoiLuong ?? 0;
+      const cVal = board.C[cellKey] ?? fp.cKhoiLuong ?? 0;
+      const uotVal = board.UOT[cellKey] ?? fp.uotKhoiLuong ?? 0;
+      const vunLon = partialData.vunLonKhoiLuong ?? fp.vunLonKhoiLuong ?? 0;
+      const vunNho = partialData.vunNhoKhoiLuong ?? fp.vunNhoKhoiLuong ?? 0;
+      const phePham = partialData.phePhamKhoiLuong ?? fp.phePhamKhoiLuong ?? 0;
+
+      const tongKhoiLuong = aVal + bVal + bDauVal + cVal + uotVal + vunLon + vunNho + phePham;
+      const calcPercent = (v: number) => tongKhoiLuong === 0 ? 0 : Math.round((v / tongKhoiLuong) * 100 * 100) / 100;
+
+      const patchData: Partial<FinishedProduct> = {
+        ...partialData,
+        tongKhoiLuong,
+        nguoiThucHien,
+      };
+
+      // Recompute tiLe for changed fields
+      if ('aKhoiLuong' in partialData) patchData.aTiLe = calcPercent(aVal);
+      if ('bKhoiLuong' in partialData) patchData.bTiLe = calcPercent(bVal);
+      if ('bDauKhoiLuong' in partialData) patchData.bDauTiLe = calcPercent(bDauVal);
+      if ('cKhoiLuong' in partialData) patchData.cTiLe = calcPercent(cVal);
+      if ('uotKhoiLuong' in partialData) patchData.uotTiLe = calcPercent(uotVal);
+      if ('vunLonKhoiLuong' in partialData) {
+        patchData.vunLonTiLe = calcPercent(vunLon);
+        patchData.vunNhoTiLe = calcPercent(vunNho);
+        patchData.phePhamTiLe = calcPercent(phePham);
+      }
+
+      // Always recompute all tiLe since tongKhoiLuong changed
+      patchData.aTiLe = calcPercent(aVal);
+      patchData.bTiLe = calcPercent(bVal);
+      patchData.bDauTiLe = calcPercent(bDauVal);
+      patchData.cTiLe = calcPercent(cVal);
+      patchData.uotTiLe = calcPercent(uotVal);
+      patchData.vunLonTiLe = calcPercent(vunLon);
+      patchData.vunNhoTiLe = calcPercent(vunNho);
+      patchData.phePhamTiLe = calcPercent(phePham);
+
+      // Remove undefined waste fields if not dirty
+      if (!('vunLonKhoiLuong' in partialData)) {
+        delete patchData.vunLonKhoiLuong;
+        delete patchData.vunNhoKhoiLuong;
+        delete patchData.phePhamKhoiLuong;
+        delete patchData.vunLonTiLe;
+        delete patchData.vunNhoTiLe;
+        delete patchData.phePhamTiLe;
+      }
+
+      records.push({ id: fp.id, data: patchData });
+    }
+
+    return records;
+  }, [board, baseline, fpIndex, nguoiThucHien]);
+
+  // Helper: convert system code (e.g. "HT-CCK-01") to display label ("Máy 01")
+  const getMachineLabel = (maHeThong: string): string => {
+    const match = maHeThong.match(/(\d+)$/);
+    return match ? `Máy ${match[1]}` : maHeThong;
+  };
+
+
+  // ─── Handlers ────────────────────────────────────────────────────────────
+  const handleSave = useCallback(() => {
+    // Apply waste distribution before preview
+    if (wasteTotal > 0 && filteredBatches.length > 0) {
+      applyWasteDistribution();
+    }
+    setShowPreview(true);
+  }, [wasteTotal, filteredBatches, applyWasteDistribution]);
+
+  const handleConfirm = useCallback(() => {
+    const dirtyRecords = computeDirtyRecords();
+    if (dirtyRecords.length === 0) {
+      toast.success('Không có thay đổi nào cần lưu');
+      // Reset anyway
+      const draftKey = getDraftKey(productionDate, selectedShift);
+      localStorage.removeItem(draftKey);
+      setNguoiThucHien('');
+      setSelectedShift(0);
+      setShowPreview(false);
+      return;
+    }
+
+    batchUpdate.mutate(dirtyRecords, {
+      onSuccess: () => {
+        toast.success(`Đã lưu ${dirtyRecords.length} bản ghi sản lượng`);
+        // Clear draft
+        const draftKey = getDraftKey(productionDate, selectedShift);
+        localStorage.removeItem(draftKey);
+        // Reset to name selection
+        setNguoiThucHien('');
+        setSelectedShift(0);
+        setShowPreview(false);
+        setBoard({ A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} });
+        setBaseline({ A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} });
+        setNotes({});
+        setWasteTotal(0);
+        baselineLoaded.current = false;
+      },
+      onError: () => {
+        toast.error('Lỗi khi lưu sản lượng');
+      },
+    });
+  }, [computeDirtyRecords, batchUpdate, productionDate, selectedShift]);
 
   // ─── Session guards ──────────────────────────────────────────────────────
-  // Check if this tab is marked as kiosk; if not kiosk AND no session, show not-activated
   if (!isKioskTab() && !hasKioskSession()) {
     return <NotActivatedScreen />;
   }
@@ -471,7 +667,6 @@ const ProductionDataEntry: React.FC = () => {
     return <ExpiredScreen />;
   }
 
-  // After markTab, check kiosk session validity
   if (isKioskTab() && !hasKioskSession()) {
     return <NotActivatedScreen />;
   }
@@ -481,252 +676,203 @@ const ProductionDataEntry: React.FC = () => {
     return <OperatorSelection onSelect={setNguoiThucHien} />;
   }
 
-  // ─── Preview screens ─────────────────────────────────────────────────────
-  if (previewMode === 'operation') {
+  // ─── Shift selection gate ────────────────────────────────────────────────
+  if (!selectedShift) {
     return (
-      <OperationPreview
-        data={opForm}
-        nguoiThucHien={nguoiThucHien}
-        onConfirm={handleConfirmOperation}
-        onEdit={() => setPreviewMode('none')}
-        isPending={updateSystemOp.isPending}
+      <ShiftSelection
+        onSelect={setSelectedShift}
+        onBack={() => setNguoiThucHien('')}
+        operatorName={nguoiThucHien}
       />
     );
   }
 
-  if (previewMode === 'output') {
+  // ─── Preview screen ──────────────────────────────────────────────────────
+  if (showPreview) {
     return (
-      <OutputPreview
-        data={outputForm}
+      <FullGridPreview
+        board={board}
+        baseline={baseline}
+        updateCell={updateCell}
+        filteredBatches={filteredBatches}
+        fryers={fryers}
+        wasteTotal={wasteTotal}
         nguoiThucHien={nguoiThucHien}
-        onConfirm={handleConfirmOutput}
-        onEdit={() => setPreviewMode('none')}
-        isPending={updateFinishedProd.isPending}
+        onConfirm={handleConfirm}
+        onEdit={() => setShowPreview(false)}
+        isPending={batchUpdate.isPending}
+        getMachineLabel={getMachineLabel}
       />
     );
   }
 
-  // ─── Main form render ────────────────────────────────────────────────────
+  // ─── Loading state ───────────────────────────────────────────────────────
+  const isLoading = batchesLoading || fryersLoading || fpLoading;
+
+  // ─── Main board render ───────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sticky top header */}
+      {/* Sticky header */}
       <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 py-3">
-          <h1 className="text-lg font-semibold text-gray-800 mb-3">Nhập liệu sản xuất</h1>
-
-          {/* Selectors */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <FryBatchPicker
-              batches={batches ?? []}
-              selectedMaChien={selectedMaChien}
-              onSelect={setSelectedMaChien}
-              disabled={isSelectionLoading}
-              loading={batchesLoading}
-            />
+        <div className="max-w-full mx-auto px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <label className="text-sm font-medium text-gray-600">Nồi chiên</label>
-              <select
-                className="w-full min-h-[44px] mt-1 px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={selectedFryerId}
-                onChange={(e) => setSelectedFryerId(e.target.value)}
-                disabled={!selectedMaChien || isSelectionLoading}
-              >
-                <option value="">-- Chọn nồi --</option>
-                {fryers?.data?.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.maHeThong} - {f.tenHeThong}
-                  </option>
-                ))}
-              </select>
+              <h1 className="text-lg font-semibold text-gray-800">Bảng sản lượng thành phẩm</h1>
+              <p className="text-sm text-gray-500">
+                {nguoiThucHien} - Ca {selectedShift}
+              </p>
             </div>
+            <button
+              onClick={handleSave}
+              disabled={batchUpdate.isPending}
+              className="flex items-center gap-2 px-5 min-h-[44px] bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              Lưu
+            </button>
           </div>
 
-          {/* Tabs + Save (in upper half) */}
-          {showForm && !isFormLoading && (
-            <div className="flex items-center gap-2">
+          {/* Date picker */}
+          <div className="flex items-center gap-2 mb-3">
+            <label className="text-sm font-medium text-gray-600">Ngày sản xuất:</label>
+            <input
+              type="date"
+              value={productionDate}
+              onChange={(e) => setProductionDate(e.target.value)}
+              className="min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              onClick={() => setProductionDate(todayStr())}
+              className="min-h-[44px] px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200"
+            >
+              Hôm nay
+            </button>
+            <span className="text-sm text-gray-500 ml-2">{formatDateVN(productionDate)}</span>
+          </div>
+
+          {/* Quality tabs */}
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {QUALITY_TABS.map((tab) => (
               <button
-                className={`px-4 min-h-[44px] rounded-lg font-medium text-sm transition-colors ${activeTab === 'operation' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                onClick={() => setActiveTab('operation')}
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3 min-h-[40px] rounded-lg font-medium text-sm whitespace-nowrap transition-colors ${
+                  activeTab === tab.key
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
-                Thông số vận hành
+                {tab.label}
               </button>
-              <button
-                className={`px-4 min-h-[44px] rounded-lg font-medium text-sm transition-colors ${activeTab === 'output' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                onClick={() => setActiveTab('output')}
-              >
-                Thành phẩm đầu ra
-              </button>
-              <div className="ml-auto">
-                {activeTab === 'operation' && systemOp && (
-                  <button
-                    className="flex items-center gap-2 px-5 min-h-[44px] bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50"
-                    onClick={handleSaveOperation}
-                    disabled={updateSystemOp.isPending}
-                  >
-                    <Save className="w-4 h-4" />
-                    Lưu
-                  </button>
-                )}
-                {activeTab === 'output' && finishedProduct && (
-                  <button
-                    className="flex items-center gap-2 px-5 min-h-[44px] bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50"
-                    onClick={handleSaveOutput}
-                    disabled={updateFinishedProd.isPending}
-                  >
-                    <Save className="w-4 h-4" />
-                    Lưu
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Form content */}
-      <div className="max-w-3xl mx-auto px-4 py-4">
-        {!showForm && !isSelectionLoading && (
-          <div className="text-center py-12 text-gray-500">
-            Chọn mã chiên và nồi chiên để bắt đầu nhập liệu.
-          </div>
-        )}
-
-        {isSelectionLoading && (
+      {/* Board content */}
+      <div className="px-4 py-4">
+        {isLoading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           </div>
         )}
 
-        {showForm && isFormLoading && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          </div>
-        )}
-
-        {/* Tab: Operation */}
-        {showForm && !isFormLoading && activeTab === 'operation' && (
+        {!isLoading && activeTab !== 'VUN_PHE' && (
           <>
-            {!systemOp ? (
+            {filteredBatches.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-lg border">
-                <p className="text-gray-500">Chưa có bản ghi vận hành cho mã chiên và nồi này.</p>
-                <p className="text-sm text-gray-400 mt-1">Quản lý cần tạo mã chiên trước khi nhập liệu.</p>
+                <p className="text-gray-500">Không có mã chiên nào cho Ca {selectedShift} ngày {formatDateVN(productionDate)}.</p>
+                <p className="text-sm text-gray-400 mt-1">Hãy kiểm tra lại ca và ngày sản xuất.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {/* nguoiThucHien display */}
-                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-                  <CheckCircle className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm text-blue-800">Người thực hiện: <strong>{nguoiThucHien}</strong></span>
-                </div>
+              <div className="overflow-x-auto bg-white rounded-lg border">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100 border-b">
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r w-10">STT</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[100px]">Mã chiên</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[70px]">Giờ chiên</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[120px]">Nguyên liệu</th>
+                      {fryers.map((f) => (
+                        <th key={f.id} className="px-1 py-2 text-center font-semibold text-gray-700 border-r min-w-[70px]">
+                          {getMachineLabel(f.maHeThong)}
+                        </th>
+                      ))}
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700 min-w-[100px]">Ghi chú</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredBatches.map((batch, idx) => (
+                      <tr key={batch.maChien} className="border-b hover:bg-gray-50">
+                        <td className="px-2 py-1 text-gray-600 border-r">{idx + 1}</td>
+                        <td className="px-2 py-1 text-gray-800 font-medium border-r">{batch.maChien}</td>
+                        <td className="px-2 py-1 text-gray-600 border-r">{formatTime(batch.thoiGianChien)}</td>
+                        <td className="px-2 py-1 text-gray-600 border-r truncate max-w-[150px]">{batch.tenHangHoa}</td>
+                        {fryers.map((f) => {
+                          const cellKey = `${batch.maChien}|${f.id}`;
+                          const value = board[activeTab]?.[cellKey] ?? 0;
+                          return (
+                            <td key={f.id} className="px-1 py-1 border-r">
+                              <NumericInput
+                                value={value}
+                                onChange={(v) => updateCell(activeTab, cellKey, v)}
+                              />
+                            </td>
+                          );
+                        })}
+                        <td className="px-1 py-1">
+                          <input
+                            type="text"
+                            value={notes[`${batch.maChien}|${fryers[0]?.id ?? ''}`] || ''}
+                            onChange={(e) => updateNote(`${batch.maChien}|${fryers[0]?.id ?? ''}`, e.target.value)}
+                            className="w-full min-h-[44px] px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Ghi chú"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
 
-                <NumericInput
-                  label="Khối lượng đầu vào"
-                  value={opForm.khoiLuongDauVao}
-                  onChange={(v) => setOpForm({ ...opForm, khoiLuongDauVao: v })}
-                  unit="kg"
-                />
-
-                {/* 4 stages */}
-                {[1, 2, 3, 4].map((i) => {
-                  const key = `giaiDoan${i}` as 'giaiDoan1' | 'giaiDoan2' | 'giaiDoan3' | 'giaiDoan4';
-                  const gd = opForm[key];
-                  return (
-                    <div key={i} className="bg-white p-4 rounded-lg border">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-3">Giai đoạn {i}</h3>
-                      <div className="grid grid-cols-3 gap-3">
-                        <NumericInput
-                          label="Thời gian"
-                          value={gd.thoiGian}
-                          onChange={(v) => setOpForm({ ...opForm, [key]: { ...gd, thoiGian: v } })}
-                          unit="phút"
-                          isInteger
-                        />
-                        <NumericInput
-                          label="Nhiệt độ"
-                          value={gd.nhietDo}
-                          onChange={(v) => setOpForm({ ...opForm, [key]: { ...gd, nhietDo: v } })}
-                          unit="°C"
-                        />
-                        <NumericInput
-                          label="Áp suất"
-                          value={gd.apSuat}
-                          onChange={(v) => setOpForm({ ...opForm, [key]: { ...gd, apSuat: v } })}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Note */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-gray-700">Ghi chú</label>
-                  <textarea
-                    className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={opForm.ghiChu}
-                    onChange={(e) => setOpForm({ ...opForm, ghiChu: e.target.value })}
-                    rows={2}
+        {/* Waste tab */}
+        {!isLoading && activeTab === 'VUN_PHE' && (
+          <div className="max-w-lg mx-auto">
+            <div className="bg-white rounded-lg border p-6 space-y-4">
+              <h3 className="text-base font-semibold text-gray-800">Vụn - Phế phẩm (tổng ca)</h3>
+              <p className="text-sm text-gray-500">
+                Nhập tổng khối lượng vụn + phế phẩm cho toàn ca. Hệ thống sẽ chia đều cho tất cả mã chiên và máy.
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Tổng khối lượng (kg)</label>
+                  <NumericInput
+                    value={wasteTotal}
+                    onChange={setWasteTotal}
+                    placeholder="0"
+                    className="text-lg"
                   />
                 </div>
               </div>
-            )}
-          </>
-        )}
-
-        {/* Tab: Output */}
-        {showForm && !isFormLoading && activeTab === 'output' && (
-          <>
-            {!finishedProduct ? (
-              <div className="text-center py-12 bg-white rounded-lg border">
-                <p className="text-gray-500">Chưa có bản ghi thành phẩm cho mã chiên và nồi này.</p>
-                <p className="text-sm text-gray-400 mt-1">Quản lý cần tạo mã chiên trước khi nhập liệu.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* nguoiThucHien display */}
-                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-                  <CheckCircle className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm text-blue-800">Người thực hiện: <strong>{nguoiThucHien}</strong></span>
+              {filteredBatches.length > 0 && wasteTotal > 0 && (
+                <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+                  <p>
+                    Mỗi ô: {(wasteTotal / (filteredBatches.length * fryerIds.length)).toFixed(3)} kg
+                    ({filteredBatches.length} mã x {fryerIds.length} máy = {filteredBatches.length * fryerIds.length} ô)
+                  </p>
+                  <p>Mỗi loại (vụn lớn/nhỏ/phế phẩm): {(wasteTotal / (filteredBatches.length * fryerIds.length) / 3).toFixed(3)} kg</p>
                 </div>
-
-                {/* Total display */}
-                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                  <span className="text-sm font-medium text-green-800">
-                    Tổng khối lượng: {tongKhoiLuongComputed.toFixed(2)} kg
-                  </span>
-                </div>
-
-                {/* 8 output weight fields */}
-                {([
-                  { key: 'aKhoiLuong', label: 'Thành phẩm A' },
-                  { key: 'bKhoiLuong', label: 'Thành phẩm B' },
-                  { key: 'bDauKhoiLuong', label: 'Thành phẩm B Dầu' },
-                  { key: 'cKhoiLuong', label: 'Thành phẩm C' },
-                  { key: 'vunLonKhoiLuong', label: 'Vụn lớn' },
-                  { key: 'vunNhoKhoiLuong', label: 'Vụn nhỏ' },
-                  { key: 'phePhamKhoiLuong', label: 'Phế phẩm' },
-                  { key: 'uotKhoiLuong', label: 'Ướt' },
-                ] as const).map(({ key, label }) => {
-                  const val = outputForm[key];
-                  const percent = tongKhoiLuongComputed === 0 ? 0 : Math.round((val / tongKhoiLuongComputed) * 100 * 100) / 100;
-                  return (
-                    <div key={key} className="flex items-end gap-3">
-                      <div className="flex-1">
-                        <NumericInput
-                          label={label}
-                          value={val}
-                          onChange={(v) => setOutputForm({ ...outputForm, [key]: v })}
-                          unit="kg"
-                        />
-                      </div>
-                      <div className="pb-1 min-w-[60px] text-right">
-                        <span className="text-sm text-gray-500">{percent}%</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
+              )}
+              {filteredBatches.length === 0 && (
+                <p className="text-sm text-amber-600">
+                  Không có mã chiên cho ca và ngày này. Tổng sẽ không được chia.
+                </p>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
