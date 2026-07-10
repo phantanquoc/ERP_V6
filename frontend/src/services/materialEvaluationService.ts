@@ -16,6 +16,7 @@ export interface MaterialEvaluation {
   danhGiaSauNgam: string;
   fileDinhKem?: string;
   nguoiThucHien: string;
+  ca?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }

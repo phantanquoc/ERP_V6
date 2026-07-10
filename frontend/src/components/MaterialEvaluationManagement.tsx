@@ -93,6 +93,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     danhGiaTruocNgam: '',
     danhGiaSauNgam: '',
     nguoiThucHien: '',
+    ca: null,
   });
 
   const filteredProductionEmployees = useMemo(() => {
@@ -291,6 +292,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       setFormData({
         ...evaluation,
         thoiGianChien: thoiGianChienLocal,
+        ca: evaluation.ca ?? null,
       });
     } else {
       setIsEditing(false);
@@ -317,6 +319,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
           danhGiaTruocNgam: '',
           danhGiaSauNgam: '',
           nguoiThucHien,
+          ca: null,
         });
       } catch (err: any) {
         setError(err.message || 'Lỗi tạo mã chiên');
@@ -369,6 +372,49 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         : [...current, option];
       return { ...prev, [field]: updated.join(', ') };
     });
+  };
+
+  // Shift quick-time helpers
+  const getQuickTimesForShift = (ca: number): string[] => {
+    switch (ca) {
+      case 1: return ['06:30', '08:00', '09:30', '11:00', '12:30', '14:00'];
+      case 2: return ['15:30', '17:00', '18:30', '20:00', '21:30'];
+      case 3: return ['23:00', '00:30', '02:00', '03:30', '05:00'];
+      default: return [];
+    }
+  };
+
+  const computeShiftDatetime = (ca: number, time: string): string => {
+    const [hourStr, minuteStr] = time.split(':');
+    const hour = parseInt(hourStr);
+    const minute = parseInt(minuteStr);
+    const now = new Date();
+
+    let baseDate: Date;
+    if (ca === 3) {
+      // Base date = yesterday if current hour is 0..5, else today
+      const currentHour = now.getHours();
+      if (currentHour >= 0 && currentHour <= 5) {
+        baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      } else {
+        baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      }
+      // 23:00 -> base date; 00:30/02:00/03:30/05:00 -> base date + 1
+      if (hour < 6) {
+        // After midnight times use base + 1 day
+        baseDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + 1);
+      }
+    } else {
+      // Ca 1, Ca 2 -> always today
+      baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+
+    const y = baseDate.getFullYear();
+    const m = String(baseDate.getMonth() + 1).padStart(2, '0');
+    const d = String(baseDate.getDate()).padStart(2, '0');
+    const hh = String(hour).padStart(2, '0');
+    const mm = String(minute).padStart(2, '0');
+    return `${y}-${m}-${d}T${hh}:${mm}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -700,15 +746,52 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   />
                 </div>
 
-                <div>
-                  <DateTimePicker
-                    label="Thời gian chiên"
-                    value={formData.thoiGianChien || ''}
-                    onChange={(datetime) => setFormData(prev => ({ ...prev, thoiGianChien: datetime }))}
-                    required
-                    placeholder="Chọn ngày và giờ chiên"
-                    allowClear
-                  />
+                <div className="md:col-span-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Ca <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={formData.ca ?? ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, ca: e.target.value ? parseInt(e.target.value) : null }))}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Chọn ca</option>
+                        <option value="1">Ca 1</option>
+                        <option value="2">Ca 2</option>
+                        <option value="3">Ca 3</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <DateTimePicker
+                        label="Thời gian chiên"
+                        value={formData.thoiGianChien || ''}
+                        onChange={(datetime) => setFormData(prev => ({ ...prev, thoiGianChien: datetime }))}
+                        required
+                        placeholder="Chọn ngày và giờ chiên"
+                        allowClear
+                      />
+                    </div>
+                  </div>
+                  {formData.ca != null && (
+                    <div className="mt-2">
+                      <span className="text-xs text-gray-500 mb-1 block">Chọn nhanh giờ chiên:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {getQuickTimesForShift(formData.ca).map((time) => (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, thoiGianChien: computeShiftDatetime(formData.ca!, time) }))}
+                            className="px-2.5 py-1 text-xs font-medium border border-blue-200 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 hover:border-blue-300 transition-colors"
+                          >
+                            {time}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Người thực hiện in Section 1 */}
@@ -992,7 +1075,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Số lần ngâm <span className="text-red-500">*</span>
+                    Số lần ngâm
                   </label>
                   <input
                     type="number"
@@ -1001,14 +1084,13 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     value={formData.soLanNgam === 0 ? '' : formData.soLanNgam}
                     placeholder="0"
                     onChange={handleInputChange}
-                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nhiệt độ nước trước ngâm (°C) <span className="text-red-500">*</span>
+                    Nhiệt độ nước trước ngâm (°C)
                   </label>
                   <input
                     type="number"
@@ -1018,14 +1100,13 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     value={formData.nhietDoNuocTruocNgam === 0 ? '' : formData.nhietDoNuocTruocNgam}
                     placeholder="0"
                     onChange={handleInputChange}
-                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nhiệt độ nước sau vớt (°C) <span className="text-red-500">*</span>
+                    Nhiệt độ nước sau vớt (°C)
                   </label>
                   <input
                     type="number"
@@ -1035,14 +1116,13 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     value={formData.nhietDoNuocSauVot === 0 ? '' : formData.nhietDoNuocSauVot}
                     placeholder="0"
                     onChange={handleInputChange}
-                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Thời gian ngâm (Phút) <span className="text-red-500">*</span>
+                    Thời gian ngâm (Phút)
                   </label>
                   <input
                     type="number"
@@ -1051,14 +1131,13 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     value={formData.thoiGianNgam === 0 ? '' : formData.thoiGianNgam}
                     placeholder="0"
                     onChange={handleInputChange}
-                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Brix nước ngâm <span className="text-red-500">*</span>
+                    Brix nước ngâm
                   </label>
                   <input
                     type="number"
@@ -1068,7 +1147,6 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     value={formData.brixNuocNgam === 0 ? '' : formData.brixNuocNgam}
                     placeholder="0"
                     onChange={handleInputChange}
-                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -1081,7 +1159,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Đánh giá trước ngâm <span className="text-red-500">*</span>
+                    Đánh giá trước ngâm
                   </label>
                   <div className="grid grid-cols-2 gap-1 p-3 border border-gray-300 rounded-md bg-white">
                     {criteria.map(c => {
@@ -1103,7 +1181,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Đánh giá sau ngâm <span className="text-red-500">*</span>
+                    Đánh giá sau ngâm
                   </label>
                   <div className="grid grid-cols-2 gap-1 p-3 border border-gray-300 rounded-md bg-white">
                     {criteria.map(c => {

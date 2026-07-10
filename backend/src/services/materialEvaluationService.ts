@@ -115,6 +115,7 @@ export class MaterialEvaluationService {
         danhGiaSauNgam: data.danhGiaSauNgam,
         fileDinhKem: data.fileDinhKem,
         nguoiThucHien: data.nguoiThucHien,
+        ca: data.ca != null ? parseInt(data.ca) : null,
         createdById: userId ?? null,
       },
     });
@@ -214,6 +215,7 @@ export class MaterialEvaluationService {
           danhGiaSauNgam: data.danhGiaSauNgam,
           fileDinhKem: data.fileDinhKem,
           nguoiThucHien: data.nguoiThucHien,
+          ca: data.ca != null ? parseInt(data.ca) : null,
           lotProductId: lotProduct.id,
           warehouseIssueId: warehouseIssue.id,
           createdById: userId ?? null,
@@ -262,6 +264,7 @@ export class MaterialEvaluationService {
           danhGiaSauNgam: safeData.danhGiaSauNgam,
           fileDinhKem: safeData.fileDinhKem,
           nguoiThucHien: safeData.nguoiThucHien,
+          ca: 'ca' in safeData ? (safeData.ca != null ? parseInt(safeData.ca) : null) : undefined,
         },
       });
 
