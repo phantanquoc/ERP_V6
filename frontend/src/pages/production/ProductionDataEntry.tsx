@@ -9,7 +9,7 @@ import {
   DirtyRecord,
 } from '../../hooks/useProductionDataEntry';
 import { useProductionEmployees } from '../../hooks/useProductionEmployees';
-import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT } from '../../utils/kioskSession';
+import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT, getSelection, setSelection, clearSelection } from '../../utils/kioskSession';
 import { parseNumberInput } from '../../utils/numberInput';
 import { FinishedProduct } from '../../services/finishedProductService';
 import { Loader2, Save, CheckCircle, AlertTriangle, User, Eye, ArrowLeft, Calendar } from 'lucide-react';
@@ -62,6 +62,11 @@ function getDraftKey(date: string, shift: number): string {
 function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const VALID_TABS: QualityTab[] = ['A', 'B', 'B_DAU', 'C', 'UOT', 'VUN_PHE'];
+function isValidTab(v: string): v is QualityTab {
+  return (VALID_TABS as string[]).includes(v);
 }
 
 function formatDateVN(dateStr: string): string {
@@ -352,10 +357,16 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
 // ─── Main Component ──────────────────────────────────────────────────────────
 const ProductionDataEntry: React.FC = () => {
   const [kioskExpired, setKioskExpired] = useState(false);
-  const [nguoiThucHien, setNguoiThucHien] = useState('');
-  const [selectedShift, setSelectedShift] = useState<number>(0);
-  const [productionDate, setProductionDate] = useState(todayStr());
-  const [activeTab, setActiveTab] = useState<QualityTab>('A');
+  const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
+  const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
+  const [productionDate, setProductionDate] = useState<string>(() => {
+    const stored = getSelection()?.date;
+    return stored && stored.length > 0 ? stored : todayStr();
+  });
+  const [activeTab, setActiveTab] = useState<QualityTab>(() => {
+    const stored = getSelection()?.activeTab;
+    return stored && isValidTab(stored) ? stored : 'A';
+  });
   const [showPreview, setShowPreview] = useState(false);
 
   // Board state: weight values per tab per cell
@@ -382,6 +393,17 @@ const ProductionDataEntry: React.FC = () => {
     window.addEventListener(KIOSK_EXPIRED_EVENT, handler);
     return () => window.removeEventListener(KIOSK_EXPIRED_EVENT, handler);
   }, []);
+
+  // Persist selection state to sessionStorage so reload restores the entry screen
+  useEffect(() => {
+    if (!nguoiThucHien) return; // Don't write rác khi chưa chọn
+    setSelection({
+      operator: nguoiThucHien,
+      shift: selectedShift,
+      date: productionDate,
+      activeTab,
+    });
+  }, [nguoiThucHien, selectedShift, productionDate, activeTab]);
 
   // Data hooks
   const { data: allBatches, isLoading: batchesLoading } = useFryBatchCodes();
@@ -630,6 +652,7 @@ const ProductionDataEntry: React.FC = () => {
       // Reset anyway
       const draftKey = getDraftKey(productionDate, selectedShift);
       localStorage.removeItem(draftKey);
+      clearSelection();
       setNguoiThucHien('');
       setSelectedShift(0);
       setShowPreview(false);
@@ -642,6 +665,7 @@ const ProductionDataEntry: React.FC = () => {
         // Clear draft
         const draftKey = getDraftKey(productionDate, selectedShift);
         localStorage.removeItem(draftKey);
+        clearSelection();
         // Reset to name selection
         setNguoiThucHien('');
         setSelectedShift(0);
@@ -681,7 +705,7 @@ const ProductionDataEntry: React.FC = () => {
     return (
       <ShiftSelection
         onSelect={setSelectedShift}
-        onBack={() => setNguoiThucHien('')}
+        onBack={() => { clearSelection(); setNguoiThucHien(''); setSelectedShift(0); setActiveTab('A'); setProductionDate(todayStr()); }}
         operatorName={nguoiThucHien}
       />
     );
