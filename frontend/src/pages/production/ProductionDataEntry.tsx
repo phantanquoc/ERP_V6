@@ -655,6 +655,8 @@ const ProductionDataEntry: React.FC = () => {
       clearSelection();
       setNguoiThucHien('');
       setSelectedShift(0);
+      setActiveTab('A');
+      setProductionDate(todayStr());
       setShowPreview(false);
       return;
     }
@@ -669,6 +671,8 @@ const ProductionDataEntry: React.FC = () => {
         // Reset to name selection
         setNguoiThucHien('');
         setSelectedShift(0);
+        setActiveTab('A');
+        setProductionDate(todayStr());
         setShowPreview(false);
         setBoard({ A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} });
         setBaseline({ A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} });
@@ -681,6 +685,38 @@ const ProductionDataEntry: React.FC = () => {
       },
     });
   }, [computeDirtyRecords, batchUpdate, productionDate, selectedShift]);
+
+  // ─── Change operator/shift handlers ──────────────────────────────────────
+  // Check if any cell diverges from the loaded DB baseline
+  const hasDirtyData = useCallback((): boolean => {
+    const tabs: QualityTab[] = ['A', 'B', 'B_DAU', 'C', 'UOT', 'VUN_PHE'];
+    for (const tab of tabs) {
+      for (const [key, val] of Object.entries(board[tab])) {
+        if (val !== (baseline[tab]?.[key] ?? 0)) return true;
+      }
+    }
+    return wasteTotal > 0;
+  }, [board, baseline, wasteTotal]);
+
+  const handleChangeOperator = useCallback(() => {
+    if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Đổi người sẽ giữ nguyên draft nhưng phải chọn lại. Tiếp tục?')) {
+      return;
+    }
+    clearSelection();
+    setNguoiThucHien('');
+    setSelectedShift(0);
+    setActiveTab('A');
+    // KHÔNG reset productionDate — giữ ngày user đang xem
+  }, [hasDirtyData]);
+
+  const handleChangeShift = useCallback(() => {
+    if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Đổi ca sẽ giữ nguyên draft nhưng phải chọn lại ca. Tiếp tục?')) {
+      return;
+    }
+    setSelectedShift(0);
+    setActiveTab('A');
+    // Effect sync ngược sẽ tự cập nhật sessionStorage với shift=0, activeTab='A', giữ operator + date
+  }, [hasDirtyData]);
 
   // ─── Session guards ──────────────────────────────────────────────────────
   if (!isKioskTab() && !hasKioskSession()) {
@@ -705,7 +741,7 @@ const ProductionDataEntry: React.FC = () => {
     return (
       <ShiftSelection
         onSelect={setSelectedShift}
-        onBack={() => { clearSelection(); setNguoiThucHien(''); setSelectedShift(0); setActiveTab('A'); setProductionDate(todayStr()); }}
+        onBack={() => { clearSelection(); setNguoiThucHien(''); setSelectedShift(0); setActiveTab('A'); }}
         operatorName={nguoiThucHien}
       />
     );
@@ -742,8 +778,26 @@ const ProductionDataEntry: React.FC = () => {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h1 className="text-lg font-semibold text-gray-800">Bảng sản lượng thành phẩm</h1>
-              <p className="text-sm text-gray-500">
-                {nguoiThucHien} - Ca {selectedShift}
+              <p className="text-sm">
+                <button
+                  type="button"
+                  title="Đổi người thực hiện"
+                  aria-label="Đổi người thực hiện"
+                  onClick={handleChangeOperator}
+                  className="text-sm text-blue-600 underline decoration-dashed underline-offset-2 min-h-[32px] px-1 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                >
+                  {nguoiThucHien}
+                </button>
+                <span className="text-gray-500"> - </span>
+                <button
+                  type="button"
+                  title="Đổi ca"
+                  aria-label="Đổi ca"
+                  onClick={handleChangeShift}
+                  className="text-sm text-blue-600 underline decoration-dashed underline-offset-2 min-h-[32px] px-1 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                >
+                  Ca {selectedShift}
+                </button>
               </p>
             </div>
             <button
