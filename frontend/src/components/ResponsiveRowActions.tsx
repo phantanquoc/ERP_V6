@@ -1,6 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import {
+  autoUpdate,
+  flip,
+  FloatingPortal,
+  offset,
+  shift,
+  useClick,
+  useDismiss,
+  useFloating,
+  useInteractions,
+  useRole,
+} from '@floating-ui/react';
 import { MoreHorizontal } from 'lucide-react';
 
 export type RowActionTone = 'default' | 'primary' | 'success' | 'warning' | 'danger';
@@ -39,51 +50,25 @@ const toneClasses: Record<RowActionTone, { inline: string; menu: string }> = {
 
 const ResponsiveRowActions = ({ actions, menuLabel = 'Thao tác', alwaysMenu = false }: { actions: RowAction[]; menuLabel?: string; alwaysMenu?: boolean }) => {
   const [open, setOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
+  const { refs, floatingStyles, context } = useFloating({
+    open,
+    onOpenChange: setOpen,
+    placement: 'bottom-end',
+    middleware: [offset(4), flip(), shift({ padding: 8 })],
+    whileElementsMounted: autoUpdate,
+  });
 
-    const triggerRect = triggerRef.current?.getBoundingClientRect();
-    if (triggerRect) {
-      setMenuPosition({
-        top: triggerRect.bottom + 4,
-        right: window.innerWidth - triggerRect.right,
-      });
-    }
+  const click = useClick(context);
+  const dismiss = useDismiss(context);
+  const role = useRole(context, { role: 'menu' });
 
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!wrapperRef.current?.contains(target) && !menuRef.current?.contains(target)) {
-        setOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-
-    const handleViewportChange = () => setOpen(false);
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('resize', handleViewportChange);
-    window.addEventListener('scroll', handleViewportChange, true);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('resize', handleViewportChange);
-      window.removeEventListener('scroll', handleViewportChange, true);
-    };
-  }, [open]);
+  const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss, role]);
 
   if (actions.length === 0) return null;
 
   return (
-    <div ref={wrapperRef} className="relative flex justify-end">
+    <div className="relative flex justify-end">
       {!alwaysMenu && (
         <div className="hidden justify-end gap-0.5 lg:flex">
           {actions.map((action) => (
@@ -104,48 +89,49 @@ const ResponsiveRowActions = ({ actions, menuLabel = 'Thao tác', alwaysMenu = f
 
       <div className={alwaysMenu ? '' : 'lg:hidden'}>
         <button
-          ref={triggerRef}
+          ref={refs.setReference}
           type="button"
           title={menuLabel}
           aria-label={menuLabel}
           aria-haspopup="menu"
           aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
           className={
             alwaysMenu
               ? 'inline-flex items-center rounded-md border border-gray-300 bg-white p-1.5 text-gray-600 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500'
               : 'inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500'
           }
+          {...getReferenceProps()}
         >
           <MoreHorizontal className="h-4 w-4" />
           {!alwaysMenu && menuLabel}
         </button>
 
-        {open && createPortal(
-          <div
-            ref={menuRef}
-            role="menu"
-            className="fixed z-[9999] w-44 overflow-hidden rounded-md border border-gray-200 bg-white py-1 text-left shadow-lg"
-            style={{ top: menuPosition.top, right: menuPosition.right }}
-          >
-            {actions.map((action) => (
-              <button
-                key={action.key}
-                type="button"
-                role="menuitem"
-                disabled={action.disabled}
-                onClick={() => {
-                  setOpen(false);
-                  action.onClick();
-                }}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent ${toneClasses[action.tone ?? 'default'].menu}`}
-              >
-                <span className="shrink-0">{action.icon}</span>
-                <span>{action.label}</span>
-              </button>
-            ))}
-          </div>,
-          document.body
+        {open && (
+          <FloatingPortal>
+            <div
+              ref={refs.setFloating}
+              style={floatingStyles}
+              className="z-[9999] w-44 overflow-hidden rounded-md border border-gray-200 bg-white py-1 text-left shadow-lg"
+              {...getFloatingProps()}
+            >
+              {actions.map((action) => (
+                <button
+                  key={action.key}
+                  type="button"
+                  role="menuitem"
+                  disabled={action.disabled}
+                  onClick={() => {
+                    setOpen(false);
+                    action.onClick();
+                  }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent ${toneClasses[action.tone ?? 'default'].menu}`}
+                >
+                  <span className="shrink-0">{action.icon}</span>
+                  <span>{action.label}</span>
+                </button>
+              ))}
+            </div>
+          </FloatingPortal>
         )}
       </div>
     </div>
