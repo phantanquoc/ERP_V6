@@ -98,7 +98,7 @@ const ProcessTypeSettings: React.FC = () => {
 
   return (
     <div className="space-y-6">
-        {/* Header */}
+      {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <button
@@ -219,7 +219,6 @@ const ProcessTypeSettings: React.FC = () => {
             </table>
           </div>
         </div>
-      </div>
 
       {/* Create modal */}
       {isCreateOpen && (
@@ -352,6 +351,7 @@ const ProcessTypeSettings: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
   );
 };
 
