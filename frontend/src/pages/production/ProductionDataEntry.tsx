@@ -698,19 +698,8 @@ const ProductionDataEntry: React.FC = () => {
     return wasteTotal > 0;
   }, [board, baseline, wasteTotal]);
 
-  const handleChangeOperator = useCallback(() => {
-    if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Đổi người sẽ giữ nguyên draft nhưng phải chọn lại. Tiếp tục?')) {
-      return;
-    }
-    clearSelection();
-    setNguoiThucHien('');
-    setSelectedShift(0);
-    setActiveTab('A');
-    // KHÔNG reset productionDate — giữ ngày user đang xem
-  }, [hasDirtyData]);
-
   const handleChangeShift = useCallback(() => {
-    if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Đổi ca sẽ giữ nguyên draft nhưng phải chọn lại ca. Tiếp tục?')) {
+    if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Quay lại sẽ giữ nguyên draft nhưng phải chọn lại ca. Tiếp tục?')) {
       return;
     }
     setSelectedShift(0);
@@ -776,29 +765,23 @@ const ProductionDataEntry: React.FC = () => {
       <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
         <div className="max-w-full mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-lg font-semibold text-gray-800">Bảng sản lượng thành phẩm</h1>
-              <p className="text-sm">
-                <button
-                  type="button"
-                  title="Đổi người thực hiện"
-                  aria-label="Đổi người thực hiện"
-                  onClick={handleChangeOperator}
-                  className="text-sm text-blue-600 underline decoration-dashed underline-offset-2 min-h-[32px] px-1 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-                >
-                  {nguoiThucHien}
-                </button>
-                <span className="text-gray-500"> - </span>
-                <button
-                  type="button"
-                  title="Đổi ca"
-                  aria-label="Đổi ca"
-                  onClick={handleChangeShift}
-                  className="text-sm text-blue-600 underline decoration-dashed underline-offset-2 min-h-[32px] px-1 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-                >
-                  Ca {selectedShift}
-                </button>
-              </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleChangeShift}
+                title="Quay lại chọn ca / đổi người"
+                aria-label="Quay lại chọn ca"
+                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Quay lại
+              </button>
+              <div>
+                <h1 className="text-lg font-semibold text-gray-800">Bảng sản lượng thành phẩm</h1>
+                <p className="text-sm text-gray-600">
+                  {nguoiThucHien} <span className="text-gray-400">·</span> Ca {selectedShift}
+                </p>
+              </div>
             </div>
             <button
               onClick={handleSave}
