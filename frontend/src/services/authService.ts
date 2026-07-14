@@ -44,7 +44,10 @@ function mapSubDeptCodeToPermCode(subDeptCode?: string | null): string | undefin
     'SUBDEPT_PRODUCTION_WAREHOUSE': 'warehouse',
     'SUBDEPT_PRODUCTION_DATA': 'data',
     'SUBDEPT_TECHNICAL_QUALITY': 'quality',
-    'SUBDEPT_TECHNICAL_MECHANICAL': 'mechanical',
+    // Legacy: MECHANICAL merged into QUALITY (Phòng đảm bảo và cải tiến).
+    // Any residual user tied to the old code still resolves to the merged sub-module.
+    'SUBDEPT_TECHNICAL_MECHANICAL': 'quality',
+    'SUBDEPT_TECHNICAL_PROJECTS': 'projects',
   };
   return map[subDeptCode];
 }
@@ -79,8 +82,11 @@ function mapSubDepartmentNameToCode(subDepartmentName?: string): string | undefi
     'Phòng QLSX': 'management',
     'Quản lý kho': 'warehouse',
     'Dữ liệu sản xuất': 'data',
+    'Phòng đảm bảo và cải tiến': 'quality',
+    // Legacy names — both old sub-depts merged into QUALITY.
     'Phòng QLHTM': 'quality',
-    'Phòng cơ- điện': 'mechanical',
+    'Phòng cơ- điện': 'quality',
+    'Phòng phát triển': 'projects',
   };
   return nameMap[subDepartmentName];
 }

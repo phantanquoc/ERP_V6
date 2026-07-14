@@ -7,9 +7,9 @@ const TechnicalProjects = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <FolderKanban className="w-6 h-6 text-blue-600" />
-          Dự án
+          Phòng phát triển
         </h1>
-        <p className="text-sm text-gray-500 mt-1">Quản lý dự án và công việc của phòng kỹ thuật</p>
+        <p className="text-sm text-gray-500 mt-1">Quản lý dự án và công việc phát triển</p>
       </div>
       <ProjectList />
     </div>

@@ -238,22 +238,25 @@ async function main(): Promise<void> {
   // Technical sub-departments
   await prisma.subDepartment.upsert({
     where: { code: 'SUBDEPT_TECHNICAL_QUALITY' },
-    update: {},
+    update: {
+      name: 'Phòng đảm bảo và cải tiến',
+      description: 'Phòng đảm bảo và cải tiến',
+    },
     create: {
       code: 'SUBDEPT_TECHNICAL_QUALITY',
-      name: 'Phòng QLHTM',
-      description: 'Phòng QLHTM',
+      name: 'Phòng đảm bảo và cải tiến',
+      description: 'Phòng đảm bảo và cải tiến',
       departmentId: technicalDept.id,
     },
   });
 
   await prisma.subDepartment.upsert({
-    where: { code: 'SUBDEPT_TECHNICAL_MECHANICAL' },
-    update: {},
+    where: { code: 'SUBDEPT_TECHNICAL_PROJECTS' },
+    update: { name: 'Phòng phát triển', description: 'Phòng phát triển' },
     create: {
-      code: 'SUBDEPT_TECHNICAL_MECHANICAL',
-      name: 'Phòng cơ- điện',
-      description: 'Phòng cơ- điện',
+      code: 'SUBDEPT_TECHNICAL_PROJECTS',
+      name: 'Phòng phát triển',
+      description: 'Phòng phát triển',
       departmentId: technicalDept.id,
     },
   });

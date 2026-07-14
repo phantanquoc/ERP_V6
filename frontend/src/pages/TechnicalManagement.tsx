@@ -350,7 +350,7 @@ const TechnicalManagement = () => {
             <div className="flex items-center gap-2">
               <ClipboardCheck className="w-4 h-4 text-cyan-500" />
               <h3 className="text-sm font-semibold text-gray-700">
-                {canOpen('quality') ? <Link to="/technical/quality?tab=repairRequests" className="hover:text-cyan-600 transition-colors">Yêu cầu sửa chữa</Link> : 'Yêu cầu sửa chữa'}
+                {canOpen('quality') ? <Link to="/technical/quality?tab=repairAndFault" className="hover:text-cyan-600 transition-colors">Yêu cầu sửa chữa</Link> : 'Yêu cầu sửa chữa'}
               </h3>
             </div>
             <span className="text-xs text-gray-400">Tổng: {repairTotal}</span>
@@ -387,7 +387,7 @@ const TechnicalManagement = () => {
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-cyan-500" />
               <h3 className="text-sm font-semibold text-gray-700">
-              {canOpen('mechanical') ? <Link to="/technical/mechanical" className="hover:text-cyan-600 transition-colors">Bản ghi lỗi</Link> : 'Bản ghi lỗi'}
+              {canOpen('quality') ? <Link to="/technical/quality?tab=repairAndFault" className="hover:text-cyan-600 transition-colors">Bản ghi lỗi</Link> : 'Bản ghi lỗi'}
             </h3>
             </div>
             <span className="text-xs text-gray-400">Tổng: {faultRecordTotal}</span>
@@ -450,7 +450,7 @@ const TechnicalManagement = () => {
           <div className="flex items-center gap-2 mb-3">
             <Layers3 className="w-4 h-4 text-cyan-500" />
             <h3 className="text-sm font-semibold text-gray-700">
-              {canOpen('projects') ? <Link to="/technical/projects" className="hover:text-cyan-600 transition-colors">Dự án kỹ thuật</Link> : 'Dự án kỹ thuật'}
+              {canOpen('projects') ? <Link to="/technical/projects" className="hover:text-cyan-600 transition-colors">Phòng phát triển</Link> : 'Phòng phát triển'}
             </h3>
           </div>
 
@@ -491,9 +491,8 @@ const TechnicalManagement = () => {
       {/* ── NAV CARDS ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { key: 'quality', title: 'QLHTM', desc: 'Hệ thống máy, chi tiết, báo cáo', icon: <Settings className="w-5 h-5" />, path: '/technical/quality' },
-          { key: 'mechanical', title: 'Cơ điện', desc: 'Lỗi, mẫu lỗi, nghiệm thu', icon: <AlertTriangle className="w-5 h-5" />, path: '/technical/mechanical' },
-          { key: 'projects', title: 'Dự án', desc: 'Dự án, giai đoạn, công việc', icon: <Layers3 className="w-5 h-5" />, path: '/technical/projects' },
+          { key: 'quality', title: 'Đảm bảo & Cải tiến', desc: 'Hệ thống máy, sửa chữa, lỗi, bảo dưỡng, linh kiện', icon: <Settings className="w-5 h-5" />, path: '/technical/quality' },
+          { key: 'projects', title: 'Phòng phát triển', desc: 'Dự án, giai đoạn, công việc', icon: <Layers3 className="w-5 h-5" />, path: '/technical/projects' },
         ]
           .filter((item) => canOpen(item.key))
           .map((item) => (

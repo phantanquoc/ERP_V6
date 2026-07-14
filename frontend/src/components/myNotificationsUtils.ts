@@ -254,8 +254,8 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
     case 'REPAIR_REQUEST': {
       const repairRequestId = meta.entityId as string | undefined;
       return repairRequestId
-        ? `/technical/quality?tab=repairRequests&repairRequestId=${repairRequestId}`
-        : '/technical/quality?tab=repairRequests';
+        ? `/technical/quality?tab=repairAndFault&repairRequestId=${repairRequestId}`
+        : '/technical/quality?tab=repairAndFault';
     }
 
     case 'ORDER': {
@@ -299,8 +299,8 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
     case 'FAULT_RECORD': {
       const faultRecordId = meta.entityId as string | undefined;
       return faultRecordId
-        ? `/technical/mechanical?tab=faultRecords&faultRecordId=${faultRecordId}`
-        : '/technical/mechanical?tab=faultRecords';
+        ? `/technical/quality?tab=repairAndFault&faultRecordId=${faultRecordId}`
+        : '/technical/quality?tab=repairAndFault';
     }
 
     case 'PRICING': {
