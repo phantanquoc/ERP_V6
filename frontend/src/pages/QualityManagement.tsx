@@ -136,8 +136,7 @@ const QualityManagement = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="space-y-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Bộ phận chất lượng</h1>
           <p className="text-gray-600">Quản lý và đảm bảo chất lượng sản phẩm, quy trình</p>
@@ -233,7 +232,6 @@ const QualityManagement = () => {
           </div>
         </div>
 
-      </div>
     </div>
   );
 };
