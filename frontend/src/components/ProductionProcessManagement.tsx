@@ -6,6 +6,7 @@ import productionProcessService, { ProductionProcess, CreateProductionProcessDat
 import processService, { Process } from '../services/processService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
 import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { SERVER_BASE_URL } from '../config/api';
@@ -41,6 +42,11 @@ const getVisibleProductionCostColumns = (sections: ProductionFlowchartSection[])
 
 const ProductionProcessManagement: React.FC = () => {
   const { user } = useAuth();
+  const canCreate =
+    !!user?.role &&
+    [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD].includes(user.role) &&
+    (user.role === UserRole.ADMIN ||
+      (!!user.departmentCode && ['DEPT_PRODUCTION'].includes(user.departmentCode)));
   const [productionProcesses, setProductionProcesses] = useState<ProductionProcess[]>([]);
   const [templateProcesses, setTemplateProcesses] = useState<Process[]>([]);
   const [materialStandards, setMaterialStandards] = useState<MaterialStandard[]>([]);
@@ -495,15 +501,17 @@ const ProductionProcessManagement: React.FC = () => {
       </div>
 
       {/* Action Bar */}
-      <div className="mb-4 sm:mb-6 flex justify-stretch sm:justify-end items-center">
-        <button
-          onClick={handleOpenModal}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Tạo quy trình sản xuất
-        </button>
-      </div>
+      {canCreate && (
+        <div className="mb-4 sm:mb-6 flex justify-stretch sm:justify-end items-center">
+          <button
+            onClick={handleOpenModal}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Tạo quy trình sản xuất
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <TableFilter
@@ -573,27 +581,31 @@ const ProductionProcessManagement: React.FC = () => {
                         >
                           <Eye className="w-5 h-5" />
                         </button>
-                        <button
-                          onClick={() => handleEditProcess(process)}
-                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleSyncFromTemplate(process.id)}
-                          className="p-1.5 text-orange-600 hover:bg-orange-100 rounded-md transition-colors"
-                          title="Đồng bộ từ quy trình mẫu"
-                        >
-                          <RefreshCw className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(process.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                          title="Xóa"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                        {canCreate && (
+                          <>
+                            <button
+                              onClick={() => handleEditProcess(process)}
+                              className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                              title="Chỉnh sửa"
+                            >
+                              <Edit className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleSyncFromTemplate(process.id)}
+                              className="p-1.5 text-orange-600 hover:bg-orange-100 rounded-md transition-colors"
+                              title="Đồng bộ từ quy trình mẫu"
+                            >
+                              <RefreshCw className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(process.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -671,11 +683,13 @@ const ProductionProcessManagement: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                 >
                   <option value="">-- Chọn quy trình mẫu --</option>
-                  {templateProcesses.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.maQuyTrinh} - {template.tenQuyTrinh}
-                    </option>
-                  ))}
+                  {templateProcesses
+                    .filter((template) => template.loaiQuyTrinh === 'Sản xuất')
+                    .map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.maQuyTrinh} - {template.tenQuyTrinh}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -1245,15 +1259,17 @@ const ProductionProcessManagement: React.FC = () => {
               >
                 Đóng
               </button>
-              <button
-                onClick={() => {
-                  handleCloseViewModal();
-                  if (viewingProcess) handleEditProcess(viewingProcess);
-                }}
-                className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Chỉnh sửa
-              </button>
+              {canCreate && (
+                <button
+                  onClick={() => {
+                    handleCloseViewModal();
+                    if (viewingProcess) handleEditProcess(viewingProcess);
+                  }}
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Chỉnh sửa
+                </button>
+              )}
             </div>
           </div>
         </Modal>

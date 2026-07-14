@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Settings,
   FileText,
@@ -9,10 +9,13 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import ProcessManagement from '../../components/ProcessManagement';
+import ProductionProcessManagement from '../../components/ProductionProcessManagement';
 import OrderManagement from '../../components/OrderManagement';
 import InternalInspectionManagement from '../../components/InternalInspectionManagement';
 import { processService } from '../../services/processService';
 import { internationalProductService } from '../../services/internationalProductService';
+import { useAuth } from '../../contexts/AuthContext';
+import { UserRole } from '../../types/auth';
 
 interface CostItem {
   id: string;
@@ -54,14 +57,19 @@ interface Process {
   dvt: string;
 }
 
-const VALID_TABS = ['processProduction', 'processGeneral', 'orderList', 'inspection'] as const;
+const VALID_TABS = ['processList', 'productionProcess', 'orderList', 'inspection'] as const;
 type TabType = typeof VALID_TABS[number];
 
 const QualityProcess = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const canManageProcessTypes =
+    user?.role === UserRole.ADMIN ||
+    (user?.role === UserRole.DEPARTMENT_HEAD && user?.departmentCode === 'DEPT_QUALITY');
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const tabParam = searchParams.get('tab') as TabType;
-    return VALID_TABS.includes(tabParam) ? tabParam : 'processProduction';
+    return VALID_TABS.includes(tabParam) ? tabParam : 'processList';
   });
 
   useEffect(() => {
@@ -307,22 +315,23 @@ const QualityProcess = () => {
   };
 
   const tabs = [
-    { id: 'processProduction', name: 'Quy trình sản xuất', icon: <FileText className="w-4 h-4" /> },
-    { id: 'processGeneral', name: 'Quy trình chung', icon: <FileText className="w-4 h-4" /> },
+    { id: 'processList', name: 'Danh sách quy trình', icon: <FileText className="w-4 h-4" /> },
+    { id: 'productionProcess', name: 'Quy trình sản xuất', icon: <FileText className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'inspection', name: 'Kiểm tra nội bộ', icon: <ShieldCheck className="w-4 h-4" /> }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div className="space-y-6">
         {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2 flex items-center">
-            <Settings className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 mr-3" />
-            Quản lý quy trình chất lượng
-          </h1>
-          <p className="text-sm sm:text-base text-gray-600">Quản lý tiêu chuẩn, quy trình, kiểm tra và cải tiến chất lượng</p>
+        <div className="mb-6 sm:mb-8 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2 flex items-center">
+              <Settings className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 mr-3" />
+              Quản lý quy trình chất lượng
+            </h1>
+            <p className="text-sm sm:text-base text-gray-600">Quản lý tiêu chuẩn, quy trình, kiểm tra và cải tiến chất lượng</p>
+          </div>
         </div>
 
         {/* Overview Cards */}
@@ -459,17 +468,20 @@ const QualityProcess = () => {
 
         {/* Content */}
         <div className="bg-white rounded-lg shadow-sm">
-          {/* QUY TRÌNH SẢN XUẤT */}
-          {activeTab === 'processProduction' && (
+          {/* DANH SÁCH QUY TRÌNH */}
+          {activeTab === 'processList' && (
             <div className="p-4 sm:p-6">
-              <ProcessManagement showToggleHienThi={true} filterLoaiQuyTrinh="production" />
+              <ProcessManagement
+                showToggleHienThi={true}
+                onOpenTypeSettings={canManageProcessTypes ? () => navigate('/quality/process-types') : undefined}
+              />
             </div>
           )}
 
-          {/* QUY TRÌNH CHUNG */}
-          {activeTab === 'processGeneral' && (
+          {/* QUY TRÌNH SẢN XUẤT */}
+          {activeTab === 'productionProcess' && (
             <div className="p-4 sm:p-6">
-              <ProcessManagement showToggleHienThi={true} filterLoaiQuyTrinh="non-production" />
+              <ProductionProcessManagement />
             </div>
           )}
 
@@ -766,7 +778,6 @@ const QualityProcess = () => {
         )}
 
 
-      </div>
     </div>
   );
 };

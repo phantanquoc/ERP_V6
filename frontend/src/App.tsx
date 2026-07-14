@@ -23,6 +23,7 @@ const QualityOffice = React.lazy(() => import('./pages/quality/QualityOffice'));
 const QualityProduction = React.lazy(() => import('./pages/quality/QualityProduction'));
 const QualityProcess = React.lazy(() => import('./pages/quality/QualityProcess'));
 const ProcessList = React.lazy(() => import('./pages/quality/ProcessList'));
+const ProcessTypeSettings = React.lazy(() => import('./pages/quality/ProcessTypeSettings'));
 
 // General Management
 const GeneralManagement = React.lazy(() => import('./pages/GeneralManagement'));
@@ -140,6 +141,11 @@ function App() {
             <Route path="/quality/process" element={
               <ProtectedSubRoute department="quality" subModule="process">
                 <QualityProcess />
+              </ProtectedSubRoute>
+            } />
+            <Route path="/quality/process-types" element={
+              <ProtectedSubRoute department="quality" subModule="process">
+                <ProcessTypeSettings />
               </ProtectedSubRoute>
             } />
             <Route path="/quality/process-list" element={

@@ -1,6 +1,7 @@
 import express from 'express';
 import productionProcessController from '../controllers/productionProcessController';
-import { authenticate } from '../middlewares/auth';
+import { authenticate, authorize } from '../middlewares/auth';
+import { UserRole } from '../types';
 import { createSingleUploadMiddleware } from '../middlewares/upload';
 
 const uploadProductionProcessFile = createSingleUploadMiddleware('production-processes');
@@ -62,7 +63,11 @@ router.get('/', productionProcessController.getAllProductionProcesses);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', productionProcessController.createProductionProcess);
+router.post(
+  '/',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  productionProcessController.createProductionProcess
+);
 
 /**
  * @swagger
@@ -175,7 +180,11 @@ router.get('/:id', productionProcessController.getProductionProcessById);
  *       404:
  *         description: Không tìm thấy quy trình sản xuất
  */
-router.put('/:id', productionProcessController.updateProductionProcess);
+router.put(
+  '/:id',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  productionProcessController.updateProductionProcess
+);
 
 /**
  * @swagger
@@ -225,7 +234,11 @@ router.post('/:id/sync', productionProcessController.syncFromTemplate);
  *       404:
  *         description: Không tìm thấy quy trình sản xuất
  */
-router.delete('/:id', productionProcessController.deleteProductionProcess);
+router.delete(
+  '/:id',
+  authorize(UserRole.ADMIN),
+  productionProcessController.deleteProductionProcess
+);
 
 export default router;
 

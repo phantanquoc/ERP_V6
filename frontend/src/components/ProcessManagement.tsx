@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit, Trash2, Eye, X, FileText, Download, Upload, Printer } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Edit, Trash2, Eye, X, FileText, Download, Upload, Printer, Settings } from 'lucide-react';
 import Modal from './Modal';
 import FileUpload from './FileUpload';
 import processService, { Process, CreateProcessData, ProcessFlowchartSection, ProcessFlowchartCost } from '../services/processService';
 import { useAuth } from '../contexts/AuthContext';
+import { useProcessTypes } from '../hooks/useProcessTypes';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { SERVER_BASE_URL } from '../config/api';
@@ -12,7 +13,7 @@ import UnitSelect from './common/UnitSelect';
 interface ProcessManagementProps {
   mode?: 'full' | 'standard-only' | 'production';
   showToggleHienThi?: boolean;
-  filterLoaiQuyTrinh?: 'production' | 'non-production';
+  onOpenTypeSettings?: () => void;
 }
 
 type ProcessCostColumn = {
@@ -50,8 +51,10 @@ const getVisibleProcessCostColumns = (
     .filter(column => costs.some(cost => hasDisplayValue(cost[column.key])));
 };
 
-const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', showToggleHienThi = false, filterLoaiQuyTrinh }) => {
+const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', showToggleHienThi = false, onOpenTypeSettings }) => {
   const { user } = useAuth(); // Get current logged-in user
+  const { data: processTypesResponse, isLoading: processTypesLoading } = useProcessTypes({ kichHoat: true });
+  const activeProcessTypes = processTypesResponse?.data ?? [];
   const [processes, setProcesses] = useState<Process[]>([]);
   const [loading, setLoading] = useState(false);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
@@ -60,19 +63,16 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
     loaiQuyTrinh: '',
     tenNhanVien: '',
   });
+  const loaiQuyTrinhOptions = processTypesLoading
+    ? [{ value: '', label: 'Đang tải…' }]
+    : activeProcessTypes.map(pt => ({ value: pt.name, label: pt.name }));
   const filterFields: FilterField[] = [
     { key: 'tenQuyTrinh', label: 'Tên quy trình', type: 'text', placeholder: 'Lọc tên quy trình...' },
     {
       key: 'loaiQuyTrinh',
       label: 'Loại quy trình',
       type: 'select',
-      options: [
-        { value: 'Sản xuất', label: 'Sản xuất' },
-        { value: 'Kiểm tra chất lượng', label: 'Kiểm tra chất lượng' },
-        { value: 'Đóng gói', label: 'Đóng gói' },
-        { value: 'Vận chuyển', label: 'Vận chuyển' },
-        { value: 'Khác', label: 'Khác' },
-      ],
+      options: loaiQuyTrinhOptions,
     },
     { key: 'tenNhanVien', label: 'Tên nhân viên', type: 'text', placeholder: 'Lọc tên nhân viên...' },
   ];
@@ -115,12 +115,6 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
       setLoading(false);
     }
   };
-
-  const baseProcesses = useMemo(() => {
-    if (!filterLoaiQuyTrinh) return processes;
-    if (filterLoaiQuyTrinh === 'production') return processes.filter(p => p.loaiQuyTrinh === 'Sản xuất');
-    return processes.filter(p => p.loaiQuyTrinh !== 'Sản xuất');
-  }, [processes, filterLoaiQuyTrinh]);
 
   const createEmptySection = (stt: number): ProcessFlowchartSection => ({
     phanDoan: `Phân đoạn ${stt}`,
@@ -538,6 +532,17 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
             <Download className="w-4 h-4" />
             Xuất Excel
           </button>
+          {onOpenTypeSettings && (
+            <button
+              onClick={onOpenTypeSettings}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              title="Cài đặt loại quy trình"
+              aria-label="Cài đặt loại quy trình"
+            >
+              <Settings className="w-4 h-4" />
+              Cài đặt
+            </button>
+          )}
           {mode === 'full' && (
             <button
               onClick={handleOpenModal}
@@ -581,7 +586,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
             <tbody>
               {(() => {
                 const search = (filterValues._search || '').toLowerCase();
-                const filteredProcesses = baseProcesses.filter(process => {
+                const filteredProcesses = processes.filter(process => {
                   if (search && !(
                     (process.maQuyTrinh || '').toLowerCase().includes(search) ||
                     (process.tenQuyTrinh || '').toLowerCase().includes(search) ||
@@ -715,7 +720,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
         {/* Pagination */}
         {(() => {
           const search = (filterValues._search || '').toLowerCase();
-          const filteredProcesses = baseProcesses.filter(process => {
+          const filteredProcesses = processes.filter(process => {
             if (search && !(
               (process.maQuyTrinh || '').toLowerCase().includes(search) ||
               (process.tenQuyTrinh || '').toLowerCase().includes(search) ||
@@ -846,11 +851,21 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                     required
                   >
                     <option value="">-- Chọn loại quy trình --</option>
-                    <option value="Sản xuất">Sản xuất</option>
-                    <option value="Kiểm tra chất lượng">Kiểm tra chất lượng</option>
-                    <option value="Đóng gói">Đóng gói</option>
-                    <option value="Vận chuyển">Vận chuyển</option>
-                    <option value="Khác">Khác</option>
+                    {processTypesLoading ? (
+                      <option value="" disabled>Đang tải…</option>
+                    ) : (
+                      <>
+                        {activeProcessTypes.map(pt => (
+                          <option key={pt.id} value={pt.name}>{pt.name}</option>
+                        ))}
+                        {formData.loaiQuyTrinh &&
+                          !activeProcessTypes.some(pt => pt.name === formData.loaiQuyTrinh) && (
+                            <option value={formData.loaiQuyTrinh}>
+                              {formData.loaiQuyTrinh} (không còn kích hoạt)
+                            </option>
+                          )}
+                      </>
+                    )}
                   </select>
                   {formErrors.loaiQuyTrinh && <p className="text-red-500 text-xs mt-1">Loại quy trình là bắt buộc</p>}
                 </div>

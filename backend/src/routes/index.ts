@@ -23,6 +23,7 @@ const ROUTE_MAP: Record<string, string> = {
   quotation: '/api/quotations',
   materialStandard: '/api/material-standards',
   process: '/api/processes',
+  processType: '/api/process-types',
   productionProcess: '/api/production-processes',
   generalCost: '/api/general-costs',
   exportCost: '/api/export-costs',
