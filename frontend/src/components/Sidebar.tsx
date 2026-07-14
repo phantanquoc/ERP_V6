@@ -98,9 +98,8 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
       { path: '/production/warehouse', name: 'Quản lý kho', subModule: 'warehouse' },
     ], module: 'production' },
     { path: '/technical', name: 'Bộ phận kỹ thuật', icon: <Wrench size={20} />, subItems: [
-      { path: '/technical/quality', name: 'QLHTM', subModule: 'quality' },
-      { path: '/technical/mechanical', name: 'Cơ điện', subModule: 'mechanical' },
-      { path: '/technical/projects', name: 'Dự án', subModule: 'projects' },
+      { path: '/technical/quality', name: 'Đảm bảo & Cải tiến', subModule: 'quality' },
+      { path: '/technical/projects', name: 'Phòng phát triển', subModule: 'projects' },
     ], module: 'technical' },
   ];
 

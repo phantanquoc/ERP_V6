@@ -153,7 +153,7 @@ async function fetchRepairRequestsCreator(userId: string, dateWhere: any): Promi
     status: r.trangThai,
     createdAt: r.createdAt,
     role: 'creator' as const,
-    routeHint: `/technical/quality?tab=repairRequests`,
+    routeHint: `/technical/quality?tab=repairAndFault`,
   }));
 }
 
@@ -357,7 +357,7 @@ async function fetchFaultRecords(userId: string, dateWhere: any): Promise<Histor
     createdAt: r.createdAt,
     role: 'creator' as const,
     metadata: { mucDo: r.mucDo },
-    routeHint: `/technical/mechanical?tab=faultRecords`,
+    routeHint: `/technical/quality?tab=repairAndFault`,
   }));
 }
 

@@ -55,7 +55,6 @@ const ProductionWarehouse = React.lazy(() => import('./pages/production/Producti
 // Technical Management
 const TechnicalManagement = React.lazy(() => import('./pages/TechnicalManagement'));
 const TechnicalQuality = React.lazy(() => import('./pages/technical/TechnicalQuality'));
-const TechnicalMechanical = React.lazy(() => import('./pages/technical/TechnicalMechanical'));
 const TechnicalProjects = React.lazy(() => import('./pages/technical/TechnicalProjects'));
 
 // System Settings
@@ -260,11 +259,7 @@ function App() {
                 <TechnicalQuality />
               </ProtectedSubRoute>
             } />
-            <Route path="/technical/mechanical" element={
-              <ProtectedSubRoute department="technical" subModule="mechanical">
-                <TechnicalMechanical />
-              </ProtectedSubRoute>
-            } />
+            <Route path="/technical/mechanical" element={<Navigate to="/technical/quality?tab=repairAndFault" replace />} />
             <Route path="/technical/projects" element={
               <ProtectedSubRoute department="technical" subModule="projects">
                 <TechnicalProjects />

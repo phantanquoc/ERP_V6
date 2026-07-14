@@ -569,9 +569,9 @@ const Dashboard1: React.FC = () => {
       color: "bg-rose-400",
       stats: [
         { label: "Hệ thống máy", value: machineSystems.length.toString(), link: "/technical/quality?tab=machineSystems" },
-        { label: "Yêu cầu sửa chữa", value: repairRequests.length.toString(), link: "/technical/quality?tab=repairRequests" },
-        { label: "Mẫu lỗi", value: faultRecords.length.toString(), link: "/technical/mechanical?tab=faultRecords" },
-        { label: "Linh kiện", value: spareParts.length.toString(), link: "/technical/mechanical?tab=spareParts" },
+        { label: "Yêu cầu sửa chữa", value: repairRequests.length.toString(), link: "/technical/quality?tab=repairAndFault" },
+        { label: "Mẫu lỗi", value: faultRecords.length.toString(), link: "/technical/quality?tab=repairAndFault" },
+        { label: "Linh kiện", value: spareParts.length.toString(), link: "/technical/quality?tab=partsAndOrders" },
         { label: "Dự án", value: projects.length.toString(), link: "/technical/projects" },
       ]
     }

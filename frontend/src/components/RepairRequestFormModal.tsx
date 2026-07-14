@@ -87,7 +87,7 @@ const FaultRecordTypeaheadCell = ({ value, faultRecordId, disabled, onSelect }: 
         title="Xem lỗi liên quan"
         onClick={() => {
           if (faultRecordId) {
-            navigate(`/technical/mechanical?tab=faultRecords&faultRecordId=${faultRecordId}`);
+            navigate(`/technical/quality?tab=repairAndFault&faultRecordId=${faultRecordId}`);
           }
         }}
         className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"

@@ -1,28 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Cog } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import OrderManagement from '../../components/OrderManagement';
 import RepairRequestList from '../../components/RepairRequestList';
 import MachineSystemList from '../../components/MachineSystemList';
 import MaintenanceTab from '../../components/MaintenanceTab';
+import FaultRecordList from '../../components/FaultRecordList';
+import SparePartList from '../../components/SparePartList';
 
-type TabType = 'machineSystems' | 'orders' | 'repairRequests' | 'maintenance';
+type TabType = 'machineSystems' | 'repairAndFault' | 'maintenance' | 'partsAndOrders';
 
 const tabs: { key: TabType; label: string }[] = [
   { key: 'machineSystems', label: 'Hệ thống máy' },
-  { key: 'orders', label: 'Đơn hàng' },
-  { key: 'repairRequests', label: 'Sửa chữa & Nghiệm thu' },
-  { key: 'maintenance', label: 'Bảo dưỡng & Sửa chữa' },
+  { key: 'repairAndFault', label: 'Sửa chữa & Lỗi' },
+  { key: 'maintenance', label: 'Bảo dưỡng' },
+  { key: 'partsAndOrders', label: 'Linh kiện & Đơn hàng' },
 ];
 
 const isTabType = (value: string | null): value is TabType =>
   tabs.some((tab) => tab.key === value);
+
+type RepairFaultView = 'repair' | 'fault';
+type PartsOrdersView = 'parts' | 'orders';
 
 const TechnicalQuality = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const initialTab = isTabType(tabParam) ? tabParam : 'machineSystems';
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+  const [repairFaultView, setRepairFaultView] = useState<RepairFaultView>('repair');
+  const [partsOrdersView, setPartsOrdersView] = useState<PartsOrdersView>('parts');
 
   useEffect(() => {
     const currentTab = searchParams.get('tab');
@@ -34,9 +41,9 @@ const TechnicalQuality = () => {
   }, [activeTab]);
 
   useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    if (isTabType(tabParam) && tabParam !== activeTab) {
-      setActiveTab(tabParam);
+    const nextTab = searchParams.get('tab');
+    if (isTabType(nextTab) && nextTab !== activeTab) {
+      setActiveTab(nextTab);
     }
   }, [searchParams]);
 
@@ -44,10 +51,10 @@ const TechnicalQuality = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Cog className="w-6 h-6 text-blue-600" />
-          Phòng QLHTM
+          <ShieldCheck className="w-6 h-6 text-blue-600" />
+          Phòng đảm bảo và cải tiến
         </h1>
-        <p className="text-sm text-gray-500 mt-1">Quản lý hệ thống máy và thiết bị</p>
+        <p className="text-sm text-gray-500 mt-1">Đảm bảo vận hành hệ thống và cải tiến quy trình</p>
       </div>
 
       {/* Tabs */}
@@ -71,9 +78,68 @@ const TechnicalQuality = () => {
 
       {/* Content */}
       {activeTab === 'machineSystems' && <MachineSystemList />}
-      {activeTab === 'orders' && <OrderManagement hideHeader={true} />}
-      {activeTab === 'repairRequests' && <RepairRequestList />}
+
+      {activeTab === 'repairAndFault' && (
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setRepairFaultView('repair')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                repairFaultView === 'repair'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Yêu cầu sửa chữa
+            </button>
+            <button
+              onClick={() => setRepairFaultView('fault')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                repairFaultView === 'fault'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Danh sách lỗi
+            </button>
+          </div>
+
+          {repairFaultView === 'repair' && <RepairRequestList />}
+          {repairFaultView === 'fault' && <FaultRecordList />}
+        </div>
+      )}
+
       {activeTab === 'maintenance' && <MaintenanceTab />}
+
+      {activeTab === 'partsAndOrders' && (
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPartsOrdersView('parts')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                partsOrdersView === 'parts'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Linh kiện
+            </button>
+            <button
+              onClick={() => setPartsOrdersView('orders')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                partsOrdersView === 'orders'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Đơn hàng
+            </button>
+          </div>
+
+          {partsOrdersView === 'parts' && <SparePartList />}
+          {partsOrdersView === 'orders' && <OrderManagement hideHeader={true} />}
+        </div>
+      )}
     </div>
   );
 };

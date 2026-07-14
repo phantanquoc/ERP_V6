@@ -182,7 +182,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
       const srId = (notification.metadata as any)?.supplyRequestId;
       navigate(srId ? `/production/warehouse?tab=supplyRequest&supplyRequestId=${srId}` : '/production/warehouse?tab=supplyRequest');
     } else if (notification.type === 'REPAIR_REQUEST') {
-      navigate('/technical/quality?tab=repairRequests');
+      navigate('/technical/quality?tab=repairAndFault');
     } else if (notification.type === 'PRIVATE_FEEDBACK') {
       setIsFeedbackListModalOpen(true);
     } else if (notification.type === 'DAILY_WORK_REPORT') {
