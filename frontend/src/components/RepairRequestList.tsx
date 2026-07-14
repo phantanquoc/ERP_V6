@@ -292,7 +292,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Xu hướng theo tháng" defaultOpen>
+      <CollapsibleSection title="Xu hướng theo tháng">
         {statsQuery.isLoading ? (
           <p className="text-sm text-gray-400">Đang tải...</p>
         ) : !stats || stats.monthlyTrend.length === 0 ? (
