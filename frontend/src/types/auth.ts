@@ -32,7 +32,8 @@ export interface User {
   firstName: string;
   lastName: string;
   role: UserRole;
-  department?: string;         // department CODE for RBAC
+  department?: string;         // department CODE (perm-code form, e.g. 'quality') for RBAC
+  departmentCode?: string;     // raw backend department code (e.g. 'DEPT_QUALITY')
   departmentName?: string;     // department display name (Vietnamese)
   position?: string;
   secondaryDepartments?: SecondaryDepartmentEntry[];

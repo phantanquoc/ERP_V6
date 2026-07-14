@@ -1,5 +1,5 @@
 import prisma from '@config/database';
-import { NotFoundError } from '../utils/errors';
+import { NotFoundError, ValidationError } from '../utils/errors';
 import { nextStaticCode, staticCodeWhere } from '../utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
@@ -144,6 +144,12 @@ class ProductionProcessService {
 
     if (!templateProcess) {
       throw new NotFoundError('Template process not found');
+    }
+
+    // Invariant: only "Sản xuất" templates may be instantiated as ProductionProcess.
+    // Exact string match — the freeze rule on ProcessType prevents the default's name from being renamed.
+    if (templateProcess.loaiQuyTrinh !== 'Sản xuất') {
+      throw new ValidationError('Chỉ quy trình loại Sản xuất mới có thể áp dụng thực tế');
     }
 
     // Generate unique code

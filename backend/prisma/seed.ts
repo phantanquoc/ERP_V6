@@ -798,6 +798,29 @@ async function main(): Promise<void> {
     console.log(`✅ Shift: ${s.name} (${s.startTime}-${s.endTime}, window ${s.checkInWindowStart}-${s.checkInWindowEnd})`);
   }
 
+  // Seed system-default Process Types
+  console.log('\n📋 Seeding process types...');
+  const processTypeDefaults = [
+    { code: 'PROCTYPE_SAN_XUAT', name: 'Sản xuất', thuTu: 1 },
+    { code: 'PROCTYPE_BAO_DUONG', name: 'Bảo dưỡng', thuTu: 2 },
+    { code: 'PROCTYPE_VE_SINH', name: 'Vệ sinh', thuTu: 3 },
+    { code: 'PROCTYPE_THU_TUC', name: 'Thủ tục', thuTu: 4 },
+  ];
+  for (const pt of processTypeDefaults) {
+    await prisma.processType.upsert({
+      where: { code: pt.code },
+      update: {},
+      create: {
+        code: pt.code,
+        name: pt.name,
+        thuTu: pt.thuTu,
+        kichHoat: true,
+        macDinhHeThong: true,
+      },
+    });
+    console.log(`✅ ProcessType: ${pt.name} (${pt.code})`);
+  }
+
   console.log('✨ Database seeding completed!');
 }
 

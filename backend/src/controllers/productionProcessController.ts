@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import productionProcessService from '../services/productionProcessService';
 import { getFileUrl } from '../middlewares/upload';
+import { assertDepartment } from '../utils/permissions';
+import type { AuthenticatedRequest } from '../types';
 
 class ProductionProcessController {
   // Get all production processes
@@ -38,6 +40,7 @@ class ProductionProcessController {
   // Create production process
   async createProductionProcess(req: Request, res: Response, next: NextFunction) {
     try {
+      await assertDepartment(req as AuthenticatedRequest, ['DEPT_PRODUCTION']);
       const productionProcess = await productionProcessService.createProductionProcess(req.body);
 
       res.status(201).json({
@@ -53,6 +56,7 @@ class ProductionProcessController {
   // Update production process
   async updateProductionProcess(req: Request, res: Response, next: NextFunction) {
     try {
+      await assertDepartment(req as AuthenticatedRequest, ['DEPT_PRODUCTION']);
       const id = req.params.id as string;
       const productionProcess = await productionProcessService.updateProductionProcess(id, req.body);
 
@@ -69,6 +73,7 @@ class ProductionProcessController {
   // Delete production process
   async deleteProductionProcess(req: Request, res: Response, next: NextFunction) {
     try {
+      await assertDepartment(req as AuthenticatedRequest, ['DEPT_PRODUCTION']);
       const id = req.params.id as string;
       await productionProcessService.deleteProductionProcess(id);
 

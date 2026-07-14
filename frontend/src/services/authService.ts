@@ -108,6 +108,7 @@ function buildUserFromResponse(userData: any, employeeData: any): User {
     department: userData.role === 'ADMIN'
       ? 'admin'
       : (mapDeptCodeToPermCode(userData.departmentCode) ?? mapDepartmentNameToCode(userData.departmentName) ?? undefined),
+    departmentCode: userData.departmentCode ?? undefined,
     departmentName: userData.departmentName ?? undefined,
     subDepartment: mapSubDeptCodeToPermCode(userData.subDepartmentCode) ?? mapSubDepartmentNameToCode(userData.subDepartmentName),
     subDepartmentName: userData.subDepartmentName,
