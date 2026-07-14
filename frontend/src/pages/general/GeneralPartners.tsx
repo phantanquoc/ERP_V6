@@ -3,8 +3,7 @@ import { Users, Settings } from 'lucide-react';
 
 const GeneralPartners = () => {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="space-y-6">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
@@ -45,7 +44,6 @@ const GeneralPartners = () => {
             Vui lòng quay lại sau. Xin cảm ơn!
           </p>
         </div>
-      </div>
     </div>
   );
 };

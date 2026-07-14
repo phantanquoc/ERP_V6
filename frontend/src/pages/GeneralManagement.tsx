@@ -162,8 +162,7 @@ const GeneralManagement = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="space-y-6">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Bộ phận tổng hợp</h1>
@@ -299,7 +298,6 @@ const GeneralManagement = () => {
             </div>
           ))}
         </div>
-      </div>
     </div>
   );
 };
