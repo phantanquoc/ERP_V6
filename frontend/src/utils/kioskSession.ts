@@ -12,6 +12,10 @@
 const KIOSK_ACCESS_KEY = 'pdeAccessToken';
 const KIOSK_REFRESH_KEY = 'pdeRefreshToken';
 const KIOSK_FLAG = 'pdeKioskMode';
+const KIOSK_OPERATOR_KEY = 'pdeOperator';
+const KIOSK_SHIFT_KEY = 'pdeShift';
+const KIOSK_DATE_KEY = 'pdeDate';
+const KIOSK_ACTIVE_TAB_KEY = 'pdeActiveTab';
 
 /** Custom event name dispatched when a kiosk refresh fails */
 export const KIOSK_EXPIRED_EVENT = 'pde:kiosk-expired';
@@ -69,4 +73,41 @@ export function deactivate(): void {
   localStorage.removeItem(KIOSK_ACCESS_KEY);
   localStorage.removeItem(KIOSK_REFRESH_KEY);
   sessionStorage.removeItem(KIOSK_FLAG);
+  clearSelection();
+}
+
+// ─── Selection state (per-tab, sessionStorage) ────────────────────────────────
+
+export interface KioskSelection {
+  operator: string;
+  shift: number;
+  date: string;
+  activeTab: string;
+}
+
+/** Read selection state from sessionStorage. Returns null if operator is missing (nothing to restore). */
+export function getSelection(): KioskSelection | null {
+  const operator = sessionStorage.getItem(KIOSK_OPERATOR_KEY);
+  if (!operator) return null;
+  const shiftRaw = sessionStorage.getItem(KIOSK_SHIFT_KEY);
+  const shift = shiftRaw ? Number(shiftRaw) : 0;
+  const date = sessionStorage.getItem(KIOSK_DATE_KEY) ?? '';
+  const activeTab = sessionStorage.getItem(KIOSK_ACTIVE_TAB_KEY) ?? '';
+  return { operator, shift: Number.isFinite(shift) ? shift : 0, date, activeTab };
+}
+
+/** Persist part or all of the selection state. Only writes keys present in the patch. */
+export function setSelection(patch: Partial<KioskSelection>): void {
+  if (patch.operator !== undefined) sessionStorage.setItem(KIOSK_OPERATOR_KEY, patch.operator);
+  if (patch.shift !== undefined) sessionStorage.setItem(KIOSK_SHIFT_KEY, String(patch.shift));
+  if (patch.date !== undefined) sessionStorage.setItem(KIOSK_DATE_KEY, patch.date);
+  if (patch.activeTab !== undefined) sessionStorage.setItem(KIOSK_ACTIVE_TAB_KEY, patch.activeTab);
+}
+
+/** Remove all selection keys. */
+export function clearSelection(): void {
+  sessionStorage.removeItem(KIOSK_OPERATOR_KEY);
+  sessionStorage.removeItem(KIOSK_SHIFT_KEY);
+  sessionStorage.removeItem(KIOSK_DATE_KEY);
+  sessionStorage.removeItem(KIOSK_ACTIVE_TAB_KEY);
 }
