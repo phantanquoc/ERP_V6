@@ -8,11 +8,12 @@ import {
   indexFinishedProducts,
   DirtyRecord,
 } from '../../hooks/useProductionDataEntry';
-import { useProductionEmployees } from '../../hooks/useProductionEmployees';
 import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT, getSelection, setSelection, clearSelection } from '../../utils/kioskSession';
 import { parseNumberInput } from '../../utils/numberInput';
 import { FinishedProduct } from '../../services/finishedProductService';
-import { Loader2, Save, CheckCircle, AlertTriangle, User, Eye, ArrowLeft, Calendar } from 'lucide-react';
+import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
+import ShiftSelectionScreen from '../../components/production/ShiftSelectionScreen';
+import { Loader2, Save, CheckCircle, AlertTriangle, Eye, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -117,89 +118,6 @@ const ExpiredScreen: React.FC = () => (
       <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
       <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên hết hạn</h2>
       <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
-    </div>
-  </div>
-);
-
-// ─── Operator Selection Screen ───────────────────────────────────────────────
-
-interface OperatorSelectionProps {
-  onSelect: (name: string) => void;
-}
-
-const OperatorSelection: React.FC<OperatorSelectionProps> = ({ onSelect }) => {
-  const { data: employees, isLoading } = useProductionEmployees();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-lg mx-auto px-4 py-8">
-        <div className="text-center mb-6">
-          <User className="w-10 h-10 text-blue-600 mx-auto mb-3" />
-          <h1 className="text-xl font-semibold text-gray-800">Chọn người thực hiện</h1>
-          <p className="text-sm text-gray-500 mt-1">Chọn tên của bạn trước khi nhập liệu</p>
-        </div>
-        <div className="space-y-2">
-          {employees?.map((emp) => (
-            <button
-              key={emp.id}
-              onClick={() => onSelect(emp.name)}
-              className="w-full min-h-[52px] px-4 py-3 bg-white border border-gray-200 rounded-xl text-left hover:border-blue-400 hover:bg-blue-50 transition-colors"
-            >
-              <span className="text-base font-medium text-gray-800">{emp.name}</span>
-              <span className="text-sm text-gray-400 ml-2">({emp.employeeCode})</span>
-            </button>
-          ))}
-          {(!employees || employees.length === 0) && (
-            <p className="text-center text-gray-500 py-8">Không tìm thấy nhân viên sản xuất.</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── Shift Selection Screen ──────────────────────────────────────────────────
-
-interface ShiftSelectionProps {
-  onSelect: (shift: number) => void;
-  onBack: () => void;
-  operatorName: string;
-}
-
-const ShiftSelection: React.FC<ShiftSelectionProps> = ({ onSelect, onBack, operatorName }) => (
-  <div className="min-h-screen bg-gray-50">
-    <div className="max-w-lg mx-auto px-4 py-8">
-      <div className="text-center mb-6">
-        <Calendar className="w-10 h-10 text-blue-600 mx-auto mb-3" />
-        <h1 className="text-xl font-semibold text-gray-800">Chọn ca làm việc</h1>
-        <p className="text-sm text-gray-500 mt-1">Người thực hiện: {operatorName}</p>
-      </div>
-      <div className="space-y-3">
-        {[1, 2, 3].map((shift) => (
-          <button
-            key={shift}
-            onClick={() => onSelect(shift)}
-            className="w-full min-h-[64px] px-6 py-4 bg-white border border-gray-200 rounded-xl text-center hover:border-blue-400 hover:bg-blue-50 transition-colors"
-          >
-            <span className="text-lg font-semibold text-gray-800">Ca {shift}</span>
-          </button>
-        ))}
-      </div>
-      <button
-        onClick={onBack}
-        className="mt-6 flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mx-auto"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Quay lại chọn người
-      </button>
     </div>
   </div>
 );
@@ -722,13 +640,13 @@ const ProductionDataEntry: React.FC = () => {
 
   // ─── Operator selection gate ─────────────────────────────────────────────
   if (!nguoiThucHien) {
-    return <OperatorSelection onSelect={setNguoiThucHien} />;
+    return <OperatorSelectionScreen onSelect={setNguoiThucHien} />;
   }
 
   // ─── Shift selection gate ────────────────────────────────────────────────
   if (!selectedShift) {
     return (
-      <ShiftSelection
+      <ShiftSelectionScreen
         onSelect={setSelectedShift}
         onBack={() => { clearSelection(); setNguoiThucHien(''); setSelectedShift(0); setActiveTab('A'); }}
         operatorName={nguoiThucHien}

@@ -13,7 +13,19 @@ export class MaterialEvaluationController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
 
-      const result = await materialEvaluationService.getAllMaterialEvaluations(page, limit);
+      const nguoiThucHien =
+        typeof req.query.nguoiThucHien === 'string' && req.query.nguoiThucHien.trim().length > 0
+          ? req.query.nguoiThucHien.trim()
+          : undefined;
+      const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : undefined;
+      const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : undefined;
+
+      const filters =
+        nguoiThucHien || dateFrom || dateTo
+          ? { nguoiThucHien, dateFrom, dateTo }
+          : undefined;
+
+      const result = await materialEvaluationService.getAllMaterialEvaluations(page, limit, filters);
 
       res.json({
         success: true,

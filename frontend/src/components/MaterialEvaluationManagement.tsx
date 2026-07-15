@@ -8,6 +8,7 @@ import materialEvaluationCriteriaService, { MaterialEvaluationCriteria } from '.
 import systemOperationService from '../services/systemOperationService';
 import DateTimePicker from './DateTimePicker';
 import { parseNumberInput } from '../utils/numberInput';
+import { getQuickTimesForShift, computeShiftDatetime } from '../utils/shiftTime';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductionEmployees } from '../hooks/useProductionEmployees';
@@ -15,6 +16,7 @@ import { useRawMaterials } from '../hooks/useRawMaterials';
 import { useLotsByProduct, lotsByProductKeys } from '../hooks/useLotsByProduct';
 import { useKienByProductAndLot } from '../hooks/useKienByProductAndLot';
 import { lotProductKeys } from '../services/lotProductService';
+import toast from 'react-hot-toast';
 
 
 interface MaterialEvaluationManagementProps {
@@ -374,49 +376,6 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     });
   };
 
-  // Shift quick-time helpers
-  const getQuickTimesForShift = (ca: number): string[] => {
-    switch (ca) {
-      case 1: return ['06:30', '08:00', '09:30', '11:00', '12:30', '14:00'];
-      case 2: return ['15:30', '17:00', '18:30', '20:00', '21:30'];
-      case 3: return ['23:00', '00:30', '02:00', '03:30', '05:00'];
-      default: return [];
-    }
-  };
-
-  const computeShiftDatetime = (ca: number, time: string): string => {
-    const [hourStr, minuteStr] = time.split(':');
-    const hour = parseInt(hourStr);
-    const minute = parseInt(minuteStr);
-    const now = new Date();
-
-    let baseDate: Date;
-    if (ca === 3) {
-      // Base date = yesterday if current hour is 0..5, else today
-      const currentHour = now.getHours();
-      if (currentHour >= 0 && currentHour <= 5) {
-        baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-      } else {
-        baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      }
-      // 23:00 -> base date; 00:30/02:00/03:30/05:00 -> base date + 1
-      if (hour < 6) {
-        // After midnight times use base + 1 day
-        baseDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + 1);
-      }
-    } else {
-      // Ca 1, Ca 2 -> always today
-      baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    }
-
-    const y = baseDate.getFullYear();
-    const m = String(baseDate.getMonth() + 1).padStart(2, '0');
-    const d = String(baseDate.getDate()).padStart(2, '0');
-    const hh = String(hour).padStart(2, '0');
-    const mm = String(minute).padStart(2, '0');
-    return `${y}-${m}-${d}T${hh}:${mm}`;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -486,7 +445,11 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       setIsDeleteModalOpen(false);
       setDeleteTargetId(null);
       setDeleteInfo(null);
+      // Invalidate warehouse-related caches so refunded stock reflects immediately
+      queryClient.invalidateQueries({ queryKey: lotProductKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['warehouseIssues'] });
       await loadEvaluations();
+      toast.success('Đã xóa mã chiên và hoàn tác dữ liệu liên quan');
     } catch (err: any) {
       setError(err.message || 'Lỗi xóa dữ liệu');
       console.error(err);
