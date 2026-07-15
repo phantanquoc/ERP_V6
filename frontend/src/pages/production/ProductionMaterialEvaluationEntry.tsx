@@ -680,6 +680,27 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
               <CalendarClock className="w-4 h-4" />
               <span className="hidden sm:inline">Đổi ca</span>
             </button>
+            {currentStep < 5 ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={!isStepValid(currentStep)}
+                className="flex items-center gap-2 px-5 min-h-[44px] bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                Tiếp tục
+                <span aria-hidden="true">→</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || khoiLuongExceeded}
+                className="flex items-center gap-2 px-5 min-h-[44px] bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Xác nhận & Lưu
+              </button>
+            )}
           </div>
         </div>
 
@@ -1071,10 +1092,10 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
         )}
       </div>
 
-      {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-10">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          {currentStep > 2 ? (
+      {/* Footer — chỉ hiện nút Quay lại khi ở bước > 2 */}
+      {currentStep > 2 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-10">
+          <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
             <button
               type="button"
               onClick={handleBack}
@@ -1083,37 +1104,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
               <ArrowLeft className="w-4 h-4" />
               Quay lại
             </button>
-          ) : (
-            <span />
-          )}
-
-          {currentStep < 5 ? (
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={!isStepValid(currentStep)}
-              className="min-h-[52px] px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-base font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            >
-              Tiếp tục
-              <span aria-hidden="true">→</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting || khoiLuongExceeded}
-              className="min-h-[52px] px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-base font-semibold flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              {submitting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Save className="w-5 h-5" />
-              )}
-              Xác nhận &amp; Lưu
-            </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {viewingEvalId && (
         <EvaluationDetailReadOnly
