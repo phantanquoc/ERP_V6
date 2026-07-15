@@ -80,6 +80,7 @@ const MyNotifications = React.lazy(() => import('./pages/MyNotifications'));
 
 // Production Data Entry (tablet, full-screen)
 const ProductionDataEntry = React.lazy(() => import('./pages/production/ProductionDataEntry'));
+const ProductionMaterialEvaluationEntry = React.lazy(() => import('./pages/production/ProductionMaterialEvaluationEntry'));
 
 function PageTitleUpdater() {
   usePageTitle();
@@ -103,6 +104,7 @@ function App() {
 
           {/* Production data entry kiosk — full-screen (tablet), public with self-guard */}
           <Route path="/production/nhap-lieu" element={<ProductionDataEntry />} />
+          <Route path="/production/nhap-lieu-danh-gia" element={<ProductionMaterialEvaluationEntry />} />
 
           {/* Protected Routes — single Layout instance, never unmounts */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

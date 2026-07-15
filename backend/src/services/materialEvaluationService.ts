@@ -1,18 +1,45 @@
+import { Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { nextStaticCode, staticCodeWhere, nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 
 export class MaterialEvaluationService {
-  async getAllMaterialEvaluations(page: number = 1, limit: number = 10) {
+  async getAllMaterialEvaluations(
+    page: number = 1,
+    limit: number = 10,
+    filters?: { nguoiThucHien?: string; dateFrom?: string; dateTo?: string },
+  ) {
     const skip = (page - 1) * limit;
+
+    const where: Prisma.MaterialEvaluationWhereInput = {};
+    if (filters?.nguoiThucHien) {
+      where.nguoiThucHien = filters.nguoiThucHien;
+    }
+    if (filters?.dateFrom || filters?.dateTo) {
+      const createdAt: Prisma.DateTimeFilter = {};
+      if (filters.dateFrom) {
+        const d = new Date(filters.dateFrom);
+        if (!isNaN(d.getTime())) createdAt.gte = d;
+      }
+      if (filters.dateTo) {
+        const d = new Date(filters.dateTo);
+        if (!isNaN(d.getTime())) createdAt.lte = d;
+      }
+      // Only attach createdAt filter if at least one bound parsed successfully;
+      // if both are invalid the object is empty and we skip it to avoid Prisma error.
+      if (Object.keys(createdAt).length > 0) {
+        where.createdAt = createdAt;
+      }
+    }
 
     const [data, total] = await Promise.all([
       prisma.materialEvaluation.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.materialEvaluation.count(),
+      prisma.materialEvaluation.count({ where }),
     ]);
 
     return {

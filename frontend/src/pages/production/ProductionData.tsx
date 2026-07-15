@@ -69,13 +69,21 @@ const ProductionData = () => {
         <button
           onClick={() => {
             activateKiosk();
-            window.open('/production/nhap-lieu', '_blank');
+            if (activeTab === 'materialEvaluation') {
+              window.open('/production/nhap-lieu-danh-gia', '_blank');
+            } else {
+              window.open('/production/nhap-lieu', '_blank');
+            }
           }}
           className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          title="Mở trang nhập liệu dành cho nhân viên trên tablet (tab mới)"
+          title={activeTab === 'materialEvaluation'
+            ? 'Mở trang nhập liệu đánh giá nguyên liệu dành cho tablet (tab mới)'
+            : 'Mở trang nhập liệu sản lượng dành cho nhân viên trên tablet (tab mới)'}
         >
           <Tablet className="w-4 h-4" />
-          Mở trang nhập liệu (Tablet)
+          {activeTab === 'materialEvaluation'
+            ? 'Mở nhập liệu đánh giá (Tablet)'
+            : 'Mở nhập liệu sản lượng (Tablet)'}
           <ExternalLink className="w-3.5 h-3.5 opacity-70" />
         </button>
       </div>
