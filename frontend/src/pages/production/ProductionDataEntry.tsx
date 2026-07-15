@@ -13,7 +13,8 @@ import { parseNumberInput } from '../../utils/numberInput';
 import { FinishedProduct } from '../../services/finishedProductService';
 import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
 import ShiftSelectionScreen from '../../components/production/ShiftSelectionScreen';
-import { Loader2, Save, CheckCircle, AlertTriangle, Eye, ArrowLeft } from 'lucide-react';
+import KioskFooter from '../../components/production/KioskFooter';
+import { Loader2, Save, CheckCircle, AlertTriangle, Eye, ArrowLeft, User, CalendarClock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -617,12 +618,23 @@ const ProductionDataEntry: React.FC = () => {
   }, [board, baseline, wasteTotal]);
 
   const handleChangeShift = useCallback(() => {
-    if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Quay lại sẽ giữ nguyên draft nhưng phải chọn lại ca. Tiếp tục?')) {
+    if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Đổi ca sẽ giữ nguyên draft nhưng phải chọn lại ca. Tiếp tục?')) {
       return;
     }
     setSelectedShift(0);
     setActiveTab('A');
     // Effect sync ngược sẽ tự cập nhật sessionStorage với shift=0, activeTab='A', giữ operator + date
+  }, [hasDirtyData]);
+
+  const handleChangeOperator = useCallback(() => {
+    if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Đổi người sẽ giữ nguyên draft nhưng phải chọn lại người + ca. Tiếp tục?')) {
+      return;
+    }
+    clearSelection();
+    setNguoiThucHien('');
+    setSelectedShift(0);
+    setActiveTab('A');
+    // Giữ nguyên productionDate — user thường vẫn nhập cho ngày đang xem
   }, [hasDirtyData]);
 
   // ─── Session guards ──────────────────────────────────────────────────────
@@ -678,37 +690,48 @@ const ProductionDataEntry: React.FC = () => {
 
   // ─── Main board render ───────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
         <div className="max-w-full mx-auto px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleChangeShift}
-                title="Quay lại chọn ca / đổi người"
-                aria-label="Quay lại chọn ca"
-                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Quay lại
-              </button>
-              <div>
-                <h1 className="text-lg font-semibold text-gray-800">Bảng sản lượng thành phẩm</h1>
-                <p className="text-sm text-gray-600">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <img src="/abf-logo.png" alt="An Bình Foods" className="h-9 object-contain hidden sm:block" />
+              <div className="min-w-0">
+                <h1 className="text-lg font-semibold text-gray-800 truncate">Bảng sản lượng thành phẩm</h1>
+                <p className="text-sm text-gray-600 truncate">
                   {nguoiThucHien} <span className="text-gray-400">·</span> Ca {selectedShift}
                 </p>
               </div>
             </div>
-            <button
-              onClick={handleSave}
-              disabled={batchUpdate.isPending}
-              className="flex items-center gap-2 px-5 min-h-[44px] bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              Lưu
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleChangeOperator}
+                title="Đổi người thực hiện"
+                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <User className="w-4 h-4" />
+                <span className="hidden sm:inline">Đổi người</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleChangeShift}
+                title="Đổi ca làm việc"
+                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <CalendarClock className="w-4 h-4" />
+                <span className="hidden sm:inline">Đổi ca</span>
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={batchUpdate.isPending}
+                className="flex items-center gap-2 px-5 min-h-[44px] bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                Lưu
+              </button>
+            </div>
           </div>
 
           {/* Date picker */}
@@ -854,6 +877,8 @@ const ProductionDataEntry: React.FC = () => {
           </div>
         )}
       </div>
+
+      <KioskFooter />
     </div>
   );
 };

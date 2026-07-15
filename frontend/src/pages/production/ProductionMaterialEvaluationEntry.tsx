@@ -7,13 +7,13 @@ import {
   CheckCircle,
   AlertTriangle,
   ArrowLeft,
-  LogOut,
   Camera,
   Package,
   Beaker,
   Clock,
   ClipboardCheck,
   User,
+  CalendarClock,
   X,
 } from 'lucide-react';
 import {
@@ -37,6 +37,7 @@ import DateTimePicker from '../../components/DateTimePicker';
 import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
 import ShiftSelectionScreen from '../../components/production/ShiftSelectionScreen';
 import EvaluationDetailReadOnly from '../../components/production/EvaluationDetailReadOnly';
+import KioskFooter from '../../components/production/KioskFooter';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -203,7 +204,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const [kioskExpired, setKioskExpired] = useState(false);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
-  const [productionDate, setProductionDate] = useState<string>(() => {
+  const [productionDate] = useState<string>(() => {
     const stored = getSelection()?.date;
     return stored && stored.length > 0 ? stored : todayStr();
   });
@@ -396,18 +397,30 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     );
   }, [wizardData]);
 
-  const handleEndSession = useCallback(() => {
-    if (isWizardDirty() && !window.confirm('Đánh giá đang nhập dở sẽ mất. Kết thúc phiên?')) {
+  const handleChangeOperator = useCallback(() => {
+    if (isWizardDirty() && !window.confirm('Đánh giá đang nhập dở sẽ mất. Đổi người?')) {
       return;
     }
     if (draftKey) localStorage.removeItem(draftKey);
     clearSelection();
     setNguoiThucHien('');
     setSelectedShift(0);
-    setProductionDate(todayStr());
     setCurrentStep(2);
     setWizardData(initialWizardData);
     draftLoaded.current = false;
+    // Giữ nguyên productionDate — user thường vẫn nhập cho ngày đang xem
+  }, [draftKey, isWizardDirty]);
+
+  const handleChangeShift = useCallback(() => {
+    if (isWizardDirty() && !window.confirm('Đánh giá đang nhập dở sẽ mất. Đổi ca?')) {
+      return;
+    }
+    if (draftKey) localStorage.removeItem(draftKey);
+    setSelectedShift(0);
+    setCurrentStep(2);
+    setWizardData(initialWizardData);
+    draftLoaded.current = false;
+    // Giữ nguyên nguoiThucHien + productionDate
   }, [draftKey, isWizardDirty]);
 
   // ─── Step navigation ──────────────────────────────────────────────────────
@@ -639,20 +652,35 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={handleEndSession}
-            className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
-          >
-            <LogOut className="w-4 h-4" />
-            Kết thúc phiên
-          </button>
-          <div className="text-center flex-1">
-            <p className="text-sm text-gray-700 font-medium">
-              Đánh giá nguyên liệu · {nguoiThucHien} · Ca {selectedShift}
-            </p>
+          <div className="flex items-center gap-3 min-w-0">
+            <img src="/abf-logo.png" alt="An Bình Foods" className="h-9 object-contain hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold text-gray-800 truncate">Đánh giá nguyên liệu</h1>
+              <p className="text-sm text-gray-600 truncate">
+                {nguoiThucHien} <span className="text-gray-400">·</span> Ca {selectedShift}
+              </p>
+            </div>
           </div>
-          <div className="w-[132px]" aria-hidden="true" />
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleChangeOperator}
+              title="Đổi người thực hiện"
+              className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <User className="w-4 h-4" />
+              <span className="hidden sm:inline">Đổi người</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleChangeShift}
+              title="Đổi ca làm việc"
+              className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <CalendarClock className="w-4 h-4" />
+              <span className="hidden sm:inline">Đổi ca</span>
+            </button>
+          </div>
         </div>
 
         {/* Today's evaluations — chip list */}
@@ -1093,6 +1121,8 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
           onClose={() => setViewingEvalId(null)}
         />
       )}
+
+      <KioskFooter />
     </div>
   );
 };
