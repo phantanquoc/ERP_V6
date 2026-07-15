@@ -14,7 +14,11 @@ import ProductCombobox from './common/ProductCombobox';
 import UnitSelect from './common/UnitSelect';
 import { DEFAULT_DON_VI_TINH, DON_VI_TINH_OPTIONS } from '../constants/units';
 
-const WarehouseManagement: React.FC = () => {
+interface WarehouseManagementProps {
+  initialWarehouseId?: string;
+}
+
+const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWarehouseId }) => {
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -77,6 +81,17 @@ const WarehouseManagement: React.FC = () => {
       }
     }
   }, [warehouses]);
+
+  // Preselect warehouse when initialWarehouseId is provided
+  useEffect(() => {
+    if (!initialWarehouseId || warehouses.length === 0) return;
+    if (selectedWarehouse?.id === initialWarehouseId) return;
+    const target = warehouses.find((w: Warehouse) => w.id === initialWarehouseId);
+    if (target) {
+      setSelectedWarehouse(target);
+      setCurrentPage(1);
+    }
+  }, [warehouses, initialWarehouseId]);
 
   const handleCreateWarehouse = async () => {
     if (!newWarehouseName.trim()) {
