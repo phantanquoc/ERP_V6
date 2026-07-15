@@ -18,6 +18,7 @@ export interface WarehouseReceipt {
   soLuongSau: number;   // Số lượng tồn kho sau khi nhập
   donViTinh: string;
   ghiChu?: string;
+  isLocked?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +55,14 @@ const warehouseReceiptService = {
 
   getAllWarehouseReceipts: async () => {
     return apiClient.get('/warehouse-receipts');
+  },
+
+  updateWarehouseReceipt: async (id: string, data: Partial<CreateWarehouseReceiptData>) => {
+    return apiClient.put(`/warehouse-receipts/${id}`, data);
+  },
+
+  deleteWarehouseReceipt: async (id: string) => {
+    return apiClient.delete(`/warehouse-receipts/${id}`);
   },
 };
 

@@ -1,5 +1,6 @@
 import prisma from '@config/database';
 import { nextYearlyCode, yearlyCodeWhere, nextStaticCode, staticCodeWhere } from '../utils/codeGenerator';
+import { ValidationError, ConflictError, NotFoundError } from '@utils/errors';
 
 interface CreateReceiptInput {
   maPhieuNhap: string;
@@ -19,6 +20,18 @@ interface CreateReceiptInput {
   loaiSanPham?: string;
 }
 
+interface UpdateReceiptInput {
+  warehouseId: string;
+  tenKho?: string;
+  lotId: string;
+  tenLo?: string;
+  lotProductId: string;
+  tenSanPham: string;
+  soLuongNhap: number;
+  donViTinh?: string;
+  ghiChu?: string;
+}
+
 class WarehouseReceiptService {
   async generateCode(): Promise<string> {
     const year = new Date().getFullYear();
@@ -31,9 +44,13 @@ class WarehouseReceiptService {
   }
 
   async getAll() {
-    return prisma.warehouseReceipt.findMany({
+    const receipts = await prisma.warehouseReceipt.findMany({
       orderBy: { createdAt: 'desc' },
     });
+    return receipts.map((r) => ({
+      ...r,
+      isLocked: !!r.supplyRequestId,
+    }));
   }
 
   async getById(id: string) {
@@ -90,6 +107,112 @@ class WarehouseReceiptService {
     ]);
 
     return receipt;
+  }
+
+  async update(id: string, input: UpdateReceiptInput) {
+    const existing = await prisma.warehouseReceipt.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundError('Không tìm thấy phiếu nhập kho');
+    }
+
+    // Lock check: supply-request-linked receipts cannot be edited
+    if (existing.supplyRequestId) {
+      throw new ConflictError('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
+    }
+
+    const soLuongNhapFloat = parseFloat(input.soLuongNhap.toString());
+
+    return prisma.$transaction(async (tx) => {
+      // 1. Reverse original impact on original lotProduct
+      const originalLotProduct = await tx.lotProduct.findUnique({ where: { id: existing.lotProductId } });
+      if (!originalLotProduct) {
+        throw new ValidationError('Không tìm thấy sản phẩm trong lô gốc');
+      }
+
+      const reversedQty = originalLotProduct.soLuong - existing.soLuongNhap;
+      if (reversedQty < 0) {
+        throw new ValidationError('Số lượng tồn kho không đủ để hoàn tác phiếu nhập');
+      }
+
+      await tx.lotProduct.update({
+        where: { id: existing.lotProductId },
+        data: { soLuong: reversedQty },
+      });
+
+      // 2. Apply new impact on target lotProduct (may be different)
+      const targetLotProduct = await tx.lotProduct.findUnique({ where: { id: input.lotProductId } });
+      if (!targetLotProduct) {
+        throw new ValidationError('Không tìm thấy sản phẩm trong lô đích');
+      }
+
+      // If same lotProduct, use the reversed quantity as base
+      const currentQty = input.lotProductId === existing.lotProductId
+        ? reversedQty
+        : targetLotProduct.soLuong;
+
+      const soLuongTruoc = currentQty;
+      const soLuongSau = currentQty + soLuongNhapFloat;
+
+      await tx.lotProduct.update({
+        where: { id: input.lotProductId },
+        data: { soLuong: soLuongSau },
+      });
+
+      // 3. Update the receipt record with recomputed snapshots and denormalized fields
+      const updatedReceipt = await tx.warehouseReceipt.update({
+        where: { id },
+        data: {
+          warehouseId: input.warehouseId,
+          tenKho: input.tenKho ?? '',
+          lotId: input.lotId,
+          tenLo: input.tenLo ?? '',
+          lotProductId: input.lotProductId,
+          tenSanPham: input.tenSanPham,
+          soLuongNhap: soLuongNhapFloat,
+          soLuongTruoc,
+          soLuongSau,
+          donViTinh: input.donViTinh ?? '',
+          ghiChu: input.ghiChu,
+        },
+      });
+
+      return updatedReceipt;
+    });
+  }
+
+  async delete(id: string) {
+    const existing = await prisma.warehouseReceipt.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundError('Không tìm thấy phiếu nhập kho');
+    }
+
+    // Lock check
+    if (existing.supplyRequestId) {
+      throw new ConflictError('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // Reverse: subtract soLuongNhap back from lotProduct
+      const lotProduct = await tx.lotProduct.findUnique({ where: { id: existing.lotProductId } });
+      if (!lotProduct) {
+        throw new ValidationError('Không tìm thấy sản phẩm trong lô');
+      }
+
+      const newQty = lotProduct.soLuong - existing.soLuongNhap;
+      if (newQty < 0) {
+        throw new ValidationError('Số lượng tồn kho không đủ để xóa phiếu nhập');
+      }
+
+      await tx.lotProduct.update({
+        where: { id: existing.lotProductId },
+        data: { soLuong: newQty },
+      });
+
+      // Delete the receipt
+      await tx.warehouseReceipt.delete({ where: { id } });
+
+      return { id };
+    });
   }
 
   async batchCreate(items: CreateReceiptInput[], supplyRequestId?: string) {

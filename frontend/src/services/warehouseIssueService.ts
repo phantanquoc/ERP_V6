@@ -18,6 +18,7 @@ export interface WarehouseIssue {
   soLuongSau: number;   // Số lượng tồn kho sau khi xuất
   donViTinh: string;
   ghiChu?: string;
+  isLocked?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,6 +51,14 @@ const warehouseIssueService = {
 
   getAllWarehouseIssues: async () => {
     return apiClient.get('/warehouse-issues');
+  },
+
+  updateWarehouseIssue: async (id: string, data: Partial<CreateWarehouseIssueData>) => {
+    return apiClient.put(`/warehouse-issues/${id}`, data);
+  },
+
+  deleteWarehouseIssue: async (id: string) => {
+    return apiClient.delete(`/warehouse-issues/${id}`);
   },
 };
 
