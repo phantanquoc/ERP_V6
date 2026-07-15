@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, FileText, Eye } from 'lucide-react';
+import { Plus, FileText, Eye, Pencil, Trash2 } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
+import { useQueryClient } from '@tanstack/react-query';
 import warehouseIssueService, { WarehouseIssue } from '../services/warehouseIssueService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
+import { warehouseKeys } from '../hooks';
 
-const WarehouseIssueTab: React.FC = () => {
+interface WarehouseIssueTabProps {
+  month?: number;
+  year?: number;
+}
+
+const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [issues, setIssues] = useState<WarehouseIssue[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [lots, setLots] = useState<Lot[]>([]);
@@ -17,6 +25,7 @@ const WarehouseIssueTab: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<WarehouseIssue | null>(null);
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', tenKho: '', tenSanPham: '' });
@@ -100,6 +109,7 @@ const WarehouseIssueTab: React.FC = () => {
   const handleOpenModal = async () => {
     try {
       const response = await warehouseIssueService.generateIssueCode();
+      setEditingId(null);
       setFormData({
         maPhieuXuat: response.data.maPhieuXuat,
         warehouseId: '',
@@ -114,9 +124,39 @@ const WarehouseIssueTab: React.FC = () => {
     }
   };
 
+  const handleEdit = (issue: WarehouseIssue) => {
+    setEditingId(issue.id);
+    setFormData({
+      maPhieuXuat: issue.maPhieuXuat,
+      warehouseId: issue.warehouseId,
+      lotId: issue.lotId,
+      lotProductId: issue.lotProductId,
+      soLuongXuat: issue.soLuongXuat,
+      ghiChu: issue.ghiChu || '',
+    });
+    const warehouse = warehouses.find(w => w.id === issue.warehouseId);
+    setLots(warehouse?.lots || []);
+    const lot = warehouse?.lots?.find(l => l.id === issue.lotId);
+    setLotProducts(lot?.lotProducts || []);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (issue: WarehouseIssue) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa phiếu xuất kho này?')) return;
+    try {
+      await warehouseIssueService.deleteWarehouseIssue(issue.id);
+      alert('Xóa phiếu xuất kho thành công!');
+      fetchIssues();
+      fetchWarehouses();
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Lỗi khi xóa phiếu xuất kho');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.warehouseId || !formData.lotId || !formData.lotProductId) {
       alert('Vui lòng điền đầy đủ thông tin');
       return;
@@ -128,34 +168,57 @@ const WarehouseIssueTab: React.FC = () => {
       const lot = lots.find(l => l.id === formData.lotId);
       const lotProduct = lotProducts.find(lp => lp.id === formData.lotProductId);
 
-      await warehouseIssueService.createWarehouseIssue({
-        maPhieuXuat: formData.maPhieuXuat,
-        employeeId: user?.id || '',
-        maNhanVien: user?.employeeCode || '',
-        tenNhanVien: `${user?.lastName} ${user?.firstName}`,
-        warehouseId: formData.warehouseId,
-        tenKho: warehouse?.tenKho || '',
-        lotId: formData.lotId,
-        tenLo: lot?.tenLo || '',
-        lotProductId: formData.lotProductId,
-        tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
-        soLuongXuat: formData.soLuongXuat,
-        donViTinh: lotProduct?.donViTinh || '',
-        ghiChu: formData.ghiChu,
-      });
+      if (editingId) {
+        await warehouseIssueService.updateWarehouseIssue(editingId, {
+          warehouseId: formData.warehouseId,
+          tenKho: warehouse?.tenKho || '',
+          lotId: formData.lotId,
+          tenLo: lot?.tenLo || '',
+          lotProductId: formData.lotProductId,
+          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
+          soLuongXuat: formData.soLuongXuat,
+          donViTinh: lotProduct?.donViTinh || '',
+          ghiChu: formData.ghiChu,
+        });
+        alert('Cập nhật phiếu xuất kho thành công!');
+      } else {
+        await warehouseIssueService.createWarehouseIssue({
+          maPhieuXuat: formData.maPhieuXuat,
+          employeeId: user?.id || '',
+          maNhanVien: user?.employeeCode || '',
+          tenNhanVien: `${user?.lastName} ${user?.firstName}`,
+          warehouseId: formData.warehouseId,
+          tenKho: warehouse?.tenKho || '',
+          lotId: formData.lotId,
+          tenLo: lot?.tenLo || '',
+          lotProductId: formData.lotProductId,
+          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
+          soLuongXuat: formData.soLuongXuat,
+          donViTinh: lotProduct?.donViTinh || '',
+          ghiChu: formData.ghiChu,
+        });
+        alert('Tạo phiếu xuất kho thành công!');
+      }
 
-      alert('Tạo phiếu xuất kho thành công!');
       setShowModal(false);
+      setEditingId(null);
       fetchIssues();
-      fetchWarehouses(); // Refresh to get updated quantities
+      fetchWarehouses();
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi tạo phiếu xuất kho');
+      alert(error.response?.data?.message || 'Lỗi khi xử lý phiếu xuất kho');
     } finally {
       setLoading(false);
     }
   };
 
   const filteredIssues = issues.filter((issue) => {
+    // Period filter
+    if (month || year) {
+      const date = new Date(issue.ngayXuat);
+      if (month && (date.getMonth() + 1) !== month) return false;
+      if (year && date.getFullYear() !== year) return false;
+    }
     const search = (filterValues._search || '').toLowerCase().trim();
     if (search) {
       const matchSearch =
@@ -251,6 +314,24 @@ const WarehouseIssueTab: React.FC = () => {
                       >
                         <Eye className="w-5 h-5" />
                       </button>
+                      {!issue.isLocked && (
+                        <>
+                          <button
+                            onClick={() => handleEdit(issue)}
+                            className="p-1.5 text-amber-600 hover:bg-amber-100 rounded-md transition-colors"
+                            title="Chỉnh sửa"
+                          >
+                            <Pencil className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(issue)}
+                            className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                            title="Xóa"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -433,11 +514,11 @@ const WarehouseIssueTab: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Create Issue Modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
+      {/* Create/Edit Issue Modal */}
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditingId(null); }} showBackdrop>
         <div className="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
           <div className="px-6 py-4 border-b border-gray-200 shrink-0">
-            <h2 className="text-xl font-bold">Phiếu xuất kho</h2>
+            <h2 className="text-xl font-bold">{editingId ? 'Cập nhật phiếu xuất kho' : 'Phiếu xuất kho'}</h2>
           </div>
           <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6 space-y-4">
               {/* Tên nhân viên */}
@@ -603,7 +684,7 @@ const WarehouseIssueTab: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:justify-end gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => { setShowModal(false); setEditingId(null); }}
                   className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   Hủy
@@ -613,7 +694,7 @@ const WarehouseIssueTab: React.FC = () => {
                   disabled={loading}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
                 >
-                  {loading ? 'Đang xử lý...' : 'Tạo phiếu xuất'}
+                  {loading ? 'Đang xử lý...' : editingId ? 'Cập nhật' : 'Tạo phiếu xuất'}
                 </button>
               </div>
           </form>

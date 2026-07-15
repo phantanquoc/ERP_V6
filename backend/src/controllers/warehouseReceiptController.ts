@@ -3,6 +3,7 @@ import warehouseReceiptService from '@services/warehouseReceiptService';
 import supplyRequestService from '@services/supplyRequestService';
 import notificationService from '@services/notificationService';
 import { NotificationEvent } from '@types';
+import { ValidationError, ConflictError, NotFoundError } from '@utils/errors';
 
 export const generateReceiptCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -93,6 +94,55 @@ export const batchCreateWarehouseReceipts = async (req: Request, res: Response, 
       });
     }
   } catch (error) {
+    next(error);
+  }
+};
+
+export const updateWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu } = req.body;
+
+    const receipt = await warehouseReceiptService.update(id, {
+      warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu,
+    });
+
+    res.status(200).json({ success: true, message: 'Cập nhật phiếu nhập kho thành công', data: receipt });
+  } catch (error: any) {
+    if (error instanceof ValidationError) {
+      res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ success: false, message: error.message });
+      return;
+    }
+    if (error instanceof ConflictError) {
+      res.status(409).json({ success: false, message: error.message });
+      return;
+    }
+    next(error);
+  }
+};
+
+export const deleteWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const result = await warehouseReceiptService.delete(id);
+    res.status(200).json({ success: true, message: 'Xóa phiếu nhập kho thành công', data: result });
+  } catch (error: any) {
+    if (error instanceof ValidationError) {
+      res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ success: false, message: error.message });
+      return;
+    }
+    if (error instanceof ConflictError) {
+      res.status(409).json({ success: false, message: error.message });
+      return;
+    }
     next(error);
   }
 };

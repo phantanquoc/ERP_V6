@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, FileText, Eye } from 'lucide-react';
+import { Plus, FileText, Eye, Pencil, Trash2 } from 'lucide-react';
 import Modal from './Modal';
 import { useQueryClient } from '@tanstack/react-query';
 import warehouseReceiptService, { WarehouseReceipt } from '../services/warehouseReceiptService';
@@ -9,7 +9,12 @@ import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { warehouseKeys } from '../hooks';
 
-const WarehouseReceiptTab: React.FC = () => {
+interface WarehouseReceiptTabProps {
+  month?: number;
+  year?: number;
+}
+
+const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [receipts, setReceipts] = useState<WarehouseReceipt[]>([]);
@@ -20,6 +25,7 @@ const WarehouseReceiptTab: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<WarehouseReceipt | null>(null);
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuNhap: '', tenNhanVien: '', tenKho: '', tenSanPham: '' });
@@ -103,6 +109,7 @@ const WarehouseReceiptTab: React.FC = () => {
   const handleOpenModal = async () => {
     try {
       const response = await warehouseReceiptService.generateReceiptCode();
+      setEditingId(null);
       setFormData({
         maPhieuNhap: response.data.code,
         warehouseId: '',
@@ -117,9 +124,40 @@ const WarehouseReceiptTab: React.FC = () => {
     }
   };
 
+  const handleEdit = (receipt: WarehouseReceipt) => {
+    setEditingId(receipt.id);
+    setFormData({
+      maPhieuNhap: receipt.maPhieuNhap,
+      warehouseId: receipt.warehouseId,
+      lotId: receipt.lotId,
+      lotProductId: receipt.lotProductId,
+      soLuongNhap: receipt.soLuongNhap,
+      ghiChu: receipt.ghiChu || '',
+    });
+    // Set lots and lotProducts based on current receipt's warehouse/lot
+    const warehouse = warehouses.find(w => w.id === receipt.warehouseId);
+    setLots(warehouse?.lots || []);
+    const lot = warehouse?.lots?.find(l => l.id === receipt.lotId);
+    setLotProducts(lot?.lotProducts || []);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (receipt: WarehouseReceipt) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa phiếu nhập kho này?')) return;
+    try {
+      await warehouseReceiptService.deleteWarehouseReceipt(receipt.id);
+      alert('Xóa phiếu nhập kho thành công!');
+      fetchReceipts();
+      fetchWarehouses();
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Lỗi khi xóa phiếu nhập kho');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.warehouseId || !formData.lotId || !formData.lotProductId) {
       alert('Vui lòng điền đầy đủ thông tin');
       return;
@@ -131,29 +169,45 @@ const WarehouseReceiptTab: React.FC = () => {
       const lot = lots.find(l => l.id === formData.lotId);
       const lotProduct = lotProducts.find(lp => lp.id === formData.lotProductId);
 
-      await warehouseReceiptService.createWarehouseReceipt({
-        maPhieuNhap: formData.maPhieuNhap,
-        employeeId: user?.employeeId || '',
-        maNhanVien: user?.employeeCode || '',
-        tenNhanVien: `${user?.lastName} ${user?.firstName}`,
-        warehouseId: formData.warehouseId,
-        tenKho: warehouse?.tenKho || '',
-        lotId: formData.lotId,
-        tenLo: lot?.tenLo || '',
-        lotProductId: formData.lotProductId,
-        tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
-        soLuongNhap: formData.soLuongNhap,
-        donViTinh: lotProduct?.donViTinh || '',
-        ghiChu: formData.ghiChu,
-      });
+      if (editingId) {
+        await warehouseReceiptService.updateWarehouseReceipt(editingId, {
+          warehouseId: formData.warehouseId,
+          tenKho: warehouse?.tenKho || '',
+          lotId: formData.lotId,
+          tenLo: lot?.tenLo || '',
+          lotProductId: formData.lotProductId,
+          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
+          soLuongNhap: formData.soLuongNhap,
+          donViTinh: lotProduct?.donViTinh || '',
+          ghiChu: formData.ghiChu,
+        });
+        alert('Cập nhật phiếu nhập kho thành công!');
+      } else {
+        await warehouseReceiptService.createWarehouseReceipt({
+          maPhieuNhap: formData.maPhieuNhap,
+          employeeId: user?.employeeId || '',
+          maNhanVien: user?.employeeCode || '',
+          tenNhanVien: `${user?.lastName} ${user?.firstName}`,
+          warehouseId: formData.warehouseId,
+          tenKho: warehouse?.tenKho || '',
+          lotId: formData.lotId,
+          tenLo: lot?.tenLo || '',
+          lotProductId: formData.lotProductId,
+          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
+          soLuongNhap: formData.soLuongNhap,
+          donViTinh: lotProduct?.donViTinh || '',
+          ghiChu: formData.ghiChu,
+        });
+        alert('Tạo phiếu nhập kho thành công!');
+      }
 
-      alert('Tạo phiếu nhập kho thành công!');
       setShowModal(false);
+      setEditingId(null);
       fetchReceipts();
       fetchWarehouses(); // Refresh to get updated quantities
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi tạo phiếu nhập kho');
+      alert(error.response?.data?.message || 'Lỗi khi xử lý phiếu nhập kho');
     } finally {
       setLoading(false);
     }
@@ -161,6 +215,12 @@ const WarehouseReceiptTab: React.FC = () => {
 
   const searchTerm = (filterValues._search || '').toLowerCase();
   const filteredReceipts = receipts.filter((r) => {
+    // Period filter
+    if (month || year) {
+      const date = new Date(r.ngayNhap);
+      if (month && (date.getMonth() + 1) !== month) return false;
+      if (year && date.getFullYear() !== year) return false;
+    }
     const search = (filterValues._search || '').toLowerCase().trim();
     if (search) {
       const matchSearch =
@@ -249,13 +309,33 @@ const WarehouseReceiptTab: React.FC = () => {
                     {receipt.soLuongNhap} {receipt.donViTinh}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <button
-                      onClick={() => handleViewDetail(receipt)}
-                      className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                      title="Xem chi tiết"
-                    >
-                      <Eye className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleViewDetail(receipt)}
+                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                        title="Xem chi tiết"
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
+                      {!receipt.isLocked && (
+                        <>
+                          <button
+                            onClick={() => handleEdit(receipt)}
+                            className="p-1.5 text-amber-600 hover:bg-amber-100 rounded-md transition-colors"
+                            title="Chỉnh sửa"
+                          >
+                            <Pencil className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(receipt)}
+                            className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                            title="Xóa"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -437,11 +517,11 @@ const WarehouseReceiptTab: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Create Receipt Modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
+      {/* Create/Edit Receipt Modal */}
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditingId(null); }} showBackdrop>
         <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[500px] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
           <div className="border-b px-6 py-4 shrink-0">
-            <h2 className="text-xl font-bold">Phiếu nhập kho</h2>
+            <h2 className="text-xl font-bold">{editingId ? 'Cập nhật phiếu nhập kho' : 'Phiếu nhập kho'}</h2>
           </div>
           <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6 space-y-4">
               {/* Tên nhân viên */}
@@ -599,7 +679,7 @@ const WarehouseReceiptTab: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:justify-end gap-2 mt-6 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => { setShowModal(false); setEditingId(null); }}
                   className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   Hủy
@@ -609,7 +689,7 @@ const WarehouseReceiptTab: React.FC = () => {
                   disabled={loading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {loading ? 'Đang xử lý...' : 'Tạo phiếu nhập'}
+                  {loading ? 'Đang xử lý...' : editingId ? 'Cập nhật' : 'Tạo phiếu nhập'}
                 </button>
               </div>
             </form>
