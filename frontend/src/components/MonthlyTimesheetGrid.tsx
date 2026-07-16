@@ -16,6 +16,8 @@ interface CellEditorState {
 }
 
 /* ---------- Inline Editable Cell for summary columns ---------- */
+type SummaryCellType = 'text' | 'number' | 'money' | 'checkbox' | 'date';
+
 interface EditableSummaryCellProps {
   employeeId: string;
   fieldKey: string;
@@ -25,10 +27,26 @@ interface EditableSummaryCellProps {
   year: number;
   onSave: (data: { employeeId: string; month: number; year: number; fieldKey: string; value: string }) => void;
   className?: string;
+  type?: SummaryCellType;
 }
 
+const formatDateDisplay = (v: string) => {
+  if (!v) return '';
+  const parts = v.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return v;
+};
+
+const formatMoneyDisplay = (v: string) => {
+  const n = parseFloat(v);
+  if (!Number.isFinite(n) || n === 0) return '';
+  return Math.round(n).toLocaleString('vi-VN');
+};
+
+const normalizeNumericString = (v: string) => v.replace(/[^\d.-]/g, '');
+
 const EditableSummaryCell: React.FC<EditableSummaryCellProps> = ({
-  employeeId, fieldKey, computedValue, overrideValue, month, year, onSave, className = '',
+  employeeId, fieldKey, computedValue, overrideValue, month, year, onSave, className = '', type = 'text',
 }) => {
   const displayValue = overrideValue !== undefined ? overrideValue : computedValue;
   const isOverridden = overrideValue !== undefined;
@@ -36,8 +54,36 @@ const EditableSummaryCell: React.FC<EditableSummaryCellProps> = ({
   const [localValue, setLocalValue] = useState(displayValue);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // --- Checkbox type: always interactive, no click-to-edit flow ---
+  if (type === 'checkbox') {
+    const isChecked = overrideValue !== undefined ? overrideValue === 'x' : computedValue === '✓' || computedValue === 'x';
+    const handleToggle = () => {
+      const newVal = isChecked ? '' : 'x';
+      onSave({ employeeId, month, year, fieldKey, value: newVal });
+    };
+    return (
+      <td
+        className={`border px-1 py-0.5 text-center ${isOverridden ? 'bg-amber-50/60' : ''} ${className}`}
+        title={isOverridden ? `Ghi đè (gốc: ${computedValue || 'trống'})` : undefined}
+      >
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={handleToggle}
+          className="w-3.5 h-3.5 accent-blue-600 cursor-pointer"
+        />
+      </td>
+    );
+  }
+
+  // --- Non-checkbox types: click-to-edit flow ---
+  const getEditValue = () => {
+    if (type === 'money') return normalizeNumericString(displayValue);
+    return displayValue;
+  };
+
   const handleClick = () => {
-    setLocalValue(displayValue);
+    setLocalValue(getEditValue());
     setEditing(true);
     setTimeout(() => inputRef.current?.select(), 0);
   };
@@ -45,15 +91,16 @@ const EditableSummaryCell: React.FC<EditableSummaryCellProps> = ({
   const handleBlur = () => {
     setEditing(false);
     const trimmed = localValue.trim();
+    // Normalize computed value for comparison (money has formatting)
+    const computedNorm = type === 'money' ? normalizeNumericString(computedValue) : computedValue;
+    const displayNorm = type === 'money' ? normalizeNumericString(displayValue) : displayValue;
     // Only save if value actually changed
-    if (trimmed === displayValue) return;
-    // If user clears to empty and there was an override, remove override (revert to computed)
-    // If user clears to empty and there was no override, do nothing
+    if (trimmed === displayNorm) return;
     if (trimmed === '' && !isOverridden && computedValue === '') return;
-    if (trimmed === computedValue && isOverridden) {
+    if (trimmed === computedNorm && isOverridden) {
       // User typed the same as computed → remove override
       onSave({ employeeId, month, year, fieldKey, value: '' });
-    } else if (trimmed !== computedValue || isOverridden) {
+    } else if (trimmed !== computedNorm || isOverridden) {
       onSave({ employeeId, month, year, fieldKey, value: trimmed });
     }
   };
@@ -62,9 +109,21 @@ const EditableSummaryCell: React.FC<EditableSummaryCellProps> = ({
     if (e.key === 'Enter') {
       (e.target as HTMLInputElement).blur();
     } else if (e.key === 'Escape') {
-      setLocalValue(displayValue);
+      setLocalValue(getEditValue());
       setEditing(false);
     }
+  };
+
+  const getInputType = () => {
+    if (type === 'number' || type === 'money') return 'number';
+    if (type === 'date') return 'date';
+    return 'text';
+  };
+
+  const getDisplayContent = () => {
+    if (type === 'money') return formatMoneyDisplay(displayValue);
+    if (type === 'date') return formatDateDisplay(displayValue);
+    return displayValue;
   };
 
   if (editing) {
@@ -72,13 +131,14 @@ const EditableSummaryCell: React.FC<EditableSummaryCellProps> = ({
       <td className={`border px-0 py-0 ${className}`}>
         <input
           ref={inputRef}
-          type="text"
+          type={getInputType()}
           value={localValue}
           onChange={e => setLocalValue(e.target.value)}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           className="w-full h-full px-1 py-0.5 text-xs text-center border-0 outline-none bg-blue-50 focus:ring-1 focus:ring-blue-400"
           autoFocus
+          step={type === 'number' || type === 'money' ? 'any' : undefined}
         />
       </td>
     );
@@ -90,7 +150,7 @@ const EditableSummaryCell: React.FC<EditableSummaryCellProps> = ({
       onClick={handleClick}
       title={isOverridden ? `Ghi đè (gốc: ${computedValue || 'trống'})` : undefined}
     >
-      {displayValue}
+      {getDisplayContent()}
     </td>
   );
 };
@@ -453,33 +513,33 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                   );
                 })}
                 {/* Summary cells - all editable inline */}
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="payableHours" computedValue={String(formatHours(s?.payableHours ?? 0))} overrideValue={empOvr?.payableHours} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="officialWorkDays" computedValue={String(formatHours(s?.officialWorkDays ?? 0))} overrideValue={empOvr?.officialWorkDays} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveHoursPayable" computedValue={String(formatHours(s?.leaveHoursPayable ?? 0))} overrideValue={empOvr?.leaveHoursPayable} month={month} year={year} onSave={onOverrideSave} className="bg-yellow-50/50" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveHoursHolidayRegime" computedValue={String(formatHours(s?.leaveHoursHolidayRegime ?? 0))} overrideValue={empOvr?.leaveHoursHolidayRegime} month={month} year={year} onSave={onOverrideSave} className="bg-yellow-50/50" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveHoursUnpaid" computedValue={String(formatHours(s?.leaveHoursUnpaid ?? 0))} overrideValue={empOvr?.leaveHoursUnpaid} month={month} year={year} onSave={onOverrideSave} className="bg-yellow-50/50" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="probationDays" computedValue={String(formatHours(s?.probationDays ?? 0))} overrideValue={empOvr?.probationDays} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="lateEarlyHours" computedValue={String(formatHours(s?.lateEarlyHours ?? 0))} overrideValue={empOvr?.lateEarlyHours} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="signature" computedValue="" overrideValue={empOvr?.signature} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="mealAllowanceMoney" computedValue={mealAllowanceMoney ? formatMoney(mealAllowanceMoney) : ''} overrideValue={empOvr?.mealAllowanceMoney} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekday" computedValue={String(formatHours(s?.otWeekday ?? 0))} overrideValue={empOvr?.otWeekday} month={month} year={year} onSave={onOverrideSave} className="bg-orange-50/50" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} className="bg-orange-50/50" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSunday" computedValue={String(formatHours(s?.otSunday ?? 0))} overrideValue={empOvr?.otSunday} month={month} year={year} onSave={onOverrideSave} className="bg-orange-50/50" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} className="bg-orange-50/50" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otHoliday" computedValue={String(formatHours(s?.otHoliday ?? 0))} overrideValue={empOvr?.otHoliday} month={month} year={year} onSave={onOverrideSave} className="bg-orange-50/50" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="kmDistance" computedValue={String(row.kmDistance || '')} overrideValue={empOvr?.kmDistance} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="fuelAmount" computedValue={s?.fuelAmount ? formatMoney(s.fuelAmount) : ''} overrideValue={empOvr?.fuelAmount} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="overtimeMealMoney" computedValue={overtimeMealMoney ? formatMoney(overtimeMealMoney) : ''} overrideValue={empOvr?.overtimeMealMoney} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveBalanceCarryOver" computedValue={String(row.leaveBalanceCarryOver ?? '')} overrideValue={empOvr?.leaveBalanceCarryOver} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveCurrentBalance" computedValue={s?.leaveCurrentBalance != null ? String(s.leaveCurrentBalance) : ''} overrideValue={empOvr?.leaveCurrentBalance} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="note" computedValue="" overrideValue={empOvr?.note} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="diligence" computedValue={s?.diligence ? '✓' : ''} overrideValue={empOvr?.diligence} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="mealCount" computedValue={s?.mealCount != null ? String(s.mealCount) : ''} overrideValue={empOvr?.mealCount} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="unpaidDeductHours" computedValue="" overrideValue={empOvr?.unpaidDeductHours} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveAdvanceRecovery" computedValue="" overrideValue={empOvr?.leaveAdvanceRecovery} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveCompensatory" computedValue={s?.leaveCompensatory != null ? String(s.leaveCompensatory) : ''} overrideValue={empOvr?.leaveCompensatory} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="sundayMeal" computedValue={s?.sundayMeal != null ? String(s.sundayMeal) : ''} overrideValue={empOvr?.sundayMeal} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="resignDate" computedValue="" overrideValue={empOvr?.resignDate} month={month} year={year} onSave={onOverrideSave} />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="payableHours" computedValue={String(formatHours(s?.payableHours ?? 0))} overrideValue={empOvr?.payableHours} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="officialWorkDays" computedValue={String(formatHours(s?.officialWorkDays ?? 0))} overrideValue={empOvr?.officialWorkDays} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveHoursPayable" computedValue={String(formatHours(s?.leaveHoursPayable ?? 0))} overrideValue={empOvr?.leaveHoursPayable} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-yellow-50/50" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveHoursHolidayRegime" computedValue={String(formatHours(s?.leaveHoursHolidayRegime ?? 0))} overrideValue={empOvr?.leaveHoursHolidayRegime} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-yellow-50/50" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveHoursUnpaid" computedValue={String(formatHours(s?.leaveHoursUnpaid ?? 0))} overrideValue={empOvr?.leaveHoursUnpaid} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-yellow-50/50" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="probationDays" computedValue={String(formatHours(s?.probationDays ?? 0))} overrideValue={empOvr?.probationDays} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="lateEarlyHours" computedValue={String(formatHours(s?.lateEarlyHours ?? 0))} overrideValue={empOvr?.lateEarlyHours} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="signature" computedValue="" overrideValue={empOvr?.signature} month={month} year={year} onSave={onOverrideSave} type="text" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="mealAllowanceMoney" computedValue={mealAllowanceMoney ? formatMoney(mealAllowanceMoney) : ''} overrideValue={empOvr?.mealAllowanceMoney} month={month} year={year} onSave={onOverrideSave} type="money" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekday" computedValue={String(formatHours(s?.otWeekday ?? 0))} overrideValue={empOvr?.otWeekday} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-orange-50/50" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-orange-50/50" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSunday" computedValue={String(formatHours(s?.otSunday ?? 0))} overrideValue={empOvr?.otSunday} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-orange-50/50" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-orange-50/50" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otHoliday" computedValue={String(formatHours(s?.otHoliday ?? 0))} overrideValue={empOvr?.otHoliday} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-orange-50/50" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="kmDistance" computedValue={String(row.kmDistance || '')} overrideValue={empOvr?.kmDistance} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="fuelAmount" computedValue={s?.fuelAmount ? formatMoney(s.fuelAmount) : ''} overrideValue={empOvr?.fuelAmount} month={month} year={year} onSave={onOverrideSave} type="money" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="overtimeMealMoney" computedValue={overtimeMealMoney ? formatMoney(overtimeMealMoney) : ''} overrideValue={empOvr?.overtimeMealMoney} month={month} year={year} onSave={onOverrideSave} type="money" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveBalanceCarryOver" computedValue={String(row.leaveBalanceCarryOver ?? '')} overrideValue={empOvr?.leaveBalanceCarryOver} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveCurrentBalance" computedValue={s?.leaveCurrentBalance != null ? String(s.leaveCurrentBalance) : ''} overrideValue={empOvr?.leaveCurrentBalance} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="note" computedValue="" overrideValue={empOvr?.note} month={month} year={year} onSave={onOverrideSave} type="text" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="diligence" computedValue={s?.diligence ? '✓' : ''} overrideValue={empOvr?.diligence} month={month} year={year} onSave={onOverrideSave} type="checkbox" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="mealCount" computedValue={s?.mealCount != null ? String(s.mealCount) : ''} overrideValue={empOvr?.mealCount} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="unpaidDeductHours" computedValue="" overrideValue={empOvr?.unpaidDeductHours} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveAdvanceRecovery" computedValue="" overrideValue={empOvr?.leaveAdvanceRecovery} month={month} year={year} onSave={onOverrideSave} type="money" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="leaveCompensatory" computedValue={s?.leaveCompensatory != null ? String(s.leaveCompensatory) : ''} overrideValue={empOvr?.leaveCompensatory} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="sundayMeal" computedValue={s?.sundayMeal != null ? String(s.sundayMeal) : ''} overrideValue={empOvr?.sundayMeal} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="resignDate" computedValue="" overrideValue={empOvr?.resignDate} month={month} year={year} onSave={onOverrideSave} type="date" />
               </tr>
             );
           })}
@@ -594,7 +654,7 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
                 <td className={bodyThCell} style={idStyle(2)} title={row.fullName}>{row.fullName}</td>
                 <td className="border px-1 py-0.5 whitespace-nowrap">{row.positionName}</td>
                 <td className="border px-1 py-0.5 whitespace-nowrap">{row.departmentName}</td>
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otCarryOver" computedValue="" overrideValue={empOvr?.otCarryOver} month={month} year={year} onSave={onOverrideSave} />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otCarryOver" computedValue="" overrideValue={empOvr?.otCarryOver} month={month} year={year} onSave={onOverrideSave} type="text" />
                 {dayHeaders.map(h => {
                   const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(h.day).padStart(2, '0')}`;
                   const cell = row.cells.find(c => c.date === dateStr);
@@ -608,16 +668,16 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
                     </td>
                   );
                 })}
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekday" computedValue={String(formatHours(s?.otWeekday ?? 0))} overrideValue={empOvr?.otWeekday} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSunday" computedValue={String(formatHours(s?.otSunday ?? 0))} overrideValue={empOvr?.otSunday} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otHoliday" computedValue={String(formatHours(s?.otHoliday ?? 0))} overrideValue={empOvr?.otHoliday} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSalary" computedValue={s?.otSalary ? formatMoney(s.otSalary) : ''} overrideValue={empOvr?.otSalary} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="hourlyRate" computedValue={hourlyRate ? hourlyRate.toLocaleString('vi-VN') : ''} overrideValue={empOvr?.hourlyRate} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otTotalIncome" computedValue={s?.otTotalIncome ? formatMoney(s.otTotalIncome) : ''} overrideValue={empOvr?.otTotalIncome} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otDaysCount" computedValue={String(otDaysCount || '')} overrideValue={empOvr?.otDaysCount} month={month} year={year} onSave={onOverrideSave} />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="overtimeMealMoney" computedValue={overtimeMealMoney ? formatMoney(overtimeMealMoney) : ''} overrideValue={empOvr?.overtimeMealMoney} month={month} year={year} onSave={onOverrideSave} />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekday" computedValue={String(formatHours(s?.otWeekday ?? 0))} overrideValue={empOvr?.otWeekday} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSunday" computedValue={String(formatHours(s?.otSunday ?? 0))} overrideValue={empOvr?.otSunday} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otHoliday" computedValue={String(formatHours(s?.otHoliday ?? 0))} overrideValue={empOvr?.otHoliday} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSalary" computedValue={s?.otSalary ? formatMoney(s.otSalary) : ''} overrideValue={empOvr?.otSalary} month={month} year={year} onSave={onOverrideSave} type="money" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="hourlyRate" computedValue={hourlyRate ? hourlyRate.toLocaleString('vi-VN') : ''} overrideValue={empOvr?.hourlyRate} month={month} year={year} onSave={onOverrideSave} type="money" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otTotalIncome" computedValue={s?.otTotalIncome ? formatMoney(s.otTotalIncome) : ''} overrideValue={empOvr?.otTotalIncome} month={month} year={year} onSave={onOverrideSave} type="money" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otDaysCount" computedValue={String(otDaysCount || '')} overrideValue={empOvr?.otDaysCount} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="overtimeMealMoney" computedValue={overtimeMealMoney ? formatMoney(overtimeMealMoney) : ''} overrideValue={empOvr?.overtimeMealMoney} month={month} year={year} onSave={onOverrideSave} type="money" />
               </tr>
             );
           })}
