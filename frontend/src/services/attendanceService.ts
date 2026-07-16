@@ -220,20 +220,24 @@ class AttendanceService {
   }
 
   async exportToExcelCalendar(filters: {
-    startDate: string;
-    endDate: string;
+    startDate?: string;
+    endDate?: string;
+    month?: number;
+    year?: number;
     search?: string;
     departmentId?: string;
     positionId?: string;
   }): Promise<void> {
     const params = new URLSearchParams();
-    params.append('startDate', filters.startDate);
-    params.append('endDate', filters.endDate);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.month) params.append('month', filters.month.toString());
+    if (filters.year) params.append('year', filters.year.toString());
     if (filters.search) params.append('search', filters.search);
     if (filters.departmentId) params.append('departmentId', filters.departmentId);
     if (filters.positionId) params.append('positionId', filters.positionId);
     const url = `${API_BASE_URL}/attendances/export/excel/calendar?${params.toString()}`;
-    await downloadFile(url, `lich-cham-cong-${Date.now()}.xlsx`);
+    await downloadFile(url, `bang-cham-cong-${filters.year || ''}-${filters.month || ''}-${Date.now()}.xlsx`);
   }
 }
 

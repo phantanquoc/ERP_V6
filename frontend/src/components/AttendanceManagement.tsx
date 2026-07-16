@@ -597,8 +597,8 @@ const AttendanceManagement: React.FC = () => {
             onClick={async () => {
               try {
                 await attendanceService.exportToExcelCalendar({
-                  startDate,
-                  endDate,
+                  month: selectedMonth.month + 1,
+                  year: selectedMonth.year,
                   search: filterValues._search || undefined,
                   departmentId: selectedDepartment || undefined,
                   positionId: selectedPosition || undefined,
