@@ -298,7 +298,8 @@ function App() {
         </Suspense>
         </SystemSettingsProvider>
       </AuthProvider>
-      <Toaster position="top-right" />
+      {/* z-index above modal overlay (Modal uses z-[9999]) so toasts are never hidden behind a form */}
+      <Toaster position="top-right" containerStyle={{ zIndex: 10000 }} />
     </Router>
   );
 }
