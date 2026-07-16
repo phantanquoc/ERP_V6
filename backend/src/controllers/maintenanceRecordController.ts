@@ -43,8 +43,12 @@ class MaintenanceRecordController {
 
   async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const nguoiPhu: string[] | undefined = typeof req.body.nguoiPhu === 'string'
+        ? JSON.parse(req.body.nguoiPhu)
+        : Array.isArray(req.body.nguoiPhu) ? req.body.nguoiPhu : undefined;
       const record = await maintenanceRecordService.create({
         ...req.body,
+        nguoiPhu,
         ngayThucHien: new Date(req.body.ngayThucHien),
         fileDinhKem: req.file ? getFileUrl('maintenance-records', req.file.filename) : undefined,
         userId: req.user?.id,
@@ -57,8 +61,12 @@ class MaintenanceRecordController {
 
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const nguoiPhu: string[] | undefined = typeof req.body.nguoiPhu === 'string'
+        ? JSON.parse(req.body.nguoiPhu)
+        : Array.isArray(req.body.nguoiPhu) ? req.body.nguoiPhu : undefined;
       const record = await maintenanceRecordService.update(req.params.id, {
         ...req.body,
+        nguoiPhu,
         ngayThucHien: req.body.ngayThucHien ? new Date(req.body.ngayThucHien) : undefined,
         fileDinhKem: req.file ? getFileUrl('maintenance-records', req.file.filename) : req.body.fileDinhKem,
       });

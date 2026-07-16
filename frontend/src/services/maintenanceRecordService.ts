@@ -15,6 +15,7 @@ export interface MaintenanceRecord {
   thoiGianThucHien: string | null;
   ngayThucHien: string;
   nguoiThucHien: string;
+  nguoiPhu: string[];
   fileDinhKem: string | null;
   createdAt: string;
   updatedAt: string;
@@ -35,6 +36,7 @@ export interface CreateMaintenanceRecordRequest {
   thoiGianThucHien?: string;
   ngayThucHien: string;
   nguoiThucHien: string;
+  nguoiPhu?: string[];
 }
 
 export type UpdateMaintenanceRecordRequest = Partial<CreateMaintenanceRecordRequest>;
@@ -68,8 +70,10 @@ class MaintenanceRecordService {
     if (file) {
       const formData = new FormData();
       Object.entries(data).forEach(([key, value]) => {
+        if (key === 'nguoiPhu') return; // handled separately
         if (value !== undefined && value !== null) formData.append(key, String(value));
       });
+      formData.append('nguoiPhu', JSON.stringify(data.nguoiPhu ?? []));
       formData.append('file', file);
       return apiClient.post<MaintenanceRecord>('/maintenance-records', formData);
     }
@@ -80,8 +84,10 @@ class MaintenanceRecordService {
     if (file) {
       const formData = new FormData();
       Object.entries(data).forEach(([key, value]) => {
+        if (key === 'nguoiPhu') return; // handled separately
         if (value !== undefined && value !== null) formData.append(key, String(value));
       });
+      formData.append('nguoiPhu', JSON.stringify(data.nguoiPhu ?? []));
       formData.append('file', file);
       return apiClient.put<MaintenanceRecord>(`/maintenance-records/${id}`, formData);
     }

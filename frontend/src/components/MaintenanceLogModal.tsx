@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Check, MessageSquare } from 'lucide-react';
-import { ModalForm, selectCls, textareaCls } from './ModalForm';
+import { ModalForm, textareaCls } from './ModalForm';
 import { MaintenancePlanItemLog } from '../services/maintenancePlanService';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
+import EmployeeCombobox from './common/EmployeeCombobox';
+import EmployeeMultiCombobox from './common/EmployeeMultiCombobox';
 
 interface Props {
   isOpen: boolean;
@@ -15,8 +17,8 @@ interface Props {
   noiDung: string;
   tenThietBi: string;
   nguoiLap: string;
-  onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string) => void;
-  onUpdateNote: (logId: string, data: { ghiChu?: string; nguoiThucHien?: string }) => void;
+  onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => void;
+  onUpdateNote: (logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) => void;
 }
 
 const MaintenanceLogModal = ({
@@ -50,19 +52,22 @@ const MaintenanceLogModal = ({
         </div>
 
         <div className="space-y-3">
-          {occurrences.map((lanThu) => (
+          {occurrences.map((lanThu) => {
+            const log = logs.find((l) => l.lanThu === lanThu);
+            return (
             <OccurrenceRow
-              key={lanThu}
+              key={`${lanThu}-${log?.id ?? 'new'}-${log?.hoanThanh ?? false}`}
               planId={planId}
               itemId={itemId}
               month={month}
               lanThu={lanThu}
               showLabel={timesPerMonth > 1}
-              log={logs.find((l) => l.lanThu === lanThu)}
+              log={log}
               onToggle={onToggle}
               onUpdateNote={onUpdateNote}
             />
-          ))}
+            );
+          })}
         </div>
       </div>
     </ModalForm>
@@ -76,16 +81,18 @@ interface OccurrenceRowProps {
   lanThu: number;
   showLabel: boolean;
   log: MaintenancePlanItemLog | undefined;
-  onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string) => void;
-  onUpdateNote: (logId: string, data: { ghiChu?: string; nguoiThucHien?: string }) => void;
+  onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => void;
+  onUpdateNote: (logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) => void;
 }
 
 const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, onToggle, onUpdateNote }: OccurrenceRowProps) => {
   const checked = log?.hoanThanh ?? false;
   const [nguoiTH, setNguoiTH] = useState(log?.nguoiThucHien ?? '');
+  const [nguoiPhu, setNguoiPhu] = useState<string[]>(log?.nguoiPhu ?? []);
   const [note, setNote] = useState(log?.ghiChu ?? '');
   const [dirtyNote, setDirtyNote] = useState(false);
   const [dirtyNguoi, setDirtyNguoi] = useState(false);
+  const [dirtyNguoiPhu, setDirtyNguoiPhu] = useState(false);
 
   const { data: employees = [] } = useEmployeesForAssignment();
 
@@ -99,15 +106,23 @@ const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, onToggle
     setDirtyNguoi(value !== (log?.nguoiThucHien ?? ''));
   };
 
+  const handleNguoiPhuChange = (names: string[]) => {
+    setNguoiPhu(names);
+    const original = log?.nguoiPhu ?? [];
+    setDirtyNguoiPhu(JSON.stringify(names) !== JSON.stringify(original));
+  };
+
   const handleSave = () => {
     if (!log) return;
-    const data: { ghiChu?: string; nguoiThucHien?: string } = {};
+    const data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] } = {};
     if (dirtyNote) data.ghiChu = note;
     if (dirtyNguoi) data.nguoiThucHien = nguoiTH;
+    if (dirtyNguoiPhu) data.nguoiPhu = nguoiPhu;
     if (Object.keys(data).length > 0) {
       onUpdateNote(log.id, data);
       setDirtyNote(false);
       setDirtyNguoi(false);
+      setDirtyNguoiPhu(false);
     }
   };
 
@@ -116,11 +131,10 @@ const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, onToggle
     if (checked) {
       if (!confirm('Bạn muốn hủy hoàn thành lần này?')) return;
     }
-    onToggle(planId, itemId, month, lanThu, nguoiTH || undefined);
+    onToggle(planId, itemId, month, lanThu, nguoiTH || undefined, nguoiPhu);
   };
 
-  const hasDirty = dirtyNote || dirtyNguoi;
-
+  const hasDirty = dirtyNote || dirtyNguoi || dirtyNguoiPhu;
   const canToggle = checked || !!nguoiTH;
 
   return (
@@ -149,19 +163,13 @@ const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, onToggle
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Người thực hiện</label>
-          <select
+          <label className="block text-xs font-medium text-gray-500 mb-1">Người thực hiện chính</label>
+          <EmployeeCombobox
+            employees={employees}
             value={nguoiTH}
-            onChange={(e) => handleNguoiChange(e.target.value)}
-            className={selectCls() + ' !py-1.5 !text-xs'}
-          >
-            <option value="">-- Chọn nhân viên --</option>
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.name}>
-                {emp.name} {emp.department ? `(${emp.department})` : ''}
-              </option>
-            ))}
-          </select>
+            onChange={handleNguoiChange}
+            placeholder="Tìm nhân viên..."
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Ngày thực hiện</label>
@@ -169,6 +177,16 @@ const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, onToggle
             {log?.ngayThucHien ? new Date(log.ngayThucHien).toLocaleDateString('vi-VN') : '—'}
           </p>
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1">Người phụ (kiểm tra &amp; thực hiện)</label>
+        <EmployeeMultiCombobox
+          employees={employees}
+          value={nguoiPhu}
+          onChange={handleNguoiPhuChange}
+          placeholder="Tìm và thêm người phụ..."
+        />
       </div>
 
       {log && (

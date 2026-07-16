@@ -186,6 +186,11 @@ class MaintenancePlanService {
       });
 
       if (data.items) {
+        // Empty items array is treated as 'no item changes' to prevent accidental wipe;
+        // deleting all rows individually goes through the per-row delete flow.
+        if (data.items.length === 0) {
+          // Skip item diffing — only header fields were updated above
+        } else {
         // DIFF-BASED update: intentionally diverging from delete-then-recreate convention
         // because each item carries child state (logs + auto-generated MaintenanceRecords)
         // that must be preserved for unchanged/updated items.
@@ -195,6 +200,12 @@ class MaintenancePlanService {
         });
         const existingIds = new Set(existingItems.map((e) => e.id));
         const incomingIds = new Set(data.items.filter((i) => i.id).map((i) => i.id!));
+
+        // --- Validate: reject items with IDs not belonging to this plan ---
+        const foreignIds = data.items.filter((i) => i.id && !existingIds.has(i.id));
+        if (foreignIds.length > 0) {
+          throw new ValidationError('Dữ liệu mục bảo dưỡng không hợp lệ (ID không thuộc kế hoạch này)');
+        }
 
         // --- Delete items no longer present ---
         const deletedItems = existingItems.filter((e) => !incomingIds.has(e.id));
@@ -242,6 +253,7 @@ class MaintenancePlanService {
             })),
           });
         }
+        } // end else (non-empty items)
       }
     });
 
@@ -251,7 +263,7 @@ class MaintenancePlanService {
     return this.getById(id);
   }
 
-  async toggleMonth(planId: string, itemId: string, month: number, lanThu: number = 1, ghiChu?: string, nguoiThucHien?: string) {
+  async toggleMonth(planId: string, itemId: string, month: number, lanThu: number = 1, ghiChu?: string, nguoiThucHien?: string, nguoiPhu?: string[]) {
     if (month < 1 || month > 12) throw new ValidationError('Tháng phải từ 1-12');
     if (lanThu < 1) throw new ValidationError('Lần thứ phải từ 1 trở lên');
 
@@ -274,6 +286,7 @@ class MaintenancePlanService {
           hoanThanh: newHoanThanh,
           ghiChu: ghiChu !== undefined ? ghiChu : existing.ghiChu,
           nguoiThucHien: nguoiThucHien !== undefined ? nguoiThucHien : existing.nguoiThucHien,
+          nguoiPhu: nguoiPhu !== undefined ? nguoiPhu : existing.nguoiPhu,
           ngayThucHien: newHoanThanh ? new Date() : null,
         },
       });
@@ -292,6 +305,7 @@ class MaintenancePlanService {
           hoanThanh: true,
           ghiChu: ghiChu || null,
           nguoiThucHien: nguoiThucHien || null,
+          nguoiPhu: nguoiPhu ?? [],
           ngayThucHien: new Date(),
         },
       });
@@ -356,7 +370,7 @@ class MaintenancePlanService {
 
   private async createAutoRecord(
     item: { id: string; maintenancePlanId: string; machineSystemDetailId: string; noiDung: string; maintenancePlan: { machineSystemId: string } },
-    log: { id: string; nguoiThucHien: string | null; ngayThucHien: Date | null },
+    log: { id: string; nguoiThucHien: string | null; ngayThucHien: Date | null; nguoiPhu?: string[] },
   ) {
     try {
       const year = new Date().getFullYear();
@@ -378,6 +392,7 @@ class MaintenancePlanService {
           tinhTrangTruoc: '(Chưa cập nhật)',
           tinhTrangSau: '(Chưa cập nhật)',
           nguoiThucHien: log.nguoiThucHien || 'Chưa xác định',
+          nguoiPhu: log.nguoiPhu ?? [],
           ngayThucHien: log.ngayThucHien || new Date(),
           sourceLogId: log.id,
         },
@@ -395,16 +410,34 @@ class MaintenancePlanService {
     }
   }
 
-  async updateLogNote(logId: string, data: { ghiChu?: string; nguoiThucHien?: string }) {
+  async updateLogNote(logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) {
     const log = await prisma.maintenancePlanItemLog.findUnique({ where: { id: logId } });
     if (!log) throw new NotFoundError('Không tìm thấy log bảo dưỡng');
     const updateData: Record<string, any> = {};
     if (data.ghiChu !== undefined) updateData.ghiChu = data.ghiChu;
     if (data.nguoiThucHien !== undefined) updateData.nguoiThucHien = data.nguoiThucHien;
-    return prisma.maintenancePlanItemLog.update({
+    if (data.nguoiPhu !== undefined) updateData.nguoiPhu = data.nguoiPhu;
+    const updatedLog = await prisma.maintenancePlanItemLog.update({
       where: { id: logId },
       data: updateData,
     });
+
+    // Sync changed personnel fields to linked MaintenanceRecord (if any)
+    try {
+      const recordUpdate: Record<string, any> = {};
+      if (data.nguoiThucHien !== undefined) recordUpdate.nguoiThucHien = data.nguoiThucHien || 'Chưa xác định';
+      if (data.nguoiPhu !== undefined) recordUpdate.nguoiPhu = data.nguoiPhu;
+      if (Object.keys(recordUpdate).length > 0) {
+        await prisma.maintenanceRecord.updateMany({
+          where: { sourceLogId: logId },
+          data: recordUpdate,
+        });
+      }
+    } catch (_) {
+      // Record sync must not fail the log update operation
+    }
+
+    return updatedLog;
   }
 
   async syncDetails(planId: string) {

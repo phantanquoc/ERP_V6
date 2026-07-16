@@ -76,7 +76,10 @@ class MaintenancePlanController {
       const lanThu = req.body.lanThu ? parseInt(req.body.lanThu, 10) : 1;
       const ghiChu = req.body.ghiChu as string | undefined;
       const nguoiThucHien = req.body.nguoiThucHien as string | undefined;
-      const item = await maintenancePlanService.toggleMonth(req.params.id, req.params.itemId, month, lanThu, ghiChu, nguoiThucHien);
+      const nguoiPhu: string[] | undefined = typeof req.body.nguoiPhu === 'string'
+        ? JSON.parse(req.body.nguoiPhu)
+        : Array.isArray(req.body.nguoiPhu) ? req.body.nguoiPhu : undefined;
+      const item = await maintenancePlanService.toggleMonth(req.params.id, req.params.itemId, month, lanThu, ghiChu, nguoiThucHien, nguoiPhu);
       res.json({ success: true, data: item, message: 'Cập nhật tiến độ thành công' });
     } catch (error) {
       next(error);
@@ -85,9 +88,13 @@ class MaintenancePlanController {
 
   async updateLogNote(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const nguoiPhu: string[] | undefined = typeof req.body.nguoiPhu === 'string'
+        ? JSON.parse(req.body.nguoiPhu)
+        : Array.isArray(req.body.nguoiPhu) ? req.body.nguoiPhu : undefined;
       const log = await maintenancePlanService.updateLogNote(req.params.logId, {
         ghiChu: req.body.ghiChu,
         nguoiThucHien: req.body.nguoiThucHien,
+        nguoiPhu,
       });
       res.json({ success: true, data: log, message: 'Cập nhật thông tin thành công' });
     } catch (error) {

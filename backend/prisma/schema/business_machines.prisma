@@ -343,6 +343,7 @@ model MaintenancePlanItemLog {
   ghiChu                  String?   @db.Text
   ngayThucHien            DateTime?
   nguoiThucHien           String?
+  nguoiPhu                String[]  @default([])
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
@@ -369,6 +370,7 @@ model MaintenanceRecord {
   thoiGianThucHien      String?
   ngayThucHien          DateTime
   nguoiThucHien         String
+  nguoiPhu              String[] @default([])
   fileDinhKem           String?
   createdById           String? // soft ref to auth.User.id — no FK constraint
   createdAt             DateTime @default(now())

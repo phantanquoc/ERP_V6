@@ -171,11 +171,11 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
   const pagination = plansResponse?.pagination;
   const systems = systemsResponse?.data ?? [];
 
-  const handleToggle = (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string) => {
-    toggleMonth.mutate({ planId, itemId, month, lanThu, nguoiThucHien });
+  const handleToggle = (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => {
+    toggleMonth.mutate({ planId, itemId, month, lanThu, nguoiThucHien, nguoiPhu });
   };
 
-  const handleUpdateNote = (logId: string, data: { ghiChu?: string; nguoiThucHien?: string }) => {
+  const handleUpdateNote = (logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) => {
     updateLogNote.mutate({ logId, data });
   };
 
@@ -323,7 +323,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
 
 interface PlanCardProps {
   plan: MaintenancePlan;
-  onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string) => void;
+  onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => void;
   onOpenLogModal: (state: LogModalState) => void;
   onView: () => void;
   onEdit: () => void;
@@ -364,6 +364,17 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
       }
     } else {
       renderedRows.push({ type: 'standalone', item: parentItem });
+    }
+  }
+
+  // Orphan sweep: render children whose parentDetailId points to a device
+  // not present in the plan (parent was never added or was removed).
+  const parentDetailIdSet = new Set(parentItems.map((p) => p.machineSystemDetailId));
+  for (const [key, orphans] of childItemsByParentDetailId) {
+    if (!parentDetailIdSet.has(key)) {
+      for (const child of orphans) {
+        renderedRows.push({ type: 'standalone', item: child });
+      }
     }
   }
 
@@ -501,7 +512,7 @@ interface PlanItemRowProps {
   planId: string;
   item: MaintenancePlanItem;
   nguoiLap: string;
-  onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string) => void;
+  onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => void;
   onOpenLogModal: (state: LogModalState) => void;
   indent?: boolean;
 }
@@ -575,7 +586,7 @@ interface MonthCellProps {
   nguoiLap: string;
   isApplicable: boolean;
   isSuggested: boolean;
-  onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string) => void;
+  onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => void;
   onOpenLogModal: (state: LogModalState) => void;
 }
 
