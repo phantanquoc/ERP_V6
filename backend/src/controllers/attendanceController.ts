@@ -207,22 +207,27 @@ export class AttendanceController {
 
   async exportToExcelCalendar(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { startDate, endDate, search, departmentId, positionId } = req.query;
+      const { startDate, endDate, month, year, search, departmentId, positionId } = req.query;
 
-      if (!startDate || !endDate) {
-        throw new ValidationError('startDate and endDate are required');
+      const monthNum = month ? parseInt(month as string) : undefined;
+      const yearNum = year ? parseInt(year as string) : undefined;
+
+      if (!monthNum && !yearNum && (!startDate || !endDate)) {
+        throw new ValidationError('Cần cung cấp month/year hoặc startDate/endDate');
       }
 
       const buffer = await attendanceService.exportToExcelCalendar({
-        startDate: startDate as string,
-        endDate: endDate as string,
+        startDate: startDate ? (startDate as string) : undefined,
+        endDate: endDate ? (endDate as string) : undefined,
+        month: monthNum,
+        year: yearNum,
         search: search ? (search as string) : undefined,
         departmentId: departmentId ? (departmentId as string) : undefined,
         positionId: positionId ? (positionId as string) : undefined,
       });
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename=lich-cham-cong-${Date.now()}.xlsx`);
+      res.setHeader('Content-Disposition', `attachment; filename=bang-cham-cong-${yearNum || ''}-${monthNum || ''}-${Date.now()}.xlsx`);
       res.send(buffer);
     } catch (error) {
       next(error);
