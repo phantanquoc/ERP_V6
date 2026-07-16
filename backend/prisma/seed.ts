@@ -824,6 +824,36 @@ async function main(): Promise<void> {
     console.log(`✅ ProcessType: ${pt.name} (${pt.code})`);
   }
 
+  // Seed Attendance Codes (17 standard codes from the workbook legend)
+  console.log('\n📋 Seeding attendance codes...');
+  const attendanceCodes = [
+    { code: 'x', label: 'Đi làm', sortOrder: 1 },
+    { code: 'P', label: 'Nghỉ phép năm', sortOrder: 2 },
+    { code: 'P/2', label: 'Nghỉ phép năm 1/2 ngày', sortOrder: 3 },
+    { code: 'L', label: 'Lễ', sortOrder: 4 },
+    { code: 'BU', label: 'Nghỉ bù', sortOrder: 5 },
+    { code: 'TV', label: 'Thử việc', sortOrder: 6 },
+    { code: 'TV/2', label: 'Thử việc nửa ngày', sortOrder: 7 },
+    { code: 'B', label: 'Nghỉ bệnh', sortOrder: 8 },
+    { code: 'KL', label: 'Nghỉ phép không lương', sortOrder: 9 },
+    { code: 'X/2', label: 'Nghỉ không lương 1/2 ngày có phép', sortOrder: 10 },
+    { code: 'O', label: 'Chưa đi làm', sortOrder: 11 },
+    { code: 'CD', label: 'Nghỉ chế độ', sortOrder: 12 },
+    { code: 'N', label: 'Làm nửa ngày', sortOrder: 13 },
+    { code: 'TS', label: 'Nghỉ thai sản', sortOrder: 14 },
+    { code: 'NCC', label: 'Nghỉ không lương hưởng chuyên cần', sortOrder: 15 },
+    { code: 'ON', label: 'Làm Online', sortOrder: 16 },
+    { code: 'O/2', label: 'Nghỉ nửa ngày không lương hưởng chuyên cần', sortOrder: 17 },
+  ];
+  for (const ac of attendanceCodes) {
+    await prisma.attendanceCode.upsert({
+      where: { code: ac.code },
+      update: { label: ac.label, sortOrder: ac.sortOrder },
+      create: { ...ac, isActive: true },
+    });
+  }
+  console.log(`✅ Seeded ${attendanceCodes.length} attendance codes`);
+
   console.log('✨ Database seeding completed!');
 }
 

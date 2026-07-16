@@ -124,6 +124,10 @@ model Employee {
   suppliers                Supplier[]              @relation("SupplierCreatedBy")
   faceProfile              FaceProfile?
   lastFaceScanAt           DateTime?
+  kmDistance               Float?
+  leaveBalanceCarryOver    Float?
+  timesheetCells                TimesheetCell[]
+  monthlyTimesheetOverrides     MonthlyTimesheetOverride[]
 
   @@map("employees")
   @@schema("common")
@@ -1095,11 +1099,20 @@ enum OvertimePlanStatus {
 }
 
 model PayrollSettings {
-  id               String   @id @default(cuid())
-  standardWorkDays Int      @default(26)
-  overtimeRate     Float    @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  standardWorkDays      Int      @default(26)
+  overtimeRate          Float    @default(0)
+  mealAllowancePerDay   Float    @default(0)
+  overtimeMealAllowance Float    @default(25000)
+  sundayMealAllowance   Float    @default(0)
+  fuelPricePerKm        Float    @default(0)
+  otRateWeekday         Float    @default(1.5)
+  otRateWeekdayExtra    Float    @default(2.1)
+  otRateSunday          Float    @default(2)
+  otRateSundayExtra     Float    @default(2.7)
+  otRateHoliday         Float    @default(3)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@map("payroll_settings")
   @@schema("common")
@@ -1389,5 +1402,68 @@ model ProcessType {
   updatedAt      DateTime @updatedAt
 
   @@map("process_types")
+  @@schema("common")
+}
+
+// ─── Timesheet models ─────────────────────────────────────────────────────────
+
+model Holiday {
+  id        String   @id @default(cuid())
+  name      String
+  date      DateTime
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("holidays")
+  @@schema("common")
+}
+
+model AttendanceCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  label       String
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("attendance_codes")
+  @@schema("common")
+}
+
+model TimesheetCell {
+  id            String   @id @default(cuid())
+  employeeId    String
+  date          DateTime
+  code          String
+  note          String?
+  workHours     Float    @default(0)
+  overtimeHours Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@map("timesheet_cells")
+  @@schema("common")
+}
+
+model MonthlyTimesheetOverride {
+  id         String   @id @default(cuid())
+  employeeId String
+  month      Int
+  year       Int
+  fieldKey   String
+  value      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month, year, fieldKey])
+  @@index([employeeId, month, year])
+  @@map("monthly_timesheet_overrides")
   @@schema("common")
 }
