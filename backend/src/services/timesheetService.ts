@@ -108,8 +108,8 @@ export function computeSummary(
   for (const cell of cells) {
     const code = cell.code;
     const dateStr = cell.date;
-    const cellDate = new Date(dateStr);
-    const isSunday = cellDate.getDay() === 0;
+    const cellDate = new Date(dateStr + 'T00:00:00Z');
+    const isSunday = cellDate.getUTCDay() === 0;
     const isHoliday = holidaySet.has(dateStr);
 
     // Work hours classification
