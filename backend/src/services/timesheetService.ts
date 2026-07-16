@@ -422,19 +422,20 @@ class TimesheetService {
       // Formula: leaveCurrentBalance = carryOver - annualLeaveDaysUsed (partial stored as negative)
       summary.leaveCurrentBalance = (row.leaveBalanceCarryOver ?? 0) + summary.leaveCurrentBalance;
 
-      // Formula: otSalary = hourlyRate * (band1*rate1 + band2*rate2 + ...)
+      // Formula: otSalary = baseSalary (Lương tính tăng ca = lương cơ bản)
+      summary.otSalary = row.baseSalary || 0;
+
+      // Formula: otTotalIncome = hourlyRate * Σ(band × rate) (Tổng Thu nhập ngoài giờ)
       const stdDays = effectiveSettings.standardWorkDays || 26;
-      const hourlyRate = (row.baseSalary || 0) / stdDays / 8;
-      const otSalaryRaw = hourlyRate * (
+      const hourlyRate = Math.round((row.baseSalary || 0) / (stdDays * 8));
+      const otTotalIncomeRaw = hourlyRate * (
         summary.otWeekday * effectiveSettings.otRateWeekday +
         summary.otWeekdayExtra * effectiveSettings.otRateWeekdayExtra +
         summary.otSunday * effectiveSettings.otRateSunday +
         summary.otSundayExtra * effectiveSettings.otRateSundayExtra +
         summary.otHoliday * effectiveSettings.otRateHoliday
       );
-      summary.otSalary = Math.round(otSalaryRaw);
-      // otTotalIncome = otSalary for now (meal can be added later)
-      summary.otTotalIncome = summary.otSalary;
+      summary.otTotalIncome = Math.round(otTotalIncomeRaw);
 
       summaries[row.employeeId] = summary;
     }
