@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Plus, Eye, Trash2, Check, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2, Check, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
 import { useMaintenancePlans, useToggleMonth, useDeleteMaintenancePlan, useUpdateLogNote, useSyncDetails } from '../hooks/useMaintenancePlans';
 import { useMachineSystems } from '../hooks/useMachineSystemDetails';
 import MaintenancePlanForm from './MaintenancePlanForm';
@@ -120,7 +120,7 @@ function exportPlanCSV(plan: MaintenancePlan) {
 
 const CURRENT_MONTH = new Date().getMonth() + 1;
 
-type ModalMode = 'create' | 'view' | null;
+type ModalMode = 'create' | 'view' | 'edit' | null;
 
 interface LogModalState {
   planId: string;
@@ -246,6 +246,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
             onToggle={handleToggle}
             onOpenLogModal={handleOpenLogModal}
             onView={() => { setViewingPlan(plan); setModalMode('view'); }}
+            onEdit={() => { setViewingPlan(plan); setModalMode('edit'); }}
             onDelete={() => handleDelete(plan.id)}
             onSync={() => syncDetails.mutate(plan.id)}
             isSyncing={syncDetails.isPending}
@@ -285,6 +286,15 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
           lockedMachineSystemId={lockedMachineSystemId}
         />
       )}
+      {modalMode === 'edit' && viewingPlan && (
+        <MaintenancePlanForm
+          onClose={() => { setModalMode(null); setViewingPlan(null); }}
+          systems={systems}
+          year={selectedYear}
+          plan={viewingPlan}
+          lockedMachineSystemId={lockedMachineSystemId}
+        />
+      )}
 
       {logModal && (
         <MaintenanceLogModal
@@ -316,12 +326,13 @@ interface PlanCardProps {
   onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string) => void;
   onOpenLogModal: (state: LogModalState) => void;
   onView: () => void;
+  onEdit: () => void;
   onDelete: () => void;
   onSync: () => void;
   isSyncing: boolean;
 }
 
-const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onDelete, onSync, isSyncing }: PlanCardProps) => {
+const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, onSync, isSyncing }: PlanCardProps) => {
   const { completed, total } = calculatePlanProgress(plan.items ?? []);
   const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
@@ -387,6 +398,9 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onDelete, onSync, is
           )}
           <button onClick={() => exportPlanCSV(plan)} className="p-1.5 text-gray-400 hover:text-green-600 rounded" title="Export CSV">
             <Download className="w-4 h-4" />
+          </button>
+          <button onClick={onEdit} className="p-1.5 text-gray-400 hover:text-amber-600 rounded" title="Sửa kế hoạch">
+            <Pencil className="w-4 h-4" />
           </button>
           <button onClick={onView} className="p-1.5 text-gray-400 hover:text-blue-600 rounded">
             <Eye className="w-4 h-4" />

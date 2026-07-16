@@ -48,6 +48,7 @@ export interface MaintenancePlan {
 }
 
 export interface CreatePlanItemRequest {
+  id?: string;
   machineSystemDetailId: string;
   maintenanceTemplateId?: string;
   noiDung?: string;
