@@ -116,13 +116,17 @@ export function computeSummary(
     if (workCodes.has(code)) {
       payableHours += cell.workHours;
       officialWorkDays += code === 'N' || code === 'TV/2' ? 0.5 : 1;
-      mealAllowanceDays += code === 'N' ? 0.5 : 1;
+      // ON (online work) does not count toward company meal
+      mealAllowanceDays += code === 'ON' ? 0 : (code === 'N' ? 0.5 : 1);
     } else if (payableLeaveCodes.has(code)) {
-      leaveHoursPayable += cell.workHours || 8;
+      const defaultHours = cell.workHours || (code.endsWith('/2') ? 4 : 8);
+      leaveHoursPayable += defaultHours;
     } else if (holidayLeaveCodes.has(code)) {
-      leaveHoursHolidayRegime += cell.workHours || 8;
+      const defaultHours = cell.workHours || (code.endsWith('/2') ? 4 : 8);
+      leaveHoursHolidayRegime += defaultHours;
     } else if (unpaidLeaveCodes.has(code)) {
-      leaveHoursUnpaid += cell.workHours || 8;
+      const defaultHours = cell.workHours || (code.endsWith('/2') ? 4 : 8);
+      leaveHoursUnpaid += defaultHours;
     }
 
     if (probationCodes.has(code)) {
