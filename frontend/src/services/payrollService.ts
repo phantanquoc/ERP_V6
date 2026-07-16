@@ -61,6 +61,15 @@ export interface PayrollSettings {
   id: string;
   standardWorkDays: number;
   overtimeRate: number;
+  mealAllowancePerDay: number;
+  overtimeMealAllowance: number;
+  sundayMealAllowance: number;
+  fuelPricePerKm: number;
+  otRateWeekday: number;
+  otRateWeekdayExtra: number;
+  otRateSunday: number;
+  otRateSundayExtra: number;
+  otRateHoliday: number;
 }
 
 class PayrollService {
@@ -126,7 +135,7 @@ class PayrollService {
     }
   }
 
-  async updatePayrollSettings(data: { standardWorkDays?: number; overtimeRate?: number }): Promise<PayrollSettings> {
+  async updatePayrollSettings(data: Partial<Omit<PayrollSettings, 'id'>>): Promise<PayrollSettings> {
     try {
       const response = await apiClient.put('/payrolls/settings', data);
       return response.data;
