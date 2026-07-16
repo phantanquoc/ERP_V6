@@ -16,6 +16,7 @@ const FREQUENCY_TIMES: Record<string, number> = {
 };
 
 interface PlanItemData {
+  id?: string;
   machineSystemDetailId: string;
   maintenanceTemplateId?: string;
   noiDung: string;
@@ -173,7 +174,7 @@ class MaintenancePlanService {
   async update(id: string, data: UpdateMaintenancePlanData) {
     await this.getById(id);
 
-    return prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       await tx.maintenancePlan.update({
         where: { id },
         data: {
@@ -185,23 +186,69 @@ class MaintenancePlanService {
       });
 
       if (data.items) {
-        await tx.maintenancePlanItem.deleteMany({ where: { maintenancePlanId: id } });
-        await tx.maintenancePlanItem.createMany({
-          data: data.items.map((item) => ({
-            maintenancePlanId: id,
-            machineSystemDetailId: item.machineSystemDetailId,
-            maintenanceTemplateId: item.maintenanceTemplateId || null,
-            noiDung: item.noiDung,
-            tanSuat: (item.tanSuat as any) || 'BA_THANG',
-            toThucHien: (item.toThucHien as any) || 'CO_KHI',
-            soLuong: item.soLuong ?? 1,
-            thangBatDau: item.thangBatDau ?? 1,
-          })),
+        // DIFF-BASED update: intentionally diverging from delete-then-recreate convention
+        // because each item carries child state (logs + auto-generated MaintenanceRecords)
+        // that must be preserved for unchanged/updated items.
+        const existingItems = await tx.maintenancePlanItem.findMany({
+          where: { maintenancePlanId: id },
+          select: { id: true, logs: { select: { id: true } } },
         });
-      }
+        const existingIds = new Set(existingItems.map((e) => e.id));
+        const incomingIds = new Set(data.items.filter((i) => i.id).map((i) => i.id!));
 
-      return tx.maintenancePlan.findUnique({ where: { id }, include: planInclude });
+        // --- Delete items no longer present ---
+        const deletedItems = existingItems.filter((e) => !incomingIds.has(e.id));
+        if (deletedItems.length > 0) {
+          const orphanLogIds = deletedItems.flatMap((e) => e.logs.map((l) => l.id));
+          if (orphanLogIds.length > 0) {
+            await tx.maintenanceRecord.deleteMany({ where: { sourceLogId: { in: orphanLogIds } } });
+          }
+          await tx.maintenancePlanItem.deleteMany({
+            where: { id: { in: deletedItems.map((e) => e.id) } },
+          });
+        }
+
+        // --- Update existing items ---
+        for (const item of data.items) {
+          if (item.id && existingIds.has(item.id)) {
+            await tx.maintenancePlanItem.update({
+              where: { id: item.id },
+              data: {
+                machineSystemDetailId: item.machineSystemDetailId,
+                maintenanceTemplateId: item.maintenanceTemplateId || null,
+                noiDung: item.noiDung,
+                tanSuat: (item.tanSuat as any) || 'BA_THANG',
+                toThucHien: (item.toThucHien as any) || 'CO_KHI',
+                soLuong: item.soLuong ?? 1,
+                thangBatDau: item.thangBatDau ?? 1,
+              },
+            });
+          }
+        }
+
+        // --- Create new items (no id provided) ---
+        const newItems = data.items.filter((i) => !i.id);
+        if (newItems.length > 0) {
+          await tx.maintenancePlanItem.createMany({
+            data: newItems.map((item) => ({
+              maintenancePlanId: id,
+              machineSystemDetailId: item.machineSystemDetailId,
+              maintenanceTemplateId: item.maintenanceTemplateId || null,
+              noiDung: item.noiDung,
+              tanSuat: (item.tanSuat as any) || 'BA_THANG',
+              toThucHien: (item.toThucHien as any) || 'CO_KHI',
+              soLuong: item.soLuong ?? 1,
+              thangBatDau: item.thangBatDau ?? 1,
+            })),
+          });
+        }
+      }
     });
+
+    // Re-evaluate plan status after item changes
+    await this.checkAndUpdatePlanStatus(id);
+
+    return this.getById(id);
   }
 
   async toggleMonth(planId: string, itemId: string, month: number, lanThu: number = 1, ghiChu?: string, nguoiThucHien?: string) {
