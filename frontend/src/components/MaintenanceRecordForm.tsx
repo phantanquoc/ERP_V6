@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls } from './ModalForm';
 import { useCreateMaintenanceRecord, useUpdateMaintenanceRecord, useGeneratedRecordCode } from '../hooks/useMaintenanceRecords';
 import { useMachineSystemDetails } from '../hooks/useMachineSystemDetails';
@@ -50,7 +51,10 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
   const generatedCode = codeResponse?.data?.code ?? '';
 
   const handleSubmit = async () => {
-    if (!machineSystemId || !machineSystemDetailId || !noiDung || !tinhTrangTruoc || !tinhTrangSau || !nguoiThucHien) return;
+    if (!machineSystemId || !machineSystemDetailId || !noiDung || !tinhTrangTruoc || !tinhTrangSau || !nguoiThucHien) {
+      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+      return;
+    }
     const payload = {
       machineSystemId,
       machineSystemDetailId,
@@ -65,12 +69,18 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
       nguoiPhu,
     };
 
-    if (isEdit && record) {
-      await updateRecord.mutateAsync({ id: record.id, data: payload, file });
-    } else {
-      await createRecord.mutateAsync({ data: payload, file });
+    try {
+      if (isEdit && record) {
+        await updateRecord.mutateAsync({ id: record.id, data: payload, file });
+        toast.success('Cập nhật biên bản thành công');
+      } else {
+        await createRecord.mutateAsync({ data: payload, file });
+        toast.success('Tạo biên bản thành công');
+      }
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Có lỗi xảy ra, vui lòng thử lại');
     }
-    onClose();
   };
 
   const title = mode === 'create' ? 'Tạo biên bản BD/SC' : mode === 'edit' ? 'Sửa biên bản' : `Chi tiết: ${record?.maBienBan}`;
