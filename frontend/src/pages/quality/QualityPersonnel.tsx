@@ -17,6 +17,9 @@ import PositionLevelManagement from '@components/PositionLevelManagement';
 import EmployeeEvaluationManagement from '@components/EmployeeEvaluationManagement';
 import PayrollManagement from '@components/PayrollManagement';
 import AttendanceManagement from '@components/AttendanceManagement';
+import MonthlyTimesheetGrid from '@components/MonthlyTimesheetGrid';
+import HolidayManager from '@components/HolidayManager';
+import AttendanceCodeManager from '@components/AttendanceCodeManager';
 import LeaveRequestManagement from '@components/LeaveRequestManagement';
 import DatePicker from '@components/DatePicker';
 import employeeService from '@services/employeeService';
@@ -51,8 +54,8 @@ const QualityPersonnel = () => {
     || user?.role === UserRole.TEAM_LEAD
     || user?.role === UserRole.EMPLOYEE;
 
-  const VALID_TABS = ['employees', 'positions', 'responsibilities', 'levels', 'evaluations', 'payroll', 'attendance', 'leave-requests', 'users'];
-  const [activeTab, setActiveTab] = useState<'employees' | 'positions' | 'responsibilities' | 'levels' | 'evaluations' | 'payroll' | 'attendance' | 'leave-requests' | 'users'>(() => {
+  const VALID_TABS = ['employees', 'positions', 'responsibilities', 'levels', 'evaluations', 'payroll', 'attendance', 'monthly-timesheet', 'holidays', 'attendance-codes', 'leave-requests', 'users'];
+  const [activeTab, setActiveTab] = useState<'employees' | 'positions' | 'responsibilities' | 'levels' | 'evaluations' | 'payroll' | 'attendance' | 'monthly-timesheet' | 'holidays' | 'attendance-codes' | 'leave-requests' | 'users'>(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam && VALID_TABS.includes(tabParam)) return tabParam as any;
     if (!user?.role) return 'attendance';
@@ -155,6 +158,9 @@ const QualityPersonnel = () => {
     { id: 'evaluations', name: 'Đánh giá nhân viên', icon: <Star className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
     { id: 'payroll', name: 'Bảng tính lương', icon: <DollarSign className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
     { id: 'attendance', name: 'Bảng điểm danh nhân viên', icon: <FileText className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
+    { id: 'monthly-timesheet', name: 'Chấm công tháng', icon: <Calendar className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
+    { id: 'holidays', name: 'Ngày lễ', icon: <Calendar className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
+    { id: 'attendance-codes', name: 'Mã chấm công', icon: <FileText className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
     { id: 'leave-requests', name: 'Danh sách đơn nghỉ phép', icon: <Calendar className="w-4 h-4" />, roles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE] },
     { id: 'users', name: 'Quản lý user', icon: <Lock className="w-4 h-4" />, roles: [UserRole.ADMIN] },
   ].filter(tab => !user?.role || tab.roles.includes(user.role as UserRole));
@@ -374,6 +380,21 @@ const QualityPersonnel = () => {
           {/* BẢNG ĐIỂM DANH NHÂN VIÊN */}
           {activeTab === 'attendance' && (
             <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><AttendanceManagement /></div></div>
+          )}
+
+          {/* CHẤM CÔNG THÁNG */}
+          {activeTab === 'monthly-timesheet' && (
+            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><MonthlyTimesheetGrid /></div></div>
+          )}
+
+          {/* NGÀY LỄ */}
+          {activeTab === 'holidays' && (
+            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><HolidayManager /></div></div>
+          )}
+
+          {/* MÃ CHẤM CÔNG */}
+          {activeTab === 'attendance-codes' && (
+            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><AttendanceCodeManager /></div></div>
           )}
 
           {/* DANH SÁCH ĐƠN NGHỈ PHÉP */}

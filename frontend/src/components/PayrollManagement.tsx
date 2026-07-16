@@ -29,7 +29,12 @@ const PayrollManagement: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingPayroll, setEditingPayroll] = useState<PayrollDetail | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsForm, setSettingsForm] = useState({ standardWorkDays: 26, overtimeRate: 0 });
+  const [settingsForm, setSettingsForm] = useState({
+    standardWorkDays: 26, overtimeRate: 0,
+    mealAllowancePerDay: 30000, overtimeMealAllowance: 25000, sundayMealAllowance: 40000,
+    fuelPricePerKm: 3000, otRateWeekday: 1.5, otRateWeekdayExtra: 2.1,
+    otRateSunday: 2, otRateSundayExtra: 2.7, otRateHoliday: 3,
+  });
   const [sendingNotifications, setSendingNotifications] = useState(false);
 
   const queryClient = useQueryClient();
@@ -168,6 +173,15 @@ const PayrollManagement: React.FC = () => {
               setSettingsForm({
                 standardWorkDays: payrollSettings?.standardWorkDays ?? 26,
                 overtimeRate: payrollSettings?.overtimeRate ?? 0,
+                mealAllowancePerDay: payrollSettings?.mealAllowancePerDay ?? 30000,
+                overtimeMealAllowance: payrollSettings?.overtimeMealAllowance ?? 25000,
+                sundayMealAllowance: payrollSettings?.sundayMealAllowance ?? 40000,
+                fuelPricePerKm: payrollSettings?.fuelPricePerKm ?? 3000,
+                otRateWeekday: payrollSettings?.otRateWeekday ?? 1.5,
+                otRateWeekdayExtra: payrollSettings?.otRateWeekdayExtra ?? 2.1,
+                otRateSunday: payrollSettings?.otRateSunday ?? 2,
+                otRateSundayExtra: payrollSettings?.otRateSundayExtra ?? 2.7,
+                otRateHoliday: payrollSettings?.otRateHoliday ?? 3,
               });
               setShowSettingsModal(true);
             }}
@@ -751,7 +765,51 @@ const PayrollManagement: React.FC = () => {
                   min={0}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
-                <p className="text-xs text-gray-500 mt-1">Tiền OT = Giá OT × Số giờ OT</p>
+                <p className="text-xs text-gray-500 mt-1">Tiền OT = Giá OT x Số giờ OT</p>
+              </div>
+              <hr className="my-2" />
+              <p className="text-sm font-semibold text-gray-700">Hệ số tăng ca (chấm công)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Ngày thường</label>
+                  <input type="number" step="0.1" value={settingsForm.otRateWeekday} onChange={e => setSettingsForm({ ...settingsForm, otRateWeekday: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Ngày thường (ngoài giờ)</label>
+                  <input type="number" step="0.1" value={settingsForm.otRateWeekdayExtra} onChange={e => setSettingsForm({ ...settingsForm, otRateWeekdayExtra: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Chủ nhật</label>
+                  <input type="number" step="0.1" value={settingsForm.otRateSunday} onChange={e => setSettingsForm({ ...settingsForm, otRateSunday: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">CN (ngoài giờ)</label>
+                  <input type="number" step="0.1" value={settingsForm.otRateSundayExtra} onChange={e => setSettingsForm({ ...settingsForm, otRateSundayExtra: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Ngày lễ</label>
+                  <input type="number" step="0.1" value={settingsForm.otRateHoliday} onChange={e => setSettingsForm({ ...settingsForm, otRateHoliday: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
+                </div>
+              </div>
+              <hr className="my-2" />
+              <p className="text-sm font-semibold text-gray-700">Phụ cấp</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Cơm/ngày (₫)</label>
+                  <input type="number" value={settingsForm.mealAllowancePerDay} onChange={e => setSettingsForm({ ...settingsForm, mealAllowancePerDay: parseNumberInput(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Cơm tăng ca (₫)</label>
+                  <input type="number" value={settingsForm.overtimeMealAllowance} onChange={e => setSettingsForm({ ...settingsForm, overtimeMealAllowance: parseNumberInput(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Cơm CN (₫)</label>
+                  <input type="number" value={settingsForm.sundayMealAllowance} onChange={e => setSettingsForm({ ...settingsForm, sundayMealAllowance: parseNumberInput(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Xăng (₫/km)</label>
+                  <input type="number" value={settingsForm.fuelPricePerKm} onChange={e => setSettingsForm({ ...settingsForm, fuelPricePerKm: parseNumberInput(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
+                </div>
               </div>
             </div>
             <div className="px-3 py-3 sm:px-6 sm:py-4 border-t flex justify-end gap-3 shrink-0">
