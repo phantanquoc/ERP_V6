@@ -586,7 +586,7 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
     acc.otSundayExtra += val('otSundayExtra', s?.otSundayExtra ?? 0);
     acc.otSalary += val('otSalary', s?.otSalary ?? 0);
     acc.otTotalIncome += val('otTotalIncome', s?.otTotalIncome ?? 0);
-    acc.otDaysCount += val('otDaysCount', row.cells.filter(c => c.overtimeHours > 0).length);
+    acc.otDaysCount += val('otDaysCount', 0);
     acc.overtimeMealMoney += val('overtimeMealMoney', (s?.overtimeMealDays ?? 0) * (settings.overtimeMealAllowance ?? 25000));
     return acc;
   }, { otWeekday: 0, otSunday: 0, otHoliday: 0, otWeekdayExtra: 0, otSundayExtra: 0, otSalary: 0, otTotalIncome: 0, otDaysCount: 0, overtimeMealMoney: 0 });
@@ -645,7 +645,6 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
             const s = summaries[row.employeeId];
             const empOvr = overrides[row.employeeId] as Record<string, string> | undefined;
             const hourlyRate = Math.round((row.baseSalary || 0) / ((settings.standardWorkDays || 26) * 8));
-            const otDaysCount = row.cells.filter(c => c.overtimeHours > 0).length;
             const overtimeMealMoney = (s?.overtimeMealDays ?? 0) * (settings.overtimeMealAllowance ?? 25000);
             return (
               <tr key={row.employeeId} className="hover:bg-blue-50/30">
@@ -674,9 +673,9 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSalary" computedValue={s?.otSalary ? formatMoney(s.otSalary) : ''} overrideValue={empOvr?.otSalary} month={month} year={year} onSave={onOverrideSave} type="money" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="hourlyRate" computedValue={hourlyRate ? hourlyRate.toLocaleString('vi-VN') : ''} overrideValue={empOvr?.hourlyRate} month={month} year={year} onSave={onOverrideSave} type="money" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="hourlyRate" computedValue={hourlyRate ? formatMoney(hourlyRate) : ''} overrideValue={empOvr?.hourlyRate} month={month} year={year} onSave={onOverrideSave} type="money" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otTotalIncome" computedValue={s?.otTotalIncome ? formatMoney(s.otTotalIncome) : ''} overrideValue={empOvr?.otTotalIncome} month={month} year={year} onSave={onOverrideSave} type="money" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otDaysCount" computedValue={String(otDaysCount || '')} overrideValue={empOvr?.otDaysCount} month={month} year={year} onSave={onOverrideSave} type="number" />
+                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otDaysCount" computedValue="" overrideValue={empOvr?.otDaysCount} month={month} year={year} onSave={onOverrideSave} type="number" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="overtimeMealMoney" computedValue={overtimeMealMoney ? formatMoney(overtimeMealMoney) : ''} overrideValue={empOvr?.overtimeMealMoney} month={month} year={year} onSave={onOverrideSave} type="money" />
               </tr>
             );
