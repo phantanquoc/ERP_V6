@@ -74,6 +74,9 @@ const ROUTE_MAP: Record<string, string> = {
   auditLog: '/api/audit-logs',
   reorderRule: '/api/reorder-rules',
   myHistory: '/api',
+  attendanceCode: '/api/attendance-codes',
+  holiday: '/api/holidays',
+  timesheet: '/api/timesheet',
 };
 
 export const registerRoutes = (app: Express): void => {

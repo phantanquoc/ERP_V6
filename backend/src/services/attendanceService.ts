@@ -529,30 +529,43 @@ export class AttendanceService {
   }
 
   async exportToExcelCalendar(filters: {
-    startDate: string;
-    endDate: string;
+    startDate?: string;
+    endDate?: string;
+    month?: number;
+    year?: number;
     search?: string;
     departmentId?: string;
     positionId?: string;
   }): Promise<Buffer> {
-    const startDate = new Date(filters.startDate);
-    const endDate = new Date(filters.endDate);
+    // Derive start/end from month/year if provided
+    let startDate: Date;
+    let endDate: Date;
+
+    if (filters.month && filters.year) {
+      startDate = new Date(filters.year, filters.month - 1, 1);
+      endDate = new Date(filters.year, filters.month, 0, 23, 59, 59);
+    } else if (filters.startDate && filters.endDate) {
+      startDate = new Date(filters.startDate);
+      endDate = new Date(filters.endDate);
+    } else {
+      throw new ValidationError('Cần cung cấp month/year hoặc startDate/endDate');
+    }
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       throw new ValidationError('Ngày không hợp lệ');
     }
 
-    // Build day list (YYYY-MM-DD) inclusive
+    const month = filters.month || (startDate.getMonth() + 1);
+    const year = filters.year || startDate.getFullYear();
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    // Build day list
     const days: string[] = [];
-    {
-      const cursor = new Date(startDate);
-      while (cursor.getTime() <= endDate.getTime()) {
-        days.push(cursor.toISOString().split('T')[0]);
-        cursor.setUTCDate(cursor.getUTCDate() + 1);
-      }
+    for (let d = 1; d <= daysInMonth; d++) {
+      days.push(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
     }
 
-    // Query attendance rows with filters + ADMIN excluded
+    // Employee filter (exclude ADMIN)
     const employeeWhere: any = {
       status: 'ACTIVE',
       user: { role: { not: 'ADMIN' } },
@@ -561,14 +574,12 @@ export class AttendanceService {
     if (filters.positionId) {
       employeeWhere.positionId = filters.positionId;
     }
-
     if (filters.departmentId) {
       employeeWhere.OR = [
         { user: { departmentId: filters.departmentId } },
         { subDepartment: { departmentId: filters.departmentId } },
       ];
     }
-
     if (filters.search) {
       const searchConds: any[] = [
         { employeeCode: { contains: filters.search, mode: 'insensitive' } },
@@ -583,305 +594,594 @@ export class AttendanceService {
       }
     }
 
-    const attendances = await prisma.attendance.findMany({
-      where: {
-        attendanceDate: { gte: startDate, lte: endDate },
-        employee: employeeWhere,
-      },
-      include: {
-        employee: {
-          include: {
-            user: true,
-            position: true,
-            subDepartment: { include: { department: true } },
-          },
-        },
-      },
-      orderBy: [
-        { employee: { employeeCode: 'asc' } },
-        { attendanceDate: 'asc' },
-      ],
-    });
+    // Fetch holidays for the entire year (for the holiday list block)
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59);
 
-    // Also fetch all matching employees so those with 0 records still appear
-    const allEmployees = await prisma.employee.findMany({
-      where: employeeWhere,
-      include: {
-        user: true,
-        position: true,
-        subDepartment: { include: { department: true } },
-      },
-      orderBy: { employeeCode: 'asc' },
-    });
+    // Fetch all data in parallel
+    const [allEmployees, attendances, leaveRequests, persistedCells, yearHolidays, attendanceCodes, settings] = await Promise.all([
+      prisma.employee.findMany({
+        where: employeeWhere,
+        include: { user: true, position: true, subDepartment: { include: { department: true } } },
+        orderBy: { employeeCode: 'asc' },
+      }),
+      prisma.attendance.findMany({
+        where: { attendanceDate: { gte: startDate, lte: endDate }, employee: employeeWhere },
+      }),
+      prisma.leaveRequest.findMany({
+        where: { status: 'APPROVED', startDate: { lte: endDate }, endDate: { gte: startDate } },
+      }),
+      prisma.timesheetCell.findMany({
+        where: { date: { gte: startDate, lte: endDate }, employee: employeeWhere },
+      }),
+      prisma.holiday.findMany({ where: { date: { gte: yearStart, lte: yearEnd } }, orderBy: { date: 'asc' } }),
+      prisma.attendanceCode.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      prisma.payrollSettings.findFirst(),
+    ]);
 
-    // User.departmentId is a raw FK (no @relation) — build id→name map to resolve
-    // department name for employees who have User.departmentId but no subDepartment.
-    const userDeptIds = allEmployees
-      .map(e => e.user?.departmentId)
-      .filter((id): id is string => !!id);
+    // Month holidays for attendance logic
+    const monthHolidays = yearHolidays.filter(h => {
+      const hd = h.date;
+      return hd >= startDate && hd <= endDate;
+    });
+    const holidaySet = new Set(monthHolidays.map(h => h.date.toISOString().split('T')[0]));
+
+    // Index persisted cells
+    const cellMap = new Map<string, typeof persistedCells[0]>();
+    for (const cell of persistedCells) {
+      cellMap.set(`${cell.employeeId}_${cell.date.toISOString().split('T')[0]}`, cell);
+    }
+
+    // Index attendances
+    const attMap = new Map<string, typeof attendances>();
+    for (const att of attendances) {
+      const key = `${att.employeeId}_${att.attendanceDate.toISOString().split('T')[0]}`;
+      if (!attMap.has(key)) attMap.set(key, []);
+      attMap.get(key)!.push(att);
+    }
+    // Index leave requests
+    const leaveMap = new Map<string, typeof leaveRequests>();
+    for (const lr of leaveRequests) {
+      if (!leaveMap.has(lr.employeeId)) leaveMap.set(lr.employeeId, []);
+      leaveMap.get(lr.employeeId)!.push(lr);
+    }
+
+    // Code maps
+    const leaveCodeMap: Record<string, string> = { ANNUAL: 'P', SICK: 'B', MATERNITY: 'TS', COMPENSATORY: 'BU', PERSONAL: 'KL', EMERGENCY: 'KL' };
+    const statusCodeMap: Record<string, string> = { PRESENT: 'x', LATE: 'x', ABSENT: 'O' };
+    const weekdayLabels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+    // Department name map
+    const userDeptIds = allEmployees.map(e => (e.user as any)?.departmentId).filter(Boolean);
     const departmentNameById = new Map<string, string>();
     if (userDeptIds.length > 0) {
-      const departments = await prisma.department.findMany({
-        where: { id: { in: Array.from(new Set(userDeptIds)) } },
-        select: { id: true, name: true },
-      });
-      departments.forEach(d => departmentNameById.set(d.id, d.name));
+      const depts = await prisma.department.findMany({ where: { id: { in: [...new Set(userDeptIds)] } }, select: { id: true, name: true } });
+      depts.forEach(d => departmentNameById.set(d.id, d.name));
     }
 
-    // Build per-employee per-day map
-    type DayCell = {
-      regularHours: number;
-      overtimeHours: number;
-      regularStatus: AttendanceStatus | null;
-      hasOvertime: boolean;
+    // Helper: column number from letter (A=1)
+    const colNum = (letter: string): number => {
+      let n = 0;
+      for (let i = 0; i < letter.length; i++) {
+        n = n * 26 + (letter.charCodeAt(i) - 64);
+      }
+      return n;
     };
 
-    type EmployeeRow = {
-      employeeCode: string;
-      fullName: string;
-      positionName: string;
-      departmentName: string;
-      cells: Map<string, DayCell>;
-      totalDays: number;
-      totalOvertimeHours: number;
+    // Helper: format date as DD/MM/YYYY
+    const formatDateVN = (d: Date): string => {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}/${mm}/${d.getFullYear()}`;
     };
 
-    const rowMap = new Map<string, EmployeeRow>();
+    // Build employee rows with cells
+    type EmpRow = {
+      code: string; name: string; position: string; dept: string; hireDate: Date;
+      baseSalary: number; kmDistance: number; leaveBalance: number;
+      cells: Map<string, { code: string; note: string | null; workHours: number; otHours: number }>;
+    };
 
-    for (const emp of allEmployees) {
-      rowMap.set(emp.id, {
-        employeeCode: emp.employeeCode,
-        fullName: `${emp.user.lastName} ${emp.user.firstName}`.trim(),
-        positionName: emp.position?.name || '',
-        departmentName:
-          emp.subDepartment?.department?.name
-          || (emp.user?.departmentId ? departmentNameById.get(emp.user.departmentId) ?? '' : ''),
+    const empRows: EmpRow[] = allEmployees.map(emp => {
+      const deptName = emp.subDepartment?.department?.name || ((emp.user as any)?.departmentId ? departmentNameById.get((emp.user as any).departmentId) ?? '' : '');
+      const row: EmpRow = {
+        code: emp.employeeCode,
+        name: `${(emp.user as any).lastName} ${(emp.user as any).firstName}`.trim(),
+        position: emp.position?.name || '',
+        dept: deptName,
+        hireDate: emp.hireDate,
+        baseSalary: emp.baseSalary,
+        kmDistance: emp.kmDistance ?? 0,
+        leaveBalance: emp.leaveBalanceCarryOver ?? 0,
         cells: new Map(),
-        totalDays: 0,
-        totalOvertimeHours: 0,
-      });
-    }
-
-    for (const att of attendances) {
-      const row = rowMap.get(att.employeeId);
-      if (!row) continue;
-      const dayKey = att.attendanceDate.toISOString().split('T')[0];
-      const cell = row.cells.get(dayKey) ?? {
-        regularHours: 0,
-        overtimeHours: 0,
-        regularStatus: null,
-        hasOvertime: false,
       };
-
-      if (att.isOvertime) {
-        cell.overtimeHours += att.workHours || 0;
-        cell.hasOvertime = true;
-      } else {
-        cell.regularHours += att.workHours || 0;
-        if (!cell.regularStatus) cell.regularStatus = att.status;
+      for (const dateStr of days) {
+        const cellKey = `${emp.id}_${dateStr}`;
+        const persisted = cellMap.get(cellKey);
+        if (persisted) {
+          row.cells.set(dateStr, { code: persisted.code, note: persisted.note, workHours: persisted.workHours, otHours: persisted.overtimeHours });
+          continue;
+        }
+        const dayAtts = attMap.get(cellKey) || [];
+        let code = '';
+        let wh = 0;
+        let ot = 0;
+        for (const att of dayAtts) {
+          if (att.isOvertime) { ot += att.workHours || 0; }
+          else {
+            wh += att.workHours || 0;
+            if (!code) {
+              if (att.status === 'ON_LEAVE') {
+                const empLeaves = leaveMap.get(emp.id) || [];
+                const match = empLeaves.find(lr => { const s = lr.startDate.toISOString().split('T')[0]; const e = lr.endDate.toISOString().split('T')[0]; return dateStr >= s && dateStr <= e; });
+                code = match ? (leaveCodeMap[match.leaveType] || 'P') : 'P';
+              } else { code = statusCodeMap[att.status] || ''; }
+            }
+          }
+        }
+        if (code || wh > 0 || ot > 0) row.cells.set(dateStr, { code: code || 'x', note: null, workHours: wh, otHours: ot });
       }
+      return row;
+    });
 
-      row.cells.set(dayKey, cell);
-    }
+    // Sort rows by department then name
+    empRows.sort((a, b) => {
+      if (a.dept !== b.dept) { if (!a.dept) return 1; if (!b.dept) return -1; return a.dept.localeCompare(b.dept, 'vi'); }
+      return a.name.localeCompare(b.name, 'vi') || a.code.localeCompare(b.code);
+    });
 
-    // Compute totals per employee
-    for (const row of rowMap.values()) {
-      for (const cell of row.cells.values()) {
-        const isWorkingDay =
-          cell.regularStatus === 'PRESENT' ||
-          cell.regularStatus === 'LATE' ||
-          (cell.hasOvertime && !cell.regularStatus);
-        if (isWorkingDay) row.totalDays += 1;
-        row.totalOvertimeHours += cell.overtimeHours;
-      }
-      row.totalOvertimeHours = Math.round(row.totalOvertimeHours * 100) / 100;
-    }
+    const standardWorkDays = settings?.standardWorkDays || 26;
+    const workCodes = new Set(['x', 'ON', 'TV', 'N']);
+    const payableLeaveCodes = new Set(['P', 'P/2', 'BU', 'CD', 'TS']);
 
-    // Build Excel workbook
+    const COL_D = colNum('D'); // 4
+    const COL_E = colNum('E'); // 5
+    const COL_F = colNum('F'); // 6
+    const COL_G = colNum('G'); // 7
+    const COL_H = colNum('H'); // 8
+    const COL_I = colNum('I'); // 9
+    const COL_J = colNum('J'); // 10 — first day column
+
+    // ═══ WORKBOOK ═══
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Lịch chấm công');
+    // ═══════════════════════════════════════════════════════
+    // ───── Sheet 1: CHẤM CÔNG (67 columns A..BO) ─────
+    // ═══════════════════════════════════════════════════════
+    const ws1 = workbook.addWorksheet('CHẤM CÔNG');
 
-    const fixedColumns = [
-      { header: 'Mã NV', key: 'employeeCode', width: 12 },
-      { header: 'Họ tên', key: 'fullName', width: 25 },
-      { header: 'Chức vụ', key: 'position', width: 20 },
-      { header: 'Bộ phận', key: 'department', width: 20 },
+    // Row 1: Company name
+    ws1.mergeCells('A1:H1');
+    ws1.getCell('A1').value = 'CÔNG TY TNHH AN BÌNH FOODS';
+    ws1.getCell('A1').font = { bold: true, size: 12 };
+
+    // Row 3: Title
+    ws1.mergeCells('E3:AN3');
+    ws1.getCell('E3').value = `BẢNG CHẤM CÔNG THÁNG ${String(month).padStart(2, '0')}/${year}`;
+    ws1.getCell('E3').font = { bold: true, size: 14 };
+    ws1.getCell('E3').alignment = { horizontal: 'center' };
+
+    // Holiday list block (columns A & B, starting row 6)
+    ws1.mergeCells('A6:B6');
+    ws1.getCell('A6').value = `NGÀY LỄ, TẾT ${year}`;
+    ws1.getCell('A6').font = { bold: true, size: 10 };
+    let holidayRowIdx = 7;
+    for (const h of yearHolidays) {
+      ws1.getCell(`A${holidayRowIdx}`).value = h.name;
+      ws1.getCell(`B${holidayRowIdx}`).value = formatDateVN(h.date);
+      holidayRowIdx++;
+    }
+
+    // Identity columns (D..I) header in rows 6-8, merged vertically
+    const idHeaders: Array<{ col: string; label: string }> = [
+      { col: 'D', label: 'STT' },
+      { col: 'E', label: 'MSNV' },
+      { col: 'F', label: 'Họ và Tên' },
+      { col: 'G', label: 'Chức vụ' },
+      { col: 'H', label: 'Bộ Phận/Phòng ban' },
+      { col: 'I', label: 'Ngày vào làm việc' },
     ];
+    for (const h of idHeaders) {
+      ws1.mergeCells(`${h.col}6:${h.col}8`);
+      const cell = ws1.getCell(`${h.col}6`);
+      cell.value = h.label;
+      cell.font = { bold: true, size: 9 };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    }
 
-    const dayColumns = days.map((d) => {
-      const [_, m, day] = d.split('-');
-      return { header: `${day}/${m}`, key: `day_${d}`, width: 8 };
-    });
-
-    const totalColumns = [
-      { header: 'Tổng ngày làm việc', key: 'totalDays', width: 18 },
-      { header: 'Tổng giờ tăng ca', key: 'totalOvertimeHours', width: 18 },
-    ];
-
-    worksheet.columns = [...fixedColumns, ...dayColumns, ...totalColumns];
-
-    const headerRow = worksheet.getRow(1);
-    headerRow.font = { bold: true };
-    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' },
-    };
-
-    // Status → ARGB fill map (matches UI palette in AttendanceManagement.tsx)
-    const statusColor = (cell: DayCell): string | null => {
-      if (cell.regularStatus === 'PRESENT') return 'FFDCFCE7'; // green-100
-      if (cell.regularStatus === 'LATE') return 'FFFEF3C7';    // amber-100
-      if (cell.regularStatus === 'ABSENT') return 'FFFEE2E2';  // red-100
-      if (cell.regularStatus === 'ON_LEAVE') return 'FFDBEAFE'; // blue-100
-      if (cell.hasOvertime) return 'FFF3E8FF';                 // purple-100 (OT-only day)
-      return null;
-    };
-
-    // Regular-hours text color (matches UI). OT is always purple.
-    const regularTextArgb = (status: AttendanceStatus | null): string => {
-      if (status === 'PRESENT') return 'FF166534';   // green-800
-      if (status === 'LATE') return 'FF92400E';      // amber-800
-      if (status === 'ABSENT') return 'FF991B1B';    // red-800
-      if (status === 'ON_LEAVE') return 'FF1E40AF';  // blue-800
-      return 'FF374151';                             // gray-700
-    };
-    const overtimeTextArgb = 'FF6B21A8'; // purple-800
-
-    const roundHours = (h: number) => Math.round(h * 100) / 100;
-
-    // Sort by department (empty last), then by full name, then employee code
-    const rows = Array.from(rowMap.values()).sort((a, b) => {
-      const aDept = a.departmentName || '';
-      const bDept = b.departmentName || '';
-      if (aDept !== bDept) {
-        if (!aDept) return 1;
-        if (!bDept) return -1;
-        return aDept.localeCompare(bDept, 'vi');
+    // Day columns J..AN (31 slots, padding short months with empty)
+    for (let i = 0; i < 31; i++) {
+      const colIdx = COL_J + i;
+      if (i < daysInMonth) {
+        const dateStr = days[i];
+        const dt = new Date(dateStr);
+        ws1.getCell(6, colIdx).value = dt.getDate();
+        ws1.getCell(6, colIdx).font = { size: 8 };
+        ws1.getCell(6, colIdx).alignment = { horizontal: 'center' };
+        ws1.getCell(7, colIdx).value = weekdayLabels[dt.getDay()];
+        ws1.getCell(7, colIdx).font = { italic: true, size: 8 };
+        ws1.getCell(7, colIdx).alignment = { horizontal: 'center' };
       }
-      const nameCmp = a.fullName.localeCompare(b.fullName, 'vi');
-      if (nameCmp !== 0) return nameCmp;
-      return a.employeeCode.localeCompare(b.employeeCode);
-    });
+      ws1.getColumn(colIdx).width = 3.5;
+    }
+    // Summary columns AO..BO (columns 41..67)
+    // AO: "Thời gian tính lương (giờ)" merged AO6:AO8
+    ws1.mergeCells('AO6:AO8');
+    ws1.getCell('AO6').value = 'Thời gian tính lương (giờ)';
+    ws1.getCell('AO6').font = { bold: true, size: 8 };
+    ws1.getCell('AO6').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
-    rows.forEach((row) => {
-      const rowData: Record<string, any> = {
-        employeeCode: row.employeeCode,
-        fullName: row.fullName,
-        position: row.positionName,
-        department: row.departmentName,
-        totalDays: row.totalDays,
-        totalOvertimeHours: row.totalOvertimeHours,
-      };
+    // AP: "Tổng thời gian làm chính thức" merged AP6:AP8
+    ws1.mergeCells('AP6:AP8');
+    ws1.getCell('AP6').value = 'Tổng thời gian làm chính thức';
+    ws1.getCell('AP6').font = { bold: true, size: 8 };
+    ws1.getCell('AP6').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
-      days.forEach((d) => {
-        const cell = row.cells.get(d);
-        if (cell) {
-          const reg = roundHours(cell.regularHours);
-          const ot = roundHours(cell.overtimeHours);
-          // Numeric value stored is the total (regular + OT). Display is overridden
-          // below with rich text when both regular and OT exist.
-          const total = roundHours(reg + ot);
-          rowData[`day_${d}`] = total > 0 ? total : '';
-        } else {
-          rowData[`day_${d}`] = '';
-        }
-      });
+    // AQ..AS: "Số giờ nghỉ" group
+    ws1.mergeCells('AQ6:AS6');
+    ws1.getCell('AQ6').value = 'Số giờ nghỉ';
+    ws1.getCell('AQ6').font = { bold: true, size: 8 };
+    ws1.getCell('AQ6').alignment = { horizontal: 'center', vertical: 'middle' };
+    ws1.getCell('AQ7').value = 'Tính lương';
+    ws1.getCell('AR7').value = 'ngày lễ, chế độ';
+    ws1.getCell('AS7').value = 'Không lương';
+    for (const c of ['AQ7', 'AR7', 'AS7']) {
+      ws1.getCell(c).font = { size: 8 };
+      ws1.getCell(c).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    }
 
-      const excelRow = worksheet.addRow(rowData);
-      excelRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    // AT: "Tổng thời gian thử việc" merged AT6:AT8
+    ws1.mergeCells('AT6:AT8');
+    ws1.getCell('AT6').value = 'Tổng thời gian thử việc';
+    ws1.getCell('AT6').font = { bold: true, size: 8 };
+    ws1.getCell('AT6').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
-      // Apply status colors + rich text split for regular/OT
-      days.forEach((d, idx) => {
-        const cell = row.cells.get(d);
-        if (!cell) return;
+    // AU: "Đi trễ về Sớm (giờ)" merged AU6:AU8
+    ws1.mergeCells('AU6:AU8');
+    ws1.getCell('AU6').value = 'Đi trễ về Sớm (giờ)';
+    ws1.getCell('AU6').font = { bold: true, size: 8 };
+    ws1.getCell('AU6').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
-        const cellRef = excelRow.getCell(fixedColumns.length + idx + 1);
-        const color = statusColor(cell);
-        if (color) {
-          cellRef.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: color },
-          };
-        }
+    // AV: "Ký nhận" merged AV6:AV7
+    ws1.mergeCells('AV6:AV7');
+    ws1.getCell('AV6').value = 'Ký nhận';
+    ws1.getCell('AV6').font = { bold: true, size: 8 };
+    ws1.getCell('AV6').alignment = { horizontal: 'center', vertical: 'middle' };
 
-        const reg = roundHours(cell.regularHours);
-        const ot = roundHours(cell.overtimeHours);
-        const isSplit = cell.hasOvertime && cell.regularStatus !== null && reg > 0 && ot > 0;
+    // AW: "Tiền cơm theo NC" merged AW6:AW8
+    ws1.mergeCells('AW6:AW8');
+    ws1.getCell('AW6').value = 'Tiền cơm theo NC';
+    ws1.getCell('AW6').font = { bold: true, size: 8 };
+    ws1.getCell('AW6').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
-        if (isSplit) {
-          // Two lines: regular hours in status color, OT in purple below.
-          cellRef.value = {
-            richText: [
-              {
-                text: `${reg}`,
-                font: { color: { argb: regularTextArgb(cell.regularStatus) }, bold: true },
-              },
-              { text: '\n', font: {} },
-              {
-                text: `+${ot} OT`,
-                font: { color: { argb: overtimeTextArgb }, bold: true, size: 10 },
-              },
-            ],
-          };
-        } else if (ot > 0 && reg === 0) {
-          // OT-only day
-          cellRef.value = {
-            richText: [
-              {
-                text: `${ot} OT`,
-                font: { color: { argb: overtimeTextArgb }, bold: true },
-              },
-            ],
-          };
-        } else if (reg > 0) {
-          // Regular-only day — color the text to match status
-          cellRef.value = {
-            richText: [
-              {
-                text: `${reg}`,
-                font: { color: { argb: regularTextArgb(cell.regularStatus) }, bold: true },
-              },
-            ],
-          };
-        }
-      });
-
-      // Left-align text columns
-      excelRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
-      excelRow.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
-      excelRow.getCell(3).alignment = { horizontal: 'left', vertical: 'middle' };
-      excelRow.getCell(4).alignment = { horizontal: 'left', vertical: 'middle' };
-    });
-
-    // Add legend rows at the bottom
-    worksheet.addRow([]);
-    const legendHeader = worksheet.addRow(['Chú thích màu:']);
-    legendHeader.font = { bold: true };
-
-    const legendItems: Array<{ label: string; argb: string }> = [
-      { label: 'Đúng giờ', argb: 'FFDCFCE7' },
-      { label: 'Đi muộn', argb: 'FFFEF3C7' },
-      { label: 'Vắng mặt', argb: 'FFFEE2E2' },
-      { label: 'Nghỉ phép', argb: 'FFDBEAFE' },
-      { label: 'Tăng ca', argb: 'FFF3E8FF' },
+    // AX..BB: "Tăng ca" group
+    ws1.mergeCells('AX6:BB6');
+    ws1.getCell('AX6').value = 'Tăng ca';
+    ws1.getCell('AX6').font = { bold: true, size: 8 };
+    ws1.getCell('AX6').alignment = { horizontal: 'center', vertical: 'middle' };
+    ws1.getCell('AX7').value = 'Ngày Thường';
+    ws1.getCell('AY7').value = 'Ngoài giờ NT';
+    ws1.getCell('AZ7').value = 'Chủ nhật';
+    ws1.getCell('BA7').value = 'Ngoài giờ CN';
+    ws1.getCell('BB7').value = 'Lễ';
+    for (const c of ['AX7', 'AY7', 'AZ7', 'BA7', 'BB7']) {
+      ws1.getCell(c).font = { size: 8 };
+      ws1.getCell(c).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    }
+    // Multiplier row 8
+    ws1.getCell('AX8').value = 1.5;
+    ws1.getCell('AY8').value = 2.1;
+    ws1.getCell('AZ8').value = 2;
+    ws1.getCell('BA8').value = 2.7;
+    ws1.getCell('BB8').value = 3;
+    for (const c of ['AX8', 'AY8', 'AZ8', 'BA8', 'BB8']) {
+      ws1.getCell(c).font = { italic: true, size: 8 };
+      ws1.getCell(c).alignment = { horizontal: 'center' };
+    }
+    // BC..BO: remaining summary columns
+    const remainingSumHeaders: Array<{ col: string; label: string }> = [
+      { col: 'BC', label: 'Số KM' },
+      { col: 'BD', label: 'Xăng xe' },
+      { col: 'BE', label: 'Cơm tăng ca (vnđ)' },
+      { col: 'BF', label: 'Ngày phép còn lại tháng trước' },
+      { col: 'BG', label: 'Ngày phép còn lại hiện tại' },
+      { col: 'BH', label: 'Ghi chú' },
+      { col: 'BI', label: 'Tính chuyên cần' },
+      { col: 'BJ', label: 'Tính cơm' },
+      { col: 'BK', label: 'Giờ công cty cho nghỉ KL hưởng Chuyên cần' },
+      { col: 'BL', label: 'Truy thu tiền ứng phép' },
+      { col: 'BM', label: 'Phép bù' },
+      { col: 'BN', label: 'cơm chủ nhật' },
+      { col: 'BO', label: 'Ngày nghỉ việc' },
     ];
+    for (const h of remainingSumHeaders) {
+      ws1.mergeCells(`${h.col}6:${h.col}8`);
+      ws1.getCell(`${h.col}6`).value = h.label;
+      ws1.getCell(`${h.col}6`).font = { bold: true, size: 8 };
+      ws1.getCell(`${h.col}6`).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    }
 
-    legendItems.forEach((item) => {
-      const legendRow = worksheet.addRow(['', item.label]);
-      const colorCell = legendRow.getCell(1);
-      colorCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: item.argb },
-      };
-    });
+    // Data rows (start at row 9)
+    const DATA_START_ROW = 9;
+    let rowIdx = DATA_START_ROW;
+    for (let empIdx = 0; empIdx < empRows.length; empIdx++) {
+      const emp = empRows[empIdx];
+      const r = ws1.getRow(rowIdx);
+
+      // Identity columns D..I
+      r.getCell(COL_D).value = empIdx + 1;
+      r.getCell(COL_E).value = emp.code;
+      r.getCell(COL_F).value = emp.name;
+      r.getCell(COL_G).value = emp.position;
+      r.getCell(COL_H).value = emp.dept;
+      r.getCell(COL_I).value = formatDateVN(emp.hireDate);
+
+      // Accumulators
+      let officialDays = 0;
+      let leavePaid = 0;
+      let leaveHoliday = 0;
+      let leaveUnpaid = 0;
+      let probation = 0;
+      let otWeekday = 0;
+      let otSunday = 0;
+      let otHoliday = 0;
+      let mealDays = 0;
+      let sundayMeals = 0;
+      // Day columns J..AN
+      for (let di = 0; di < daysInMonth; di++) {
+        const dateStr = days[di];
+        const cell = emp.cells.get(dateStr);
+        const excelCell = r.getCell(COL_J + di);
+        if (cell) {
+          excelCell.value = cell.code;
+          if (cell.note) { excelCell.note = cell.note; }
+          const code = cell.code;
+          if (workCodes.has(code)) {
+            const dayVal = code === 'N' ? 0.5 : 1;
+            officialDays += dayVal;
+            mealDays += dayVal;
+          }
+          if (payableLeaveCodes.has(code)) leavePaid++;
+          if (code === 'L') leaveHoliday++;
+          if (['KL', 'X/2', 'O', 'NCC', 'O/2'].includes(code)) leaveUnpaid += code.includes('/2') ? 0.5 : 1;
+          if (['TV', 'TV/2'].includes(code)) probation += code === 'TV/2' ? 0.5 : 1;
+          if (cell.otHours > 0) {
+            const isH = holidaySet.has(dateStr);
+            const isSun = new Date(dateStr).getDay() === 0;
+            if (isH) otHoliday += cell.otHours;
+            else if (isSun) otSunday += cell.otHours;
+            else otWeekday += cell.otHours;
+          }
+          if (new Date(dateStr).getDay() === 0 && (workCodes.has(code) || cell.otHours > 0)) {
+            sundayMeals++;
+          }
+        }
+        excelCell.alignment = { horizontal: 'center' };
+      }
+
+      // Summary columns (pinned at AO=41)
+      const payableHours = (officialDays + leavePaid + leaveHoliday + probation) * 8;
+      const officialHours = officialDays * 8;
+      const mealAllowance = mealDays * (settings?.mealAllowancePerDay || 0);
+      const fuelAmount = emp.kmDistance * (settings?.fuelPricePerKm || 0) * officialDays;
+      const totalOtHours = otWeekday + otSunday + otHoliday;
+      const otMealCount = totalOtHours > 0 ? Math.ceil(totalOtHours / 4) : 0;
+      const otMealAmount = otMealCount * (settings?.overtimeMealAllowance || 25000);
+      const hasFullAttendance = leaveUnpaid === 0;
+
+      r.getCell(colNum('AO')).value = payableHours || '';
+      r.getCell(colNum('AP')).value = officialHours || '';
+      r.getCell(colNum('AQ')).value = leavePaid || '';
+      r.getCell(colNum('AR')).value = leaveHoliday || '';
+      r.getCell(colNum('AS')).value = leaveUnpaid || '';
+      r.getCell(colNum('AT')).value = probation || '';
+      r.getCell(colNum('AU')).value = '';
+      r.getCell(colNum('AV')).value = '';
+      r.getCell(colNum('AW')).value = mealAllowance || '';
+      r.getCell(colNum('AX')).value = otWeekday || '';
+      r.getCell(colNum('AY')).value = '';
+      r.getCell(colNum('AZ')).value = otSunday || '';
+      r.getCell(colNum('BA')).value = '';
+      r.getCell(colNum('BB')).value = otHoliday || '';
+      r.getCell(colNum('BC')).value = emp.kmDistance || '';
+      r.getCell(colNum('BD')).value = fuelAmount || '';
+      r.getCell(colNum('BE')).value = otMealAmount || '';
+      r.getCell(colNum('BF')).value = emp.leaveBalance || '';
+      r.getCell(colNum('BG')).value = '';
+      r.getCell(colNum('BH')).value = '';
+      r.getCell(colNum('BI')).value = hasFullAttendance ? 'Có' : '';
+      r.getCell(colNum('BJ')).value = mealDays || '';
+      r.getCell(colNum('BK')).value = '';
+      r.getCell(colNum('BL')).value = '';
+      r.getCell(colNum('BM')).value = '';
+      r.getCell(colNum('BN')).value = sundayMeals || '';
+      r.getCell(colNum('BO')).value = '';
+
+      r.alignment = { vertical: 'middle', horizontal: 'center' };
+      r.getCell(COL_F).alignment = { horizontal: 'left', vertical: 'middle' };
+      rowIdx++;
+    }
+    // Legend block (below data rows)
+    rowIdx += 2;
+    ws1.getCell(`V${rowIdx}`).value = 'Chú thích ký hiệu:';
+    ws1.getCell(`V${rowIdx}`).font = { bold: true };
+    rowIdx++;
+    for (const ac of attendanceCodes) {
+      ws1.getCell(`V${rowIdx}`).value = ac.code;
+      ws1.getCell(`W${rowIdx}`).value = ac.label;
+      rowIdx++;
+    }
+
+    // Column widths for Sheet 1
+    ws1.getColumn(colNum('A')).width = 20;
+    ws1.getColumn(colNum('B')).width = 12;
+    ws1.getColumn(colNum('D')).width = 5;
+    ws1.getColumn(colNum('E')).width = 10;
+    ws1.getColumn(colNum('F')).width = 22;
+    ws1.getColumn(colNum('G')).width = 15;
+    ws1.getColumn(colNum('H')).width = 18;
+    ws1.getColumn(colNum('I')).width = 13;
+    for (let c = colNum('AO'); c <= colNum('BO'); c++) {
+      ws1.getColumn(c).width = 10;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // ───── Sheet 2: TĂNG CA (50 columns A..AX) ─────
+    // ═══════════════════════════════════════════════════════
+    const ws2 = workbook.addWorksheet('TĂNG CA');
+
+    // Row 1: Company name
+    ws2.mergeCells('A1:H1');
+    ws2.getCell('A1').value = 'CÔNG TY TNHH AN BÌNH FOODS';
+    ws2.getCell('A1').font = { bold: true, size: 12 };
+
+    // Row 2: Title
+    ws2.mergeCells('E2:AS2');
+    ws2.getCell('E2').value = `BẢNG CHẤM CÔNG TĂNG CA THÁNG ${month}`;
+    ws2.getCell('E2').font = { bold: true, size: 14 };
+    ws2.getCell('E2').alignment = { horizontal: 'center' };
+
+    // Identity headers (rows 3-5)
+    ws2.mergeCells('D3:D5');
+    ws2.getCell('D3').value = 'STT';
+    ws2.getCell('D3').font = { bold: true, size: 9 };
+    ws2.getCell('D3').alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws2.mergeCells('E4:E5');
+    ws2.getCell('E4').value = 'Mã NV';
+    ws2.getCell('E4').font = { bold: true, size: 9 };
+    ws2.getCell('E4').alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws2.mergeCells('F3:F5');
+    ws2.getCell('F3').value = 'Họ và Tên';
+    ws2.getCell('F3').font = { bold: true, size: 9 };
+    ws2.getCell('F3').alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws2.mergeCells('G3:G5');
+    ws2.getCell('G3').value = 'Chức vụ';
+    ws2.getCell('G3').font = { bold: true, size: 9 };
+    ws2.getCell('G3').alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws2.mergeCells('H3:H5');
+    ws2.getCell('H3').value = 'Bộ phận';
+    ws2.getCell('H3').font = { bold: true, size: 9 };
+    ws2.getCell('H3').alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws2.mergeCells('I3:I5');
+    ws2.getCell('I3').value = 'Tăng ca tháng trước';
+    ws2.getCell('I3').font = { bold: true, size: 8 };
+    ws2.getCell('I3').alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    // Day columns J..AN (31 slots) rows 3=date, 4&5=weekday
+    for (let i = 0; i < 31; i++) {
+      const colIdx = COL_J + i;
+      if (i < daysInMonth) {
+        const dateStr = days[i];
+        const dt = new Date(dateStr);
+        ws2.getCell(3, colIdx).value = dt.getDate();
+        ws2.getCell(3, colIdx).font = { size: 8 };
+        ws2.getCell(3, colIdx).alignment = { horizontal: 'center' };
+        ws2.mergeCells(4, colIdx, 5, colIdx);
+        ws2.getCell(4, colIdx).value = weekdayLabels[dt.getDay()];
+        ws2.getCell(4, colIdx).font = { italic: true, size: 8 };
+        ws2.getCell(4, colIdx).alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+      ws2.getColumn(colIdx).width = 3.5;
+    }
+
+    // Summary columns AO..AX (columns 41..50)
+    const otSumDefs: Array<{ col: string; label: string; mergeRows: string; multiplier?: number }> = [
+      { col: 'AO', label: 'Số giờ tăng ca ngày thường', mergeRows: 'AO3:AO4', multiplier: 1.5 },
+      { col: 'AP', label: 'Số giờ tăng ca CN', mergeRows: 'AP3:AP4', multiplier: 2 },
+      { col: 'AQ', label: 'Số giờ tăng ca Lễ', mergeRows: 'AQ3:AQ4', multiplier: 3 },
+      { col: 'AR', label: 'Tăng ca ngoài giờ ngày thường', mergeRows: 'AR3:AR4', multiplier: 2.1 },
+      { col: 'AS', label: 'Tăng ca ngoài giờ ngày nghỉ', mergeRows: 'AS3:AS4', multiplier: 2.7 },
+      { col: 'AT', label: 'Lương tính tăng ca', mergeRows: 'AT3:AT5' },
+      { col: 'AU', label: 'Mức lương theo giờ', mergeRows: 'AU3:AU5' },
+      { col: 'AV', label: 'Tổng Thu nhập ngoài giờ', mergeRows: 'AV3:AV5' },
+      { col: 'AW', label: 'Ngày công tăng ca', mergeRows: 'AW3:AW5' },
+      { col: 'AX', label: 'Tổng Tiền cơm TC', mergeRows: 'AX3:AX4', multiplier: 25000 },
+    ];
+    for (const def of otSumDefs) {
+      ws2.mergeCells(def.mergeRows);
+      ws2.getCell(`${def.col}3`).value = def.label;
+      ws2.getCell(`${def.col}3`).font = { bold: true, size: 8 };
+      ws2.getCell(`${def.col}3`).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      if (def.multiplier !== undefined) {
+        ws2.getCell(`${def.col}5`).value = def.multiplier;
+        ws2.getCell(`${def.col}5`).font = { italic: true, size: 8 };
+        ws2.getCell(`${def.col}5`).alignment = { horizontal: 'center' };
+      }
+    }
+    // Data rows (start at row 6)
+    let otRowIdx = 6;
+    for (let empIdx = 0; empIdx < empRows.length; empIdx++) {
+      const emp = empRows[empIdx];
+      const r = ws2.getRow(otRowIdx);
+
+      r.getCell(COL_D).value = empIdx + 1;
+      r.getCell(COL_E).value = emp.code;
+      r.getCell(COL_F).value = emp.name;
+      r.getCell(COL_G).value = emp.position;
+      r.getCell(COL_H).value = emp.dept;
+      r.getCell(COL_I).value = '';
+
+      let otW = 0, otS = 0, otH = 0;
+      for (let di = 0; di < daysInMonth; di++) {
+        const dateStr = days[di];
+        const cell = emp.cells.get(dateStr);
+        const excelCell = r.getCell(COL_J + di);
+        if (cell && cell.otHours > 0) {
+          excelCell.value = cell.otHours;
+          const isHol = holidaySet.has(dateStr);
+          const isSun = new Date(dateStr).getDay() === 0;
+          if (isHol) otH += cell.otHours;
+          else if (isSun) otS += cell.otHours;
+          else otW += cell.otHours;
+        }
+        excelCell.alignment = { horizontal: 'center' };
+      }
+
+      const hourlyRate = emp.baseSalary / standardWorkDays / 8;
+      const otPay = Math.round(
+        otW * hourlyRate * (settings?.otRateWeekday || 1.5) +
+        otS * hourlyRate * (settings?.otRateSunday || 2) +
+        otH * hourlyRate * (settings?.otRateHoliday || 3)
+      );
+      const totalOtHoursEmp = otW + otS + otH;
+      const otWorkDays = totalOtHoursEmp > 0 ? Math.round((totalOtHoursEmp / 8) * 100) / 100 : 0;
+      const otMealCountEmp = totalOtHoursEmp > 0 ? Math.ceil(totalOtHoursEmp / 4) : 0;
+      const otMealTotalEmp = otMealCountEmp * (settings?.overtimeMealAllowance || 25000);
+
+      r.getCell(colNum('AO')).value = otW || '';
+      r.getCell(colNum('AP')).value = otS || '';
+      r.getCell(colNum('AQ')).value = otH || '';
+      r.getCell(colNum('AR')).value = '';
+      r.getCell(colNum('AS')).value = '';
+      r.getCell(colNum('AT')).value = emp.baseSalary || '';
+      r.getCell(colNum('AU')).value = Math.round(hourlyRate);
+      r.getCell(colNum('AV')).value = otPay || '';
+      r.getCell(colNum('AW')).value = otWorkDays || '';
+      r.getCell(colNum('AX')).value = otMealTotalEmp || '';
+
+      r.alignment = { vertical: 'middle', horizontal: 'center' };
+      r.getCell(COL_F).alignment = { horizontal: 'left', vertical: 'middle' };
+      otRowIdx++;
+    }
+
+    // Column widths for Sheet 2
+    ws2.getColumn(colNum('D')).width = 5;
+    ws2.getColumn(colNum('E')).width = 10;
+    ws2.getColumn(colNum('F')).width = 22;
+    ws2.getColumn(colNum('G')).width = 15;
+    ws2.getColumn(colNum('H')).width = 18;
+    ws2.getColumn(colNum('I')).width = 12;
+    for (let c = colNum('AO'); c <= colNum('AX'); c++) {
+      ws2.getColumn(c).width = 12;
+    }
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as any;
   }
+
 }
 
 export default new AttendanceService();
