@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls } from './ModalForm';
 import { useCreateMaintenancePlan, useUpdateMaintenancePlan, useGeneratedPlanCode } from '../hooks/useMaintenancePlans';
 import { useMachineSystemDetails } from '../hooks/useMachineSystemDetails';
@@ -135,43 +136,48 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
 
   const handleSubmit = async () => {
     if (!selectedSystemId) return;
-    if (isEdit) {
-      await updatePlan.mutateAsync({
-        id: plan!.id,
-        data: {
-          nguoiLap: user?.fullName ?? plan!.nguoiLap,
-          ghiChu: ghiChu || undefined,
-          items: items.map((i) => ({
-            id: i.id,
-            machineSystemDetailId: i.machineSystemDetailId,
-            noiDung: i.noiDung,
-            tanSuat: i.tanSuat,
-            toThucHien: i.toThucHien,
-            soLuong: i.soLuong,
-            thangBatDau: NEEDS_START_MONTH.has(i.tanSuat) ? i.thangBatDau : 1,
-          })),
-        },
-      });
+    try {
+      if (isEdit) {
+        await updatePlan.mutateAsync({
+          id: plan!.id,
+          data: {
+            nguoiLap: user?.fullName ?? plan!.nguoiLap,
+            ghiChu: ghiChu || undefined,
+            items: items.map((i) => ({
+              id: i.id,
+              machineSystemDetailId: i.machineSystemDetailId,
+              noiDung: i.noiDung,
+              tanSuat: i.tanSuat,
+              toThucHien: i.toThucHien,
+              soLuong: i.soLuong,
+              thangBatDau: NEEDS_START_MONTH.has(i.tanSuat) ? i.thangBatDau : 1,
+            })),
+          },
+        });
+        toast.success('Cập nhật kế hoạch thành công');
+      } else {
+        await createPlan.mutateAsync({
+          data: {
+            maKeHoach: generatedCode,
+            machineSystemId: selectedSystemId,
+            nam: year,
+            nguoiLap: user?.fullName ?? 'N/A',
+            ghiChu: ghiChu || undefined,
+            items: items.map((i) => ({
+              machineSystemDetailId: i.machineSystemDetailId,
+              noiDung: i.noiDung,
+              tanSuat: i.tanSuat,
+              toThucHien: i.toThucHien,
+              soLuong: i.soLuong,
+              thangBatDau: NEEDS_START_MONTH.has(i.tanSuat) ? i.thangBatDau : 1,
+            })),
+          },
+        });
+        toast.success('Tạo kế hoạch bảo dưỡng thành công');
+      }
       onClose();
-    } else {
-      await createPlan.mutateAsync({
-        data: {
-          maKeHoach: generatedCode,
-          machineSystemId: selectedSystemId,
-          nam: year,
-          nguoiLap: user?.fullName ?? 'N/A',
-          ghiChu: ghiChu || undefined,
-          items: items.map((i) => ({
-            machineSystemDetailId: i.machineSystemDetailId,
-            noiDung: i.noiDung,
-            tanSuat: i.tanSuat,
-            toThucHien: i.toThucHien,
-            soLuong: i.soLuong,
-            thangBatDau: NEEDS_START_MONTH.has(i.tanSuat) ? i.thangBatDau : 1,
-          })),
-        },
-      });
-      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Có lỗi xảy ra, vui lòng thử lại');
     }
   };
 
