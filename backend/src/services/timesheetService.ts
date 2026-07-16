@@ -135,7 +135,7 @@ export function computeSummary(
 
     // Overtime classification by day type
     if (cell.overtimeHours > 0) {
-      overtimeMealDays++;
+      if (cell.overtimeHours > 2.5) overtimeMealDays++;
       if (isHoliday) {
         otHoliday += cell.overtimeHours;
       } else if (isSunday) {
@@ -206,33 +206,54 @@ class TimesheetService {
     const endDate = new Date(year, month, 0, 23, 59, 59); // last day of month
     const daysInMonth = new Date(year, month, 0).getDate();
 
-    // Build employee filter
+    // Find employees who have TimesheetCell data this month (includes terminated mid-month)
+    const employeesWithCells = await prisma.timesheetCell.groupBy({
+      by: ['employeeId'],
+      where: { date: { gte: startDate, lte: endDate } },
+    });
+    const idsWithCells = employeesWithCells.map(r => r.employeeId);
+
+    // Build employee filter: ACTIVE employees + non-ACTIVE employees who have data this month
+    // Always exclude ADMIN role
+    const statusFilter: any = {
+      OR: [
+        { status: 'ACTIVE' },
+        ...(idsWithCells.length > 0 ? [{ id: { in: idsWithCells } }] : []),
+      ],
+    };
+
     const employeeWhere: any = {
-      status: 'ACTIVE',
+      ...statusFilter,
       user: { role: { not: 'ADMIN' } },
     };
 
     if (filters?.positionId) {
       employeeWhere.positionId = filters.positionId;
     }
+
+    // Use AND array to safely combine status OR with department/search filters
+    const andConditions: any[] = [];
+
     if (filters?.departmentId) {
-      employeeWhere.OR = [
-        { user: { departmentId: filters.departmentId } },
-        { subDepartment: { departmentId: filters.departmentId } },
-      ];
+      andConditions.push({
+        OR: [
+          { user: { departmentId: filters.departmentId } },
+          { subDepartment: { departmentId: filters.departmentId } },
+        ],
+      });
     }
     if (filters?.search) {
-      const searchConds: any[] = [
-        { employeeCode: { contains: filters.search, mode: 'insensitive' } },
-        { user: { firstName: { contains: filters.search, mode: 'insensitive' } } },
-        { user: { lastName: { contains: filters.search, mode: 'insensitive' } } },
-      ];
-      if (employeeWhere.OR) {
-        employeeWhere.AND = [{ OR: employeeWhere.OR }, { OR: searchConds }];
-        delete employeeWhere.OR;
-      } else {
-        employeeWhere.OR = searchConds;
-      }
+      andConditions.push({
+        OR: [
+          { employeeCode: { contains: filters.search, mode: 'insensitive' } },
+          { user: { firstName: { contains: filters.search, mode: 'insensitive' } } },
+          { user: { lastName: { contains: filters.search, mode: 'insensitive' } } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      employeeWhere.AND = andConditions;
     }
 
     // Fetch employees, attendance, leave requests, persisted cells in parallel
@@ -427,6 +448,7 @@ class TimesheetService {
 
       // Formula: otTotalIncome = hourlyRate * Σ(band × rate) (Tổng Thu nhập ngoài giờ)
       const stdDays = effectiveSettings.standardWorkDays || 26;
+      // Round hourly rate first, then multiply — matches the HR Excel file exactly
       const hourlyRate = Math.round((row.baseSalary || 0) / (stdDays * 8));
       const otTotalIncomeRaw = hourlyRate * (
         summary.otWeekday * effectiveSettings.otRateWeekday +
