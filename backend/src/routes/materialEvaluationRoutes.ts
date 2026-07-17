@@ -157,8 +157,7 @@ router.get(
  */
 router.get(
   '/:id',
-  authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  deviceOrJwtAuth('DATA_ENTRY'),
   materialEvaluationController.getMaterialEvaluationById
 );
 
