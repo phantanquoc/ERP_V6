@@ -140,12 +140,14 @@ services:
         VITE_API_URL: ${VITE_API_URL:-https://anbinhfoods.net/api}
         VITE_FACE_DEVICE_KEY: ${VITE_FACE_DEVICE_KEY:-}
         VITE_FACE_DEVICE_ID: ${VITE_FACE_DEVICE_ID:-}
+        VITE_DATA_ENTRY_DEVICE_KEY: ${VITE_DATA_ENTRY_DEVICE_KEY:-}
     container_name: erp_frontend
     restart: unless-stopped
     environment:
       VITE_API_URL: ${VITE_API_URL:-https://anbinhfoods.net/api}
       VITE_FACE_DEVICE_KEY: ${VITE_FACE_DEVICE_KEY:-}
       VITE_FACE_DEVICE_ID: ${VITE_FACE_DEVICE_ID:-}
+      VITE_DATA_ENTRY_DEVICE_KEY: ${VITE_DATA_ENTRY_DEVICE_KEY:-}
     depends_on:
       - backend
     networks:

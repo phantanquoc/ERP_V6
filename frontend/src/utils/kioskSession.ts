@@ -27,9 +27,9 @@ export function setDeviceKey(key: string): void {
   localStorage.setItem(KIOSK_DEVICE_KEY, key);
 }
 
-/** Get stored device key */
+/** Get stored device key (localStorage first, env fallback for build-time config) */
 export function getDeviceKey(): string | null {
-  return localStorage.getItem(KIOSK_DEVICE_KEY);
+  return localStorage.getItem(KIOSK_DEVICE_KEY) || import.meta.env.VITE_DATA_ENTRY_DEVICE_KEY || null;
 }
 
 /** Remove stored device key */
@@ -61,9 +61,9 @@ export function isKioskTab(): boolean {
 
 // ─── Session check ────────────────────────────────────────────────────────────
 
-/** Returns true if a device key exists in localStorage */
+/** Returns true if a device key is available (localStorage or env fallback) */
 export function hasKioskSession(): boolean {
-  return !!localStorage.getItem(KIOSK_DEVICE_KEY);
+  return !!getDeviceKey();
 }
 
 // ─── Deactivation ─────────────────────────────────────────────────────────────
