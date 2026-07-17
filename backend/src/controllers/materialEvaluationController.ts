@@ -2,6 +2,8 @@ import { Response, NextFunction } from 'express';
 import materialEvaluationService from '@services/materialEvaluationService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 import { getFileUrl } from '@middlewares/upload';
+import { ValidationError } from '@utils/errors';
+import prisma from '@config/database';
 
 interface RequestWithFile extends AuthenticatedRequest {
   file?: Express.Multer.File;
@@ -87,7 +89,18 @@ export class MaterialEvaluationController {
         data.fileDinhKem = getFileUrl('material-evaluations', req.file.filename);
       }
 
-      const evaluation = await materialEvaluationService.createMaterialEvaluation(data, req.user?.id);
+      let userId: string | undefined;
+      if (req.isKioskDevice) {
+        const operatorId = req.kioskOperatorId;
+        if (!operatorId) throw new ValidationError('Thiếu x-operator-id header');
+        const employee = await prisma.employee.findUnique({ where: { id: operatorId } });
+        if (!employee) throw new ValidationError('Người thực hiện không tồn tại');
+        userId = operatorId;
+      } else {
+        userId = req.user?.id;
+      }
+
+      const evaluation = await materialEvaluationService.createMaterialEvaluation(data, userId);
 
       res.status(201).json({
         success: true,

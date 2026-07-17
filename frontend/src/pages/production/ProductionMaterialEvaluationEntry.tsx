@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -24,6 +25,8 @@ import {
   getSelection,
   setSelection,
   clearSelection,
+  getDeviceKey,
+  setDeviceKey,
 } from '../../utils/kioskSession';
 import { parseNumberInput } from '../../utils/numberInput';
 import { getQuickTimesForShift, computeShiftDatetime } from '../../utils/shiftTime';
@@ -200,9 +203,11 @@ const StepProgress: React.FC<StepProgressProps> = ({ currentStep }) => (
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const ProductionMaterialEvaluationEntry: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [kioskExpired, setKioskExpired] = useState(false);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
+  const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [productionDate] = useState<string>(() => {
     const stored = getSelection()?.date;
@@ -218,6 +223,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftLoaded = useRef<boolean>(false);
   const previewUrlRef = useRef<string | null>(null);
+  const [deviceKeyInput, setDeviceKeyInput] = useState('');
 
   // ─── Today's evaluations (chip list) ──────────────────────────────────────
   const todayStartISO = useMemo(() => {
@@ -238,10 +244,14 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   });
   const todayEvals = todayEvalsResult?.data ?? [];
 
-  // ─── Mark tab as kiosk ────────────────────────────────────────────────────
+  // ─── Mark tab as kiosk + read device key from URL ─────────────────────────
   useEffect(() => {
     markTab();
-  }, []);
+    const paramKey = searchParams.get('deviceKey');
+    if (paramKey && !getDeviceKey()) {
+      setDeviceKey(paramKey);
+    }
+  }, [searchParams]);
 
   // ─── Listen for kiosk-expired events ──────────────────────────────────────
   useEffect(() => {
@@ -255,11 +265,12 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     if (!nguoiThucHien) return;
     setSelection({
       operator: nguoiThucHien,
+      operatorId,
       shift: selectedShift,
       date: productionDate,
       activeTab: '',
     });
-  }, [nguoiThucHien, selectedShift, productionDate]);
+  }, [nguoiThucHien, operatorId, selectedShift, productionDate]);
 
   // ─── Load criteria on mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -362,8 +373,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   }, []);
 
   // ─── Handlers: operator + shift + session end ─────────────────────────────
-  const handleOperatorSelect = useCallback((name: string) => {
-    setNguoiThucHien(name);
+  const handleOperatorSelect = useCallback((sel: { id: string; name: string }) => {
+    setNguoiThucHien(sel.name);
+    setOperatorId(sel.id);
   }, []);
 
   const handleShiftSelect = useCallback((shift: number) => {
@@ -373,6 +385,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const handleBackToOperator = useCallback(() => {
     clearSelection();
     setNguoiThucHien('');
+    setOperatorId('');
     setSelectedShift(0);
     setCurrentStep(2);
     setWizardData(initialWizardData);
@@ -404,6 +417,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     if (draftKey) localStorage.removeItem(draftKey);
     clearSelection();
     setNguoiThucHien('');
+    setOperatorId('');
     setSelectedShift(0);
     setCurrentStep(2);
     setWizardData(initialWizardData);
@@ -632,7 +646,30 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   // ─── Session guards ──────────────────────────────────────────────────────
   if (!isKioskTab() && !hasKioskSession()) return <NotActivatedScreen />;
   if (kioskExpired) return <ExpiredScreen />;
-  if (isKioskTab() && !hasKioskSession()) return <NotActivatedScreen />;
+  if (isKioskTab() && !hasKioskSession()) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+        <div className="max-w-sm w-full bg-white rounded-2xl shadow-sm p-6 space-y-4">
+          <h1 className="text-lg font-semibold text-gray-800 text-center">Nhập Device Key</h1>
+          <p className="text-sm text-gray-500 text-center">Liên hệ quản trị viên để lấy mã thiết bị.</p>
+          <input
+            type="text"
+            value={deviceKeyInput}
+            onChange={(e) => setDeviceKeyInput(e.target.value)}
+            placeholder="Dán device key..."
+            className="w-full min-h-[48px] px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            disabled={!deviceKeyInput.trim()}
+            onClick={() => { setDeviceKey(deviceKeyInput.trim()); setDeviceKeyInput(''); }}
+            className="w-full min-h-[48px] bg-blue-600 text-white rounded-xl font-medium disabled:opacity-40"
+          >
+            Xác nhận
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (!nguoiThucHien) return <OperatorSelectionScreen onSelect={handleOperatorSelect} />;
   if (!selectedShift) {
     return (

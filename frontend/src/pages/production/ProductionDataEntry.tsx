@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useActiveFryerMachineSystems } from '../../hooks/useMachineSystemDetails';
 import {
   useFryBatchCodes,
@@ -8,7 +9,7 @@ import {
   indexFinishedProducts,
   DirtyRecord,
 } from '../../hooks/useProductionDataEntry';
-import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT, getSelection, setSelection, clearSelection } from '../../utils/kioskSession';
+import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT, getSelection, setSelection, clearSelection, getDeviceKey, setDeviceKey } from '../../utils/kioskSession';
 import { parseNumberInput } from '../../utils/numberInput';
 import { FinishedProduct } from '../../services/finishedProductService';
 import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
@@ -275,8 +276,10 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 const ProductionDataEntry: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [kioskExpired, setKioskExpired] = useState(false);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
+  const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [productionDate, setProductionDate] = useState<string>(() => {
     const stored = getSelection()?.date;
@@ -287,6 +290,7 @@ const ProductionDataEntry: React.FC = () => {
     return stored && isValidTab(stored) ? stored : 'A';
   });
   const [showPreview, setShowPreview] = useState(false);
+  const [deviceKeyInput, setDeviceKeyInput] = useState('');
 
   // Board state: weight values per tab per cell
   const [board, setBoard] = useState<BoardData>(() => ({
@@ -301,10 +305,14 @@ const ProductionDataEntry: React.FC = () => {
   }));
   const baselineLoaded = useRef(false);
 
-  // Mark this tab as kiosk on mount
+  // Mark this tab as kiosk on mount + read device key from URL query param
   useEffect(() => {
     markTab();
-  }, []);
+    const paramKey = searchParams.get('deviceKey');
+    if (paramKey && !getDeviceKey()) {
+      setDeviceKey(paramKey);
+    }
+  }, [searchParams]);
 
   // Listen for kiosk-expired events from apiClient
   useEffect(() => {
@@ -318,11 +326,12 @@ const ProductionDataEntry: React.FC = () => {
     if (!nguoiThucHien) return; // Don't write rác khi chưa chọn
     setSelection({
       operator: nguoiThucHien,
+      operatorId,
       shift: selectedShift,
       date: productionDate,
       activeTab,
     });
-  }, [nguoiThucHien, selectedShift, productionDate, activeTab]);
+  }, [nguoiThucHien, operatorId, selectedShift, productionDate, activeTab]);
 
   // Data hooks
   const { data: allBatches, isLoading: batchesLoading } = useFryBatchCodes();
@@ -573,6 +582,7 @@ const ProductionDataEntry: React.FC = () => {
       localStorage.removeItem(draftKey);
       clearSelection();
       setNguoiThucHien('');
+      setOperatorId('');
       setSelectedShift(0);
       setActiveTab('A');
       setProductionDate(todayStr());
@@ -589,6 +599,7 @@ const ProductionDataEntry: React.FC = () => {
         clearSelection();
         // Reset to name selection
         setNguoiThucHien('');
+        setOperatorId('');
         setSelectedShift(0);
         setActiveTab('A');
         setProductionDate(todayStr());
@@ -632,6 +643,7 @@ const ProductionDataEntry: React.FC = () => {
     }
     clearSelection();
     setNguoiThucHien('');
+    setOperatorId('');
     setSelectedShift(0);
     setActiveTab('A');
     // Giữ nguyên productionDate — user thường vẫn nhập cho ngày đang xem
@@ -647,12 +659,34 @@ const ProductionDataEntry: React.FC = () => {
   }
 
   if (isKioskTab() && !hasKioskSession()) {
-    return <NotActivatedScreen />;
+    // No device key — prompt for entry
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+        <div className="max-w-sm w-full bg-white rounded-2xl shadow-sm p-6 space-y-4">
+          <h1 className="text-lg font-semibold text-gray-800 text-center">Nhập Device Key</h1>
+          <p className="text-sm text-gray-500 text-center">Liên hệ quản trị viên để lấy mã thiết bị.</p>
+          <input
+            type="text"
+            value={deviceKeyInput}
+            onChange={(e) => setDeviceKeyInput(e.target.value)}
+            placeholder="Dán device key..."
+            className="w-full min-h-[48px] px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            disabled={!deviceKeyInput.trim()}
+            onClick={() => { setDeviceKey(deviceKeyInput.trim()); setDeviceKeyInput(''); }}
+            className="w-full min-h-[48px] bg-blue-600 text-white rounded-xl font-medium disabled:opacity-40"
+          >
+            Xác nhận
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // ─── Operator selection gate ─────────────────────────────────────────────
   if (!nguoiThucHien) {
-    return <OperatorSelectionScreen onSelect={setNguoiThucHien} />;
+    return <OperatorSelectionScreen onSelect={(sel) => { setNguoiThucHien(sel.name); setOperatorId(sel.id); }} />;
   }
 
   // ─── Shift selection gate ────────────────────────────────────────────────
@@ -660,7 +694,7 @@ const ProductionDataEntry: React.FC = () => {
     return (
       <ShiftSelectionScreen
         onSelect={setSelectedShift}
-        onBack={() => { clearSelection(); setNguoiThucHien(''); setSelectedShift(0); setActiveTab('A'); }}
+        onBack={() => { clearSelection(); setNguoiThucHien(''); setOperatorId(''); setSelectedShift(0); setActiveTab('A'); }}
         operatorName={nguoiThucHien}
       />
     );
